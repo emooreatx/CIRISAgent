@@ -1,0 +1,128 @@
+Below is a starter Python sketch for a CIRIS‑agent “memory ledger” built as a causal graph. It shows how you might record each reasoning step as a node (with inputs, outputs, ethical tags, PDMA decisions, etc.), link them causally, and provide hooks for drift detection and deferral.
+
+import uuid
+import datetime
+import networkx as nx
+
+class CirisMemoryLedger:
+    def __init__(self):
+        # Directed acyclic graph of reasoning steps
+        self.graph = nx.DiGraph()
+        # Anchor the “core identity” node
+        root_id = str(uuid.uuid4())
+        self.graph.add_node(root_id, 
+            type="core_identity",
+            timestamp=datetime.datetime.utcnow().isoformat(),
+            tags=["Integrity","Continuity"]
+        )
+        self.latest = root_id
+
+    def record_step(self, *, 
+                    input_data: str,
+                    output_data: str,
+                    ethical_tags: list[str],
+                    pdma_decision: str,
+                    parent: str = None
+                   ) -> str:
+        """Add a reasoning step node and link it to its parent."""
+        node_id = str(uuid.uuid4())
+        self.graph.add_node(node_id,
+            type="reasoning_step",
+            timestamp=datetime.datetime.utcnow().isoformat(),
+            input=input_data,
+            output=output_data,
+            tags=ethical_tags,
+            pdma=pdma_decision
+        )
+        # Default parent = latest step
+        parent = parent or self.latest
+        self.graph.add_edge(parent, node_id, relation="causal")
+        self.latest = node_id
+        return node_id
+
+    def branch(self, *, from_node: str) -> str:
+        """Create a fork: start a new line of reasoning from from_node."""
+        fork_id = str(uuid.uuid4())
+        self.graph.add_node(fork_id,
+            type="branch_marker",
+            timestamp=datetime.datetime.utcnow().isoformat(),
+            tags=["Branch"]
+        )
+        self.graph.add_edge(from_node, fork_id, relation="fork")
+        self.latest = fork_id
+        return fork_id
+
+    def detect_drift(self, *, threshold: float = 0.7) -> list[str]:
+        """
+        Simple drift detector: compare the latest node's tags
+        against the root’s core tags, return nodes whose
+        cosine_similarity(tags) < threshold.
+        (You’d replace this stub with real semantic/tag analysis.)
+        """
+        core_tags = set(self.graph.nodes[next(iter(self.graph.nodes))]['tags'])
+        drifted = []
+        for nid, data in self.graph.nodes(data=True):
+            if data.get("type")=="reasoning_step":
+                overlap = len(core_tags & set(data["tags"]))
+                score = overlap / max(len(core_tags), len(data["tags"]))
+                if score < threshold:
+                    drifted.append(nid)
+        return drifted
+
+    def visualize(self, path="ciris_memory.png"):
+        """Dump a quick PNG of the current ledger graph (requires Graphviz)."""
+        try:
+            nx.nx_agraph.to_agraph(self.graph).draw(path, prog="dot")
+            print(f"Ledger graph written to {path}")
+        except Exception as e:
+            print("Install pygraphviz or check Graphviz:", e)
+
+How it maps to CIRIS requirements
+
+1. Traceable Reasoning
+
+Every node holds input, output, pdma decision and tags (ethical filters applied).
+
+
+
+2. Causality & Forking
+
+Edges labeled "causal" vs. "fork" let you reconstruct both linear and branched thought flows.
+
+
+
+3. Drift Detection
+
+detect_drift() shows where tag‑overlap (a proxy for coherence) falls below the threshold. You’d replace that with real semantic or vector‑based checks.
+
+
+
+4. Deferral & Reflection
+
+You can intercept drifted nodes and invoke a deferral routine—e.g. pause, re‑evaluate with more context, or trigger a “wisdom‑based deferral.”
+
+
+
+5. Identity Coherence
+
+The very first node is the “core_identity” anchor; you never delete it, so all future nodes can always be audited against that identity.
+
+
+
+
+
+---
+
+Next Steps
+
+Plug in a vector store (e.g. LlamaIndex or a semantic embedding DB) for richer tag‑similarity and drift‐scoring.
+
+Persist this graph to disk or a real graph‑DB (Neo4j, ArangoDB) so the agent can reboot and pick up its full history.
+
+Enhance nodes with confidence scores, token counts, or external observations.
+
+Build a small API over it so other agents or governance modules can query “show me all steps since the last deferral” or “explain why we paused here.”
+
+
+This gives you a true ledger of agent memory and reasoning—anchored in CIRIS’s principles and ready for audit, reflection, and dynamic real‑time alignment.
+
