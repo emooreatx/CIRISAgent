@@ -81,6 +81,8 @@ class _TamperEvidentLogger:
         raise NotImplementedError
 
 class EncryptedTamperEvidentLogger(_TamperEvidentLogger):
+    _chain_hash = None
+
     """Hash-chained encrypted logger"""
     def __init__(self, path: str = LOG_PATH):
         super().__init__(path)
