@@ -2,15 +2,25 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: Debug Pytest",
-      "type": "debugpy",  // Updated to use the new debugger
+      "name": "Python: Debug /final_test_reddit.py",
+      "type": "debugpy",
       "request": "launch",
-    //   "program": "${workspaceFolder}/final_test_reddit.py",
       "module": "pytest",
       "args": [
-        "${workspaceFolder}/final_test_reddit.py",  // Path to your test file
+        "${workspaceFolder}/final_test_reddit.py",
         "--maxfail=1",  // Stop after the first failure
-        "--disable-warnings"  // Disable warnings for cleaner output
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: Debug test_reddit.py",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "${workspaceFolder}/test_reddit.py",
+        "--maxfail=1",  // Stop after the first failure
       ],
       "console": "integratedTerminal",
       "justMyCode": true
