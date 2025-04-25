@@ -1,0 +1,13 @@
+env.sh
+venv/
+*.pyc
+__pycache__/
+.pytest_cache
+*.pyo
+*.pyd
+*.db
+*.sqlite
+*.log
+*.egg-info/
+*.egg
+*.whl
