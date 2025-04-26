@@ -21,6 +21,9 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from autogen.agents.experimental import ReasoningAgent
 
+import matplotlib
+matplotlib.use("Agg")  # Use a non-interactive backend to avoid GUI issues
+
 ################################################################################
 # CONSTANTS & UTILITIES
 ################################################################################
