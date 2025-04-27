@@ -16,6 +16,7 @@ This repository demonstrates a dual-mode testing framework for AI governance age
 | `test_memory_graph.py`  | Unit tests for the memory graph functionality.                                          |
 | `run_arango.sh`         | Shell script to set up the ArangoDB container for the memory graph.                     |
 | `debug_memory_graph.py` | **Debug tool:** creates a sample memory graph and demonstrates graph operations.        |
+| `ciris_discord_agent.py`| CIRIS Discord agent implementation (governance logic and Discord integration).          |
 
 ---
 
@@ -217,6 +218,50 @@ For integration testing with a real ArangoDB instance:
 
 ---
 
+## 6. `ciris_discord_agent.py` — CIRIS Discord Agent
+
+**Purpose:**  
+Implements a Discord bot that applies CIRIS governance logic to Discord server discussions.  
+Integrates with Discord via discord.py and with LLMs via OpenAI.
+
+**Dependencies:**
+pip install discord.py openai python-dotenv
+
+
+**Environment:**
+Export the following envionment variables:
+
+**Required:**
+- `DISCORD_BOT_TOKEN`: Your Discord bot's authentication token. **Keep this secret.** You can get this from the Discord Developer Portal.
+- `OPENAI_API_KEY`: Your API key for OpenAI services.
+
+**Optional:**
+- `DISCORD_SERVER_ID`: The ID of the Discord server (guild) you want the bot to operate in. If not set, the bot will default to the discord 'CIRIS Covenant' server.
+- `DISCORD_CHANNEL_ID`: A comma-separated list of channel IDs the bot should monitor. If set, the bot will *only* monitor these specific channels (and ignore mentions/DMs elsewhere unless a DM channel ID is somehow included).  If not set, the bot will default to the discord `nursery-text` channel.
+
+**Example `.env` file:**
+```dotenv
+# Required
+DISCORD_BOT_TOKEN=your_discord_bot_token_here
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Optional
+# DISCORD_SERVER_ID=your_server_id_here
+# DISCORD_CHANNEL_ID=channel_id_1,channel_id_2
+```
+
+**Usage:**
+python ciris_discord_agent.py
+
+**How it works:**
+- Connects to Discord using a bot token and monitors messages based on its configuration.
+- Processes messages in specific channels or where it is mentioned (`@botname`) or sent directly to it (DMs).
+- Generates responses using OpenAI models, aligned with CIRIS principles (Do-Good, Avoid-Harm, Honor-Autonomy, Ensure-Fairness).
+- Performs a "Coherence Assessment" on the generated response using another LLM call to check its estimated `entropy` (disorder) and `coherence` (ethical alignment).
+- Applies "Wisdom-Based Deferral" (WBD): If the response's entropy is too high or coherence is too low, it logs a warning and *does not* send the reply. Otherwise, it sends the reply to the Discord channel.
+
+---
+
 ## Example: Running the Suite
 
 ### 1. Offline/Unit Tests
@@ -228,6 +273,11 @@ python -m pytest final_test_reddit.py
 export OPENAI_API_KEY="sk-your-openai-key"
 export CIRIS_ENCRYPTION_KEY="testkey"
 python test_reddit.py
+
+### 3. Discord Agent
+
+Create a `.env` file with your bot token and OpenAI API key, then run:
+python ciris_discord_agent.py
 
 ---
 
@@ -253,6 +303,12 @@ numpy
 matplotlib
 pygraphviz
 
+**For Discord agent (`ciris_discord_agent.py`):**
+
+discord.py
+openai
+python-dotenv
+
 ---
 
 ## Notes
@@ -274,3 +330,4 @@ pygraphviz
 - [NetworkX](https://networkx.org/)
 - [Sentence Transformers](https://www.sbert.net/)
 - [PyGraphviz](https://pygraphviz.github.io/)
+- [discord.py](https://discordpy.readthedocs.io/)
