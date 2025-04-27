@@ -64,7 +64,7 @@ class CIRISFacultiesMixin:
         # if entropy > 0.05 or coherence < 0.95:
         logging.info(f"Entropy & Coherence\nentropy={entropy:.2f} coherence={coherence:.2f}")
 
-        if entropy > 0.8 or coherence < 0.7:
+        if entropy >= 0.3 or coherence <= 0.8:
             return False, f"[WBD] entropy={entropy:.2f} coherence={coherence:.2f} - deferring"
         return True, "resonance ok"
 
@@ -76,13 +76,27 @@ class CIRISDiscordAgent(CIRISFacultiesMixin):
         # Store target channels as a set of integers for efficient lookup
         self.target_channels = set(int(cid) for cid in target_channels) if target_channels else None
         self.target_server_id = int(target_server_id) if target_server_id else None # Store target server ID
+
+        deferral_channel_id = '1366054509029228657'
+
+        self.target_deferral_channel_id = os.environ.get("DISCORD_DEFERRAL_CHANNEL", deferral_channel_id)
+        self.deferral_channel_source = "environment variable" if deferral_channel_id else "default value"
+
+        if self.target_deferral_channel_id:
+            logging.info(f"Targeting deferral channel ID: {self.target_deferral_channel_id} (from {self.deferral_channel_source})")
+        else:
+            logging.info("Not targeting a specific channel.")
+
         self.open_ai_client = OpenAI(
             api_key=OPENAI_API_KEY,
             base_url=OPENAI_API_BASE,
         )
+
         self.register_events()
 
     def register_events(self):
+        DISCORD_DEFERRAL_CHANNEL = os.environ.get("DISCORD_DEFERRAL_CHANNEL")
+
         @self.client.event
         async def on_ready():
             logging.info(f'Logged in as {self.client.user}')
@@ -136,11 +150,37 @@ class CIRISDiscordAgent(CIRISFacultiesMixin):
             if passes_guardrails:
                 logging.info(f"Sending reply: {potential_reply_text}")
                 await message.reply(potential_reply_text) # Use reply to quote the original message
-                # Or use message.channel.send(potential_reply_text) for a simple message
             else:
                 logging.warning(f"Reply blocked by guardrails: {reason}")
-                # Optionally send a deferral message or take other action
-                # await message.channel.send(f"Thinking... ({reason})")
+                # New: Send deferral details (original message and reason) to a designated discord channel
+                deferral_channel = self.client.get_channel(int(self.target_deferral_channel_id))
+                if deferral_channel:
+                    await deferral_channel.send(
+f"""
+Deferral from {message.author} in Channel `{message.channel.name}`:
+
+Message:
+```
+{message.content}
+```
+
+Potential Reply:
+```
+{potential_reply_text}
+```
+
+Guardrails Check:
+```
+{self._sense_alignment(potential_reply_text)}
+```
+
+Reason:
+```
+{reason}
+```
+"""
+                    )
+
 
     def generate_response(self, message_content):
         logging.info(f"Generating response for: {message_content[:50]}...")
@@ -190,7 +230,7 @@ if __name__ == "__main__":
 
     # Get target channels and server from environment variables, using defaults if not set
     default_server_id = '1364300186003968060'
-    default_channel_id = '1365761978265636985'
+    default_channel_id = '1365904496286498836'
 
     target_server_id = os.environ.get("DISCORD_SERVER_ID", default_server_id)
     server_source = "environment variable" if target_server_id else "default value"
