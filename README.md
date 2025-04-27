@@ -227,9 +227,8 @@ Integrates with Discord via discord.py and with LLMs via OpenAI.
 **Dependencies:**
 pip install discord.py openai python-dotenv
 
-
 **Environment:**
-Export the following envionment variables:
+Export the following environment variables:
 
 **Required:**
 - `DISCORD_BOT_TOKEN`: Your Discord bot's authentication token. **Keep this secret.** You can get this from the Discord Developer Portal.
@@ -238,6 +237,7 @@ Export the following envionment variables:
 **Optional:**
 - `DISCORD_SERVER_ID`: The ID of the Discord server (guild) you want the bot to operate in. If not set, the bot will default to the discord 'CIRIS Covenant' server.
 - `DISCORD_CHANNEL_ID`: A comma-separated list of channel IDs the bot should monitor. If set, the bot will *only* monitor these specific channels (and ignore mentions/DMs elsewhere unless a DM channel ID is somehow included).  If not set, the bot will default to the discord `nursery-text` channel.
+- `DISCORD_DEFERRAL_CHANNEL`: The Discord channel ID where deferral messages (blocked replies) are sent.
 
 **Example `.env` file:**
 ```dotenv
@@ -248,6 +248,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 # Optional
 # DISCORD_SERVER_ID=your_server_id_here
 # DISCORD_CHANNEL_ID=channel_id_1,channel_id_2
+# DISCORD_DEFERRAL_CHANNEL=deferral_channel_id_here
 ```
 
 **Usage:**
