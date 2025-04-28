@@ -345,7 +345,7 @@ python-dotenv
 ## References
 
 - [OpenAI Python SDK](https://pypi.org/project/openai/)
-- [AutoGen by Microsoft](https://github.com/microsoft/autogen)
+- [AG2](https://ag2.ai/)
 - [PRAW (Python Reddit API Wrapper)](https://praw.readthedocs.io/)
 - [cryptography](https://cryptography.io/en/latest/)
 - [python-arango](https://python-arango.readthedocs.io/)
