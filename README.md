@@ -17,6 +17,7 @@ This repository demonstrates a dual-mode testing framework for AI governance age
 | `run_arango.sh`         | Shell script to set up the ArangoDB container for the memory graph.                     |
 | `debug_memory_graph.py` | **Debug tool:** creates a sample memory graph and demonstrates graph operations.        |
 | `ciris_discord_agent.py`| CIRIS Discord agent implementation (governance logic and Discord integration).          |
+| `run_discord_agent.sh`  | Shell script to set up and run the Discord agent.                                       |
 
 ---
 
@@ -252,7 +253,25 @@ OPENAI_API_KEY=your_openai_api_key_here
 ```
 
 **Usage:**
-python ciris_discord_agent.py
+
+### Using the Shell Script (Recommended)
+
+We now provide a convenient shell script to run the Discord agent:
+
+```bash
+./run_discord_agent.sh
+```
+
+This script handles environment setup and launches the agent with appropriate configurations.
+
+### Manual Method
+
+If you prefer to run the agent manually:
+
+```bash
+cd src/agents/discord_agent
+python main.py
+```
 
 **How it works:**
 - Connects to Discord using a bot token and monitors messages based on its configuration.
@@ -278,7 +297,9 @@ python test_reddit.py
 ### 3. Discord Agent
 
 Create a `.env` file with your bot token and OpenAI API key, then run:
-python ciris_discord_agent.py
+```bash
+./run_discord_agent.sh
+```
 
 ---
 
