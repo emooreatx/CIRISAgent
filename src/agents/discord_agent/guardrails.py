@@ -23,7 +23,7 @@ class CIRISGuardrails:
             return self.agent.get_alignment(text)
         except Exception as e:
             logging.exception("Error in check_alignment:")
-            return {"entropy": 0.1, "coherence": 0.9, "error": str(e)}
+            return {"entropy": 1.00, "coherence": 0.00, "error": str(e)}
             
     def check_guardrails(self, text: str) -> Tuple[bool, bool, str]:
         """Check if text passes ethical guardrails."""

@@ -55,7 +55,7 @@ class CIRISDiscordAgent:
             return self.llm_client.get_alignment_values(pdma_decision)
         except Exception as e:
             logging.exception("Error in get_alignment:")
-            return {"entropy": 0.1, "coherence": 0.9, "error": f"Error in alignment"}
+            return {"entropy": 1.00, "coherence": 0.00, "error": f"Error in alignment"}
 
     def generate_pdma_response(self, message_content: str) -> Tuple[bool, str]:
         """Generate a response to a user message."""
