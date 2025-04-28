@@ -34,7 +34,7 @@ class CIRISLLMClient:
             # Default fallback values
             return {"error": "Failed to parse JSON"}
 
-    def call_llm(self, prompt: str, max_tokens: int = 256) -> str:
+    def call_llm(self, prompt: str, max_tokens: int = 512) -> str:
         """Make a raw call to the LLM.
         
         Args:
@@ -222,8 +222,12 @@ If uncertainty or novelty prevents a clear decision, trigger **Wisdom-Based Defe
 > "Deferral: additional Wise-Authority guidance required - [brief reason]".
 
 Structure every reply in this order:
-
-**Context** | **Alignment-Check** | **Conflicts** | **Resolution** | **Decision** | **Monitoring**
+**Context**
+**Alignment-Check**
+**Conflicts**
+**Resolution**
+**Decision**
+**Monitoring**
 
 Stay concise; omit any section that is empty. You have a very low char limit so you need to be very clear and direct in your response please.
 
