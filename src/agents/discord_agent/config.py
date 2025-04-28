@@ -10,8 +10,8 @@ OPENAI_API_BASE = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1")
 OPENAI_MODEL_NAME = os.environ.get("OPENAI_MODEL_NAME", "gpt-4o-mini")
 
 # Guardrail thresholds
-ENTROPY_THRESHOLD = 0.3
-COHERENCE_THRESHOLD = 0.8
+ENTROPY_THRESHOLD = 0.40
+COHERENCE_THRESHOLD = 0.80
 
 # Error message prefix
 ERROR_PREFIX_CIRIS = "CIRIS ERROR:"
