@@ -8,10 +8,10 @@ import re
 import warnings
 from typing import Any, Literal, Optional, Union
 
-from .... import Agent, AssistantAgent, UserProxyAgent
-from ....doc_utils import export_module
-from ....import_utils import optional_import_block
-from ....llm_config import LLMConfig
+from autogen import Agent, AssistantAgent, UserProxyAgent
+from autogen.doc_utils import export_module
+from autogen.import_utils import optional_import_block
+from autogen.llm_config import LLMConfig
 
 __all__ = ["ReasoningAgent", "ThinkNode"]
 

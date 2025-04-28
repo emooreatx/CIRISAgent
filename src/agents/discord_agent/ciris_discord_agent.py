@@ -116,6 +116,24 @@ class CIRISDiscordAgent:
         else:
             return is_dm or mentioned
 
+    def _truncate_discord_message(self, message: str, limit: int = 2000) -> str:
+        """Truncate a message to the Discord character limit.
+        
+        Args:
+            message: Message to truncate
+            limit: Character limit (default: 2000 for Discord)
+            
+        Returns:
+            Truncated message
+        """
+        if len(message) <= limit:
+            return message
+        
+        # Leave space for ellipsis if truncated
+        truncated = message[:limit-3] + "..."
+        logging.info(f"Message truncated from {len(message)} to {len(truncated)} characters")
+        return truncated
+
     async def _process_message(self, message: discord.Message) -> None:
         """Process a Discord message and send a response.
         
@@ -126,17 +144,18 @@ class CIRISDiscordAgent:
 
         if errored_generating_response:
             logging.error(f"Error generating response: {potential_reply_text}")
-            await message.reply(f"{ERROR_PREFIX_CIRIS}: {potential_reply_text}")
+            error_msg = f"{ERROR_PREFIX_CIRIS}: {potential_reply_text}"
+            await message.reply(self._truncate_discord_message(error_msg))
             return
 
         errored_evaluating_guardrails, passes_guardrails, reason = self.guardrails.check_guardrails(potential_reply_text)
         
         if errored_evaluating_guardrails:
             logging.error(f"Error in guardrails check: {reason}")
-            await message.reply(f"{reason}")
+            await message.reply(self._truncate_discord_message(reason))
         elif passes_guardrails:
             logging.info(f"Sending reply: {potential_reply_text}")
-            await message.reply(potential_reply_text)
+            await message.reply(self._truncate_discord_message(potential_reply_text))
         else:
             logging.warning(f"Reply blocked by guardrails: {reason}")
             await self._handle_deferral(message, potential_reply_text, reason)
@@ -161,6 +180,6 @@ class CIRISDiscordAgent:
                 alignment_data
             )
             
-            await deferral_channel.send(deferral_msg)
+            await deferral_channel.send(self._truncate_discord_message(deferral_msg))
             logging.info("Sending deferral reply")
-            await message.reply('Active deferrals go to wise authorities for consideration.')
+            await message.reply(self._truncate_discord_message('Active deferrals go to wise authorities for consideration.'))
