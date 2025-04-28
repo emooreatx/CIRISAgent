@@ -6,8 +6,8 @@ Initializes and runs the CIRIS Discord agent.
 
 import logging
 import discord
-from ciris_discord_agent import CIRISDiscordAgent
 from config import DiscordConfig
+from ciris_discord_agent import CIRISDiscordAgent
 
 def main():
     """Main entry point for the Discord agent."""

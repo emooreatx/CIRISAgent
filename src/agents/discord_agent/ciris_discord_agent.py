@@ -8,28 +8,18 @@ Key design goals:
 - Ethical Drift Detection – replies are scored for divergence from Do-Good / Avoid-Harm / Honor-Autonomy / Ensure-Fairness before posting.
 - Rationale Generation & Transparency – agent stores an explain() for each act, posted in a comment footer if the user requests it.
 - Wisdom-Based Deferral (WBD) – if coherence < 0.95 or entropy > 0.05 the agent defers with a self-explanatory pause message instead of posting.
-
-Required env vars:
-DISCORD_BOT_TOKEN
-OPENAI_API_KEY  # or AG2-compatible LLM creds
-# Optional: DISCORD_TARGET_CHANNELS (comma-separated list of channel IDs)
-# Optional: DISCORD_SERVER_ID (server ID to restrict bot operations)
-
-Install deps:
-pip install discord.py openai python-dotenv # add ag2 when public
 """
 
-import os
 import logging
-from typing import Tuple
-
+from typing import Tuple, Dict, Any
 import discord
 
 from config import (
     OPENAI_API_KEY, 
     OPENAI_API_BASE, 
     ERROR_PREFIX_CIRIS, 
-    DiscordConfig
+    DiscordConfig,
+    OPENAI_MODEL_NAME
 )
 from llm_client import CIRISLLMClient
 from guardrails import CIRISGuardrails
@@ -47,11 +37,36 @@ class CIRISDiscordAgent:
         self.client = client
         self.config = config
         
-        # Initialize LLM client and guardrails
-        self.llm_client = CIRISLLMClient(config.openai_api_key, config.openai_api_base)
-        self.guardrails = CIRISGuardrails(self.llm_client)
+        # Initialize LLM client with model name from config
+        self.llm_client = CIRISLLMClient(
+            config.openai_api_key, 
+            config.openai_api_base,
+            config.model_name
+        )
+        self.guardrails = CIRISGuardrails(self)  # Pass self as we now own the LLM methods
         
         self.register_events()
+
+    def get_alignment(self, pdma_text: str) -> Dict[str, Any]:
+        """Assess ethical alignment of text using dual LLM calls."""
+        try:
+            # Use the new method that makes two calls
+            pdma_decision = CIRISLLMClient.extract_decision_from_pdm_reply(pdma_text)
+            return self.llm_client.get_alignment_values(pdma_decision)
+        except Exception as e:
+            logging.exception("Error in get_alignment:")
+            return {"entropy": 0.1, "coherence": 0.9, "error": f"Error in alignment"}
+
+    def generate_pdma_response(self, message_content: str) -> Tuple[bool, str]:
+        """Generate a response to a user message."""
+        logging.info(f"Generating response for: {message_content[:50]}...")
+        try:
+            prompt = CIRISLLMClient.create_pdma_prompt(message_content)
+            response = self.llm_client.call_llm(prompt)
+            return False, response
+        except Exception as e:
+            logging.exception("Error generating LLM response:")
+            return True, f"{ERROR_PREFIX_CIRIS}: Reply generation failed. Please try again later."
 
     def register_events(self) -> None:
         """Register Discord event handlers."""
@@ -107,7 +122,7 @@ class CIRISDiscordAgent:
         Args:
             message: Discord message to process
         """
-        errored_generating_response, potential_reply_text = self.generate_response(message.content)
+        errored_generating_response, potential_reply_text = self.generate_pdma_response(message.content)
 
         if errored_generating_response:
             logging.error(f"Error generating response: {potential_reply_text}")
@@ -149,56 +164,3 @@ class CIRISDiscordAgent:
             await deferral_channel.send(deferral_msg)
             logging.info("Sending deferral reply")
             await message.reply('Active deferrals go to wise authorities for consideration.')
-
-    def generate_response(self, message_content: str) -> Tuple[bool, str]:
-        """Generate a response to a user message.
-        
-        Args:
-            message_content: User's message content
-            
-        Returns:
-            Tuple of (error_occurred, response_text)
-        """
-        logging.info(f"Generating response for: {message_content[:50]}...")
-        try:
-            prompt = CIRISLLMClient.create_pdma_prompt(message_content)
-            response = self.llm_client.generate_response(prompt)
-            return False, response
-        except Exception as e:
-            logging.exception("Error generating LLM response:")
-            return True, f"{ERROR_PREFIX_CIRIS}: Reply generation failed. Please try again later."
-
-
-# ---------- bootstrap -------------------------------------------------------
-
-def main():
-    """Main entry point for the Discord agent."""
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-
-    # Set up Discord configuration
-    config = DiscordConfig()
-    if not config.validate():
-        exit(1)
-        
-    config.log_config()
-
-    # Set up Discord client
-    intents = discord.Intents.none()
-    intents.guilds = True
-    intents.messages = True
-    intents.message_content = True
-    client = discord.Client(intents=intents)
-
-    # Instantiate and run the agent
-    agent = CIRISDiscordAgent(client, config)
-    
-    try:
-        client.run(config.token)
-    except discord.LoginFailure:
-        logging.error("Discord login failed. Check your DISCORD_BOT_TOKEN.")
-    except Exception as e:
-        logging.error(f"An error occurred while running the Discord client: {e}")
-
-
-if __name__ == "__main__":
-    main()
