@@ -1,3 +1,6 @@
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+
 # CIRISAgent Test Suite
 
 CIRISAgent is a prototype Mission-Oriented Moral Reasoning Agent, or MOMRA
@@ -353,10 +356,10 @@ python-dotenv
 - [AG2](https://ag2.ai/)
 
 
-Copyright 2025 CIRIS L3C
+## License
 
-Apache 2.0 Licensed
-- [PRAW (Python Reddit API Wrapper)](https://praw.readthedocs.io/)
+This project is licensed under the [Apache License 2.0](LICENSE).
+Copyright 2025 CIRIS L3C
 - [cryptography](https://cryptography.io/en/latest/)
 - [python-arango](https://python-arango.readthedocs.io/)
 - [NetworkX](https://networkx.org/)
