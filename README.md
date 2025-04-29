@@ -1,4 +1,9 @@
-# CIRIS Agent Test Suite
+# CIRISAgent Test Suite
+
+CIRISAgent is a prototype Mission-Oriented Moral Reasoning Agent, or MOMRA
+
+It is designed for offline mission-critical applications, integrating human oversight and flexible decision making for real world scenarios.
+
 
 This repository demonstrates a dual-mode testing framework for AI governance agents, supporting both **offline unit tests** (no API required) and **integration tests** with the OpenAI API. It includes cryptographic logging, ethical reasoning, and tamper-evident audit trails.
 
@@ -346,6 +351,11 @@ python-dotenv
 
 - [OpenAI Python SDK](https://pypi.org/project/openai/)
 - [AG2](https://ag2.ai/)
+
+
+Copyright 2025 CIRIS L3C
+
+Apache 2.0 Licensed
 - [PRAW (Python Reddit API Wrapper)](https://praw.readthedocs.io/)
 - [cryptography](https://cryptography.io/en/latest/)
 - [python-arango](https://python-arango.readthedocs.io/)
