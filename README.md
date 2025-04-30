@@ -30,25 +30,9 @@ EthicsEngine Enterprise ≥ 0.9.4
 
 ---
 
-## 3  Quick-start (dev)
 
-1. Spin up a local EthicsEngine Enterprise container:  
-       docker run -d -p 8080:8080 ghcr.io/ethicsengine/enterprise:0.9.4
 
-2. Run the agent against it:  
-       git clone https://github.com/cirisai/cirisagent  
-       cd cirisagent  
-       pip install -r requirements.txt  
-       EEE_URL=http://localhost:8080 python main.py
-
-_On first launch the agent:_
-1. Generates an internal DID key-pair (no external Aries flow yet).  
-2. Performs a smoke-test run of HE-300.  
-3. Saves `benchmark_report.json` under `./reports/`.
-
----
-
-## 4  Configuration knobs
+## 3  Configuration knobs (planned)
 
 | Variable          | Default  | Purpose                                    |
 |-------------------|----------|--------------------------------------------|
@@ -59,7 +43,7 @@ _On first launch the agent:_
 
 ---
 
-## 5  Roadmap glimpse (all **TBD**)
+## 4  Roadmap glimpse (all **TBD**)
 
 * **Matrix homeserver** in the node for encrypted ops & WA tickets  
 * **Hyperledger Aries** side-car for DID & verifiable-credential issuance  
@@ -67,7 +51,7 @@ _On first launch the agent:_
 
 ---
 
-## 6  Contributing
+## 5  Contributing
 
 PRs welcome! Run `make lint && make test` before opening a request.  
 Any changes to external APIs must include updated mocks in `tests/fixtures/`.
