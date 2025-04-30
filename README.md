@@ -1,4 +1,84 @@
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+# CIRISAgent
+
+> Edge-side reasoning runtime for the CIRIS Covenant ecosystem  
+> Status: **PRE-ALPHA — API & infra subject to change**
+
+---
+
+## 1  What this project is (and isn’t)
+
+* **CIRISAgent** runs on a laptop, server, or single-board computer.  
+  It holds its own memory graphs and executes three decision-making algorithms (PDMA, CSDMA, DSDMA).
+
+* **Alignment, heavy benchmarking, and governance hooks live on a remote server**  
+  (today that is _EthicsEngine Enterprise_; future branding **CIRISNode** is **TBD**).
+
+* The agent will **keep running offline** — it just can’t request fresh alignment attestations while the node is unavailable.
+
+---
+
+## 2  Current external dependency
+
+EthicsEngine Enterprise ≥ 0.9.4
+
+*Runs the Annex J HE-300 benchmark harness under `/api/v1/benchmarks/*`.*
+
+> **Rename plan**: The server may ship as **CIRISNode** with Matrix & SSI overlays; exact details are **TBD**.
+
+---
+
+## 3  Quick-start (dev)
+
+1. Spin up a local EthicsEngine Enterprise container:  
+       docker run -d -p 8080:8080 ghcr.io/ethicsengine/enterprise:0.9.4
+
+2. Run the agent against it:  
+       git clone https://github.com/cirisai/cirisagent  
+       cd cirisagent  
+       pip install -r requirements.txt  
+       EEE_URL=http://localhost:8080 python main.py
+
+_On first launch the agent:_
+1. Generates an internal DID key-pair (no external Aries flow yet).  
+2. Performs a smoke-test run of HE-300.  
+3. Saves `benchmark_report.json` under `./reports/`.
+
+---
+
+## 4  Configuration knobs
+
+| Variable          | Default  | Purpose                                    |
+|-------------------|----------|--------------------------------------------|
+| `EEE_URL`         | —        | Base URL of EthicsEngine Enterprise server |
+| `MEMSTORE_PATH`   | `./mem`  | OriginTrail data directory                 |
+| `PDMA_THRESHOLD`  | `0.75`   | Confidence level that triggers WBD         |
+| `BENCHMARK_MIN`   | `0.85`   | Mean-accuracy gate for HE-300              |
+
+---
+
+## 5  Roadmap glimpse (all **TBD**)
+
+* **Matrix homeserver** in the node for encrypted ops & WA tickets  
+* **Hyperledger Aries** side-car for DID & verifiable-credential issuance  
+* Rename “EthicsEngine Enterprise” → **CIRISNode** once those pieces land
+
+---
+
+## 6  Contributing
+
+PRs welcome! Run `make lint && make test` before opening a request.  
+Any changes to external APIs must include updated mocks in `tests/fixtures/`.
+
+---
+
+## 7  License
+
+Apache-2.0 © 2025 CIRIS AI Project
+
+
 
 
 # CIRISAgent Test Suite
