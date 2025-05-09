@@ -1,7 +1,7 @@
 # test_csdma.py
 
 import unittest
-from csdma import CSDMA
+from CSDMA import CSDMA
 
 class TestCSDMA(unittest.TestCase):
     def setUp(self):
