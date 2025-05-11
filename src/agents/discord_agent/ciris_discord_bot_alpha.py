@@ -251,7 +251,8 @@ class CIRISDiscordEngineBot:
             try:
                 final_action_result = await self.coordinator.process_thought(
                     thought_item=queued_thought_item,
-                    current_platform_context=queued_thought_item.initial_context
+                    current_platform_context=queued_thought_item.initial_context,
+                    benchmark_mode=False # Pass benchmark_mode as False for normal operation
                 )
             except InstructorRetryException as e_instr:
                 error_detail = e_instr.errors() if hasattr(e_instr, 'errors') else str(e_instr)
@@ -319,8 +320,7 @@ class CIRISDiscordEngineBot:
                     continue 
                 elif action_type == HandlerActionType.REJECT_THOUGHT:
                     logger.info(f"Cycle {script_cycle_count}: Thought {queued_thought_item.thought_id} REJECTED. Rationale: {action_params.get('reason', 'N/A')}")
-                elif action_type == HandlerActionType.NO_ACTION:
-                    logger.info(f"Cycle {script_cycle_count}: Thought {queued_thought_item.thought_id} resulted in NO_ACTION. Rationale: {action_params.get('reason', 'N/A')}")
+                # NO_ACTION was removed, so no specific elif for it here.
 
                 if action_type != HandlerActionType.PONDER: # Ponder re-queue handled by WC, Ponder failure handled above.
                     self.thought_manager.update_thought_status(

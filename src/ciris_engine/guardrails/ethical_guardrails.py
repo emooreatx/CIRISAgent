@@ -75,17 +75,14 @@ class EthicalGuardrails:
 
             return True, "Epistemic checks passed for Speak action.", epistemic_data
 
-        elif action_type == HandlerActionType.USE_TOOL:
-            # Example: Check if tool is on an approved list, or if parameters are safe
-            # This part would require more specific logic based on your tools.
-            # For now, we'll pass it.
-            tool_name_to_log = action_params.get('tool_name', 'Unknown') if action_params else 'Unknown'
-            logging.info(f"Guardrail: Passing USE_TOOL action for tool: {tool_name_to_log}")
-            return True, "USE_TOOL action guardrail check passed (basic).", None
+        # USE_TOOL has been removed from HandlerActionType.
+        # If specific guardrails are needed for other existing actions (PONDER, REJECT_THOUGHT, etc.),
+        # they would be added here as separate elif blocks.
 
-        # For other actions like Ponder, Listen, Defer_TO_WA, Reject_Thought, No_Action
-        # the guardrail might just pass them or have simpler checks.
-        logging.info(f"Guardrail: Action type '{action_type.value}' passed by default (no specific output content to check).")
+        # For other actions like Ponder, DEFER_TO_WA, REJECT_THOUGHT, NO_ACTION
+        # the guardrail currently passes them by default as they don't typically have direct "output content"
+        # in the same way SPEAK does that requires epistemic checking.
+        logging.info(f"Guardrail: Action type '{action_type.value}' passed by default (no specific output content to check for epistemic safety).")
         return True, f"Action type '{action_type.value}' passed guardrail by default.", None
 
     def __repr__(self) -> str:
