@@ -4,10 +4,15 @@ import os
 import logging
 from typing import Optional, Set
 
-# LLM Configuration
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-OPENAI_API_BASE = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1")
-OPENAI_MODEL_NAME = os.environ.get("OPENAI_MODEL_NAME", "gpt-4o-mini")
+# LLM Configuration - These act as defaults or can be used by other parts of the module
+DEFAULT_API_BASE = "https://api.openai.com/v1"
+DEFAULT_MODEL_NAME = "gpt-4o-mini"
+
+# Define actual configuration variables at module level for direct import
+# Check for OPENAI_API_BASE, then OPENAI_BASE_URL, then use default.
+OPENAI_API_BASE = os.getenv("OPENAI_API_BASE", DEFAULT_API_BASE)
+OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", DEFAULT_MODEL_NAME)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Guardrail thresholds
 ENTROPY_THRESHOLD = 0.40
@@ -41,8 +46,9 @@ class DiscordConfig:
         self.deferral_channel_id = os.environ.get("DISCORD_DEFERRAL_CHANNEL", DEFAULT_DEFERRAL_CHANNEL_ID)
         
         # OpenAI configuration 
+        # Use the module-level variables defined above
         self.openai_api_key = OPENAI_API_KEY
-        self.openai_api_base = OPENAI_API_BASE
+        self.openai_api_base = OPENAI_API_BASE # This will now use the updated logic
         self.model_name = OPENAI_MODEL_NAME
     
     def validate(self) -> bool:

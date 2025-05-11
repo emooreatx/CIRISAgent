@@ -1,7 +1,7 @@
 import logging
 import json
 import discord # type: ignore
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ async def handle_discord_speak(
 
 async def handle_discord_deferral(
     discord_client: discord.Client,
-    original_message: discord.Message,
+    original_message_input: Union[discord.Message, Dict[str, Any]],
     action_params: Dict[str, Any],
     deferral_channel_id_str: str
 ) -> None:
@@ -54,11 +54,82 @@ async def handle_discord_deferral(
 
     Args:
         discord_client: The active discord.Client instance.
-        original_message: The original discord.Message object that led to deferral.
+        original_message_input: The original discord.Message object or a dict 
+                                containing 'id' and 'channel_id' of the message.
         action_params: Parameters from ActionSelectionPDMAResult, typically containing
                        reasons for deferral and details of the proposed action.
         deferral_channel_id_str: The ID of the Discord channel to send deferral details to.
     """
+    resolved_original_message: discord.Message | None = None
+
+    if isinstance(original_message_input, discord.Message):
+        resolved_original_message = original_message_input
+    elif isinstance(original_message_input, dict):
+        message_id_str = original_message_input.get("id")
+        channel_id_str = original_message_input.get("channel_id")
+
+        if message_id_str and channel_id_str:
+            try:
+                message_id = int(message_id_str)
+                channel_id = int(channel_id_str)
+                
+                channel = discord_client.get_channel(channel_id)
+                if channel and isinstance(channel, (discord.TextChannel, discord.Thread, discord.DMChannel, discord.GroupChannel, discord.PartialMessageable)):
+                    logger.info(f"Fetching original message {message_id} from channel {channel_id} for deferral.")
+                    resolved_original_message = await channel.fetch_message(message_id)
+                    logger.info(f"Successfully fetched original message {message_id} for deferral.")
+                elif not channel:
+                    logger.error(f"Could not find channel with ID: {channel_id} to fetch original message for deferral.")
+                else:
+                    logger.error(f"Channel with ID: {channel_id} (type: {type(channel)}) is not a messageable channel for deferral.")
+            except discord.NotFound:
+                logger.error(f"Original message with ID {message_id_str} not found in channel {channel_id_str} for deferral.")
+            except discord.Forbidden:
+                logger.error(f"Bot lacks permissions to fetch message {message_id_str} in channel {channel_id_str} for deferral.")
+            except ValueError:
+                logger.error(f"Invalid message_id ('{message_id_str}') or channel_id ('{channel_id_str}') format for deferral. Must be integers.")
+            except discord.HTTPException as e:
+                logger.error(f"Discord API error while fetching original message {message_id_str} from channel {channel_id_str} for deferral: {e.status} {e.text}")
+            except Exception as e:
+                logger.error(f"Unexpected error fetching original message {message_id_str} from channel {channel_id_str} for deferral: {e}", exc_info=True)
+        else:
+            missing_keys = []
+            if not message_id_str: missing_keys.append("'id'")
+            if not channel_id_str: missing_keys.append("'channel_id'")
+            logger.error(
+                f"Original message data (dict) for deferral is missing keys: {', '.join(missing_keys)}."
+            )
+    else:
+        logger.error(
+            f"Unsupported type for original_message_input: {type(original_message_input)} for deferral."
+        )
+
+    if not resolved_original_message:
+        logger.error(
+            "Failed to resolve original message object for deferral. Cannot send deferral notifications."
+        )
+        # Optionally, send a message to the deferral channel if it's configured and the original message is the problem
+        if deferral_channel_id_str:
+            try:
+                deferral_channel_id = int(deferral_channel_id_str)
+                deferral_channel = discord_client.get_channel(deferral_channel_id)
+                if deferral_channel and isinstance(deferral_channel, discord.TextChannel):
+                    await deferral_channel.send(
+                        _truncate_discord_message(
+                            f"**CIRIS Engine Deferral Report - ERROR**\n\n"
+                            f"Failed to resolve the original Discord message for a deferral event. "
+                            f"Input `original_message_input` was: `{str(original_message_input)[:500]}`. "
+                            f"Action params: `{str(action_params)[:500]}`. "
+                            f"The user who triggered this might not have been notified."
+                        )
+                    )
+            except Exception as e_rc:
+                logger.error(f"Failed to send message resolution failure notification to deferral channel: {e_rc}", exc_info=True)
+        return
+
+    # Use resolved_original_message from here onwards
+    original_message = resolved_original_message
+
     reason_for_deferral = action_params.get("reason", "Reason not specified by ActionSelectionPDMA.")
     original_proposed_action = action_params.get("original_proposed_action", "N/A")
     original_action_parameters = action_params.get("original_action_parameters", {})
