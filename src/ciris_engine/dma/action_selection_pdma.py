@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional, List
 import logging
 
 import instructor
+# from instructor import Mode as InstructorMode # REMOVE Mode import
 from openai import AsyncOpenAI
 
 from ciris_engine.core.data_schemas import (
@@ -24,21 +25,126 @@ class ActionSelectionPDMAEvaluator:
     of the Ethical PDMA, CSDMA, and DSDMA, then performs a PDMA process
     to select a single, concrete handler action, using `instructor`.
     """
+    DEFAULT_PROMPT = {
+        "system_header": (
+            "You are the CIRIS Action‑Selection evaluator. "
+            "Given the PDMA, CSDMA and DSDMA results, choose one handler action."
+        ),
+        "decision_format": (
+            "Return JSON with keys: action, confidence, rationale."
+        ),
+        "closing_reminder": (
+            "Remember CIRIS principles override personal preference."
+        ),
+        # Default (Normal Mode) CSDMA Ambiguity Handling Guidance
+        "normal_mode_csdma_ambiguity_guidance": (
+            "If CSDMA highlighted critical ambiguity, highly align 'Speak' (for user clarification) "
+            "or 'Ponder' (to formulate key clarifying questions) with Fidelity & Do-Good."
+        ),
+        "normal_mode_csdma_ambiguity_alignment_example": (
+            """Example: {{"Speak": "Evaluation...", "Ponder": "High alignment due to CSDMA flag."}}"""
+        ),
+        "normal_mode_action_params_speak_csdma_guidance": (
+            "If 'Speak' is chosen, 'message_content' MUST contain the substantive response. If resolving CSDMA-identified ambiguity, "
+            "'message_content' MUST be a concise question to the user for clarification (e.g., {{\"message_content\": \"To clarify, what do you mean by 'X'?\"}})."
+        ),
+        "normal_mode_action_params_ponder_guidance": (
+            "If 'Ponder' is chosen (and not in final benchmark attempt under benchmark_mode, or if advisory allows), 'key_questions' MUST "
+            "list 2-3 distinct, NEW questions to resolve the ambiguity, building upon or differing from any previous ponder_notes. For example, if the original thought was about \"murres\":\n"
+            """    {{"key_questions": ["What are 'murres' in this specific fictional context?", "Are 'murres' animals, mythological beings, or something else entirely?", "What is the user's primary goal for this 'murres' narrative?"]}}"""
+        ),
+        "normal_mode_action_selection_rationale_csdma_guidance": (
+            "If addressing CSDMA-flagged ambiguity, this MUST be a central part of your rationale."
+        ),
 
-    def __init__(self, aclient: instructor.Instructor, model_name: str = DEFAULT_OPENAI_MODEL_NAME):
+        # Student Mode CSDMA Ambiguity Handling Guidance (to be overridden by profile)
+        "student_mode_csdma_ambiguity_guidance": ( # Default if not overridden by student profile
+            "If CSDMA highlighted critical ambiguity, strongly consider 'Ponder' to formulate critical analytical questions. "
+            "'Speak' for clarification is acceptable if Pondering cannot resolve it."
+        ),
+        "student_mode_csdma_ambiguity_alignment_example": ( # Default if not overridden
+            """Example: {{"Ponder": "Very high alignment for critical analysis due to CSDMA flag.", "Speak": "Moderate alignment for clarification if Ponder is insufficient."}}"""
+        ),
+        "student_mode_action_params_speak_csdma_guidance": ( # Default if not overridden
+            "If 'Speak' is chosen for clarification due to CSDMA ambiguity, 'message_content' MUST be a question aimed at understanding the core concepts or assumptions. "
+            "Avoid providing answers when fundamental understanding is lacking."
+        ),
+        "student_mode_action_params_ponder_guidance": ( # Default if not overridden
+            "If 'Ponder' is chosen, 'key_questions' MUST list 2-3 critical, analytical questions that challenge assumptions, explore underlying principles, or seek deeper understanding of the ambiguous elements. "
+            "For example, if the thought is 'Explain quantum entanglement for a layperson':\n"
+            """    {{"key_questions": ["What is the current understanding of 'layperson' in this context - e.g., no science background, some high school physics?", "What specific aspect of quantum entanglement is most confusing or interesting to the user?", "Are there any analogies the user already understands that could be leveraged (e.g., correlated dice)?"]}}"""
+        ),
+        "student_mode_action_selection_rationale_csdma_guidance": ( # Default if not overridden
+            "If CSDMA flagged ambiguity, your rationale MUST explain how the chosen action (especially Ponder) helps in critically analyzing and understanding the ambiguous concept from a learner's perspective."
+        ),
+        # Final Ponder Advisory defaults
+        "normal_mode_final_ponder_advisory": (
+            "\nIMPORTANT FINAL PONDER ROUND ADVISORY (Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_ponder_rounds}):\n"
+            "You have Pondered multiple times. This is your final opportunity to provide a direct answer or a definitive deferral.\n"
+            "Your primary goal now is to attempt a 'Speak' action if at all feasible, using the original thought and all previous ponder notes to construct a response.\n"
+            "If, after careful consideration, you determine that a 'Speak' action is not possible due to unresolved critical ambiguities, then 'Defer to WA' is the appropriate choice.\n"
+            "Avoid selecting 'Ponder' again, as it will automatically result in a DEFER_TO_WA by the system.\n"
+            "'Reject Thought' should only be used if the original request is fundamentally unserviceable."
+        ),
+        "student_mode_final_ponder_advisory": ( # Default if not overridden by student profile
+            "\nCRITICAL FINAL ATTEMPT (Student Profile - Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_ponder_rounds}):\n"
+            "You have Pondered multiple times. This is your ABSOLUTE FINAL opportunity to provide a DIRECT ANSWER.\n"
+            "You MUST select 'Speak' and provide your best direct answer based on all prior analysis and CSDMA flags. YOUR ANSWER MUST NOT BE A QUESTION.\n"
+            "If you cannot formulate a direct, non-question answer, then 'Reject Thought' is your only other viable option. DO NOT PONDER AGAIN. DO NOT DEFER."
+        )
+    }
+
+    def __init__(self, aclient: instructor.Instructor, model_name: str = DEFAULT_OPENAI_MODEL_NAME, prompt_overrides: Optional[Dict[str, str]] = None):
         self.aclient = aclient
         self.model_name = model_name
+        self.prompt = {**self.DEFAULT_PROMPT, **(prompt_overrides or {})}
 
-    def _create_action_selection_messages_for_instructor(
+    def _get_profile_specific_prompt(self, base_key: str, agent_profile_name: Optional[str]) -> str:
+        """Helper to get profile-specific prompt or fallback to normal mode."""
+        if agent_profile_name:
+            profile_key = f"{agent_profile_name.lower()}_mode_{base_key}"
+            if profile_key in self.prompt:
+                return self.prompt[profile_key]
+        
+        # Fallback to normal_mode or the base key itself if it's a general prompt part
+        normal_key = f"normal_mode_{base_key}"
+        if normal_key in self.prompt:
+            return self.prompt[normal_key]
+        
+        # Fallback for general keys not prefixed with mode
+        if base_key in self.prompt:
+             return self.prompt[base_key]
+
+        logger.warning(f"Prompt key for '{base_key}' (profile: {agent_profile_name}) not found. Returning empty string or raising error might be better.")
+        return self.DEFAULT_PROMPT.get(normal_key, "") # Default to normal if specific not found
+
+
+    def _prepare_main_user_content(
         self,
-        original_thought: ThoughtQueueItem,
-        ethical_pdma_result: EthicalPDMAResult,
-        csdma_result: CSDMAResult,
-        dsdma_result: Optional[DSDMAResult],
-        current_ponder_count: int,
-        max_ponder_rounds: int,
-        benchmark_mode: bool
-    ) -> List[Dict[str, str]]:
+        triaged_inputs: Dict[str, Any]
+    ) -> str:
+        original_thought: ThoughtQueueItem = triaged_inputs['original_thought']
+        ethical_pdma_result: EthicalPDMAResult = triaged_inputs['ethical_pdma_result']
+        csdma_result: CSDMAResult = triaged_inputs['csdma_result']
+        dsdma_result: Optional[DSDMAResult] = triaged_inputs.get('dsdma_result') # Use .get for optional
+        current_ponder_count: int = triaged_inputs['current_ponder_count']
+        max_ponder_rounds: int = triaged_inputs['max_ponder_rounds']
+        # benchmark_mode: bool = triaged_inputs.get('benchmark_mode', False) # REMOVE - No longer used directly here
+        
+        agent_name_from_thought = None
+        # AttributeError indicated original_thought is a Thought object, not ThoughtQueueItem at this point.
+        # Access agent_name via processing_context for a Thought object.
+        if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
+            environment_context = original_thought.processing_context.get('environment_context')
+            if isinstance(environment_context, dict):
+                agent_name_from_thought = environment_context.get('agent_name')
+        
+        # Fallback: Check context_json if not found in processing_context's environment_context
+        if not agent_name_from_thought and hasattr(original_thought, 'context_json') and original_thought.context_json:
+            environment_context = original_thought.context_json.get('environment_context')
+            if isinstance(environment_context, dict):
+                agent_name_from_thought = environment_context.get('agent_name')
+
         # Define permitted actions, explicitly excluding "No Action".
         # Also excluding USE_TOOL and LISTEN as they are not the focus.
         permitted_actions = [
@@ -57,10 +163,13 @@ class ActionSelectionPDMAEvaluator:
 
         ponder_notes_str_for_prompt_if_any = ""
         notes_list = []
-        if hasattr(original_thought, 'ponder_notes') and original_thought.ponder_notes:
+        # original_thought is now a Thought Pydantic model.
+        # It has 'ponder_notes' directly and 'processing_context'.
+        if original_thought.ponder_notes:
             notes_list = original_thought.ponder_notes
-        elif original_thought.initial_context and original_thought.initial_context.get('ponder_notes'):
-            notes_list = original_thought.initial_context.get('ponder_notes')
+        # Check for ponder_notes within processing_context if not directly on thought (legacy or alternative storage)
+        elif original_thought.processing_context and original_thought.processing_context.get('ponder_notes'):
+            notes_list = original_thought.processing_context.get('ponder_notes')
 
         if notes_list: # This implies current_ponder_count > 0 if notes exist from previous ponder
             ponder_notes_str_for_prompt_if_any = "\n\nIMPORTANT CONTEXT FROM PREVIOUS PONDERING ROUND(S):\n"
@@ -74,69 +183,49 @@ class ActionSelectionPDMAEvaluator:
         elif current_ponder_count > 0: # Pondered, but somehow no notes (should be rare)
              ponder_notes_str_for_prompt_if_any = f"\n\nThis thought has been pondered {current_ponder_count} time(s) previously. If choosing 'Ponder' again, formulate new, insightful questions.\n"
 
-
-        initial_benchmark_advisory = ""
-        if benchmark_mode and current_ponder_count == 0: # First attempt in benchmark mode
-            initial_benchmark_advisory = f"""
-\n**BENCHMARK MODE - INITIAL ATTEMPT**:
-Your ABSOLUTE PRIORITY is to attempt to answer the original thought directly using the 'Speak' action.
-Analyze all provided information (original thought, DMA summaries) to formulate the best possible answer.
-DO NOT select 'Ponder' or 'Defer to WA' on this initial attempt unless the input is utterly incomprehensible or directly requests no action.
-If the input is a question or problem, you MUST attempt to provide a solution or answer via 'Speak'.
-Avoid 'Reject Thought' unless the query is fundamentally unanswerable or inappropriate.
-"""
+        # initial_benchmark_advisory and benchmark-specific final_ponder_advisory are removed.
+        # Profile-specific prompts should handle any special first-pass or final-pass logic if needed.
 
         final_ponder_advisory = ""
         is_final_attempt_round = current_ponder_count >= max_ponder_rounds - 1
 
         if is_final_attempt_round:
-            if benchmark_mode:
-                final_ponder_advisory = f"""
-\n**CRITICAL FINAL BENCHMARK ATTEMPT** (Ponder Count for NEXT attempt would be {current_ponder_count + 1}/{max_ponder_rounds}):
-This is a benchmark run and your LAST CHANCE to provide a direct answer. You MUST provide a terminal answer NOW.
-Strongly prioritize selecting the 'Speak' action with your best possible answer to the original thought, considering all previous ponder notes.
-DO NOT select 'Ponder'. DO NOT select 'Defer to WA'.
-If you absolutely cannot formulate a direct answer via 'Speak', then select 'Reject Thought' with a clear rationale, but only as a last resort.
-Your primary goal is to output a definitive response via 'Speak'.
-"""
-            else: # Normal mode, final ponder round before automatic deferral
-                final_ponder_advisory = f"""
-\nIMPORTANT FINAL PONDER ROUND ADVISORY (Ponder Count for NEXT attempt would be {current_ponder_count + 1}/{max_ponder_rounds}):
-You have Pondered multiple times. This is your final opportunity to provide a direct answer or a definitive deferral.
-Your primary goal now is to attempt a 'Speak' action if at all feasible, using the original thought and all previous ponder notes to construct a response.
-If, after careful consideration, you determine that a 'Speak' action is not possible due to unresolved critical ambiguities, then 'Defer to WA' is the appropriate choice.
-Avoid selecting 'Ponder' again, as it will automatically result in a DEFER_TO_WA by the system.
-'Reject Thought' should only be used if the original request is fundamentally unserviceable.
-"""
+            final_ponder_advisory_template = self._get_profile_specific_prompt("final_ponder_advisory", agent_name_from_thought)
+            try:
+                final_ponder_advisory = final_ponder_advisory_template.format(
+                    current_ponder_count_plus_1=current_ponder_count + 1,
+                    max_ponder_rounds=max_ponder_rounds
+                )
+            except KeyError as e:
+                logger.error(f"KeyError formatting final_ponder_advisory_template: {e}. Template: '{final_ponder_advisory_template}'")
+                # Fallback to a generic message if formatting fails
+                final_ponder_advisory = "\nIMPORTANT FINAL PONDER ROUND: Attempt to provide a terminal action."
+
         
         reject_thought_guidance = "\nNote on 'Reject Thought': Use this action sparingly, primarily if the original thought is nonsensical, impossible to act upon even with clarification, or fundamentally misaligned with the agent's purpose. Prefer 'Ponder' or 'Speak' for clarification if possible."
 
-        # Conditional prompt segments for CSDMA ambiguity handling, nuanced by benchmark_mode and ponder_count
-        if benchmark_mode:
-            if current_ponder_count == 0: # Initial Benchmark Attempt
-                action_alignment_csdma_guidance = """If CSDMA highlighted critical ambiguity, 'Speak' (for user clarification if essential to providing an initial answer as per the Initial Benchmark Advisory) or 'Ponder' (if a direct answer is truly impossible due to incomprehensibility) can be considered. The absolute priority is to attempt a 'Speak' response."""
-                action_alignment_example = """Example: {{"Speak": "High priority for initial answer or essential clarification.", "Ponder": "Fallback if input is critically ambiguous and unanswerable via Speak."}}"""
-                action_parameters_speak_csdma_guidance = """If 'Speak' is chosen, 'message_content' MUST contain the substantive response or an ESSENTIAL clarification if CSDMA identified critical ambiguity AND this is the INITIAL benchmark attempt. The primary goal is to provide some form of direct engagement via 'Speak' if at all possible, fulfilling the Initial Benchmark Advisory."""
-            elif not is_final_attempt_round: # Intermediate Benchmark Ponder Rounds
-                action_alignment_csdma_guidance = """If CSDMA highlighted critical ambiguity, highly align 'Ponder' (to formulate key clarifying questions internally for the next ponder round) with Fidelity & Do-Good.
-    In BENCHMARK MODE (intermediate rounds), 'Speak' should be reserved for definitive answers, not for asking clarification questions to the user."""
-                action_alignment_example = """Example: {{"Ponder": "High alignment due to CSDMA flag for internal clarification.", "Speak": "Lower alignment if used for clarification in intermediate benchmark rounds."}}"""
-                action_parameters_speak_csdma_guidance = """If 'Speak' is chosen, 'message_content' MUST contain the substantive response. IMPORTANT FOR INTERMEDIATE BENCHMARK ROUNDS: If CSDMA identified ambiguity, DO NOT use 'Speak' to ask the user for clarification. Instead, use 'Ponder' to formulate internal questions. 'Speak' is for delivering a final answer."""
-            else: # Final Benchmark Attempt (final_ponder_advisory will dominate)
-                action_alignment_csdma_guidance = """On this CRITICAL FINAL BENCHMARK ATTEMPT, 'Speak' is paramount for delivering a definitive answer. 'Ponder' is strictly forbidden by the final advisory."""
-                action_alignment_example = """Example: {{"Speak": "Highest alignment for final answer.", "Ponder": "Forbidden on final benchmark attempt."}}"""
-                action_parameters_speak_csdma_guidance = """If 'Speak' is chosen, 'message_content' MUST contain the substantive response. This is the final benchmark attempt; clarification questions are not appropriate, a definitive answer is required."""
-        else: # Normal Mode (not benchmark_mode)
-            action_alignment_csdma_guidance = """If CSDMA highlighted critical ambiguity, highly align 'Speak' (for user clarification)
-    or 'Ponder' (to formulate key clarifying questions) with Fidelity & Do-Good."""
-            action_alignment_example = """Example: {{"Speak": "Evaluation...", "Ponder": "High alignment due to CSDMA flag."}}"""
-            action_parameters_speak_csdma_guidance = """If 'Speak' is chosen, 'message_content' MUST contain the substantive response. If resolving CSDMA-identified ambiguity, 'message_content' MUST be a concise question to the user for clarification (e.g., {{"message_content": "To clarify, what do you mean by 'X'?"}})."""
+        # Conditional prompt segments are now solely based on agent_name_from_thought (profile)
+        # The _get_profile_specific_prompt will fetch the correct version based on agent_name_from_thought
+        # or fall back to "normal_mode" defaults if a profile-specific version isn't in self.prompt.
+        
+        action_alignment_csdma_guidance = self._get_profile_specific_prompt("csdma_ambiguity_guidance", agent_name_from_thought)
+        action_alignment_example = self._get_profile_specific_prompt("csdma_ambiguity_alignment_example", agent_name_from_thought)
+        action_parameters_speak_csdma_guidance = self._get_profile_specific_prompt("action_params_speak_csdma_guidance", agent_name_from_thought)
+        action_parameters_ponder_guidance = self._get_profile_specific_prompt("action_params_ponder_guidance", agent_name_from_thought)
+        action_selection_rationale_csdma_guidance = self._get_profile_specific_prompt("action_selection_rationale_csdma_guidance", agent_name_from_thought)
 
-        system_prompt = f"""You are an Action Selection reasoning agent governed by the CIRIS Covenant.
-Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
+        # Check if there's a custom system_header from the profile to inject
+        profile_specific_system_header_injection = ""
+        # self.prompt contains merged defaults and overrides.
+        # self.DEFAULT_PROMPT["system_header"] is the original default.
+        current_system_header = self.prompt.get("system_header", self.DEFAULT_PROMPT["system_header"])
+        if current_system_header != self.DEFAULT_PROMPT["system_header"]: # It's a custom override
+            profile_specific_system_header_injection = f"IMPORTANT AGENT PROFILE DIRECTIVE: {current_system_header}\n\n"
+
+        main_user_content_prompt = f"""\
+{profile_specific_system_header_injection}Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
 You MUST execute the Principled Decision-Making Algorithm (PDMA) to choose this HANDLER ACTION and structure your response as a JSON object matching the provided schema.
 All fields specified in the schema for your response are MANDATORY unless explicitly marked as optional.
-{initial_benchmark_advisory}
 Permitted Handler Actions: {action_options_str}
 {reject_thought_guidance}
 {final_ponder_advisory}
@@ -152,12 +241,9 @@ PDMA for Action Selection (all fields MANDATORY):
 5.  'selected_handler_action': The LLM should determine this based on the inputs and other PDMA steps from the list: {action_options_str}.
 6.  'action_parameters': Parameters for the chosen action.
     {action_parameters_speak_csdma_guidance}
-    If 'Speak' is chosen, 'message_content' MUST contain the substantive response. If resolving CSDMA-identified ambiguity, 'message_content' MUST be a concise question to the user for clarification (e.g., {{"message_content": "To clarify, what do you mean by 'X'?"}}).
-    If 'Ponder' is chosen (and not in final benchmark attempt under benchmark_mode, or if advisory allows), 'key_questions' MUST
-    list 2-3 distinct, NEW questions to resolve the ambiguity, building upon or differing from any previous ponder_notes. For example, if the original thought was about "murres":
-    {{"key_questions": ["What are 'murres' in this specific fictional context?", "Are 'murres' animals, mythological beings, or something else entirely?", "What is the user's primary goal for this 'murres' narrative?"]}}
+    {action_parameters_ponder_guidance}
     Provide empty dict {{}} if no parameters for other actions.
-7.  'action_selection_rationale': Justify *why* this handler action is optimal. If addressing CSDMA-flagged ambiguity, this MUST be a central part of your rationale.
+7.  'action_selection_rationale': Justify *why* this handler action is optimal. {action_selection_rationale_csdma_guidance}
 8.  'monitoring_for_selected_action': Concrete monitoring plan for THIS chosen action (string or dict).
 
 IMPORTANT: Your entire response MUST be a single JSON object.
@@ -168,56 +254,54 @@ The JSON object MUST have these top-level keys, all populated:
 
 Original Thought: "{str(original_thought.content)}"
 {ponder_notes_str_for_prompt_if_any}
-Original Thought Initial Context: {str(original_thought.initial_context) if original_thought.initial_context else "N/A"}
+Original Thought Processing Context: {str(original_thought.processing_context) if original_thought.processing_context else "N/A"}
 
 DMA Summaries to consider for your PDMA reasoning:
 Ethical PDMA: {ethical_summary}
 CSDMA: {csdma_summary}
 DSDMA: {dsdma_summary_str}
 
+Based on all the provided information and the PDMA framework for action selection, determine the appropriate handler action and structure your response as specified.
 Adhere strictly to the schema for your JSON output.
 """
-        user_prompt = "Based on all the provided information and the PDMA framework for action selection, determine the appropriate handler action and structure your response as specified in the system prompt."
+        # Debug logging for Student profile's final ponder attempt prompt
+        if is_final_attempt_round and agent_name_from_thought and agent_name_from_thought.lower() == "student":
+            logger.debug(f"STUDENT PROFILE - FINAL PONDER ATTEMPT - ActionSelectionPDMA main_user_content_prompt:\n{main_user_content_prompt}")
 
-        return [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        return main_user_content_prompt
 
     async def evaluate(
         self,
-        original_thought: ThoughtQueueItem,
-        ethical_pdma_result: EthicalPDMAResult,
-        csdma_result: CSDMAResult,
-        dsdma_result: Optional[DSDMAResult],
-        current_ponder_count: int,
-        max_ponder_rounds: int,
-        benchmark_mode: bool = False 
+        triaged_inputs: Dict[str, Any]
     ) -> ActionSelectionPDMAResult:
+        original_thought: ThoughtQueueItem = triaged_inputs['original_thought'] # For logging & post-processing
+        current_ponder_count: int = triaged_inputs['current_ponder_count'] # For post-processing
+        max_ponder_rounds: int = triaged_inputs['max_ponder_rounds'] # For post-processing
+        # benchmark_mode: bool = triaged_inputs.get('benchmark_mode', False) # REMOVE - No longer used directly here
 
-        messages = self._create_action_selection_messages_for_instructor(
-            original_thought,
-            ethical_pdma_result,
-            csdma_result,
-            dsdma_result,
-            current_ponder_count,
-            max_ponder_rounds,
-            benchmark_mode
-        )
+        main_user_content = self._prepare_main_user_content(triaged_inputs)
+        messages = [
+            {"role": "system", "content": self.prompt["system_header"]},
+            {"role": "user",   "content": main_user_content},
+            {"role": "system", "content": self.prompt["decision_format"]},
+            {"role": "system", "content": self.prompt["closing_reminder"]},
+        ]
 
         try:
             action_eval: ActionSelectionPDMAResult = await self.aclient.chat.completions.create(
                 model=self.model_name,
                 response_model=ActionSelectionPDMAResult,
+                # mode=InstructorMode.JSON, # REMOVE mode from here
                 messages=messages,
                 max_tokens=1500
             )
 
-            is_final_attempt_round = current_ponder_count >= max_ponder_rounds - 1
-            if benchmark_mode and is_final_attempt_round and \
-               (action_eval.selected_handler_action == HandlerActionType.PONDER or \
-                action_eval.selected_handler_action == HandlerActionType.DEFER_TO_WA):
-                logger.warning(f"Benchmark mode: LLM selected {action_eval.selected_handler_action.value} on final attempt for thought {original_thought.thought_id} despite strong advisory. This might indicate prompt ineffectiveness or need for override.")
+            # Removed benchmark_mode specific warning here. Profile-specific prompts should handle final attempt logic.
+            # is_final_attempt_round = current_ponder_count >= max_ponder_rounds - 1
+            # if benchmark_mode and is_final_attempt_round and \
+            #    (action_eval.selected_handler_action == HandlerActionType.PONDER or \
+            #     action_eval.selected_handler_action == HandlerActionType.DEFER_TO_WA):
+            #     logger.warning(f"Benchmark mode: LLM selected {action_eval.selected_handler_action.value} on final attempt for thought {original_thought.thought_id} despite strong advisory. This might indicate prompt ineffectiveness or need for override.")
 
             if not isinstance(action_eval.selected_handler_action, HandlerActionType):
                 try:

@@ -1,7 +1,7 @@
 # src/ciris_engine/core/workflow_coordinator.py
 import logging
 import asyncio # New import
-from typing import Dict, Any, Optional, Tuple, List # Added List
+from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING # Added TYPE_CHECKING
 
 from .data_schemas import (
     ThoughtQueueItem,
@@ -14,13 +14,15 @@ from .data_schemas import (
 )
 from .thought_queue_manager import ThoughtQueueManager # Added import
 from ciris_engine.services.llm_client import CIRISLLMClient # Assume this will have an async call_llm
-from ciris_engine.dma import (
-    EthicalPDMAEvaluator,
-    CSDMAEvaluator,
-    BaseDSDMA,
-    ActionSelectionPDMAEvaluator
-)
+# Direct imports for DMA evaluators to avoid circular dependencies
+from ciris_engine.dma.pdma import EthicalPDMAEvaluator
+from ciris_engine.dma.csdma import CSDMAEvaluator
+# from ciris_engine.dma.dsdma_base import BaseDSDMA # For type hinting - moved to TYPE_CHECKING
+from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.guardrails import EthicalGuardrails
+
+if TYPE_CHECKING:
+    from ciris_engine.dma.dsdma_base import BaseDSDMA # Import only for type checking
 
 MAX_PONDER_ROUNDS = 5 # Define the constant
 
@@ -38,7 +40,7 @@ class WorkflowCoordinator:
                  action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator,
                  ethical_guardrails: EthicalGuardrails,
                  thought_queue_manager: ThoughtQueueManager, # <-- ADD THIS
-                 dsdma_evaluators: Optional[Dict[str, BaseDSDMA]] = None
+                 dsdma_evaluators: Optional[Dict[str, 'BaseDSDMA']] = None # Use string literal for forward reference
                 ):
         self.llm_client = llm_client
         self.ethical_pdma_evaluator = ethical_pdma_evaluator
@@ -71,15 +73,35 @@ class WorkflowCoordinator:
         initial_dma_tasks.append(self.csdma_evaluator.evaluate_thought(thought_item))
 
         # 3. DSDMA Task (select and run if applicable)
-        selected_dsdma_instance: Optional[BaseDSDMA] = None
+        selected_dsdma_instance: Optional['BaseDSDMA'] = None # Use string literal
         # Using the "BasicTeacherMod" key as per previous logic.
-        teacher_dsdma = self.dsdma_evaluators.get("BasicTeacherMod") 
-        if teacher_dsdma:
-            logging.debug(f"Scheduling BasicTeacherDSDMA for thought ID {thought_item.thought_id}")
-            initial_dma_tasks.append(teacher_dsdma.evaluate_thought(thought_item, current_platform_context))
-            selected_dsdma_instance = teacher_dsdma 
+        # The actual type of dsdma_evaluators values will be concrete DSDMA subclasses.
+        # For this example, we assume a profile might specify a DSDMA under a key like "teacher_profile_dsdma"
+        # or the profile name itself if only one DSDMA is expected per profile.
+        # For now, let's assume the dsdma_evaluators dict keys are profile names or specific DSDMA role names.
+        # The current logic in CIRISDiscordEngineBot uses profile.name as the key.
+        # We need a more generic way to pick the DSDMA or iterate if multiple could apply.
+        # For simplicity, if there's only one DSDMA in dsdma_evaluators, use it.
+        # This part needs to align with how profiles define which DSDMA to use.
+        
+        # Let's assume for now that if dsdma_evaluators is populated, we pick the first one.
+        # This is a simplification and might need refinement based on profile structure.
+        if self.dsdma_evaluators:
+            # Get the first DSDMA instance from the dictionary
+            # This assumes that the relevant DSDMA for the current thought/profile is present.
+            # A more robust system might involve matching thought context to DSDMA capabilities.
+            first_dsdma_key = next(iter(self.dsdma_evaluators))
+            active_dsdma = self.dsdma_evaluators.get(first_dsdma_key)
+            if active_dsdma:
+                logging.debug(f"Scheduling DSDMA '{active_dsdma.domain_name}' for thought ID {thought_item.thought_id}")
+                initial_dma_tasks.append(active_dsdma.evaluate_thought(thought_item, current_platform_context))
+                selected_dsdma_instance = active_dsdma
+            else: # Should not happen if dsdma_evaluators is not empty
+                logging.warning(f"DSDMA evaluators populated, but could not retrieve an instance for thought {thought_item.thought_id}")
+                async def no_dsdma_result(): return None
+                initial_dma_tasks.append(no_dsdma_result())
         else:
-            logging.debug(f"No BasicTeacherDSDMA found or applicable for thought ID {thought_item.thought_id}, will pass None to ActionSelection.")
+            logging.debug(f"No DSDMA evaluators configured or applicable for thought ID {thought_item.thought_id}, will pass None to ActionSelection.")
             async def no_dsdma_result(): return None
             initial_dma_tasks.append(no_dsdma_result())
 
@@ -151,14 +173,19 @@ class WorkflowCoordinator:
 
 
         logging.debug(f"Running Action Selection PDMA for thought ID {thought_item.thought_id} (Ponder count: {current_ponder_count}, Benchmark: {benchmark_mode})")
+        
+        triaged_inputs_for_action_selection = {
+            "original_thought": thought_item.thought_object, # Pass the full Thought model from ThoughtQueueItem
+            "ethical_pdma_result": ethical_pdma_result,
+            "csdma_result": csdma_result,
+            "dsdma_result": dsdma_result,
+            "current_ponder_count": current_ponder_count,
+            "max_ponder_rounds": MAX_PONDER_ROUNDS,
+            "benchmark_mode": benchmark_mode
+        }
+        
         action_selection_result: ActionSelectionPDMAResult = await self.action_selection_pdma_evaluator.evaluate(
-            original_thought=thought_item,
-            ethical_pdma_result=ethical_pdma_result,
-            csdma_result=csdma_result,
-            dsdma_result=dsdma_result,
-            current_ponder_count=current_ponder_count,
-            max_ponder_rounds=MAX_PONDER_ROUNDS,
-            benchmark_mode=benchmark_mode # Pass the flag
+            triaged_inputs=triaged_inputs_for_action_selection
         )
         logging.info(f"Action Selection PDMA chose: {action_selection_result.selected_handler_action.value} with params {action_selection_result.action_parameters}")
 

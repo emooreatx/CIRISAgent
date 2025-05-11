@@ -3,8 +3,9 @@ import logging
 import os # For API keys
 from typing import Dict, Any, Optional # Keep existing typings
 
-import instructor 
-from openai import AsyncOpenAI 
+import instructor
+# from instructor import Mode as InstructorMode # REMOVE Mode import
+from openai import AsyncOpenAI
 
 from ciris_engine.core.data_schemas import ThoughtQueueItem, EthicalPDMAResult
 from ciris_engine.core.config import DEFAULT_OPENAI_MODEL_NAME 
@@ -71,14 +72,15 @@ Adhere strictly to this structure for the JSON output. Every field mentioned abo
         try:
             response_obj: EthicalPDMAResult = await self.aclient.chat.completions.create(
                 model=self.model_name,
-                response_model=EthicalPDMAResult, 
+                response_model=EthicalPDMAResult,
+                # mode=InstructorMode.JSON, # REMOVE mode from here
                 messages=[
                     {"role": "system", "content": pdma_system_guidance},
                     {"role": "user", "content": f"Apply the full PDMA process to the following user message and provide your complete structured analysis: '{user_message_content}'"}
                 ]
             )
-            
-            if hasattr(response_obj, '_raw_response'): 
+
+            if hasattr(response_obj, '_raw_response'):
                response_obj.raw_llm_response = str(response_obj._raw_response)
 
             logger.info(f"EthicalPDMA (instructor) evaluation successful for thought ID {thought_item.thought_id}")

@@ -1,439 +1,175 @@
-
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 # CIRISAgent
 
-> Edge-side reasoning runtime for the CIRIS Covenant ecosystem  
-> Status: **PRE-ALPHA — API & infra subject to change**
+> Edge-side reasoning runtime for AI agents.
+> Status: **PRE-ALPHA — API & internal architecture subject to change**
 
 ---
 
-## 1  What this project is (and isn’t)
+## Overview
 
-* **CIRISAgent** runs on a laptop, server, or single-board computer.  
-  It holds its own memory graphs and executes three decision-making algorithms (PDMA, CSDMA, DSDMA).
+**CIRISAgent** is a Python-based runtime environment designed to enable AI agents to perform complex reasoning tasks. It can run on various devices, from laptops to single-board computers.
 
-* **Alignment, heavy benchmarking, and governance hooks live on a remote server**  
-  (today that is _EthicsEngine Enterprise_; future branding **CIRISNode** is **TBD**).
+The core of CIRISAgent is its ability to process "thoughts" (inputs or internal states) through a series of Decision Making Algorithms (DMAs):
 
-* The agent will **keep running offline** — it just can’t request fresh alignment attestations while the node is unavailable.
+*   **Ethical PDMA (Principled Decision-Making Algorithm):** Evaluates the ethical implications of a thought.
+*   **CSDMA (Common Sense DMA):** Assesses the common-sense plausibility and clarity of a thought.
+*   **DSDMA (Domain-Specific DMA):** Applies domain-specific knowledge and heuristics. Different DSDMAs can be created for various specialized tasks or agent roles.
+*   **ActionSelectionPDMA:** Determines the final action an agent should take based on the outputs of the preceding DMAs and the agent's current state.
 
----
+CIRISAgent supports different **agent profiles** (e.g., "Student", "Teacher") which can customize the behavior, prompting, and available DSDMAs for an agent. This allows for tailored reasoning processes depending on the agent's role or task.
 
-## 2  Current external dependency
-
-EthicsEngine Enterprise ≥ 0.9.4
-
-*Runs the Annex J HE-300 benchmark harness under `/api/v1/benchmarks/*`.*
-
-> **Rename plan**: The server may ship as **CIRISNode** with Matrix & SSI overlays; exact details are **TBD**.
+The system is designed for modularity, allowing developers to create and integrate new DMAs and agent profiles.
 
 ---
 
+## Key Features
 
-
-## 3  Configuration knobs (planned)
-
-| Variable          | Default  | Purpose                                    |
-|-------------------|----------|--------------------------------------------|
-| `EEE_URL`         | —        | Base URL of EthicsEngine Enterprise server |
-| `MEMSTORE_PATH`   | `./mem`  | OriginTrail data directory                 |
-| `PDMA_THRESHOLD`  | `0.75`   | Confidence level that triggers WBD         |
-| `BENCHMARK_MIN`   | `0.85`   | Mean-accuracy gate for HE-300              |
+*   **Modular DMA Pipeline:** A structured workflow for processing thoughts through multiple reasoning stages.
+*   **Agent Profiles:** Customizable configurations that define an agent's behavior, specialized DMAs, and LLM prompting strategies.
+*   **Local Execution:** Designed to run locally, enabling edge-side reasoning.
+*   **LLM Integration:** Leverages Large Language Models (LLMs) via `instructor` for structured output from DMAs. Requires an OpenAI-compatible API.
+*   **Thought Processing & Pondering:** Agents can "ponder" on thoughts, re-evaluating them with new questions or context over multiple cycles.
+*   **Basic Guardrails:** Includes an initial ethical guardrail to check action outputs.
 
 ---
 
-## 4  Roadmap glimpse (all **TBD**)
+## Core Components (in `src/ciris_engine`)
 
-* **Matrix homeserver** in the node for encrypted ops & WA tickets  
-* **Hyperledger Aries** side-car for DID & verifiable-credential issuance  
-* Rename “EthicsEngine Enterprise” → **CIRISNode** once those pieces land
-
----
-
-## 5  Contributing
-
-PRs welcome! Run `make lint && make test` before opening a request.  
-Any changes to external APIs must include updated mocks in `tests/fixtures/`.
+*   `core/`: Contains data schemas, configuration, the thought queue manager, and the workflow coordinator.
+*   `dma/`: Implementations of the various DMAs (EthicalPDMA, CSDMA, DSDMAs, ActionSelectionPDMA).
+*   `agent_profile.py`: Defines the `AgentProfile` class for loading and managing agent configurations.
+*   `utils/`: Utility functions, including logging and profile loading.
+*   `guardrails/`: Basic ethical guardrail implementation.
+*   `services/`: LLM client abstractions (though currently, DMAs often instantiate their own `instructor`-patched clients).
 
 ---
 
-## 7  License
+## Getting Started
 
-Apache-2.0 © 2025 CIRIS AI Project
+### Prerequisites
 
+*   Python 3.9+
+*   An OpenAI API key (or an API key for a compatible service like Together.ai).
 
+### Installation
 
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/your-username/CIRISAgent.git
+    cd CIRISAgent
+    ```
+2.  Install dependencies (it's recommended to use a virtual environment):
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    pip install -r requirements.txt
+    ```
+    (Note: `requirements.txt` may need to be curated based on the exact features you intend to use, as the current one might be a superset from various experiments.)
 
-# CIRISAgent Test Suite
+### Environment Variables
 
-CIRISAgent is a prototype Mission-Oriented Moral Reasoning Agent, or MOMRA
+Set the following environment variables:
 
-It is designed for offline mission-critical applications, integrating human oversight and flexible decision making for real world scenarios.
+*   `OPENAI_API_KEY`: **Required.** Your API key for the LLM service.
+*   `OPENAI_API_BASE` (Optional): If using a non-OpenAI endpoint (e.g., Together.ai, local LLM server), set this to the base URL (e.g., `https://api.together.xyz/v1/`).
+*   `OPENAI_MODEL_NAME` (Optional): Specify the LLM model to be used (e.g., `meta-llama/Llama-3-70b-chat-hf`). Defaults to a value in `src/ciris_engine/core/config.py` if not set.
 
-
-This repository demonstrates a dual-mode testing framework for AI governance agents, supporting both **offline unit tests** (no API required) and **integration tests** with the OpenAI API. It includes cryptographic logging, ethical reasoning, and tamper-evident audit trails.
-
----
-
-## File Overview
-
-| File                    | Purpose                                                                                 |
-|-------------------------|-----------------------------------------------------------------------------------------|
-| `final_test_reddit.py`  | **Offline unit tests:** test cryptography, logging, and logic without any API calls.    |
-| `test_reddit.py`        | **Integration tests:** run CIRIS agent with OpenAI API for live model-based scenarios.  |
-| `reasoning_agent.py`    | AutoGen ReasoningAgent extensions for ethical/PDMA logic.                               |
-| `ciris_reddit_agent.py` | CIRIS Reddit agent implementation (governance logic and Reddit integration).            |
-| `memory_graph.py`       | **Causal memory graph:** provides a persistent ArangoDB-backed memory store.            |
-| `test_memory_graph.py`  | Unit tests for the memory graph functionality.                                          |
-| `run_arango.sh`         | Shell script to set up the ArangoDB container for the memory graph.                     |
-| `debug_memory_graph.py` | **Debug tool:** creates a sample memory graph and demonstrates graph operations.        |
-| `ciris_discord_agent.py`| CIRIS Discord agent implementation (governance logic and Discord integration).          |
-| `run_discord_agent.sh`  | Shell script to set up and run the Discord agent.                                       |
-
----
-
-## 1. `final_test_reddit.py` — Offline Unit Tests (No API Required)
-
-**Purpose:**  
-Test cryptographic vaults, tamper-evident logs, and ethical decision logic.  
-**No internet or API keys needed.**
-
-**Dependencies:**
-pip install pytest cryptography
-
-
-**Usage:**
-Run all offline tests
-python -m pytest final_test_reddit.py -v
-
-Or run as a script
-python final_test_reddit.py
-
-
-**Environment:**
-export CIRIS_ENCRYPTION_KEY="your-encryption-passphrase"
-
-
-
----
-
-## 2. `test_reddit.py` — OpenAI API Integration Test
-
-**Purpose:**  
-Test the CIRIS agent's logic and logging with real OpenAI LLM calls.
-
-**Dependencies:**
-pip install autogen openai cryptography
-
-
-**Environment:**
-export OPENAI_API_KEY="sk-..." # Your OpenAI API key
-export CIRIS_ENCRYPTION_KEY="your-encryption-passphrase"
-
-
-**Usage:**
-python test_reddit.py
-
-
-**How it works:**
-- Uses OpenAI GPT-4 (or your configured model) for reasoning.
-- Encrypts and hash-chains all logs for tamper evidence.
-- Demonstrates ethical decision-making and audit trail.
-
----
-
-## 3. `reasoning_agent.py` — AutoGen ReasoningAgent Extensions
-
-**Purpose:**  
-Provides ethical reasoning and PDMA (Principled Decision-Making Algorithm) logic as a mixin or extension to AutoGen's ReasoningAgent.
-
-**Dependencies:**
-pip install pyautogen
-
-**Usage:**
-from reasoning_agent import CIRISMixIn
-from autogen.agents.experimental import ReasoningAgent
-
-class MyAgent(CIRISMixIn, ReasoningAgent):
-...
-
-
----
-
-## 4. `ciris_reddit_agent.py` — CIRIS Reddit Agent
-
-**Purpose:**  
-Implements a Reddit bot that applies CIRIS governance logic to subreddit discussions.  
-Integrates with Reddit via PRAW and with LLMs via OpenAI or AutoGen.
-
-**Dependencies:**
-pip install praw openai autogen cryptography
-
-
-**Environment:**
-export REDDIT_CLIENT_ID=...
-export REDDIT_CLIENT_SECRET=...
-export REDDIT_USERNAME=...
-export REDDIT_PASSWORD=...
-export REDDIT_USER_AGENT="ciris-reddit-agent"
-export OPENAI_API_KEY="sk-..."
-export CIRIS_ENCRYPTION_KEY="your-encryption-passphrase"
-
-
-**Usage:**
-python ciris_reddit_agent.py
-
----
-
-## 5. `memory_graph.py` — CIRIS Memory Graph
-
-**Purpose:**  
-Implements a causal graph-based memory store for CIRIS agents using ArangoDB for persistence and network analysis capabilities.
-
-**Dependencies:**
-```
-pip install python-arango networkx sentence-transformers numpy matplotlib pygraphviz
-```
-
-**Environment:**
-```
-export ARANGO_USERNAME="root"        # Default username for ArangoDB
-export ARANGO_PASSWORD="cirispassword"  # Password for ArangoDB
-```
-
-**Usage:**
-```python
-from memory_graph import CirisMemoryGraph
-
-# Initialize the memory graph
-memory = CirisMemoryGraph(
-    arango_host="http://localhost:8529",  # ArangoDB URL
-    db_name="ciris_memory",              # Database name
-    graph_name="reasoning_graph"         # Graph name
-)
-
-# Record a reasoning step
-memory.record_step(
-    input_data="User question",
-    output_data="Agent response",
-    ethical_tags=["Fairness", "Transparency"],
-    pdma_decision="Proceed with caution",
-    confidence=0.85
-)
-
-# Visualize the memory graph
-memory.visualize("memory_graph.png")
-```
-
-### Starting the ArangoDB Container
-
-The CIRIS Memory Graph uses ArangoDB for persistent storage. A convenience script is provided to set up and run ArangoDB in a Docker container:
-
-1. Make sure Docker is installed on your system
-2. Set environment variables if you want to customize credentials:
-   ```
-   export ARANGO_USERNAME="custom_username"  # Optional, defaults to "root"
-   export ARANGO_PASSWORD="secure_password"  # Optional, defaults to "cirispassword"
-   ```
-3. Run the setup script:
-   ```
-   ./run_arango.sh
-   ```
-
-The script will:
-- Create a `data/arangodb` directory to persist the database data
-- Start an ArangoDB container mapped to port 8529
-- Configure it with the specified username and password
-- Mount the data directory for persistence
-
-You can access the ArangoDB web interface at http://localhost:8529 once the container is running.
-
-### Testing the ArangoDB Container
-
-Once the container is running, you can verify that it's working correctly using the provided debugging script:
-
-```
-python debug_memory_graph.py
-```
-
-This script will:
-- Connect to the running ArangoDB container
-- Create a sample memory graph with reasoning steps
-- Demonstrate various graph operations and queries
-- Show how ethical drift detection works
-- Output the results of graph traversals
-
-The debug script serves as a practical example of how to use the CirisMemoryGraph class with a real ArangoDB instance and will confirm that your container setup is functioning properly.
-
-You can check the container's status with:
-```
-docker ps
-```
-
-This should show a running container named `ciris-arangodb` if the setup was successful.
-
-### Running Memory Graph Tests
-
-To run the unit tests for the memory graph functionality:
-
-```
-python -m unittest test_memory_graph.py
-```
-
-The tests use mocking to simulate the ArangoDB and SentenceTransformer dependencies, so you don't need to have the actual services running to execute the tests.
-
-For integration testing with a real ArangoDB instance:
-
-1. Start the ArangoDB container using `./run_arango.sh`
-2. Make sure the required Python packages are installed
-3. Run your integration tests that use the CirisMemoryGraph
-
----
-
-## 6. `ciris_discord_agent.py` — CIRIS Discord Agent
-
-**Purpose:**  
-Implements a Discord bot that applies CIRIS governance logic to Discord server discussions.  
-Integrates with Discord via discord.py and with LLMs via OpenAI.
-
-**Dependencies:**
-pip install discord.py openai python-dotenv
-
-**Environment:**
-Export the following environment variables:
-
-**Required:**
-- `DISCORD_BOT_TOKEN`: Your Discord bot's authentication token. **Keep this secret.** You can get this from the Discord Developer Portal.
-- `OPENAI_API_KEY`: Your API key for OpenAI services.
-
-**Optional:**
-- `DISCORD_SERVER_ID`: The ID of the Discord server (guild) you want the bot to operate in. If not set, the bot will default to the discord 'CIRIS Covenant' server.
-- `DISCORD_CHANNEL_ID`: A comma-separated list of channel IDs the bot should monitor. If set, the bot will *only* monitor these specific channels (and ignore mentions/DMs elsewhere unless a DM channel ID is somehow included).  If not set, the bot will default to the discord `nursery-text` channel.
-- `DISCORD_DEFERRAL_CHANNEL`: The Discord channel ID where deferral messages (blocked replies) are sent.
-
-**Example `.env` file:**
-```dotenv
-# Required
-DISCORD_BOT_TOKEN=your_discord_bot_token_here
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Optional
-# DISCORD_SERVER_ID=your_server_id_here
-# DISCORD_CHANNEL_ID=channel_id_1,channel_id_2
-# DISCORD_DEFERRAL_CHANNEL=deferral_channel_id_here
-```
-
-**Usage:**
-
-### Using the Shell Script (Recommended)
-
-We now provide a convenient shell script to run the Discord agent:
-
+Example:
 ```bash
-./run_discord_agent.sh
+export OPENAI_API_KEY="your_api_key_here"
+# export OPENAI_API_BASE="https://api.together.xyz/v1/" # Uncomment if using a custom endpoint
+# export OPENAI_MODEL_NAME="meta-llama/Llama-3-70b-chat-hf" # Uncomment to specify a model
 ```
 
-This script handles environment setup and launches the agent with appropriate configurations.
+---
 
-### Manual Method
+## Running Agents
 
-If you prefer to run the agent manually:
+This repository includes example scripts to run agents with pre-configured profiles.
 
+### 1. `run_cli_student.py` — CLI Student Agent
+
+**Purpose:**
+Run the CIRIS agent with the "Student" profile directly from the command line. This is useful for testing the Student agent's reasoning.
+
+**Usage:**
 ```bash
-cd src/agents/discord_agent
-python main.py
+python3 ./run_cli_student.py "Your input string for the student agent here" [--log-level DEBUG/INFO/WARNING/ERROR]
 ```
 
-**How it works:**
-- Connects to Discord using a bot token and monitors messages based on its configuration.
-- Processes messages in specific channels or where it is mentioned (`@botname`) or sent directly to it (DMs).
-- Generates responses using OpenAI models, aligned with CIRIS principles (Do-Good, Avoid-Harm, Honor-Autonomy, Ensure-Fairness).
-- Performs a "Coherence Assessment" on the generated response using another LLM call to check its estimated `entropy` (disorder) and `coherence` (ethical alignment).
-- Applies "Wisdom-Based Deferral" (WBD): If the response's entropy is too high or coherence is too low, it logs a warning and *does not* send the reply. Otherwise, it sends the reply to the Discord channel.
-
----
-
-## Example: Running the Suite
-
-### 1. Offline/Unit Tests
-export CIRIS_ENCRYPTION_KEY="testkey"
-python -m pytest final_test_reddit.py
-
-### 2. OpenAI Integration
-
-export OPENAI_API_KEY="sk-your-openai-key"
-export CIRIS_ENCRYPTION_KEY="testkey"
-python test_reddit.py
-
-### 3. Discord Agent
-
-Create a `.env` file with your bot token and OpenAI API key, then run:
+**Example:**
 ```bash
-./run_discord_agent.sh
+python3 ./run_cli_student.py "Explain why ice cubes might not last long in a hot frying pan." --log-level INFO
+```
+The script outputs the agent's final action and thought process in JSON format.
+
+### 2. `run_discord_student.py` — Discord Student Agent
+
+**Purpose:**
+Run the CIRIS agent with the "Student" profile as a Discord bot.
+
+**Prerequisites:**
+- A Discord Bot Token.
+- The bot invited to your Discord server with necessary permissions.
+
+**Additional Environment Variables:**
+- `DISCORD_BOT_TOKEN_STUDENT`: Discord bot token for the Student agent.
+- `DISCORD_SERVER_ID` (Optional): Your Discord server ID.
+- `DISCORD_STUDENT_CHANNEL_ID` (Optional): Channel IDs for the Student bot.
+- `DISCORD_DEFERRAL_CHANNEL_STUDENT` (Optional): Channel ID for Student bot's deferral messages.
+
+**Usage:**
+```bash
+python3 ./run_discord_student.py [--log-level DEBUG/INFO/WARNING/ERROR]
+```
+
+### 3. `run_discord_teacher.py` — Discord Teacher Agent
+
+**Purpose:**
+Run the CIRIS agent with the "Teacher" profile as a Discord bot.
+
+**Prerequisites:** (Similar to Student Discord bot)
+
+**Additional Environment Variables:**
+- `DISCORD_BOT_TOKEN_TEACHER`: Discord bot token for the Teacher agent.
+- `DISCORD_SERVER_ID` (Optional).
+- `DISCORD_TEACHER_CHANNEL_ID` (Optional).
+- `DISCORD_DEFERRAL_CHANNEL_TEACHER` (Optional).
+
+**Usage:**
+```bash
+python3 ./run_discord_teacher.py [--log-level DEBUG/INFO/WARNING/ERROR]
 ```
 
 ---
+## Other Notable Scripts & Components
 
-## Requirements Files
+While the primary focus is the `ciris_engine` and the agent runners above, the repository contains other experimental components and older test files. Some of these may not be fully integrated with the current core engine or may represent earlier development stages.
 
-**For offline tests (`final_test_reddit.py`):**
-cryptography
-pytest
+*   **`memory_graph.py` & ArangoDB:**
+    *   Implements an experimental causal memory graph using ArangoDB.
+    *   `run_arango.sh` helps set up an ArangoDB Docker container.
+    *   `debug_memory_graph.py` demonstrates its usage.
+    *   This component is largely separate from the core `ciris_engine`'s SQLite-based thought queue.
 
-**For API tests (`test_reddit.py`, `ciris_reddit_agent.py`):**
+*   **Older Test/Agent Files (e.g., `final_test_reddit.py`, `ciris_reddit_agent.py`):**
+    *   These represent earlier experiments or specific integrations (like Reddit) and may not directly use the current `ciris_engine` workflow or profiles in the same way as the `run_cli_*.py` or `run_discord_*.py` scripts. They might have different dependency sets or operational assumptions. Refer to their specific sections if exploring them.
 
-autogen
-openai
-cryptography
-praw
-
-**For memory graph (`memory_graph.py`, `test_memory_graph.py`):**
-
-python-arango
-networkx
-sentence-transformers
-numpy
-matplotlib
-pygraphviz
-
-**For Discord agent (`ciris_discord_agent.py`):**
-
-discord.py
-openai
-python-dotenv
+*   **`src/agents/discord_agent/ciris_discord_agent.py` and `main.py`:**
+    *   This seems to be a more generic Discord agent setup, potentially a precursor or alternative to the profile-specific `run_discord_student.py` and `run_discord_teacher.py`. The `run_discord_agent.sh` script likely pertains to this.
 
 ---
 
-## Notes
+## Contributing
 
-- **Do not include built-in modules** (like `os`, `hashlib`, etc.) in your `requirements.txt`.
-- **Never share your real OpenAI API key** in public code or logs.
-- All logs are encrypted and hash-chained for tamper evidence.
-- The CIRIS agent's logic can be extended or integrated into other governance systems.
+PRs welcome! Please ensure your contributions align with the core goals of the CIRISAgent runtime. If adding new features, consider how they integrate with the existing DMA workflow and agent profile system.
+
+Run `make lint && make test` (if applicable Makefiles/tests exist for the core engine) before submitting a pull request.
 
 ---
-
-## References
-
-- [OpenAI Python SDK](https://pypi.org/project/openai/)
-- [AG2](https://ag2.ai/)
-
-## 💡 Support CIRIS
-
-CIRIS is a public-benefit project building principled ethical frameworks for the next generation of intelligent systems.  
-👉 [Donate here](https://buy.stripe.com/eVa29gddk7mpaGI4gg)
-
-*Note: CIRIS is an L3C (Low-Profit LLC). Donations are not tax-deductible.*
-
 
 ## License
 
-This project is licensed under the [Apache License 2.0](LICENSE).
-Copyright 2025 CIRIS L3C
-- [cryptography](https://cryptography.io/en/latest/)
-- [python-arango](https://python-arango.readthedocs.io/)
-- [NetworkX](https://networkx.org/)
-- [Sentence Transformers](https://www.sbert.net/)
-- [PyGraphviz](https://pygraphviz.github.io/)
-- [discord.py](https://discordpy.readthedocs.io/)
+Apache-2.0 © 2025 CIRIS AI Project

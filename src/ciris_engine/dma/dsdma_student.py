@@ -1,80 +1,72 @@
-# src/ciris_engine/dma/dsdma_teacher.py
+# src/ciris_engine/dma/dsdma_student.py
 from typing import Dict, Any, List, Optional
 import logging
 
 import instructor
 # from instructor import Mode as InstructorMode # REMOVE Mode import
 from openai import AsyncOpenAI
-from pydantic import BaseModel, Field # Ensure BaseModel and Field are imported for LLMOutputForDSDMA
+from pydantic import BaseModel, Field
 
 from ciris_engine.dma.dsdma_base import BaseDSDMA
 from ciris_engine.core.data_schemas import ThoughtQueueItem, DSDMAResult
 from ciris_engine.core.config import DEFAULT_OPENAI_MODEL_NAME
-# Import InstructorRetryException for specific error handling
 from instructor.exceptions import InstructorRetryException
 
 logger = logging.getLogger(__name__)
 
-# Temporary model for what the LLM should return for this DSDMA via instructor
-# It excludes 'domain_name' which is intrinsic to the DSDMA class instance.
+# This model is identical to the one in BasicTeacherDSDMA,
+# as evaluate_thought logic is shared.
 class LLMOutputForDSDMA(BaseModel):
     domain_specific_score: float = Field(..., ge=0.0, le=1.0)
     recommended_action: Optional[str] = Field(default=None)
     flags: List[str] = Field(default_factory=list)
     reasoning: str
-    # raw_llm_response: Optional[str] = None # Not directly populated by LLM here
 
-class BasicTeacherDSDMA(BaseDSDMA):
-    DOMAIN_NAME = "BasicTeacherMod"
-    DEFAULT_TEMPLATE = """You are a Domain-Specific Decision-Making Algorithm (DSDMA) for a Discord moderator acting with the philosophy of a "Basic Homeroom Teacher".
-Your guiding principle is: "Let the community explore and interact freely, with purpose, intervening minimally and gently only when necessary to guide, protect, or maintain a broadly constructive environment."
+class StudentDSDMA(BaseDSDMA):
+    DOMAIN_NAME = "StudentMod"
+    DEFAULT_TEMPLATE = """
+    You are a curious learner DSDMA. Evaluate the THOUGHT for:
 
-Current Context (e.g., Discord channel, user): {context_str}
-Domain Knowledge (e.g., rules summary): {rules_summary_str}
+    1. Learning opportunity (+0.5 score boost if present)
+    2. Respect for others (significant negative impact if disrespectful)
+    3. Genuine confusion vs trolling (penalize trolling)
 
-Evaluate the "thought" based on the "Basic Teacher" philosophy. Your goals are to:
-1. Foster learning and positive exploration.
-2. Intervene only if activity becomes genuinely harmful, significantly off-topic for a sustained period, or unfairly targets individuals.
-3. Prefer guiding questions or gentle reminders over punitive actions.
-4. Assess if the "thought" contributes to or detracts from a purposeful, albeit lively, community.
+    Consider the current context: {context_str}
+    Consider domain specific knowledge/rules: {rules_summary_str}
 
-Your response MUST be a single JSON object adhering to the provided schema, with the following keys:
-- "domain_specific_score": A float between 0.0 (strongly against "Teacher" philosophy) and 1.0 (strongly aligned). MANDATORY.
-- "recommended_action": A brief, specific, teacher-like action string (e.g., "Observe for now", "Ask a guiding question: 'What are we trying to achieve here?'", "No action needed, part of exploration"). This can be null if no action is best.
-- "flags": A list of strings for specific concerns (e.g., "StiflesExploration", "BecomingDisruptive"). If none, an empty list. MANDATORY (even if empty).
-- "reasoning": A brief (1-2 sentences) explanation for your score, flags, and recommended action. MANDATORY.
-"""
+    Respond with a JSON object adhering to the schema, including:
+    - "domain_specific_score": float (0-1, apply boosts/penalties based on above criteria)
+    - "recommended_action": string (e.g., "Ask for clarification", "Engage with curiosity", "Flag as potential troll")
+    - "flags": list of strings (e.g., "LearningOpportunity", "Disrespectful", "PotentialTroll")
+    - "reasoning": string (briefly explain your evaluation based on the criteria)
+    """
 
     def __init__(self, 
                  aclient: instructor.Instructor, 
                  model_name: str = DEFAULT_OPENAI_MODEL_NAME, 
                  domain_specific_knowledge: Optional[Dict[str, Any]] = None,
-                 prompt_template: Optional[str] = None): # Added prompt_template
+                 prompt_template: Optional[str] = None):
         super().__init__(domain_name=self.DOMAIN_NAME, 
                          domain_specific_knowledge=domain_specific_knowledge,
-                         prompt_template=prompt_template) # Pass to super
-        self.aclient = aclient 
+                         prompt_template=prompt_template) # prompt_template is now handled by BaseDSDMA
+        self.aclient = aclient
         self.model_name = model_name
-        # self.domain_specific_knowledge is handled by super()
-        # self.prompt_template is initialized by super()
+        # self.prompt_template is already set by BaseDSDMA's __init__
 
-    def _create_teacher_dsdma_messages_for_instructor(self, thought_content: str, current_context: Dict[str, Any]) -> List[Dict[str,str]]:
+    def _create_student_dsdma_messages_for_instructor(self, thought_content: str, current_context: Dict[str, Any]) -> List[Dict[str,str]]:
         """
-        Creates the messages list for the LLM to evaluate a thought from a "Basic Teacher" mod perspective,
-        suitable for use with `instructor`.
+        Creates the messages list for the LLM to evaluate a thought from a "Student" mod perspective.
         """
-        # current_context might contain platform-specific info like channel, user details, etc.
-        # For this example, we'll include it as a string in the prompt.
         context_str = str(current_context) if current_context else "No specific context provided."
-        # Ensure domain_specific_knowledge is a dict before .get()
-        rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General good conduct expected.") if isinstance(self.domain_specific_knowledge, dict) else "General good conduct expected."
+        rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General good conduct and curious exploration expected.")
 
+        # Use the instance's prompt_template (which could be overridden or default)
         system_message_content = self.prompt_template.format(
             context_str=context_str,
             rules_summary_str=rules_summary_str
         )
         
-        user_message_content = f"Given the Basic Teacher DSDMA framework and current context, evaluate this thought: \"{thought_content}\""
+        user_message_content = f"Given the Student DSDMA framework, evaluate this thought: \"{thought_content}\""
         
         return [
             {"role": "system", "content": system_message_content},
@@ -82,8 +74,10 @@ Your response MUST be a single JSON object adhering to the provided schema, with
         ]
 
     async def evaluate_thought(self, thought_item: ThoughtQueueItem, current_context: Dict[str, Any]) -> DSDMAResult:
+        # This method is identical to BasicTeacherDSDMA.evaluate_thought
         thought_content_str = str(thought_item.content)
-        messages = self._create_teacher_dsdma_messages_for_instructor(thought_content_str, current_context)
+        # Uses its own _create_messages method which uses its own template
+        messages = self._create_student_dsdma_messages_for_instructor(thought_content_str, current_context)
 
         try:
             llm_eval_data: LLMOutputForDSDMA = await self.aclient.chat.completions.create(
@@ -91,19 +85,18 @@ Your response MUST be a single JSON object adhering to the provided schema, with
                 response_model=LLMOutputForDSDMA,
                 # mode=InstructorMode.JSON, # REMOVE mode from here
                 messages=messages,
-                max_tokens=512 # Adjust as needed
+                max_tokens=512
             )
 
             dsdma_final_result = DSDMAResult(
-                domain_name=self.DOMAIN_NAME,
+                domain_name=self.DOMAIN_NAME, # Uses StudentDSDMA.DOMAIN_NAME
                 domain_specific_score=min(max(llm_eval_data.domain_specific_score, 0.0), 1.0),
                 recommended_action=llm_eval_data.recommended_action,
                 flags=llm_eval_data.flags,
                 reasoning=llm_eval_data.reasoning
-                # raw_llm_response handling (see note below)
             )
             raw_response_data = None
-            if hasattr(llm_eval_data, '_raw_response'): # Check if instructor attached the raw response
+            if hasattr(llm_eval_data, '_raw_response'): 
                 raw_response_data = str(llm_eval_data._raw_response)
             dsdma_final_result.raw_llm_response = raw_response_data
 
@@ -129,4 +122,4 @@ Your response MUST be a single JSON object adhering to the provided schema, with
             )
 
     def __repr__(self) -> str:
-        return f"<BasicTeacherDSDMA model='{self.model_name}' (using instructor)>"
+        return f"<StudentDSDMA model='{self.model_name}' (using instructor)>"
