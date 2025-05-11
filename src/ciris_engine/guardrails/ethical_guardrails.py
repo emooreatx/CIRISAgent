@@ -18,8 +18,9 @@ class EthicalGuardrails:
     Primarily focuses on epistemic checks (entropy, coherence) of communicative actions.
     """
 
-    def __init__(self, model_name: str = DEFAULT_OPENAI_MODEL_NAME): # Changed: takes model_name
-        self.aclient = instructor.patch(AsyncOpenAI()) # Creates its own instructor client
+    def __init__(self, aclient: instructor.Instructor, model_name: str = DEFAULT_OPENAI_MODEL_NAME): # Changed: takes model_name
+        # self.aclient = instructor.patch(AsyncOpenAI()) # REMOVED - client is now injected
+        self.aclient = aclient # Use the injected client
         self.model_name = model_name
         self.entropy_threshold = ENTROPY_THRESHOLD
         self.coherence_threshold = COHERENCE_THRESHOLD

@@ -19,14 +19,15 @@ class EthicalPDMAEvaluator:
     and returns a structured EthicalPDMAResult using the 'instructor' library.
     """
 
-    def __init__(self, model_name: str = DEFAULT_OPENAI_MODEL_NAME): # Takes model_name for flexibility
+    def __init__(self, aclient: instructor.Instructor, model_name: str = DEFAULT_OPENAI_MODEL_NAME): # Takes model_name for flexibility
         # API key should be handled by OpenAI library via env var OPENAI_API_KEY
         # or explicitly passed if necessary for AsyncOpenAI.
         # For instructor, you patch an instance of the OpenAI client.
-        self.aclient = instructor.patch(AsyncOpenAI(
+        # self.aclient = instructor.patch(AsyncOpenAI( # REMOVED - client is now injected
             # api_key=os.environ.get("OPENAI_API_KEY"), # Handled by library if env var is set
             # base_url=os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1") # Handled by library
-        ))
+        # ))
+        self.aclient = aclient # Use the injected client
         self.model_name = model_name
         # The prompt for ethical PDMA needs to guide the LLM but the schema enforcement
         # will now be handled by instructor and the EthicalPDMAResult model.

@@ -74,10 +74,10 @@ class ThoughtQueueManager:
         sql = """
             INSERT INTO thoughts_table (thought_id, source_task_id, thought_type, content_json, priority, status,
                                      round_created, round_processed, created_at, updated_at, related_thought_id,
-                                     processing_context_json, dma_handler, processing_result_json)
+                                     processing_context_json, dma_handler, processing_result_json, ponder_count)
             VALUES (:thought_id, :source_task_id, :thought_type_text, :content_json, :priority, :status_text,
                     :round_created, :round_processed, :created_at, :updated_at, :related_thought_id,
-                    :processing_context_json, :dma_handler, :processing_result_json)
+                    :processing_context_json, :dma_handler, :processing_result_json, :ponder_count)
         """
         params = {
             "thought_id": thought_dict["thought_id"],
@@ -94,6 +94,7 @@ class ThoughtQueueManager:
             "processing_context_json": json.dumps(thought_dict["processing_context"]) if thought_dict["processing_context"] else None,
             "dma_handler": thought_dict["dma_handler"],
             "processing_result_json": json.dumps(thought_dict["processing_result"]) if thought_dict["processing_result"] else None,
+            "ponder_count": thought_dict["ponder_count"],
         }
         try:
             with self._get_db_connection() as conn:
@@ -105,11 +106,11 @@ class ThoughtQueueManager:
             logging.error(f"Failed to add thought {thought.thought_id}: {e}")
             raise
 
-    def update_thought_status(self, thought_id: str, new_status: ThoughtStatus, round_processed: Optional[int] = None, processing_result: Optional[Dict[str, Any]] = None, ponder_notes: Optional[List[str]] = None) -> bool:
+    def update_thought_status(self, thought_id: str, new_status: ThoughtStatus, round_processed: Optional[int] = None, processing_result: Optional[Dict[str, Any]] = None, ponder_notes: Optional[List[str]] = None, ponder_count: Optional[int] = None) -> bool:
         sql = """
             UPDATE thoughts_table
             SET status = ?, updated_at = ?, round_processed = COALESCE(?, round_processed),
-                processing_result_json = ?, ponder_notes_json = ?
+                processing_result_json = ?, ponder_notes_json = ?, ponder_count = COALESCE(?, ponder_count)
             WHERE thought_id = ?
         """
         # For processing_result_json, if None is passed, it should store NULL.
@@ -123,6 +124,7 @@ class ThoughtQueueManager:
             round_processed, # This will be the NEW round it's intended for
             processing_result_db_val,
             ponder_notes_db_val, # Add this
+            ponder_count, # Add this
             thought_id
         )
         try:
@@ -176,6 +178,8 @@ class ThoughtQueueManager:
         # For example, if 'dma_handler' is missing from row_dict, Pydantic might error
         # However, Pydantic's default_factory or Optional should handle missing fields if schema is aligned.
         # For safety, one might iterate through Thought.__fields__ and ensure keys exist.
+        if "ponder_count" not in row_dict: # Default ponder_count if not in DB row
+            row_dict["ponder_count"] = 0
 
         return Thought(**row_dict)
 

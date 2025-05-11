@@ -22,6 +22,8 @@ from ciris_engine.dma import (
 )
 from ciris_engine.guardrails import EthicalGuardrails
 
+MAX_PONDER_ROUNDS = 5 # Define the constant
+
 class WorkflowCoordinator:
     """
     Orchestrates the flow of a thought through the various DMAs (with initial
@@ -176,24 +178,64 @@ class WorkflowCoordinator:
 
         if final_action_result.selected_handler_action == HandlerActionType.PONDER:
             key_questions = final_action_result.action_parameters.get('key_questions')
-            logging.info(f"Thought ID {thought_item.thought_id} resulted in PONDER action with questions: {key_questions}. Re-queueing for next round with ponder notes.")
+            
+            # Fetch the full thought to get current ponder_count
+            thought_db_instance = self.thought_queue_manager.get_thought_by_id(thought_item.thought_id)
+            
+            if not thought_db_instance:
+                logging.error(f"PONDER: Could not retrieve thought ID {thought_item.thought_id} from DB. Cannot process Ponder action.")
+                # Fallback to DEFER_TO_WA if thought cannot be fetched
+                return ActionSelectionPDMAResult(
+                    context_summary_for_action_selection=final_action_result.context_summary_for_action_selection,
+                    action_alignment_check=final_action_result.action_alignment_check,
+                    selected_handler_action=HandlerActionType.DEFER_TO_WA,
+                    action_parameters={"reason": f"PONDER failed: Could not retrieve thought {thought_item.thought_id} for ponder count check."},
+                    action_selection_rationale="PONDER action failed due to inability to retrieve thought details."
+                )
 
-            # When re-queueing for Ponder, set round_processed to None so it's picked up fresh.
-            # The actual next round it's processed in will be determined by the main loop.
-            success = self.thought_queue_manager.update_thought_status(
-                thought_id=thought_item.thought_id,
-                new_status=ThoughtStatus(status="pending"), # Reset to pending for re-queuing
-                round_processed=None, # Clear round_processed for re-queue
-                processing_result={"status": "Re-queued for Ponder", "ponder_action_details": final_action_result.model_dump()},
-                ponder_notes=key_questions
-            )
-            if success:
-                logging.info(f"Thought ID {thought_item.thought_id} successfully updated and marked for re-processing due to Ponder.")
-                return None # Indicates internal re-processing, no final action for agent *yet*
+            current_ponder_count = thought_db_instance.ponder_count
+
+            if current_ponder_count >= MAX_PONDER_ROUNDS:
+                logging.warning(f"Thought ID {thought_item.thought_id} has reached max ponder rounds ({MAX_PONDER_ROUNDS}). Overriding to DEFER_TO_WA.")
+                self.thought_queue_manager.update_thought_status(
+                    thought_id=thought_item.thought_id,
+                    new_status=ThoughtStatus(status="deferred"), # Or "failed"
+                    round_processed=self.thought_queue_manager.current_round_number, # Mark as processed in this round
+                    processing_result={"status": "Deferred due to max ponder rounds", "final_ponder_count": current_ponder_count},
+                    ponder_notes=key_questions, # Keep last ponder notes
+                    ponder_count=current_ponder_count # Record final ponder count
+                )
+                return ActionSelectionPDMAResult(
+                    context_summary_for_action_selection=final_action_result.context_summary_for_action_selection,
+                    action_alignment_check=final_action_result.action_alignment_check,
+                    selected_handler_action=HandlerActionType.DEFER_TO_WA,
+                    action_parameters={
+                        "reason": f"Thought reached maximum ponder rounds ({MAX_PONDER_ROUNDS}). Original ponder questions: {key_questions}",
+                        "final_ponder_count": current_ponder_count
+                    },
+                    action_selection_rationale=f"Ponder action overridden. Thought reached max ponder rounds ({MAX_PONDER_ROUNDS})."
+                )
             else:
-                logging.error(f"Failed to update thought ID {thought_item.thought_id} for re-processing. Proceeding with Ponder as terminal for safety.")
-                # Fallback: return the Ponder action if re-queueing fails, so it's not lost.
-                return final_action_result
+                new_ponder_count = current_ponder_count + 1
+                logging.info(f"Thought ID {thought_item.thought_id} resulted in PONDER action (count: {new_ponder_count}). Questions: {key_questions}. Re-queueing.")
+                
+                success = self.thought_queue_manager.update_thought_status(
+                    thought_id=thought_item.thought_id,
+                    new_status=ThoughtStatus(status="pending"), # Reset to pending for re-queuing
+                    round_processed=None, # Clear round_processed for re-queue
+                    processing_result={"status": "Re-queued for Ponder", "ponder_action_details": final_action_result.model_dump()},
+                    ponder_notes=key_questions,
+                    ponder_count=new_ponder_count # Save incremented ponder_count
+                )
+                if success:
+                    logging.info(f"Thought ID {thought_item.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for re-processing.")
+                    return None # Indicates internal re-processing, no final action for agent *yet*
+                else:
+                    logging.error(f"Failed to update thought ID {thought_item.thought_id} for re-processing Ponder. Proceeding with Ponder as terminal for safety.")
+                    # Fallback: return the Ponder action if re-queueing fails, so it's not lost.
+                    # Ensure the original ponder_count is part of the returned action if update failed.
+                    final_action_result.action_parameters["ponder_count_at_failure"] = current_ponder_count
+                    return final_action_result
         
         return final_action_result # For all other actions
 
