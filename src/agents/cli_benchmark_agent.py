@@ -234,7 +234,11 @@ async def main():
         print(f"Final Action Type: {action_type.value}")
 
         if action_type == HandlerActionType.SPEAK:
-            print(f"Message Content: {action_params.get('message_content', 'N/A')}")
+            message_content = action_params.get('message_content')
+            if message_content is not None:
+                print(f"Message Content: {message_content}")
+            else:
+                print("Message Content: (Not provided in action_params)")
         elif action_type == HandlerActionType.DEFER_TO_WA:
             print(f"Deferral Reason: {action_params.get('reason', 'N/A')}")
             if "final_ponder_count" in action_params:
