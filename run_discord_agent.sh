@@ -14,4 +14,5 @@ export PYTHONPATH="$(pwd)/src:$PYTHONPATH"
 
 echo "Starting CIRIS Discord Agent..."
 # Use Python module syntax instead of direct script execution to handle relative imports
-python -m src.agents.discord_agent.ciris_discord_bot_alpha "$@"
+# Explicitly use python3.12 as packages are installed there
+python3.12 -m src.agents.discord_agent.ciris_discord_bot_alpha "$@"

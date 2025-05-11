@@ -102,17 +102,25 @@ class CIRISDiscordEngineBot:
         """Initializes all CIRIS engine components."""
         logger.info("Setting up CIRIS Engine components...")
         openai_api_key = os.environ.get("OPENAI_API_KEY")
+        openai_api_base = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1") # Get base_url
         model_name = os.environ.get("OPENAI_MODEL_NAME", DEFAULT_OPENAI_MODEL_NAME)
 
         if not openai_api_key:
             logger.critical("OPENAI_API_KEY environment variable not set. CIRIS Engine cannot start.")
             raise ValueError("OPENAI_API_KEY not set.")
 
-        self.configured_aclient = instructor.patch(AsyncOpenAI(
+        # First, create and configure the AsyncOpenAI client
+        raw_openai_client = AsyncOpenAI(
+            api_key=openai_api_key,
+            base_url=openai_api_base,
             timeout=DEFAULT_OPENAI_TIMEOUT_SECONDS,
             max_retries=DEFAULT_OPENAI_MAX_RETRIES
-        ))
-        logger.info(f"Instructor-patched AsyncOpenAI client configured.")
+        )
+        # Then, patch this specific, configured OpenAI client, setting the default mode to JSON
+        self.configured_aclient = instructor.patch(raw_openai_client, mode=instructor.Mode.JSON)
+        
+        # The base_url of the patched client should be the same as raw_openai_client.base_url
+        logger.info(f"Instructor-patched AsyncOpenAI client created for Discord bot (Mode: JSON). API Base: {self.configured_aclient.base_url}, Model: {model_name}, Timeout: {DEFAULT_OPENAI_TIMEOUT_SECONDS}s, Max Retries: {DEFAULT_OPENAI_MAX_RETRIES}.")
 
         db_path_for_run = SQLITE_DB_PATH
         self.thought_manager = ThoughtQueueManager(db_path=db_path_for_run)
