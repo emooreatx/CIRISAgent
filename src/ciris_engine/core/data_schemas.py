@@ -197,12 +197,12 @@ class DSDMAResult(BaseModel):
 
 class HandlerActionType(str, Enum):
     SPEAK = "Speak"
-    USE_TOOL = "Use Tool"
-    LISTEN = "Listen"
+    # USE_TOOL = "Use Tool" # Removed
+    # LISTEN = "Listen" # Removed as it's more of an implicit state or a trigger for new thoughts
     PONDER = "Ponder"
-    REJECT_THOUGHT = "Reject Thought" # Explicit rejection of the input thought/request
+    REJECT_THOUGHT = "Reject Thought"
     DEFER_TO_WA = "Defer to WA"
-    NO_ACTION = "No Action" # If the synthesis decides no explicit action is best
+    # NO_ACTION = "No Action" # Removed as per user feedback
 
 
 class ActionSelectionPDMAResult(BaseModel):

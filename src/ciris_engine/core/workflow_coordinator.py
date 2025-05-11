@@ -49,7 +49,8 @@ class WorkflowCoordinator:
         self.thought_queue_manager = thought_queue_manager # <-- ADD THIS
 
     async def process_thought(self, thought_item: ThoughtQueueItem,
-                              current_platform_context: Optional[Dict[str, Any]] = None
+                              current_platform_context: Optional[Dict[str, Any]] = None,
+                              benchmark_mode: bool = False # Add benchmark_mode parameter
                               ) -> Optional[ActionSelectionPDMAResult]: # Return type can be None now
         """
         Processes a single thought item through the full DMA and guardrail pipeline.
@@ -140,12 +141,24 @@ class WorkflowCoordinator:
                 action_selection_rationale="Cannot select action due to upstream Ethical or CSDMA failure."
             )
 
-        logging.debug(f"Running Action Selection PDMA for thought ID {thought_item.thought_id}")
+        # Fetch current_ponder_count before action selection for the evaluator
+        thought_db_instance_for_ponder_check = self.thought_queue_manager.get_thought_by_id(thought_item.thought_id)
+        current_ponder_count = 0 # Default if thought not found, though it should be
+        if thought_db_instance_for_ponder_check:
+            current_ponder_count = thought_db_instance_for_ponder_check.ponder_count
+        else:
+            logging.error(f"Could not retrieve thought ID {thought_item.thought_id} from DB before ActionSelection. Ponder count will be 0.")
+
+
+        logging.debug(f"Running Action Selection PDMA for thought ID {thought_item.thought_id} (Ponder count: {current_ponder_count}, Benchmark: {benchmark_mode})")
         action_selection_result: ActionSelectionPDMAResult = await self.action_selection_pdma_evaluator.evaluate(
             original_thought=thought_item,
             ethical_pdma_result=ethical_pdma_result,
             csdma_result=csdma_result,
-            dsdma_result=dsdma_result 
+            dsdma_result=dsdma_result,
+            current_ponder_count=current_ponder_count,
+            max_ponder_rounds=MAX_PONDER_ROUNDS,
+            benchmark_mode=benchmark_mode # Pass the flag
         )
         logging.info(f"Action Selection PDMA chose: {action_selection_result.selected_handler_action.value} with params {action_selection_result.action_parameters}")
 
