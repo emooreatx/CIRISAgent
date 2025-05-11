@@ -3,17 +3,47 @@
 import logging
 import json
 import re
-from typing import Dict, Any
+import os # Added for environment variable access
+from typing import Dict, Any, Optional
 
-from openai import AsyncOpenAI # Changed import
+from openai import AsyncOpenAI 
+
+# It's good practice to define default/fallback values, possibly from a config file or constants
+# For now, we'll allow None if not set by env or constructor, and let OpenAI client handle it (it might error).
+# Or, ensure constructor args are mandatory if env vars are not found.
+DEFAULT_MODEL_FALLBACK = "gpt-3.5-turbo" # Example fallback
 
 class CIRISLLMClient:
     """Client for interacting with LLMs in the CIRIS system."""
     
-    def __init__(self, api_key: str, base_url: str, model_name: str) -> None:
-        """Initialize the LLM client."""
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url) # Changed to AsyncOpenAI
-        self.model_name = model_name
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model_name: Optional[str] = None) -> None:
+        """
+        Initialize the LLM client.
+        Prioritizes environment variables OPENAI_API_KEY, OPENAI_API_BASE, and OPENAI_MODEL_NAME.
+        Constructor arguments serve as fallbacks.
+        """
+        env_api_key = os.getenv("OPENAI_API_KEY")
+        env_base_url = os.getenv("OPENAI_API_BASE")
+        env_model_name = os.getenv("OPENAI_MODEL_NAME")
+
+        final_api_key = env_api_key if env_api_key is not None else api_key
+        final_base_url = env_base_url if env_base_url is not None else base_url
+        final_model_name = env_model_name if env_model_name is not None else model_name
+
+        if final_api_key is None:
+            # OpenAI client will raise an error if API key is missing and not found in env by its own internal lookup.
+            # We could raise it here too for clarity.
+            logging.warning("OpenAI API key is not set via constructor or OPENAI_API_KEY env var. OpenAI client may fail.")
+        
+        # The OpenAI client will use its own environment variable lookup if parameters are None.
+        # So, passing None if our lookups yield None is fine.
+        self.client = AsyncOpenAI(api_key=final_api_key, base_url=final_base_url)
+        self.model_name = final_model_name if final_model_name is not None else DEFAULT_MODEL_FALLBACK
+        
+        logging.info(f"CIRISLLMClient initialized. API Key Source: {'Env' if env_api_key else ('Constructor' if api_key else 'OpenAI Lib Default/None')}")
+        logging.info(f"CIRISLLMClient initialized. Base URL: {self.client.base_url}") # base_url is resolved by AsyncOpenAI
+        logging.info(f"CIRISLLMClient initialized. Model Name: {self.model_name}")
+
 
     @staticmethod
     def extract_json(raw: str) -> Dict[str, Any]:

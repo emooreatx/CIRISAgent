@@ -70,11 +70,20 @@ async def run_processing_loop(max_script_cycles=7): # Renamed and added paramete
     #     max_retries=DEFAULT_OPENAI_MAX_RETRIES
     # ))
     # For now, assuming environment variables OPENAI_API_KEY and OPENAI_BASE_URL are set and sufficient.
-    configured_aclient = instructor.patch(AsyncOpenAI(
+    # Explicitly pass api_key and base_url to ensure they are used.
+    
+    # First, create and configure the AsyncOpenAI client
+    raw_openai_client = AsyncOpenAI(
+        api_key=openai_api_key,
+        base_url=openai_api_base,
         timeout=DEFAULT_OPENAI_TIMEOUT_SECONDS,
         max_retries=DEFAULT_OPENAI_MAX_RETRIES
-    ))
-    logger.info(f"Instructor-patched AsyncOpenAI client configured with timeout: {DEFAULT_OPENAI_TIMEOUT_SECONDS}s, max_retries: {DEFAULT_OPENAI_MAX_RETRIES}.")
+    )
+    # Then, patch this specific, configured OpenAI client
+    configured_aclient = instructor.patch(raw_openai_client)
+    
+    # The base_url of the patched client should be the same as raw_openai_client.base_url
+    logger.info(f"Instructor-patched AsyncOpenAI client created for main_engine. API Base: {configured_aclient.base_url}, Model: {model_name}, Timeout: {DEFAULT_OPENAI_TIMEOUT_SECONDS}s, Max Retries: {DEFAULT_OPENAI_MAX_RETRIES}.")
 
 
     db_path_for_run = SQLITE_DB_PATH
@@ -327,7 +336,15 @@ async def run_processing_loop(max_script_cycles=7): # Renamed and added paramete
     logger.info(f"--- CIRIS Engine Processing Loop Demo Complete (ran {script_cycle_count} script cycles) ---")
 
 if __name__ == "__main__":
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY environment variable not set.")
+    # This part is for when main_engine.py is run directly.
+    # The Discord bot (`ciris_discord_bot_alpha.py`) will import and call `run_processing_loop`
+    # or a similar function, and it should handle its own environment variable checks
+    # or rely on the checks within `run_processing_loop`.
+    
+    # For direct execution of main_engine.py, ensure OPENAI_API_KEY is checked.
+    if os.environ.get("OPENAI_API_KEY"):
+        asyncio.run(run_processing_loop())
     else:
-        asyncio.run(run_processing_loop()) # Call the renamed function
+        # This print will only show if main_engine.py is the entry point.
+        # If imported, the caller (e.g., ciris_discord_bot_alpha.py) handles its setup.
+        print("Error: OPENAI_API_KEY environment variable not set. Cannot run main_engine.py directly without it.")

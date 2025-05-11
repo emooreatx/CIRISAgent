@@ -18,20 +18,74 @@ def _truncate_discord_message(message: str, limit: int = DISCORD_MESSAGE_LIMIT) 
 
 async def handle_discord_speak(
     discord_client: discord.Client,
-    original_message: discord.Message,
+    original_message_input: Union[discord.Message, Dict[str, Any]],
     message_content: str
 ) -> None:
     """
     Sends a message as a reply to the original Discord message.
+    Can accept either a discord.Message object or a dict with 'id' and 'channel_id'.
 
     Args:
         discord_client: The active discord.Client instance.
-        original_message: The discord.Message object to reply to.
+        original_message_input: The discord.Message object to reply to, or a dict
+                                containing 'id' and 'channel_id' of the message.
         message_content: The string content to send.
     """
     if not message_content:
         logger.warning("handle_discord_speak called with empty message_content. No message sent.")
         return
+
+    resolved_original_message: discord.Message | None = None
+
+    if isinstance(original_message_input, discord.Message):
+        resolved_original_message = original_message_input
+    elif isinstance(original_message_input, dict):
+        message_id_str = original_message_input.get("id")
+        channel_id_str = original_message_input.get("channel_id")
+
+        if message_id_str and channel_id_str:
+            try:
+                message_id = int(message_id_str)
+                channel_id = int(channel_id_str)
+                
+                channel = discord_client.get_channel(channel_id)
+                if channel and isinstance(channel, (discord.TextChannel, discord.Thread, discord.DMChannel, discord.GroupChannel, discord.PartialMessageable)):
+                    logger.info(f"Fetching original message {message_id} from channel {channel_id} for speak action.")
+                    resolved_original_message = await channel.fetch_message(message_id)
+                    logger.info(f"Successfully fetched original message {message_id} for speak action.")
+                elif not channel:
+                    logger.error(f"Could not find channel with ID: {channel_id} to fetch original message for speak action.")
+                else:
+                    logger.error(f"Channel with ID: {channel_id} (type: {type(channel)}) is not a messageable channel for speak action.")
+            except discord.NotFound:
+                logger.error(f"Original message with ID {message_id_str} not found in channel {channel_id_str} for speak action.")
+            except discord.Forbidden:
+                logger.error(f"Bot lacks permissions to fetch message {message_id_str} in channel {channel_id_str} for speak action.")
+            except ValueError:
+                logger.error(f"Invalid message_id ('{message_id_str}') or channel_id ('{channel_id_str}') format for speak action. Must be integers.")
+            except discord.HTTPException as e:
+                logger.error(f"Discord API error while fetching original message {message_id_str} from channel {channel_id_str} for speak action: {e.status} {e.text}")
+            except Exception as e:
+                logger.error(f"Unexpected error fetching original message {message_id_str} from channel {channel_id_str} for speak action: {e}", exc_info=True)
+        else:
+            missing_keys = []
+            if not message_id_str: missing_keys.append("'id'")
+            if not channel_id_str: missing_keys.append("'channel_id'")
+            logger.error(
+                f"Original message data (dict) for speak action is missing keys: {', '.join(missing_keys)}."
+            )
+    else:
+        logger.error(
+            f"Unsupported type for original_message_input: {type(original_message_input)} for speak action."
+        )
+
+    if not resolved_original_message:
+        logger.error("Failed to resolve original message object for speak action. Cannot send reply.")
+        return
+
+    # Use resolved_original_message from here onwards
+    original_message = resolved_original_message
+
     try:
         truncated_reply = _truncate_discord_message(message_content)
         await original_message.reply(truncated_reply)

@@ -161,11 +161,11 @@ class EthicalPDMAResult(BaseModel):
     when using populate_by_name=True.
     """
     context_analysis: Union[str, Dict[str, Any]] = Field(..., alias="Context", description="Restatement of the user's request, affected stakeholders, and constraints.")
-    alignment_check: AlignmentCheckDetail = Field(..., alias="Alignment-Check", description="Evaluation of plausible actions against ethical principles.") # CHANGED to use the new model
+    alignment_check: Optional[AlignmentCheckDetail] = Field(default=None, alias="Alignment-Check", description="Evaluation of plausible actions against ethical principles.")
     conflicts: Optional[str] = Field(default=None, alias="Conflicts", description="Identified trade-offs or principle conflicts.")
-    resolution: Optional[str] = Field(default=None, alias="Resolution", description="How conflicts were resolved based on ethical guidelines.") # Kept as Optional[str] as per latest file content before this change
-    decision_rationale: str = Field(..., alias="Decision", description="The ethically-optimal action and its rationale.")
-    monitoring_plan: Union[str, Dict[str, Any]] = Field(..., alias="Monitoring", description="Concrete metric and update plan for the decision.")
+    resolution: Optional[str] = Field(default=None, alias="Resolution", description="How conflicts were resolved based on ethical guidelines.")
+    decision_rationale: Optional[str] = Field(default=None, alias="Decision", description="The ethically-optimal action and its rationale.")
+    monitoring_plan: Optional[Union[str, Dict[str, Any]]] = Field(default=None, alias="Monitoring", description="Concrete metric and update plan for the decision.")
     raw_llm_response: Optional[str] = Field(default=None, description="The raw LLM response for auditing.")
 
     class Config:
