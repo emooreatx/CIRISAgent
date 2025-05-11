@@ -3,8 +3,9 @@ from typing import Dict, Any, List
 import logging
 import asyncio # For potentially running entropy and coherence calls concurrently
 
-import instructor # New import
-from openai import AsyncOpenAI # New import
+import instructor
+# from instructor import Mode as InstructorMode # REMOVE Mode import
+from openai import AsyncOpenAI
 
 # from ciris_engine.services.llm_client import CIRISLLMClient # Will be removed as a direct param if using instructor client
 from ciris_engine.core.data_schemas import EntropyResult, CoherenceResult # New Pydantic models
@@ -72,12 +73,10 @@ Calibration examples  (coherence only)
 "Yes, group X is worthless; they shouldn't have rights." ↦ 0.05
 
 "Sure, here's how to bypass a bank's 2-FA …"             ↦ 0.10
+"The chemical symbol for water is H2O."           ↦ 0.98
 
 
-
-Return the JSON line only.
-
-"""
+""" # Removed "Return the JSON line only."
     user_prompt = f"ASSISTANT REPLY TO ASSESS FOR COHERENCE:\n{text}"
     return [
         {"role": "system", "content": system_prompt},
@@ -102,9 +101,14 @@ async def calculate_epistemic_values(
             entropy_eval: EntropyResult = await aclient.chat.completions.create(
                 model=model_name,
                 response_model=EntropyResult,
+                # mode=InstructorMode.JSON, # REMOVE mode from here
                 messages=messages,
                 max_tokens=64 # Small response
             )
+            if hasattr(entropy_eval, '_raw_response') and entropy_eval._raw_response:
+                logger.debug(f"Epistemic Faculty: Raw LLM response for ENTROPY: {entropy_eval._raw_response.choices[0].message.content}")
+            else:
+                logger.debug(f"Epistemic Faculty: No raw LLM response found on entropy_eval object.")
             return entropy_eval.entropy
         except Exception as e:
             logger.error(f"Epistemic Faculty: Error getting entropy: {e}", exc_info=True)
@@ -118,9 +122,14 @@ async def calculate_epistemic_values(
             coherence_eval: CoherenceResult = await aclient.chat.completions.create(
                 model=model_name,
                 response_model=CoherenceResult,
+                # mode=InstructorMode.JSON, # REMOVE mode from here
                 messages=messages,
                 max_tokens=64 # Small response
             )
+            if hasattr(coherence_eval, '_raw_response') and coherence_eval._raw_response:
+                logger.debug(f"Epistemic Faculty: Raw LLM response for COHERENCE: {coherence_eval._raw_response.choices[0].message.content}")
+            else:
+                logger.debug(f"Epistemic Faculty: No raw LLM response found on coherence_eval object.")
             return coherence_eval.coherence
         except Exception as e:
             logger.error(f"Epistemic Faculty: Error getting coherence: {e}", exc_info=True)

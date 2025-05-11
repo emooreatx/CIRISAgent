@@ -22,19 +22,14 @@ async def handle_discord_speak(
     message_content: str
 ) -> None:
     """
-    Sends a message as a reply to the original Discord message.
-    Can accept either a discord.Message object or a dict with 'id' and 'channel_id'.
+    Handles the SPEAK action by replying to the original Discord message.
 
     Args:
         discord_client: The active discord.Client instance.
-        original_message_input: The discord.Message object to reply to, or a dict
+        original_message_input: The original discord.Message object or a dict 
                                 containing 'id' and 'channel_id' of the message.
-        message_content: The string content to send.
+        message_content: The text content to be spoken/replied by the bot.
     """
-    if not message_content:
-        logger.warning("handle_discord_speak called with empty message_content. No message sent.")
-        return
-
     resolved_original_message: discord.Message | None = None
 
     if isinstance(original_message_input, discord.Message):
@@ -63,10 +58,10 @@ async def handle_discord_speak(
                 logger.error(f"Bot lacks permissions to fetch message {message_id_str} in channel {channel_id_str} for speak action.")
             except ValueError:
                 logger.error(f"Invalid message_id ('{message_id_str}') or channel_id ('{channel_id_str}') format for speak action. Must be integers.")
-            except discord.HTTPException as e:
-                logger.error(f"Discord API error while fetching original message {message_id_str} from channel {channel_id_str} for speak action: {e.status} {e.text}")
-            except Exception as e:
-                logger.error(f"Unexpected error fetching original message {message_id_str} from channel {channel_id_str} for speak action: {e}", exc_info=True)
+            except discord.HTTPException as e_http:
+                logger.error(f"Discord API error while fetching original message {message_id_str} from channel {channel_id_str} for speak action: {e_http.status} {e_http.text}")
+            except Exception as e_generic:
+                logger.error(f"Unexpected error fetching original message {message_id_str} from channel {channel_id_str} for speak action: {e_generic}", exc_info=True)
         else:
             missing_keys = []
             if not message_id_str: missing_keys.append("'id'")
@@ -83,17 +78,14 @@ async def handle_discord_speak(
         logger.error("Failed to resolve original message object for speak action. Cannot send reply.")
         return
 
-    # Use resolved_original_message from here onwards
-    original_message = resolved_original_message
-
     try:
         truncated_reply = _truncate_discord_message(message_content)
-        await original_message.reply(truncated_reply)
-        logger.info(f"Sent speak reply to channel {original_message.channel.id} for message {original_message.id}: {truncated_reply[:100]}...")
-    except discord.errors.HTTPException as e:
-        logger.error(f"Discord HTTP Error sending speak reply to channel {original_message.channel.id}: {e.status} - {e.text}")
-    except Exception as e:
-        logger.error(f"An unexpected error occurred in handle_discord_speak: {e}", exc_info=True)
+        await resolved_original_message.reply(truncated_reply)
+        logger.info(f"Sent speak reply to channel {resolved_original_message.channel.id} for message {resolved_original_message.id}: {truncated_reply[:100]}...")
+    except discord.errors.HTTPException as e_http_reply:
+        logger.error(f"Discord HTTP Error sending speak reply to channel {resolved_original_message.channel.id}: {e_http_reply.status} - {e_http_reply.text}")
+    except Exception as e_generic_reply:
+        logger.error(f"An unexpected error occurred in handle_discord_speak: {e_generic_reply}", exc_info=True)
 
 async def handle_discord_deferral(
     discord_client: discord.Client,
@@ -142,10 +134,10 @@ async def handle_discord_deferral(
                 logger.error(f"Bot lacks permissions to fetch message {message_id_str} in channel {channel_id_str} for deferral.")
             except ValueError:
                 logger.error(f"Invalid message_id ('{message_id_str}') or channel_id ('{channel_id_str}') format for deferral. Must be integers.")
-            except discord.HTTPException as e:
-                logger.error(f"Discord API error while fetching original message {message_id_str} from channel {channel_id_str} for deferral: {e.status} {e.text}")
-            except Exception as e:
-                logger.error(f"Unexpected error fetching original message {message_id_str} from channel {channel_id_str} for deferral: {e}", exc_info=True)
+            except discord.HTTPException as e_http:
+                logger.error(f"Discord API error while fetching original message {message_id_str} from channel {channel_id_str} for deferral: {e_http.status} {e_http.text}")
+            except Exception as e_generic:
+                logger.error(f"Unexpected error fetching original message {message_id_str} from channel {channel_id_str} for deferral: {e_generic}", exc_info=True)
         else:
             missing_keys = []
             if not message_id_str: missing_keys.append("'id'")
@@ -163,10 +155,10 @@ async def handle_discord_deferral(
             "Failed to resolve original message object for deferral. Cannot send deferral notifications."
         )
         # Optionally, send a message to the deferral channel if it's configured and the original message is the problem
-        if deferral_channel_id_str:
+        if deferral_channel_id_str and deferral_channel_id_str.isdigit(): # Check if it's a digit string
             try:
-                deferral_channel_id = int(deferral_channel_id_str)
-                deferral_channel = discord_client.get_channel(deferral_channel_id)
+                deferral_channel_id_int = int(deferral_channel_id_str)
+                deferral_channel = discord_client.get_channel(deferral_channel_id_int)
                 if deferral_channel and isinstance(deferral_channel, discord.TextChannel):
                     await deferral_channel.send(
                         _truncate_discord_message(
@@ -179,6 +171,8 @@ async def handle_discord_deferral(
                     )
             except Exception as e_rc:
                 logger.error(f"Failed to send message resolution failure notification to deferral channel: {e_rc}", exc_info=True)
+        else:
+            logger.error(f"Invalid or missing deferral_channel_id: '{deferral_channel_id_str}' for error reporting. Cannot send detailed deferral report.")
         return
 
     # Use resolved_original_message from here onwards
@@ -195,20 +189,25 @@ async def handle_discord_deferral(
     try:
         await original_message.reply(_truncate_discord_message(user_deferral_message))
         logger.info(f"Sent deferral notification to user {original_message.author.name} in channel {original_message.channel.id}.")
-    except discord.errors.HTTPException as e:
-        logger.error(f"Discord HTTP Error sending user deferral notification to {original_message.channel.id}: {e.status} - {e.text}")
-    except Exception as e:
-        logger.error(f"An unexpected error occurred sending user deferral notification: {e}", exc_info=True)
+    except discord.errors.HTTPException as e_http_reply_user:
+        logger.error(f"Discord HTTP Error sending user deferral notification to {original_message.channel.id}: {e_http_reply_user.status} - {e_http_reply_user.text}")
+    except Exception as e_generic_reply_user:
+        logger.error(f"An unexpected error occurred sending user deferral notification: {e_generic_reply_user}", exc_info=True)
+
+    # Ensure deferral_channel_id_str is valid before attempting conversion and use
+    if not deferral_channel_id_str or not deferral_channel_id_str.isdigit():
+        logger.error(f"Invalid or missing deferral_channel_id: '{deferral_channel_id_str}'. Cannot send detailed deferral report.")
+        return
 
     try:
-        deferral_channel_id = int(deferral_channel_id_str)
-        deferral_channel = discord_client.get_channel(deferral_channel_id)
+        deferral_channel_id_int = int(deferral_channel_id_str) 
+        deferral_channel = discord_client.get_channel(deferral_channel_id_int)
 
         if not deferral_channel:
             logger.error(f"Deferral channel with ID {deferral_channel_id_str} not found by client. Detailed deferral message not sent.")
             return
-        if not isinstance(deferral_channel, discord.TextChannel):
-            logger.error(f"Deferral channel {deferral_channel_id_str} is not a TextChannel. Detailed deferral message not sent.")
+        if not isinstance(deferral_channel, discord.TextChannel): # Ensure it's a TextChannel
+            logger.error(f"Deferral channel {deferral_channel_id_str} (type: {type(deferral_channel)}) is not a TextChannel. Detailed deferral message not sent.")
             return
 
         details = (
@@ -243,9 +242,9 @@ async def handle_discord_deferral(
         await deferral_channel.send(_truncate_discord_message(details))
         logger.info(f"Sent detailed deferral report to review channel #{deferral_channel.name} ({deferral_channel.id}).")
 
-    except ValueError:
-        logger.error(f"Invalid deferral_channel_id: '{deferral_channel_id_str}'. Must be an integer.")
-    except discord.errors.HTTPException as e:
-        logger.error(f"Discord HTTP Error sending detailed deferral message to review channel: {e.status} - {e.text}")
-    except Exception as e:
-        logger.error(f"An unexpected error occurred sending detailed deferral message to review channel: {e}", exc_info=True)
+    except ValueError: # This would catch if int(deferral_channel_id_str) fails, though isdigit() should prevent it.
+        logger.error(f"Invalid deferral_channel_id after isdigit check: '{deferral_channel_id_str}'. This should not happen.")
+    except discord.errors.HTTPException as e_http_defer:
+        logger.error(f"Discord HTTP Error sending detailed deferral message to review channel: {e_http_defer.status} - {e_http_defer.text}")
+    except Exception as e_generic_defer:
+        logger.error(f"An unexpected error occurred sending detailed deferral message to review channel: {e_generic_defer}", exc_info=True)

@@ -14,7 +14,7 @@ class ThoughtStatus(BaseModel):
     status: Literal["pending", "queued", "processing", "processed", "deferred", "failed", "cancelled"] = "pending"
 
 class ThoughtType(BaseModel):
-    type: Literal["thought", "metathought"] = "thought"
+    type: Literal["thought", "metathought", "seed_task_thought"] = "thought" # Added "seed_task_thought"
 
 # --- Pydantic Models for Database Tables ---
 
@@ -67,6 +67,8 @@ class Thought(BaseModel):
     processing_result: Optional[Dict[str, Any]] = Field(default=None, description="The outcome or result of processing this thought.")
     ponder_notes: Optional[List[str]] = Field(default=None, description="Key questions or notes if the thought was re-queued for pondering.")
     ponder_count: int = Field(default=0, description="Number of times this thought has been re-queued for pondering.")
+    context_json: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary JSON context associated with the thought.")
+    queue_snapshot: Dict[str, Any] = Field(default_factory=dict, description="A snapshot of queue or system state when this thought was created or processed.")
 
 
     @model_validator(mode='before')
@@ -109,20 +111,28 @@ class ThoughtQueueItem(BaseModel):
     # Context from the `thought_in` structure
     initial_context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Initial context when the thought was first received/generated.")
     ponder_notes: Optional[List[str]] = Field(default=None, description="Key questions from a previous Ponder action if re-queued.")
+    thought_object: Thought # Added to hold the full Thought object
 
 
     # You can add a classmethod to easily convert a Thought db model to a ThoughtQueueItem
     @classmethod
     def from_thought_db(cls, thought_db_instance: Thought, raw_input: Optional[str] = None, initial_ctx: Optional[Dict[str, Any]] = None) -> "ThoughtQueueItem":
+        # Ensure initial_context for ThoughtQueueItem is derived correctly
+        # The thought_db_instance.processing_context is the one set when the thought was created/updated.
+        # The initial_ctx passed here might be from an even earlier stage (e.g. task context for a seed thought).
+        # For simplicity, let's prioritize initial_ctx if provided, else thought's own processing_context.
+        final_initial_ctx = initial_ctx if initial_ctx is not None else thought_db_instance.processing_context
+
         return cls(
             thought_id=thought_db_instance.thought_id,
             source_task_id=thought_db_instance.source_task_id,
-            thought_type=thought_db_instance.thought_type, # Pass the Pydantic model instance
+            thought_type=thought_db_instance.thought_type, 
             content=thought_db_instance.content,
             priority=thought_db_instance.priority,
-            raw_input_string=raw_input if raw_input else str(thought_db_instance.content), # Fallback if raw_input not specifically passed
-            initial_context=initial_ctx if initial_ctx else thought_db_instance.processing_context,
-            ponder_notes=thought_db_instance.ponder_notes
+            raw_input_string=raw_input if raw_input is not None else str(thought_db_instance.content), 
+            initial_context=final_initial_ctx if final_initial_ctx is not None else {}, # Ensure it's a dict
+            ponder_notes=thought_db_instance.ponder_notes,
+            thought_object=thought_db_instance # Store the full Thought object
         )
 
 # --- Example: Type Hint for the Queue Itself ---
@@ -262,6 +272,8 @@ def get_thoughts_table_schema() -> str:
         processing_result_json TEXT,
         ponder_notes_json TEXT, -- Added for ponder notes
         ponder_count INTEGER DEFAULT 0, -- Added for ponder count
+        context_json_text TEXT, -- Added for new context_json field
+        queue_snapshot_text TEXT, -- Added for new queue_snapshot field
         FOREIGN KEY (source_task_id) REFERENCES tasks_table(task_id)
             ON DELETE CASCADE,
         FOREIGN KEY (related_thought_id) REFERENCES thoughts_table(thought_id)

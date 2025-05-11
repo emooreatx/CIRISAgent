@@ -2,8 +2,9 @@
 from typing import Dict, Any, List, Optional
 import logging
 
-import instructor # New import
-from openai import AsyncOpenAI # New import
+import instructor
+# from instructor import Mode as InstructorMode # REMOVE Mode import
+from openai import AsyncOpenAI
 
 from ciris_engine.core.data_schemas import ThoughtQueueItem, CSDMAResult
 from ciris_engine.core.config import DEFAULT_OPENAI_MODEL_NAME
@@ -35,18 +36,19 @@ class CSDMAEvaluator:
         system_message = f"""You are a Common Sense Evaluation agent. Your task is to assess a given "thought" for its alignment with general common-sense understanding of the physical world, typical interactions, and resource constraints on Earth, considering the provided context.
 
 Reference CSDMA Steps for Evaluation:
-1. Context Grounding: The context is: {context_summary}
-2. Physical Plausibility Check: Does it violate conservation laws? Impossible material transformations? Ignore biological needs?
-3. Resource & Scale Sanity Check: Assume near-infinite resources? Scale disproportionate to cause?
-4. Immediate Interaction & Consequence Scan: Obvious physical reactions? Typical agent reactions ignored? Obvious feedback loops?
-5. Typicality & Precedent Check: Standard way to address situation? Known anti-pattern?
+1. Context Grounding: The context is: {context_summary}. **Crucially, assume a standard Earth-based physical reality with all its common implications (e.g., gravity, thermodynamics, material properties like ice melting in a hot environment) unless the thought *explicitly and unambiguously* states it operates in a hypothetical scenario where these specific real-world effects are to be ignored or are altered.** General statements about it being a "problem," "riddle," or "exercise" are not sufficient to ignore obvious physics *unless the problem explicitly states that real-world physics should be suspended for the specific interacting elements in question.*
+2. Physical Plausibility Check: Does the thought describe events or states that violate fundamental physical laws (e.g., conservation of energy/mass)? Does it involve material transformations or states that are impossible or highly improbable under normal Earth conditions without special intervention (e.g., ice remaining solid indefinitely in a hot frying pan)? **If elements are introduced that would have obvious, direct physical interactions (like heat and ice), and these interactions and their immediate consequences (e.g., melting) are ignored in the thought's premise or expected outcome without explicit justification for an idealized setup for those specific elements, this is a critical physical plausibility issue.** Flag such instances (e.g., "Physical_Implausibility_Ignored_Interaction", "Requires_Explicit_Idealization_Statement", "Potential_Trick_Question_Physics_Ignored"). If the problem seems like a riddle or trick question hinging on overlooking real-world physics, this should be flagged.
+3. Resource & Scale Sanity Check: Does it assume near-infinite resources without justification? Is the scale of action/effect disproportionate to the cause within a real-world understanding?
+4. Immediate Interaction & Consequence Scan: **Beyond general physical laws, consider the direct, immediate, and unavoidable consequences of interactions between specific elements mentioned in the thought.** For example, if a fragile object is dropped onto a hard surface, the consequence is breaking. If a flame meets flammable material, it ignites. If ice is placed on a hot surface, it melts. Are such obvious, direct consequences of stated elements interacting overlooked or implicitly negated by the problem's framing? This is a key aspect of common sense.
+5. Typicality & Precedent Check: Is this a standard or highly unusual way to address the situation or achieve the described outcome in the real world? Is it a known anti-pattern or a highly inefficient/implausible method, even if theoretically possible?
+6. Clarity & Completeness Check: Is the thought statement clear and unambiguous? Does it seem to be missing critical information needed to assess its common sense or to act upon it reasonably within a real-world context, especially regarding conditions that might alter expected physical interactions or if the problem intends for real-world physics to be selectively ignored?
 
 Your response MUST be a single JSON object adhering to the provided schema, with the following keys:
-- "common_sense_plausibility_score": A float between 0.0 (highly implausible) and 1.0 (highly plausible). This field is MANDATORY.
-- "flags": A list of strings identifying any specific common sense violations (e.g., "Physical_Implausibility", "Atypical_Approach"). If none, provide an empty list. This field is MANDATORY (even if empty).
+- "common_sense_plausibility_score": A float between 0.0 (highly implausible) and 1.0 (highly plausible). **This score MUST heavily factor in real-world physical plausibility and the immediate, unavoidable consequences of interactions between stated elements (like ice melting on a hot pan), unless an explicit and specific idealized context is provided in the thought for those elements. A low score should be given if obvious physics are ignored without such explicit idealization.**
+- "flags": A list of strings identifying any specific common sense violations, physical implausibilities (especially ignored interactions), or clarity issues (e.g., "Physical_Implausibility_Ignored_Interaction", "Atypical_Approach", "Ambiguous_Statement", "Needs_Clarification", "Information_Missing", "Requires_Explicit_Idealization_Statement", "Potential_Trick_Question_Physics_Ignored"). If none, provide an empty list. This field is MANDATORY (even if empty).
 - "reasoning": A brief (1-2 sentences) explanation for your score and flags. This field is MANDATORY.
 """
-        user_message = f"Based on the CSDMA framework, evaluate the common sense of the following thought: \"{thought_content}\""
+        user_message = f"Based on the CSDMA framework, evaluate the common sense and clarity of the following thought: \"{thought_content}\""
         return [
             {"role": "system", "content": system_message},
             {"role": "user", "content": user_message}
@@ -73,6 +75,7 @@ Your response MUST be a single JSON object adhering to the provided schema, with
             csdma_eval: CSDMAResult = await self.aclient.chat.completions.create(
                 model=self.model_name,
                 response_model=CSDMAResult, # Key instructor feature
+                # mode=InstructorMode.JSON, # REMOVE mode from here
                 messages=messages,
                 max_tokens=512 # CSDMA response is usually shorter
                 # temperature=0.0, # Consider for more deterministic structured output
