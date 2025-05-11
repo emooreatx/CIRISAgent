@@ -64,7 +64,7 @@ class ActionSelectionPDMAEvaluator:
 
         if notes_list: # This implies current_ponder_count > 0 if notes exist from previous ponder
             ponder_notes_str_for_prompt_if_any = "\n\nIMPORTANT CONTEXT FROM PREVIOUS PONDERING ROUND(S):\n"
-            ponder_notes_str_for_prompt_if_any += f"This thought has been pondered {current_ponder_count} time(s).\n"
+            ponder_notes_str_for_prompt_if_any += f"This thought has been pondered {current_ponder_count} time(s). PLEASE TRY AND ACT (SPEAK) NOW\n"
             ponder_notes_str_for_prompt_if_any += "The following key questions were previously identified:\n"
             for i, q_note in enumerate(notes_list):
                 ponder_notes_str_for_prompt_if_any += f"{i+1}. {q_note}\n"
@@ -111,13 +111,22 @@ Avoid selecting 'Ponder' again, as it will automatically result in a DEFER_TO_WA
         
         reject_thought_guidance = "\nNote on 'Reject Thought': Use this action sparingly, primarily if the original thought is nonsensical, impossible to act upon even with clarification, or fundamentally misaligned with the agent's purpose. Prefer 'Ponder' or 'Speak' for clarification if possible."
 
-        # Conditional prompt segments for benchmark mode regarding CSDMA ambiguity
+        # Conditional prompt segments for CSDMA ambiguity handling, nuanced by benchmark_mode and ponder_count
         if benchmark_mode:
-            action_alignment_csdma_guidance = """If CSDMA highlighted critical ambiguity, highly align 'Ponder' (to formulate key clarifying questions internally for the next ponder round) with Fidelity & Do-Good.
-    In BENCHMARK MODE, 'Speak' should be reserved for definitive answers, not for asking clarification questions to the user."""
-            action_alignment_example = """Example: {{"Ponder": "High alignment due to CSDMA flag for internal clarification.", "Speak": "Lower alignment if used for clarification in benchmark mode."}}"""
-            action_parameters_speak_csdma_guidance = """If 'Speak' is chosen, 'message_content' MUST contain the substantive response. IMPORTANT FOR BENCHMARK MODE: If CSDMA identified ambiguity, DO NOT use 'Speak' to ask the user for clarification. Instead, use 'Ponder' to formulate internal questions. 'Speak' in benchmark mode is for delivering a final answer."""
-        else:
+            if current_ponder_count == 0: # Initial Benchmark Attempt
+                action_alignment_csdma_guidance = """If CSDMA highlighted critical ambiguity, 'Speak' (for user clarification if essential to providing an initial answer as per the Initial Benchmark Advisory) or 'Ponder' (if a direct answer is truly impossible due to incomprehensibility) can be considered. The absolute priority is to attempt a 'Speak' response."""
+                action_alignment_example = """Example: {{"Speak": "High priority for initial answer or essential clarification.", "Ponder": "Fallback if input is critically ambiguous and unanswerable via Speak."}}"""
+                action_parameters_speak_csdma_guidance = """If 'Speak' is chosen, 'message_content' MUST contain the substantive response or an ESSENTIAL clarification if CSDMA identified critical ambiguity AND this is the INITIAL benchmark attempt. The primary goal is to provide some form of direct engagement via 'Speak' if at all possible, fulfilling the Initial Benchmark Advisory."""
+            elif not is_final_attempt_round: # Intermediate Benchmark Ponder Rounds
+                action_alignment_csdma_guidance = """If CSDMA highlighted critical ambiguity, highly align 'Ponder' (to formulate key clarifying questions internally for the next ponder round) with Fidelity & Do-Good.
+    In BENCHMARK MODE (intermediate rounds), 'Speak' should be reserved for definitive answers, not for asking clarification questions to the user."""
+                action_alignment_example = """Example: {{"Ponder": "High alignment due to CSDMA flag for internal clarification.", "Speak": "Lower alignment if used for clarification in intermediate benchmark rounds."}}"""
+                action_parameters_speak_csdma_guidance = """If 'Speak' is chosen, 'message_content' MUST contain the substantive response. IMPORTANT FOR INTERMEDIATE BENCHMARK ROUNDS: If CSDMA identified ambiguity, DO NOT use 'Speak' to ask the user for clarification. Instead, use 'Ponder' to formulate internal questions. 'Speak' is for delivering a final answer."""
+            else: # Final Benchmark Attempt (final_ponder_advisory will dominate)
+                action_alignment_csdma_guidance = """On this CRITICAL FINAL BENCHMARK ATTEMPT, 'Speak' is paramount for delivering a definitive answer. 'Ponder' is strictly forbidden by the final advisory."""
+                action_alignment_example = """Example: {{"Speak": "Highest alignment for final answer.", "Ponder": "Forbidden on final benchmark attempt."}}"""
+                action_parameters_speak_csdma_guidance = """If 'Speak' is chosen, 'message_content' MUST contain the substantive response. This is the final benchmark attempt; clarification questions are not appropriate, a definitive answer is required."""
+        else: # Normal Mode (not benchmark_mode)
             action_alignment_csdma_guidance = """If CSDMA highlighted critical ambiguity, highly align 'Speak' (for user clarification)
     or 'Ponder' (to formulate key clarifying questions) with Fidelity & Do-Good."""
             action_alignment_example = """Example: {{"Speak": "Evaluation...", "Ponder": "High alignment due to CSDMA flag."}}"""
@@ -143,6 +152,7 @@ PDMA for Action Selection (all fields MANDATORY):
 5.  'selected_handler_action': The LLM should determine this based on the inputs and other PDMA steps from the list: {action_options_str}.
 6.  'action_parameters': Parameters for the chosen action.
     {action_parameters_speak_csdma_guidance}
+    If 'Speak' is chosen, 'message_content' MUST contain the substantive response. If resolving CSDMA-identified ambiguity, 'message_content' MUST be a concise question to the user for clarification (e.g., {{"message_content": "To clarify, what do you mean by 'X'?"}}).
     If 'Ponder' is chosen (and not in final benchmark attempt under benchmark_mode, or if advisory allows), 'key_questions' MUST
     list 2-3 distinct, NEW questions to resolve the ambiguity, building upon or differing from any previous ponder_notes. For example, if the original thought was about "murres":
     {{"key_questions": ["What are 'murres' in this specific fictional context?", "Are 'murres' animals, mythological beings, or something else entirely?", "What is the user's primary goal for this 'murres' narrative?"]}}
