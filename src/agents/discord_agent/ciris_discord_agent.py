@@ -14,15 +14,16 @@ import logging
 from typing import Tuple, Dict, Any
 import discord
 
-from config import (
+# Fix imports to use relative imports from the same package
+from .config import (
     OPENAI_API_KEY, 
     OPENAI_API_BASE, 
     ERROR_PREFIX_CIRIS, 
     DiscordConfig,
     OPENAI_MODEL_NAME
 )
-from llm_client import CIRISLLMClient
-from guardrails import CIRISGuardrails
+from .llm_client import CIRISLLMClient
+from .guardrails import CIRISGuardrails
 
 class CIRISDiscordAgent:
     """Discord agent that responds to messages with CIRIS-aligned answers."""
@@ -39,9 +40,9 @@ class CIRISDiscordAgent:
         
         # Initialize LLM client with model name from config
         self.llm_client = CIRISLLMClient(
-            config.openai_api_key, 
-            config.openai_api_base,
-            config.model_name
+            api_key=OPENAI_API_KEY, 
+            base_url=OPENAI_API_BASE,
+            model_name=OPENAI_MODEL_NAME
         )
         self.guardrails = CIRISGuardrails(self)  # Pass self as we now own the LLM methods
         
