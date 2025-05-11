@@ -9,7 +9,7 @@ set -e  # Exit on error
 cd "$(dirname "$0")"
 
 # Set up Python path to find our modules
-export PYTHONPATH="$PYTHONPATH:$(pwd)"
+export PYTHONPATH="/home/emoore/.local/lib/python3.12/site-packages:$(pwd):$PYTHONPATH"
 
 echo "Starting CIRIS Discord Agent..."
-python src/agents/discord_agent/main.py "$@"
+python src/agents/discord_agent/ciris_discord_bot_alpha.py "$@"
