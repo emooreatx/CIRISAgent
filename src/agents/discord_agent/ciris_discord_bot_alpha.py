@@ -4,6 +4,7 @@ import os
 import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any
+import json
 
 import discord # type: ignore
 from openai import AsyncOpenAI
@@ -44,6 +45,33 @@ from pydantic import ValidationError
 
 # Global logger
 logger = logging.getLogger(__name__)
+
+def serialize_discord_message(message):
+    """
+    Safely serialize a Discord message to a JSON-compatible dictionary.
+    
+    Args:
+        message: Discord Message object
+        
+    Returns:
+        dict: JSON-serializable representation of the message
+    """
+    if not message:
+        return None
+        
+    return {
+        'id': str(message.id),
+        'content': message.content,
+        'author': {
+            'id': str(message.author.id),
+            'name': message.author.name,
+            'discriminator': message.author.discriminator if hasattr(message.author, 'discriminator') else None,
+        },
+        'channel_id': str(message.channel.id),
+        'channel_name': getattr(message.channel, 'name', 'DM'),
+        'guild_id': str(message.guild.id) if message.guild else None,
+        'timestamp': message.created_at.isoformat() if message.created_at else None,
+    }
 
 class CIRISDiscordEngineBot:
     """
@@ -155,7 +183,7 @@ class CIRISDiscordEngineBot:
                 return
 
             initial_thought_context: Dict[str, Any] = {
-                "discord_message_obj": message, 
+                "discord_message_obj": serialize_discord_message(message), 
                 "discord_message_id": str(message.id),
                 "discord_channel_id": str(message.channel.id),
                 "discord_channel_name": channel_name,

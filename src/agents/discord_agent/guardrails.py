@@ -3,7 +3,7 @@
 import logging
 from typing import Tuple, Dict, Any
 
-from config import ERROR_PREFIX_CIRIS, ENTROPY_THRESHOLD, COHERENCE_THRESHOLD
+from .config import ERROR_PREFIX_CIRIS, ENTROPY_THRESHOLD, COHERENCE_THRESHOLD
 
 class CIRISGuardrails:
     """Guardrails system for ensuring ethical responses."""
