@@ -26,9 +26,10 @@ class LLMOutputForDSDMA(BaseModel):
 class BasicTeacherDSDMA(BaseDSDMA):
     DOMAIN_NAME = "BasicTeacherMod"
 
-    def __init__(self, model_name: str = DEFAULT_OPENAI_MODEL_NAME, domain_specific_knowledge: Optional[Dict[str, Any]] = None):
+    def __init__(self, aclient: instructor.Instructor, model_name: str = DEFAULT_OPENAI_MODEL_NAME, domain_specific_knowledge: Optional[Dict[str, Any]] = None):
         super().__init__(domain_name=self.DOMAIN_NAME, domain_specific_knowledge=domain_specific_knowledge)
-        self.aclient = instructor.patch(AsyncOpenAI())
+        # self.aclient = instructor.patch(AsyncOpenAI()) # REMOVED - client is now injected
+        self.aclient = aclient # Use the injected client
         self.model_name = model_name
         if self.domain_specific_knowledge is None: # Ensure it's at least an empty dict
             self.domain_specific_knowledge = {}

@@ -19,9 +19,10 @@ class CSDMAEvaluator:
     and returns a structured CSDMAResult using the 'instructor' library.
     """
 
-    def __init__(self, model_name: str = DEFAULT_OPENAI_MODEL_NAME, environmental_kg: Any = None, task_specific_kg: Any = None):
+    def __init__(self, aclient: instructor.Instructor, model_name: str = DEFAULT_OPENAI_MODEL_NAME, environmental_kg: Any = None, task_specific_kg: Any = None):
         # Each DMA using instructor will manage its own patched client for now
-        self.aclient = instructor.patch(AsyncOpenAI())
+        # self.aclient = instructor.patch(AsyncOpenAI()) # REMOVED - client is now injected
+        self.aclient = aclient # Use the injected client
         self.model_name = model_name
         self.env_kg = environmental_kg # Placeholder for now
         self.task_kg = task_specific_kg   # Placeholder for now

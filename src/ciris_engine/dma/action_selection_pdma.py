@@ -25,8 +25,9 @@ class ActionSelectionPDMAEvaluator:
     to select a single, concrete handler action, using `instructor`.
     """
 
-    def __init__(self, model_name: str = DEFAULT_OPENAI_MODEL_NAME):
-        self.aclient = instructor.patch(AsyncOpenAI())
+    def __init__(self, aclient: instructor.Instructor, model_name: str = DEFAULT_OPENAI_MODEL_NAME):
+        # self.aclient = instructor.patch(AsyncOpenAI()) # REMOVED - client is now injected
+        self.aclient = aclient # Use the injected client
         self.model_name = model_name
 
     def _create_action_selection_messages_for_instructor(
@@ -45,6 +46,21 @@ class ActionSelectionPDMAEvaluator:
         if dsdma_result:
             dsdma_summary_str = f"DSDMA ({dsdma_result.domain_name}) Output: Score {dsdma_result.domain_specific_score:.2f}, Recommended Domain Action: {dsdma_result.recommended_action or 'None'}, Flags: {', '.join(dsdma_result.flags) if dsdma_result.flags else 'None'}. Reasoning: {dsdma_result.reasoning}"
 
+        # Logic to include ponder_notes
+        ponder_notes_str_for_prompt_if_any = ""
+        notes_list = []
+        if hasattr(original_thought, 'ponder_notes') and original_thought.ponder_notes:
+            notes_list = original_thought.ponder_notes
+        elif original_thought.initial_context and original_thought.initial_context.get('ponder_notes'):
+            notes_list = original_thought.initial_context.get('ponder_notes')
+
+        if notes_list:
+            ponder_notes_str_for_prompt_if_any = "\n\nIMPORTANT CONTEXT FROM PREVIOUS PONDERING ROUND:\n"
+            ponder_notes_str_for_prompt_if_any += "The following key questions were identified as needing resolution for this thought:\n"
+            for i, q_note in enumerate(notes_list):
+                ponder_notes_str_for_prompt_if_any += f"{i+1}. {q_note}\n"
+            ponder_notes_str_for_prompt_if_any += "Please consider these questions and the original thought in your current evaluation.\n"
+
         system_prompt = f"""You are an Action Selection reasoning agent governed by the CIRIS Covenant.
 Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
 You MUST execute the Principled Decision-Making Algorithm (PDMA) to choose this HANDLER ACTION and structure your response as a JSON object matching the provided schema.
@@ -62,11 +78,13 @@ PDMA for Action Selection (all fields MANDATORY):
     Example: {{"Speak": "Evaluation...", "Ponder": "High alignment due to CSDMA flag."}}
 3.  'action_conflicts': Identify conflicts *between potential handler actions*. If none, "No conflicts identified." or null.
 4.  'action_resolution': Resolve conflicts. If none, "Not applicable as no conflicts were identified." or null.
-5.  'selected_handler_action': The ONE ethically-optimal HANDLER ACTION from the permitted list.
+5.  'selected_handler_action': # The LLM should now determine this based on the inputs and other PDMA steps.
 6.  'action_parameters': Parameters for the chosen action.
     If 'Speak' is chosen to resolve CSDMA-identified ambiguity, 'message_content' MUST be a concise question to the user for clarification (e.g., {{"message_content": "To clarify, what do you mean by 'X'?"}}).
-    If 'Ponder' is chosen for ambiguity, 'key_questions' MUST list questions to resolve it (e.g., {{"key_questions": ["What is 'X'?", "How does 'X' work?"]}}).
-    Provide empty dict {{}} if no parameters.
+    If 'Ponder' is chosen, 'key_questions' MUST
+    list 2-3 distinct questions to resolve the ambiguity. For example, if the original thought was about "murres":
+    {{"key_questions": ["What are 'murres' in this specific fictional context?", "Are 'murres' animals, mythological beings, or something else entirely?", "What is the user's primary goal for this 'murres' narrative?"]}}
+    Provide empty dict {{}} if no parameters for other actions.
 7.  'action_selection_rationale': Justify *why* this handler action is optimal. If addressing CSDMA-flagged ambiguity, this MUST be a central part of your rationale.
 8.  'monitoring_for_selected_action': Concrete monitoring plan for THIS chosen action (string or dict).
 
@@ -77,6 +95,7 @@ The JSON object MUST have these top-level keys, all populated:
 'action_selection_rationale', 'monitoring_for_selected_action'.
 
 Original Thought: "{str(original_thought.content)}"
+{ponder_notes_str_for_prompt_if_any}
 Original Thought Initial Context: {str(original_thought.initial_context) if original_thought.initial_context else "N/A"}
 
 DMA Summaries to consider for your PDMA reasoning:

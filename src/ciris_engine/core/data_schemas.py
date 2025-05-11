@@ -66,6 +66,7 @@ class Thought(BaseModel):
     # Store the result of processing this thought.
     processing_result: Optional[Dict[str, Any]] = Field(default=None, description="The outcome or result of processing this thought.")
     ponder_notes: Optional[List[str]] = Field(default=None, description="Key questions or notes if the thought was re-queued for pondering.")
+    ponder_count: int = Field(default=0, description="Number of times this thought has been re-queued for pondering.")
 
 
     @model_validator(mode='before')
@@ -260,6 +261,7 @@ def get_thoughts_table_schema() -> str:
         dma_handler TEXT,
         processing_result_json TEXT,
         ponder_notes_json TEXT, -- Added for ponder notes
+        ponder_count INTEGER DEFAULT 0, -- Added for ponder count
         FOREIGN KEY (source_task_id) REFERENCES tasks_table(task_id)
             ON DELETE CASCADE,
         FOREIGN KEY (related_thought_id) REFERENCES thoughts_table(thought_id)
