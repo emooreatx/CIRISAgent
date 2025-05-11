@@ -221,41 +221,76 @@ async def run_processing_loop(max_script_cycles=7): # Renamed and added paramete
             logger.error(f"CRITICAL (Cycle {script_cycle_count}): General Exception for thought {queued_thought_item.thought_id}: {e_gen}", exc_info=True)
             error_messages.append(f"Cycle {script_cycle_count}, Thought {queued_thought_item.thought_id} - General Exception: {e_gen}")
             thought_manager.update_thought_status(
-                queued_thought_item.thought_id, ThoughtStatus(status="failed"), script_cycle_count, {"error": f"General Exception: {e_gen}"}
-            )
+                    queued_thought_item.thought_id, ThoughtStatus(status="failed"), script_cycle_count, {"error": f"General Exception: {e_gen}"}
+                )
 
-        if final_action_result:
-            logger.info(f"--- Script Cycle {script_cycle_count}: Final Action Result for thought {queued_thought_item.thought_id} ---")
-            logger.info(f"Selected Action: {final_action_result.selected_handler_action.value}")
-            logger.info(f"Action Parameters: {final_action_result.action_parameters}")
-            logger.info(f"Rationale: {final_action_result.action_selection_rationale}")
-            # Update status to 'processed' in DB
-            thought_manager.update_thought_status(
-                thought_id=queued_thought_item.thought_id,
-                new_status=ThoughtStatus(status="processed"),
-                round_processed=script_cycle_count, # Mark as processed in this script cycle
-                processing_result=final_action_result.model_dump()
-                # ponder_count is handled by WorkflowCoordinator if it was a Ponder that hit limit
-            )
-            # Check if it was a DEFER_TO_WA due to max ponder rounds
-            if final_action_result.selected_handler_action == HandlerActionType.DEFER_TO_WA and \
-               isinstance(final_action_result.action_parameters, dict) and \
-               "Max ponder rounds" in final_action_result.action_parameters.get("reason", ""):
-                logger.info(f"Max ponder rounds reached for thought {queued_thought_item.thought_id} and deferred. Ending demo.")
+            # --- Action Dispatch Logic ---
+            if final_action_result is None:
+                # Ponder action was successful, thought re-queued by WorkflowCoordinator.
+                logger.info(f"Script Cycle {script_cycle_count}: Thought {queued_thought_item.thought_id} was re-queued internally for PONDER.")
+                db_thought_after_ponder = thought_manager.get_thought_by_id(queued_thought_item.thought_id)
+                if db_thought_after_ponder:
+                    logger.info(f"DB state for {queued_thought_item.thought_id} AFTER Ponder re-queue in cycle {script_cycle_count}: "
+                                f"Status='{db_thought_after_ponder.status.status}', "
+                                f"PonderCount={db_thought_after_ponder.ponder_count}, "
+                                f"RoundProcessed={db_thought_after_ponder.round_processed}")
+                # Loop will continue, and next iteration should pick it up if still pending.
+            else:
+                # A terminal action was decided, or Ponder re-queue failed and returned Ponder action.
+                action_type = final_action_result.selected_handler_action
+                action_params = final_action_result.action_parameters if final_action_result.action_parameters else {}
+
+                logger.info(f"--- Script Cycle {script_cycle_count}: Final Action Result for thought {queued_thought_item.thought_id} ---")
+                logger.info(f"Selected Action: {action_type.value}")
+                logger.info(f"Action Parameters: {action_params}")
+                logger.info(f"Rationale: {final_action_result.action_selection_rationale}")
+
+                # Conceptual platform-specific handlers would be called here.
+                # For this demo, we'll just log.
+                # A real implementation would need `discord_context` or similar.
+                # discord_context = queued_thought_item.initial_context.get('discord_context') # Example
+
+                if action_type == HandlerActionType.SPEAK:
+                    message_content = action_params.get("message_content", "No message content provided.")
+                    logger.info(f"DISPATCH: Would call handle_discord_speak with message: '{message_content}'")
+                    # await handle_discord_speak(discord_context, message_content)
+                elif action_type == HandlerActionType.DEFER_TO_WA:
+                    logger.info(f"DISPATCH: Would call handle_discord_deferral with params: {action_params}")
+                    # await handle_discord_deferral(discord_context, action_params)
+                elif action_type == HandlerActionType.PONDER: 
+                    # This case means Ponder was selected but re-queueing failed inside WorkflowCoordinator,
+                    # and it returned the Ponder action itself.
+                    logger.error(f"Ponder action for thought {queued_thought_item.thought_id} selected, but re-queueing failed earlier. Treating as DEFER_TO_WA for safety.")
+                    logger.info(f"DISPATCH: Would call handle_discord_deferral for failed Ponder with params: {action_params}")
+                    # await handle_discord_deferral(discord_context, {"reason": "Ponder re-queue failed", **action_params})
+                    # Update status to deferred if it wasn't already.
+                    thought_manager.update_thought_status(
+                        thought_id=queued_thought_item.thought_id,
+                        new_status=ThoughtStatus(status="deferred"), # Explicitly defer
+                        round_processed=script_cycle_count,
+                        processing_result=final_action_result.model_dump(),
+                        ponder_count=action_params.get("ponder_count_at_failure") # Log last known ponder_count
+                    )
+                    break # End demo for this thought
+                elif action_type == HandlerActionType.REJECT_THOUGHT:
+                    logger.info(f"DISPATCH: Thought {queued_thought_item.thought_id} was REJECTED. Reason: {action_params.get('reason', 'No reason specified.')}")
+                elif action_type == HandlerActionType.NO_ACTION:
+                     logger.info(f"DISPATCH: Thought {queued_thought_item.thought_id} resulted in NO_ACTION.")
+                # Add other HandlerActionType cases as needed (e.g., USE_TOOL)
+
+                # Update thought status to 'processed' in DB if not an internally re-queued Ponder
+                # and not the special Ponder failure case handled above.
+                if action_type != HandlerActionType.PONDER: # Ponder re-queue handled by WC, Ponder failure handled above.
+                    thought_manager.update_thought_status(
+                        thought_id=queued_thought_item.thought_id,
+                        new_status=ThoughtStatus(status="processed"),
+                        round_processed=script_cycle_count,
+                        processing_result=final_action_result.model_dump()
+                    )
+                
+                # For this demo, if any terminal action is reached, break the loop.
+                logger.info(f"Thought {queued_thought_item.thought_id} reached a terminal action: {action_type.value}. Ending demo loop for this thought.")
                 break 
-            # If any other terminal action, also break for this specific demo focusing on one thought.
-            elif final_action_result.selected_handler_action != HandlerActionType.PONDER:
-                 logger.info(f"Thought {queued_thought_item.thought_id} reached a non-Ponder terminal state: {final_action_result.selected_handler_action.value}. Ending demo.")
-                 break
-
-        else: # final_action_result is None, meaning it was re-queued by Ponder
-            logger.info(f"Script Cycle {script_cycle_count}: Thought {queued_thought_item.thought_id} was re-queued for Ponder.")
-            db_thought_after_ponder = thought_manager.get_thought_by_id(queued_thought_item.thought_id)
-            if db_thought_after_ponder:
-                 logger.info(f"DB state for {queued_thought_item.thought_id} AFTER Ponder in cycle {script_cycle_count}: "
-                             f"Status='{db_thought_after_ponder.status.status}', "
-                             f"PonderCount={db_thought_after_ponder.ponder_count}, "
-                             f"RoundProcessed={db_thought_after_ponder.round_processed}")
         
         # If an error occurred for this specific thought, break the loop for this demo.
         if error_messages and any(f"Thought {queued_thought_item.thought_id}" in msg for msg in error_messages):
