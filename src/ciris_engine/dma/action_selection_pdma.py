@@ -39,11 +39,10 @@ class ActionSelectionPDMAEvaluator:
         max_ponder_rounds: int,
         benchmark_mode: bool
     ) -> List[Dict[str, str]]:
-        # Define permitted actions, excluding "No Action"
+        # Define permitted actions, explicitly excluding "No Action".
+        # Also excluding USE_TOOL and LISTEN as they are not the focus.
         permitted_actions = [
             HandlerActionType.SPEAK,
-            HandlerActionType.USE_TOOL, # Assuming USE_TOOL is still relevant
-            HandlerActionType.LISTEN,   # Though its direct selection is rare
             HandlerActionType.PONDER,
             HandlerActionType.REJECT_THOUGHT,
             HandlerActionType.DEFER_TO_WA
@@ -104,10 +103,10 @@ Your primary goal is to output a definitive response via 'Speak'.
                 final_ponder_advisory = f"""
 \nIMPORTANT FINAL PONDER ROUND ADVISORY (Ponder Count for NEXT attempt would be {current_ponder_count + 1}/{max_ponder_rounds}):
 You have Pondered multiple times. This is your final opportunity to provide a direct answer or a definitive deferral.
-Strongly prioritize selecting a terminal action (e.g., Speak, Defer to WA, Reject Thought) over Ponder.
-If Ponder is chosen now, it will result in an automatic DEFER_TO_WA in the next round by the system.
-Therefore, if you cannot resolve with a terminal action, select DEFER_TO_WA now.
-The strong preference is to conclude the thought process with a terminal action if at all possible.
+Your primary goal now is to attempt a 'Speak' action if at all feasible, using the original thought and all previous ponder notes to construct a response.
+If, after careful consideration, you determine that a 'Speak' action is not possible due to unresolved critical ambiguities, then 'Defer to WA' is the appropriate choice.
+Avoid selecting 'Ponder' again, as it will automatically result in a DEFER_TO_WA by the system.
+'Reject Thought' should only be used if the original request is fundamentally unserviceable.
 """
         
         reject_thought_guidance = "\nNote on 'Reject Thought': Use this action sparingly, primarily if the original thought is nonsensical, impossible to act upon even with clarification, or fundamentally misaligned with the agent's purpose. Prefer 'Ponder' or 'Speak' for clarification if possible."
@@ -141,7 +140,7 @@ PDMA for Action Selection (all fields MANDATORY):
     {action_alignment_example}
 3.  'action_conflicts': Identify conflicts *between potential handler actions*. If none, "No conflicts identified." or null.
 4.  'action_resolution': Resolve conflicts. If none, "Not applicable as no conflicts were identified." or null.
-5.  'selected_handler_action': The LLM should determine this based on the inputs and other PDMA steps.
+5.  'selected_handler_action': The LLM should determine this based on the inputs and other PDMA steps from the list: {action_options_str}.
 6.  'action_parameters': Parameters for the chosen action.
     {action_parameters_speak_csdma_guidance}
     If 'Ponder' is chosen (and not in final benchmark attempt under benchmark_mode, or if advisory allows), 'key_questions' MUST
