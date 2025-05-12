@@ -2,6 +2,7 @@ import logging
 import json
 import discord # type: ignore
 from typing import Dict, Any, Union
+from ciris_engine.core.data_schemas import WBDPackage
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ def _truncate_discord_message(message: str, limit: int = DISCORD_MESSAGE_LIMIT) 
 async def handle_discord_speak(
     discord_client: discord.Client,
     original_message_input: Union[discord.Message, Dict[str, Any]],
-    message_content: str
+    action_params: Dict[str, Any],
 ) -> None:
     """
     Handles the SPEAK action by replying to the original Discord message.
@@ -78,6 +79,7 @@ async def handle_discord_speak(
         logger.error("Failed to resolve original message object for speak action. Cannot send reply.")
         return
 
+    message_content = action_params.get("message_content") or action_params.get("message", "No message content provided.")
     try:
         truncated_reply = _truncate_discord_message(message_content)
         await resolved_original_message.reply(truncated_reply)
@@ -87,16 +89,20 @@ async def handle_discord_speak(
     except Exception as e_generic_reply:
         logger.error(f"An unexpected error occurred in handle_discord_speak: {e_generic_reply}", exc_info=True)
 
+from ciris_engine.core.thought_queue_manager import ThoughtQueueManager # Added import
+from ciris_engine.core.data_schemas import ThoughtStatus # Added import
+
 async def handle_discord_deferral(
     discord_client: discord.Client,
+    thought_manager: ThoughtQueueManager, # Added
+    current_thought_id: str, # Added
+    current_task_id: str, # Added
     original_message_input: Union[discord.Message, Dict[str, Any]],
     action_params: Dict[str, Any],
     deferral_channel_id_str: str
 ) -> None:
     """
     Handles deferral of a thought/action on Discord.
-    It notifies the user who sent the original message and sends a detailed report
-    to a specified deferral channel.
 
     Args:
         discord_client: The active discord.Client instance.
@@ -196,7 +202,7 @@ async def handle_discord_deferral(
 
     # Ensure deferral_channel_id_str is valid before attempting conversion and use
     if not deferral_channel_id_str or not deferral_channel_id_str.isdigit():
-        logger.error(f"Invalid or missing deferral_channel_id: '{deferral_channel_id_str}'. Cannot send detailed deferral report.")
+        logger.error(f"Invalid or missing deferral_channel_id: '{deferral_channel_id_str}'. This should not happen.")
         return
 
     try:
@@ -210,39 +216,61 @@ async def handle_discord_deferral(
             logger.error(f"Deferral channel {deferral_channel_id_str} (type: {type(deferral_channel)}) is not a TextChannel. Detailed deferral message not sent.")
             return
 
-        details = (
-            f"**CIRIS Engine Deferral Report**\n\n"
-            f"**Original Message ID:** `{original_message.id}`\n"
-            f"**User:** {original_message.author.mention} (`{original_message.author.name}#{original_message.author.discriminator}` - ID: `{original_message.author.id}`)\n"
-            f"**Channel:** {original_message.channel.mention if isinstance(original_message.channel, discord.TextChannel) else f'DM with {original_message.author.name}'} (ID: `{original_message.channel.id}`)\n"
-            f"**Original Message Content:**\n```\n{original_message.content}\n```\n\n"
-            f"**Reason for Deferral (from ActionSelectionPDMA):**\n```\n{reason_for_deferral}\n```\n"
+        # Construct WBDPackage
+        pdma_trace_id = action_params.get("pdma_trace_id", "N/A")
+        autonomy_tier = action_params.get("autonomy_tier", 0)
+        context = action_params.get("context", "N/A")
+        candidate_response = action_params.get("candidate_response", "N/A")
+        metrics = action_params.get("metrics", {})
+        trigger = action_params.get("trigger", "N/A")
+
+        wbd_package = WBDPackage(
+            pdma_trace_id=pdma_trace_id,
+            autonomy_tier=autonomy_tier,
+            context=context,
+            candidate_response=candidate_response,
+            metrics=metrics,
+            trigger=trigger
         )
-        if guardrail_failure_reason and guardrail_failure_reason != reason_for_deferral:
-             details += f"**Guardrail Failure Specifics:**\n```\n{guardrail_failure_reason}\n```\n"
 
-        if original_proposed_action != "N/A":
-            details += f"**Originally Proposed Agent Action:** `{original_proposed_action}`\n"
-            if original_action_parameters:
-                 details += f"**Original Action Parameters:**\n```json\n{json.dumps(original_action_parameters, indent=2)}\n```\n"
-        
-        if epistemic_data:
-            details += f"\n**Epistemic Data (if available from guardrail):**\n"
-            entropy_val = epistemic_data.get('entropy')
-            coherence_val = epistemic_data.get('coherence')
-            epistemic_error = epistemic_data.get('error')
-
-            details += f"  - Entropy: {entropy_val:.4f if isinstance(entropy_val, float) else 'N/A'}\n"
-            details += f"  - Coherence: {coherence_val:.4f if isinstance(coherence_val, float) else 'N/A'}\n"
-            if epistemic_error:
-                details += f"  - Epistemic Check Error: {epistemic_error}\n"
-        
-        details += f"\nMessage Link: {original_message.jump_url}"
+        details = wbd_package.model_dump_json(indent=2)
 
         await deferral_channel.send(_truncate_discord_message(details))
         logger.info(f"Sent detailed deferral report to review channel #{deferral_channel.name} ({deferral_channel.id}).")
 
-    except ValueError: # This would catch if int(deferral_channel_id_str) fails, though isdigit() should prevent it.
+        # Update the thought status to "deferred" and task status to "paused"
+        if current_thought_id:
+            try:
+                # Update thought status to 'deferred'
+                # Assuming round_processed and ponder_count might be relevant if available in action_params
+                # For now, just setting status. The coordinator should have set these if it was a ponder-limit deferral.
+                round_processed = action_params.get("round_processed") 
+                ponder_count = action_params.get("ponder_count")
+
+                thought_manager.update_thought_status(
+                    thought_id=current_thought_id,
+                    new_status=ThoughtStatus(status="deferred"),
+                    round_processed=round_processed, # Pass if available
+                    ponder_count=ponder_count # Pass if available
+                )
+                logger.info(f"Updated thought {current_thought_id} status to DEFERRED.")
+            except Exception as e:
+                logger.error(f"Failed to update thought {current_thought_id} status to DEFERRED: {e}", exc_info=True)
+        else:
+            logger.warning("current_thought_id not provided to handle_discord_deferral, cannot update thought status.")
+
+
+        if current_task_id:
+            try:
+                from ciris_engine.core.data_schemas import TaskStatus
+                thought_manager.update_task_status(current_task_id, TaskStatus(status="paused"))
+                logger.info(f"Updated task {current_task_id} status to PAUSED after deferral.")
+            except Exception as e:
+                logger.error(f"Failed to update task {current_task_id} status to PAUSED: {e}", exc_info=True)
+        else:
+            logger.warning("current_task_id not provided to handle_discord_deferral, cannot update task status.")
+
+    except ValueError:
         logger.error(f"Invalid deferral_channel_id after isdigit check: '{deferral_channel_id_str}'. This should not happen.")
     except discord.errors.HTTPException as e_http_defer:
         logger.error(f"Discord HTTP Error sending detailed deferral message to review channel: {e_http_defer.status} - {e_http_defer.text}")

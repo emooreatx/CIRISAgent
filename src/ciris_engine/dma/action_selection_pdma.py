@@ -325,6 +325,7 @@ Adhere strictly to the schema for your JSON output.
                 logger.warning("ActionSelectionPDMAResult does not have 'raw_llm_response' field, but raw data was available from instructor.")
 
             logger.info(f"ActionSelectionPDMA (instructor) evaluation successful for thought ID {original_thought.thought_id}: Chose {action_eval.selected_handler_action.value}")
+            logger.debug(f"ActionSelectionPDMA (instructor) action_parameters: {action_eval.action_parameters}")
             return action_eval
 
         except InstructorRetryException as e_instr:

@@ -2,7 +2,7 @@
 import logging
 import sys
 
-def setup_basic_logging(level=logging.INFO):
+def setup_basic_logging(level=logging.DEBUG):
     """
     Configures basic stream logging for the application.
     """

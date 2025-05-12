@@ -246,7 +246,7 @@ class ThoughtQueueManager:
     def populate_round_queue(self, round_number: int, max_items: int = 10) -> None:
         self.current_round_queue.clear()
         self.current_round_number = round_number
-        
+
         # Step 1: Identify active tasks that need a seed thought
         # A task needs a seed thought if it's 'active' and has no 'pending' or 'processing' thoughts.
         # This query is a bit complex: find tasks that DON'T have such thoughts.
@@ -257,15 +257,14 @@ class ThoughtQueueManager:
                   NOT EXISTS (
                       SELECT 1
                       FROM thoughts_table th
-                      WHERE th.source_task_id = tk.task_id AND (th.status = ? OR th.status = ?)
-                  )
+                      WHERE th.source_task_id = tk.task_id AND (th.status = ? OR th.status = ? OR th.status = ?))
             ORDER BY tk.priority DESC, tk.created_at ASC
-            LIMIT ?; 
+            LIMIT ?;
         """
         # Note: The LIMIT here applies to tasks needing seed thoughts.
         # We might want a separate limit for this vs. existing pending thoughts.
         # For now, let's assume max_items is an overall target for the queue.
-        
+
         newly_seeded_thoughts_count = 0
         try:
             with self._get_db_connection() as conn:
@@ -273,25 +272,26 @@ class ThoughtQueueManager:
                 active_task_status = TaskStatus(status="active").status
                 pending_thought_status = ThoughtStatus(status="pending").status
                 processing_thought_status = ThoughtStatus(status="processing").status
-                
+                completed_thought_status = ThoughtStatus(status="completed").status
+
                 # Fetch tasks that need seeding
                 # Limit to max_items for now, can be adjusted
-                cursor.execute(sql_tasks_needing_seed, (active_task_status, pending_thought_status, processing_thought_status, max_items))
+                cursor.execute(sql_tasks_needing_seed, (active_task_status, pending_thought_status, processing_thought_status, completed_thought_status, max_items))
                 tasks_to_seed_rows = cursor.fetchall()
 
                 for task_row in tasks_to_seed_rows:
                     if len(self.current_round_queue) >= max_items:
-                        break # Stop if queue is full
+                        break  # Stop if queue is full
 
                     task_instance = self._map_row_to_task(task_row)
-                    
+
                     # Prepare context for the new seed thought
                     seed_thought_context_json = {
                         "environment": task_instance.context.get("environment", "unknown_env_from_task"),
                         "channel": task_instance.context.get("channel", "unknown_channel_from_task"),
-                        "agent_name": task_instance.context.get("agent_name", "CIRIS Bot") # Default agent name
+                        "agent_name": task_instance.context.get("agent_name", "CIRIS Bot")  # Default agent name
                     }
-                    
+
                     # Prepare queue snapshot
                     # These counts are at the moment of seed thought creation
                     queue_snapshot = {
@@ -302,7 +302,7 @@ class ThoughtQueueManager:
                     # Determine content for the seed thought
                     # Prefer "initial_input_content" from task's context if available
                     thought_content = task_instance.context.get("initial_input_content", task_instance.description)
-                    if not thought_content: # Fallback if both are empty/None
+                    if not thought_content:  # Fallback if both are empty/None
                         thought_content = "Task requires initial processing."
                         logging.warning(f"Task {task_instance.task_id} has no initial_input_content or description for seed thought.")
 
@@ -313,18 +313,18 @@ class ThoughtQueueManager:
                         priority=task_instance.priority,
                         status=ThoughtStatus(status="pending"),
                         round_created=self.current_round_number,
-                        processing_context=task_instance.context, # Copy task's full context here
+                        processing_context=task_instance.context,  # Copy task's full context here
                         context_json=seed_thought_context_json,
                         queue_snapshot=queue_snapshot,
                         ponder_count=0
                     )
-                    
+
                     try:
-                        self.add_thought(new_seed_thought) # Persist the new seed thought
+                        self.add_thought(new_seed_thought)  # Persist the new seed thought
                         # Create ThoughtQueueItem and add to in-memory queue
                         initial_ctx_for_queue_item = new_seed_thought.processing_context if new_seed_thought.processing_context else {}
-                        raw_input_for_queue_item = str(new_seed_thought.content) # Assuming content is suitable as raw_input
-                        
+                        raw_input_for_queue_item = str(new_seed_thought.content)  # Assuming content is suitable as raw_input
+
                         queue_item = ThoughtQueueItem.from_thought_db(
                             new_seed_thought,
                             raw_input=raw_input_for_queue_item,
@@ -344,11 +344,12 @@ class ThoughtQueueManager:
         existing_pending_thoughts_count = 0
         if remaining_capacity > 0:
             sql_existing_pending = """
-                SELECT t.* FROM thoughts_table t
-                INNER JOIN tasks_table tk ON t.source_task_id = tk.task_id
-                WHERE t.status = ? AND tk.status = ?
-                ORDER BY tk.priority DESC, t.priority DESC, t.created_at ASC
-                LIMIT ?
+            SELECT t.* FROM thoughts_table t
+            INNER JOIN tasks_table tk ON t.source_task_id = tk.task_id
+            WHERE t.status = ? AND tk.status = ?
+            AND t.status != 'completed'
+            ORDER BY tk.priority DESC, t.priority DESC, t.created_at ASC
+            LIMIT ?
             """
             try:
                 with self._get_db_connection() as conn:
