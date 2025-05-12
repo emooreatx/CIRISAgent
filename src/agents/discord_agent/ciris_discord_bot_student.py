@@ -47,7 +47,7 @@ from instructor.exceptions import InstructorRetryException
 from pydantic import ValidationError
 
 # Global logger
-logger = logging.getLogger(__name__) # Consider renaming logger if both bots run in same process space
+logger = logging.getLogger() # Consider renaming logger if both bots run in same process space
                                      # e.g., logger = logging.getLogger("ciris_discord_bot_student")
 
 def serialize_discord_message(message):
@@ -178,37 +178,43 @@ class CIRISDiscordStudentBot: # Renamed class
 
     def _register_discord_events(self):
         """Registers event handlers for the Discord client."""
+    def _register_discord_events(self):
+        """Registers event handlers for the Discord client."""
         @self.client.event
         async def on_ready():
             if not self.client.user:
                 logger.error("Discord client user not found on_ready.")
                 return
-            logger.info(f'STUDENT Bot Logged in as {self.client.user.name} ({self.client.user.id})') # Modified log
+            logger.info(f'STUDENT Bot Logged in as {self.client.user.name} ({self.client.user.id})')  # Modified log
             if hasattr(self.discord_config, 'log_config') and callable(self.discord_config.log_config):
-                self.discord_config.log_config() 
-            
+                self.discord_config.log_config()
+
             self.client.loop.create_task(self.continuous_thought_processing_loop())
+            self.client.event(on_message)
 
+        async def on_message(message):
+            logger.info(f"STUDENT Bot Received message from {message.author.name} in #{message.channel.name if hasattr(message.channel, 'name') else 'UnknownChannel'}: '{message.content[:50]}...'")
+            logger.info(f"on_message: Entered on_message handler")
 
-        @self.client.event
-        async def on_message(message: discord.Message):
-            if not self._should_process_discord_message(message):
+            should_process = self._should_process_discord_message(message)
+            logger.info(f"on_message: _should_process_discord_message returned {should_process}")
+            if not should_process:
+                logger.info(f"on_message: Message should not be processed, returning")
                 return
-
-            channel_name = message.channel.name if hasattr(message.channel, 'name') else 'DM'
-            logger.info(f"STUDENT Bot Received message from {message.author.name} in #{channel_name}: '{message.content[:50]}...'") # Modified log
             
             if not self.thought_manager:
                 logger.error("ThoughtQueueManager not initialized. Cannot process message.")
                 return
 
+            # Move the task creation to after the check
+            channel_name = message.channel.name if hasattr(message.channel, 'name') else 'DM'
             task_description = f"Process Discord message from {message.author.name} in #{channel_name} (Student Bot): {message.content[:30]}..."
-            
+
             task_context = {
                 "initial_input_content": message.content,
-                "environment": "discord_student_bot", 
+                "environment": "discord_student_bot",
                 "channel": channel_name,
-                "agent_name": "CIRIS Student Bot", # Or derive from profile
+                "agent_name": "CIRIS Student Bot",  # Or derive from profile
                 "discord_message_id": str(message.id),
                 "discord_channel_id": str(message.channel.id),
                 "discord_author_id": str(message.author.id),
@@ -218,7 +224,7 @@ class CIRISDiscordStudentBot: # Renamed class
             }
 
             new_task = Task(
-                task_id=f"task_msg_{message.id}_student", 
+                task_id=f"task_msg_{message.id}_student",
                 description=task_description,
                 priority=1,
                 status=TaskStatus(status="active"),
@@ -231,30 +237,47 @@ class CIRISDiscordStudentBot: # Renamed class
             except Exception as e:
                 logger.error(f"STUDENT Bot: Failed to add task for Discord message {message.id}: {e}")
                 return
-            
-            # NOTE: Explicit Thought creation is removed.
 
+            # NOTE: Explicit Thought creation is removed.
+        
     def _should_process_discord_message(self, message: discord.Message) -> bool:
         # This logic can be identical to the other bot, or customized if needed.
-        # For now, keeping it the same.
-        if not self.client.user: return False 
-        if message.author == self.client.user:
+        logger.info(f"STUDENT Bot: Checking if message from {message.author.name} should be processed. Channel: {message.channel.name if hasattr(message.channel, 'name') else 'UnknownChannel'}")
+        if not self.client.user:
+            logger.info(f"Should Process: False - No client user")
             return False
+        if message.author == self.client.user:
+            logger.info(f"Should Process: False - Message from self")
+            return False
+
+        # Check if the message is from the correct channel ID
+        channel_check = self.discord_config.target_channels_set and message.channel.id not in self.discord_config.target_channels_set
+        logger.info(f"Channel check: {channel_check}")
+        if channel_check:
+            logger.info(f"Message from {message.author.name} in #{message.channel.name if hasattr(message.channel, 'name') else 'UnknownChannel'} ignored by STUDENT Bot: wrong channel ID ({message.channel.id}).")
+            logger.info(f"Should Process: False")
+            logger.info(f"message.channel.id: {message.channel.id}")
+            logger.info(f"self.discord_config.target_channels_set: {self.discord_config.target_channels_set}")
+            logger.info(f"self.discord_config.target_channel_ids: {self.discord_config.target_channel_ids}")
+            return False
+
         if self.discord_config.server_id_int and message.guild and message.guild.id != self.discord_config.server_id_int:
-            logger.debug(f"Message from {message.author.name} ignored by STUDENT Bot: wrong server ID ({message.guild.id}).")
+            logger.info(f"Message from {message.author.name} ignored by STUDENT Bot: wrong server ID ({message.guild.id}).")
+            logger.info(f"Should Process: False")
             return False
         is_dm = isinstance(message.channel, discord.DMChannel)
-        if self.discord_config.target_channels_set:
-            if is_dm:
-                logger.debug(f"DM from {message.author.name} ignored by STUDENT Bot: target channels are set.")
-                return False
-            elif message.channel.id not in self.discord_config.target_channels_set:
-                logger.debug(f"Message from {message.author.name} in #{message.channel.name if hasattr(message.channel, 'name') else 'UnknownChannel'} ignored by STUDENT Bot: not in target channels.")
-                return False
-        else: # No specific target channels, listen for mentions or DMs
-            if not is_dm and not self.client.user.mentioned_in(message):
-                logger.debug(f"Message from {message.author.name} in #{message.channel.name if hasattr(message.channel, 'name') else 'UnknownChannel'} ignored by STUDENT Bot: no specific channels and bot not mentioned.")
-                return False
+        if is_dm:
+            logger.info(f"DM from {message.author.name} ignored by STUDENT Bot: DMs are not supported.")
+            logger.info(f"Should Process: False")
+            return False
+        if not self.client.user.mentioned_in(message) and not self.discord_config.target_channels_set:
+            logger.info(f"Message from {message.author.name} in #{message.channel.name if hasattr(message.channel, 'name') else 'UnknownChannel'} ignored by STUDENT Bot: no specific channels and bot not mentioned.")
+            logger.info(f"Should Process: False")
+            return False
+        logger.info(f"Should Process: True")
+        logger.info(f"message.channel.id: {message.channel.id}")
+        logger.info(f"self.discord_config.target_channels_set: {self.discord_config.target_channels_set}")
+        logger.info(f"self.discord_config.target_channel_ids: {self.discord_config.target_channel_ids}")
         return True
 
     async def continuous_thought_processing_loop(self, max_script_cycles_overall: Optional[int] = None):
@@ -316,7 +339,7 @@ class CIRISDiscordStudentBot: # Renamed class
                     queued_thought_item.thought_id, ThoughtStatus(status="failed"), script_cycle_count, {"error": f"InstructorRetryException: {error_detail}"}
                 )
             except ValidationError as e_pyd:
-                error_detail = e_pyd.errors() if hasattr(e_pyd, 'errors') else str(e_pyd)
+                error_detail = e_pyd.errors() if hasattr(e_pyd, 'errors') else str(e_instr)
                 logger.error(f"CRITICAL (STUDENT Bot Cycle {script_cycle_count}): Pydantic ValidationError for thought {queued_thought_item.thought_id}: {error_detail}", exc_info=True)
                 self.thought_manager.update_thought_status(
                     queued_thought_item.thought_id, ThoughtStatus(status="failed"), script_cycle_count, {"error": f"Pydantic ValidationError: {error_detail}"}
@@ -402,7 +425,7 @@ if __name__ == "__main__":
     student_bot_logger = logging.getLogger() # Get root logger to configure
     # Or, if you want a specific logger for this script:
     # student_bot_logger = logging.getLogger("ciris_discord_bot_student_main")
-    setup_basic_logging(logger_instance=student_bot_logger, level=logging.INFO, prefix="[STUDENT_BOT_MAIN]")
+    setup_basic_logging(logger_instance=student_bot_logger, level=logging.DEBUG, prefix="[STUDENT_BOT_MAIN]")
     
     if not os.environ.get("OPENAI_API_KEY"):
         student_bot_logger.error("Error: OPENAI_API_KEY environment variable not set.")

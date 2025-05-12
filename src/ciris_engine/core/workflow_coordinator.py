@@ -196,18 +196,26 @@ class WorkflowCoordinator:
 
         if not passes_guardrail:
             logging.warning(f"Guardrail failed for thought ID {thought_item.thought_id}: {reason}. Overriding action to DEFER_TO_WA.")
+            
+            defer_action_params_guardrail = {
+                "original_proposed_action": action_selection_result.selected_handler_action.value,
+                "original_action_parameters": action_selection_result.action_parameters,
+                "guardrail_failure_reason": reason,
+                "epistemic_data": epistemic_data,
+                "pdma_trace_id": thought_item.thought_id, # Use thought_id as trace_id
+                "autonomy_tier": 0, # Default autonomy tier
+                "context": str(thought_item.content), # Original thought content
+                "candidate_response": action_selection_result.action_parameters.get("message_content", "N/A (Guardrail Deferral)"), # Attempt to get candidate if Speak
+                "metrics": {"guardrail_triggered": True},
+                "trigger": "GUARDRAIL_FAILURE"
+            }
             final_action_result = ActionSelectionPDMAResult( 
                 context_summary_for_action_selection=action_selection_result.context_summary_for_action_selection,
                 action_alignment_check=action_selection_result.action_alignment_check,
                 action_conflicts=action_selection_result.action_conflicts,
                 action_resolution=action_selection_result.action_resolution,
                 selected_handler_action=HandlerActionType.DEFER_TO_WA,
-                action_parameters={
-                    "original_proposed_action": action_selection_result.selected_handler_action.value,
-                    "original_action_parameters": action_selection_result.action_parameters,
-                    "guardrail_failure_reason": reason,
-                    "epistemic_data": epistemic_data
-                },
+                action_parameters=defer_action_params_guardrail,
                 action_selection_rationale=f"Original action '{action_selection_result.selected_handler_action.value}' overridden by guardrail. Reason: {reason}",
                 monitoring_for_selected_action={"status": "Awaiting WA guidance on deferral."},
                 raw_llm_response=action_selection_result.raw_llm_response 
@@ -245,14 +253,22 @@ class WorkflowCoordinator:
                     ponder_notes=key_questions, # Keep last ponder notes
                     ponder_count=current_ponder_count # Record final ponder count
                 )
+                # Populate action_parameters for WBDPackage when deferring due to max ponder rounds
+                defer_action_params = {
+                    "reason": f"Thought reached maximum ponder rounds ({MAX_PONDER_ROUNDS}). Original ponder questions: {key_questions}",
+                    "final_ponder_count": current_ponder_count,
+                    "pdma_trace_id": thought_item.thought_id, # Use thought_id as trace_id
+                    "autonomy_tier": 0, # Default autonomy tier
+                    "context": str(thought_item.content), # Original thought content
+                    "candidate_response": "N/A (Deferred due to max ponder rounds)",
+                    "metrics": {"ponder_count": current_ponder_count},
+                    "trigger": "MAX_PONDER_ROUNDS_REACHED"
+                }
                 return ActionSelectionPDMAResult(
                     context_summary_for_action_selection=final_action_result.context_summary_for_action_selection,
                     action_alignment_check=final_action_result.action_alignment_check,
                     selected_handler_action=HandlerActionType.DEFER_TO_WA,
-                    action_parameters={
-                        "reason": f"Thought reached maximum ponder rounds ({MAX_PONDER_ROUNDS}). Original ponder questions: {key_questions}",
-                        "final_ponder_count": current_ponder_count
-                    },
+                    action_parameters=defer_action_params,
                     action_selection_rationale=f"Ponder action overridden. Thought reached max ponder rounds ({MAX_PONDER_ROUNDS})."
                 )
             else:
@@ -276,6 +292,18 @@ class WorkflowCoordinator:
                     # Ensure the original ponder_count is part of the returned action if update failed.
                     final_action_result.action_parameters["ponder_count_at_failure"] = current_ponder_count
                     return final_action_result
+        
+        if final_action_result and final_action_result.selected_handler_action != HandlerActionType.PONDER:
+            success = self.thought_queue_manager.update_thought_status(
+                thought_id=thought_item.thought_id,
+                new_status=ThoughtStatus(status="completed"),
+                round_processed=self.thought_queue_manager.current_round_number,
+                processing_result={"status": "Completed", "final_action": final_action_result.selected_handler_action.value}
+            )
+            if success:
+                logging.info(f"Thought ID {thought_item.thought_id} successfully updated to completed.")
+            else:
+                logging.error(f"Failed to update thought ID {thought_item.thought_id} to completed.")
         
         return final_action_result # For all other actions
 

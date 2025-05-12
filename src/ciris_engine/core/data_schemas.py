@@ -11,7 +11,7 @@ class TaskStatus(BaseModel):
     status: Literal["pending", "active", "completed", "paused", "failed"] = "pending"
 
 class ThoughtStatus(BaseModel):
-    status: Literal["pending", "queued", "processing", "processed", "deferred", "failed", "cancelled"] = "pending"
+    status: Literal["pending", "queued", "processing", "processed", "deferred", "failed", "cancelled", "completed"] = "pending"
 
 class ThoughtType(BaseModel):
     type: Literal["thought", "metathought", "seed_task_thought"] = "thought" # Added "seed_task_thought"
@@ -347,3 +347,34 @@ if __name__ == "__main__":
     print(get_task_table_schema())
     print("\nThoughts Table Schema:")
     print(get_thoughts_table_schema())
+
+class WBDPackage(BaseModel):
+    pdma_trace_id: str         # UUID from the PDMA record
+    autonomy_tier: int         # 1–5
+    context: str               # redacted user prompt
+    candidate_response: str    # what the bot would have said
+    metrics: dict[str, float]  # {"entropy": 0.42, "coherence": 0.78}
+    trigger: str               # "ENTROPY_GT_MAX" | "UNCERTAINTY_HIGH" | ...
+
+from pydantic import BaseModel, Field
+from typing import Any, Dict, Optional
+import uuid
+import datetime as dt
+
+
+class ActionRequest(BaseModel):
+    """Lightweight wrapper for an inbound user prompt / task.
+
+    This is *not* the full Thought schema — it’s only what the PDMA
+    & deferral‑handler currently reference.
+    Extend or refactor later when the memory‑graph lands.
+    """
+
+    request_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_prompt: str
+    channel_id: int | str
+    user_id: int | str
+
+    # optional extras (ignored by default)
+    timestamp: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
