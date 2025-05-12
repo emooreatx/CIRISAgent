@@ -23,10 +23,14 @@ from ciris_engine.core.config import (
 )
 from ciris_engine.core.thought_queue_manager import ThoughtQueueManager
 from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
-from ciris_engine.dma import (
-    EthicalPDMAEvaluator,
-    CSDMAEvaluator,
-    # BasicTeacherDSDMA, # Will be loaded via profile
+from ciris_engine.dma.pdma import (
+    EthicalPDMAEvaluator
+)
+from ciris_engine.dma.csdma import (
+    CSDMAEvaluator
+)
+# BasicTeacherDSDMA, # Will be loaded via profile
+from ciris_engine.dma.action_selection_pdma import (
     ActionSelectionPDMAEvaluator
 )
 from ciris_engine.guardrails import EthicalGuardrails
@@ -366,23 +370,23 @@ class CIRISDiscordStudentBot: # Renamed class
                     await handle_discord_speak(
                         self.client,
                         original_discord_message_obj_dict, # Pass the dict
-                        action_params.get("message_content", "No message content specified.")
+                        action_params
                     )
                 elif action_type == HandlerActionType.DEFER_TO_WA:
                     logger.info(f"STUDENT Bot Dispatching DEFER_TO_WA action for thought {queued_thought_item.thought_id} to Discord handler.")
                     await handle_discord_deferral(
-                        self.client,
-                        original_discord_message_obj_dict, # Pass the dict
-                        action_params, 
-                        str(self.discord_config.deferral_channel_id) 
+                        discord_client=self.client,
+                        original_message_input=original_discord_message_obj_dict, # Pass the dict
+                        action_params=action_params, 
+                        deferral_channel_id_str=str(self.discord_config.deferral_channel_id) 
                     )
                 elif action_type == HandlerActionType.PONDER: 
                     logger.error(f"STUDENT Bot Cycle {script_cycle_count}: Thought {queued_thought_item.thought_id} - PONDER action returned by coordinator, but re-queue failed. Treating as DEFER_TO_WA.")
                     await handle_discord_deferral(
-                        self.client, 
-                        original_discord_message_obj_dict, # Pass the dict
-                        {"reason": "Ponder re-queue failed in coordinator.", **action_params}, 
-                        str(self.discord_config.deferral_channel_id)
+                        discord_client=self.client, 
+                        original_message_input=original_discord_message_obj_dict, # Pass the dict
+                        action_params={"reason": "Ponder re-queue failed in coordinator.", **action_params}, 
+                        deferral_channel_id_str=str(self.discord_config.deferral_channel_id)
                     )
                     self.thought_manager.update_thought_status(
                         thought_id=queued_thought_item.thought_id,
@@ -425,7 +429,8 @@ if __name__ == "__main__":
     student_bot_logger = logging.getLogger() # Get root logger to configure
     # Or, if you want a specific logger for this script:
     # student_bot_logger = logging.getLogger("ciris_discord_bot_student_main")
-    setup_basic_logging(logger_instance=student_bot_logger, level=logging.DEBUG, prefix="[STUDENT_BOT_MAIN]")
+    #setup_basic_logging(logger_instance=student_bot_logger, level=logging.DEBUG, prefix="[STUDENT_BOT_MAIN]")
+    setup_basic_logging(level=logging.DEBUG)
     
     if not os.environ.get("OPENAI_API_KEY"):
         student_bot_logger.error("Error: OPENAI_API_KEY environment variable not set.")
