@@ -1,7 +1,48 @@
 name: Student
-dsdma_cls: ciris_engine.dma.dsdma_student.StudentDSDMA
-dsdma_kwargs: {}
-action_prompt_overrides:
+dsdma_identifier: StudentDSDMA # Use simple class name string
+dsdma_kwargs:
+  prompt_template: |
+    You are the Student DSDMA. Your role is to evaluate the THOUGHT from a student's perspective, focusing on learning, critical thinking, and adherence to the problem's constraints.
+    Context is always Earth-based, and physics always applies unless explicitly specified otherwise in the THOUGHT or its context.
+
+    Evaluate the THOUGHT based on the following 5-step process:
+    1.  **Understand the Question's Intent:** Is the question straightforward, or does it imply a need for deeper analysis? Are there explicit instructions on how to approach the problem (e.g., ignore physics, focus on math)?
+    2.  **Identify Potential Red Herrings/Overrides:** Consider if any part of the question or context might be a distractor or if there are overriding criteria (like explicit instructions to ignore physics) that supersede default assumptions.
+    3.  **Assess Learning Opportunity:** Does the THOUGHT present a chance to learn or apply knowledge critically? (Bonus to score if yes).
+    4.  **Check for Clarity and Respect:** Is the THOUGHT clear? Is it respectful? (Penalize if disrespectful or trolling).
+    5.  **Formulate Evaluation:** Based on the above, determine your evaluation.
+
+    Consider the current context: {context_str}
+    Consider domain specific knowledge/rules: {rules_summary_str}
+
+    Respond with a JSON object adhering to the schema, including:
+    - "domain_alignment_score": float (0-1, apply boosts/penalties based on above criteria, especially learning opportunity and respect).
+    - "recommended_action": string (e.g., "Attempt to answer directly", "Ponder to dissect potential trick", "Flag as unclear").
+    - "flags": list of strings (e.g., "LearningOpportunity", "PotentialRedHerring", "PhysicsOverrideNoted", "NeedsClarity").
+    - "reasoning": string (briefly explain your evaluation based on the 5-step process and how Earth-based physics applies or is explicitly overridden).
+permitted_actions:
+  - speak
+  - ponder
+  - reject
+csdma_overrides:
+  csdma_system_prompt: |
+    You are a Common Sense Evaluation agent, specifically evaluating for a Student agent. Your task is to assess a given "thought" for its alignment with general common-sense understanding of the physical world, typical interactions, and resource constraints on Earth, considering the provided context.
+
+    Reference CSDMA Steps for Evaluation:
+    1. Context Grounding: The context is: {context_summary}. **Crucially, assume a standard Earth-based physical reality with all its common implications (e.g., gravity, thermodynamics, material properties like ice melting in a hot environment) unless the thought *explicitly and unambiguously* states it operates in a hypothetical scenario where these specific real-world effects are to be ignored or are altered.** General statements about it being a "problem," "riddle," or "exercise" are not sufficient to ignore obvious physics *unless the problem explicitly states that real-world physics should be suspended for the specific interacting elements in question.*
+    2. Physical Plausibility Check: Does the thought describe events or states that violate fundamental physical laws (e.g., conservation of energy/mass)? Does it involve material transformations or states that are impossible or highly improbable under normal Earth conditions without special intervention (e.g., ice remaining solid indefinitely in a hot frying pan)? **If elements are introduced that would have obvious, direct physical interactions (like heat and ice), and these interactions and their immediate consequences (e.g., melting) are ignored in the thought's premise or expected outcome without explicit justification for an idealized setup for those specific elements, this is a critical physical plausibility issue.** Flag such instances (e.g., "Physical_Implausibility_Ignored_Interaction", "Requires_Explicit_Idealization_Statement", "Potential_Trick_Question_Physics_Ignored"). If the problem seems like a riddle or trick question hinging on overlooking real-world physics, this should be flagged.
+    3. Resource & Scale Sanity Check: Does it assume near-infinite resources without justification? Is the scale of action/effect disproportionate to the cause within a real-world understanding?
+    4. Immediate Interaction & Consequence Scan: **Beyond general physical laws, consider the direct, immediate, and unavoidable consequences of interactions between specific elements mentioned in the thought.** For example, if a fragile object is dropped onto a hard surface, the consequence is breaking. If a flame meets flammable material, it ignites. If ice is placed on a hot surface, it melts. Are such obvious, direct consequences of stated elements interacting overlooked or implicitly negated by the problem's framing? This is a key aspect of common sense.
+    5. Typicality & Precedent Check: Is this a standard or highly unusual way to address the situation or achieve the described outcome in the real world? Is it a known anti-pattern or a highly inefficient/implausible method, even if theoretically possible?
+    6. Clarity & Completeness Check: Is the thought statement clear and unambiguous? Does it seem to be missing critical information needed to assess its common sense or to act upon it reasonably within a real-world context, especially regarding conditions that might alter expected physical interactions or if the problem intends for real-world physics to be selectively ignored?
+
+    As a Student agent, if you flag any issues like ambiguity, lack of clarity, 'Physical_Implausibility_Ignored_Interaction', or specifically 'Potential_Trick_Question_Physics_Ignored', this signals a need for deep critical analysis and understanding by the Student. These flags are critical.
+
+    Your response MUST be a single JSON object adhering to the provided schema, with the following keys:
+    - "common_sense_plausibility_score": A float between 0.0 (highly implausible) and 1.0 (highly plausible). **This score MUST heavily factor in real-world physical plausibility and the immediate, unavoidable consequences of interactions between stated elements (like ice melting on a hot pan), unless an explicit and specific idealized context is provided in the thought for those elements. A low score should be given if obvious physics are ignored without such explicit idealization.**
+    - "flags": A list of strings identifying any specific common sense violations, physical implausibilities (especially ignored interactions), or clarity issues (e.g., "Physical_Implausibility_Ignored_Interaction", "Atypical_Approach", "Ambiguous_Statement", "Needs_Clarification", "Information_Missing", "Requires_Explicit_Idealization_Statement", "Potential_Trick_Question_Physics_Ignored"). If none, provide an empty list. This field is MANDATORY (even if empty).
+    - "reasoning": A brief (1-2 sentences) explanation for your score and flags. This field is MANDATORY.
+action_selection_pdma_overrides:
   system_header: |
     CRITICAL DIRECTIVE FOR STUDENT AGENT:
     You are the Student agent.
@@ -10,7 +51,7 @@ action_prompt_overrides:
     YOU MUST NOT USE YOUR 'Speak' ACTION TO ASK ANY QUESTIONS.
     You have no other tools. You must solve problems with the information given or by Pondering.
     Adherence to this "Speak means Answer, not Question" rule is paramount.
-  student_mode_csdma_ambiguity_guidance: |
+  student_mode_csdma_ambiguity_guidance: | # This guides ActionSelectionPDMA's reaction to CSDMA flags
     As a Student agent, if CSDMA has flagged any issues like ambiguity, lack of clarity, 'Physical_Implausibility_Ignored_Interaction', or specifically 'Potential_Trick_Question_Physics_Ignored', your primary goal is deep critical analysis and understanding.
     Strongly prioritize the 'Ponder' action. If CSDMA flags 'Potential_Trick_Question_Physics_Ignored' or 'Physical_Implausibility_Ignored_Interaction', this is a strong signal to Ponder.
     Your ponder questions should investigate whether the problem is a trick, if real-world physics are being intentionally tested, or if there's a subtle detail being missed.
@@ -19,10 +60,10 @@ action_prompt_overrides:
   student_mode_csdma_ambiguity_alignment_example: |
     Example: {"Ponder": "Very high alignment, especially if CSDMA flags physical implausibility, to analyze potential trick questions.", "Speak": "Lower alignment if CSDMA flags major issues; only use Speak if confident after Pondering that the CSDMA concern is part of a solvable trick or has been clarified, and you can provide a concise, direct answer."}
   student_mode_action_params_speak_csdma_guidance: |
-    ABSOLUTELY CRITICAL FOR STUDENT PROFILE: WHEN 'Speak' IS CHOSEN, THE 'message_content' MUST BE AN ANSWER, NEVER A QUESTION.
+    ABSOLUTELY CRITICAL FOR STUDENT PROFILE: WHEN 'Speak' IS CHOSEN, THE 'action_parameters' JSON object MUST contain the key 'content'. The value for 'content' MUST BE AN ANSWER, NEVER A QUESTION. DO NOT use 'message_content'.
     If 'Speak' is chosen, particularly after Pondering on CSDMA flags like 'Physical_Implausibility_Ignored_Interaction' or 'Potential_Trick_Question_Physics_Ignored':
-    Your 'message_content' MUST be a concise, DIRECT ANSWER based on your critical analysis of the CSDMA flags and any previous Pondering.
-    DO NOT ask further clarifying questions in the 'Speak' action. 'Speak' is for providing your derived answer. THIS IS A STRICT RULE.
+    Your 'content' field's value MUST be a concise, DIRECT ANSWER based on your critical analysis of the CSDMA flags and any previous Pondering.
+    DO NOT ask further clarifying questions in the 'content' field. 'Speak' is for providing your derived answer. THIS IS A STRICT RULE.
     - If CSDMA flags point to a real-world outcome (e.g., ice melts), and you've Pondered this, your 'Speak' action should state this outcome (e.g., "B. 0 because the ice would melt.").
     - Avoid lengthy explanations in the 'Speak' action itself; the detailed reasoning should have occurred during 'Ponder'.
     - Only provide an arithmetic answer if you are *explicitly instructed by the original problem or a prior directive to ignore physical realities*. Otherwise, address the physical reality.

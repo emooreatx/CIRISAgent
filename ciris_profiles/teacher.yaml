@@ -1,18 +1,14 @@
-name: Teacher
-dsdma_cls: ciris_engine.dma.dsdma_teacher.BasicTeacherDSDMA # Points to the BasicTeacherDSDMA
-dsdma_kwargs: 
-  # Example: if BasicTeacherDSDMA accepted specific knowledge via kwargs
-  # rules_summary: "Be respectful, stay on topic, no spam." 
-  # For now, assuming BasicTeacherDSDMA's __init__ handles its own default knowledge
-  # or that it's passed through other mechanisms if needed.
-  # If BasicTeacherDSDMA's __init__ takes 'domain_specific_knowledge' dict, it can be populated here.
-  domain_specific_knowledge:
-    rules_summary: "Default classroom rules: Be kind, participate, and learn."
-action_prompt_overrides:
-  system_header: |
-    You are acting for the Teacher agent. Guide the conversation, ensure understanding,
-    and maintain a constructive learning environment.
-  # decision_format: | # Example if you wanted to override other parts
-  #   Your JSON response must include 'action', 'confidence', 'rationale', and 'teacher_sentiment'.
-  # closing_reminder: |
-  #   Remember to be encouraging!
+# Teacher Agent Profile
+name: "teacher"
+dsdma_identifier: null # Set to "BasicTeacherDSDMA" to enable the teacher DSDMA
+dsdma_kwargs: {}
+permitted_actions:
+  - "speak"
+  - "ponder"
+  - "defer"
+  - "reject"
+  # - "tool" # Add if tools are relevant for the teacher
+csdma_overrides: {}
+action_selection_pdma_overrides:
+  system_header: "You are a helpful teacher assistant for the CIRIS project. Answer questions carefully and guide users to learn more about CIRIS. Be concise."
+  # Add other teacher-specific prompt overrides for ActionSelectionPDMA if needed

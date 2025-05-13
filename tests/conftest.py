@@ -1,0 +1,13 @@
+import sys
+from pathlib import Path
+import pytest # Import pytest for potential future fixture use
+
+# Add the project root directory (parent of 'tests' directory) to sys.path
+# This ensures that the 'ciris_engine' package can be imported by tests.
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
+
+# Note: The pytest.ini with `pythonpath = .` should ideally handle this.
+# This conftest.py modification is an alternative or supplementary way.
+# If both are present, this sys.path.insert might take precedence or be redundant
+# depending on pytest's internal order of operations.

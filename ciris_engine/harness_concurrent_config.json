@@ -1,0 +1,45 @@
+{
+  "db": {
+    "db_filename": "harness_concurrent_ciris_engine.db",
+    "data_directory": "data"
+  },
+  "llm_services": {
+    "openai": {
+      "model_name": "gpt-4o-mini",
+      "base_url": null,
+      "timeout_seconds": 30.0,
+      "max_retries": 2,
+      "api_key_env_var": "OPENAI_API_KEY",
+      "instructor_mode": "JSON"
+    }
+  },
+  "guardrails": {
+    "entropy_threshold": 0.4,
+    "coherence_threshold": 0.8
+  },
+  "workflow": {
+    "max_active_tasks": 2,
+    "max_active_thoughts": 2,
+    "round_delay_seconds": 0.1,
+    "max_ponder_rounds": 2
+  },
+  "profile_directory": "ciris_profiles",
+  "agent_profiles": {
+    "TestStudentProfile": {
+      "name": "TestStudentProfile",
+      "dsdma_identifier": "StudentDSDMA",
+      "dsdma_kwargs": {},
+      "permitted_actions": [
+        "speak",
+        "ponder",
+        "defer",
+        "reject",
+        "observe"
+      ],
+      "csdma_overrides": {},
+      "action_selection_pdma_overrides": {
+        "system_header": "You are a test student for concurrent harness."
+      }
+    }
+  }
+}
