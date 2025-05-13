@@ -1,5 +1,14 @@
-discord.py==2.5.2
-openai==1.68.2
-pydantic==2.10.6
-instructor==1.3.3
-PyYAML==6.0.2
+# Core Functionality
+pydantic
+openai
+instructor
+PyYAML
+discord.py
+
+# HTTP client (often a dependency, good to list)
+httpx
+anyio
+
+# Testing
+pytest
+pytest-asyncio
