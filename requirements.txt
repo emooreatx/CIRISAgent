@@ -4,6 +4,8 @@ openai
 instructor
 PyYAML
 discord.py
+dkg
+aiohttp
 
 # HTTP client (often a dependency, good to list)
 httpx
