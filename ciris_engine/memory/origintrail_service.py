@@ -1,6 +1,10 @@
 import os, uuid, asyncio, aiohttp, logging
 from typing import Dict, Any
-from ciris_engine.services.base import Service   # your common ABC
+try:
+    from ..services.base import Service
+except ImportError:
+    # Fallback for direct execution
+    from ciris_engine.services.base import Service
 
 DKG_URL   = os.getenv("DKG_GRAPHQL", "http://node0.ciris.ai:8900/graphql")
 ENV_CTX   = "did:vld:env#graph"
@@ -53,6 +57,7 @@ class OriginTrailService(Service):
         self.running = True
         asyncio.create_task(self._worker())
         log.info("OriginTrailService started")
+        return self
 
     # ── public helpers used by MemoryHandler ──
     async def publish_task_graph(self, triples: str) -> str:
@@ -82,7 +87,10 @@ class OriginTrailService(Service):
             await self.session.close()
         if self.queue:
             while not self.queue.empty():
-                self.queue.get_nowait()
+                try:
+                    self.queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
 
     # ── internal worker ──
     async def _worker(self):
@@ -95,8 +103,10 @@ class OriginTrailService(Service):
                     await self._query(op.ctx)
                 elif op.kind == "delete":
                     await self._delete(op.ctx)
-            except Exception:
-                log.exception("OriginTrail op failed")
+            except Exception as e:
+                log.error(f"OriginTrail operation failed: {e}")
+            finally:
+                self.queue.task_done()
 
     # ── GraphQL helpers ──
     async def _publish(self, triples: str, ctx: str):
@@ -111,7 +121,16 @@ class OriginTrailService(Service):
             """,
             "variables": {"c": ctx, "d": triples},
         }
-        await self.session.post(DKG_URL, json=gql)
+        try:
+            async with self.session.post(DKG_URL, json=gql) as response:
+                if response.status != 200:
+                    log.error(f"GraphQL request failed with status {response.status}")
+                    return
+                result = await response.json()
+                if "errors" in result:
+                    log.error(f"GraphQL errors: {result['errors']}")
+        except Exception as e:
+            log.error(f"Network error: {e}")
 
     async def _query(self, ctx: str):
         gql = {
@@ -121,7 +140,18 @@ class OriginTrailService(Service):
               }""",
             "variables": {"c": ctx},
         }
-        return await (await self.session.post(DKG_URL, json=gql)).json()
+        try:
+            async with self.session.post(DKG_URL, json=gql) as response:
+                if response.status != 200:
+                    log.error(f"GraphQL request failed with status {response.status}")
+                    return
+                result = await response.json()
+                if "errors" in result:
+                    log.error(f"GraphQL errors: {result['errors']}")
+                return result
+        except Exception as e:
+            log.error(f"Network error: {e}")
+            return {}
 
     async def _delete(self, ctx: str):
         gql = {
@@ -131,7 +161,16 @@ class OriginTrailService(Service):
               }""",
             "variables": {"c": ctx},
         }
-        await self.session.post(DKG_URL, json=gql)
+        try:
+            async with self.session.post(DKG_URL, json=gql) as response:
+                if response.status != 200:
+                    log.error(f"GraphQL request failed with status {response.status}")
+                    return
+                result = await response.json()
+                if "errors" in result:
+                    log.error(f"GraphQL errors: {result['errors']}")
+        except Exception as e:
+            log.error(f"Network error: {e}")
 
 async def main():
     """Demo inserting and querying book data."""
