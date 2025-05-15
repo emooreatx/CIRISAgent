@@ -4,14 +4,27 @@ Milestones & Tasks
 
 Milestone A – Core Governance
 
-Elect initial Wise‑Authority (WA) roster and publish disclosures.
+Form initial Wise‑Authority (WA) board (5 members) and publish disclosures.
 
 Finalise escalation SLA table for WBD deferrals and circuit‑breaks.
 
 Integrate WA signature verification in the agent runtime.
 
 
-Milestone B – Transparency & Logging
+Milestone B – Emergency Kill Switches & Circuit-Breakers
+
+Implement agent-local circuit-break logic, halting all outputs and actions on catastrophic PDMA/guardrail failure.
+
+Wire Wise-Authority kill-switch: enable quorum (3/5) of WA members to halt or roll back a deployment, via Veilid-signed message.
+
+Protocol-level “network freeze” procedure: enable protocol stewards or 2/3+ of affected stakeholders to halt all agent operation via on-chain consensus.
+
+Test and document all kill-switch activation paths, MTTA (Mean Time to Action), and auditability.
+
+Publish kill-switch and sunset protocol documentation; verify in quarterly compliance audits.
+
+
+Milestone C – Transparency & Logging
 
 Implement automated redaction of PDMA and WBD logs.
 
@@ -20,7 +33,7 @@ Publish a daily UAL manifest anchored in OriginTrail.
 Expose a public endpoint for log retrieval.
 
 
-Milestone C – Ethical Consensus Engine
+Milestone D – Ethical Consensus Engine
 
 Add weighted voting (reputation × urgency × domain‑fit) with hard caps.
 
@@ -29,7 +42,7 @@ Integrate lightweight MPC or additive homomorphic tally for encrypted ballots.
 Enforce Order‑Maximisation Veto and autonomy/justice thresholds.
 
 
-Milestone D – Identity & Credentials
+Milestone E – Identity & Credentials
 
 Implement did:ciris: method and bind Veilid keys to DIDs.
 
@@ -38,21 +51,21 @@ Issue Verifiable Credentials (VCs) for reputation and ethics compliance.
 Provide a resolver API for DID and VC lookup.
 
 
-Milestone E – Data Fabric Expansion
+Milestone F – Data Fabric Expansion
 
 Build OriginTrail client for large‑object storage and hash anchoring.
 
 Ensure bidirectional linking between Veilid records and OriginTrail KAs.
 
 
-Milestone F – Security Hardening
+Milestone G – Security Hardening
 
 Add Dilithium/Kyber key option in key generation.
 
 Enable PQ‑secure encryption path in Veilid provider.
 
 
-Milestone G – Observability & Audits
+Milestone H – Observability & Audits
 
 Export agent metrics (queue depth, guardrail hits, WA latency) to Prometheus.
 
@@ -61,7 +74,7 @@ Create Grafana dashboard for operational and compliance monitoring.
 Schedule monthly KPI audits and third‑party reviews.
 
 
-Milestone H – Creation & Sunset Duties
+Milestone I – Creation & Sunset Duties
 
 Automate Stewardship‑Tier (ST) calculation and Creator Intent Statement (CIS) recording.
 
@@ -85,5 +98,5 @@ A milestone is complete when:
 
 
 
-System may be declared CIRIS 1.0‑β compliant once all milestones A–G meet the DoD and the first 90‑day WA audit passes.
+System may be declared CIRIS 1.0‑β compliant once all milestones A–H meet the DoD and the first 90‑day WA audit passes.
 
