@@ -4,29 +4,29 @@ Milestones & Tasks
 
 Milestone A – Core Governance
 
-Form initial Wise‑Authority (WA) board (5 members) and publish disclosures.
+1) Form initial Wise‑Authority (WA) board (5 members) and publish disclosures.
 
-Finalise escalation SLA table for WBD deferrals and circuit‑breaks.
+2) Finalise escalation SLA table for WBD deferrals and circuit‑breaks.
 
-Integrate WA signature verification in the agent runtime.
+3) Integrate WA signature verification in the agent runtime.
 
 
 Milestone B – Emergency Kill Switches & Circuit-Breakers
 
-Implement agent-local circuit-break logic, halting all outputs and actions on catastrophic PDMA/guardrail failure.
+1) Implement agent-local circuit-break logic, halting all outputs and actions on catastrophic PDMA/guardrail failure.
 
-Wire Wise-Authority kill-switch: enable quorum (3/5) of WA members to halt or roll back a deployment, via Veilid-signed message.
+2) Wire Wise-Authority kill-switch: enable quorum (3/5) of WA members to halt or roll back a deployment, via Veilid-signed message.
 
-Protocol-level “network freeze” procedure: enable protocol stewards or 2/3+ of affected stakeholders to halt all agent operation via on-chain consensus.
+3) Protocol-level “network freeze” procedure: enable protocol stewards or 2/3+ of affected stakeholders to halt all agent operation via on-chain consensus. (BETA)
 
-Test and document all kill-switch activation paths, MTTA (Mean Time to Action), and auditability.
+4) Test and document all kill-switch activation paths, MTTA (Mean Time to Action), and auditability.
 
-Publish kill-switch and sunset protocol documentation; verify in quarterly compliance audits.
+5) Publish kill-switch and sunset protocol documentation; verify in quarterly compliance audits.
 
 
 Milestone C – Transparency & Logging
 
-Implement automated redaction of PDMA and WBD logs.
+1) Implement automated redaction of PDMA and WBD logs.
 
 Publish a daily UAL manifest anchored in OriginTrail.
 
