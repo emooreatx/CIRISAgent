@@ -119,8 +119,8 @@ The CIRIS Engine uses agent profiles (defined in `ciris_engine.core.config_schem
 **Using a Profile:**
 
 1.  **Loading the Profile:**
-    *   The `ciris_engine.utils.profile_loader.load_profile(path_to_yaml_file)` function is used to load profiles.
-    *   Agent entry points (like `run_discord_student.py`, `run_discord_teacher.py`) are responsible for loading the desired profile.
+    *   The `ciris_engine.utils.profile_loader.load_profile(path_to_yaml_file)` coroutine is **asynchronous** and must be awaited when loading profiles.
+    *   Agent entry points (like `run_discord_student.py`, `run_discord_teacher.py`, `run_cli_student.py`) are responsible for loading the desired profile.
     *   These scripts also ensure the loaded profile is registered in the `AppConfig.agent_profiles` dictionary, typically keyed by the profile's lowercase name.
 
 2.  **Instantiating Components:**
