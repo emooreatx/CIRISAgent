@@ -1,5 +1,6 @@
 import json
 import os
+import asyncio
 from pathlib import Path
 from typing import Optional
 
@@ -100,6 +101,21 @@ def save_config_to_json(config: AppConfig, config_file_path: Optional[Path] = No
     except Exception as e:
         # print(f"Error saving configuration to {actual_path}: {e}") # For debugging
         raise # Re-raise the exception as saving might be critical
+
+
+async def load_config_from_file_async(config_file_path: Optional[Path] = None, create_if_not_exists: bool = False) -> AppConfig:
+    """Asynchronous wrapper around ``load_config_from_file`` using ``asyncio.to_thread``."""
+    return await asyncio.to_thread(load_config_from_file, config_file_path, create_if_not_exists)
+
+
+async def get_config_async() -> AppConfig:
+    """Asynchronously retrieve the current application configuration."""
+    return await asyncio.to_thread(get_config)
+
+
+async def save_config_to_json_async(config: AppConfig, config_file_path: Optional[Path] = None) -> None:
+    """Asynchronous wrapper around ``save_config_to_json``."""
+    await asyncio.to_thread(save_config_to_json, config, config_file_path)
 
 # --- Utility for Database Path Construction ---
 def get_sqlite_db_full_path() -> str:
