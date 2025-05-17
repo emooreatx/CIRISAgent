@@ -14,7 +14,17 @@ Utility CLI for CIRISAgent’s Veilid integration. Supports three commands:
 
 Usage examples: python veilid_agent_utils.py keygen python veilid_agent_utils.py handshake [--wa-key WA_PUBLIC_KEY] python veilid_agent_utils.py register AGENT_NAME
 
-Files created in $HOME: .ciris_agent_keys.json    (stores public_key & secret) .ciris_agent_secrets.json (stores base64(shared_secret) by WA public key) """ import argparse import asyncio import json import base64 import logging from pathlib import Path
+Files created in $HOME: .ciris_agent_keys.json    (stores public_key & secret) .ciris_agent_secrets.json (stores base64(shared_secret) by WA public key) """
+import argparse
+import asyncio
+import json
+import base64
+import logging
+import hmac
+import hashlib
+from pathlib import Path
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 import veilid from cirisnode.veilid_provider.registry import advertise_profile, list_profiles, Role
 
@@ -100,4 +110,5 @@ args = parser.parse_args()
 args.func(args)
 
 if name == 'main': main()
+
 

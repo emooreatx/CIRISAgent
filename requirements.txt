@@ -6,10 +6,14 @@ PyYAML
 discord.py
 dkg
 aiohttp
+veilid
+cryptography
+pycapnp
 
 # HTTP client (often a dependency, good to list)
 httpx
 anyio
+networkx # Added for conversation graph history
 
 # Testing
 pytest
