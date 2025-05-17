@@ -5,12 +5,12 @@ from pathlib import Path # Added import
 from typing import Dict, Optional # Added Dict and Optional
 
 # CIRIS Engine Core Components
-from ciris_engine.core.config_manager import get_config, AppConfig
+from ciris_engine.core.config_manager import get_config_async, AppConfig
 from ciris_engine.core.action_dispatcher import ActionDispatcher
 from ciris_engine.core.agent_processor import AgentProcessor
 from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
 from ciris_engine.core.config_schemas import SerializableAgentProfile as AgentProfile # Updated import
-from ciris_engine.utils.profile_loader import load_profile # Updated import
+from ciris_engine.utils.profile_loader import load_profile
 
 # DMAs and Guardrails
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator
@@ -43,7 +43,7 @@ async def main_teacher(): # Renamed function
     try:
         # app_config will be loaded using the default mechanism in get_config()
         # If a specific file path were needed, load_config_from_file could be used here.
-        app_config: AppConfig = get_config()
+        app_config: AppConfig = await get_config_async()
         logger.info("Application configuration loaded successfully.")
     except Exception as e:
         logger.exception(f"Failed to load application configuration: {e}")
@@ -76,7 +76,7 @@ async def main_teacher(): # Renamed function
             else:
                 raise FileNotFoundError(f"Teacher profile '{profile_file_path}' not found and no default profile configured.") # Updated error
         else:
-            agent_profile = load_profile(Path(profile_file_path)) # Ensure profile_path is Path object
+            agent_profile = await load_profile(Path(profile_file_path))
             if agent_profile:
                 logger.info(f"Successfully loaded agent profile: {agent_profile.name} from {profile_file_path}")
             else:
