@@ -7,7 +7,7 @@ import networkx as nx
 logger = logging.getLogger(__name__)
 
 class SimpleConversationMemory:
-    def __init__(self, max_history_length: int = 10):
+    def __init__(self, max_history_length: int = 2):
         self.max_history_length = max_history_length
         self.conversation_graphs: Dict[Any, nx.DiGraph] = {}
         self.message_order: Dict[Any, deque[str]] = {}

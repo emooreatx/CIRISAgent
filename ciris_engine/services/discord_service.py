@@ -28,7 +28,7 @@ class DiscordConfig(BaseModel):
     deferral_channel_id_env_var: str = Field(default="DISCORD_DEFERRAL_CHANNEL_ID", description="Environment variable for the deferral channel ID.")
     wa_user_id_env_var: str = Field(default="DISCORD_WA_USER_ID", description="Environment variable for the Wise Authority user ID for corrections.")
     monitored_channel_id_env_var: str = Field(default="DISCORD_CHANNEL_ID", description="Environment variable for a specific channel ID where all non-bot messages should be processed.")
-    max_message_history: int = Field(default=10, description="Maximum number of messages to keep in history per conversation for LLM context.")
+    max_message_history: int = Field(default=2, description="Maximum number of messages to keep in history per conversation for LLM context.")
     
     # Loaded at runtime
     bot_token: Optional[str] = None
