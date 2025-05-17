@@ -7,9 +7,11 @@ import ast # Added import for literal_eval
 import uuid # Added import for uuid
 from datetime import datetime, timezone # Added datetime imports
 import discord # type: ignore
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List # Added List
 
 from pydantic import BaseModel, Field
+
+from ciris_engine.memory.simple_conversation_memory import SimpleConversationMemory # Import the new class
 
 from .base import Service
 from ciris_engine.core.action_dispatcher import ActionDispatcher, ServiceHandlerCallable
@@ -26,6 +28,7 @@ class DiscordConfig(BaseModel):
     deferral_channel_id_env_var: str = Field(default="DISCORD_DEFERRAL_CHANNEL_ID", description="Environment variable for the deferral channel ID.")
     wa_user_id_env_var: str = Field(default="DISCORD_WA_USER_ID", description="Environment variable for the Wise Authority user ID for corrections.")
     monitored_channel_id_env_var: str = Field(default="DISCORD_CHANNEL_ID", description="Environment variable for a specific channel ID where all non-bot messages should be processed.")
+    max_message_history: int = Field(default=10, description="Maximum number of messages to keep in history per conversation for LLM context.")
     
     # Loaded at runtime
     bot_token: Optional[str] = None
@@ -73,6 +76,13 @@ class DiscordService(Service):
         self.config = config or DiscordConfig()
         self.config.load_env_vars() # Load token and IDs from environment
 
+        # Initialize conversation history using the new class
+        self.conversation_memory = SimpleConversationMemory(max_history_length=self.config.max_message_history)
+        if self.conversation_memory.is_enabled():
+            logger.info("SimpleConversationMemory initialized and enabled for DiscordService.")
+        else:
+            logger.warning("SimpleConversationMemory is disabled for DiscordService (NetworkX unavailable or max_message_history <= 0).")
+
         intents = discord.Intents.default()
         intents.messages = True
         intents.message_content = True
@@ -100,7 +110,7 @@ class DiscordService(Service):
             # Process message if it's a DM, mentions the bot, OR is in the specifically monitored channel.
             is_dm = isinstance(message.channel, discord.DMChannel)
             is_monitored_channel = self.config.monitored_channel_id and message.channel.id == self.config.monitored_channel_id
-            is_mention = self.bot.user.mentioned_in(message)
+            is_mention = self.bot.user and self.bot.user.mentioned_in(message) # Ensure self.bot.user is not None
 
             should_process = is_dm or is_mention or is_monitored_channel
 
@@ -111,6 +121,27 @@ class DiscordService(Service):
             # --- End Message Filtering ---
 
             logger.info(f"DiscordService: Processing message {message.id} from {message.author.name} in {'DM' if is_dm else message.channel.name} (Monitored Channel: {is_monitored_channel}, Mention: {is_mention}). Content: {message.content[:50]}...")
+
+            # --- Conversation History Management using SimpleConversationMemory ---
+            formatted_history = ""
+            if self.conversation_memory.is_enabled():
+                channel_id = message.channel.id # Used as conversation_id
+                msg_id = str(message.id)
+                msg_timestamp = message.created_at.isoformat()
+                msg_author_name = message.author.name
+                msg_content = message.content
+                msg_reference_id = str(message.reference.message_id) if message.reference and message.reference.message_id else None
+
+                self.conversation_memory.add_message(
+                    conversation_id=channel_id,
+                    message_id=msg_id,
+                    content=msg_content,
+                    author_name=msg_author_name,
+                    timestamp=msg_timestamp,
+                    reference_message_id=msg_reference_id
+                )
+                formatted_history = self.conversation_memory.get_formatted_history(channel_id)
+            # --- End Conversation History Management ---
 
             # This context will be stored with the Task and eventually passed to the ActionDispatcher
             # Ensure 'origin_service' is set here.
@@ -123,6 +154,7 @@ class DiscordService(Service):
                 "content": message.content, # The raw message content
                 "timestamp": message.created_at.isoformat(),
                 "origin_service": "discord", # Crucial for ActionDispatcher routing
+                "formatted_conversation_history": formatted_history # Add the history here
                 # Add any other relevant Discord message attributes if needed later
             }
 
@@ -268,24 +300,42 @@ class DiscordService(Service):
         try:
             if action_type == HandlerActionType.SPEAK:
                 if isinstance(params, SpeakParams):
-                    content = _truncate_discord_message(params.content)
+                    content_to_send = _truncate_discord_message(params.content)
+                    sent_message: Optional[discord.Message] = None # To store the message object the bot sends
+
                     if target_message_id_str:
                         try:
                             target_message_id = int(target_message_id_str)
                             # Fetch the message we intend to reply to (original user's message)
                             message_to_reply_to = await target_channel.fetch_message(target_message_id)
-                            await message_to_reply_to.reply(content)
+                            sent_message = await message_to_reply_to.reply(content_to_send) # Capture sent message
                             logger.info(f"DiscordService: Replied to message {target_message_id} in channel {target_channel_id}.")
                         except (ValueError, discord.NotFound, discord.Forbidden) as e:
                             logger.error(f"DiscordService: Error fetching message {target_message_id_str} in channel {target_channel_id} to reply: {e}. Sending to channel instead.")
-                            await target_channel.send(content) # Fallback
+                            sent_message = await target_channel.send(content_to_send) # Capture sent message (Fallback)
                         except Exception as e:
                             logger.exception(f"DiscordService: Unexpected error replying to message {target_message_id_str} in channel {target_channel_id}: {e}. Sending to channel instead.")
-                            await target_channel.send(content) # Fallback
+                            sent_message = await target_channel.send(content_to_send) # Capture sent message (Fallback)
                     else:
                         # If there's no target message ID (e.g., task initiated differently), just send to the channel
                         logger.warning(f"DiscordService: Target 'message_id' not found in dispatch_context. Sending SPEAK to channel {target_channel_id} instead of replying.")
-                        await target_channel.send(content)
+                        sent_message = await target_channel.send(content_to_send) # Capture sent message
+
+                    # Add the bot's message to conversation memory
+                    if sent_message and self.conversation_memory.is_enabled() and self.bot.user:
+                        bot_message_reference_id: Optional[str] = None
+                        if sent_message.reference and sent_message.reference.message_id:
+                            bot_message_reference_id = str(sent_message.reference.message_id)
+                        
+                        self.conversation_memory.add_message(
+                            conversation_id=target_channel_id, # Use the channel_id as conversation_id
+                            message_id=str(sent_message.id),
+                            content=content_to_send, # Content that was attempted to be sent
+                            author_name=self.bot.user.name,
+                            timestamp=sent_message.created_at.isoformat(),
+                            reference_message_id=bot_message_reference_id
+                        )
+                        logger.info(f"DiscordService: Added bot's response (ID: {sent_message.id}) to conversation memory for channel {target_channel_id}.")
                 else:
                     logger.error(f"DiscordService: Invalid params type for SPEAK: {type(params)}")
 
