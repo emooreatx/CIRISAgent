@@ -1,5 +1,6 @@
 import yaml
 import logging
+import asyncio
 from pathlib import Path
 from typing import Optional
 
@@ -7,9 +8,10 @@ from ciris_engine.core.config_schemas import SerializableAgentProfile
 
 logger = logging.getLogger(__name__)
 
-def load_profile(profile_path: Path) -> Optional[SerializableAgentProfile]:
-    """
-    Loads an agent profile from a YAML file.
+async def load_profile(profile_path: Path) -> Optional[SerializableAgentProfile]:
+    """Asynchronously load an agent profile from a YAML file.
+
+    This coroutine should be awaited so file I/O does not block the event loop.
 
     Args:
         profile_path: Path to the YAML profile file.
@@ -25,8 +27,11 @@ def load_profile(profile_path: Path) -> Optional[SerializableAgentProfile]:
         return None
 
     try:
-        with open(profile_path, 'r') as f:
-            profile_data = yaml.safe_load(f)
+        def _load_yaml(path: Path):
+            with open(path, "r") as f:
+                return yaml.safe_load(f)
+
+        profile_data = await asyncio.to_thread(_load_yaml, profile_path)
         
         if not profile_data:
             logger.error(f"Profile file is empty or invalid YAML: {profile_path}")
