@@ -40,7 +40,7 @@ The system is designed for modularity, allowing developers to create and integra
 
 *   `core/`: Contains data schemas (`config_schemas.py`, `agent_core_schemas.py`, `foundational_schemas.py`), configuration management (`config_manager.py`), the `AgentProcessor`, `WorkflowCoordinator`, `ActionDispatcher`, and persistence layer (`persistence.py`).
 *   `dma/`: Implementations of the various DMAs (EthicalPDMA, CSDMA, DSDMAs like `dsdma_student.py`, `dsdma_teacher.py`, ActionSelectionPDMA).
-*   `utils/`: Utility functions, including logging configuration (`logging_config.py`) and profile loading (`profile_loader.py`).
+*   `utils/`: Utility helpers like `logging_config.py` and an asynchronous `load_profile` function in `profile_loader.py` (remember to `await` it).
 *   `guardrails/`: Ethical guardrail implementation.
 *   `services/`: LLM client abstractions (`llm_client.py`, `llm_service.py`) and service integrations like `discord_service.py`.
 *   `ciris_profiles/`: Directory for agent profile YAML files (e.g., `student.yaml`, `teacher.yaml`).
@@ -118,11 +118,23 @@ Ensure environment variables (`OPENAI_API_KEY`, `DISCORD_BOT_TOKEN`) are set.
 python run_discord_teacher.py
 ```
 
+### 3. `run_cli_student.py` — CLI Student Agent
+
+**Purpose:**
+Run the CIRIS agent with the "Student" profile via a simple command-line interface. Useful for local benchmarking without Discord.
+
+**Usage:**
+Ensure the `OPENAI_API_KEY` environment variable is set.
+```bash
+python run_cli_student.py
+```
+
 ---
 ## Other Notable Scripts & Components
 
 *   **`run_services.py`**: Appears to be a script for running services, potentially for testing or a different deployment mode.
 *   **`test_client_init.py`**: A test script, likely for initializing or testing client connections.
+*   **`run_cli_student.py`**: Simple CLI runner for the student profile.
 *   The `tests/` directory contains unit and integration tests runnable with `pytest`.
 
 ---
