@@ -128,30 +128,43 @@ class DiscordService(Service):
 
             # --- WA Correction Handling (Reply in Deferral Channel) ---
             if message.reference and self.config.deferral_channel_id and message.channel.id == self.config.deferral_channel_id:
-                logger.info(f"Potential WA correction via reply in deferral channel {message.channel.id} by {message.author.name}.")
-                
+                logger.info(
+                    f"Potential WA correction via reply in deferral channel {message.channel.id} by {message.author.name}."
+                )
+
                 original_task_id = None
                 corrected_thought_id = None
-                
-                # Parse the replied-to message (deferral report)
+
+                # Attempt to retrieve the referenced deferral report message
+                referenced_message: Optional[discord.Message] = None
                 if message.reference.resolved and isinstance(message.reference.resolved, discord.Message):
-                    replied_to_content = message.reference.resolved.content
+                    referenced_message = message.reference.resolved
+                elif message.reference.message_id:
+                    try:
+                        referenced_message = await message.channel.fetch_message(message.reference.message_id)
+                    except Exception as e:
+                        logger.warning(
+                            f"Could not fetch referenced message {message.reference.message_id}: {e}"
+                        )
+
+                if referenced_message:
+                    replied_to_content = referenced_message.content
                     task_id_match = re.search(r"Task ID:\s*`([^`]+)`", replied_to_content)
                     thought_id_match = re.search(r"Deferred Thought ID:\s*`([^`]+)`", replied_to_content)
-                    
+
                     if task_id_match:
                         original_task_id = task_id_match.group(1)
                         logger.info(f"Extracted original Task ID: {original_task_id}")
                     else:
                         logger.warning("Could not extract original Task ID from deferral report.")
-                        
+
                     if thought_id_match:
                         corrected_thought_id = thought_id_match.group(1)
                         logger.info(f"Extracted corrected Thought ID: {corrected_thought_id}")
                     else:
                         logger.warning("Could not extract deferred Thought ID from deferral report.")
                 else:
-                    logger.warning("WA correction reply reference could not be resolved to a message.")
+                    logger.warning("WA correction reply reference could not be resolved or fetched.")
 
                 if original_task_id:
                     # Create a new THOUGHT linked to the original TASK
