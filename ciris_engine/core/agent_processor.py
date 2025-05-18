@@ -281,7 +281,8 @@ class AgentProcessor:
         # Mark thoughts as PROCESSING in DB before sending to coordinator
         update_tasks = []
         for item in batch:
-            logging.debug(
+            logger.debug(
+
                 "Marking thought %s as PROCESSING for round %s",
                 item.thought_id,
                 self.current_round_number,
@@ -297,7 +298,9 @@ class AgentProcessor:
         update_results = await asyncio.gather(*update_tasks, return_exceptions=True)
 
         for item, result in zip(batch, update_results):
-            logging.debug(
+
+            logger.debug(
+
                 "update_thought_status(PROCESSING) result for %s: %s",
                 item.thought_id,
                 result,
@@ -305,24 +308,27 @@ class AgentProcessor:
         
         failed_updates = [item.thought_id for i, item in enumerate(batch) if isinstance(update_results[i], Exception) or not update_results[i]]
         if failed_updates:
-             logging.warning(f"Failed to mark thoughts as PROCESSING for IDs: {failed_updates}. They might not be processed.")
+             logger.warning(f"Failed to mark thoughts as PROCESSING for IDs: {failed_updates}. They might not be processed.")
              # Filter out thoughts that failed the status update to avoid processing inconsistent state
              batch = [item for item in batch if item.thought_id not in failed_updates]
              if not batch:
-                 logging.warning("Batch is empty after filtering failed status updates. Skipping processing.")
+                 logger.warning("Batch is empty after filtering failed status updates. Skipping processing.")
                  return
 
 
         # Process the batch using WorkflowCoordinator
         processing_tasks = []
         for item in batch:
-            logging.debug("Calling process_thought for %s", item.thought_id)
+
+            logger.debug("Calling process_thought for %s", item.thought_id)
+
             processing_tasks.append(self.workflow_coordinator.process_thought(item))
 
         results = await asyncio.gather(*processing_tasks, return_exceptions=True)
 
         for item, res in zip(batch, results):
-            logging.debug(
+            logger.debug(
+
                 "process_thought result for %s: %s",
                 item.thought_id,
                 res,
