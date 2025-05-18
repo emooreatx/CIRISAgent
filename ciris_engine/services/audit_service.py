@@ -29,10 +29,11 @@ class AuditService(Service):
 
     async def log_action(self, handler_action: HandlerActionType, context: Dict[str, Any]):
         """Persist an audit log entry derived from the given context."""
+        event_type = context.pop("event_type", handler_action.name)
         entry = AuditLogEntry(
             event_id=str(uuid.uuid4()),
             event_timestamp=datetime.now(timezone.utc).isoformat(),
-            event_type=handler_action.name,
+            event_type=event_type,
             originator_id=context.get("originator_id", "unknown"),
             target_id=context.get("target_id"),
             event_summary=context.get("event_summary", ""),
