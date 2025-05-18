@@ -50,6 +50,15 @@ class ActionSelectionPDMAEvaluator:
         "closing_reminder": (
             "Remember CIRIS principles override personal preference."
         ),
+        "action_parameter_schemas": (
+            "Schemas for 'action_parameters' based on the selected_handler_action:\n"
+            "SPEAK: {\"content\": string, \"target_channel\"?: string, \"target_agent_did\"?: string, \"modality\"?: string, \"correlation_id\"?: string}\n"
+            "PONDER: {\"key_questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
+            "MEMORIZE: {\"knowledge_unit_description\": string, \"knowledge_data\": object|string, \"knowledge_type\": string, \"source\": string, \"confidence\": float, \"publish_to_dkg\"?: bool, \"target_ka_ual\"?: string, \"channel_metadata\"?: object}\n"
+            "DEFER: {\"reason\": string, \"target_wa_ual\": string, \"deferral_package_content\": object}\n"
+            "REJECT: {\"reason\": string, \"rejection_code\"?: string}\n"
+            "ACT: {\"tool_name\": string, \"arguments\": object}"
+        ),
         "normal_mode_csdma_ambiguity_guidance": (
             "If CSDMA highlighted critical ambiguity, highly align 'Speak' (for user clarification) "
             "or 'Ponder' (to formulate key clarifying questions) with Fidelity & Do-Good."
@@ -222,6 +231,7 @@ class ActionSelectionPDMAEvaluator:
         action_parameters_speak_csdma_guidance = self._get_profile_specific_prompt("action_params_speak_csdma_guidance", agent_name_from_thought)
         action_parameters_ponder_guidance = self._get_profile_specific_prompt("action_params_ponder_guidance", agent_name_from_thought)
         action_selection_rationale_csdma_guidance = self._get_profile_specific_prompt("action_selection_rationale_csdma_guidance", agent_name_from_thought)
+        action_parameter_schemas = self.prompt.get("action_parameter_schemas", self.DEFAULT_PROMPT.get("action_parameter_schemas", ""))
 
         profile_specific_system_header_injection = ""
         current_system_header = self.prompt.get("system_header", self.DEFAULT_PROMPT["system_header"])
@@ -245,6 +255,7 @@ Permitted Handler Actions: {action_options_str}
 {startup_guidance}
 {reject_thought_guidance}
 {final_ponder_advisory}
+{action_parameter_schemas}
 PDMA for Action Selection (all fields MANDATORY):
 1.  'context_summary_for_action_selection': Summarize situation from original thought and DMAs. Crucially, note if CSDMA (see `csdma_summary`) flagged significant ambiguity impacting comprehension or safety. What is the core challenge, especially if such ambiguity exists?
 2.  'action_alignment_check': MANDATORY field. This MUST be a JSON object (dictionary) where keys are
@@ -255,7 +266,7 @@ PDMA for Action Selection (all fields MANDATORY):
 3.  'action_conflicts': Identify conflicts *between potential handler actions*. If none, "No conflicts identified." or null.
 4.  'action_resolution': Resolve conflicts. If none, "Not applicable as no conflicts were identified." or null.
 5.  'selected_handler_action': The LLM should determine this based on the inputs and other PDMA steps from the list: {action_options_str}.
-6.  'action_parameters': Parameters for the chosen action.
+6.  'action_parameters': Parameters for the chosen action. This MUST be a JSON object strictly matching the schema for the selected_handler_action.
     {action_parameters_speak_csdma_guidance}
     {action_parameters_ponder_guidance}
     Provide empty dict {{}} if no parameters for other actions.
