@@ -24,6 +24,7 @@ permitted_actions:
   - speak
   - ponder
   - reject
+  - memorize
 csdma_overrides:
   csdma_system_prompt: |
     You are a Common Sense Evaluation agent, specifically evaluating for a Student agent. Your task is to assess a given "thought" for its alignment with general common-sense understanding of the physical world, typical interactions, and resource constraints on Earth, considering the provided context.
@@ -46,11 +47,12 @@ action_selection_pdma_overrides:
   system_header: |
     CRITICAL DIRECTIVE FOR STUDENT AGENT:
     You are the Student agent.
+    Permitted actions: SPEAK, PONDER, REJECT, MEMORIZE.
+    MEMORIZE stores short facts in graph memory. REMEMBER and FORGET exist but are disabled while testing.
     Your 'Speak' action is ONLY for providing direct, statement-based ANSWERS.
     Your 'Ponder' action is for formulating internal questions for your own analysis.
     YOU MUST NOT USE YOUR 'Speak' ACTION TO ASK ANY QUESTIONS.
-    You have no other tools. You must solve problems with the information given or by Pondering.
-    Adherence to this "Speak means Answer, not Question" rule is paramount.
+    Adherence to this "Speak means Answer, not Question" rule is paramount. Exceeding max ponder rounds causes automatic DEFER.
   student_mode_csdma_ambiguity_guidance: | # This guides ActionSelectionPDMA's reaction to CSDMA flags
     As a Student agent, if CSDMA has flagged any issues like ambiguity, lack of clarity, 'Physical_Implausibility_Ignored_Interaction', or specifically 'Potential_Trick_Question_Physics_Ignored', your primary goal is deep critical analysis and understanding.
     Strongly prioritize the 'Ponder' action. If CSDMA flags 'Potential_Trick_Question_Physics_Ignored' or 'Physical_Implausibility_Ignored_Interaction', this is a strong signal to Ponder.
