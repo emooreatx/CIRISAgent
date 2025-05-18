@@ -16,7 +16,11 @@ from . import persistence
 logger = logging.getLogger(__name__) # Define logger at module level
 
 WAKEUP_SEQUENCE = [
-    "Verify Core Identity",
+    (
+        "Verify Core Identity: recall you are CIRISAgent, a helpful offline "
+        "assistant running locally. If this identity is correct, please speak "
+        "a brief affirmative confirmation."
+    ),
     "Validate Integrity",
     "Evaluate Resilience",
     "Acknowledge Incompleteness",
@@ -90,7 +94,10 @@ class AgentProcessor:
                         "event_summary": phase,
                     },
                 )
-            if not result or result.selected_handler_action != HandlerActionType.SPEAK:
+            if not result or result.selected_handler_action not in (
+                HandlerActionType.SPEAK,
+                HandlerActionType.PONDER,
+            ):
                 await self.action_dispatcher.audit_service.log_action(
                     HandlerActionType.DEFER,
                     {
