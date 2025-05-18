@@ -37,8 +37,13 @@ All Discord-facing agents **must** adhere to the following practices:
 | rate_limit_observe     | Yes       | Cap at 10 messages per OBSERVE cycle                         |
 | metadata_schema        | Yes       | Must match schema and stay <1024 bytes                       |
 | graphql_minimal        | Yes       | Only nick/channel; fallback on timeout                       |
-| graceful_shutdown      | Yes       | 10s max shutdown per service                                 |
+| graceful_shutdown      | Yes       | 10s max shutdown per service                    |
+
+### Channel-metadata approval cycle
+
+Channel updates in `DiscordGraphMemory` are deferred until a follow-up thought from the Wise Authority arrives. The MemoryHandler checks for `is_wa_correction` and a valid `corrected_thought_id` to apply the pending write without deferring again.
 
 ### Runtime Architecture
+
 
 `BaseRuntime` centralizes environment validation, audit logging, and the Dream Protocol. IO adapters expose a small interface (`fetch_inputs` and `send_output`) so new platforms can be added easily. Incoming Discord messages are deduplicated: each message ID maps to exactly one Task and one initial Thought. The helper `_create_task_if_new` performs this check before persisting.
