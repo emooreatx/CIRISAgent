@@ -1,3 +1,4 @@
+"""Core enums and type aliases for CIRIS Engine."""
 from enum import Enum
 from typing import Union, List, Dict, Any, Optional # Retaining for now, can be pruned
 
@@ -9,18 +10,20 @@ class CIRISSchemaVersion(str, Enum):
     #... future versions
 
 class HandlerActionType(str, Enum):
-    # Actions
+    """The 3×3×3 action model for CIRIS handlers."""
+
+    # External actions
     OBSERVE = "observe"
     SPEAK = "speak"
-    TOOL = "tool" # Replaces 'Act' concept for LLM tool usage
+    ACT = "act"
 
-    # Deferrals
-    PONDER = "ponder"
+    # Control responses
     REJECT = "reject"
-    DEFER = "defer" # Deferral to Wise Authority (WA)
+    PONDER = "ponder"
+    DEFER = "defer"  # Deferral to Wise Authority (WA)
 
-    # Memory Operations
-    LEARN = "learn"
+    # Memory operations
+    MEMORIZE = "memorize"
     REMEMBER = "remember"
     FORGET = "forget"
 
