@@ -20,7 +20,8 @@ class HandlerActionType(str, Enum):
     # Control responses
     REJECT = "reject"
     PONDER = "ponder"
-    DEFER = "defer"  # Deferral to Wise Authority (WA)
+    DEFER = "defer"  # Generic deferral action
+    DEFER_TO_WA = "defer_to_wa"  # Explicit deferral requiring WA intervention
 
     # Memory operations
     MEMORIZE = "memorize"
@@ -44,6 +45,13 @@ class ThoughtStatus(str, Enum):
     FAILED = "failed" # Error during processing
     DEFERRED = "deferred" # Outcome was deferral to WA
     REJECTED = "rejected" # Outcome was rejection
+
+
+class MemoryUpdateContext(str, Enum):
+    """Context markers for memory updates."""
+
+    CHANNEL_UPDATE_REQUEST = "channel_update_request"
+    CHANNEL_UPDATE_WA_APPROVED = "channel_update_wa_approved"
 
 class ObservationSourceType(str, Enum):
     DISCORD_MESSAGE = "discord_message"

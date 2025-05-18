@@ -31,8 +31,6 @@ class DiscordGraphMemory(Service):
     def __init__(self, storage_path: Optional[str] = None):
         super().__init__()
         self.storage_path = Path(storage_path or "memory_graph.pkl")
-        self.approved_channels: set[str] = set()
-        self._pending: Dict[str, list[tuple[str, Dict[str, Any], Optional[Dict[str, Any]]]]] = {}
         if self.storage_path.exists():
             try:
                 with self.storage_path.open("rb") as f:
@@ -84,21 +82,6 @@ class DiscordGraphMemory(Service):
             logger.warning("Memorize called without a user nickname; skipping")
             return MemoryOpResult(status=MemoryOpStatus.FAILED, reason="missing user")
 
-        if channel:
-            if channel not in self.approved_channels and not is_correction:
-                self._pending.setdefault(channel, []).append((user_nick, metadata, channel_metadata))
-                logger.info("DEFER triggered for channel %s", channel)
-                return MemoryOpResult(
-                    status=MemoryOpStatus.DEFERRED,
-                    reason=f"Channel {channel} not approved",
-                    deferral_package={
-                        "user_nick": user_nick,
-                        "channel": channel,
-                        "metadata": metadata,
-                        "channel_metadata": channel_metadata,
-                    },
-                )
-
         node_data = self.graph.nodes.get(user_nick, {})
         if channel:
             channels = set(node_data.get("channels", []))
@@ -108,17 +91,11 @@ class DiscordGraphMemory(Service):
                 chan_meta = node_data.get("channel_metadata", {})
                 chan_meta[channel] = channel_metadata
                 node_data["channel_metadata"] = chan_meta
-
+        
         node_data.update(metadata)
         self.graph.add_node(user_nick, **node_data)
         await asyncio.to_thread(self._persist)
         return MemoryOpResult(status=MemoryOpStatus.SAVED)
-
-    async def approve_channel(self, channel: str):
-        self.approved_channels.add(channel)
-        queued = self._pending.pop(channel, [])
-        for user_nick, metadata, chan_meta in queued:
-            await self.memorize(user_nick, channel, metadata, chan_meta, is_correction=True)
 
     async def remember(self, user_nick: str) -> Dict[str, Any]:
         if self.graph.has_node(user_nick):
