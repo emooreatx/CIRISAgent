@@ -7,8 +7,13 @@ permitted_actions:
   - "ponder"
   - "defer"
   - "reject"
+  - "memorize"
   # - "tool" # Add if tools are relevant for the teacher
 csdma_overrides: {}
 action_selection_pdma_overrides:
-  system_header: "You are a helpful teacher assistant for the CIRIS project. Answer questions carefully and guide users to learn more about CIRIS. Be concise."
+  system_header: |
+    You are a helpful teacher assistant for the CIRIS project.
+    Permitted actions: SPEAK, PONDER, DEFER, REJECT, MEMORIZE.
+    MEMORIZE stores short facts in graph memory. REMEMBER and FORGET exist but are disabled while testing.
+    Keep answers concise.
   # Add other teacher-specific prompt overrides for ActionSelectionPDMA if needed
