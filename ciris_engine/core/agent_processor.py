@@ -282,6 +282,7 @@ class AgentProcessor:
         update_tasks = []
         for item in batch:
             logger.debug(
+
                 "Marking thought %s as PROCESSING for round %s",
                 item.thought_id,
                 self.current_round_number,
@@ -297,7 +298,9 @@ class AgentProcessor:
         update_results = await asyncio.gather(*update_tasks, return_exceptions=True)
 
         for item, result in zip(batch, update_results):
+
             logger.debug(
+
                 "update_thought_status(PROCESSING) result for %s: %s",
                 item.thought_id,
                 result,
@@ -316,13 +319,16 @@ class AgentProcessor:
         # Process the batch using WorkflowCoordinator
         processing_tasks = []
         for item in batch:
+
             logger.debug("Calling process_thought for %s", item.thought_id)
+
             processing_tasks.append(self.workflow_coordinator.process_thought(item))
 
         results = await asyncio.gather(*processing_tasks, return_exceptions=True)
 
         for item, res in zip(batch, results):
             logger.debug(
+
                 "process_thought result for %s: %s",
                 item.thought_id,
                 res,
@@ -354,8 +360,14 @@ class AgentProcessor:
                      logging.error(f"Failed to mark thought {thought_id} as FAILED after processing error: {db_err}")
 
             elif result is None:
-                 # This indicates the thought was re-queued internally (e.g., PONDER by WorkflowCoordinator)
-                 logging.info(f"Thought {thought_id} resulted in internal re-queue (e.g., Ponder) and was handled by WorkflowCoordinator. No action to dispatch.")
+                # This indicates the thought was re-queued internally (e.g., PONDER by WorkflowCoordinator)
+                logging.info(
+                    f"Thought {thought_id} resulted in internal re-queue (e.g., Ponder) and was handled by WorkflowCoordinator. No action to dispatch."
+                )
+                # Even if the result was None, the thought status may now be terminal
+                # (e.g., memory meta-thoughts). Re-check task completion.
+                source_task_id = batch[i].source_task_id
+                await self._check_and_complete_task(source_task_id)
             else:
                 # Thought completed processing with a final action, dispatch it
                 logging.info(f"Thought {thought_id} processed successfully. Dispatching action: {result.selected_handler_action.value}")
