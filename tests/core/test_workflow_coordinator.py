@@ -119,9 +119,8 @@ async def test_memory_meta_thought(
 
     result = await workflow_coordinator_instance.process_thought(item)
 
-    assert result is None
-    mem_mock.assert_awaited_once_with("alice", "general", {"kind": "friend"})
-    mock_persistence.update_thought_status.assert_called_once()
+    assert result is not None
+    mem_mock.assert_not_awaited()
 
 @pytest.fixture
 def sample_thought():

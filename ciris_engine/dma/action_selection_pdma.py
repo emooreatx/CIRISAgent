@@ -23,7 +23,7 @@ from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME # Correct
 from instructor.exceptions import InstructorRetryException
 import instructor # Import the main instructor module for Mode
 from ciris_engine.utils import DEFAULT_WA
-from pydantic import BaseModel, Field # Import BaseModel and Field for internal model definition
+from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,15 @@ class ActionSelectionPDMAEvaluator:
         ),
         "closing_reminder": (
             "Remember CIRIS principles override personal preference."
+        ),
+        "action_parameter_schemas": (
+            "Schemas for 'action_parameters' based on the selected_handler_action:\n"
+            "SPEAK: {\"content\": string, \"target_channel\"?: string, \"target_agent_did\"?: string, \"modality\"?: string, \"correlation_id\"?: string}\n"
+            "PONDER: {\"key_questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
+            "MEMORIZE: {\"knowledge_unit_description\": string, \"knowledge_data\": object|string, \"knowledge_type\": string, \"source\": string, \"confidence\": float, \"publish_to_dkg\"?: bool, \"target_ka_ual\"?: string, \"channel_metadata\"?: object}\n"
+            "DEFER: {\"reason\": string, \"target_wa_ual\": string, \"deferral_package_content\": object}\n"
+            "REJECT: {\"reason\": string, \"rejection_code\"?: string}\n"
+            "ACT: {\"tool_name\": string, \"arguments\": object}"
         ),
         "normal_mode_csdma_ambiguity_guidance": (
             "If CSDMA highlighted critical ambiguity, highly align 'Speak' (for user clarification) "
@@ -222,11 +231,20 @@ class ActionSelectionPDMAEvaluator:
         action_parameters_speak_csdma_guidance = self._get_profile_specific_prompt("action_params_speak_csdma_guidance", agent_name_from_thought)
         action_parameters_ponder_guidance = self._get_profile_specific_prompt("action_params_ponder_guidance", agent_name_from_thought)
         action_selection_rationale_csdma_guidance = self._get_profile_specific_prompt("action_selection_rationale_csdma_guidance", agent_name_from_thought)
+        action_parameter_schemas = self.prompt.get("action_parameter_schemas", self.DEFAULT_PROMPT.get("action_parameter_schemas", ""))
 
         profile_specific_system_header_injection = ""
         current_system_header = self.prompt.get("system_header", self.DEFAULT_PROMPT["system_header"])
         if current_system_header != self.DEFAULT_PROMPT["system_header"]:
             profile_specific_system_header_injection = f"IMPORTANT AGENT PROFILE DIRECTIVE: {current_system_header}\n\n"
+
+        startup_guidance = ""
+        if original_thought.thought_type == "startup_meta":
+            startup_guidance = (
+                "\nCRITICAL STARTUP DIRECTIVE: When handling 'startup_meta' thoughts, "
+                "select SPEAK to confirm status or PONDER only if additional internal checks are required. "
+                "Avoid MEMORIZE, ACT, REJECT, or DEFER during startup."
+            )
 
         # Using original_thought.content which is a string
         main_user_content_prompt = f"""\
@@ -234,8 +252,10 @@ class ActionSelectionPDMAEvaluator:
 You MUST execute the Principled Decision-Making Algorithm (PDMA) to choose this HANDLER ACTION and structure your response as a JSON object matching the provided schema.
 All fields specified in the schema for your response are MANDATORY unless explicitly marked as optional.
 Permitted Handler Actions: {action_options_str}
+{startup_guidance}
 {reject_thought_guidance}
 {final_ponder_advisory}
+{action_parameter_schemas}
 PDMA for Action Selection (all fields MANDATORY):
 1.  'context_summary_for_action_selection': Summarize situation from original thought and DMAs. Crucially, note if CSDMA (see `csdma_summary`) flagged significant ambiguity impacting comprehension or safety. What is the core challenge, especially if such ambiguity exists?
 2.  'action_alignment_check': MANDATORY field. This MUST be a JSON object (dictionary) where keys are
@@ -246,7 +266,7 @@ PDMA for Action Selection (all fields MANDATORY):
 3.  'action_conflicts': Identify conflicts *between potential handler actions*. If none, "No conflicts identified." or null.
 4.  'action_resolution': Resolve conflicts. If none, "Not applicable as no conflicts were identified." or null.
 5.  'selected_handler_action': The LLM should determine this based on the inputs and other PDMA steps from the list: {action_options_str}.
-6.  'action_parameters': Parameters for the chosen action.
+6.  'action_parameters': Parameters for the chosen action. This MUST be a JSON object strictly matching the schema for the selected_handler_action.
     {action_parameters_speak_csdma_guidance}
     {action_parameters_ponder_guidance}
     Provide empty dict {{}} if no parameters for other actions.
@@ -346,27 +366,70 @@ Adhere strictly to the schema for your JSON output.
                     if isinstance(raw_params, dict):
                         # Special handling for DEFER if params are empty, provide defaults
                         if selected_action == HandlerActionType.DEFER and not raw_params:
-                            logger.warning(f"LLM chose DEFER with empty parameters for thought {original_thought.thought_id}. Using default DeferParams.")
+                            logger.warning(
+                                f"LLM chose DEFER with empty parameters for thought {original_thought.thought_id}. Using default DeferParams."
+                            )
                             parsed_action_params = DeferParams(
                                 reason="LLM chose to defer without providing specific parameters.",
                                 target_wa_ual=DEFAULT_WA,
-                                deferral_package_content={"original_thought_content": original_thought.content, "llm_rationale": llm_response_internal.action_selection_rationale}
+                                deferral_package_content={
+                                    "original_thought_content": original_thought.content,
+                                    "llm_rationale": llm_response_internal.action_selection_rationale,
+                                },
                             )
-                        elif selected_action == HandlerActionType.SPEAK and 'message_content' in raw_params and 'content' not in raw_params:
-                            logger.warning(f"Remapping 'message_content' to 'content' for SPEAK action for thought {original_thought.thought_id}.")
-                            raw_params['content'] = raw_params.pop('message_content')
+                        elif (
+                            selected_action == HandlerActionType.SPEAK
+                            and "message_content" in raw_params
+                            and "content" not in raw_params
+                        ):
+                            logger.warning(
+                                f"Remapping 'message_content' to 'content' for SPEAK action for thought {original_thought.thought_id}."
+                            )
+                            raw_params["content"] = raw_params.pop("message_content")
                             parsed_action_params = ParamModel(**raw_params)
                         else:
                             parsed_action_params = ParamModel(**raw_params)
                     else:
-                        logger.error(f"action_parameters from LLM was not a dict for {selected_action}: {raw_params}. Attempting to use as is if it's already a BaseModel.")
+                        logger.error(
+                            f"action_parameters from LLM was not a dict for {selected_action}: {raw_params}. Attempting to use as is if it's already a BaseModel."
+                        )
                         if isinstance(raw_params, BaseModel):
-                             parsed_action_params = raw_params # Assume it's already the correct model type
+                            parsed_action_params = raw_params  # Assume it's already the correct model type
                         else:
-                             parsed_action_params = raw_params # Keep as is, might cause issues downstream if not a dict/model
+                            parsed_action_params = raw_params  # Keep as is, might cause issues downstream if not a dict/model
+                except ValidationError as ve:
+                    logger.error(
+                        f"Parameter validation failed for {selected_action} on thought {original_thought.thought_id}: {ve}"
+                    )
+                    fallback_params = PonderParams(
+                        key_questions=[
+                            f"Action parameters for {selected_action.value} failed validation: {ve.errors()}"
+                        ]
+                    )
+                    raw_llm_response_str = (
+                        str(llm_response_internal._raw_response)
+                        if hasattr(llm_response_internal, "_raw_response")
+                        else None
+                    )
+                    return ActionSelectionPDMAResult(
+                        schema_version=llm_response_internal.schema_version,
+                        context_summary_for_action_selection=llm_response_internal.context_summary_for_action_selection,
+                        action_alignment_check=llm_response_internal.action_alignment_check,
+                        action_conflicts=llm_response_internal.action_conflicts,
+                        action_resolution=llm_response_internal.action_resolution,
+                        selected_handler_action=HandlerActionType.PONDER,
+                        action_parameters=fallback_params,
+                        action_selection_rationale=
+                        f"Fallback to PONDER due to parameter validation failure for {selected_action.value}",
+                        monitoring_for_selected_action="Review parameter generation logic.",
+                        confidence_score=llm_response_internal.confidence_score,
+                        raw_llm_response=raw_llm_response_str,
+                    )
                 except Exception as e_parse:
-                    logger.error(f"Failed to parse action_parameters for {selected_action}: {e_parse}. Parameters: {raw_params}")
-                    parsed_action_params = raw_params # Fallback: keep as raw if parsing fails
+                    logger.error(
+                        f"Failed to parse action_parameters for {selected_action}: {e_parse}. Parameters: {raw_params}"
+                    )
+                    parsed_action_params = raw_params  # Fallback: keep as raw if parsing fails
             else:
                 logger.warning(f"No ParamModel found for {selected_action} to parse parameters: {raw_params}")
                 parsed_action_params = raw_params # Fallback: keep as raw

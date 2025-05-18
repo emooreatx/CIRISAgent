@@ -52,7 +52,10 @@ class WorkflowCoordinator:
         self.dsdma_evaluators = dsdma_evaluators if dsdma_evaluators else {}
         self.action_selection_pdma_evaluator = action_selection_pdma_evaluator
         self.memory_service = memory_service
-        self.graphql_context_provider = graphql_context_provider or GraphQLContextProvider(memory_service=memory_service)
+        self.graphql_context_provider = graphql_context_provider or GraphQLContextProvider(
+            memory_service=memory_service,
+            enable_remote_graphql=app_config.enable_remote_graphql,
+        )
         self.ethical_guardrails = ethical_guardrails
         self.app_config = app_config # Store full AppConfig
         self.workflow_config = app_config.workflow # Store workflow_config part
@@ -99,18 +102,6 @@ class WorkflowCoordinator:
                 monitoring_for_selected_action={"status": "Error: Thought object not found"},
             )
 
-        if thought_object.thought_type == "memory_meta" and self.memory_service:
-            await self.memory_service.memorize(
-                thought_object.processing_context.get("user_nick", "unknown"),
-                thought_object.processing_context.get("channel", "unknown"),
-                thought_object.processing_context.get("metadata", {}),
-            )
-            persistence.update_thought_status(
-                thought_object.thought_id,
-                ThoughtStatus.COMPLETED,
-                round_processed=self.current_round_number,
-            )
-            return None
 
         # --- Populate System Context into thought_object.processing_context ---
         try:
