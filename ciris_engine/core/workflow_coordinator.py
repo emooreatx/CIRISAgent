@@ -317,7 +317,6 @@ class WorkflowCoordinator:
             elif isinstance(original_params_as_dict, dict): # Fallback if it was a dict
                  candidate_response_content = original_params_as_dict.get("content", candidate_response_content)
 
-
             # For DEFER action, action_parameters should be DeferParams or a dict that can initialize it.
             # The ActionSelectionPDMAResult expects a Pydantic model for action_parameters.
             # We will construct a DeferParams model here.
@@ -331,7 +330,7 @@ class WorkflowCoordinator:
                 "pdma_trace_id": thought_object.thought_id,
                 "autonomy_tier": 0, 
                 "context": str(thought_object.content),
-                "candidate_response": candidate_response_content,
+                "candidate_response": candidate_response_content),
                 "metrics": {"guardrail_triggered": True},
                 "trigger": "GUARDRAIL_FAILURE"
             }
