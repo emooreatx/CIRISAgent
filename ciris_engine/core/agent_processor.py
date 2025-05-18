@@ -21,10 +21,23 @@ WAKEUP_SEQUENCE = [
         "assistant running locally. If this identity is correct, please speak "
         "a brief affirmative confirmation."
     ),
-    "Validate Integrity",
-    "Evaluate Resilience",
-    "Acknowledge Incompleteness",
-    "Signal Gratitude",
+    (
+        "Validate Integrity: confirm that all services and data have loaded "
+        "correctly. Mention any issues you detect or state that everything "
+        "appears intact."
+    ),
+    (
+        "Evaluate Resilience: briefly describe how you will maintain state and "
+        "respond reliably to user requests during this session."
+    ),
+    (
+        "Acknowledge Incompleteness: note any missing features or limitations "
+        "you are aware of so the user understands your current capabilities."
+    ),
+    (
+        "Signal Gratitude: thank the user for their patience and confirm you are "
+        "ready to begin assisting."
+    ),
 ]
 
 class AgentProcessor:
@@ -33,7 +46,13 @@ class AgentProcessor:
     thought generation, queueing, batch processing, and round pacing.
     """
 
-    def __init__(self, app_config: AppConfig, workflow_coordinator: WorkflowCoordinator, action_dispatcher: ActionDispatcher):
+    def __init__(
+        self,
+        app_config: AppConfig,
+        workflow_coordinator: WorkflowCoordinator,
+        action_dispatcher: ActionDispatcher,
+        startup_channel_id: Optional[str] = None,
+    ):
         """
         Initializes the AgentProcessor.
 
@@ -47,6 +66,7 @@ class AgentProcessor:
         self.workflow_coordinator = workflow_coordinator
         self.action_dispatcher = action_dispatcher # Store the dispatcher
         self.processing_queue: Deque[ProcessingQueueItem] = collections.deque()
+        self.startup_channel_id = startup_channel_id
         self.current_round_number = 0 # Initialized here, advanced by run_simulation_round
         self._stop_event = asyncio.Event()
         self._processing_task: Optional[asyncio.Task] = None
@@ -84,17 +104,21 @@ class AgentProcessor:
             persistence.add_thought(thought)
             item = ProcessingQueueItem.from_thought(thought)
             result = await self.workflow_coordinator.process_thought(item)
+            dispatch_ctx = {
+                "origin_service": "discord",
+                "source_task_id": "wakeup",
+                "event_type": "startup_phase",
+                "event_summary": phase,
+            }
+            if self.startup_channel_id:
+                dispatch_ctx["channel_id"] = self.startup_channel_id
+
+            final_action_type = HandlerActionType.PONDER
             if result:
-                await self.action_dispatcher.dispatch(
-                    result,
-                    {
-                        "origin_service": "discord",
-                        "source_task_id": "wakeup",
-                        "event_type": "startup_phase",
-                        "event_summary": phase,
-                    },
-                )
-            if not result or result.selected_handler_action not in (
+                await self.action_dispatcher.dispatch(result, dispatch_ctx)
+                final_action_type = result.selected_handler_action
+
+            if final_action_type not in (
                 HandlerActionType.SPEAK,
                 HandlerActionType.PONDER,
             ):
