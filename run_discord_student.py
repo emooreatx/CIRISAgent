@@ -28,6 +28,7 @@ from ciris_engine.services.llm_service import LLMService
 from ciris_engine.services.discord_service import DiscordService, DiscordConfig
 from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
 from ciris_engine.services.discord_observer import DiscordObserver
+from ciris_engine.core.foundational_schemas import HandlerActionType
 
 # Utility for logging
 from ciris_engine.utils.logging_config import setup_basic_logging
@@ -143,6 +144,31 @@ async def main_student():
             )
 
         action_dispatcher.register_service_handler("observer", _obs_handler)
+
+        async def _memory_handler(result, ctx):
+            action = result.selected_handler_action
+            params = result.action_parameters
+            user_nick = ctx.get("author_name", "unknown")
+            channel_id = ctx.get("channel_id")
+
+            if action == HandlerActionType.MEMORIZE:
+                if hasattr(params, "model_dump"):
+                    metadata = params.model_dump(exclude={"channel_metadata"}, exclude_none=True)
+                    channel_metadata = getattr(params, "channel_metadata", None)
+                elif isinstance(params, dict):
+                    metadata = dict(params)
+                    channel_metadata = metadata.pop("channel_metadata", None)
+                else:
+                    metadata = {}
+                    channel_metadata = None
+
+                await memory_service.memorize(user_nick, channel_id, metadata, channel_metadata)
+            elif action == HandlerActionType.REMEMBER:
+                await memory_service.remember(user_nick)
+            elif action == HandlerActionType.FORGET:
+                await memory_service.forget(user_nick)
+
+        action_dispatcher.register_service_handler("memory", _memory_handler)
         llm_client = llm_service.get_client()
 
         # DMAs and Guardrails - using the loaded student profile
