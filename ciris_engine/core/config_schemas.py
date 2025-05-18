@@ -104,6 +104,7 @@ class AppConfig(BaseModel):
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profile YAML files, relative to project root.")
     # Agent profiles can also be defined directly in the config if not loaded from separate files
     agent_profiles: Dict[str, SerializableAgentProfile] = Field(default_factory=dict, description="Dictionary of available agent profiles, keyed by profile name (can be populated from profile_directory or defined here).")
+    enable_remote_graphql: bool = Field(default=False, description="When False, disable remote GraphQL lookups and rely solely on local memory.")
 
     class Config:
         # Example for Pydantic v2 if using model_config
