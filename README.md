@@ -161,6 +161,15 @@ Ensure the `OPENAI_API_KEY` environment variable is set.
 python run_cli_student.py
 ```
 
+All run scripts now rely on `BaseRuntime`, which unifies configuration loading, audit logging, and Dream Mode handling. Creating a new runtime is as simple as providing an I/O adapter:
+
+```python
+from ciris_engine.runtime import BaseRuntime, CLIAdapter
+
+runtime = BaseRuntime(io_adapter=CLIAdapter(), profile_path="ciris_profiles/student.yaml")
+runtime.run()
+```
+
 ---
 ## Other Notable Scripts & Components
 
