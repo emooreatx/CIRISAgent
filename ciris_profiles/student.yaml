@@ -23,6 +23,7 @@ dsdma_kwargs:
 permitted_actions:
   - speak
   - ponder
+  - defer
   - reject
   - memorize
 csdma_overrides:
@@ -89,3 +90,31 @@ action_selection_pdma_overrides:
     YOUR 'message_content' FOR THE 'Speak' ACTION MUST NOT BE A QUESTION. IT MUST BE A STATEMENT.
     If you cannot formulate a direct, non-question answer that respects CSDMA flags and previous pondering, then 'Reject Thought' is your only other viable option.
     DO NOT PONDER AGAIN. DO NOT DEFER TO WA. DO NOT ASK A QUESTION IN YOUR 'Speak' ACTION.
+
+guardrails_config:
+  entropy: enabled
+  coherence: enabled
+  rate_limit_observe:
+    max_messages_per_cycle: 10
+  idempotency_tasks:
+    enforce: true
+  pii_non_repetition:
+    enabled: true
+  input_sanitisation:
+    method: bleach
+  metadata_schema:
+    nick: str
+    channel: str
+    summary: str
+  metadata_max_bytes: 1024
+  graphql_minimal:
+    fields: ["nick", "channel"]
+    timeout_seconds: 3
+    error_behavior: use_defaults
+  graceful_shutdown:
+    timeout_seconds: 10
+    action_on_timeout: force_close_with_log
+description: |
+  Student profile mirrors teacher-level guardrails. Full sanitization,
+  PII detection, metadata schema enforcement, rate-limited OBSERVE,
+  graceful shutdown, and minimal GraphQL enrichment are in effect.

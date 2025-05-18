@@ -225,6 +225,10 @@ def update_task_status(task_id: str, new_status: TaskStatus) -> bool:
         logging.exception(f"Failed to update task status for {task_id}: {e}")
         return False
 
+def task_exists(task_id: str) -> bool:
+    """Checks if a task with the given ID exists."""
+    return get_task_by_id(task_id) is not None
+
 def count_active_tasks() -> int:
     """Counts tasks with status 'active'."""
     sql = "SELECT COUNT(*) FROM tasks WHERE status = ?"
@@ -463,6 +467,69 @@ def get_task_description_by_id(task_id: str) -> Optional[str]:
     """Gets only the description of a task by ID."""
     task = get_task_by_id(task_id)
     return task.description if task else None
+
+def count_tasks(status: Optional[TaskStatus] = None) -> int:
+    """Counts tasks, optionally filtered by status."""
+    sql = "SELECT COUNT(*) FROM tasks"
+    params: tuple[Any, ...] = ()
+    if status:
+        sql += " WHERE status = ?"
+        params = (status.value,)
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+            return count if count is not None else 0
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to count tasks: {e}")
+        return 0
+
+def count_thoughts(status: Optional[ThoughtStatus] = None) -> int:
+    """Counts thoughts, optionally filtered by status."""
+    sql = "SELECT COUNT(*) FROM thoughts"
+    params: tuple[Any, ...] = ()
+    if status:
+        sql += " WHERE status = ?"
+        params = (status.value,)
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+            return count if count is not None else 0
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to count thoughts: {e}")
+        return 0
+
+def pending_thoughts() -> bool:
+    """Returns True if any pending thoughts exist."""
+    return count_pending_thoughts() > 0
+
+def thought_exists_for(task_id: str) -> bool:
+    """Checks if a pending or processing thought exists for the given task."""
+    sql = (
+        "SELECT 1 FROM thoughts WHERE source_task_id = ? AND status IN (?, ?) LIMIT 1"
+    )
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                sql,
+                (
+                    task_id,
+                    ThoughtStatus.PENDING.value,
+                    ThoughtStatus.PROCESSING.value,
+                ),
+            )
+            return cursor.fetchone() is not None
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to check thought existence for {task_id}: {e}")
+        return False
+
+def get_top_tasks(limit: int) -> List[Task]:
+    """Alias for get_active_tasks_by_priority to match API."""
+    return get_active_tasks_by_priority(limit)
 
 # Ensure database is initialized when module is loaded (optional)
 # initialize_database()
