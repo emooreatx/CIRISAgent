@@ -199,6 +199,13 @@ class DiscordService(Service):
                     replied_to_content = referenced_message.content
                     task_id_match = re.search(r"Task ID:\s*`([^`]+)`", replied_to_content)
                     thought_id_match = re.search(r"Deferred Thought ID:\s*`([^`]+)`", replied_to_content)
+                    deferral_json_match = re.search(r"```json\n(.*)\n```", replied_to_content, re.DOTALL)
+                    deferral_data = None
+                    if deferral_json_match:
+                        try:
+                            deferral_data = json.loads(deferral_json_match.group(1))
+                        except Exception as e:
+                            logger.warning(f"Failed to parse deferral package JSON: {e}")
 
                     if task_id_match:
                         original_task_id = task_id_match.group(1)
@@ -239,7 +246,8 @@ class DiscordService(Service):
                             "wa_author_name": message.author.name,
                             "wa_message_id": str(message.id),
                             "wa_timestamp": message.created_at.isoformat(),
-                            "corrected_thought_id": corrected_thought_id # Link to the thought that was deferred
+                            "corrected_thought_id": corrected_thought_id, # Link to the thought that was deferred
+                            "deferral_package_content": deferral_data,
                         }
                     )
                     try:
@@ -375,20 +383,32 @@ class DiscordService(Service):
                     if self.config.deferral_channel_id:
                         deferral_channel = self.bot.get_channel(self.config.deferral_channel_id) or await self.bot.fetch_channel(self.config.deferral_channel_id)
                         if deferral_channel and isinstance(deferral_channel, discord.TextChannel):
-                            # Include source_task_id and thought_id in the report for linking corrections
                             source_task_id = dispatch_context.get("source_task_id", "Unknown")
-                            deferred_thought_id = thought_id or "Unknown" # Use thought_id from outer scope
-                            
-                            deferral_report = (
-                                f"**Deferral Report**\n"
-                                f"**Task ID:** `{source_task_id}`\n"
-                                f"**Deferred Thought ID:** `{deferred_thought_id}`\n"
-                                f"**Reason:** {params.reason}\n"
-                                f"**Original Context:** `{str(dispatch_context)[:800]}`\n" # Shortened context to make space
-                                f"**Deferral Package:** ```json\n{json.dumps(params.deferral_package_content, indent=2)}\n```"
-                            )
+                            deferred_thought_id = thought_id or "Unknown"
+
+                            package = params.deferral_package_content or {}
+                            if "metadata" in package and "user_nick" in package:
+                                deferral_report = (
+                                    f"**Memory Deferral Report**\n"
+                                    f"**Task ID:** `{source_task_id}`\n"
+                                    f"**Deferred Thought ID:** `{deferred_thought_id}`\n"
+                                    f"**User:** {package.get('user_nick')} Channel: {package.get('channel')}\n"
+                                    f"**Reason:** {params.reason}\n"
+                                    f"**Metadata:** ```json\n{json.dumps(package.get('metadata'), indent=2)}\n```"
+                                )
+                            else:
+                                deferral_report = (
+                                    f"**Deferral Report**\n"
+                                    f"**Task ID:** `{source_task_id}`\n"
+                                    f"**Deferred Thought ID:** `{deferred_thought_id}`\n"
+                                    f"**Reason:** {params.reason}\n"
+                                    f"**Original Context:** `{str(dispatch_context)[:800]}`\n"
+                                    f"**Deferral Package:** ```json\n{json.dumps(package, indent=2)}\n```"
+                                )
                             await deferral_channel.send(_truncate_discord_message(deferral_report))
-                            logger.info(f"DiscordService: Sent DEFER report for task {source_task_id}, thought {deferred_thought_id} to deferral channel {self.config.deferral_channel_id}.")
+                            logger.info(
+                                f"DiscordService: Sent DEFER report for task {source_task_id}, thought {deferred_thought_id} to deferral channel {self.config.deferral_channel_id}."
+                            )
                         else:
                             logger.error(f"DiscordService: Could not find or access deferral channel {self.config.deferral_channel_id}.")
                     else:
