@@ -198,18 +198,30 @@ class AgentProcessor:
             logging.info(f"Generating seed thought for task {task.task_id}.")
             now_iso = datetime.now(timezone.utc).isoformat()
             # Create a basic seed thought
+            processing_ctx = {}
+            if task.context:
+                processing_ctx = {"initial_task_context": task.context}
+                for key in [
+                    "author_name",
+                    "author_id",
+                    "channel_id",
+                    "origin_service",
+                ]:
+                    if key in task.context:
+                        processing_ctx[key] = task.context.get(key)
+
             seed_thought = Thought(
-                thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}", # Generate unique ID
+                thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",  # Generate unique ID
                 source_task_id=task.task_id,
-                thought_type="seed", # Use string literal as per schema
+                thought_type="seed",  # Use string literal as per schema
                 status=ThoughtStatus.PENDING,
-                created_at=now_iso, # Add created_at timestamp
-                updated_at=now_iso, # Add updated_at timestamp
+                created_at=now_iso,  # Add created_at timestamp
+                updated_at=now_iso,  # Add updated_at timestamp
                 round_created=self.current_round_number,
                 content=f"Initial seed thought for task: {task.description}",
                 # Add other necessary fields with defaults or derived from task
-                priority=task.priority, # Inherit priority from task
-                processing_context={"initial_task_context": task.context} if task.context else {},
+                priority=task.priority,  # Inherit priority from task
+                processing_context=processing_ctx,
             )
             try:
                 persistence.add_thought(seed_thought)
