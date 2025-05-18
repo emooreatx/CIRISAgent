@@ -1,9 +1,9 @@
 import asyncio
 import logging
 import collections
-import uuid # Add uuid import
+import uuid
 from typing import List, Optional, Deque, Dict, Any
-from datetime import datetime, timezone # Keep datetime, timezone imports
+from datetime import datetime, timezone
 
 from .config_schemas import AppConfig
 from .workflow_coordinator import WorkflowCoordinator
@@ -14,6 +14,14 @@ from .agent_processing_queue import ProcessingQueueItem
 from . import persistence
 
 logger = logging.getLogger(__name__) # Define logger at module level
+
+WAKEUP_SEQUENCE = [
+    "Verify Core Identity",
+    "Validate Integrity",
+    "Evaluate Resilience",
+    "Acknowledge Incompleteness",
+    "Signal Gratitude",
+]
 
 class AgentProcessor:
     """
@@ -39,6 +47,74 @@ class AgentProcessor:
         self._stop_event = asyncio.Event()
         self._processing_task: Optional[asyncio.Task] = None
         logging.info("AgentProcessor initialized.")
+
+    async def _run_wakeup_sequence(self) -> bool:
+        """Execute the startup WAKEUP ritual. Returns True on success."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        if not persistence.task_exists("wakeup"):
+            wake_task = Task(
+                task_id="wakeup",
+                description="Startup initialization",
+                status=TaskStatus.ACTIVE,
+                priority=1,
+                created_at=now_iso,
+                updated_at=now_iso,
+                context={},
+            )
+            persistence.add_task(wake_task)
+        else:
+            persistence.update_task_status("wakeup", TaskStatus.ACTIVE)
+
+        for phase in WAKEUP_SEQUENCE:
+            thought = Thought(
+                thought_id=str(uuid.uuid4()),
+                source_task_id="wakeup",
+                thought_type="startup_meta",
+                status=ThoughtStatus.PENDING,
+                created_at=now_iso,
+                updated_at=now_iso,
+                round_created=self.current_round_number,
+                content=phase,
+            )
+            persistence.add_thought(thought)
+            item = ProcessingQueueItem.from_thought(thought)
+            result = await self.workflow_coordinator.process_thought(item)
+            if result:
+                await self.action_dispatcher.dispatch(
+                    result,
+                    {
+                        "origin_service": "discord",
+                        "source_task_id": "wakeup",
+                        "event_type": "startup_phase",
+                        "event_summary": phase,
+                    },
+                )
+            if not result or result.selected_handler_action != HandlerActionType.SPEAK:
+                await self.action_dispatcher.audit_service.log_action(
+                    HandlerActionType.DEFER,
+                    {
+                        "event_type": "startup_phase",
+                        "originator_id": "agent",
+                        "event_summary": "Startup phase failed",
+                    },
+                )
+                persistence.update_task_status("wakeup", TaskStatus.DEFERRED)
+                return False
+
+        persistence.update_task_status("wakeup", TaskStatus.COMPLETED)
+        if not persistence.task_exists("job-discord-monitor"):
+            job_task = Task(
+                task_id="job-discord-monitor",
+                description="Monitor Discord for new messages",
+                status=TaskStatus.PENDING,
+                priority=0,
+                created_at=now_iso,
+                updated_at=now_iso,
+                context={"meta_goal": "ubuntu"},
+            )
+            persistence.add_task(job_task)
+        return True
 
     async def _activate_pending_tasks(self) -> int:
         """
@@ -361,6 +437,10 @@ class AgentProcessor:
 
         self._stop_event.clear()
         logging.info(f"Starting agent processing loop (num_rounds={num_rounds or 'infinite'})...")
+        if not await self._run_wakeup_sequence():
+            logging.warning("Wakeup sequence failed. Halting processing loop.")
+            return
+
         # Run the loop in a separate task
         self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
 

@@ -57,4 +57,3 @@ async def test_cirisnode_client_logs_chaos(tmp_path: Path, mock_async_client):
     entry = AuditLogEntry.model_validate_json(lines[0])
     assert entry.event_type == "cirisnode_test"
     assert entry.originator_id == "agentX"
-

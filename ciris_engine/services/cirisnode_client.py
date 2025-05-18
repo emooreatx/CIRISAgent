@@ -8,7 +8,6 @@ from ciris_engine.core.config_manager import get_config
 from ciris_engine.core.config_schemas import CIRISNodeConfig
 from ciris_engine.core.foundational_schemas import HandlerActionType
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -55,4 +54,3 @@ class CIRISNodeClient:
             },
         )
         return result
-
