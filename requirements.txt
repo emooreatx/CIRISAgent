@@ -1,5 +1,5 @@
 # Core Functionality
-pydantic
+pydantic>=2.7
 openai
 instructor
 PyYAML
@@ -14,6 +14,14 @@ pycapnp
 httpx
 anyio
 networkx # Added for conversation graph history
+
+# Backend (AG-UI)
+fastapi>=0.111
+uvicorn[standard]>=0.29
+websockets>=12.0
+python-dotenv>=1.0
+aiofiles>=23.2
+python-multipart
 
 # Testing
 pytest
