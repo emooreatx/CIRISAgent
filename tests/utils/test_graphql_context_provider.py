@@ -29,6 +29,7 @@ async def test_fallback_to_memory(tmp_path):
     result = await provider.enrich_context(DummyTask("alice"), DummyThought())
 
     assert result == {"user_profiles": {"alice": {"nick": "AliceNick", "channel": "general"}}}
+    client.query.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_partial_fallback(tmp_path):
@@ -39,7 +40,7 @@ async def test_partial_fallback(tmp_path):
     graphql_response = {"users": [{"name": "alice", "nick": "Alice", "channel": "general"}]}
     client = _mk_client(graphql_response)
     history = [{"author_name": "bob"}]
-    provider = GraphQLContextProvider(graphql_client=client, memory_service=mem)
+    provider = GraphQLContextProvider(graphql_client=client, memory_service=mem, enable_remote_graphql=True)
     result = await provider.enrich_context(DummyTask("alice"), DummyThought(history))
 
     assert result == {
@@ -48,3 +49,4 @@ async def test_partial_fallback(tmp_path):
             "bob": {"nick": "Bobby", "channel": "random"},
         }
     }
+    client.query.assert_called_once()

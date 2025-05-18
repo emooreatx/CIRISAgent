@@ -23,7 +23,7 @@ from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME # Correct
 from instructor.exceptions import InstructorRetryException
 import instructor # Import the main instructor module for Mode
 from ciris_engine.utils import DEFAULT_WA
-from pydantic import BaseModel, Field # Import BaseModel and Field for internal model definition
+from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -355,27 +355,70 @@ Adhere strictly to the schema for your JSON output.
                     if isinstance(raw_params, dict):
                         # Special handling for DEFER if params are empty, provide defaults
                         if selected_action == HandlerActionType.DEFER and not raw_params:
-                            logger.warning(f"LLM chose DEFER with empty parameters for thought {original_thought.thought_id}. Using default DeferParams.")
+                            logger.warning(
+                                f"LLM chose DEFER with empty parameters for thought {original_thought.thought_id}. Using default DeferParams."
+                            )
                             parsed_action_params = DeferParams(
                                 reason="LLM chose to defer without providing specific parameters.",
                                 target_wa_ual=DEFAULT_WA,
-                                deferral_package_content={"original_thought_content": original_thought.content, "llm_rationale": llm_response_internal.action_selection_rationale}
+                                deferral_package_content={
+                                    "original_thought_content": original_thought.content,
+                                    "llm_rationale": llm_response_internal.action_selection_rationale,
+                                },
                             )
-                        elif selected_action == HandlerActionType.SPEAK and 'message_content' in raw_params and 'content' not in raw_params:
-                            logger.warning(f"Remapping 'message_content' to 'content' for SPEAK action for thought {original_thought.thought_id}.")
-                            raw_params['content'] = raw_params.pop('message_content')
+                        elif (
+                            selected_action == HandlerActionType.SPEAK
+                            and "message_content" in raw_params
+                            and "content" not in raw_params
+                        ):
+                            logger.warning(
+                                f"Remapping 'message_content' to 'content' for SPEAK action for thought {original_thought.thought_id}."
+                            )
+                            raw_params["content"] = raw_params.pop("message_content")
                             parsed_action_params = ParamModel(**raw_params)
                         else:
                             parsed_action_params = ParamModel(**raw_params)
                     else:
-                        logger.error(f"action_parameters from LLM was not a dict for {selected_action}: {raw_params}. Attempting to use as is if it's already a BaseModel.")
+                        logger.error(
+                            f"action_parameters from LLM was not a dict for {selected_action}: {raw_params}. Attempting to use as is if it's already a BaseModel."
+                        )
                         if isinstance(raw_params, BaseModel):
-                             parsed_action_params = raw_params # Assume it's already the correct model type
+                            parsed_action_params = raw_params  # Assume it's already the correct model type
                         else:
-                             parsed_action_params = raw_params # Keep as is, might cause issues downstream if not a dict/model
+                            parsed_action_params = raw_params  # Keep as is, might cause issues downstream if not a dict/model
+                except ValidationError as ve:
+                    logger.error(
+                        f"Parameter validation failed for {selected_action} on thought {original_thought.thought_id}: {ve}"
+                    )
+                    fallback_params = PonderParams(
+                        key_questions=[
+                            f"Action parameters for {selected_action.value} failed validation: {ve.errors()}"
+                        ]
+                    )
+                    raw_llm_response_str = (
+                        str(llm_response_internal._raw_response)
+                        if hasattr(llm_response_internal, "_raw_response")
+                        else None
+                    )
+                    return ActionSelectionPDMAResult(
+                        schema_version=llm_response_internal.schema_version,
+                        context_summary_for_action_selection=llm_response_internal.context_summary_for_action_selection,
+                        action_alignment_check=llm_response_internal.action_alignment_check,
+                        action_conflicts=llm_response_internal.action_conflicts,
+                        action_resolution=llm_response_internal.action_resolution,
+                        selected_handler_action=HandlerActionType.PONDER,
+                        action_parameters=fallback_params,
+                        action_selection_rationale=
+                        f"Fallback to PONDER due to parameter validation failure for {selected_action.value}",
+                        monitoring_for_selected_action="Review parameter generation logic.",
+                        confidence_score=llm_response_internal.confidence_score,
+                        raw_llm_response=raw_llm_response_str,
+                    )
                 except Exception as e_parse:
-                    logger.error(f"Failed to parse action_parameters for {selected_action}: {e_parse}. Parameters: {raw_params}")
-                    parsed_action_params = raw_params # Fallback: keep as raw if parsing fails
+                    logger.error(
+                        f"Failed to parse action_parameters for {selected_action}: {e_parse}. Parameters: {raw_params}"
+                    )
+                    parsed_action_params = raw_params  # Fallback: keep as raw if parsing fails
             else:
                 logger.warning(f"No ParamModel found for {selected_action} to parse parameters: {raw_params}")
                 parsed_action_params = raw_params # Fallback: keep as raw

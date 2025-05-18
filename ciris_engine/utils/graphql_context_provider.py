@@ -25,8 +25,13 @@ class GraphQLClient:
 
 class GraphQLContextProvider:
     def __init__(self, graphql_client: GraphQLClient | None = None,
-                 memory_service: Optional[DiscordGraphMemory] = None):
-        self.client = graphql_client or GraphQLClient()
+                 memory_service: Optional[DiscordGraphMemory] = None,
+                 enable_remote_graphql: bool = False):
+        self.enable_remote_graphql = enable_remote_graphql
+        if enable_remote_graphql:
+            self.client = graphql_client or GraphQLClient()
+        else:
+            self.client = graphql_client  # stored for tests but not used
         self.memory_service = memory_service
 
     async def enrich_context(self, task, thought) -> Dict[str, Any]:
@@ -47,8 +52,10 @@ class GraphQLContextProvider:
                 users(names:$names){ name nick channel }
             }
         """
-        result = await self.client.query(query, {"names": list(authors)})
-        users = result.get("users", [])
+        result = {}
+        if self.enable_remote_graphql and self.client:
+            result = await self.client.query(query, {"names": list(authors)})
+        users = result.get("users", []) if result else []
         enriched = {
             u["name"]: {"nick": u.get("nick"), "channel": u.get("channel")}
             for u in users
