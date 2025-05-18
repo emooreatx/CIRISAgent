@@ -13,3 +13,4 @@ __pycache__/
 *.egg
 *.whl
 memory_graph.pkl
+audit_logs.jsonl
