@@ -26,6 +26,7 @@ from ciris_engine.dma.dsdma_teacher import BasicTeacherDSDMA
 # Services
 from ciris_engine.services.llm_service import LLMService
 from ciris_engine.services.discord_service import DiscordService, DiscordConfig
+from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
 
 # Utility for logging
 from ciris_engine.utils.logging_config import setup_basic_logging
@@ -121,11 +122,14 @@ async def main_teacher(): # Renamed function
         return # Stop if DB initialization fails
     
     llm_service = LLMService(llm_config=app_config.llm_services)
+    memory_service = DiscordGraphMemory()
     agent_processor = None # Initialize to None for finally block
     services_to_stop = [llm_service]
 
     try:
         await llm_service.start()
+        await memory_service.start()
+        services_to_stop.append(memory_service)
         llm_client = llm_service.get_client()
 
         # DMAs and Guardrails - using the loaded teacher profile - CHANGED

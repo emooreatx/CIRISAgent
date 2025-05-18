@@ -135,6 +135,9 @@ python run_cli_student.py
 *   **`run_services.py`**: Appears to be a script for running services, potentially for testing or a different deployment mode.
 *   **`test_client_init.py`**: A test script, likely for initializing or testing client connections.
 *   **`run_cli_student.py`**: Simple CLI runner for the student profile.
+*   **`discord_graph_memory.py`**: Lightweight persistent graph memory for Discord user metadata.
+*   **`discord_observer.py`**: Minimal observer that dispatches OBSERVE payloads.
+*   **`legacy/`**: Archived utilities and documents.
 *   The `tests/` directory contains unit and integration tests runnable with `pytest`.
 
 ---
