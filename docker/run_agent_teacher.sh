@@ -25,4 +25,5 @@ if [ "$(docker ps -aq -f name=^/${CONTAINER_NAME}$)" ]; then
 fi
 
 echo "Running Docker image: $FULL_IMAGE_NAME as container: $CONTAINER_NAME"
-docker run -it --name "$CONTAINER_NAME" --env-file ../env.sh "$FULL_IMAGE_NAME" # Added --name
+# docker run -it --name "$CONTAINER_NAME" --env-file ../env.sh "$FULL_IMAGE_NAME" # Added --name
+docker run -d --name "$CONTAINER_NAME" --env-file ../env.sh "$FULL_IMAGE_NAME" # Added --name
