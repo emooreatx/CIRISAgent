@@ -14,14 +14,15 @@ from ciris_engine.core.agent_core_schemas import (
     ActionSelectionPDMAResult,
     HandlerActionType,
     # Import all param types for potential parsing later, though not strictly needed for this file's direct logic
-    ObserveParams, SpeakParams, ToolParams, PonderParams,
-    RejectParams, DeferParams, LearnParams, RememberParams, ForgetParams,
+    ObserveParams, SpeakParams, ActParams, PonderParams,
+    RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams,
     CIRISSchemaVersion # Import CIRISSchemaVersion
 )
 from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHandlerActionType # Alias to avoid conflict if any
 from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME # Corrected import
 from instructor.exceptions import InstructorRetryException
 import instructor # Import the main instructor module for Mode
+from ciris_engine.utils import DEFAULT_WA
 from pydantic import BaseModel, Field # Import BaseModel and Field for internal model definition
 
 logger = logging.getLogger(__name__)
@@ -345,7 +346,7 @@ Adhere strictly to the schema for your JSON output.
                             logger.warning(f"LLM chose DEFER with empty parameters for thought {original_thought.thought_id}. Using default DeferParams.")
                             parsed_action_params = DeferParams(
                                 reason="LLM chose to defer without providing specific parameters.",
-                                target_wa_ual="ual:placeholder/wise_authority/llm_defer_default", # Placeholder
+                                target_wa_ual=DEFAULT_WA,
                                 deferral_package_content={"original_thought_content": original_thought.content, "llm_rationale": llm_response_internal.action_selection_rationale}
                             )
                         elif selected_action == HandlerActionType.SPEAK and 'message_content' in raw_params and 'content' not in raw_params:
@@ -445,11 +446,11 @@ class _ActionSelectionLLMResponse(BaseModel):
 ACTION_PARAM_MODELS: Dict[CoreHandlerActionType, type[BaseModel]] = {
     CoreHandlerActionType.OBSERVE: ObserveParams,
     CoreHandlerActionType.SPEAK: SpeakParams,
-    CoreHandlerActionType.TOOL: ToolParams,
+    CoreHandlerActionType.ACT: ActParams,
     CoreHandlerActionType.PONDER: PonderParams,
     CoreHandlerActionType.REJECT: RejectParams,
     CoreHandlerActionType.DEFER: DeferParams,
-    CoreHandlerActionType.LEARN: LearnParams,
+    CoreHandlerActionType.MEMORIZE: MemorizeParams,
     CoreHandlerActionType.REMEMBER: RememberParams,
     CoreHandlerActionType.FORGET: ForgetParams,
 }

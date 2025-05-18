@@ -16,6 +16,7 @@ from ciris_engine.dma.csdma import CSDMAEvaluator
 # from ciris_engine.dma.dsdma_base import BaseDSDMA # For type hinting - moved to TYPE_CHECKING
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.guardrails import EthicalGuardrails
+from ciris_engine.utils import DEFAULT_WA
 
 if TYPE_CHECKING:
     from ciris_engine.dma.dsdma_base import BaseDSDMA # Import only for type checking
@@ -82,7 +83,7 @@ class WorkflowCoordinator:
             defer_reason = f"Failed to retrieve thought object for ID {thought_item.thought_id}"
             defer_params = DeferParams(
                 reason=defer_reason,
-                target_wa_ual="ual:placeholder/system_error/default",
+                target_wa_ual=DEFAULT_WA,
                 deferral_package_content={"error_details": defer_reason}
             )
             return ActionSelectionPDMAResult(
@@ -350,7 +351,7 @@ class WorkflowCoordinator:
             # For now, using a placeholder. This should be configured.
             guardrail_defer_params = DeferParams(
                 reason=f"Guardrail failure: {reason}",
-                target_wa_ual="ual:placeholder/wise_authority/default", # Placeholder
+                target_wa_ual=DEFAULT_WA,
                 deferral_package_content=deferral_package_for_guardrail
             )
 
@@ -414,7 +415,7 @@ class WorkflowCoordinator:
                 }
                 max_ponder_defer_params = DeferParams(
                     reason=f"Thought reached maximum ponder rounds ({self.max_ponder_rounds}).",
-                    target_wa_ual="ual:placeholder/wise_authority/default", # Placeholder
+                    target_wa_ual=DEFAULT_WA,
                     deferral_package_content=deferral_package_max_ponder
                 )
                 return ActionSelectionPDMAResult(

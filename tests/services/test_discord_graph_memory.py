@@ -29,14 +29,30 @@ async def test_memory_graph_loads_existing(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_memorize_creates_node(tmp_path: Path):
+async def test_memorize_defer_flow(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
     service = DiscordGraphMemory(str(storage))
     await service.start()
-    await service.memorize("alice", "general", {"kind": "nice"})
+
+    finalized = await service.memorize("alice", "general", {"kind": "nice"})
+    assert finalized is False
+    assert "alice" not in service.graph
+
+    await service.approve_channel("general")
     data = await service.remember("alice")
     assert data["kind"] == "nice"
     assert "alice" in service.graph
+
+
+@pytest.mark.asyncio
+async def test_user_memorize_no_channel(tmp_path: Path):
+    storage = tmp_path / "graph.pkl"
+    service = DiscordGraphMemory(str(storage))
+    await service.start()
+    finalized = await service.memorize("bob", None, {"score": 1})
+    assert finalized is True
+    data = await service.remember("bob")
+    assert data["score"] == 1
 
 
 @pytest.mark.asyncio

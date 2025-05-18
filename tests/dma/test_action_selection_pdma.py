@@ -259,13 +259,13 @@ class TestActionSelectionPDMAEvaluator:
     ):
         """Test scenario where LLM returns an action for which no ParamModel is defined."""
         # Simulate LLM returning an action type that doesn't have a mapping in ACTION_PARAM_MODELS
-        # For this test, let's assume 'TOOL' is temporarily unmapped.
+        # For this test, let's assume 'ACT' is temporarily unmapped.
         
         expected_llm_response_data = {
             "schema_version": CIRISSchemaVersion.V1_0_BETA,
             "context_summary_for_action_selection": "LLM decided to use a tool.",
             "action_alignment_check": {"tool": "aligned"},
-            "selected_handler_action": CoreHandlerActionType.TOOL, # This action type
+            "selected_handler_action": CoreHandlerActionType.ACT,
             "action_parameters": {"tool_name": "calculator", "arguments": {"query": "2+2"}},
             "action_selection_rationale": "A calculation is needed.",
             "monitoring_for_selected_action": "Check tool output."
@@ -295,8 +295,8 @@ class TestActionSelectionPDMAEvaluator:
         
         original_models = action_selection_pdma_module.ACTION_PARAM_MODELS
         modified_models = original_models.copy()
-        if CoreHandlerActionType.TOOL in modified_models:
-            del modified_models[CoreHandlerActionType.TOOL]
+        if CoreHandlerActionType.ACT in modified_models:
+            del modified_models[CoreHandlerActionType.ACT]
 
         monkeypatch.setattr(action_selection_pdma_module, 'ACTION_PARAM_MODELS', modified_models)
         
@@ -306,10 +306,10 @@ class TestActionSelectionPDMAEvaluator:
         # to action_selection_pdma_module after the test.
 
         assert isinstance(result, ActionSelectionPDMAResult)
-        assert result.selected_handler_action == CoreHandlerActionType.TOOL # Should now select TOOL
+        assert result.selected_handler_action == CoreHandlerActionType.ACT
         
         # Check the content of action_parameters
-        # It could be a ToolParams object (due to Pydantic Union behavior) or a dict.
+        # It could be an ActParams object (due to Pydantic Union behavior) or a dict.
         # The SUT's internal logic correctly decided not to parse with a specific ParamModel.
         action_params_for_comparison = result.action_parameters
         if isinstance(action_params_for_comparison, BaseModel):
