@@ -97,6 +97,18 @@ class DiscordService(Service):
         self.action_dispatcher.register_service_handler("discord", self._handle_discord_action)
         logger.info("DiscordService initialized and handler registered with ActionDispatcher.")
 
+    async def fetch_new_messages(self) -> List[discord.Message]:
+        """Fetches recent messages from the monitored channel."""
+        if not self.config.monitored_channel_id:
+            return []
+        try:
+            channel = self.bot.get_channel(self.config.monitored_channel_id) or await self.bot.fetch_channel(self.config.monitored_channel_id)
+            messages = [m async for m in channel.history(limit=5)]
+            return [m for m in messages if m.author != self.bot.user and not m.author.bot]
+        except Exception as e:
+            logger.error("Failed to fetch new messages: %s", e)
+            return []
+
     def _register_discord_events(self):
         @self.bot.event
         async def on_ready():
