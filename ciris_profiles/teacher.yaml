@@ -17,3 +17,27 @@ action_selection_pdma_overrides:
     MEMORIZE stores short facts in graph memory. REMEMBER and FORGET exist but are disabled while testing.
     Keep answers concise.
   # Add other teacher-specific prompt overrides for ActionSelectionPDMA if needed
+
+guardrails_config:
+  entropy: enabled
+  coherence: enabled
+  rate_limit_observe:
+    max_messages_per_cycle: 10
+  idempotency_tasks:
+    enforce: true
+  pii_non_repetition:
+    enabled: true
+  input_sanitisation:
+    method: bleach
+  metadata_schema:
+    nick: str
+    channel: str
+    summary: str
+  metadata_max_bytes: 1024
+  graphql_minimal:
+    fields: ["nick", "channel"]
+    timeout_seconds: 3
+    error_behavior: use_defaults
+  graceful_shutdown:
+    timeout_seconds: 10
+    action_on_timeout: force_close_with_log
