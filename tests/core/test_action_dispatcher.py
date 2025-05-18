@@ -48,8 +48,44 @@ async def test_enqueue_memory_meta_thought(mock_log_action, mock_add_thought):
         },
     )
 
-    assert mock_add_thought.called
+    mock_add_thought.assert_not_called()
     mock_log_action.assert_called_once()
+
+@pytest.mark.asyncio
+@patch('ciris_engine.core.persistence.add_thought')
+@patch('ciris_engine.services.audit_service.AuditService.log_action')
+async def test_memory_meta_created_for_memorize(mock_log_action, mock_add_thought):
+    dispatcher = ActionDispatcher()
+    handler = AsyncMock()
+    dispatcher.register_service_handler("discord", handler)
+
+    mem_result = ActionSelectionPDMAResult(
+        context_summary_for_action_selection="c",
+        action_alignment_check={},
+        selected_handler_action=HandlerActionType.MEMORIZE,
+        action_parameters=MemorizeParams(
+            knowledge_unit_description='k',
+            knowledge_data='d',
+            knowledge_type='t',
+            source='s',
+            confidence=0.5
+        ),
+        action_selection_rationale="learned",
+        monitoring_for_selected_action={},
+    )
+
+    mock_add_thought.return_value = None
+    await dispatcher.dispatch(
+        mem_result,
+        {
+            "origin_service": "discord",
+            "source_task_id": "t1",
+            "author_name": "a",
+            "channel_id": "c",
+        },
+    )
+
+    mock_add_thought.assert_called_once()
 
 @pytest.mark.asyncio
 @patch('ciris_engine.core.persistence.add_thought')

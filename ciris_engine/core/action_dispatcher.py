@@ -31,16 +31,34 @@ class ActionDispatcher:
         self.action_filter: Optional[Callable[['ActionSelectionPDMAResult', Dict[str, Any]], bool]] = None
         logger.info("ActionDispatcher initialized.")
 
-    async def _enqueue_memory_metathought(self, context: Dict[str, Any]):
-        """Create a MEMORY meta-thought for later processing."""
+    async def _enqueue_memory_metathought(
+        self,
+        context: Dict[str, Any],
+        result: "ActionSelectionPDMAResult",
+    ):
+        """Create a MEMORY meta-thought if warranted."""
         from .agent_core_schemas import Thought, ThoughtStatus
         from . import persistence
         import uuid
         from datetime import datetime, timezone
 
+        from .foundational_schemas import HandlerActionType
+
         user_nick = context.get("author_name")
         if not user_nick:
             logger.warning("Skipping memory meta-thought due to missing user name")
+            context[NEED_MEMORY_METATHOUGHT] = False
+            return
+
+        # Determine whether the previous action warrants a memory meta-thought
+        rationale = (result.action_selection_rationale or "").lower()
+        needs_update = False
+        if result.selected_handler_action == HandlerActionType.MEMORIZE:
+            needs_update = True
+        elif any(k in rationale for k in ["learn", "memor", "remember"]):
+            needs_update = True
+
+        if not needs_update:
             context[NEED_MEMORY_METATHOUGHT] = False
             return
 
@@ -50,6 +68,9 @@ class ActionDispatcher:
             "channel_id": context.get("channel_id"),
             "author_id": context.get("author_id"),
             "author_name": context.get("author_name"),
+            "source_task_id": context.get("source_task_id"),
+            "event_summary": context.get("event_summary"),
+            "task_description": context.get("task_description"),
         }
 
         meta_thought = Thought(
@@ -66,6 +87,9 @@ class ActionDispatcher:
                 "channel": context.get("channel_id"),
                 "metadata": {},
                 "initial_context": original_context_for_meta,
+                "trigger_thought_id": context.get("thought_id"),
+                "trigger_task_id": context.get("source_task_id"),
+                "final_action_result": result.model_dump(mode="json"),
             },
             priority=0,
         )
@@ -128,8 +152,9 @@ class ActionDispatcher:
                 logger.error(f"No handler registered for origin service '{origin_service}' to handle action '{action_type.value}'. Action not executed.")
 
             if action_type in [HandlerActionType.SPEAK, HandlerActionType.ACT, HandlerActionType.DEFER, HandlerActionType.DEFER_TO_WA]:
-                original_context[NEED_MEMORY_METATHOUGHT] = True
-                await self._enqueue_memory_metathought(original_context)
+                if not original_context.get("skip_memory_update"):
+                    original_context[NEED_MEMORY_METATHOUGHT] = True
+                    await self._enqueue_memory_metathought(original_context, result)
 
         # 2. Memory Actions (routed to a dedicated 'memory' service/handler, if registered)
         elif action_type in [
@@ -143,11 +168,17 @@ class ActionDispatcher:
                     logger.debug(f"Invoking memory handler for action '{action_type.value}'.")
                     await memory_handler(result, original_context) # Pass context in case needed
                     logger.debug(f"Memory handler completed action '{action_type.value}'.")
+                    if not original_context.get("skip_memory_update"):
+                        original_context[NEED_MEMORY_METATHOUGHT] = True
+                        await self._enqueue_memory_metathought(original_context, result)
                 except Exception as e:
                     logger.exception(f"Error executing memory handler for action '{action_type.value}': {e}")
             else:
                 logger.warning(f"Received memory action '{action_type.value}' but no 'memory' handler registered. Action may not be fully processed.")
                 # Fallback: Direct persistence calls could be added here if necessary
+                if not original_context.get("skip_memory_update"):
+                    original_context[NEED_MEMORY_METATHOUGHT] = True
+                    await self._enqueue_memory_metathought(original_context, result)
 
         # 3. Internal/Control Flow Actions (handled upstream or logged here)
         elif action_type == HandlerActionType.PONDER:
