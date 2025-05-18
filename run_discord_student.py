@@ -27,6 +27,7 @@ from ciris_engine.dma.dsdma_teacher import BasicTeacherDSDMA
 from ciris_engine.services.llm_service import LLMService
 from ciris_engine.services.discord_service import DiscordService, DiscordConfig
 from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.services.discord_observer import DiscordObserver
 
 # Utility for logging
 from ciris_engine.utils.logging_config import setup_basic_logging
@@ -126,13 +127,22 @@ async def main_student():
     
     llm_service = LLMService(llm_config=app_config.llm_services)
     memory_service = DiscordGraphMemory()
+    observer_service = DiscordObserver(lambda payload: memory_service.remember(payload["user_nick"]))
     agent_processor = None # Initialize to None for finally block
     services_to_stop = [llm_service]
 
     try:
         await llm_service.start()
         await memory_service.start()
-        services_to_stop.append(memory_service)
+        await observer_service.start()
+        services_to_stop.extend([memory_service, observer_service])
+
+        async def _obs_handler(result, ctx):
+            await observer_service.handle_event(
+                ctx.get("author_name", "unknown"), ctx.get("channel_id", "unknown")
+            )
+
+        action_dispatcher.register_service_handler("observer", _obs_handler)
         llm_client = llm_service.get_client()
 
         # DMAs and Guardrails - using the loaded student profile
@@ -196,7 +206,8 @@ async def main_student():
             action_selection_pdma_evaluator=action_selection_pdma_evaluator,
             ethical_guardrails=ethical_guardrails,
             app_config=app_config,
-            dsdma_evaluators=dsdma_evaluators
+            dsdma_evaluators=dsdma_evaluators,
+            memory_service=memory_service
         )
 
         agent_processor = AgentProcessor(

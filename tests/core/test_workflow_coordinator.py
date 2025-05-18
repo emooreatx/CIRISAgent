@@ -2,12 +2,14 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
 from ciris_engine.core.agent_core_schemas import Thought, ActionSelectionPDMAResult, EthicalPDMAResult, CSDMAResult
 from ciris_engine.core.foundational_schemas import ThoughtStatus, HandlerActionType, TaskStatus
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.config_schemas import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig, SerializableAgentProfile
+from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
 
 # --- Fixtures ---
 
@@ -52,6 +54,13 @@ def mock_ethical_guardrails():
     mock.check_action_output_safety = AsyncMock(return_value=(True, "Guardrail passed", {})) # Default to pass
     return mock
 
+
+@pytest.fixture
+async def memory_service(tmp_path: Path):
+    service = DiscordGraphMemory(str(tmp_path / "graph.pkl"))
+    await service.start()
+    yield service
+
 @pytest.fixture
 def mock_dsdma_evaluators_dict():
     # For simplicity, start with an empty dict or a basic mock if needed
@@ -66,7 +75,8 @@ def workflow_coordinator_instance(
     mock_action_selection_pdma_evaluator,
     mock_ethical_guardrails,
     mock_app_config, # Use the more complete AppConfig mock
-    mock_dsdma_evaluators_dict
+    mock_dsdma_evaluators_dict,
+    memory_service
 ):
     """Provides a WorkflowCoordinator instance with mocked dependencies."""
     return WorkflowCoordinator(
@@ -76,8 +86,42 @@ def workflow_coordinator_instance(
         action_selection_pdma_evaluator=mock_action_selection_pdma_evaluator,
         ethical_guardrails=mock_ethical_guardrails,
         app_config=mock_app_config, # Pass the AppConfig object
-        dsdma_evaluators=mock_dsdma_evaluators_dict
+        dsdma_evaluators=mock_dsdma_evaluators_dict,
+        memory_service=memory_service
     )
+
+@pytest.mark.asyncio
+@patch('ciris_engine.core.workflow_coordinator.persistence')
+async def test_memory_meta_thought(
+    mock_persistence,
+    workflow_coordinator_instance: WorkflowCoordinator,
+    memory_service: DiscordGraphMemory
+):
+    now = datetime.now(timezone.utc).isoformat()
+    thought = Thought(
+        thought_id="mem1",
+        source_task_id="task1",
+        thought_type="memory_meta",
+        status=ThoughtStatus.PENDING,
+        created_at=now,
+        updated_at=now,
+        round_created=0,
+        content="meta",
+        processing_context={"user_nick": "alice", "channel": "general", "metadata": {"kind": "friend"}},
+        priority=0,
+    )
+    item = ProcessingQueueItem.from_thought(thought)
+    mock_persistence.get_thought_by_id.return_value = thought
+    mock_persistence.update_thought_status = MagicMock(return_value=True)
+
+    mem_mock = AsyncMock()
+    memory_service.memorize = mem_mock
+
+    result = await workflow_coordinator_instance.process_thought(item)
+
+    assert result is None
+    mem_mock.assert_awaited_once_with("alice", "general", {"kind": "friend"})
+    mock_persistence.update_thought_status.assert_called_once()
 
 @pytest.fixture
 def sample_thought():
