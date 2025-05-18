@@ -65,6 +65,7 @@ class DiscordAdapter(BaseIOAdapter):
         self.client = discord.Client(intents=intents)
         self.token = token
         self._queue: asyncio.Queue[IncomingMessage] = asyncio.Queue()
+        self._client_task: Optional[asyncio.Task] = None
 
         @self.client.event
         async def on_message(message: discord.Message):
@@ -80,10 +81,20 @@ class DiscordAdapter(BaseIOAdapter):
             )
 
     async def start(self):
-        await self.client.start(self.token)
+        if not self._client_task:
+            self._client_task = asyncio.create_task(self.client.start(self.token))
+            await asyncio.sleep(0)  # yield control so the client can connect
 
     async def stop(self):
+        if self.client.is_closed():
+            return
         await self.client.close()
+        if self._client_task:
+            try:
+                await self._client_task
+            except Exception:
+                pass
+            self._client_task = None
 
     async def fetch_inputs(self) -> List[IncomingMessage]:
         messages: List[IncomingMessage] = []
