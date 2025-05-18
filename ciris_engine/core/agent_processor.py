@@ -281,15 +281,27 @@ class AgentProcessor:
         # Mark thoughts as PROCESSING in DB before sending to coordinator
         update_tasks = []
         for item in batch:
-             update_tasks.append(
-                 asyncio.to_thread( # Run DB update in thread to avoid blocking event loop
-                     persistence.update_thought_status,
-                     item.thought_id,
-                     ThoughtStatus.PROCESSING,
-                     round_processed=self.current_round_number # Mark the round it *started* processing
-                 )
-             )
+            logging.debug(
+                "Marking thought %s as PROCESSING for round %s",
+                item.thought_id,
+                self.current_round_number,
+            )
+            update_tasks.append(
+                asyncio.to_thread(
+                    persistence.update_thought_status,
+                    item.thought_id,
+                    ThoughtStatus.PROCESSING,
+                    round_processed=self.current_round_number,
+                )
+            )
         update_results = await asyncio.gather(*update_tasks, return_exceptions=True)
+
+        for item, result in zip(batch, update_results):
+            logging.debug(
+                "update_thought_status(PROCESSING) result for %s: %s",
+                item.thought_id,
+                result,
+            )
         
         failed_updates = [item.thought_id for i, item in enumerate(batch) if isinstance(update_results[i], Exception) or not update_results[i]]
         if failed_updates:
@@ -302,11 +314,19 @@ class AgentProcessor:
 
 
         # Process the batch using WorkflowCoordinator
-        processing_tasks = [
-            self.workflow_coordinator.process_thought(item) for item in batch
-        ]
+        processing_tasks = []
+        for item in batch:
+            logging.debug("Calling process_thought for %s", item.thought_id)
+            processing_tasks.append(self.workflow_coordinator.process_thought(item))
 
         results = await asyncio.gather(*processing_tasks, return_exceptions=True)
+
+        for item, res in zip(batch, results):
+            logging.debug(
+                "process_thought result for %s: %s",
+                item.thought_id,
+                res,
+            )
 
         # Handle results/exceptions (logging for now)
         for i, result in enumerate(results):
@@ -334,8 +354,14 @@ class AgentProcessor:
                      logging.error(f"Failed to mark thought {thought_id} as FAILED after processing error: {db_err}")
 
             elif result is None:
-                 # This indicates the thought was re-queued internally (e.g., PONDER by WorkflowCoordinator)
-                 logging.info(f"Thought {thought_id} resulted in internal re-queue (e.g., Ponder) and was handled by WorkflowCoordinator. No action to dispatch.")
+                # This indicates the thought was re-queued internally (e.g., PONDER by WorkflowCoordinator)
+                logging.info(
+                    f"Thought {thought_id} resulted in internal re-queue (e.g., Ponder) and was handled by WorkflowCoordinator. No action to dispatch."
+                )
+                # Even if the result was None, the thought status may now be terminal
+                # (e.g., memory meta-thoughts). Re-check task completion.
+                source_task_id = batch[i].source_task_id
+                await self._check_and_complete_task(source_task_id)
             else:
                 # Thought completed processing with a final action, dispatch it
                 logging.info(f"Thought {thought_id} processed successfully. Dispatching action: {result.selected_handler_action.value}")
