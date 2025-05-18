@@ -321,6 +321,49 @@ class TestActionSelectionPDMAEvaluator:
         assert result.raw_llm_response == str(mock_chat_completion_response) # Check raw response
         action_selection_pdma_evaluator.aclient.chat.completions.create.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_evaluate_param_validation_error(
+        self, action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator, sample_triaged_inputs: Dict[str, Any]
+    ):
+        """If parameter parsing fails validation, the evaluator should return a PONDER result."""
+        invalid_params = {
+            "knowledge_data": {"nick": "bob"},
+            "source": "unit test",
+            "knowledge_type": "profile",
+            "confidence": 0.5,
+        }  # missing knowledge_unit_description
+
+        expected_llm_response_data = {
+            "schema_version": CIRISSchemaVersion.V1_0_BETA,
+            "context_summary_for_action_selection": "Attempting to memorize info",
+            "action_alignment_check": {"memorize": "aligned"},
+            "selected_handler_action": CoreHandlerActionType.MEMORIZE,
+            "action_parameters": invalid_params,
+            "action_selection_rationale": "Store info",
+            "monitoring_for_selected_action": "None",
+        }
+
+        expected_pydantic_model_obj = _ActionSelectionLLMResponse(**expected_llm_response_data)
+        expected_json_content = expected_pydantic_model_obj.model_dump_json()
+
+        mock_resp = MagicMock()
+        mock_msg = MagicMock()
+        mock_msg.content = expected_json_content
+        mock_msg.tool_calls = None
+        mock_choice = MagicMock()
+        mock_choice.message = mock_msg
+        mock_resp.choices = [mock_choice]
+
+        expected_pydantic_model_obj._raw_response = mock_resp
+        action_selection_pdma_evaluator.aclient.chat.completions.create.return_value = expected_pydantic_model_obj
+
+        result = await action_selection_pdma_evaluator.evaluate(sample_triaged_inputs)
+
+        assert isinstance(result, ActionSelectionPDMAResult)
+        assert result.selected_handler_action == CoreHandlerActionType.PONDER
+        assert isinstance(result.action_parameters, PonderParams)
+        assert "validation" in result.action_parameters.key_questions[0].lower()
+
 
     @pytest.mark.asyncio # Ensure this non-async test is not marked as async if it's not
     async def test_action_selection_pdma_evaluator_repr(self, action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator): # Corrected type hint
