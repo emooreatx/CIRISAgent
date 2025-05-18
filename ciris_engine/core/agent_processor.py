@@ -354,8 +354,14 @@ class AgentProcessor:
                      logging.error(f"Failed to mark thought {thought_id} as FAILED after processing error: {db_err}")
 
             elif result is None:
-                 # This indicates the thought was re-queued internally (e.g., PONDER by WorkflowCoordinator)
-                 logging.info(f"Thought {thought_id} resulted in internal re-queue (e.g., Ponder) and was handled by WorkflowCoordinator. No action to dispatch.")
+                # This indicates the thought was re-queued internally (e.g., PONDER by WorkflowCoordinator)
+                logging.info(
+                    f"Thought {thought_id} resulted in internal re-queue (e.g., Ponder) and was handled by WorkflowCoordinator. No action to dispatch."
+                )
+                # Even if the result was None, the thought status may now be terminal
+                # (e.g., memory meta-thoughts). Re-check task completion.
+                source_task_id = batch[i].source_task_id
+                await self._check_and_complete_task(source_task_id)
             else:
                 # Thought completed processing with a final action, dispatch it
                 logging.info(f"Thought {thought_id} processed successfully. Dispatching action: {result.selected_handler_action.value}")
