@@ -9,13 +9,15 @@ from datetime import datetime, timezone # Added datetime imports
 import discord # type: ignore
 from typing import Dict, Any, Optional, List # Added List
 
+from ciris_engine.utils import DEFAULT_WA
+
 from pydantic import BaseModel, Field
 
 from ciris_engine.memory.simple_conversation_memory import SimpleConversationMemory # Import the new class
 
 from .base import Service
 from ciris_engine.core.action_dispatcher import ActionDispatcher, ServiceHandlerCallable
-from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType, Task, Thought, ThoughtStatus, DeferParams, RejectParams, SpeakParams, ToolParams # Added Thought import
+from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType, Task, Thought, ThoughtStatus, DeferParams, RejectParams, SpeakParams, ActParams
 from ciris_engine.core.foundational_schemas import TaskStatus as CoreTaskStatus # Alias to avoid conflict
 from ciris_engine.core import persistence # For creating tasks and updating status
 
@@ -33,7 +35,7 @@ class DiscordConfig(BaseModel):
     # Loaded at runtime
     bot_token: Optional[str] = None
     deferral_channel_id: Optional[int] = None
-    wa_user_id: Optional[int] = None
+    wa_user_id: Optional[str] = None
     monitored_channel_id: Optional[int] = None
 
     def load_env_vars(self):
@@ -43,9 +45,11 @@ class DiscordConfig(BaseModel):
         if deferral_id_str and deferral_id_str.isdigit():
             self.deferral_channel_id = int(deferral_id_str)
             
-        wa_user_id_str = os.getenv(self.wa_user_id_env_var)
+        wa_user_id_str = os.getenv(self.wa_user_id_env_var, DEFAULT_WA)
         if wa_user_id_str and wa_user_id_str.isdigit():
-            self.wa_user_id = int(wa_user_id_str)
+            self.wa_user_id = wa_user_id_str
+        else:
+            self.wa_user_id = DEFAULT_WA
             
         monitored_channel_id_str = os.getenv(self.monitored_channel_id_env_var)
         if monitored_channel_id_str and monitored_channel_id_str.isdigit():
@@ -409,8 +413,8 @@ class DiscordService(Service):
                 else:
                     logger.error(f"DiscordService: Invalid params type for REJECT: {type(params)}") # Corrected log
             
-            elif action_type == HandlerActionType.TOOL: # Corrected from USE_TOOL
-                if isinstance(params, ToolParams):
+            elif action_type == HandlerActionType.ACT:
+                if isinstance(params, ActParams):
                     tool_name = params.tool_name
                     tool_args = params.arguments
                     logger.info(f"DiscordService: Received USE_TOOL action: {tool_name} with args {tool_args}.")
@@ -440,7 +444,7 @@ class DiscordService(Service):
 
             else:
                 logger.debug(f"DiscordService: No specific Discord handler for action type {action_type.value}")
-                # For actions not handled by DiscordService (e.g., LEARN, REMEMBER, OBSERVE),
+                # For actions not handled by DiscordService (e.g., MEMORIZE, REMEMBER, OBSERVE),
                 # ensure their status is appropriately updated if they are terminal for the thought.
                 if thought_id and action_type not in [HandlerActionType.PONDER]: # PONDER is handled by WC
                     persistence.update_thought_status(thought_id, ThoughtStatus.COMPLETED, final_action_result=result.model_dump())
