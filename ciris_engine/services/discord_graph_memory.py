@@ -64,6 +64,10 @@ class DiscordGraphMemory(Service):
         channel_metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Add or update a user's metadata. Returns True if finalized."""
+        if not user_nick:
+            logger.warning("Memorize called without a user nickname; skipping")
+            return False
+
         if channel:
             if channel not in self.approved_channels:
                 self._pending.setdefault(channel, []).append((user_nick, metadata, channel_metadata))
