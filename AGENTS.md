@@ -32,3 +32,7 @@ All Discord-facing agents **must** adhere to the following practices:
 | metadata_schema        | Yes       | Must match schema and stay <1024 bytes                       |
 | graphql_minimal        | Yes       | Only nick/channel; fallback on timeout                       |
 | graceful_shutdown      | Yes       | 10s max shutdown per service                                 |
+
+### Runtime Architecture
+
+`BaseRuntime` centralizes environment validation, audit logging, and the Dream Protocol. IO adapters expose a small interface (`fetch_inputs` and `send_output`) so new platforms can be added easily. Incoming Discord messages are deduplicated: each message ID maps to exactly one Task and one initial Thought. The helper `_create_task_if_new` performs this check before persisting.

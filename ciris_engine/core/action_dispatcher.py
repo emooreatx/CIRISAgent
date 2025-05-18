@@ -1,10 +1,11 @@
 import logging
 import asyncio
-from typing import Dict, Any, Callable, Coroutine, TYPE_CHECKING
+from typing import Dict, Any, Callable, Coroutine, TYPE_CHECKING, Optional
 
 # Conditional import for type hinting
 if TYPE_CHECKING:
     from .agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType
+    from ciris_engine.services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,15 @@ class ActionDispatcher:
     Dispatches completed ActionSelectionPDMAResults to registered service handlers
     based on the action type and originating context.
     """
-    def __init__(self):
+    def __init__(self, audit_service: Optional['AuditService'] = None):
+        """Initialize the dispatcher with an optional :class:`AuditService`."""
+        # Import locally to avoid circular imports at module load time
+        from ciris_engine.services.audit_service import AuditService
+
+        self.audit_service = audit_service or AuditService()
         # Stores handlers keyed by the service name (e.g., "discord", "slack", "memory")
         self.service_handlers: Dict[str, ServiceHandlerCallable] = {}
+        self.action_filter: Optional[Callable[['ActionSelectionPDMAResult', Dict[str, Any]], bool]] = None
         logger.info("ActionDispatcher initialized.")
 
     async def _enqueue_memory_metathought(self, context: Dict[str, Any]):
@@ -50,8 +57,16 @@ class ActionDispatcher:
     def register_service_handler(self, service_name: str, handler_callback: ServiceHandlerCallable):
         """Registers a handler coroutine for a specific service."""
         if service_name in self.service_handlers:
-            logger.warning(f"Handler for service '{service_name}' already registered. Overwriting.")
-        self.service_handlers[service_name] = handler_callback
+            logger.warning(
+                f"Handler for service '{service_name}' already registered. Overwriting."
+            )
+
+        async def wrapped_handler(result: 'ActionSelectionPDMAResult', ctx: Dict[str, Any]):
+            await handler_callback(result, ctx)
+            if self.audit_service:
+                await self.audit_service.log_action(result.selected_handler_action, ctx)
+
+        self.service_handlers[service_name] = wrapped_handler
         logger.info(f"Registered handler for service: {service_name}")
 
     async def dispatch(self, result: 'ActionSelectionPDMAResult', original_context: Dict[str, Any]):
@@ -64,6 +79,10 @@ class ActionDispatcher:
         action_type = result.selected_handler_action
         # Determine the originating service from the context, default to 'unknown'
         origin_service = original_context.get("origin_service", "unknown")
+
+        if self.action_filter and not await self.action_filter(result, original_context):
+            logger.info("Action filtered and not dispatched")
+            return
 
         logger.info(f"Dispatching action '{action_type.value}' originating from service '{origin_service}'.")
 
