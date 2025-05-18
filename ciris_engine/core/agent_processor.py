@@ -142,6 +142,11 @@ class AgentProcessor:
 
         pending_thoughts = persistence.get_pending_thoughts_for_active_tasks(limit=queue_capacity)
 
+        memory_meta = [t for t in pending_thoughts if t.thought_type == "memory_meta"]
+        if memory_meta:
+            pending_thoughts = memory_meta
+            logging.info("Memory meta-thoughts detected; processing them exclusively this round")
+
         # 4. Populate Queue
         for thought in pending_thoughts:
             if len(self.processing_queue) < queue_capacity:
