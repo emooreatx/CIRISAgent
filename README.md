@@ -36,7 +36,7 @@ The system is designed for modularity, allowing developers to create and integra
 *   **Basic Guardrails:** Includes an ethical guardrail to check action outputs.
 *   **SQLite Persistence:** Uses SQLite for persisting tasks and thoughts.
 *   **Graph Memory:** MEMORIZE actions store user metadata in `DiscordGraphMemory`. REMEMBER and FORGET exist but are often disabled via profiles during testing.
-    * Channel node updates require WA approval: the agent DEFERs until the Wise Authority approves the channel.
+    * Channel node updates require WA approval. The initial write is deferred and a new thought is generated for the Wise Authority. When that follow-up thought includes `is_wa_correction` and references the deferred thought, the update is applied automatically.
     * User nick node updates can be memorized immediately if guardrails are satisfied.
 
 ## Guardrails Summary
