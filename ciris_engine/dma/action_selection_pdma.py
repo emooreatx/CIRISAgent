@@ -36,7 +36,10 @@ class ActionSelectionPDMAEvaluator:
     DEFAULT_PROMPT = {
         "system_header": (
             "You are the CIRIS Action‑Selection evaluator. "
-            "Given the PDMA, CSDMA and DSDMA results, choose one handler action."
+            "Given PDMA, CSDMA and DSDMA results, choose one handler action. "
+            "Use MEMORIZE to store facts in graph memory when allowed. "
+            "REMEMBER and FORGET exist but may be disabled. "
+            "If ponder rounds exceed the limit the system auto‑defers."
         ),
         "decision_format": ( # This describes the LLM's direct output structure
             "Return JSON with keys: context_summary_for_action_selection, action_alignment_check, "

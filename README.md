@@ -18,6 +18,8 @@ The core of CIRIS Engine is its ability to process "thoughts" (inputs or interna
 *   **DSDMA (Domain-Specific DMA):** Applies domain-specific knowledge and heuristics. Different DSDMAs can be created for various specialized tasks or agent roles (e.g., `StudentDSDMA`, `BasicTeacherDSDMA`).
 *   **ActionSelectionPDMA:** Determines the final action an agent should take based on the outputs of the preceding DMAs and the agent's current state.
 
+Actions chosen by the PDMA are routed through an `ActionDispatcher`. Memory operations use `DiscordGraphMemory` for persistence.
+
 CIRIS Engine supports different **agent profiles** (e.g., "Student", "Teacher" defined in `ciris_profiles/`) which can customize the behavior, prompting, and available DSDMAs for an agent. This allows for tailored reasoning processes depending on the agent's role or task.
 
 The system is designed for modularity, allowing developers to create and integrate new DMAs and agent profiles.
@@ -30,9 +32,10 @@ The system is designed for modularity, allowing developers to create and integra
 *   **Agent Profiles:** Customizable YAML configurations (`ciris_profiles/`) that define an agent's behavior, DSDMA selection, permitted actions, and LLM prompting strategies for various DMAs.
 *   **Local Execution:** Designed to run locally, enabling edge-side reasoning.
 *   **LLM Integration:** Leverages Large Language Models (LLMs) via `instructor` for structured output from DMAs. Requires an OpenAI-compatible API.
-*   **Thought Processing & Pondering:** Agents can "ponder" on thoughts, re-evaluating them with new questions or context over multiple cycles, managed by the `AgentProcessor` and `WorkflowCoordinator`.
+*   **Thought Processing & Pondering:** Agents may "ponder" repeatedly. The `WorkflowCoordinator` tracks ponder rounds and automatically defers once a configured limit is hit.
 *   **Basic Guardrails:** Includes an ethical guardrail to check action outputs.
 *   **SQLite Persistence:** Uses SQLite for persisting tasks and thoughts.
+*   **Graph Memory:** MEMORIZE actions store user metadata in `DiscordGraphMemory`. REMEMBER and FORGET exist but are often disabled via profiles during testing.
 
 ---
 
@@ -44,7 +47,7 @@ The `HandlerActionType` enum defines nine core operations grouped as:
 * **Control Responses:** `REJECT`, `PONDER`, `DEFER`
 * **Memory Operations:** `MEMORIZE`, `REMEMBER`, `FORGET`
 
-These actions are processed by matching handlers within the engine.
+These actions are processed by matching handlers within the engine. Profiles typically enable `MEMORIZE` and may disable `REMEMBER` and `FORGET` while the feature is tested.
 
 ---
 
