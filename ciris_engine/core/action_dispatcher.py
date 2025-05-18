@@ -112,6 +112,7 @@ class ActionDispatcher:
             HandlerActionType.SPEAK,
             HandlerActionType.ACT,
             HandlerActionType.DEFER,
+            HandlerActionType.DEFER_TO_WA,
             HandlerActionType.REJECT # Corrected: REJECT_THOUGHT was not defined, REJECT is.
         ]:
             handler = self.service_handlers.get(origin_service)
@@ -126,7 +127,7 @@ class ActionDispatcher:
             else:
                 logger.error(f"No handler registered for origin service '{origin_service}' to handle action '{action_type.value}'. Action not executed.")
 
-            if action_type in [HandlerActionType.SPEAK, HandlerActionType.ACT, HandlerActionType.DEFER]:
+            if action_type in [HandlerActionType.SPEAK, HandlerActionType.ACT, HandlerActionType.DEFER, HandlerActionType.DEFER_TO_WA]:
                 original_context[NEED_MEMORY_METATHOUGHT] = True
                 await self._enqueue_memory_metathought(original_context)
 

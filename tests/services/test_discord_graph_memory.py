@@ -32,16 +32,13 @@ async def test_memory_graph_loads_existing(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_memorize_defer_flow(tmp_path: Path):
+async def test_memorize_channel_write(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
     service = DiscordGraphMemory(str(storage))
     await service.start()
 
     result = await service.memorize("alice", "general", {"kind": "nice"})
-    assert result.status == MemoryOpStatus.DEFERRED
-    assert "alice" not in service.graph
-
-    await service.approve_channel("general")
+    assert result.status == MemoryOpStatus.SAVED
     data = await service.remember("alice")
     assert data["kind"] == "nice"
     assert "alice" in service.graph
