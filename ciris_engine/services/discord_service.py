@@ -381,6 +381,7 @@ class DiscordService(Service):
                         await target_channel.send(user_message_content)
                     
                     if self.config.deferral_channel_id:
+                        logger.debug(f"DiscordService: deferral_channel_id={self.config.deferral_channel_id}")
                         deferral_channel = self.bot.get_channel(self.config.deferral_channel_id) or await self.bot.fetch_channel(self.config.deferral_channel_id)
                         if deferral_channel and isinstance(deferral_channel, discord.TextChannel):
                             source_task_id = dispatch_context.get("source_task_id", "Unknown")
@@ -405,10 +406,15 @@ class DiscordService(Service):
                                     f"**Original Context:** `{str(dispatch_context)[:800]}`\n"
                                     f"**Deferral Package:** ```json\n{json.dumps(package, indent=2)}\n```"
                                 )
-                            await deferral_channel.send(_truncate_discord_message(deferral_report))
-                            logger.info(
-                                f"DiscordService: Sent DEFER report for task {source_task_id}, thought {deferred_thought_id} to deferral channel {self.config.deferral_channel_id}."
-                            )
+                            try:
+                                sent_report = await deferral_channel.send(_truncate_discord_message(deferral_report))
+                                logger.info(
+                                    f"DiscordService: Sent DEFER report for task {source_task_id}, thought {deferred_thought_id} to deferral channel {self.config.deferral_channel_id} as message {sent_report.id}."
+                                )
+                            except Exception as send_exc:
+                                logger.error(
+                                    f"DiscordService: Failed to send DEFER report to channel {self.config.deferral_channel_id}: {send_exc}"
+                                )
                         else:
                             logger.error(f"DiscordService: Could not find or access deferral channel {self.config.deferral_channel_id}.")
                     else:
