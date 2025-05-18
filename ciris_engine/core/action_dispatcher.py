@@ -22,6 +22,31 @@ class ActionDispatcher:
         self.service_handlers: Dict[str, ServiceHandlerCallable] = {}
         logger.info("ActionDispatcher initialized.")
 
+    async def _enqueue_memory_metathought(self, context: Dict[str, Any]):
+        """Create a MEMORY meta-thought for later processing."""
+        from .agent_core_schemas import Thought, ThoughtStatus
+        from . import persistence
+        import uuid
+        from datetime import datetime, timezone
+
+        meta_thought = Thought(
+            thought_id=f"mem_{uuid.uuid4().hex[:8]}",
+            source_task_id=context.get("source_task_id", "unknown"),
+            thought_type="memory_meta",
+            status=ThoughtStatus.PENDING,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
+            round_created=context.get("round", 0),
+            content="Auto memory update",
+            processing_context={
+                "user_nick": context.get("author_name"),
+                "channel": context.get("channel_id"),
+                "metadata": {},
+            },
+            priority=0,
+        )
+        await asyncio.to_thread(persistence.add_thought, meta_thought)
+
     def register_service_handler(self, service_name: str, handler_callback: ServiceHandlerCallable):
         """Registers a handler coroutine for a specific service."""
         if service_name in self.service_handlers:
@@ -64,6 +89,9 @@ class ActionDispatcher:
             else:
                 logger.error(f"No handler registered for origin service '{origin_service}' to handle action '{action_type.value}'. Action not executed.")
 
+            if action_type in [HandlerActionType.SPEAK, HandlerActionType.TOOL, HandlerActionType.DEFER]:
+                await self._enqueue_memory_metathought(original_context)
+
         # 2. Memory Actions (routed to a dedicated 'memory' service/handler, if registered)
         elif action_type in [
             HandlerActionType.LEARN,
@@ -97,8 +125,6 @@ class ActionDispatcher:
                     logger.debug(f"Observer handler completed action '{action_type.value}'.")
                 except Exception as e:
                     logger.exception(f"Error executing observer handler for action '{action_type.value}': {e}")
-            else:
-                logger.info(f"Received OBSERVE action. No specific 'observer' handler registered.")
 
         # Handle any other unexpected action types
         else:

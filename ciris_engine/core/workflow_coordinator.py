@@ -19,6 +19,7 @@ from ciris_engine.guardrails import EthicalGuardrails
 
 if TYPE_CHECKING:
     from ciris_engine.dma.dsdma_base import BaseDSDMA # Import only for type checking
+    from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
 
 # MAX_PONDER_ROUNDS = 5 # REMOVED Constant - will use config
 
@@ -38,6 +39,7 @@ class WorkflowCoordinator:
                  app_config: AppConfig, # Corrected type hint to AppConfig
                  # thought_queue_manager: ThoughtQueueManager, # <-- REMOVE THIS
                  dsdma_evaluators: Optional[Dict[str, 'BaseDSDMA']] = None, # Use string literal for forward reference
+                 memory_service: Optional['DiscordGraphMemory'] = None,
                  # current_round_number: int = 0 # REMOVED from parameters
                 ):
         self.llm_client = llm_client
@@ -45,6 +47,7 @@ class WorkflowCoordinator:
         self.csdma_evaluator = csdma_evaluator
         self.dsdma_evaluators = dsdma_evaluators if dsdma_evaluators else {}
         self.action_selection_pdma_evaluator = action_selection_pdma_evaluator
+        self.memory_service = memory_service
         self.ethical_guardrails = ethical_guardrails
         self.app_config = app_config # Store full AppConfig
         self.workflow_config = app_config.workflow # Store workflow_config part
@@ -75,12 +78,11 @@ class WorkflowCoordinator:
         thought_object: Optional[Thought] = persistence.get_thought_by_id(thought_item.thought_id)
         if not thought_object:
             logging.error(f"Critical: Could not retrieve Thought object for thought_id {thought_item.thought_id}. Aborting processing.")
-            # Ensure action_parameters for DEFER is a DeferParams instance or a dict that can initialize it
-            from .agent_core_schemas import DeferParams # Import locally
+            from .agent_core_schemas import DeferParams
             defer_reason = f"Failed to retrieve thought object for ID {thought_item.thought_id}"
             defer_params = DeferParams(
                 reason=defer_reason,
-                target_wa_ual="ual:placeholder/system_error/default", # Placeholder UAL
+                target_wa_ual="ual:placeholder/system_error/default",
                 deferral_package_content={"error_details": defer_reason}
             )
             return ActionSelectionPDMAResult(
@@ -89,8 +91,21 @@ class WorkflowCoordinator:
                 selected_handler_action=HandlerActionType.DEFER,
                 action_parameters=defer_params,
                 action_selection_rationale="System error: Cannot process thought without its core object.",
-                monitoring_for_selected_action={"status": "Error: Thought object not found"}
+                monitoring_for_selected_action={"status": "Error: Thought object not found"},
             )
+
+        if thought_object.thought_type == "memory_meta" and self.memory_service:
+            await self.memory_service.memorize(
+                thought_object.processing_context.get("user_nick", "unknown"),
+                thought_object.processing_context.get("channel", "unknown"),
+                thought_object.processing_context.get("metadata", {}),
+            )
+            persistence.update_thought_status(
+                thought_object.thought_id,
+                ThoughtStatus.COMPLETED,
+                round_processed=self.current_round_number,
+            )
+            return None
 
         # --- Populate System Context into thought_object.processing_context ---
         system_context = {}
