@@ -150,6 +150,26 @@ class BaseRuntime:
     async def stop(self):
         await self.io_adapter.stop()
 
+    async def _main_loop(self):
+        """Fetches messages from the adapter and creates tasks."""
+        await self.start()
+        try:
+            while True:
+                messages = await self.io_adapter.fetch_inputs()
+                for msg in messages:
+                    context = {
+                        "origin_service": self.io_adapter.__class__.__name__.replace("Adapter", "").lower(),
+                        "author_id": msg.author_id,
+                        "author_name": msg.author_id,
+                        "channel_id": msg.channel_id,
+                    }
+                    await self._create_task_if_new(msg.message_id, msg.content, context)
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await self.stop()
+
     async def _dream_action_filter(self, result: ActionSelectionPDMAResult, ctx: dict) -> bool:
         allowed = result.selected_handler_action in self.DREAM_ALLOWED
         if not allowed:
@@ -177,6 +197,6 @@ class BaseRuntime:
         self.dreaming = False
 
     def run(self):
-        asyncio.run(self.start())
+        asyncio.run(self._main_loop())
 
 
