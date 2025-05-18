@@ -2,6 +2,8 @@ import logging
 import asyncio
 from typing import Dict, Any, Callable, Coroutine, TYPE_CHECKING, Optional
 
+from ciris_engine.utils.constants import NEED_MEMORY_METATHOUGHT
+
 # Conditional import for type hinting
 if TYPE_CHECKING:
     from .agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType
@@ -53,6 +55,7 @@ class ActionDispatcher:
             priority=0,
         )
         await asyncio.to_thread(persistence.add_thought, meta_thought)
+        context[NEED_MEMORY_METATHOUGHT] = False
 
     def register_service_handler(self, service_name: str, handler_callback: ServiceHandlerCallable):
         """Registers a handler coroutine for a specific service."""
@@ -109,6 +112,7 @@ class ActionDispatcher:
                 logger.error(f"No handler registered for origin service '{origin_service}' to handle action '{action_type.value}'. Action not executed.")
 
             if action_type in [HandlerActionType.SPEAK, HandlerActionType.ACT, HandlerActionType.DEFER]:
+                original_context[NEED_MEMORY_METATHOUGHT] = True
                 await self._enqueue_memory_metathought(original_context)
 
         # 2. Memory Actions (routed to a dedicated 'memory' service/handler, if registered)
