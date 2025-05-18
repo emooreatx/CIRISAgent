@@ -1,14 +1,28 @@
 import logging
 import asyncio
 import pickle
+from enum import Enum
 from pathlib import Path
 from typing import Dict, Any, Optional
+from pydantic import BaseModel
 
 import networkx as nx
 
 from .base import Service
 
 logger = logging.getLogger(__name__)
+
+
+class MemoryOpStatus(str, Enum):
+    SAVED = "saved"
+    DEFERRED = "deferred"
+    FAILED = "failed"
+
+
+class MemoryOpResult(BaseModel):
+    status: MemoryOpStatus
+    reason: Optional[str] = None
+    deferral_package: Optional[Dict[str, Any]] = None
 
 
 class DiscordGraphMemory(Service):
@@ -62,17 +76,28 @@ class DiscordGraphMemory(Service):
         channel: Optional[str],
         metadata: Dict[str, Any],
         channel_metadata: Optional[Dict[str, Any]] = None,
-    ) -> bool:
-        """Add or update a user's metadata. Returns True if finalized."""
+        *,
+        is_correction: bool = False,
+    ) -> MemoryOpResult:
+        """Add or update a user's metadata."""
         if not user_nick:
             logger.warning("Memorize called without a user nickname; skipping")
-            return False
+            return MemoryOpResult(status=MemoryOpStatus.FAILED, reason="missing user")
 
         if channel:
-            if channel not in self.approved_channels:
+            if channel not in self.approved_channels and not is_correction:
                 self._pending.setdefault(channel, []).append((user_nick, metadata, channel_metadata))
                 logger.info("DEFER triggered for channel %s", channel)
-                return False
+                return MemoryOpResult(
+                    status=MemoryOpStatus.DEFERRED,
+                    reason=f"Channel {channel} not approved",
+                    deferral_package={
+                        "user_nick": user_nick,
+                        "channel": channel,
+                        "metadata": metadata,
+                        "channel_metadata": channel_metadata,
+                    },
+                )
 
         node_data = self.graph.nodes.get(user_nick, {})
         if channel:
@@ -87,13 +112,13 @@ class DiscordGraphMemory(Service):
         node_data.update(metadata)
         self.graph.add_node(user_nick, **node_data)
         await asyncio.to_thread(self._persist)
-        return True
+        return MemoryOpResult(status=MemoryOpStatus.SAVED)
 
     async def approve_channel(self, channel: str):
         self.approved_channels.add(channel)
         queued = self._pending.pop(channel, [])
         for user_nick, metadata, chan_meta in queued:
-            await self.memorize(user_nick, channel, metadata, chan_meta)
+            await self.memorize(user_nick, channel, metadata, chan_meta, is_correction=True)
 
     async def remember(self, user_nick: str) -> Dict[str, Any]:
         if self.graph.has_node(user_nick):
