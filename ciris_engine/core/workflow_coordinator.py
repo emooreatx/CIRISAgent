@@ -4,7 +4,7 @@ import asyncio # New import
 from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING # Added TYPE_CHECKING
 from pydantic import BaseModel # Added import
 
-from .foundational_schemas import ThoughtStatus, HandlerActionType
+from .foundational_schemas import TaskStatus, ThoughtStatus, HandlerActionType
 from .agent_core_schemas import EthicalPDMAResult, CSDMAResult, DSDMAResult, ActionSelectionPDMAResult, Thought, Task
 from .agent_processing_queue import ProcessingQueueItem
 from .config_schemas import AppConfig, WorkflowConfig # Import AppConfig and WorkflowConfig
@@ -315,8 +315,7 @@ class WorkflowCoordinator:
             if isinstance(action_selection_result.action_parameters, SpeakParams):
                 candidate_response_content = action_selection_result.action_parameters.content
             elif isinstance(original_params_as_dict, dict): # Fallback if it was a dict
-                 candidate_response_content = original_params_as_dict.get("content", "N/A (Guardrail Deferral)")
-
+                 candidate_response_content = original_params_as_dict.get("content", candidate_response_content)
 
             # For DEFER action, action_parameters should be DeferParams or a dict that can initialize it.
             # The ActionSelectionPDMAResult expects a Pydantic model for action_parameters.
@@ -339,7 +338,7 @@ class WorkflowCoordinator:
             # Now create the DeferParams model
             # Assuming DeferParams has 'reason' and 'deferral_package_content' and 'target_wa_ual'
             # We need a default target_wa_ual or get it from config
-            # For now, using a placeholder. This should be configured.
+            # For now, using a placeholder. This should be configured.)
             guardrail_defer_params = DeferParams(
                 reason=f"Guardrail failure: {reason}",
                 target_wa_ual=DEFAULT_WA,

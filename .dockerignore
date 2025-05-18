@@ -1,0 +1,54 @@
+.git
+.vscode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+
+# Logs
+*.log
+logs/
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# IDE / Editor specific
+.idea/
+*.swp
+*.swo
+*~
+
+# User-specific (like env files, though env.sh is explicitly copied by Dockerfile if needed at build time, but not via COPY ../. .)
+# env.sh # This is sourced in CMD, so it must be copied. Dockerfile copies ../. so it will be /app/env.sh
+# env_student.sh
+
+# Project specific ignores
+scripts/
+deploy/
+ciris_mvp.log
+text.log
+env*.sh
+*.env
