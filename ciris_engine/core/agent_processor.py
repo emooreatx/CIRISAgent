@@ -298,6 +298,18 @@ class AgentProcessor:
             await self._process_batch(batch_to_process)
         else:
             logging.info(f"Round {self.current_round_number}: Processing queue is empty. Nothing to process.")
+            if not persistence.pending_thoughts() and not persistence.thought_exists_for("job-discord-monitor"):
+                new_thought = Thought(
+                    thought_id=str(uuid.uuid4()),
+                    source_task_id="job-discord-monitor",
+                    thought_type="job",
+                    status=ThoughtStatus.PENDING,
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                    round_created=self.current_round_number,
+                    content="I should check for new messages",
+                )
+                persistence.add_thought(new_thought)
 
         end_time = datetime.now(timezone.utc)
         duration = (end_time - start_time).total_seconds()

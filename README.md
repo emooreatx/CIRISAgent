@@ -37,6 +37,22 @@ The system is designed for modularity, allowing developers to create and integra
 *   **SQLite Persistence:** Uses SQLite for persisting tasks and thoughts.
 *   **Graph Memory:** MEMORIZE actions store user metadata in `DiscordGraphMemory`. REMEMBER and FORGET exist but are often disabled via profiles during testing.
 
+## Guardrails Summary
+
+The system enforces the following guardrails via `app_config.guardrails_config`:
+
+| Guardrail            | Description                                                                       |
+|----------------------|-----------------------------------------------------------------------------------|
+| entropy              | Prevents nonsensical replies                                                       |
+| coherence            | Ensures output flows logically from prior context                                 |
+| rate_limit_observe   | Caps new tasks from Discord per OBSERVE cycle (10 messages max)                    |
+| idempotency_tasks    | Prevents duplicate tasks for the same message                                      |
+| pii_non_repetition   | Flags and prevents verbatim repetition of personal information                     |
+| input_sanitisation   | Cleans inputs using `bleach` (no regex)                                            |
+| metadata_schema      | Enforces a structured schema and max size for stored metadata                      |
+| graphql_minimal      | Limits enrichment to nick/channel with 3&nbsp;s timeout and fallback               |
+| graceful_shutdown    | Services stop cleanly or are forced after a 10&nbsp;s timeout                      |
+
 ---
 
 ## 3×3×3 Handler Actions
@@ -155,6 +171,17 @@ python run_cli_student.py
 *   **`discord_observer.py`**: Minimal observer that dispatches OBSERVE payloads.
 *   **`legacy/`**: Archived utilities and documents.
 *   The `tests/` directory contains unit and integration tests runnable with `pytest`.
+
+---
+## Testing
+
+Run the full test suite with:
+
+```bash
+pytest -q
+```
+
+All functional and guardrail validation tests should pass.
 
 ---
 
