@@ -3,6 +3,7 @@ import logging
 import os
 from pathlib import Path # Added import
 from typing import Dict, Optional # Added Dict and Optional
+from datetime import datetime
 
 # CIRIS Engine Core Components
 from ciris_engine.core.config_manager import get_config_async, AppConfig
@@ -28,7 +29,9 @@ from ciris_engine.services.llm_service import LLMService
 from ciris_engine.services.discord_service import DiscordService, DiscordConfig
 from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
 from ciris_engine.services.discord_observer import DiscordObserver
-from ciris_engine.core.foundational_schemas import HandlerActionType
+from ciris_engine.core.foundational_schemas import HandlerActionType, TaskStatus as CoreTaskStatus
+from ciris_engine.core.agent_core_schemas import Task
+from ciris_engine.utils import GraphQLContextProvider
 
 # Utility for logging
 from ciris_engine.utils.logging_config import setup_basic_logging
@@ -119,6 +122,21 @@ async def main_teacher(): # Renamed function
 
         persistence.initialize_database()
         logger.info(f"Database initialized successfully at {db_file_path_str}.")
+        # Ensure permanent Discord monitoring task exists
+        job_task_id = "job-discord-monitor"
+        if not persistence.task_exists(job_task_id):
+            now_iso = datetime.utcnow().isoformat()
+            persistence.add_task(
+                Task(
+                    task_id=job_task_id,
+                    description="Check for new messages in Discord and respond if able and appropriate",
+                    status=CoreTaskStatus.PENDING,
+                    created_at=now_iso,
+                    updated_at=now_iso,
+                    context={},
+                )
+            )
+            logger.info("Created permanent job task 'job-discord-monitor'.")
     except Exception as e:
         logger.exception(f"Failed to initialize database: {e}")
         return # Stop if DB initialization fails
@@ -136,9 +154,24 @@ async def main_teacher(): # Renamed function
         services_to_stop.extend([memory_service, observer_service])
 
         async def _obs_handler(result, ctx):
-            await observer_service.handle_event(
-                ctx.get("author_name", "unknown"), ctx.get("channel_id", "unknown")
-            )
+            new_messages = await discord_service.fetch_new_messages()
+            for msg in new_messages:
+                task = Task(
+                    task_id=str(msg.id),
+                    source_task_id=ctx.get("thought_id"),
+                    description=f"Discord message from {msg.author.name}: {msg.content}",
+                    status=CoreTaskStatus.PENDING,
+                    created_at=msg.created_at.isoformat(),
+                    updated_at=msg.created_at.isoformat(),
+                    context={
+                        "message_id": msg.id,
+                        "channel_id": msg.channel.id,
+                        "author_name": msg.author.name,
+                        "content": msg.content,
+                        "formatted_conversation_history": [],
+                    },
+                )
+                persistence.add_task(task)
 
         action_dispatcher.register_service_handler("observer", _obs_handler)
 
@@ -228,7 +261,8 @@ async def main_teacher(): # Renamed function
             ethical_guardrails=ethical_guardrails,
             app_config=app_config,
             dsdma_evaluators=dsdma_evaluators,
-            memory_service=memory_service
+            memory_service=memory_service,
+            graphql_context_provider=GraphQLContextProvider(),
         )
 
         agent_processor = AgentProcessor(

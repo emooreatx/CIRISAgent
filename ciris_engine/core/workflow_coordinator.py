@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING # Added TYPE_
 from pydantic import BaseModel # Added import
 
 from .foundational_schemas import ThoughtStatus, HandlerActionType
-from .agent_core_schemas import EthicalPDMAResult, CSDMAResult, DSDMAResult, ActionSelectionPDMAResult, Thought
+from .agent_core_schemas import EthicalPDMAResult, CSDMAResult, DSDMAResult, ActionSelectionPDMAResult, Thought, Task
 from .agent_processing_queue import ProcessingQueueItem
 from .config_schemas import AppConfig, WorkflowConfig # Import AppConfig and WorkflowConfig
 from . import persistence # Import persistence module
@@ -17,10 +17,12 @@ from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.utils import DEFAULT_WA
+from ciris_engine.utils import GraphQLContextProvider
 
 if TYPE_CHECKING:
     from ciris_engine.dma.dsdma_base import BaseDSDMA # Import only for type checking
     from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+    from ciris_engine.utils import GraphQLContextProvider
 
 # MAX_PONDER_ROUNDS = 5 # REMOVED Constant - will use config
 
@@ -41,6 +43,7 @@ class WorkflowCoordinator:
                  # thought_queue_manager: ThoughtQueueManager, # <-- REMOVE THIS
                  dsdma_evaluators: Optional[Dict[str, 'BaseDSDMA']] = None, # Use string literal for forward reference
                  memory_service: Optional['DiscordGraphMemory'] = None,
+                 graphql_context_provider: Optional['GraphQLContextProvider'] = None,
                  # current_round_number: int = 0 # REMOVED from parameters
                 ):
         self.llm_client = llm_client
@@ -49,6 +52,7 @@ class WorkflowCoordinator:
         self.dsdma_evaluators = dsdma_evaluators if dsdma_evaluators else {}
         self.action_selection_pdma_evaluator = action_selection_pdma_evaluator
         self.memory_service = memory_service
+        self.graphql_context_provider = graphql_context_provider or GraphQLContextProvider()
         self.ethical_guardrails = ethical_guardrails
         self.app_config = app_config # Store full AppConfig
         self.workflow_config = app_config.workflow # Store workflow_config part
@@ -109,34 +113,21 @@ class WorkflowCoordinator:
             return None
 
         # --- Populate System Context into thought_object.processing_context ---
-        system_context = {}
         try:
-            top_tasks_raw = persistence.get_active_tasks_by_priority(limit=3)
-            system_context["current_top_3_tasks"] = [f"TaskID: {t.task_id} (Prio: {t.priority}) - {t.description[:30]}..." for t in top_tasks_raw]
-            
-            # For #Thoughts in queue, we need a way to count from persistence or AgentProcessor's queue.
-            # Assuming persistence.count_pending_thoughts() exists or can be added.
-            # For now, using a placeholder if direct count isn't available.
-            # This might be better sourced from AgentProcessor if it holds the live queue.
-            # As a simplification, let's count all PENDING thoughts.
-            system_context["num_thoughts_in_queue"] = persistence.count_thoughts_by_status(ThoughtStatus.PENDING)
-            system_context["num_tasks_active"] = persistence.count_active_tasks()
-            
             parent_task_obj = persistence.get_task_by_id(thought_object.source_task_id)
-            system_context["parent_task"] = f"TaskID: {parent_task_obj.task_id} - {parent_task_obj.description[:50]}..." if parent_task_obj else "N/A"
-            
-            system_context["round_number"] = self.current_round_number
-            system_context["coherence"] = "NA" # Placeholder
-            system_context["entropy"] = "NA"   # Placeholder
-            
-            # Merge this system_context into the thought's existing processing_context
+            system_context = await self.build_context(parent_task_obj, thought_object)
             if thought_object.processing_context is None:
                 thought_object.processing_context = {}
             thought_object.processing_context["system_snapshot"] = system_context
-            logging.debug(f"Populated system_snapshot for thought {thought_object.thought_id}: {system_context}")
+            logging.debug(
+                f"Populated system_snapshot for thought {thought_object.thought_id}: {system_context}"
+            )
 
         except Exception as e_ctx:
-            logging.error(f"Error populating system context for thought {thought_object.thought_id}: {e_ctx}", exc_info=True)
+            logging.error(
+                f"Error populating system context for thought {thought_object.thought_id}: {e_ctx}",
+                exc_info=True,
+            )
             if thought_object.processing_context is None:
                 thought_object.processing_context = {}
             thought_object.processing_context["system_snapshot_error"] = str(e_ctx)
@@ -481,6 +472,23 @@ class WorkflowCoordinator:
                 logging.error(f"Failed to update thought ID {thought_object.thought_id} to completed.") # Use thought_object
         
         return final_action_result # For all other actions
+
+    async def build_context(self, task: Task, thought: Thought) -> Dict[str, Any]:
+        """Builds the execution context for a thought."""
+        context = {
+            "task": task,
+            "thought": thought,
+            "counts": {
+                "total_tasks": persistence.count_tasks(),
+                "total_thoughts": persistence.count_thoughts(),
+                "pending_tasks": persistence.count_tasks(TaskStatus.PENDING),
+                "pending_thoughts": persistence.count_thoughts(ThoughtStatus.PENDING),
+            },
+            "top_tasks": [t.task_id for t in persistence.get_top_tasks(3)],
+        }
+        graphql_extra = await self.graphql_context_provider.enrich_context(task, thought)
+        context.update(graphql_extra)
+        return context
 
     def __repr__(self) -> str:
         return "<WorkflowCoordinator (Async)>"
