@@ -8,6 +8,8 @@
 - Ponder rounds are capped; exceeding `max_ponder_rounds` will auto-DEFER the thought.
 - Archived scripts and documents are kept in `legacy/`.
 
+The environment is offline after setup. Only packages listed in `requirements.txt` at startup are available.
+
 ## Profile Guardrail Responsibilities
 
 All Discord-facing agents **must** adhere to the following practices:
