@@ -44,6 +44,14 @@ class ActionDispatcher:
             context[NEED_MEMORY_METATHOUGHT] = False
             return
 
+        original_context_for_meta = {
+            "origin_service": context.get("origin_service"),
+            "message_id": context.get("message_id"),
+            "channel_id": context.get("channel_id"),
+            "author_id": context.get("author_id"),
+            "author_name": context.get("author_name"),
+        }
+
         meta_thought = Thought(
             thought_id=f"mem_{uuid.uuid4().hex[:8]}",
             source_task_id=context.get("source_task_id", "unknown"),
@@ -57,6 +65,7 @@ class ActionDispatcher:
                 "user_nick": user_nick,
                 "channel": context.get("channel_id"),
                 "metadata": {},
+                "initial_context": original_context_for_meta,
             },
             priority=0,
         )
