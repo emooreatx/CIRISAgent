@@ -340,6 +340,14 @@ def update_thought_status(
     ponder_count: Optional[int] = None
 ) -> bool:
     """Updates the status and optionally other fields of a specific thought."""
+    logging.debug(
+        "update_thought_status called for %s -> %s | round_processed=%s | final_action_result=%s | ponder_count=%s",
+        thought_id,
+        new_status.value,
+        round_processed,
+        final_action_result is not None,
+        ponder_count,
+    )
     # Build the SET part dynamically? Or just update all optional fields passed.
     sql = """
         UPDATE thoughts

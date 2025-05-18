@@ -82,6 +82,13 @@ async def main() -> None:
     app_config = await get_config_async()
     profile = await runtime._load_profile()
 
+    # Ensure the loaded profile is available to the workflow coordinator. Some
+    # startup thoughts (e.g. wakeup sequence) rely on app_config.agent_profiles
+    # for context. Without registering the profile here, ActionSelectionPDMA may
+    # emit warnings about missing profile information.
+    if profile.name.lower() not in app_config.agent_profiles:
+        app_config.agent_profiles[profile.name.lower()] = profile
+
     llm_service = LLMService(app_config.llm_services)
     memory_service = DiscordGraphMemory()
     await llm_service.start()
