@@ -115,6 +115,7 @@ async def main() -> None:
         app_config=app_config,
         workflow_coordinator=workflow_coordinator,
         action_dispatcher=runtime.dispatcher,
+        startup_channel_id=SNORE_CHANNEL_ID,
     )
 
     try:
