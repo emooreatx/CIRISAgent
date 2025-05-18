@@ -14,8 +14,8 @@ from ciris_engine.core.foundational_schemas import (
     CIRISAgentUAL, CIRISTaskUAL, CIRISKnowledgeAssetUAL, VeilidDID, VeilidRouteID
 )
 from ciris_engine.core.agent_core_schemas import (
-    ObserveParams, SpeakParams, ToolParams, PonderParams, RejectParams, DeferParams,
-    LearnParams, RememberParams, ForgetParams,
+    ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams,
+    MemorizeParams, RememberParams, ForgetParams,
     ActionSelectionPDMAResult,
     Task, Thought, ObservationRecord, AuditLogEntry
 )
@@ -27,6 +27,8 @@ def test_enum_values():
     """Test that enums can be accessed and have expected string values."""
     assert CIRISSchemaVersion.V1_0_BETA.value == "1.0-beta"
     assert HandlerActionType.SPEAK.value == "speak"
+    assert HandlerActionType.ACT.value == "act"
+    assert HandlerActionType.MEMORIZE.value == "memorize"
     assert TaskStatus.PENDING.value == "pending"
     assert TaskStatus.PAUSED.value == "paused" # Test added status
     assert ThoughtStatus.PROCESSING.value == "processing"
@@ -192,12 +194,12 @@ def test_processing_queue_type_alias():
     assert isinstance(queue[0], ProcessingQueueItem)
 
 # Example of a validation test if a field had specific constraints
-def test_learn_params_confidence_validation():
+def test_memorize_params_confidence_validation():
     with pytest.raises(ValidationError):
-        LearnParams(knowledge_unit_description="test", knowledge_data="data", knowledge_type="fact", source="test", confidence=1.5) # Confidence > 1.0
+        MemorizeParams(knowledge_unit_description="test", knowledge_data="data", knowledge_type="fact", source="test", confidence=1.5) # Confidence > 1.0
     with pytest.raises(ValidationError):
-        LearnParams(knowledge_unit_description="test", knowledge_data="data", knowledge_type="fact", source="test", confidence=-0.5) # Confidence < 0.0
+        MemorizeParams(knowledge_unit_description="test", knowledge_data="data", knowledge_type="fact", source="test", confidence=-0.5) # Confidence < 0.0
     
     # Valid
-    params = LearnParams(knowledge_unit_description="test", knowledge_data="data", knowledge_type="fact", source="test", confidence=0.5)
+    params = MemorizeParams(knowledge_unit_description="test", knowledge_data="data", knowledge_type="fact", source="test", confidence=0.5)
     assert params.confidence == 0.5

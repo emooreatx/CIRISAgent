@@ -36,6 +36,18 @@ The system is designed for modularity, allowing developers to create and integra
 
 ---
 
+## 3×3×3 Handler Actions
+
+The `HandlerActionType` enum defines nine core operations grouped as:
+
+* **External Actions:** `OBSERVE`, `SPEAK`, `ACT`
+* **Control Responses:** `REJECT`, `PONDER`, `DEFER`
+* **Memory Operations:** `MEMORIZE`, `REMEMBER`, `FORGET`
+
+These actions are processed by matching handlers within the engine.
+
+---
+
 ## Core Components (in `ciris_engine/`)
 
 *   `core/`: Contains data schemas (`config_schemas.py`, `agent_core_schemas.py`, `foundational_schemas.py`), configuration management (`config_manager.py`), the `AgentProcessor`, `WorkflowCoordinator`, `ActionDispatcher`, and persistence layer (`persistence.py`).
@@ -80,6 +92,7 @@ Set the following environment variables (e.g., in a `.env` file loaded by your e
 *   `OPENAI_BASE_URL` (Optional): If using a non-OpenAI endpoint (e.g., Together.ai, local LLM server), set this to the base URL (e.g., `https://api.together.xyz/v1/`).
 *   `OPENAI_MODEL_NAME` (Optional): Specify the LLM model to be used (e.g., `meta-llama/Llama-3-70b-chat-hf`). Defaults to `gpt-4o-mini` if not set (see `ciris_engine/core/config_schemas.py`).
 *   `DISCORD_WA_USER_ID` (Optional): Your Discord User ID for receiving Wise Authority deferrals from Discord agents.
+*   `WA_DISCORD_USER` (Optional): Fallback Discord username for the Wise Authority. Defaults to `somecomputerguy`.
 
 Example:
 ```bash

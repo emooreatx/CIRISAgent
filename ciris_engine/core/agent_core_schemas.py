@@ -31,9 +31,9 @@ class SpeakParams(BaseModel):
     modality: str = "text" # Could be "audio", "visual" later
     correlation_id: Optional[str] = None # To link response to request
 
-class ToolParams(BaseModel):
-    tool_name: str # Name of the tool/function to call (aligns with LLM tool calling)
-    arguments: Dict[str, Any] # Arguments for the tool
+class ActParams(BaseModel):
+    tool_name: str
+    arguments: Dict[str, Any]
 
 class PonderParams(BaseModel):
     key_questions: List[str]
@@ -49,14 +49,15 @@ class DeferParams(BaseModel):
     target_wa_ual: CIRISKnowledgeAssetUAL # UAL of the designated Wise Authority KA
     deferral_package_content: Dict[str, Any] # Context, dilemma, analysis (to be structured)
 
-class LearnParams(BaseModel):
+class MemorizeParams(BaseModel):
     knowledge_unit_description: str
-    knowledge_data: Union[Dict[str, Any], str] # The actual knowledge (structured or unstructured)
-    knowledge_type: str # e.g., "heuristic", "fact", "skill_model_update"
-    source: str # Where the knowledge came from (e.g., "observation_id", "metathought_id")
+    knowledge_data: Union[Dict[str, Any], str]
+    knowledge_type: str
+    source: str
     confidence: float = Field(..., ge=0.0, le=1.0)
-    publish_to_dkg: bool = False # Whether to attempt creating/updating a KA
-    target_ka_ual: Optional[CIRISKnowledgeAssetUAL] = None # If updating existing KA
+    publish_to_dkg: bool = False
+    target_ka_ual: Optional[CIRISKnowledgeAssetUAL] = None
+    channel_metadata: Optional[Dict[str, Any]] = None
 
 class RememberParams(BaseModel):
     query: str # Natural language or structured query for memory
@@ -79,8 +80,8 @@ class ActionSelectionPDMAResult(BaseModel):
     action_resolution: Optional[str] = None
     selected_handler_action: HandlerActionType
     action_parameters: Union[ # This will hold the specific Pydantic model for the action's params
-        ObserveParams, SpeakParams, ToolParams, PonderParams,
-        RejectParams, DeferParams, LearnParams, RememberParams, ForgetParams, Dict[str, Any] # Allow Dict for initial parsing
+        ObserveParams, SpeakParams, ActParams, PonderParams,
+        RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]
     ]
     action_selection_rationale: str
     monitoring_for_selected_action: Union[Dict[str, Union[str, List[str]]], str] # Allow list of strings for KPIs
