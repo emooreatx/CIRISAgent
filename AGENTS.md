@@ -4,6 +4,10 @@
 - Prefer asynchronous functions when dealing with I/O or long-running tasks. Use `asyncio.to_thread` for blocking calls.
 - Keep new scripts and services minimal and well-documented.
 
+- After the setup script completes, the environment is locked down: only
+  packages listed in `requirements.txt` are available and network access is
+  disabled. Add new dependencies to that file before running setup again.
+
 - Use `DiscordGraphMemory` for storing user metadata via MEMORIZE actions. REMEMBER and FORGET handlers exist but are usually disabled while testing.
 - Ponder rounds are capped; exceeding `max_ponder_rounds` will auto-DEFER the thought.
 - Archived scripts and documents are kept in `legacy/`.
