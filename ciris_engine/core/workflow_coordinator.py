@@ -330,7 +330,7 @@ class WorkflowCoordinator:
                 "pdma_trace_id": thought_object.thought_id,
                 "autonomy_tier": 0, 
                 "context": str(thought_object.content),
-                "candidate_response": candidate_response_content),
+                "candidate_response": candidate_response_content,
                 "metrics": {"guardrail_triggered": True},
                 "trigger": "GUARDRAIL_FAILURE"
             }
