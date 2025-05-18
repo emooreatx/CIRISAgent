@@ -104,7 +104,12 @@ async def main() -> None:
             meta = params.knowledge_data if isinstance(params.knowledge_data, dict) else {"data": params.knowledge_data}
             user_nick = meta.get("nick") or ctx.get("author_name")
             channel = meta.get("channel") or ctx.get("channel_id")
-            await memory_service.memorize(user_nick, channel, meta, params.channel_metadata)
+            await memory_service.memorize(
+                user_nick,
+                channel,
+                meta,
+                params.channel_metadata,
+            )
         elif action == HandlerActionType.REMEMBER and isinstance(params, RememberParams):
             await memory_service.remember(params.query)
         elif action == HandlerActionType.FORGET and isinstance(params, ForgetParams):
