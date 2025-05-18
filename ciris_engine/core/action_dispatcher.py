@@ -73,8 +73,8 @@ class ActionDispatcher:
         # These actions typically require interaction with the external platform where the request originated.
         if action_type in [
             HandlerActionType.SPEAK,
-            HandlerActionType.TOOL, # Corrected: USE_TOOL was not defined, TOOL is.
-            HandlerActionType.DEFER, # Corrected: DEFER_TO_WA was not defined, DEFER is.
+            HandlerActionType.ACT,
+            HandlerActionType.DEFER,
             HandlerActionType.REJECT # Corrected: REJECT_THOUGHT was not defined, REJECT is.
         ]:
             handler = self.service_handlers.get(origin_service)
@@ -89,12 +89,12 @@ class ActionDispatcher:
             else:
                 logger.error(f"No handler registered for origin service '{origin_service}' to handle action '{action_type.value}'. Action not executed.")
 
-            if action_type in [HandlerActionType.SPEAK, HandlerActionType.TOOL, HandlerActionType.DEFER]:
+            if action_type in [HandlerActionType.SPEAK, HandlerActionType.ACT, HandlerActionType.DEFER]:
                 await self._enqueue_memory_metathought(original_context)
 
         # 2. Memory Actions (routed to a dedicated 'memory' service/handler, if registered)
         elif action_type in [
-            HandlerActionType.LEARN,
+            HandlerActionType.MEMORIZE,
             HandlerActionType.REMEMBER,
             HandlerActionType.FORGET
         ]:

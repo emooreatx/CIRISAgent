@@ -1,2 +1,3 @@
-# Utility functions, including logging and profile loading.
-pass
+"""Utility helpers for CIRIS Engine."""
+from .constants import DEFAULT_WA  # noqa:F401
+
