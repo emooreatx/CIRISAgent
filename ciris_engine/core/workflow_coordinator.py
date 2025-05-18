@@ -4,7 +4,7 @@ import asyncio # New import
 from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING # Added TYPE_CHECKING
 from pydantic import BaseModel # Added import
 
-from .foundational_schemas import ThoughtStatus, HandlerActionType
+from .foundational_schemas import TaskStatus, ThoughtStatus, HandlerActionType
 from .agent_core_schemas import EthicalPDMAResult, CSDMAResult, DSDMAResult, ActionSelectionPDMAResult, Thought, Task
 from .agent_processing_queue import ProcessingQueueItem
 from .config_schemas import AppConfig, WorkflowConfig # Import AppConfig and WorkflowConfig
@@ -315,7 +315,7 @@ class WorkflowCoordinator:
             if isinstance(action_selection_result.action_parameters, SpeakParams):
                 candidate_response_content = action_selection_result.action_parameters.content
             elif isinstance(original_params_as_dict, dict): # Fallback if it was a dict
-                 candidate_response_content = original_params_as_dict.get("content", "N/A (Guardrail Deferral)")
+                 candidate_response_content = original_params_as_dict.get("content", candidate_response_content
 
 
             # For DEFER action, action_parameters should be DeferParams or a dict that can initialize it.
@@ -331,7 +331,7 @@ class WorkflowCoordinator:
                 "pdma_trace_id": thought_object.thought_id,
                 "autonomy_tier": 0, 
                 "context": str(thought_object.content),
-                "candidate_response": candidate_response_content,
+                "candidate_response": candidate_response_content),
                 "metrics": {"guardrail_triggered": True},
                 "trigger": "GUARDRAIL_FAILURE"
             }
