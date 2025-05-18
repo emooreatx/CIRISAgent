@@ -36,7 +36,7 @@ async def test_cirisnode_client_logs_he300(tmp_path: Path, mock_async_client):
     assert result == {"ok": True}
 
     entry = AuditLogEntry.model_validate_json(log_file.read_text().splitlines()[0])
-    assert entry.event_type == "cisisnode_test"
+    assert entry.event_type == "cirisnode_test"
     assert entry.originator_id == "a1"
 
 
@@ -55,6 +55,5 @@ async def test_cirisnode_client_logs_chaos(tmp_path: Path, mock_async_client):
 
     lines = log_file.read_text().splitlines()
     entry = AuditLogEntry.model_validate_json(lines[0])
-    assert entry.event_type == "cisisnode_test"
+    assert entry.event_type == "cirisnode_test"
     assert entry.originator_id == "agentX"
-
