@@ -52,6 +52,14 @@ class LLMServicesConfig(BaseModel):
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
     # Example: anthropic: Optional[AnthropicConfig] = None
 
+class CIRISNodeConfig(BaseModel):
+    """Configuration for CIRISNode integration."""
+    base_url_env_var: str = Field(default="CIRISNODE_BASE_URL", description="Environment variable for CIRISNode base URL.")
+    base_url: str = Field(default="http://localhost:8001", description="Base URL for the CIRISNode service.")
+
+    def load_env_vars(self):
+        self.base_url = os.getenv(self.base_url_env_var, self.base_url)
+
 class GuardrailsConfig(BaseModel):
     """Configuration for guardrails."""
     entropy_threshold: float = Field(default=DEFAULT_ENTROPY_THRESHOLD, description="Threshold for entropy guardrail.")
@@ -90,6 +98,7 @@ class AppConfig(BaseModel):
     """
     db: DatabaseConfig = Field(default_factory=DatabaseConfig)
     llm_services: LLMServicesConfig = Field(default_factory=LLMServicesConfig)
+    cirisnode: CIRISNodeConfig = Field(default_factory=CIRISNodeConfig)
     guardrails: GuardrailsConfig = Field(default_factory=GuardrailsConfig)
     workflow: WorkflowConfig = Field(default_factory=WorkflowConfig)
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profile YAML files, relative to project root.")
