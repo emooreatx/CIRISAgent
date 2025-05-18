@@ -100,16 +100,56 @@ async def main() -> None:
     async def _memory_handler(result, ctx):
         action = result.selected_handler_action
         params = result.action_parameters
-        if action == HandlerActionType.MEMORIZE and isinstance(params, MemorizeParams):
-            meta = params.knowledge_data if isinstance(params.knowledge_data, dict) else {"data": params.knowledge_data}
-            user_nick = meta.get("nick") or ctx.get("author_name")
-            channel = meta.get("channel") or ctx.get("channel_id")
-            await memory_service.memorize(user_nick, channel, meta, params.channel_metadata)
-        elif action == HandlerActionType.REMEMBER and isinstance(params, RememberParams):
-            await memory_service.remember(params.query)
-        elif action == HandlerActionType.FORGET and isinstance(params, ForgetParams):
-            if params.item_description:
-                await memory_service.forget(params.item_description)
+        thought_id = ctx.get("thought_id")
+        try:
+            if action == HandlerActionType.MEMORIZE and isinstance(params, MemorizeParams):
+                meta = (
+                    params.knowledge_data
+                    if isinstance(params.knowledge_data, dict)
+                    else {"data": params.knowledge_data}
+                )
+                user_nick = meta.get("nick") or ctx.get("author_name")
+                channel = meta.get("channel") or ctx.get("channel_id")
+                success = await memory_service.memorize(
+                    user_nick, channel, meta, params.channel_metadata
+                )
+                if thought_id:
+                    persistence.update_thought_status(
+                        thought_id,
+                        ThoughtStatus.COMPLETED if success else ThoughtStatus.DEFERRED,
+                        final_action_result=result.model_dump(),
+                    )
+            elif action == HandlerActionType.REMEMBER and isinstance(params, RememberParams):
+                data = await memory_service.remember(params.query)
+                if thought_id:
+                    persistence.update_thought_status(
+                        thought_id,
+                        ThoughtStatus.COMPLETED,
+                        final_action_result={"memory": data},
+                    )
+            elif action == HandlerActionType.FORGET and isinstance(params, ForgetParams):
+                if params.item_description:
+                    await memory_service.forget(params.item_description)
+                if thought_id:
+                    persistence.update_thought_status(
+                        thought_id,
+                        ThoughtStatus.COMPLETED,
+                        final_action_result=result.model_dump(),
+                    )
+            else:
+                if thought_id:
+                    persistence.update_thought_status(
+                        thought_id,
+                        ThoughtStatus.FAILED,
+                        final_action_result={"error": "Invalid memory action parameters"},
+                    )
+        except Exception as e:
+            if thought_id:
+                persistence.update_thought_status(
+                    thought_id,
+                    ThoughtStatus.FAILED,
+                    final_action_result={"error": str(e)},
+                )
 
     runtime.dispatcher.register_service_handler(
         "memory", lambda result, ctx: _memory_handler(result, ctx)

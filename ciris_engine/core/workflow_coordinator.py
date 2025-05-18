@@ -52,7 +52,10 @@ class WorkflowCoordinator:
         self.dsdma_evaluators = dsdma_evaluators if dsdma_evaluators else {}
         self.action_selection_pdma_evaluator = action_selection_pdma_evaluator
         self.memory_service = memory_service
-        self.graphql_context_provider = graphql_context_provider or GraphQLContextProvider(memory_service=memory_service)
+        self.graphql_context_provider = graphql_context_provider or GraphQLContextProvider(
+            memory_service=memory_service,
+            enable_remote_graphql=app_config.enable_remote_graphql,
+        )
         self.ethical_guardrails = ethical_guardrails
         self.app_config = app_config # Store full AppConfig
         self.workflow_config = app_config.workflow # Store workflow_config part
