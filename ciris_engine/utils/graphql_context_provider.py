@@ -1,7 +1,9 @@
 import os
 import logging
-from typing import Dict, Any, List
+import asyncio
+from typing import Dict, Any, List, Optional
 import httpx
+from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +24,10 @@ class GraphQLClient:
             return {}
 
 class GraphQLContextProvider:
-    def __init__(self, graphql_client: GraphQLClient | None = None):
+    def __init__(self, graphql_client: GraphQLClient | None = None,
+                 memory_service: Optional[DiscordGraphMemory] = None):
         self.client = graphql_client or GraphQLClient()
+        self.memory_service = memory_service
 
     async def enrich_context(self, task, thought) -> Dict[str, Any]:
         authors: set[str] = set()
@@ -45,6 +49,27 @@ class GraphQLContextProvider:
         """
         result = await self.client.query(query, {"names": list(authors)})
         users = result.get("users", [])
-        enriched = {u["name"]: {"nick": u.get("nick"), "channel": u.get("channel")}
-                    for u in users}
+        enriched = {
+            u["name"]: {"nick": u.get("nick"), "channel": u.get("channel")}
+            for u in users
+        }
+
+        missing = [name for name in authors if name not in enriched]
+        if self.memory_service and missing:
+            memory_results = await asyncio.gather(
+                *(self.memory_service.remember(n) for n in missing)
+            )
+            for name, data in zip(missing, memory_results):
+                if data:
+                    nick = data.get("nick", name)
+                    channel = data.get("channel")
+                    if not channel:
+                        channels = data.get("channels")
+                        if isinstance(channels, list) and channels:
+                            channel = channels[0]
+                    enriched[name] = {"nick": nick, "channel": channel}
+
+        if not enriched:
+            return {}
+
         return {"user_profiles": enriched}
