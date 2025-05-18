@@ -102,18 +102,6 @@ class WorkflowCoordinator:
                 monitoring_for_selected_action={"status": "Error: Thought object not found"},
             )
 
-        if thought_object.thought_type == "memory_meta" and self.memory_service:
-            await self.memory_service.memorize(
-                thought_object.processing_context.get("user_nick", "unknown"),
-                thought_object.processing_context.get("channel", "unknown"),
-                thought_object.processing_context.get("metadata", {}),
-            )
-            persistence.update_thought_status(
-                thought_object.thought_id,
-                ThoughtStatus.COMPLETED,
-                round_processed=self.current_round_number,
-            )
-            return None
 
         # --- Populate System Context into thought_object.processing_context ---
         try:
