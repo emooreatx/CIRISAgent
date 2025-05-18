@@ -8,7 +8,6 @@ from ciris_engine.core.config_manager import get_config
 from ciris_engine.core.config_schemas import CIRISNodeConfig
 from ciris_engine.core.foundational_schemas import HandlerActionType
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +33,7 @@ class CIRISNodeClient:
         await self.audit_service.log_action(
             HandlerActionType.ACT,
             {
-                "event_type": "cisisnode_test",
+                "event_type": "cirisnode_test",
                 "originator_id": agent_id,
                 "event_summary": "he300",
                 "event_payload": result,
@@ -48,11 +47,10 @@ class CIRISNodeClient:
         await self.audit_service.log_action(
             HandlerActionType.ACT,
             {
-                "event_type": "cisisnode_test",
+                "event_type": "cirisnode_test",
                 "originator_id": agent_id,
                 "event_summary": "chaos",
                 "event_payload": result,
             },
         )
         return result
-
