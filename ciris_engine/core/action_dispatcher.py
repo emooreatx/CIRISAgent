@@ -38,6 +38,12 @@ class ActionDispatcher:
         import uuid
         from datetime import datetime, timezone
 
+        user_nick = context.get("author_name")
+        if not user_nick:
+            logger.warning("Skipping memory meta-thought due to missing user name")
+            context[NEED_MEMORY_METATHOUGHT] = False
+            return
+
         meta_thought = Thought(
             thought_id=f"mem_{uuid.uuid4().hex[:8]}",
             source_task_id=context.get("source_task_id", "unknown"),
@@ -48,7 +54,7 @@ class ActionDispatcher:
             round_created=context.get("round", 0),
             content="Auto memory update",
             processing_context={
-                "user_nick": context.get("author_name"),
+                "user_nick": user_nick,
                 "channel": context.get("channel_id"),
                 "metadata": {},
             },

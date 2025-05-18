@@ -142,7 +142,7 @@ class AgentProcessor:
                 priority=0,
                 created_at=now_iso,
                 updated_at=now_iso,
-                context={"meta_goal": "ubuntu"},
+                context={"meta_goal": "ubuntu", "origin_service": "discord"},
             )
             persistence.add_task(job_task)
         return True
