@@ -1,6 +1,7 @@
 import os
 
 DEFAULT_WA = os.getenv("WA_DISCORD_USER", "somecomputerguy")
+WA_USER_ID = os.getenv("WA_USER_ID")
 
 # Flag indicating that a memory meta-thought should be generated for the
 # originating context. It is toggled by the ActionDispatcher when

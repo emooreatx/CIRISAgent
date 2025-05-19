@@ -118,7 +118,6 @@ class BaseRuntime:
         HandlerActionType.MEMORIZE,
         HandlerActionType.REMEMBER,
         HandlerActionType.DEFER,
-        HandlerActionType.DEFER_TO_WA,
         HandlerActionType.REJECT,
         HandlerActionType.PONDER,
     }
