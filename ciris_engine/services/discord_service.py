@@ -17,9 +17,9 @@ from ciris_engine.memory.simple_conversation_memory import SimpleConversationMem
 
 from .base import Service
 from ciris_engine.core.action_dispatcher import ActionDispatcher, ServiceHandlerCallable
-from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType, Task, Thought, ThoughtStatus, DeferParams, RejectParams, SpeakParams, ActParams
-from ciris_engine.core.foundational_schemas import TaskStatus as CoreTaskStatus # Alias to avoid conflict
-from ciris_engine.core import persistence # For creating tasks and updating status
+from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType, Thought, ThoughtStatus, DeferParams, RejectParams, SpeakParams, ActParams
+from ciris_engine.core import persistence  # For creating tasks and updating status
+from .discord_event_queue import DiscordEventQueue
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +73,15 @@ def _truncate_discord_message(message: str, limit: int = DISCORD_MESSAGE_LIMIT) 
         return message
     return message[:limit-3] + "..."
 
+
 class DiscordService(Service):
-    def __init__(self, action_dispatcher: ActionDispatcher, config: Optional[DiscordConfig] = None):
-        super().__init__(config.model_dump() if config else None) # Pass config dict to parent
+    def __init__(self, action_dispatcher: ActionDispatcher, config: Optional[DiscordConfig] = None,
+                 event_queue: Optional[DiscordEventQueue] = None):
+        super().__init__(config.model_dump() if config else None)  # Pass config dict to parent
         self.action_dispatcher = action_dispatcher
         self.config = config or DiscordConfig()
-        self.config.load_env_vars() # Load token and IDs from environment
+        self.config.load_env_vars()  # Load token and IDs from environment
+        self.event_queue = event_queue or DiscordEventQueue()
 
         # Initialize conversation history using the new class
         self.conversation_memory = SimpleConversationMemory(max_history_length=self.config.max_message_history)
@@ -271,27 +274,29 @@ class DiscordService(Service):
                 
                 return # Stop further processing, as this was a correction
 
-            # --- Regular Message Handling (Create New Task) ---
-            # If it wasn't a WA correction reply, proceed to create a new task
-            logger.info(f"Handling regular message {message.id} from {message.author.name}.")
-            task_description = f"Discord message from {message.author.name}: {message.content}"
-            new_task_id = str(message.id) # Use message ID as a simple task ID for now
-            
-            # Use the context built earlier
-            task = Task(
-                task_id=new_task_id, 
-                description=task_description,
-                status=CoreTaskStatus.PENDING,
-                priority=1, # Default priority
-                created_at=message.created_at.isoformat(), 
-                updated_at=message.created_at.isoformat(), 
-                context=task_initial_context 
-            )
+            # --- Regular Message Handling (Enqueue Event) ---
+            logger.info(f"Enqueuing message {message.id} from {message.author.name} for observer.")
+            event = {
+                "user_nick": message.author.name,
+                "channel": str(message.channel.id),
+                "message_content": message.content,
+            }
             try:
-                persistence.add_task(task)
-                logger.info(f"DiscordService: Created new task {new_task_id} for message {message.id}.")
+                self.event_queue.enqueue_nowait(event)
+                logger.debug(
+                    "DiscordService: Enqueued message %s for observer queue.",
+                    message.id,
+                )
+            except asyncio.QueueFull:
+                logger.warning(
+                    "Event queue full; dropping message %s", message.id
+                )
             except Exception as e:
-                logger.exception(f"DiscordService: Failed to create task for message {message.id}: {e}")
+                logger.exception(
+                    "DiscordService: Failed to enqueue event for message %s: %s",
+                    message.id,
+                    e,
+                )
 
 
     async def _handle_discord_action(self, result: ActionSelectionPDMAResult, dispatch_context: Dict[str, Any]):
