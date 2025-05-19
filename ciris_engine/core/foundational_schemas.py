@@ -20,8 +20,7 @@ class HandlerActionType(str, Enum):
     # Control responses
     REJECT = "reject"
     PONDER = "ponder"
-    DEFER = "defer"  # Generic deferral action
-    DEFER_TO_WA = "defer_to_wa"  # Explicit deferral requiring WA intervention
+    DEFER = "defer"  # Deferral action requiring WA intervention
 
     # Memory operations
     MEMORIZE = "memorize"
