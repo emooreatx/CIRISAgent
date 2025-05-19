@@ -106,19 +106,24 @@ These actions are processed by matching handlers within the engine. Profiles typ
 
 ### Environment Variables
 
-Set the following environment variables (e.g., in a `.env` file loaded by your environment or system-wide):
+Set the following environment variables (see `.env.example` for a template):
 
 *   `OPENAI_API_KEY`: **Required.** Your API key for the LLM service.
 *   `DISCORD_BOT_TOKEN`: **Required for Discord agents.** Your Discord bot token.
 *   `OPENAI_BASE_URL` (Optional): If using a non-OpenAI endpoint (e.g., Together.ai, local LLM server), set this to the base URL (e.g., `https://api.together.xyz/v1/`).
 *   `OPENAI_MODEL_NAME` (Optional): Specify the LLM model to be used (e.g., `meta-llama/Llama-3-70b-chat-hf`). Defaults to `gpt-4o-mini` if not set (see `ciris_engine/core/config_schemas.py`).
-*   `DISCORD_WA_USER_ID` (Optional): Your Discord User ID for receiving Wise Authority deferrals from Discord agents.
+*   `WA_USER_ID` (Optional): Discord User ID for the Wise Authority mentioned in deferral messages.
+*   `ALLOWED_CHANNEL_IDS` (Optional): Comma-separated list of Discord channel IDs the bot will process.
+*   `SNORE_CHANNEL_ID` (Optional): Channel ID used for runtime heartbeat notifications.
 *   `WA_DISCORD_USER` (Optional): Fallback Discord username for the Wise Authority. Defaults to `somecomputerguy`.
 
 Example:
 ```bash
 export OPENAI_API_KEY="your_api_key_here"
 export DISCORD_BOT_TOKEN="your_discord_bot_token_here"
+# export WA_USER_ID="123456789012345678"            # Mention this user on deferrals
+# export ALLOWED_CHANNEL_IDS="123,456"              # Restrict channels the bot reacts to
+# export SNORE_CHANNEL_ID="789"                     # Optional status channel
 # export OPENAI_API_BASE="https://api.together.xyz/v1/" # Uncomment if using a custom endpoint
 # export OPENAI_MODEL_NAME="meta-llama/Llama-3-70b-chat-hf" # Uncomment to specify a model
 ```

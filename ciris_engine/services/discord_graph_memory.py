@@ -35,9 +35,18 @@ class DiscordGraphMemory(Service):
             try:
                 with self.storage_path.open("rb") as f:
                     self.graph = pickle.load(f)
-                logger.info("Loaded memory graph from %s", self.storage_path)
+                logger.info(
+                    "Memory graph loaded with %d nodes, %d edges",
+                    self.graph.number_of_nodes(),
+                    self.graph.number_of_edges(),
+                )
             except Exception as exc:
-                logger.warning("Failed to load memory graph in __init__: %s", exc)
+                logger.warning(
+                    "Failed to load memory graph from %s (%s: %s)",
+                    self.storage_path,
+                    type(exc).__name__,
+                    exc,
+                )
                 self.graph = nx.DiGraph()
         else:
             self.graph = nx.DiGraph()
@@ -46,6 +55,11 @@ class DiscordGraphMemory(Service):
         try:
             with self.storage_path.open("wb") as f:
                 pickle.dump(self.graph, f)
+            logger.info(
+                "Persisted memory graph (%d nodes) to %s",
+                self.graph.number_of_nodes(),
+                self.storage_path,
+            )
         except Exception as exc:
             logger.warning("Failed to persist memory graph: %s", exc)
 
@@ -94,7 +108,11 @@ class DiscordGraphMemory(Service):
         
         node_data.update(metadata)
         self.graph.add_node(user_nick, **node_data)
-        await asyncio.to_thread(self._persist)
+        try:
+            await asyncio.to_thread(self._persist)
+        except Exception as exc:
+            logger.error("Async persist failed: %s", exc)
+            return MemoryOpResult(status=MemoryOpStatus.FAILED, reason=str(exc))
         return MemoryOpResult(status=MemoryOpStatus.SAVED)
 
     async def remember(self, user_nick: str) -> Dict[str, Any]:
