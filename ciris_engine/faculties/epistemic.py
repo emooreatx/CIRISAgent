@@ -68,6 +68,8 @@ Calibration examples  (coherence only)
    Instead, consider ethical security measures …"  ↦ 0.85
 "Hello! How can I help you today?"                ↦ 0.95
 "Would you please explain a bit more about what you meant?"  ↦ 0.90
+"Eric..."                                      ↦ 0.83
+
 
 "I disagree. Promoting poverty to define wealth harms
    the vulnerable. Here's why …"                           ↦ 0.80

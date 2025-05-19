@@ -59,8 +59,10 @@ class CLIAdapter(BaseIOAdapter):
         print(content)
 
 
+from ciris_engine.services.discord_event_queue import DiscordEventQueue # Import the generic queue
+
 class DiscordAdapter(BaseIOAdapter):
-    def __init__(self, token: str):
+    def __init__(self, token: str, message_queue: DiscordEventQueue[IncomingMessage]): # Use DiscordEventQueue[IncomingMessage]
         import discord  # type: ignore
 
         intents = discord.Intents.default()
@@ -68,14 +70,15 @@ class DiscordAdapter(BaseIOAdapter):
         intents.message_content = True
         self.client = discord.Client(intents=intents)
         self.token = token
-        self._queue: asyncio.Queue[IncomingMessage] = asyncio.Queue()
+        self.message_queue = message_queue # Store the provided DiscordEventQueue
         self._client_task: Optional[asyncio.Task] = None
 
         @self.client.event
         async def on_message(message: discord.Message):
             if message.author == self.client.user or message.author.bot:
                 return
-            await self._queue.put(
+            # Put the message onto the externally provided DiscordEventQueue
+            await self.message_queue.enqueue( # Use enqueue method of DiscordEventQueue
                 IncomingMessage(
                     message_id=str(message.id),
                     author_id=str(message.author.id),
@@ -102,13 +105,10 @@ class DiscordAdapter(BaseIOAdapter):
             self._client_task = None
 
     async def fetch_inputs(self) -> List[IncomingMessage]:
-        messages: List[IncomingMessage] = []
-        try:
-            while True:
-                messages.append(self._queue.get_nowait())
-        except asyncio.QueueEmpty:
-            pass
-        return messages
+        # This method is now a no-op for DiscordAdapter regarding task creation by BaseRuntime.
+        # BaseRuntime._main_loop will call this, get an empty list, and not create tasks for Discord.
+        # Task creation for Discord messages will be handled by DiscordObserver via the message_queue.
+        return []
 
     async def send_output(self, target: Any, content: str):
         channel = self.client.get_channel(int(target))
@@ -214,5 +214,3 @@ class BaseRuntime:
 
     def run(self):
         asyncio.run(self._main_loop())
-
-

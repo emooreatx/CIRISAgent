@@ -23,6 +23,7 @@ class ObserveParams(BaseModel):
     filters: Optional[Dict[str, Any]] = None # e.g., {"channel_id": "123", "keyword": "urgent"}
     max_duration_ms: Optional[int] = None
     reason: Optional[str] = None # Added for fallback/error context
+    perform_active_look: bool = False # If true, actively fetches recent messages from a configured channel
 
 class SpeakParams(BaseModel):
     content: str

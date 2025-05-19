@@ -24,9 +24,12 @@ from ciris_engine.core.agent_core_schemas import (
     ForgetParams,  # Keep ForgetParams
     ActParams,
     ActionSelectionPDMAResult,
+    ObserveParams,  # Added ObserveParams
+    Thought,        # Added Thought
 )
 from ciris_engine.core.foundational_schemas import ThoughtStatus
 from pydantic import BaseModel # Import BaseModel for type checking
+import uuid # Added uuid import
 from ciris_engine.utils.constants import DEFAULT_WA, WA_USER_ID
 
 logger = logging.getLogger(__name__) # Get logger
@@ -175,8 +178,15 @@ async def main() -> None:
     setup_basic_logging()
     persistence.initialize_database()
 
+    # Import IncomingMessage and the generic DiscordEventQueue
+    from ciris_engine.runtime.base_runtime import IncomingMessage
+    from ciris_engine.services.discord_event_queue import DiscordEventQueue
+
+    # Create the typed DiscordEventQueue for IncomingMessage objects
+    discord_message_queue = DiscordEventQueue[IncomingMessage]()
+
     runtime = BaseRuntime(
-        io_adapter=DiscordAdapter(TOKEN), # This adapter will fetch messages
+        io_adapter=DiscordAdapter(TOKEN, message_queue=discord_message_queue), # Pass the DiscordEventQueue
         profile_path=PROFILE_PATH,
         snore_channel_id=SNORE_CHANNEL_ID,
     )
@@ -196,8 +206,56 @@ async def main() -> None:
     llm_service = LLMService(app_config.llm_services)
     # Instantiate DiscordGraphMemory - this is the actual memory service
     memory_service = DiscordGraphMemory()
+    
+    # --- Define on_observe callback for DiscordObserver ---
+    async def _on_discord_observation(payload: dict):
+        # This function will be called by DiscordObserver with the processed message data
+        # It's responsible for creating the actual Task object
+        message_id = payload.get("message_id")
+        content = payload.get("content")
+        context_data = payload.get("context", {})
+        task_description = payload.get("task_description", content) # Fallback for description
+
+        if not message_id or not content:
+            logger.error(f"DiscordObserver's on_observe: Missing message_id or content in payload. Cannot create task. Payload: {payload}")
+            return
+
+        if persistence.task_exists(message_id):
+            logger.debug(f"DiscordObserver's on_observe: Task {message_id} already exists. Skipping creation.")
+            return
+        
+        now_iso = datetime.now(timezone.utc).isoformat() # Get current time for task
+        
+        task = persistence.Task( # Use persistence.Task or agent_core_schemas.Task
+            task_id=message_id,
+            description=task_description,
+            status=persistence.TaskStatus.PENDING, # Use persistence.TaskStatus or foundational_schemas.TaskStatus
+            priority=1, # Default priority
+            created_at=now_iso,
+            updated_at=now_iso,
+            context=context_data,
+        )
+        try:
+            persistence.add_task(task)
+            logger.info(f"DiscordObserver's on_observe: Created task {message_id} from Discord message.")
+        except Exception as e:
+            logger.exception(f"DiscordObserver's on_observe: Failed to add task {message_id} to persistence: {e}")
+
+    # Instantiate DiscordObserver
+    # It needs the shared message queue and the on_observe callback
+    from ciris_engine.services.discord_observer import DiscordObserver
+    from datetime import datetime, timezone # Ensure datetime and timezone are imported if not already
+
+    discord_observer = DiscordObserver(
+        on_observe=_on_discord_observation,
+        message_queue=discord_message_queue, # The same queue used by DiscordAdapter
+        monitored_channel_id=os.getenv("DISCORD_CHANNEL_ID") # Optional: if you want to monitor a specific channel
+    )
+
+    # Start services
     await llm_service.start()
     await memory_service.start()
+    await discord_observer.start() # Start the observer
 
     # --- Dedicated Handler for Memory Actions ---
     async def _memory_handler(result: ActionSelectionPDMAResult, ctx: dict): # Added type hints
@@ -216,7 +274,7 @@ async def main() -> None:
             elif action == HandlerActionType.MEMORIZE and isinstance(params, MemorizeParams):
                 # Extract data from the VALIDATED MemorizeParams
                 # Fallbacks to ctx if data not found in params
-                user_nick = params.knowledge_data.get("nick") if isinstance(params.knowledge_data, dict) else (ctx.get("author_name") if ctx.get("author_name") != DEFAULT_WA else None) # Use author_name from context as fallback, but not default WA
+                user_nick = params.knowledge_data.get("nick") if isinstance(params.knowledge_data, dict) else ctx.get("author_name") # Use author_name from context as fallback
                 channel = params.channel_metadata.get("channel") if isinstance(params.channel_metadata, dict) else ctx.get("channel_id") # Use channel_id from context as fallback
                 metadata = params.knowledge_data if isinstance(params.knowledge_data, dict) else {"data": params.knowledge_data} # Use knowledge_data as metadata or wrap string
 
@@ -250,14 +308,60 @@ async def main() -> None:
                  # Implement REMEMBER logic here
                  logger.warning(f"MemoryHandler: REMEMBER action received for thought {thought_id}. Implementation pending.")
                  # Example:
-                 # remembered_data = await memory_service.remember(params.query)
-                 # if remembered_data:
-                 #     logger.info(f"MemoryHandler: REMEMBERED data for thought {thought_id}.")
-                 #     # Need a way to return remembered_data to the task flow - maybe put in thought's processing_context?
-                 # else:
-                 #     logger.info(f"MemoryHandler: REMEMBER query for thought {thought_id} found no data.")
-                 final_thought_status = ThoughtStatus.COMPLETED # Assume completed once query is done
+                 user_nick_for_query = ctx.get("author_name") # Or derive from params if available/different
+                 if not user_nick_for_query and params.query: # Fallback if query itself might be a user identifier
+                     # This part is speculative, depends on how params.query is used.
+                     # For now, assume query is a general query string, and user context is from ctx.
+                     pass
 
+                 if not user_nick_for_query: # If still no user_nick, REMEMBER might be for general knowledge
+                     logger.warning(f"MemoryHandler: REMEMBER action for thought {thought_id} has no user_nick in context. Query: {params.query}")
+                     # Proceed with a general query if memory_service supports it, or handle as error.
+                     # For now, let's assume memory_service.remember can take a general query string.
+                 
+                 # For this example, let's assume params.query is the user_nick if not otherwise specified.
+                 # A better approach would be a dedicated user_nick field in RememberParams.
+                 query_target_user = params.query # Simplified assumption for now.
+                 
+                 remembered_data = await memory_service.remember(user_nick=query_target_user) # Pass user_nick
+
+                 if remembered_data:
+                     logger.info(f"MemoryHandler: REMEMBERED data for thought {thought_id} for user '{query_target_user}'. Data: {remembered_data}")
+                     
+                     # Create a new thought to process the remembered data
+                     now_iso = datetime.now(timezone.utc).isoformat()
+                     new_thought_id = f"th_remember_followup_{str(uuid.uuid4())[:8]}"
+                     parent_task_id = ctx.get("source_task_id", "unknown_remember_task")
+
+                     follow_up_thought = Thought(
+                         thought_id=new_thought_id,
+                         source_task_id=parent_task_id,
+                         thought_type="remember_result_processing",
+                         status=ThoughtStatus.PENDING,
+                         created_at=now_iso,
+                         updated_at=now_iso,
+                         round_created=ctx.get("current_round_number", 0), # Get current round if available
+                         content=f"Process remembered data for user '{query_target_user}'. Original query: '{params.query}'.",
+                         processing_context={
+                             "is_remember_follow_up": True,
+                             "original_remember_thought_id": thought_id,
+                             "remembered_data": remembered_data,
+                             "original_query": params.query,
+                             "queried_user_nick": query_target_user
+                         },
+                         priority=ctx.get("priority", 1) 
+                     )
+                     try:
+                         persistence.add_thought(follow_up_thought)
+                         logger.info(f"MemoryHandler: Created new thought {new_thought_id} to process remembered data.")
+                         final_thought_status = ThoughtStatus.COMPLETED 
+                     except Exception as e_add_thought:
+                         logger.exception(f"MemoryHandler: Failed to add follow-up thought for REMEMBER: {e_add_thought}")
+                         final_thought_status = ThoughtStatus.FAILED # Original REMEMBER thought failed
+                 else:
+                     logger.info(f"MemoryHandler: REMEMBER query for thought {thought_id} (user: '{query_target_user}') found no data.")
+                     final_thought_status = ThoughtStatus.COMPLETED # REMEMBER action completed, found nothing.
+                 
             elif action == HandlerActionType.FORGET and isinstance(params, ForgetParams):
                  # Implement FORGET logic here
                  logger.warning(f"MemoryHandler: FORGET action received for thought {thought_id}. Implementation pending.")
@@ -294,26 +398,145 @@ async def main() -> None:
         "memory", lambda result, ctx: _memory_handler(result, ctx)
     )
 
+    # --- Dedicated Handler for Observe Actions ---
+    async def _observer_handler(runtime_ref: BaseRuntime, result: ActionSelectionPDMAResult, ctx: dict):
+        logger.info(f"ObserverHandler: Received OBSERVE action. Params: {result.action_parameters}")
+        
+        # action_parameters should be ObserveParams, already asserted by ActionSelectionPDMA's parsing
+        # but an explicit check here is good practice if this handler could be called from elsewhere.
+        if not isinstance(result.action_parameters, ObserveParams):
+            logger.error(f"ObserverHandler: Incorrect parameters type for OBSERVE action. Expected ObserveParams, got {type(result.action_parameters)}")
+            if ctx.get("thought_id"):
+                try:
+                    persistence.update_thought_status(
+                        thought_id=ctx.get("thought_id"),
+                        new_status=ThoughtStatus.FAILED,
+                        final_action_result={"error": "Incorrect params for OBSERVE in handler"}
+                    )
+                except Exception as e_db:
+                    logger.error(f"ObserverHandler: DB error updating thought status to FAILED: {e_db}")
+            return
+
+        params: ObserveParams = result.action_parameters
+
+        if params.perform_active_look:
+            thought_id_for_status = ctx.get("thought_id") # For updating status of the OBSERVE thought
+            logger.info(f"ObserverHandler: Performing active look for thought {thought_id_for_status}.")
+            active_look_channel_id_str = os.getenv("DISCORD_CHANNEL_ID")
+
+            if not active_look_channel_id_str:
+                logger.error("ObserverHandler: DISCORD_CHANNEL_ID environment variable not set. Cannot perform active look.")
+                if thought_id_for_status:
+                    persistence.update_thought_status(thought_id_for_status, ThoughtStatus.FAILED, final_action_result={"error": "DISCORD_CHANNEL_ID not set"})
+                return
+
+            try:
+                channel_id_int = int(active_look_channel_id_str)
+                if not hasattr(runtime_ref.io_adapter, 'client') or not runtime_ref.io_adapter.client:
+                    logger.error("ObserverHandler: Discord client not available on io_adapter.")
+                    if thought_id_for_status:
+                         persistence.update_thought_status(thought_id_for_status, ThoughtStatus.FAILED, final_action_result={"error": "Discord client unavailable"})
+                    return
+
+                target_channel = runtime_ref.io_adapter.client.get_channel(channel_id_int)
+                if not target_channel:
+                    logger.error(f"ObserverHandler: Could not find channel with ID {active_look_channel_id_str} for active look.")
+                    if thought_id_for_status:
+                         persistence.update_thought_status(thought_id_for_status, ThoughtStatus.FAILED, final_action_result={"error": f"Channel {active_look_channel_id_str} not found"})
+                    return
+
+                fetched_messages_data = []
+                async for msg in target_channel.history(limit=10):
+                    fetched_messages_data.append({
+                        "id": str(msg.id),
+                        "content": msg.content,
+                        "author_id": str(msg.author.id),
+                        "author_name": msg.author.name,
+                        "timestamp": msg.created_at.isoformat()
+                    })
+                
+                logger.info(f"ObserverHandler: Fetched {len(fetched_messages_data)} messages from channel {active_look_channel_id_str}.")
+                
+                now_iso = datetime.now(timezone.utc).isoformat()
+                source_task_id = ctx.get("source_task_id", "unknown_active_look_task")
+                
+                summary_content = f"Active look observation from channel {active_look_channel_id_str}: Found {len(fetched_messages_data)} messages."
+                if not fetched_messages_data:
+                    summary_content = f"Active look observation from channel {active_look_channel_id_str}: No recent messages found."
+
+                new_thought_id = f"th_active_obs_{str(uuid.uuid4())[:8]}"
+                
+                active_look_thought = Thought(
+                    thought_id=new_thought_id,
+                    source_task_id=source_task_id, # Associate with the task of the OBSERVE thought
+                    thought_type="active_observation_result",
+                    status=ThoughtStatus.PENDING,
+                    created_at=now_iso,
+                    updated_at=now_iso,
+                    round_created=ctx.get("current_round_number", 0), 
+                    content=summary_content,
+                    processing_context={
+                        "is_active_look_result": True,
+                        "original_observe_thought_id": thought_id_for_status, # Link back to the OBSERVE thought
+                        "source_observe_action_params": params.model_dump(mode="json"),
+                        "fetched_messages_details": fetched_messages_data 
+                    },
+                    priority=ctx.get("priority", 1) 
+                )
+                persistence.add_thought(active_look_thought)
+                logger.info(f"ObserverHandler: Created new thought {new_thought_id} for active look results.")
+                
+                # Mark the original OBSERVE thought as completed since its action (active look) is done.
+                if thought_id_for_status:
+                    persistence.update_thought_status(
+                        thought_id=thought_id_for_status,
+                        new_status=ThoughtStatus.COMPLETED,
+                        final_action_result=result.model_dump(mode="json") # Store the ObserveParams
+                    )
+
+            except ValueError:
+                logger.error(f"ObserverHandler: DISCORD_CHANNEL_ID '{active_look_channel_id_str}' is not a valid integer.")
+                if thought_id_for_status:
+                    persistence.update_thought_status(thought_id_for_status, ThoughtStatus.FAILED, final_action_result={"error": "Invalid DISCORD_CHANNEL_ID format"})
+            except Exception as e:
+                logger.exception(f"ObserverHandler: Error during active look: {e}")
+                if thought_id_for_status:
+                    persistence.update_thought_status(thought_id_for_status, ThoughtStatus.FAILED, final_action_result={"error": f"Exception during active_look: {str(e)}"})
+        else:
+            logger.info(f"ObserverHandler: OBSERVE action is passive for thought {ctx.get('thought_id')}. No active look performed by this handler.")
+            # Passive observation is handled by DiscordObserver pushing to the queue.
+            # Mark the OBSERVE thought as completed.
+            if ctx.get("thought_id"):
+                persistence.update_thought_status(
+                    thought_id=ctx.get("thought_id"),
+                    new_status=ThoughtStatus.COMPLETED,
+                    final_action_result=result.model_dump(mode="json") # Store the ObserveParams
+                )
+
+    # Register the dedicated handler for Observe actions
+    runtime.dispatcher.register_service_handler(
+        "observer", lambda res_lambda, ctx_lambda: _observer_handler(runtime, res_lambda, ctx_lambda)
+    )
 
     llm_client = llm_service.get_client()
     # Pass the instructor-patched client to PDMA and Guardrails that use it
-    ethical_pdma = EthicalPDMAEvaluator(llm_client.instruct_client, model_name=llm_client.model_name)
+    ethical_pdma = EthicalPDMAEvaluator(llm_client.instruct_client, model_name=llm_client.model_name) # type: ignore
     # CSDMA uses the raw client
-    csdma = CSDMAEvaluator(llm_client.client, model_name=llm_client.model_name)
+    csdma = CSDMAEvaluator(llm_client.client, model_name=llm_client.model_name) # type: ignore
     # ActionSelectionPDMA uses the raw client and patches internally with the configured mode
     action_pdma = ActionSelectionPDMAEvaluator(
-        llm_client.client,
-        model_name=llm_client.model_name,
+        llm_client.client, # type: ignore
+        model_name=llm_client.model_name, # type: ignore
         prompt_overrides=profile.action_selection_pdma_overrides,
         # instructor_mode is read from config by ActionSelectionPDMAEvaluator itself
     )
 
     guardrails = EthicalGuardrails(
-        llm_client.instruct_client, app_config.guardrails, model_name=llm_client.model_name
+        llm_client.instruct_client, app_config.guardrails, model_name=llm_client.model_name # type: ignore
     )
 
     workflow_coordinator = WorkflowCoordinator(
-        llm_client=llm_client.client, # WorkflowCoordinator still gets the raw client? Check WorkflowCoordinator __init__ - yes, expects CIRISLLMClient but uses llm_client.client
+        llm_client=llm_client.client, # type: ignore # WorkflowCoordinator still gets the raw client? Check WorkflowCoordinator __init__ - yes, expects CIRISLLMClient but uses llm_client.client
         ethical_pdma_evaluator=ethical_pdma,
         csdma_evaluator=csdma,
         action_selection_pdma_evaluator=action_pdma,
@@ -331,11 +554,19 @@ async def main() -> None:
     )
 
     try:
-        # runtimes main_loop handles fetching messages and creating tasks
         # processor.start_processing handles running the agent processing rounds
-        await asyncio.gather(runtime._main_loop(), processor.start_processing())
+        # runtime._main_loop() is still needed for the Discord client to run and populate the queue.
+        # DiscordObserver._poll_events() runs in its own task via discord_observer.start()
+        await asyncio.gather(
+            runtime._main_loop(), # Keeps Discord client running and feeding the queue
+            processor.start_processing() # Processes tasks from persistence
+        )
     finally:
-        await asyncio.gather(llm_service.stop(), memory_service.stop())
+        await asyncio.gather(
+            llm_service.stop(), 
+            memory_service.stop(),
+            discord_observer.stop() # Stop the observer
+        )
 
 
 if __name__ == "__main__":
