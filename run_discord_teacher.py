@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging # Import logging
+from typing import Optional # Import Optional
 
 from ciris_engine.runtime.base_runtime import BaseRuntime, DiscordAdapter
 from ciris_engine.utils.logging_config import setup_basic_logging
@@ -257,6 +258,63 @@ async def main() -> None:
     await memory_service.start()
     await discord_observer.start() # Start the observer
 
+    # --- Helper function to retrieve user_nick for memory operations ---
+    async def _get_user_nick_for_memory(params: MemorizeParams, ctx: dict, thought_id: Optional[str]) -> Optional[str]:
+        """
+        Retrieves the user_nick for a memory operation by checking:
+        1. params.knowledge_data['nick']
+        2. params.knowledge_data['user_id']
+        3. ctx['author_name']
+        4. Parent task's context via persistence lookup if thought_id is available.
+        """
+        user_nick: Optional[str] = None
+        # 1. Try to get 'nick' or 'user_id' from knowledge_data in params
+        if isinstance(params.knowledge_data, dict):
+            user_nick = params.knowledge_data.get("nick")
+            if user_nick:
+                logger.debug(f"_get_user_nick_for_memory: Found user_nick '{user_nick}' in MemorizeParams.knowledge_data.nick for thought {thought_id}.")
+                return user_nick
+            
+            user_nick = params.knowledge_data.get("user_id")
+            if user_nick:
+                logger.debug(f"_get_user_nick_for_memory: Found user_nick '{user_nick}' (from user_id) in MemorizeParams.knowledge_data.user_id for thought {thought_id}.")
+                return user_nick
+
+        # 2. If not found, try to get 'author_name' from the thought's direct context (ctx)
+        user_nick = ctx.get("author_name")
+        if user_nick:
+            logger.debug(f"_get_user_nick_for_memory: Found user_nick '{user_nick}' in thought context (ctx.author_name) for thought {thought_id}.")
+            return user_nick
+
+        # 3. If still not found, and thought_id is available, try to get from parent task's context
+        if thought_id:
+            logger.debug(f"_get_user_nick_for_memory: user_nick not in params or thought context for {thought_id}. Attempting to fetch from parent task.")
+            try:
+                current_thought = persistence.get_thought_by_id(thought_id)
+                if current_thought and current_thought.source_task_id:
+                    parent_task = persistence.get_task_by_id(current_thought.source_task_id)
+                    if parent_task and isinstance(parent_task.context, dict):
+                        user_nick = parent_task.context.get("author_name")
+                        if user_nick:
+                            logger.info(f"_get_user_nick_for_memory: Fetched user_nick '{user_nick}' from parent task '{current_thought.source_task_id}' context.author_name for thought {thought_id}.")
+                            return user_nick
+                        else:
+                            logger.warning(f"_get_user_nick_for_memory: Parent task '{current_thought.source_task_id}' context for thought {thought_id} does not contain 'author_name'. Task context: {parent_task.context}")
+                    elif parent_task:
+                        logger.warning(f"_get_user_nick_for_memory: Parent task '{current_thought.source_task_id}' for thought {thought_id} has no context or context is not a dict. Task context type: {type(parent_task.context)}")
+                    else:
+                        logger.warning(f"_get_user_nick_for_memory: Parent task '{current_thought.source_task_id}' not found for thought {thought_id}.")
+                elif current_thought:
+                    logger.warning(f"_get_user_nick_for_memory: Thought {thought_id} found but has no source_task_id.")
+                else:
+                    logger.warning(f"_get_user_nick_for_memory: Thought {thought_id} not found in persistence for user_nick retrieval.")
+            except Exception as e_fetch:
+                logger.error(f"_get_user_nick_for_memory: Error fetching parent task details for thought {thought_id}: {e_fetch}")
+        
+        if not user_nick:
+            logger.warning(f"_get_user_nick_for_memory: Could not determine user_nick for thought {thought_id} after all fallbacks.")
+        return user_nick
+
     # --- Dedicated Handler for Memory Actions ---
     async def _memory_handler(result: ActionSelectionPDMAResult, ctx: dict): # Added type hints
         thought_id = ctx.get("thought_id")
@@ -272,20 +330,25 @@ async def main() -> None:
                  final_thought_status = ThoughtStatus.FAILED # Mark as failed
 
             elif action == HandlerActionType.MEMORIZE and isinstance(params, MemorizeParams):
-                # Extract data from the VALIDATED MemorizeParams
-                # Fallbacks to ctx if data not found in params
-                user_nick = params.knowledge_data.get("nick") if isinstance(params.knowledge_data, dict) else ctx.get("author_name") # Use author_name from context as fallback
-                channel = params.channel_metadata.get("channel") if isinstance(params.channel_metadata, dict) else ctx.get("channel_id") # Use channel_id from context as fallback
-                metadata = params.knowledge_data if isinstance(params.knowledge_data, dict) else {"data": params.knowledge_data} # Use knowledge_data as metadata or wrap string
+                user_nick = await _get_user_nick_for_memory(params, ctx, thought_id)
+                
+                # Extract other necessary data
+                channel = params.channel_metadata.get("channel") if isinstance(params.channel_metadata, dict) else ctx.get("channel_id")
+                
+                # Ensure metadata is a dictionary. If knowledge_data is not a dict (e.g. a string), wrap it.
+                if isinstance(params.knowledge_data, dict):
+                    metadata = params.knowledge_data
+                else:
+                    metadata = {"data": str(params.knowledge_data)} # Convert to string to be safe
 
-                if not user_nick or not channel: # Memory service requires user_nick and channel for memorizing
-                     logger.error(f"MemoryHandler: MEMORIZE action for thought {thought_id} is missing required user_nick ({user_nick}) or channel ({channel}) after parameter parsing. Cannot perform memory operation.")
+                if not user_nick or not channel:
+                     logger.error(f"MemoryHandler: MEMORIZE action for thought {thought_id} is missing required user_nick ('{user_nick}') or channel ('{channel}') after all fallbacks. Cannot perform memory operation.")
                      final_thought_status = ThoughtStatus.FAILED # Mark as failed
                 else:
                      # Call the actual memory service method
                     mem_result = await memory_service.memorize(
-                        user_nick=user_nick,
-                        channel=channel,
+                        user_nick=str(user_nick), # Ensure user_nick is a string
+                        channel=str(channel),     # Ensure channel is a string
                         metadata=metadata, # Pass the extracted/formatted metadata
                         channel_metadata=params.channel_metadata,
                         is_correction=ctx.get("is_wa_correction", False) # Pass correction flag if applicable
