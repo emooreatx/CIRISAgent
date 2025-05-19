@@ -55,7 +55,7 @@ class MemoryHandler:
                 return ActionSelectionPDMAResult(
                     context_summary_for_action_selection="Channel metadata update requires WA approval",
                     action_alignment_check={"DEFER": "Policy mandates WA sign-off"},
-                    selected_handler_action=HandlerActionType.DEFER_TO_WA,
+                    selected_handler_action=HandlerActionType.DEFER,
                     action_parameters={"reason": "CHANNEL_POLICY_UPDATE"},
                     action_selection_rationale="WA approval required",
                     monitoring_for_selected_action="none",

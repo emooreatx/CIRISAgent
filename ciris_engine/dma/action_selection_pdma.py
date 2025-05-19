@@ -101,7 +101,7 @@ class ActionSelectionPDMAEvaluator:
             "You have Pondered multiple times. This is your final opportunity to provide a direct answer or a definitive deferral.\n"
             "Your primary goal now is to attempt a 'Speak' action if at all feasible, using the original thought and all previous ponder notes to construct a response.\n"
             "If, after careful consideration, you determine that a 'Speak' action is not possible due to unresolved critical ambiguities, then 'Defer to WA' is the appropriate choice.\n"
-            "Avoid selecting 'Ponder' again, as it will automatically result in a DEFER_TO_WA by the system.\n"
+            "Avoid selecting 'Ponder' again, as it will automatically result in a DEFER by the system.\n"
             "'Reject Thought' should only be used if the original request is fundamentally unserviceable."
         ),
         "student_mode_final_ponder_advisory": (

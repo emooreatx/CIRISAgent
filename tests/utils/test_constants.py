@@ -11,6 +11,10 @@ def test_default_wa_fallback(monkeypatch):
     module = importlib.reload(importlib.import_module("ciris_engine.utils.constants"))
     assert module.DEFAULT_WA == "real_wa"
 
+    monkeypatch.setenv("WA_USER_ID", "99")
+    module = importlib.reload(importlib.import_module("ciris_engine.utils.constants"))
+    assert module.WA_USER_ID == "99"
+
 
 def test_need_memory_metathought_constant():
     from ciris_engine.utils.constants import NEED_MEMORY_METATHOUGHT

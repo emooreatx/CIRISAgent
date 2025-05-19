@@ -82,3 +82,19 @@ async def test_observe_queries_graph(tmp_path: Path):
     await observer.handle_event("carol", "general")
 
     remember_mock.assert_awaited_once_with("carol")
+
+
+@pytest.mark.asyncio
+async def test_graph_persistence_roundtrip(tmp_path: Path):
+    storage = tmp_path / "graph.pkl"
+    service = DiscordGraphMemory(str(storage))
+    await service.start()
+
+    result = await service.memorize("dave", "general", {"level": 5})
+    assert result.status == MemoryOpStatus.SAVED
+    await service.stop()
+
+    new_service = DiscordGraphMemory(str(storage))
+    await new_service.start()
+    data = await new_service.remember("dave")
+    assert data["level"] == 5
