@@ -336,3 +336,7 @@ async def main() -> None:
         await asyncio.gather(runtime._main_loop(), processor.start_processing())
     finally:
         await asyncio.gather(llm_service.stop(), memory_service.stop())
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
