@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Union # Added Union
+from typing import Dict, Any, Optional, List, Union  # Ensure Union, List, Dict are imported
 import logging
 
 import instructor
@@ -378,90 +378,41 @@ Adhere strictly to the schema for your JSON output.
 
             # Manually construct the final ActionSelectionPDMAResult
             # and parse action_parameters
-            parsed_action_params: Union[BaseModel, Dict[str, Any]]
-            selected_action = llm_response_internal.selected_handler_action
-            raw_params = llm_response_internal.action_parameters
-
-            ParamModel = ACTION_PARAM_MODELS.get(selected_action)
-            
-            if ParamModel:
-                try:
-                    if isinstance(raw_params, dict):
-                        # Special handling for DEFER if params are empty, provide defaults
-                        if selected_action == HandlerActionType.DEFER and not raw_params:
-                            logger.warning(
-                                f"LLM chose DEFER with empty parameters for thought {original_thought.thought_id}. Using default DeferParams."
-                            )
-                            parsed_action_params = DeferParams(
-                                reason="LLM chose to defer without providing specific parameters.",
-                                target_wa_ual=DEFAULT_WA,
-                                deferral_package_content={
-                                    "original_thought_content": original_thought.content,
-                                    "llm_rationale": llm_response_internal.action_selection_rationale,
-                                },
-                            )
-                        elif (
-                            selected_action == HandlerActionType.SPEAK
-                            and "message_content" in raw_params
-                            and "content" not in raw_params
-                        ):
-                            logger.warning(
-                                f"Remapping 'message_content' to 'content' for SPEAK action for thought {original_thought.thought_id}."
-                            )
-                            raw_params["content"] = raw_params.pop("message_content")
-                            parsed_action_params = ParamModel(**raw_params)
+            parsed_action_params: Union[ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]] = llm_response_internal.action_parameters
+            if isinstance(llm_response_internal.action_parameters, dict):  # If LLM returns a dict, try to parse to specific type
+                action_type = llm_response_internal.selected_handler_action
+                if not isinstance(llm_response_internal.action_parameters, (ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams)):
+                    try:
+                        if action_type == HandlerActionType.OBSERVE:
+                            parsed_action_params = ObserveParams(**llm_response_internal.action_parameters)
+                        elif action_type == HandlerActionType.SPEAK:
+                            parsed_action_params = SpeakParams(**llm_response_internal.action_parameters)
+                        elif action_type == HandlerActionType.ACT:
+                            parsed_action_params = ActParams(**llm_response_internal.action_parameters)
+                        elif action_type == HandlerActionType.PONDER:
+                            parsed_action_params = PonderParams(**llm_response_internal.action_parameters)
+                        elif action_type == HandlerActionType.REJECT:
+                            parsed_action_params = RejectParams(**llm_response_internal.action_parameters)
+                        elif action_type == HandlerActionType.DEFER:
+                            parsed_action_params = DeferParams(**llm_response_internal.action_parameters)
+                        elif action_type == HandlerActionType.MEMORIZE:
+                            parsed_action_params = MemorizeParams(**llm_response_internal.action_parameters)
+                        elif action_type == HandlerActionType.REMEMBER:
+                            parsed_action_params = RememberParams(**llm_response_internal.action_parameters)
+                        elif action_type == HandlerActionType.FORGET:
+                            parsed_action_params = ForgetParams(**llm_response_internal.action_parameters)
                         else:
-                            parsed_action_params = ParamModel(**raw_params)
-                    else:
-                        logger.error(
-                            f"action_parameters from LLM was not a dict for {selected_action}: {raw_params}. Attempting to use as is if it's already a BaseModel."
-                        )
-                        if isinstance(raw_params, BaseModel):
-                            parsed_action_params = raw_params  # Assume it's already the correct model type
-                        else:
-                            parsed_action_params = raw_params  # Keep as is, might cause issues downstream if not a dict/model
-                except ValidationError as ve:
-                    logger.error(
-                        f"Parameter validation failed for {selected_action} on thought {original_thought.thought_id}: {ve}"
-                    )
-                    fallback_params = PonderParams(
-                        key_questions=[
-                            f"Action parameters for {selected_action.value} failed validation: {ve.errors()}"
-                        ]
-                    )
-                    raw_llm_response_str = (
-                        str(llm_response_internal._raw_response)
-                        if hasattr(llm_response_internal, "_raw_response")
-                        else None
-                    )
-                    return ActionSelectionPDMAResult(
-                        schema_version=llm_response_internal.schema_version,
-                        context_summary_for_action_selection=llm_response_internal.context_summary_for_action_selection,
-                        action_alignment_check=llm_response_internal.action_alignment_check,
-                        action_conflicts=llm_response_internal.action_conflicts,
-                        action_resolution=llm_response_internal.action_resolution,
-                        selected_handler_action=HandlerActionType.PONDER,
-                        action_parameters=fallback_params,
-                        action_selection_rationale=
-                        f"Fallback to PONDER due to parameter validation failure for {selected_action.value}",
-                        monitoring_for_selected_action="Review parameter generation logic.",
-                        confidence_score=llm_response_internal.confidence_score,
-                        raw_llm_response=raw_llm_response_str,
-                    )
-                except Exception as e_parse:
-                    logger.error(
-                        f"Failed to parse action_parameters for {selected_action}: {e_parse}. Parameters: {raw_params}"
-                    )
-                    parsed_action_params = raw_params  # Fallback: keep as raw if parsing fails
+                            parsed_action_params = llm_response_internal.action_parameters
+                    except ValidationError as ve:
+                        logger.warning(f"Could not parse action_parameters dict into specific model for {action_type}: {ve}. Using raw dict.")
+                        parsed_action_params = llm_response_internal.action_parameters
             else:
-                logger.warning(f"No ParamModel found for {selected_action} to parse parameters: {raw_params}")
-                parsed_action_params = raw_params # Fallback: keep as raw
+                parsed_action_params = llm_response_internal.action_parameters
 
             # Get raw response if available (instructor might attach it)
             raw_llm_response_str = None
-            if hasattr(llm_response_internal, '_raw_response'): # Check the internal response object
-                 raw_llm_response_str = str(llm_response_internal._raw_response)
-
+            if hasattr(llm_response_internal, '_raw_response'):
+                raw_llm_response_str = str(llm_response_internal._raw_response)
 
             final_action_eval = ActionSelectionPDMAResult(
                 schema_version=llm_response_internal.schema_version,
@@ -484,7 +435,6 @@ Adhere strictly to the schema for your JSON output.
         except InstructorRetryException as e_instr:
             error_detail = e_instr.errors() if hasattr(e_instr, 'errors') else str(e_instr)
             logger.error(f"ActionSelectionPDMA (instructor) InstructorRetryException for thought {original_thought.thought_id}: {error_detail}", exc_info=True)
-            # Fallback to PONDER with reason
             fallback_params = PonderParams(key_questions=[f"System error during action selection: {error_detail}"])
             return ActionSelectionPDMAResult(
                 context_summary_for_action_selection="Error: LLM/Instructor validation error during action selection.",
@@ -520,14 +470,14 @@ class _ActionSelectionLLMResponse(BaseModel):
     action_alignment_check: Dict[str, Any]
     action_conflicts: Optional[str] = None
     action_resolution: Optional[str] = None
-    selected_handler_action: CoreHandlerActionType # Use aliased HandlerActionType
-    action_parameters: Dict[str, Any] # Simplified to Dict for LLM call
+    selected_handler_action: CoreHandlerActionType  # Use aliased HandlerActionType
+    action_parameters: Union[
+        ObserveParams, SpeakParams, ActParams, PonderParams,
+        RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]
+    ]
     action_selection_rationale: str
-    monitoring_for_selected_action: Union[Dict[str, Union[str, List[str]]], str] # Allow list of strings for KPIs
+    monitoring_for_selected_action: Union[Dict[str, Union[str, List[str], int]], str]  # Allow int for timeout
     confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0)
-    # raw_llm_response is not expected from the LLM directly in this internal model,
-    # it will be populated from the raw API response later.
-
     class Config:
         populate_by_name = True
 

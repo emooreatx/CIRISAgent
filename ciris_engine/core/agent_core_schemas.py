@@ -85,7 +85,7 @@ class ActionSelectionPDMAResult(BaseModel):
         RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]
     ]
     action_selection_rationale: str
-    monitoring_for_selected_action: Union[Dict[str, Union[str, List[str]]], str] # Allow list of strings for KPIs
+    monitoring_for_selected_action: Union[Dict[str, Union[str, List[str], int]], str] # Allow list of strings or int for KPIs
     confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0) # Made optional
     raw_llm_response: Optional[str] = None
     # The following fields are for system use, not directly set by ActionSelectionPDMAEvaluator LLM call
