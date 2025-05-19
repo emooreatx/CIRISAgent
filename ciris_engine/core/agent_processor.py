@@ -393,18 +393,30 @@ class AgentProcessor:
                     # We need to elevate these to the top level of dispatch_context for the service handler.
                     task_specific_context = base_context.pop("initial_task_context", {}) # Remove and get, or empty dict
                     
-                    dispatch_context = {**task_specific_context, **base_context} # Merge, base_context can override if needed (e.g. later thoughts)
+                    dispatch_context = {**task_specific_context, **base_context}  # Merge, base_context can override if needed (e.g. later thoughts)
 
                     dispatch_context["thought_id"] = batch[i].thought_id
                     dispatch_context["source_task_id"] = batch[i].source_task_id
 
+                    task_details = None
+                    if (
+                        "origin_service" not in dispatch_context
+                        or "author_name" not in dispatch_context
+                        or "channel_id" not in dispatch_context
+                    ):
+                        task_details = persistence.get_task_by_id(batch[i].source_task_id)
+
                     # Ensure origin_service is present, prioritizing task_specific_context
                     if "origin_service" not in dispatch_context:
-                        task_details = persistence.get_task_by_id(batch[i].source_task_id)
                         if task_details and task_details.context:
                             dispatch_context["origin_service"] = task_details.context.get("origin_service", "unknown")
                         else:
                             dispatch_context["origin_service"] = "unknown"
+
+                    if task_details and task_details.context:
+                        for key in ("author_name", "author_id", "channel_id"):
+                            if key not in dispatch_context and key in task_details.context:
+                                dispatch_context[key] = task_details.context[key]
                     
                     logger.debug(f"Dispatching with context: {dispatch_context}")
                     await self.action_dispatcher.dispatch(result, dispatch_context)

@@ -225,6 +225,37 @@ async def test_process_batch(mock_persistence, agent_processor_instance: AgentPr
 
 @pytest.mark.asyncio
 @patch('ciris_engine.core.agent_processor.persistence')
+async def test_dispatch_context_filled_from_task(mock_persistence, agent_processor_instance: AgentProcessor, mock_workflow_coordinator):
+    """Ensure missing metadata in dispatch context is sourced from the parent task."""
+
+    task = create_mock_task("task_meta", TaskStatus.ACTIVE)
+    task.context = {"author_name": "alice", "author_id": "A1", "channel_id": "chan123", "origin_service": "discord"}
+
+    thought = create_mock_thought("th_meta", task.task_id, ThoughtStatus.PENDING)
+    item = ProcessingQueueItem.from_thought(thought)  # initial_context will be {}
+
+    mock_persistence.update_thought_status = MagicMock(return_value=True)
+    mock_persistence.get_task_by_id = MagicMock(return_value=task)
+
+    action_result = MagicMock(spec=ActionSelectionPDMAResult)
+    action_result.selected_handler_action = HandlerActionType.SPEAK
+    action_result.action_parameters = {"content": "hi"}
+    mock_workflow_coordinator.process_thought = AsyncMock(return_value=action_result)
+
+    agent_processor_instance._check_and_complete_task = AsyncMock()
+
+    await agent_processor_instance._process_batch([item])
+
+    # Capture dispatch context
+    dispatch_call = agent_processor_instance.action_dispatcher.dispatch.call_args
+    assert dispatch_call is not None
+    ctx = dispatch_call.args[1]
+    assert ctx["author_name"] == "alice"
+    assert ctx["channel_id"] == "chan123"
+
+
+@pytest.mark.asyncio
+@patch('ciris_engine.core.agent_processor.persistence')
 async def test_check_and_complete_task_completes(mock_persistence, agent_processor_instance: AgentProcessor):
     """Test _check_and_complete_task when a task should be completed."""
     active_task = create_mock_task("task_c1", TaskStatus.ACTIVE)
