@@ -19,13 +19,15 @@ from ciris_engine.core.agent_core_schemas import (
     SpeakParams,
     DeferParams,
     RejectParams,
-    MemorizeParams, # Keep MemorizeParams
-    RememberParams, # Keep RememberParams
-    ForgetParams, # Keep ForgetParams
+    MemorizeParams,  # Keep MemorizeParams
+    RememberParams,  # Keep RememberParams
+    ForgetParams,  # Keep ForgetParams
+    ActParams,
+    ActionSelectionPDMAResult,
 )
 from ciris_engine.core.foundational_schemas import ThoughtStatus
 from pydantic import BaseModel # Import BaseModel for type checking
-from ciris_engine.utils.constants import DEFAULT_WA # Import DEFAULT_WA
+from ciris_engine.utils.constants import DEFAULT_WA, WA_USER_ID
 
 logger = logging.getLogger(__name__) # Get logger
 
@@ -71,26 +73,34 @@ async def _discord_handler(runtime: BaseRuntime, result: ActionSelectionPDMAResu
 
         elif action == HandlerActionType.DEFER and isinstance(params, DeferParams):
             if channel_id:
-                # Send user-facing deferral message
-                user_facing_message = f"This requires further review (Reason: {params.reason}). It has been logged for wisdom-based deferral."
+                content = (
+                    f"\U0001f6d1 Deferred update: {params.reason}\n"
+                    f"<@{WA_USER_ID}> please approve with \u2714 or reject with \u2716."
+                )
                 # Attempt to reply if original message ID is available in context
                 original_message_id = ctx.get("message_id")
                 if original_message_id:
                     try:
-                        target_channel = runtime.io_adapter.client.get_channel(int(channel_id)) # Assuming adapter.client is discord.Client
+                        target_channel = runtime.io_adapter.client.get_channel(int(channel_id))  # Assuming adapter.client is discord.Client
                         if target_channel:
                             original_message = await target_channel.fetch_message(int(original_message_id))
-                            await original_message.reply(user_facing_message)
-                            logger.info(f"DiscordHandler: Replied DEFER notification to message {original_message_id} in channel {channel_id} for thought {thought_id}.")
+                            await original_message.reply(content)
+                            logger.info(
+                                f"DiscordHandler: Replied DEFER notification to message {original_message_id} in channel {channel_id} for thought {thought_id}."
+                            )
                         else:
-                            logger.warning(f"DiscordHandler: Could not find channel {channel_id} to send DEFER reply for thought {thought_id}.")
-                            await runtime.io_adapter.send_output(channel_id, user_facing_message) # Fallback
+                            logger.warning(
+                                f"DiscordHandler: Could not find channel {channel_id} to send DEFER reply for thought {thought_id}."
+                            )
+                            await runtime.io_adapter.send_output(channel_id, content)  # Fallback
                     except Exception as reply_error:
-                        logger.error(f"DiscordHandler: Error sending DEFER reply for thought {thought_id}: {reply_error}. Sending to channel instead.")
-                        await runtime.io_adapter.send_output(channel_id, user_facing_message) # Fallback
+                        logger.error(
+                            f"DiscordHandler: Error sending DEFER reply for thought {thought_id}: {reply_error}. Sending to channel instead."
+                        )
+                        await runtime.io_adapter.send_output(channel_id, content)  # Fallback
                 else:
                     # If no original message ID, just send to the channel
-                    await runtime.io_adapter.send_output(channel_id, user_facing_message)
+                    await runtime.io_adapter.send_output(channel_id, content)
                     logger.info(f"DiscordHandler: Sent DEFER notification to channel {channel_id} for thought {thought_id} (no reply).")
 
                 # Deferral report logic (often to a separate deferral channel) could go here if needed
@@ -326,3 +336,7 @@ async def main() -> None:
         await asyncio.gather(runtime._main_loop(), processor.start_processing())
     finally:
         await asyncio.gather(llm_service.stop(), memory_service.stop())
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

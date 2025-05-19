@@ -80,7 +80,7 @@ async def test_channel_write_defers(init_db, memory_service):
 
     result = await handler.process_memorize(thought, mem_write)
 
-    assert result.selected_handler_action == HandlerActionType.DEFER_TO_WA
+    assert result.selected_handler_action == HandlerActionType.DEFER
     updated = persistence.get_thought_by_id("th2")
     assert updated.status == ThoughtStatus.DEFERRED
     assert "alice" not in memory_service.graph
@@ -120,6 +120,24 @@ async def test_double_deferral_prevented(init_db, memory_service):
 
     result = await handler.process_memorize(correction, mem_write)
 
-    assert result.selected_handler_action == HandlerActionType.DEFER_TO_WA
+    assert result.selected_handler_action == HandlerActionType.DEFER
     updated = persistence.get_thought_by_id("th5")
     assert updated.status == ThoughtStatus.DEFERRED
+
+
+@pytest.mark.asyncio
+async def test_deferral_approval_roundtrip(init_db, memory_service):
+    thought = _create_task_and_thought("task6", "th6")
+    handler = MemoryHandler(memory_service)
+    mem_write = MemoryWrite(key_path="channel/#general/topic", user_nick="bob", value="New rules")
+
+    result = await handler.process_memorize(thought, mem_write)
+    assert result.selected_handler_action == HandlerActionType.DEFER
+
+    correction = _create_thought("task6", "th6c")
+    correction.processing_context = {"is_wa_correction": True, "corrected_thought_id": "th6"}
+    result2 = await handler.process_memorize(correction, mem_write)
+
+    assert result2 is None
+    data = await memory_service.remember("bob")
+    assert data.get("topic") == "New rules"
