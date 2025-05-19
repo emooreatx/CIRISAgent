@@ -19,9 +19,11 @@ from ciris_engine.core.agent_core_schemas import (
     SpeakParams,
     DeferParams,
     RejectParams,
-    MemorizeParams, # Keep MemorizeParams
-    RememberParams, # Keep RememberParams
-    ForgetParams, # Keep ForgetParams
+    MemorizeParams,  # Keep MemorizeParams
+    RememberParams,  # Keep RememberParams
+    ForgetParams,  # Keep ForgetParams
+    ActParams,
+    ActionSelectionPDMAResult,
 )
 from ciris_engine.core.foundational_schemas import ThoughtStatus
 from pydantic import BaseModel # Import BaseModel for type checking
