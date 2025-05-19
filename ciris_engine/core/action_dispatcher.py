@@ -1,13 +1,21 @@
 import logging
 import asyncio
-from typing import Dict, Any, Callable, Coroutine, TYPE_CHECKING, Optional
+import uuid
+import inspect
+from datetime import datetime, timezone
+from typing import Dict, Any, Callable, Coroutine, TYPE_CHECKING, Optional, Union
 
 from ciris_engine.utils.constants import NEED_MEMORY_METATHOUGHT
-
-# Conditional import for type hinting
-if TYPE_CHECKING:
-    from .agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType
-    from ciris_engine.services.audit_service import AuditService
+from . import persistence
+from .agent_core_schemas import (
+    ActionSelectionPDMAResult,
+    HandlerActionType,
+    MemorizeParams,
+    SpeakParams,
+    Thought,
+    ThoughtStatus,
+)
+from ciris_engine.services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +30,58 @@ class ActionDispatcher:
     """
     def __init__(self, audit_service: Optional['AuditService'] = None):
         """Initialize the dispatcher with an optional :class:`AuditService`."""
-        # Import locally to avoid circular imports at module load time
-        from ciris_engine.services.audit_service import AuditService
-
         self.audit_service = audit_service or AuditService()
         # Stores handlers keyed by the service name (e.g., "discord", "slack", "memory")
         self.service_handlers: Dict[str, ServiceHandlerCallable] = {}
-        self.action_filter: Optional[Callable[['ActionSelectionPDMAResult', Dict[str, Any]], bool]] = None
+        self.action_filter: Optional[Callable[['ActionSelectionPDMAResult', Dict[str, Any]], Union[bool, Coroutine[Any, Any, bool]]]] = None
         logger.info("ActionDispatcher initialized.")
+
+    async def _enqueue_acknowledgment_thought(
+        self,
+        original_context: Dict[str, Any],
+        result: "ActionSelectionPDMAResult",
+        handler_type: str = "memory_handler" # To distinguish log messages
+    ):
+        """Helper method to enqueue a system_acknowledgment thought after MEMORIZE."""
+        try:
+            source_task_id = original_context.get("source_task_id")
+            if not source_task_id:
+                logger.warning(f"Could not enqueue acknowledgment thought ({handler_type}): source_task_id missing.")
+                return
+
+            ack_thought_id = f"ack_{uuid.uuid4().hex[:8]}"
+            ack_content = "Okay, I've noted that down."  # Generic acknowledgment
+            user_nick = original_context.get("author_name")
+
+            if user_nick:
+                if isinstance(result.action_parameters, MemorizeParams) and \
+                   hasattr(result.action_parameters, 'knowledge_unit_description') and \
+                   result.action_parameters.knowledge_unit_description:
+                    ack_content = f"Okay {user_nick}, I've noted that down about {result.action_parameters.knowledge_unit_description}."
+                else:
+                    ack_content = f"Okay {user_nick}, I've noted that down."
+            
+            ack_thought = Thought(
+                thought_id=ack_thought_id,
+                source_task_id=source_task_id,
+                thought_type="system_acknowledgment",
+                status=ThoughtStatus.PENDING,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                round_created=original_context.get("round", 0) + 1,
+                content=ack_content,
+                processing_context={
+                    "target_action": HandlerActionType.SPEAK.value,
+                    "speak_content": ack_content,
+                    "original_context": original_context  # Consider if the full original_context is needed here
+                },
+                priority=original_context.get("priority", 1) + 1
+            )
+            await asyncio.to_thread(persistence.add_thought, ack_thought)
+            logger.info(f"Enqueued acknowledgment thought {ack_thought_id} for task {source_task_id} after MEMORIZE ({handler_type}).")
+
+        except Exception as e_ack:
+            logger.exception(f"Error enqueuing acknowledgment thought after MEMORIZE ({handler_type}): {e_ack}")
 
     async def _enqueue_memory_metathought(
         self,
@@ -37,13 +89,6 @@ class ActionDispatcher:
         result: "ActionSelectionPDMAResult",
     ):
         """Create a MEMORY meta-thought if warranted."""
-        from .agent_core_schemas import Thought, ThoughtStatus
-        from . import persistence
-        import uuid
-        from datetime import datetime, timezone
-
-        from .foundational_schemas import HandlerActionType
-
         user_nick = context.get("author_name")
         if not user_nick:
             logger.warning("Skipping memory meta-thought due to missing user name")
@@ -125,16 +170,19 @@ class ActionDispatcher:
         """
         Dispatches the action result to the appropriate handler based on context and action type.
         """
-        # Import locally to avoid potential circular dependency issues at module level
-        from .agent_core_schemas import HandlerActionType
-
         action_type = result.selected_handler_action
         # Determine the originating service from the context, default to 'unknown'
         origin_service = original_context.get("origin_service", "unknown")
 
-        if self.action_filter and not await self.action_filter(result, original_context):
-            logger.info("Action filtered and not dispatched")
-            return
+        if self.action_filter:
+            if inspect.iscoroutinefunction(self.action_filter):
+                should_skip = await self.action_filter(result, original_context)
+            else:
+                should_skip = self.action_filter(result, original_context)
+
+            if should_skip:
+                logger.info("Action filtered and not dispatched")
+                return
 
         logger.info(f"Dispatching action '{action_type.value}' originating from service '{origin_service}'.")
 
@@ -180,14 +228,20 @@ class ActionDispatcher:
                     if not original_context.get("skip_memory_update"):
                         original_context[NEED_MEMORY_METATHOUGHT] = True
                         await self._enqueue_memory_metathought(original_context, result)
+
+                        # After MEMORIZE and its meta-thought, enqueue an acknowledgment thought
+                        if action_type == HandlerActionType.MEMORIZE:
+                            await self._enqueue_acknowledgment_thought(original_context, result, handler_type="memory_handler")
+
                 except Exception as e:
                     logger.exception(f"Error executing memory handler for action '{action_type.value}': {e}")
             else:
                 logger.warning(f"Received memory action '{action_type.value}' but no 'memory' handler registered. Action may not be fully processed.")
-                # Fallback: Direct persistence calls could be added here if necessary
-                if not original_context.get("skip_memory_update"):
+                if not original_context.get("skip_memory_update"): 
                     original_context[NEED_MEMORY_METATHOUGHT] = True
                     await self._enqueue_memory_metathought(original_context, result)
+                    if action_type == HandlerActionType.MEMORIZE:
+                        await self._enqueue_acknowledgment_thought(original_context, result, handler_type="no_memory_handler")
 
         # 3. Internal/Control Flow Actions (handled upstream or logged here)
         elif action_type == HandlerActionType.PONDER:
