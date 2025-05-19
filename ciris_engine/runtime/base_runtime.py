@@ -24,6 +24,7 @@ def datetime_from_seconds(sec: float) -> str:
 class IncomingMessage:
     message_id: str
     author_id: str
+    author_name: str
     content: str
     channel_id: Optional[str] = None
 
@@ -49,7 +50,10 @@ class CLIAdapter(BaseIOAdapter):
         line = await asyncio.to_thread(input, ">>> ")
         if not line:
             return []
-        return [IncomingMessage(message_id=str(asyncio.get_event_loop().time()), author_id="local", content=line)]
+        return [IncomingMessage(message_id=str(asyncio.get_event_loop().time()),
+                               author_id="local",
+                               author_name="local",
+                               content=line)]
 
     async def send_output(self, target: Any, content: str):
         print(content)
@@ -75,6 +79,7 @@ class DiscordAdapter(BaseIOAdapter):
                 IncomingMessage(
                     message_id=str(message.id),
                     author_id=str(message.author.id),
+                    author_name=message.author.name,
                     content=message.content,
                     channel_id=str(message.channel.id),
                 )
@@ -171,7 +176,7 @@ class BaseRuntime:
                     context = {
                         "origin_service": self.io_adapter.__class__.__name__.replace("Adapter", "").lower(),
                         "author_id": msg.author_id,
-                        "author_name": msg.author_id,
+                        "author_name": msg.author_name,
                         "channel_id": msg.channel_id,
                     }
                     await self._create_task_if_new(msg.message_id, msg.content, context)
