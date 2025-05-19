@@ -105,13 +105,6 @@ class AppConfig(BaseModel):
     # Agent profiles can also be defined directly in the config if not loaded from separate files
     agent_profiles: Dict[str, SerializableAgentProfile] = Field(default_factory=dict, description="Dictionary of available agent profiles, keyed by profile name (can be populated from profile_directory or defined here).")
     enable_remote_graphql: bool = Field(default=False, description="When False, disable remote GraphQL lookups and rely solely on local memory.")
-    allowed_channel_ids: List[str] = Field(default_factory=list, description="List of Discord channel IDs this instance will process.")
-    allowed_channel_ids_env_var: str = Field(default="ALLOWED_CHANNEL_IDS", description="Environment variable for allowed Discord channel IDs.")
-
-    def load_env_vars(self):
-        env_val = os.getenv(self.allowed_channel_ids_env_var)
-        if env_val:
-            self.allowed_channel_ids = [c.strip() for c in env_val.split(',') if c.strip()]
 
     class Config:
         # Example for Pydantic v2 if using model_config

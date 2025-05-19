@@ -257,3 +257,25 @@ def test_get_pending_thoughts_for_active_tasks(initialized_db):
     # Check order: task1_id (priority 10) thought should come before task2_id (priority 5) thought
     assert pending_thoughts[0].thought_id == thought1_t1_id
     assert pending_thoughts[1].thought_id == thought1_t2_id
+
+
+def test_deferral_report_mapping(initialized_db):
+    now_iso = datetime.utcnow().isoformat()
+    task = Task(task_id="task1", description="d", created_at=now_iso, updated_at=now_iso)
+    thought = Thought(
+        thought_id="th1",
+        source_task_id="task1",
+        thought_type="t",
+        content="c",
+        created_at=now_iso,
+        updated_at=now_iso,
+        round_created=0,
+    )
+    persistence.add_task(task)
+    persistence.add_thought(thought)
+
+    persistence.save_deferral_report_mapping("msg1", "task1", "th1")
+    result = persistence.get_deferral_report_context("msg1")
+    assert result == ("task1", "th1")
+
+    assert persistence.get_deferral_report_context("missing") is None
