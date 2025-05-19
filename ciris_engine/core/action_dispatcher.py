@@ -80,18 +80,28 @@ class ActionDispatcher:
             status=ThoughtStatus.PENDING,
             created_at=datetime.now(timezone.utc).isoformat(),
             updated_at=datetime.now(timezone.utc).isoformat(),
-            round_created=context.get("round", 0),
-            content="Auto memory update",
+            round_created=context.get("round", 0), # The round number when the original action occurred
+            content=(
+                "This is a memory meta-reflection. Your current role is 'teacher'. "
+                "Review the details of the preceding interaction: "
+                "The original user message context is in 'processing_context.initial_context'. "
+                "The action taken by the agent in response to that message is detailed in 'processing_context.final_action_result'. "
+                "Critically evaluate this interaction. Based on your role and the information exchanged, "
+                "determine if any specific facts, user preferences, or contextual details should be MEMORIZED "
+                "to improve future interactions or understanding. "
+                "If memorization is appropriate, select the MEMORIZE action and provide the necessary parameters. "
+                "If nothing warrants memorization from this interaction, you MUST REJECT this meta-thought."
+            ),
             processing_context={
-                "user_nick": user_nick,
-                "channel": context.get("channel_id"),
-                "metadata": {},
-                "initial_context": original_context_for_meta,
-                "trigger_thought_id": context.get("thought_id"),
-                "trigger_task_id": context.get("source_task_id"),
-                "final_action_result": result.model_dump(mode="json"),
+                "user_nick": user_nick, # User from the original interaction
+                "channel_id": context.get("channel_id"), # Channel from original interaction
+                # "metadata": {}, # Retained for now, LLM might populate or it's used by MEMORIZE handler
+                "initial_context": original_context_for_meta, # Context of the original user message
+                "trigger_thought_id": context.get("thought_id"), # ID of the thought that triggered this meta
+                "final_action_result": result.model_dump(mode="json"), # ASPDMA result of the triggering thought
+                "agent_role_for_reflection": "teacher" # Explicitly pass the role for this reflection
             },
-            priority=0,
+            priority=0, # Meta-thoughts might have different priority
         )
         await asyncio.to_thread(persistence.add_thought, meta_thought)
         context[NEED_MEMORY_METATHOUGHT] = False
