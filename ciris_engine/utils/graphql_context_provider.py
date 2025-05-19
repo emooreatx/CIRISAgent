@@ -68,7 +68,8 @@ class GraphQLContextProvider:
             )
             for name, data in zip(missing, memory_results):
                 if data:
-                    nick = data.get("nick", name)
+                    # Prioritize "nick", then "data" field, then the original 'name' (author name from Discord)
+                    nick = data.get("nick", data.get("data", name))
                     channel = data.get("channel")
                     if not channel:
                         channels = data.get("channels")

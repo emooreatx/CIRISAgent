@@ -17,9 +17,9 @@ from ciris_engine.memory.simple_conversation_memory import SimpleConversationMem
 
 from .base import Service
 from ciris_engine.core.action_dispatcher import ActionDispatcher, ServiceHandlerCallable
-from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType, Task, Thought, ThoughtStatus, DeferParams, RejectParams, SpeakParams, ActParams
-from ciris_engine.core.foundational_schemas import TaskStatus as CoreTaskStatus # Alias to avoid conflict
-from ciris_engine.core import persistence # For creating tasks and updating status
+from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType, Thought, ThoughtStatus, DeferParams, RejectParams, SpeakParams, ActParams
+from ciris_engine.core import persistence  # For creating tasks and updating status
+from .discord_event_queue import DiscordEventQueue
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +73,15 @@ def _truncate_discord_message(message: str, limit: int = DISCORD_MESSAGE_LIMIT) 
         return message
     return message[:limit-3] + "..."
 
+
 class DiscordService(Service):
-    def __init__(self, action_dispatcher: ActionDispatcher, config: Optional[DiscordConfig] = None):
-        super().__init__(config.model_dump() if config else None) # Pass config dict to parent
+    def __init__(self, action_dispatcher: ActionDispatcher, config: Optional[DiscordConfig] = None,
+                 event_queue: Optional[DiscordEventQueue] = None):
+        super().__init__(config.model_dump() if config else None)  # Pass config dict to parent
         self.action_dispatcher = action_dispatcher
         self.config = config or DiscordConfig()
-        self.config.load_env_vars() # Load token and IDs from environment
+        self.config.load_env_vars()  # Load token and IDs from environment
+        self.event_queue = event_queue or DiscordEventQueue()
 
         # Initialize conversation history using the new class
         self.conversation_memory = SimpleConversationMemory(max_history_length=self.config.max_message_history)
@@ -182,7 +185,7 @@ class DiscordService(Service):
 
                 original_task_id = None
                 corrected_thought_id = None
-
+                
                 # Attempt to retrieve the referenced deferral report message
                 referenced_message: Optional[discord.Message] = None
                 if message.reference.resolved and isinstance(message.reference.resolved, discord.Message):
@@ -195,31 +198,38 @@ class DiscordService(Service):
                             f"Could not fetch referenced message {message.reference.message_id}: {e}"
                         )
 
+                deferral_data = None
+
                 if referenced_message:
                     replied_to_content = referenced_message.content
-                    task_id_match = re.search(r"Task ID:\s*`([^`]+)`", replied_to_content)
-                    thought_id_match = re.search(r"Deferred Thought ID:\s*`([^`]+)`", replied_to_content)
                     deferral_json_match = re.search(r"```json\n(.*)\n```", replied_to_content, re.DOTALL)
-                    deferral_data = None
                     if deferral_json_match:
                         try:
                             deferral_data = json.loads(deferral_json_match.group(1))
                         except Exception as e:
                             logger.warning(f"Failed to parse deferral package JSON: {e}")
 
-                    if task_id_match:
-                        original_task_id = task_id_match.group(1)
-                        logger.info(f"Extracted original Task ID: {original_task_id}")
+                if message.reference and message.reference.message_id:
+                    mapping = persistence.get_deferral_report_context(str(message.reference.message_id))
+                    if mapping:
+                        original_task_id, corrected_thought_id = mapping
+                        logger.info(
+                            "Retrieved deferral mapping for message %s -> task %s, thought %s",
+                            message.reference.message_id,
+                            original_task_id,
+                            corrected_thought_id,
+                        )
+                    elif referenced_message:
+                        replied_to_content = referenced_message.content
+                        task_id_match = re.search(r"Task ID:\s*`([^`]+)`", replied_to_content)
+                        thought_id_match = re.search(r"Deferred Thought ID:\s*`([^`]+)`", replied_to_content)
+                        if task_id_match:
+                            original_task_id = task_id_match.group(1)
+                        if thought_id_match:
+                            corrected_thought_id = thought_id_match.group(1)
+                        logger.debug("Fallback regex extraction: task=%s thought=%s", original_task_id, corrected_thought_id)
                     else:
-                        logger.warning("Could not extract original Task ID from deferral report.")
-
-                    if thought_id_match:
-                        corrected_thought_id = thought_id_match.group(1)
-                        logger.info(f"Extracted corrected Thought ID: {corrected_thought_id}")
-                    else:
-                        logger.warning("Could not extract deferred Thought ID from deferral report.")
-                else:
-                    logger.warning("WA correction reply reference could not be resolved or fetched.")
+                        logger.warning("WA correction reply reference could not be resolved or fetched.")
 
                 if original_task_id:
                     # Create a new THOUGHT linked to the original TASK
@@ -264,27 +274,29 @@ class DiscordService(Service):
                 
                 return # Stop further processing, as this was a correction
 
-            # --- Regular Message Handling (Create New Task) ---
-            # If it wasn't a WA correction reply, proceed to create a new task
-            logger.info(f"Handling regular message {message.id} from {message.author.name}.")
-            task_description = f"Discord message from {message.author.name}: {message.content}"
-            new_task_id = str(message.id) # Use message ID as a simple task ID for now
-            
-            # Use the context built earlier
-            task = Task(
-                task_id=new_task_id, 
-                description=task_description,
-                status=CoreTaskStatus.PENDING,
-                priority=1, # Default priority
-                created_at=message.created_at.isoformat(), 
-                updated_at=message.created_at.isoformat(), 
-                context=task_initial_context 
-            )
+            # --- Regular Message Handling (Enqueue Event) ---
+            logger.info(f"Enqueuing message {message.id} from {message.author.name} for observer.")
+            event = {
+                "user_nick": message.author.name,
+                "channel": str(message.channel.id),
+                "message_content": message.content,
+            }
             try:
-                persistence.add_task(task)
-                logger.info(f"DiscordService: Created new task {new_task_id} for message {message.id}.")
+                self.event_queue.enqueue_nowait(event)
+                logger.debug(
+                    "DiscordService: Enqueued message %s for observer queue.",
+                    message.id,
+                )
+            except asyncio.QueueFull:
+                logger.warning(
+                    "Event queue full; dropping message %s", message.id
+                )
             except Exception as e:
-                logger.exception(f"DiscordService: Failed to create task for message {message.id}: {e}")
+                logger.exception(
+                    "DiscordService: Failed to enqueue event for message %s: %s",
+                    message.id,
+                    e,
+                )
 
 
     async def _handle_discord_action(self, result: ActionSelectionPDMAResult, dispatch_context: Dict[str, Any]):
@@ -410,6 +422,11 @@ class DiscordService(Service):
                                 sent_report = await deferral_channel.send(_truncate_discord_message(deferral_report))
                                 logger.info(
                                     f"DiscordService: Sent DEFER report for task {source_task_id}, thought {deferred_thought_id} to deferral channel {self.config.deferral_channel_id} as message {sent_report.id}."
+                                )
+                                persistence.save_deferral_report_mapping(
+                                    str(sent_report.id),
+                                    source_task_id,
+                                    deferred_thought_id,
                                 )
                             except Exception as send_exc:
                                 logger.error(
