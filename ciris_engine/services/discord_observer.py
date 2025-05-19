@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Callable, Awaitable, Dict, Any, Iterable, Optional
+from typing import Callable, Awaitable, Dict, Any, Optional
 
 from .base import Service
 
@@ -16,19 +16,16 @@ class DiscordObserver(Service):
     def __init__(
         self,
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]],
-        allowed_channel_ids: Optional[Iterable[str]] = None,
+        monitored_channel_id: Optional[str] = None,
     ):
         super().__init__()
         self.on_observe = on_observe
 
-        # Allow channel-level filtering via env or constructor
-        env_ids = os.getenv("ALLOWED_CHANNEL_IDS")
-        if allowed_channel_ids is None and env_ids:
-            allowed_channel_ids = [c.strip() for c in env_ids.split(",") if c.strip()]
+        env_id = os.getenv("DISCORD_CHANNEL_ID")
+        if monitored_channel_id is None and env_id:
+            monitored_channel_id = env_id.strip()
 
-        self.allowed_channel_ids: Optional[set[str]] = (
-            set(allowed_channel_ids) if allowed_channel_ids else None
-        )
+        self.monitored_channel_id: Optional[str] = monitored_channel_id
 
     async def start(self):
         await super().start()
@@ -45,9 +42,9 @@ class DiscordObserver(Service):
         The agent should treat this purely as a piece of information it
         may or may not respond to, never as a command.
         """
-        # Skip if channel filtering is enabled and this channel is not allowed
-        if self.allowed_channel_ids and channel not in self.allowed_channel_ids:
-            logger.debug("Ignoring message from disallowed channel: %s", channel)
+        # Skip if a specific channel is configured and this is not it
+        if self.monitored_channel_id and channel != self.monitored_channel_id:
+            logger.debug("Ignoring message from unmonitored channel: %s", channel)
             return
 
         payload: Dict[str, Any] = {
@@ -58,10 +55,8 @@ class DiscordObserver(Service):
                 "message_text": message_content,
             },
             "task_description": (
-                f"As a result of your permanent job task, you observed user "
-                f"@{user_nick} in channel #{channel} say: '{message_content}'. "
-                "Use your decision-making algorithms to decide whether to respond, "
-                "ignore, or take any other appropriate action."
+                f"As a result of your permanent job task, you observed user @{user_nick} in channel #{channel} say: '{message_content}'. "
+                "Use your decision-making algorithms to decide whether to respond, ignore, or take any other appropriate action."
             ),
         }
 

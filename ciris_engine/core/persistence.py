@@ -75,6 +75,19 @@ def _get_thought_table_schema_sql() -> str:
     );
     """
 
+
+def _get_deferral_report_table_schema_sql() -> str:
+    """Returns SQL for the deferral report mapping table."""
+    return """
+    CREATE TABLE IF NOT EXISTS deferral_reports (
+        message_id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        thought_id TEXT NOT NULL,
+        FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE CASCADE,
+        FOREIGN KEY (thought_id) REFERENCES thoughts(thought_id) ON DELETE CASCADE
+    );
+    """
+
 def initialize_database():
     """Creates the database tables if they don't exist."""
     try:
@@ -82,6 +95,7 @@ def initialize_database():
             cursor = conn.cursor()
             cursor.execute(_get_task_table_schema_sql())
             cursor.execute(_get_thought_table_schema_sql())
+            cursor.execute(_get_deferral_report_table_schema_sql())
             conn.commit()
         logging.info(f"Database tables ensured at {get_sqlite_db_full_path()}")
     except sqlite3.Error as e:
@@ -379,6 +393,50 @@ def update_thought_status(
     except sqlite3.Error as e:
         logging.exception(f"Failed to update thought status {thought_id}: {e}")
         return False
+
+
+def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str) -> None:
+    """Persist a mapping from a deferral report Discord message to its context."""
+    sql = """
+        INSERT OR REPLACE INTO deferral_reports (message_id, task_id, thought_id)
+        VALUES (?, ?, ?)
+    """
+    try:
+        with _get_db_connection() as conn:
+            conn.execute(sql, (message_id, task_id, thought_id))
+            conn.commit()
+        logging.debug(
+            "Saved deferral report mapping: %s -> task %s, thought %s",
+            message_id,
+            task_id,
+            thought_id,
+        )
+    except sqlite3.Error as e:
+        logging.exception(
+            "Failed to save deferral report mapping for message %s: %s",
+            message_id,
+            e,
+        )
+
+
+def get_deferral_report_context(message_id: str) -> Optional[tuple[str, str]]:
+    """Retrieve original task and thought IDs for a deferral report message."""
+    sql = "SELECT task_id, thought_id FROM deferral_reports WHERE message_id = ?"
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (message_id,))
+            row = cursor.fetchone()
+            if row:
+                return row["task_id"], row["thought_id"]
+            return None
+    except sqlite3.Error as e:
+        logging.exception(
+            "Failed to fetch deferral report context for message %s: %s",
+            message_id,
+            e,
+        )
+        return None
 
 def count_pending_thoughts() -> int:
     """Counts thoughts with status 'pending'."""

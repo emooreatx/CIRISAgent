@@ -63,7 +63,7 @@ async def test_observe_does_not_modify_graph(tmp_path: Path):
 
     dispatch_mock = AsyncMock()
     observer = DiscordObserver(dispatch_mock)
-    await observer.handle_event("bob", "general")
+    await observer.handle_event("bob", "general", "hi")
 
     dispatch_mock.assert_awaited_once()
     assert len(service.graph.nodes) == 0
@@ -78,8 +78,8 @@ async def test_observe_queries_graph(tmp_path: Path):
     remember_mock = AsyncMock()
     service.remember = remember_mock
 
-    observer = DiscordObserver(lambda payload: service.remember(payload["user_nick"]))
-    await observer.handle_event("carol", "general")
+    observer = DiscordObserver(lambda payload: service.remember(payload["context"]["user_nick"]))
+    await observer.handle_event("carol", "general", "hello")
 
     remember_mock.assert_awaited_once_with("carol")
 
