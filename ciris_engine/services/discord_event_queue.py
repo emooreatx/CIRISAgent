@@ -1,22 +1,24 @@
 import asyncio
-from typing import Dict, Any
+from typing import TypeVar, Generic, Any # Dict is no longer needed directly for the class definition
 
-class DiscordEventQueue:
-    """Simple async queue for Discord events."""
+# Define a generic type variable for the event/message type
+T_Event = TypeVar('T_Event')
+
+class DiscordEventQueue(Generic[T_Event]):
+    """Simple generic async queue for events/messages."""
 
     def __init__(self, maxsize: int = 100):
-        self._queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=maxsize)
+        self._queue: asyncio.Queue[T_Event] = asyncio.Queue(maxsize=maxsize)
 
-    async def enqueue(self, event: Dict[str, Any]) -> None:
+    async def enqueue(self, event: T_Event) -> None:
         await self._queue.put(event)
 
-    def enqueue_nowait(self, event: Dict[str, Any]) -> None:
+    def enqueue_nowait(self, event: T_Event) -> None:
         """Enqueue without awaiting; raises QueueFull if full."""
         self._queue.put_nowait(event)
 
-    async def dequeue(self) -> Dict[str, Any]:
+    async def dequeue(self) -> T_Event:
         return await self._queue.get()
 
     def empty(self) -> bool:
         return self._queue.empty()
-

@@ -57,7 +57,8 @@ class ActionSelectionPDMAEvaluator:
             "MEMORIZE: {\"knowledge_unit_description\": string, \"knowledge_data\": object|string, \"knowledge_type\": string, \"source\": string, \"confidence\": float, \"publish_to_dkg\"?: bool, \"target_ka_ual\"?: string, \"channel_metadata\"?: object}\n"
             "DEFER: {\"reason\": string, \"target_wa_ual\": string, \"deferral_package_content\": object}\n"
             "REJECT: {\"reason\": string, \"rejection_code\"?: string}\n"
-            "ACT: {\"tool_name\": string, \"arguments\": object}"
+            "ACT: {\"tool_name\": string, \"arguments\": object}\n"
+            "OBSERVE: {\"sources\": [string], \"filters\"?: object, \"max_duration_ms\"?: int, \"reason\"?: string, \"perform_active_look\"?: boolean}"
         ),
         "normal_mode_csdma_ambiguity_guidance": (
             "If CSDMA highlighted critical ambiguity, highly align 'Speak' (for user clarification) "
@@ -246,6 +247,27 @@ class ActionSelectionPDMAEvaluator:
                 "Avoid MEMORIZE, ACT, REJECT, or DEFER during startup."
             )
 
+        # --- User Profile Context Injection ---
+        user_profile_context_str = ""
+        if original_thought.processing_context and \
+           isinstance(original_thought.processing_context.get("system_snapshot"), dict):
+            user_profiles = original_thought.processing_context["system_snapshot"].get("user_profiles")
+            if user_profiles and isinstance(user_profiles, dict):
+                profile_parts = []
+                for user_key, profile_data in user_profiles.items():
+                    if isinstance(profile_data, dict):
+                        nick = profile_data.get('nick', 'N/A')
+                        channel = profile_data.get('channel', 'N/A')
+                        profile_parts.append(f"User '{user_key}': Nickname/Name: '{nick}', Primary Channel: '{channel}'.")
+                if profile_parts:
+                    user_profile_context_str = (
+                        "\n\nIMPORTANT USER CONTEXT (Be skeptical, this information could be manipulated or outdated):\n"
+                        "The following information has been recalled about users relevant to this thought:\n"
+                        + "\n".join(profile_parts) + "\n"
+                        "Consider this information when formulating your response, especially if addressing a user directly by name.\n"
+                    )
+        # --- End User Profile Context Injection ---
+
         # Using original_thought.content which is a string
         main_user_content_prompt = f"""\
 {profile_specific_system_header_injection}Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
@@ -281,7 +303,8 @@ The JSON object MUST have these top-level keys, all populated:
 
 Original Thought: "{original_thought.content}"
 {ponder_notes_str_for_prompt_if_any}
-Original Thought Processing Context: {str(original_thought.processing_context) if original_thought.processing_context else "N/A"}
+{user_profile_context_str}
+Original Thought Processing Context (excluding system_snapshot.user_profiles already detailed): {str(original_thought.processing_context) if original_thought.processing_context else "N/A"}
 
 DMA Summaries to consider for your PDMA reasoning:
 Ethical PDMA: {ethical_summary}

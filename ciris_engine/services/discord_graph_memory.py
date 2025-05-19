@@ -116,8 +116,12 @@ class DiscordGraphMemory(Service):
         return MemoryOpResult(status=MemoryOpStatus.SAVED)
 
     async def remember(self, user_nick: str) -> Dict[str, Any]:
+        logger.info(f"Attempting to remember data for user_nick: {user_nick}")
         if self.graph.has_node(user_nick):
-            return dict(self.graph.nodes[user_nick])
+            user_data = dict(self.graph.nodes[user_nick])
+            logger.info(f"Data found for user_nick: {user_nick}. Data: {user_data}")
+            return user_data
+        logger.info(f"No data found for user_nick: {user_nick}")
         return {}
 
     async def forget(self, user_nick: str):
