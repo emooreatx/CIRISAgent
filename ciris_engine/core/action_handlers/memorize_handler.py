@@ -9,6 +9,7 @@ from ciris_engine.core import persistence
 from ciris_engine.services.discord_graph_memory import MemoryOpStatus # Assuming this is the correct import
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
+from ..exceptions import FollowUpCreationError
 
 logger = logging.getLogger(__name__)
 
@@ -115,22 +116,32 @@ class MemorizeHandler(BaseActionHandler):
         else: # Failed or Deferred
             follow_up_text = f"MEMORIZE action for thought {thought_id} resulted in status {final_thought_status.value}. Info: {follow_up_content_key_info}. Review and determine next steps."
 
-        new_follow_up = create_follow_up_thought(
-            parent=thought,
-            content=follow_up_text,
-            priority_offset= 1 if action_performed_successfully else 0 # Higher if success, normal if fail/deferred
-        )
-        
-        processing_ctx_for_follow_up = {"action_performed": HandlerActionType.MEMORIZE.value}
-        if final_thought_status != ThoughtStatus.COMPLETED: # FAILED or DEFERRED
-            processing_ctx_for_follow_up["error_details"] = follow_up_content_key_info
-        
-        action_params_dump = result.action_parameters
-        if isinstance(action_params_dump, BaseModel):
-            action_params_dump = action_params_dump.model_dump(mode="json")
-        processing_ctx_for_follow_up["action_params"] = action_params_dump
-        
-        new_follow_up.processing_context = processing_ctx_for_follow_up
-        
-        persistence.add_thought(new_follow_up)
-        self.logger.info(f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after MEMORIZE action.")
+        try:
+            new_follow_up = create_follow_up_thought(
+                parent=thought,
+                content=follow_up_text,
+                priority_offset=1 if action_performed_successfully else 0,
+            )
+
+            processing_ctx_for_follow_up = {
+                "action_performed": HandlerActionType.MEMORIZE.value
+            }
+            if final_thought_status != ThoughtStatus.COMPLETED:
+                processing_ctx_for_follow_up["error_details"] = follow_up_content_key_info
+
+            action_params_dump = result.action_parameters
+            if isinstance(action_params_dump, BaseModel):
+                action_params_dump = action_params_dump.model_dump(mode="json")
+            processing_ctx_for_follow_up["action_params"] = action_params_dump
+
+            new_follow_up.processing_context = processing_ctx_for_follow_up
+            persistence.add_thought(new_follow_up)
+            self.logger.info(
+                f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after MEMORIZE action."
+            )
+        except Exception as e:
+            self.logger.critical(
+                f"Failed to create follow-up thought for {thought_id}: {e}",
+                exc_info=e,
+            )
+            raise FollowUpCreationError from e
