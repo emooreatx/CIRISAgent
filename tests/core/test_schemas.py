@@ -29,7 +29,8 @@ def test_enum_values():
     """Test that enums can be accessed and have expected string values."""
     assert CIRISSchemaVersion.V1_0_BETA.value == "1.0-beta"
     assert HandlerActionType.SPEAK.value == "speak"
-    assert HandlerActionType.ACT.value == "act"
+    assert HandlerActionType.TOOL.value == "tool"
+    assert HandlerActionType.TASK_COMPLETE.value == "task_complete"
     assert HandlerActionType.MEMORIZE.value == "memorize"
     assert TaskStatus.PENDING.value == "pending"
     assert TaskStatus.PAUSED.value == "paused" # Test added status

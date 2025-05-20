@@ -134,10 +134,10 @@ async def _discord_handler(runtime: BaseRuntime, result: ActionSelectionPDMAResu
                          logger.info(f"DiscordHandler: Sent REJECT message to channel {channel_id} for thought {thought_id} (no reply).")
 
 
-            elif action == HandlerActionType.ACT and isinstance(params, ActParams):
-                 # This handler doesn't implement ACT, so log it and potentially handle in a dedicated ACT handler
-                 logger.warning(f"DiscordHandler: Received ACT action '{params.tool_name}' for thought {thought_id}. No specific DiscordHandler implementation.")
-                 # The ActionDispatcher's main logic might handle ACT based on origin_service,
+            elif action == HandlerActionType.TOOL and isinstance(params, ActParams):
+                 # This handler doesn't implement TOOL directly; log for visibility.
+                 logger.warning(f"DiscordHandler: Received TOOL action '{params.tool_name}' for thought {thought_id}. No specific DiscordHandler implementation.")
+                 # The ActionDispatcher's main logic might handle TOOL based on origin_service,
                  # so this warning might mean the dispatcher logic needs refinement too.
                  # For now, just log and let the thought be marked completed below.
 
