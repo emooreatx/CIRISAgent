@@ -240,11 +240,14 @@ class AgentProcessor:
         generated_count = 0
         # Define a set of task IDs that should NOT have generic seed thoughts generated for them
         # because their thoughts are created through more specific mechanisms.
-        EXCLUDED_FROM_SEEDING = {"WAKEUP_ROOT", "job-discord-monitor"} # job-discord-monitor creates its own "job" thought
+        EXCLUDED_FROM_SEEDING = {"WAKEUP_ROOT", "job-discord-monitor"}  # Root tasks handled separately
 
         for task in tasks_needing_seed:
-            if task.task_id in EXCLUDED_FROM_SEEDING:
-                logger.debug(f"Skipping seed thought generation for excluded task ID: {task.task_id}")
+            if task.task_id in EXCLUDED_FROM_SEEDING or task.parent_goal_id == "WAKEUP_ROOT":
+                logger.debug(
+                    "Skipping seed thought generation for task %s (wake-up step or excluded)",
+                    task.task_id,
+                )
                 continue
 
             logging.info(f"Generating seed thought for task {task.task_id}.")
