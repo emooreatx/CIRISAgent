@@ -12,7 +12,7 @@ async def test_handle_memorize():
     t = Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content="")
     mem = DummyMemory()
     params = {"user_nick": "bob", "channel": "c", "metadata": {"a": 1}}
-    await handle_memorize(t, params, mem)
+    new_thought = await handle_memorize(t, params, mem)
     mem.memorize.assert_awaited_with("bob", "c", {"a": 1})
-    assert t.action_count == 1
-    assert t.history[0]["action"] == "memorize"
+    assert new_thought.source_task_id == t.source_task_id
+    assert new_thought.related_thought_id == t.thought_id

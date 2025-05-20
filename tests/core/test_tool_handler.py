@@ -11,7 +11,6 @@ class DummyTool:
 async def test_handle_tool():
     t = Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content="")
     tool = DummyTool()
-    await handle_tool(t, {"tool_name": "x", "arguments": {"a": 1}}, tool)
+    new_thought = await handle_tool(t, {"tool_name": "x", "arguments": {"a": 1}}, tool)
     tool.execute_tool.assert_awaited_with("x", {"a": 1})
-    assert t.action_count == 1
-    assert t.history[0]["action"] == "tool"
+    assert new_thought.related_thought_id == t.thought_id
