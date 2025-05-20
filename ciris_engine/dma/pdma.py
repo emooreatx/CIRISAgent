@@ -6,6 +6,7 @@ from openai import AsyncOpenAI
 
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.dma_results import EthicalPDMAResult
+from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
 
 logger = logging.getLogger(__name__)
@@ -90,45 +91,28 @@ The PDMA steps and their corresponding JSON fields (which you MUST generate) are
         original_thought_content = str(thought_item.content)
         logger.debug(f"Starting EthicalPDMA evaluation for thought ID {thought_item.thought_id}")
 
-        system_snapshot_str = ""
+        system_snapshot_context_str = ""
+        user_profile_context_str = ""
+
         if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
             system_snapshot = thought_item.processing_context.get("system_snapshot")
             if system_snapshot:
-                formatted_parts = ["--- System Snapshot Context ---"]
-                if system_snapshot.get("task") and hasattr(system_snapshot["task"], 'description'):
-                    formatted_parts.append(f"Current Task Description: {system_snapshot['task'].description}")
+                # Format user profiles using the utility function
+                user_profiles_data = system_snapshot.get("user_profiles")
+                user_profile_context_str = format_user_profiles_for_prompt(user_profiles_data)
                 
-                recent_tasks = system_snapshot.get("recently_completed_tasks", [])
-                if recent_tasks:
-                    formatted_parts.append("Recently Completed Tasks:")
-                    for i, task_info in enumerate(recent_tasks[:3]): # Limit to 3 for brevity in prompt
-                        desc = task_info.get('description', 'N/A')
-                        outcome = task_info.get('outcome', 'N/A')
-                        formatted_parts.append(f"  - Task {i+1}: {desc[:100]}... (Outcome: {str(outcome)[:100]}...)")
-                
-                # Add other relevant parts from system_snapshot if needed, e.g., counts
-                # counts = system_snapshot.get("counts")
-                # if counts:
-                # formatted_parts.append(f"System Counts: Pending Tasks={counts.get('pending_tasks', 'N/A')}")
+                # Format the rest of the system snapshot (excluding user profiles as they are handled)
+                # and other processing context details
+                system_snapshot_context_str = format_system_snapshot_for_prompt(system_snapshot, thought_item.processing_context)
 
-                user_profiles = system_snapshot.get("user_profiles")
-                if user_profiles and isinstance(user_profiles, dict):
-                    formatted_parts.append("Known User Profiles (for awareness):")
-                    for user_key, profile_data in user_profiles.items():
-                        if isinstance(profile_data, dict):
-                            nick = profile_data.get('nick', user_key) # Fallback to key if nick is missing
-                            # Include other relevant profile data if available and concise
-                            profile_summary = f"User '{user_key}': Nickname/Name: '{nick}'"
-                            # Example: if 'interest' was in profile_data
-                            # interest = profile_data.get('interest')
-                            # if interest: profile_summary += f", Interest: '{str(interest)[:50]}...'"
-                            formatted_parts.append(f"  - {profile_summary}")
-                
-                formatted_parts.append("--- End System Snapshot Context ---")
-                system_snapshot_str = "\n".join(formatted_parts) + "\n\n"
+        # Combine context strings. User profiles are usually presented first or as part of a broader context.
+        # The format_user_profiles_for_prompt already includes a header.
+        # The format_system_snapshot_for_prompt also includes its own header.
         
-        # Prepend system snapshot to the user message content
-        user_message_with_context = f"{system_snapshot_str}User Message to Evaluate (consider any provided context when performing your ethical analysis): '{original_thought_content}'"
+        full_context_str = user_profile_context_str + system_snapshot_context_str
+        
+        # Prepend combined context to the user message content
+        user_message_with_context = f"{full_context_str}\nUser Message to Evaluate (consider any provided context when performing your ethical analysis): '{original_thought_content}'"
         
         logger.debug(f"EthicalPDMA input to LLM for thought {thought_item.thought_id}:\n{user_message_with_context}")
 

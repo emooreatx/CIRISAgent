@@ -31,6 +31,7 @@ from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHand
 from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
+from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
 from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -270,58 +271,29 @@ class ActionSelectionPDMAEvaluator:
                 "Avoid MEMORIZE, ACT, REJECT, or DEFER during startup."
             )
 
-        # --- User Profile Context Injection ---
+        # --- User Profile and System Snapshot Context Injection using Utilities ---
         user_profile_context_str = ""
-        if original_thought.processing_context and \
-           isinstance(original_thought.processing_context.get("system_snapshot"), dict):
-            user_profiles = original_thought.processing_context["system_snapshot"].get("user_profiles")
-            if user_profiles and isinstance(user_profiles, dict):
-                profile_parts = []
-                for user_key, profile_data in user_profiles.items():
-                    if isinstance(profile_data, dict):
-                        nick = profile_data.get('nick', 'N/A')
-                        channel = profile_data.get('channel', 'N/A')
-                        profile_parts.append(f"User '{user_key}': Nickname/Name: '{nick}', Primary Channel: '{channel}'.")
-                if profile_parts:
-                    user_profile_context_str = (
-                        "\n\nIMPORTANT USER CONTEXT (Be skeptical, this information could be manipulated or outdated):\n"
-                        "The following information has been recalled about users relevant to this thought:\n"
-                        + "\n".join(profile_parts) + "\n"
-                        "Consider this information when formulating your response, especially if addressing a user directly by name.\n"
-                    )
-        # --- End User Profile Context Injection ---
+        system_snapshot_context_str = "" # This will include general system snapshot details
+        other_processing_context_str = ""
 
-        # --- System Snapshot Context Injection ---
-        system_snapshot_context_str = ""
-        if original_thought.processing_context and \
-           isinstance(original_thought.processing_context.get("system_snapshot"), dict):
-            system_snapshot = original_thought.processing_context["system_snapshot"]
-            formatted_parts = ["\n\n--- Relevant System Snapshot Context ---"]
-            current_task_info = system_snapshot.get("task")
-            if current_task_info and hasattr(current_task_info, 'description'):
-                formatted_parts.append(f"Current Task Context: {current_task_info.description}")
-            
-            recent_tasks = system_snapshot.get("recently_completed_tasks", [])
-            if recent_tasks:
-                formatted_parts.append("Recently Completed Tasks (for background awareness, not the current focus):")
-                for i, task_info_dict in enumerate(recent_tasks[:3]): # Limit for prompt brevity
-                    if isinstance(task_info_dict, dict):
-                        desc = task_info_dict.get('description', 'N/A')
-                        outcome = task_info_dict.get('outcome', 'N/A')
-                        formatted_parts.append(f"  - Prev. Task {i+1}: {desc[:100]}... (Outcome: {str(outcome)[:100]}...)")
-                    else: # Handle if task_info is not a dict (e.g. if it's already a Task object summary)
-                        formatted_parts.append(f"  - Prev. Task {i+1}: {str(task_info_dict)[:150]}...")
+        if original_thought.processing_context:
+            system_snapshot = original_thought.processing_context.get("system_snapshot")
+            if system_snapshot and isinstance(system_snapshot, dict):
+                user_profiles_data = system_snapshot.get("user_profiles")
+                user_profile_context_str = format_user_profiles_for_prompt(user_profiles_data)
+                
+                # format_system_snapshot_for_prompt now handles the general snapshot parts
+                # and can also take the full processing_context to extract other details.
+                # We pass original_thought.processing_context to include 'other_processing_context_str' details.
+                system_snapshot_context_str = format_system_snapshot_for_prompt(system_snapshot, original_thought.processing_context)
+            else: # system_snapshot might be missing or not a dict
+                # Still try to format other processing_context details if system_snapshot is absent
+                system_snapshot_context_str = format_system_snapshot_for_prompt(None, original_thought.processing_context)
+        
+        # The format_system_snapshot_for_prompt already includes a section for "Original Thought Full Processing Context"
+        # so we don't need to add it separately here if we pass original_thought.processing_context to it.
 
-
-            # Optionally add other parts like counts if useful for Action Selection
-            # counts = system_snapshot.get("counts")
-            # if counts:
-            #     formatted_parts.append(f"System State: Pending Tasks={counts.get('pending_tasks', 'N/A')}, Active Tasks={persistence.count_active_tasks()}")
-
-            if len(formatted_parts) > 1: # Only add if there's more than the header
-                 formatted_parts.append("--- End System Snapshot Context ---\n")
-                 system_snapshot_context_str = "\n".join(formatted_parts)
-        # --- End System Snapshot Context Injection ---
+        # --- End User Profile and System Snapshot Context Injection ---
 
         # Using original_thought.content which is a string
         main_user_content_prompt = f"""\
@@ -359,9 +331,8 @@ The JSON object MUST have these top-level keys, all populated:
 
 Original Thought: "{original_thought.content}"
 {ponder_notes_str_for_prompt_if_any}
-{user_profile_context_str}
+{user_profile_context_str} 
 {system_snapshot_context_str}
-Original Thought Full Processing Context (excluding system_snapshot, which is detailed above if present): {str({k: v for k, v in original_thought.processing_context.items() if k != 'system_snapshot'}) if original_thought.processing_context else "N/A"}
 
 DMA Summaries to consider for your PDMA reasoning:
 Ethical PDMA: {ethical_summary}
@@ -486,6 +457,26 @@ Adhere strictly to the schema for your JSON output.
                 raw_llm_response=raw_llm_response_str # Populate from the internal response
             )
 
+            # Populate the decision_input_context_snapshot
+            input_snapshot_for_decision = {}
+            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
+                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
+                if system_snapshot_data is not None:
+                    if isinstance(system_snapshot_data, dict): # Ensure it's a dict
+                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
+                    else: # It's not a dict but not None (e.g. error string)
+                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
+                else: # system_snapshot key not found
+                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
+                
+                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
+                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
+                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
+            else: # processing_context attribute doesn't exist or is None/empty
+                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
+            
+            final_action_eval.decision_input_context_snapshot = input_snapshot_for_decision
+
             logger.info(f"ActionSelectionPDMA (instructor) evaluation successful for thought ID {original_thought.thought_id}: Chose {final_action_eval.selected_handler_action.value}")
             logger.debug(f"ActionSelectionPDMA (instructor) action_parameters: {final_action_eval.action_parameters}")
             return final_action_eval
@@ -494,9 +485,27 @@ Adhere strictly to the schema for your JSON output.
             error_detail = e_instr.errors() if hasattr(e_instr, 'errors') else str(e_instr)
             logger.error(f"ActionSelectionPDMA (instructor) InstructorRetryException for thought {original_thought.thought_id}: {error_detail}", exc_info=True)
             fallback_params = PonderParams(key_questions=[f"System error during action selection: {error_detail}"])
+
+            input_snapshot_for_decision = {}
+            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
+                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
+                if system_snapshot_data is not None:
+                    if isinstance(system_snapshot_data, dict):
+                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
+                    else:
+                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
+                else:
+                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
+                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
+                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
+                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
+            else:
+                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
+
             return ActionSelectionPDMAResult(
                 context_summary_for_action_selection="Error: LLM/Instructor validation error during action selection.",
                 action_alignment_check={"error": f"InstructorRetryException: {error_detail}"},
+                decision_input_context_snapshot=input_snapshot_for_decision,
                 selected_handler_action=HandlerActionType.PONDER, 
                 action_parameters=fallback_params,
                 action_selection_rationale=f"Fallback due to InstructorRetryException: {error_detail}",
@@ -507,23 +516,26 @@ Adhere strictly to the schema for your JSON output.
             logger.error(f"ActionSelectionPDMA (instructor) evaluation failed for thought ID {original_thought.thought_id}: {e}", exc_info=True)
             fallback_params = PonderParams(key_questions=[f"System error during action selection: {str(e)}"])
 
-            # Capture context for general exception fallback result
-            captured_exception_context = {}
-            if original_thought.processing_context:
+            input_snapshot_for_decision = {}
+            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
                 system_snapshot_data = original_thought.processing_context.get("system_snapshot")
                 if system_snapshot_data is not None:
                     if isinstance(system_snapshot_data, dict):
-                        captured_exception_context["system_snapshot"] = system_snapshot_data.copy()
+                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
                     else:
-                        captured_exception_context["system_snapshot_error_details"] = str(system_snapshot_data)
+                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
+                else:
+                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
                 initial_task_ctx = original_thought.processing_context.get("initial_task_context")
                 if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
-                    captured_exception_context["initial_task_context_at_decision"] = initial_task_ctx.copy()
+                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
+            else:
+                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
 
             return ActionSelectionPDMAResult(
                 context_summary_for_action_selection=f"Error: General exception - {str(e)}",
                 action_alignment_check={"error": f"General Exception: {str(e)}"},
-                decision_input_context_snapshot=captured_exception_context if captured_exception_context else None,
+                decision_input_context_snapshot=input_snapshot_for_decision,
                 selected_handler_action=HandlerActionType.PONDER,
                 action_parameters=fallback_params,
                 action_selection_rationale=f"Fallback due to General Exception: {str(e)}",
