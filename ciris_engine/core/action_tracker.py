@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .agent_core_schemas import Thought, HandlerActionType
 

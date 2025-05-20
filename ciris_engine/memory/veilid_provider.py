@@ -14,6 +14,8 @@ import os, json, time, base64, hmac, hashlib, asyncio, logging, datetime, uuid
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+logger = logging.getLogger(__name__)
+
 import veilid
 
 # Corrected relative imports assuming this file is in ciris_engine/memory/
@@ -36,23 +38,22 @@ try:
         handle_correction,
     )
 except ImportError:
-    LOG = logging.getLogger(__name__)
-    LOG.warning("Could not resolve relative imports for core schemas/handlers. Using placeholders.")
+    logger = logging.getLogger(__name__)
+    logger.warning("Could not resolve relative imports for core schemas/handlers. Using placeholders.")
     class SpeakMessage: pass
     class DeferralPackage: pass
     class MemoryOperation: pass
     class Observation: pass
     class AgentCorrectionThought: pass
-    async def handle_speak(*args, **kwargs): LOG.error("handle_speak not loaded")
-    async def handle_defer(*args, **kwargs): LOG.error("handle_defer not loaded")
-    async def handle_memory(*args, **kwargs): LOG.error("handle_memory not loaded")
-    async def handle_observe(*args, **kwargs): LOG.error("handle_observe not loaded")
-    async def handle_correction(*args, **kwargs): LOG.error("handle_correction not loaded")
+    async def handle_speak(*args, **kwargs): logger.error("handle_speak not loaded")
+    async def handle_defer(*args, **kwargs): logger.error("handle_defer not loaded")
+    async def handle_memory(*args, **kwargs): logger.error("handle_memory not loaded")
+    async def handle_observe(*args, **kwargs): logger.error("handle_observe not loaded")
+    async def handle_correction(*args, **kwargs): logger.error("handle_correction not loaded")
 
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
-LOG = logging.getLogger(__name__) # Use __name__ for logger
+logger = logging.getLogger(__name__)
 
 # Local storage paths
 KEYSTORE    = Path.home() / ".ciris_agent_keys.json"
@@ -90,7 +91,7 @@ class VeilidAgentCore:
         self.dht_nonce: Optional[veilid.Nonce] = None
         self.running: bool = False
         self._recv_times: list[float] = []
-        self.logger = LOG
+        self.logger = logger
 
     async def start(self):
         """Initialize Veilid, load keys/secrets, and start service."""
@@ -332,13 +333,13 @@ if __name__ == "__main__":
         observe_task = asyncio.create_task(act.start_observe())
         correction_task = asyncio.create_task(defer.start_correction())
         
-        LOG.info("Veilid Agent Service running. Press Ctrl+C to stop.")
+        logger.info("Veilid Agent Service running. Press Ctrl+C to stop.")
 
         while core.running:
             try:
                 await asyncio.sleep(1)
             except asyncio.CancelledError:
-                LOG.info("Main runner task cancelled.")
+                logger.info("Main runner task cancelled.")
                 break
         
         if observe_task: await observe_task
@@ -348,7 +349,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main_runner())
     except KeyboardInterrupt:
-        LOG.info("KeyboardInterrupt received, shutting down.")
+        logger.info("KeyboardInterrupt received, shutting down.")
     finally:
         if core.running:
             asyncio.run(core.stop())
