@@ -112,7 +112,7 @@ The PDMA steps and their corresponding JSON fields (which you MUST generate) are
         full_context_str = user_profile_context_str + system_snapshot_context_str
         
         # Prepend combined context to the user message content
-        user_message_with_context = f"{full_context_str}\nUser Message to Evaluate (consider any provided context when performing your ethical analysis): '{original_thought_content}'"
+        user_message_with_context = f"{full_context_str}\nSystem Thought to Evaluate (consider any provided context when performing your ethical analysis): '{original_thought_content}'"
         
         logger.debug(f"EthicalPDMA input to LLM for thought {thought_item.thought_id}:\n{user_message_with_context}")
 
