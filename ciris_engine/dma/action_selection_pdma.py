@@ -486,6 +486,26 @@ Adhere strictly to the schema for your JSON output.
                 raw_llm_response=raw_llm_response_str # Populate from the internal response
             )
 
+            # Populate the decision_input_context_snapshot
+            input_snapshot_for_decision = {}
+            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
+                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
+                if system_snapshot_data is not None:
+                    if isinstance(system_snapshot_data, dict): # Ensure it's a dict
+                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
+                    else: # It's not a dict but not None (e.g. error string)
+                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
+                else: # system_snapshot key not found
+                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
+                
+                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
+                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
+                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
+            else: # processing_context attribute doesn't exist or is None/empty
+                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
+            
+            final_action_eval.decision_input_context_snapshot = input_snapshot_for_decision
+
             logger.info(f"ActionSelectionPDMA (instructor) evaluation successful for thought ID {original_thought.thought_id}: Chose {final_action_eval.selected_handler_action.value}")
             logger.debug(f"ActionSelectionPDMA (instructor) action_parameters: {final_action_eval.action_parameters}")
             return final_action_eval
@@ -494,9 +514,27 @@ Adhere strictly to the schema for your JSON output.
             error_detail = e_instr.errors() if hasattr(e_instr, 'errors') else str(e_instr)
             logger.error(f"ActionSelectionPDMA (instructor) InstructorRetryException for thought {original_thought.thought_id}: {error_detail}", exc_info=True)
             fallback_params = PonderParams(key_questions=[f"System error during action selection: {error_detail}"])
+
+            input_snapshot_for_decision = {}
+            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
+                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
+                if system_snapshot_data is not None:
+                    if isinstance(system_snapshot_data, dict):
+                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
+                    else:
+                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
+                else:
+                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
+                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
+                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
+                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
+            else:
+                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
+
             return ActionSelectionPDMAResult(
                 context_summary_for_action_selection="Error: LLM/Instructor validation error during action selection.",
                 action_alignment_check={"error": f"InstructorRetryException: {error_detail}"},
+                decision_input_context_snapshot=input_snapshot_for_decision,
                 selected_handler_action=HandlerActionType.PONDER, 
                 action_parameters=fallback_params,
                 action_selection_rationale=f"Fallback due to InstructorRetryException: {error_detail}",
@@ -507,23 +545,26 @@ Adhere strictly to the schema for your JSON output.
             logger.error(f"ActionSelectionPDMA (instructor) evaluation failed for thought ID {original_thought.thought_id}: {e}", exc_info=True)
             fallback_params = PonderParams(key_questions=[f"System error during action selection: {str(e)}"])
 
-            # Capture context for general exception fallback result
-            captured_exception_context = {}
-            if original_thought.processing_context:
+            input_snapshot_for_decision = {}
+            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
                 system_snapshot_data = original_thought.processing_context.get("system_snapshot")
                 if system_snapshot_data is not None:
                     if isinstance(system_snapshot_data, dict):
-                        captured_exception_context["system_snapshot"] = system_snapshot_data.copy()
+                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
                     else:
-                        captured_exception_context["system_snapshot_error_details"] = str(system_snapshot_data)
+                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
+                else:
+                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
                 initial_task_ctx = original_thought.processing_context.get("initial_task_context")
                 if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
-                    captured_exception_context["initial_task_context_at_decision"] = initial_task_ctx.copy()
+                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
+            else:
+                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
 
             return ActionSelectionPDMAResult(
                 context_summary_for_action_selection=f"Error: General exception - {str(e)}",
                 action_alignment_check={"error": f"General Exception: {str(e)}"},
-                decision_input_context_snapshot=captured_exception_context if captured_exception_context else None,
+                decision_input_context_snapshot=input_snapshot_for_decision,
                 selected_handler_action=HandlerActionType.PONDER,
                 action_parameters=fallback_params,
                 action_selection_rationale=f"Fallback due to General Exception: {str(e)}",
