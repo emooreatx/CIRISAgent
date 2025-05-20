@@ -183,3 +183,37 @@ async def test_dispatch_updates_thought_history(mock_log_action, mock_get_though
     assert thought.action_count == 1
     assert len(thought.history) == 1
     assert thought.history[0]['action'] == HandlerActionType.SPEAK.value
+
+
+@pytest.mark.asyncio
+@patch('ciris_engine.core.persistence.get_thought_by_id')
+async def test_dispatch_defer_escalates(mock_get_thought):
+    dispatcher = ActionDispatcher()
+    handler = AsyncMock()
+    dispatcher.register_service_handler('discord', handler)
+
+    thought = Thought(
+        thought_id='t2',
+        source_task_id='task2',
+        thought_type='seed',
+        status=ThoughtStatus.PENDING,
+        created_at='',
+        updated_at='',
+        round_created=0,
+        content='hi',
+    )
+    mock_get_thought.return_value = thought
+
+    result = ActionSelectionPDMAResult(
+        context_summary_for_action_selection='c',
+        action_alignment_check={},
+        selected_handler_action=HandlerActionType.DEFER,
+        action_parameters=DeferParams(reason='r', target_wa_ual='wa', deferral_package_content={}),
+        action_selection_rationale='r',
+        monitoring_for_selected_action={},
+    )
+    await dispatcher.dispatch(result, {'origin_service': 'discord', 'thought_id': 't2'})
+
+    assert thought.escalations
+    assert thought.escalations[0]['type'] == 'internal_failure'
+
