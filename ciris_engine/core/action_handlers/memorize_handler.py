@@ -1,5 +1,9 @@
 """Service action for MEMORIZE."""
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 from typing import TYPE_CHECKING
 from ..agent_core_schemas import Thought
 from .helpers import create_follow_up_thought
@@ -8,7 +12,7 @@ if TYPE_CHECKING:
     from ...services.discord_graph_memory import DiscordGraphMemory
 
 async def handle_memorize(
-    thought: Thought, params: dict, memory_service: "DiscordGraphMemory"
+    thought: Thought, params: dict, memory_service: "DiscordGraphMemory", **kwargs
 ) -> Thought:
     """Write user metadata and return a follow-up Thought."""
     user_nick = params["user_nick"]

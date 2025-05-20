@@ -1,5 +1,8 @@
 from typing import Union, List, Dict, Any, Optional
 from pydantic import BaseModel, Field
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .foundational_schemas import (
     ObservationSourceType,
@@ -9,9 +12,8 @@ from .foundational_schemas import (
 
 
 class ObserveParams(BaseModel):
-    sources: List[ObservationSourceType]
+    sources: List[str]
     filters: Optional[Dict[str, Any]] = None
-    max_duration_ms: Optional[int] = None
     reason: Optional[str] = None
     perform_active_look: bool = False
 

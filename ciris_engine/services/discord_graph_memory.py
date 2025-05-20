@@ -1,7 +1,7 @@
 import logging
 import asyncio
 import pickle
-from enum import Enum
+from ..core.foundational_schemas import CaseInsensitiveEnum
 from pathlib import Path
 from typing import Dict, Any, Optional
 from pydantic import BaseModel
@@ -13,7 +13,7 @@ from .base import Service
 logger = logging.getLogger(__name__)
 
 
-class MemoryOpStatus(str, Enum):
+class MemoryOpStatus(CaseInsensitiveEnum):
     SAVED = "saved"
     DEFERRED = "deferred"
     FAILED = "failed"

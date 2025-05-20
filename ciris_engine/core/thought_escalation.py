@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 from typing import Dict
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .agent_core_schemas import Thought
 from .foundational_schemas import ThoughtStatus
@@ -10,6 +13,8 @@ __all__ = [
     "escalate_due_to_guardrail",
     "escalate_due_to_failure",
     "escalate_dma_failure",
+    "escalate_due_to_depth_limit",
+    "escalate_due_to_ponder_limit",
 ]
 
 
@@ -79,3 +84,28 @@ def escalate_dma_failure(
     }
     thought.status = ThoughtStatus.DEFERRED
     return _append_escalation(thought, event)
+
+
+def escalate_due_to_depth_limit(thought: Thought, max_depth: int) -> Thought:
+    """Escalate when a thought exceeds the allowed depth."""
+    now = datetime.now(timezone.utc).isoformat()
+    event = {
+        "timestamp": now,
+        "reason": f"Thought depth exceeded maximum of {max_depth}",
+        "type": "depth_limit",
+    }
+    thought.is_terminal = True
+    return _append_escalation(thought, event)
+
+
+def escalate_due_to_ponder_limit(thought: Thought, max_ponder: int) -> Thought:
+    """Escalate when a thought exceeds the allowed ponder count."""
+    now = datetime.now(timezone.utc).isoformat()
+    event = {
+        "timestamp": now,
+        "reason": f"Ponder count exceeded maximum of {max_ponder}",
+        "type": "ponder_limit",
+    }
+    thought.is_terminal = True
+    return _append_escalation(thought, event)
+

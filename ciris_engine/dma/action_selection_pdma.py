@@ -105,6 +105,13 @@ class ActionSelectionPDMAEvaluator:
         "student_mode_action_selection_rationale_csdma_guidance": (
             "If CSDMA flagged ambiguity, your rationale MUST explain how the chosen action (especially Ponder) helps in critically analyzing and understanding the ambiguous concept from a learner's perspective."
         ),
+        # Added Teacher-specific guidance for OBSERVE
+        "teacher_mode_action_params_observe_guidance": (
+            "If 'Observe' is chosen by the Teacher profile to gather more context (e.g., about a user's message or current state of a discussion), 'perform_active_look' SHOULD generally be true to actively fetch recent information. "
+            "Set 'sources' to relevant identifiers (e.g., channel IDs, user IDs if applicable). "
+            "Provide a clear 'reason' for the observation. "
+            "Example: {{\"sources\": [\"#relevant_channel_id\"], \"reason\": \"To understand the latest messages from the user before responding.\", \"perform_active_look\": true}}"
+        ),
         "normal_mode_final_ponder_advisory": (
             "\nIMPORTANT FINAL PONDER ROUND ADVISORY (Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_ponder_rounds}):\n"
             "You have Pondered multiple times. This is your final opportunity to provide a direct answer or a definitive deferral.\n"
@@ -124,11 +131,15 @@ class ActionSelectionPDMAEvaluator:
     def __init__(self,
                  aclient: AsyncOpenAI, # Expect raw AsyncOpenAI client
                  model_name: str = DEFAULT_OPENAI_MODEL_NAME,
+                 max_retries: int = 2, # Default to a sensible number of retries
                  prompt_overrides: Optional[Dict[str, str]] = None,
                  instructor_mode: instructor.Mode = instructor.Mode.JSON): # Add instructor_mode
         # Patch the client with instructor and the specified mode
+        # instructor.patch itself does not take max_retries for the patch operation,
+        # max_retries is typically passed to the .create() call.
         self.aclient: instructor.Instructor = instructor.patch(aclient, mode=instructor_mode)
         self.model_name = model_name
+        self.max_retries = max_retries # Store max_retries
         self.prompt = {**self.DEFAULT_PROMPT, **(prompt_overrides or {})}
         self.instructor_mode = instructor_mode # Store for reference if needed
 
@@ -239,6 +250,8 @@ class ActionSelectionPDMAEvaluator:
         action_alignment_example = self._get_profile_specific_prompt("csdma_ambiguity_alignment_example", agent_name_from_thought)
         action_parameters_speak_csdma_guidance = self._get_profile_specific_prompt("action_params_speak_csdma_guidance", agent_name_from_thought)
         action_parameters_ponder_guidance = self._get_profile_specific_prompt("action_params_ponder_guidance", agent_name_from_thought)
+        # Get Observe guidance - will pick up teacher_mode if agent_name_from_thought is 'teacher'
+        action_parameters_observe_guidance = self._get_profile_specific_prompt("action_params_observe_guidance", agent_name_from_thought)
         action_selection_rationale_csdma_guidance = self._get_profile_specific_prompt("action_selection_rationale_csdma_guidance", agent_name_from_thought)
         action_parameter_schemas = self.prompt.get("action_parameter_schemas", self.DEFAULT_PROMPT.get("action_parameter_schemas", ""))
 
@@ -302,6 +315,7 @@ PDMA for Action Selection (all fields MANDATORY):
     {action_parameters_speak_csdma_guidance}
     {action_parameters_ponder_guidance}
     Provide empty dict {{}} if no parameters for other actions.
+    {action_parameters_observe_guidance}
 7.  'action_selection_rationale': Justify *why* this handler action is optimal. {action_selection_rationale_csdma_guidance}
 8.  'monitoring_for_selected_action': Concrete monitoring plan for THIS chosen action (string or dict).
 
@@ -383,7 +397,8 @@ Adhere strictly to the schema for your JSON output.
                 model=self.model_name,
                 response_model=_ActionSelectionLLMResponse, # Use internal model
                 messages=messages,
-                max_tokens=1500
+                max_tokens=1500,
+                max_retries=self.max_retries # Pass configured max_retries here
             )
 
             # Manually construct the final ActionSelectionPDMAResult
