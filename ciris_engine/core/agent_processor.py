@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from .config_schemas import AppConfig
 from .workflow_coordinator import WorkflowCoordinator
 from .action_dispatcher import ActionDispatcher
+from .exceptions import FollowUpCreationError
 from .agent_core_schemas import Task, Thought
 from .foundational_schemas import TaskStatus, ThoughtStatus, HandlerActionType
 from .agent_processing_queue import ProcessingQueueItem
@@ -240,11 +241,14 @@ class AgentProcessor:
         generated_count = 0
         # Define a set of task IDs that should NOT have generic seed thoughts generated for them
         # because their thoughts are created through more specific mechanisms.
-        EXCLUDED_FROM_SEEDING = {"WAKEUP_ROOT", "job-discord-monitor"} # job-discord-monitor creates its own "job" thought
+        EXCLUDED_FROM_SEEDING = {"WAKEUP_ROOT", "job-discord-monitor"}  # Root tasks handled separately
 
         for task in tasks_needing_seed:
-            if task.task_id in EXCLUDED_FROM_SEEDING:
-                logger.debug(f"Skipping seed thought generation for excluded task ID: {task.task_id}")
+            if task.task_id in EXCLUDED_FROM_SEEDING or task.parent_goal_id == "WAKEUP_ROOT":
+                logger.debug(
+                    "Skipping seed thought generation for task %s (wake-up step or excluded)",
+                    task.task_id,
+                )
                 continue
 
             logging.info(f"Generating seed thought for task {task.task_id}.")
@@ -421,7 +425,15 @@ class AgentProcessor:
                         final_action_result=error_action_result.model_dump() # Store the model dump
                     )
                 except Exception as db_err:
-                     logging.error(f"Failed to mark thought {thought_id} as FAILED after processing error: {db_err}")
+                    logging.error(f"Failed to mark thought {thought_id} as FAILED after processing error: {db_err}")
+
+                if isinstance(result, FollowUpCreationError):
+                    logging.critical(
+                        "Critical failure creating follow-up thought for %s. Stopping processing loop.",
+                        thought_id,
+                    )
+                    await self.stop_processing()
+                    return
 
             elif result is None:
                 # This indicates the thought was re-queued internally (e.g., PONDER by WorkflowCoordinator)
