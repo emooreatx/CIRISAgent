@@ -39,6 +39,13 @@ def test_enum_values():
     assert ObservationSourceType.USER_REQUEST.value == "user_request"
     assert DKGAssetType.AGENT_PROFILE.value == "AgentProfile"
 
+def test_enum_case_insensitive():
+    """Enums should accept case-insensitive inputs."""
+    assert HandlerActionType("MEMORIZE") is HandlerActionType.MEMORIZE
+    assert TaskStatus("PENDING") is TaskStatus.PENDING
+    from ciris_engine.services.discord_graph_memory import MemoryOpStatus
+    assert MemoryOpStatus("SAVED") is MemoryOpStatus.SAVED
+
 def test_ual_did_types():
     """Test that UAL/DID types are essentially strings."""
     agent_ual: CIRISAgentUAL = "did:example:agent1"
