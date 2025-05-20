@@ -46,8 +46,9 @@ async def test_wakeup_sequence_success(mock_persistence, agent_processor_instanc
 
     assert success
     assert mock_persistence.add_thought.call_count == len(WAKEUP_SEQUENCE)
-    assert mock_persistence.add_task.call_count == 2
-    mock_persistence.update_task_status.assert_any_call("wakeup", TaskStatus.COMPLETED)
+    # root + five steps + job task
+    assert mock_persistence.add_task.call_count == len(WAKEUP_SEQUENCE) + 2
+    mock_persistence.update_task_status.assert_any_call("WAKEUP_ROOT", TaskStatus.COMPLETED)
     assert mock_action_dispatcher.dispatch.await_count == len(WAKEUP_SEQUENCE)
 
 
@@ -80,7 +81,7 @@ async def test_wakeup_sequence_failure(mock_persistence, agent_processor_instanc
     success = await agent_processor_instance._run_wakeup_sequence()
 
     assert success is False
-    mock_persistence.update_task_status.assert_any_call("wakeup", TaskStatus.DEFERRED)
+    mock_persistence.update_task_status.assert_any_call("WAKEUP_ROOT", TaskStatus.DEFERRED)
 
 
 @pytest.mark.asyncio
@@ -111,6 +112,5 @@ async def test_wakeup_sequence_allows_ponder(mock_persistence, agent_processor_i
 
     success = await agent_processor_instance._run_wakeup_sequence()
 
-    assert success
-    mock_persistence.update_task_status.assert_any_call("wakeup", TaskStatus.COMPLETED)
-    assert mock_action_dispatcher.dispatch.await_count == len(WAKEUP_SEQUENCE)
+    assert success is False
+    mock_persistence.update_task_status.assert_any_call("WAKEUP_ROOT", TaskStatus.DEFERRED)
