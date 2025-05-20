@@ -1,20 +1,13 @@
-# src/ciris_engine/dma/csdma.py
 from typing import Dict, Any, List, Optional
 import logging
 
 import instructor
-# from instructor import Mode as InstructorMode # REMOVE Mode import -> Removed
 from openai import AsyncOpenAI
-
-# Updated imports based on current project structure
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.dma_results import CSDMAResult
-from ciris_engine.core.config_manager import get_config # To access global config
-# Import InstructorRetryException for specific error handling
+from ciris_engine.core.config_manager import get_config
 from instructor.exceptions import InstructorRetryException
-import instructor # For instructor.Mode
 
-# Setup logger for this module
 logger = logging.getLogger(__name__)
 
 class CSDMAEvaluator:

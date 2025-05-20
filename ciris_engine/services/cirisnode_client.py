@@ -31,7 +31,7 @@ class CIRISNodeClient:
         """Run the HE-300 benchmark for the given model."""
         result = await self._post("/he300", {"model_id": model_id, "agent_id": agent_id})
         await self.audit_service.log_action(
-            HandlerActionType.ACT,
+            HandlerActionType.TOOL,
             {
                 "event_type": "cirisnode_test",
                 "originator_id": agent_id,
@@ -45,7 +45,7 @@ class CIRISNodeClient:
         """Run chaos test scenarios and return verdicts."""
         result = await self._post("/chaos", {"agent_id": agent_id, "scenarios": scenarios})
         await self.audit_service.log_action(
-            HandlerActionType.ACT,
+            HandlerActionType.TOOL,
             {
                 "event_type": "cirisnode_test",
                 "originator_id": agent_id,

@@ -1,13 +1,12 @@
-from typing import Dict, Any, Optional, List, Union  # Ensure Union, List, Dict are imported
+from typing import Dict, Any, Optional, List, Union
 import logging
 
 import instructor
 from openai import AsyncOpenAI
 
-# Corrected imports
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem # Though 'Thought' model is used internally
+from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.agent_core_schemas import (
-    Thought,  # Assuming Thought model is passed in triaged_inputs
+    Thought,
     HandlerActionType,
     CIRISSchemaVersion,
 )
@@ -28,11 +27,10 @@ from ciris_engine.core.action_params import (
     RememberParams,
     ForgetParams,
 )
-from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHandlerActionType # Alias to avoid conflict if any
-from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME # Corrected import
+from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHandlerActionType
+from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME
 from instructor.exceptions import InstructorRetryException
-import instructor # Import the main instructor module for Mode
-from ciris_engine.utils import DEFAULT_WA
+from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
 from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -194,7 +192,7 @@ class ActionSelectionPDMAEvaluator:
              logger.warning(f"ActionSelectionPDMA: 'permitted_actions' in triaged_inputs is empty for thought {original_thought.thought_id}. Falling back to default.")
              permitted_actions = default_permitted_actions
 
-        action_options_str = ", ".join([action.value for action in permitted_actions])
+        action_options_str = ", ".join([action.value.upper() for action in permitted_actions])
         # --- End dynamic permitted actions ---
 
         # Using ethical_pdma_result.decision as decision_rationale is not present
@@ -244,10 +242,12 @@ class ActionSelectionPDMAEvaluator:
         action_selection_rationale_csdma_guidance = self._get_profile_specific_prompt("action_selection_rationale_csdma_guidance", agent_name_from_thought)
         action_parameter_schemas = self.prompt.get("action_parameter_schemas", self.DEFAULT_PROMPT.get("action_parameter_schemas", ""))
 
-        profile_specific_system_header_injection = ""
+        profile_specific_system_header_injection = ENGINE_OVERVIEW_TEMPLATE + "\n"
         current_system_header = self.prompt.get("system_header", self.DEFAULT_PROMPT["system_header"])
         if current_system_header != self.DEFAULT_PROMPT["system_header"]:
-            profile_specific_system_header_injection = f"IMPORTANT AGENT PROFILE DIRECTIVE: {current_system_header}\n\n"
+            profile_specific_system_header_injection += f"IMPORTANT AGENT PROFILE DIRECTIVE: {current_system_header}\n\n"
+        else:
+            profile_specific_system_header_injection += "\n"
 
         startup_guidance = ""
         if original_thought.thought_type == "startup_meta":
@@ -397,7 +397,7 @@ Adhere strictly to the schema for your JSON output.
                             parsed_action_params = ObserveParams(**llm_response_internal.action_parameters)
                         elif action_type == HandlerActionType.SPEAK:
                             parsed_action_params = SpeakParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.ACT:
+                        elif action_type == HandlerActionType.TOOL:
                             parsed_action_params = ActParams(**llm_response_internal.action_parameters)
                         elif action_type == HandlerActionType.PONDER:
                             parsed_action_params = PonderParams(**llm_response_internal.action_parameters)
@@ -495,7 +495,7 @@ class _ActionSelectionLLMResponse(BaseModel):
 ACTION_PARAM_MODELS: Dict[CoreHandlerActionType, type[BaseModel]] = {
     CoreHandlerActionType.OBSERVE: ObserveParams,
     CoreHandlerActionType.SPEAK: SpeakParams,
-    CoreHandlerActionType.ACT: ActParams,
+    CoreHandlerActionType.TOOL: ActParams,
     CoreHandlerActionType.PONDER: PonderParams,
     CoreHandlerActionType.REJECT: RejectParams,
     CoreHandlerActionType.DEFER: DeferParams,

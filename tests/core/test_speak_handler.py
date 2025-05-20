@@ -12,7 +12,7 @@ class DummyDiscord:
 async def test_handle_speak():
     t = Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content="")
     svc = DummyDiscord()
-    await handle_speak(t, {"content": "hi", "target_channel": "c"}, svc)
+    new_thought = await handle_speak(t, {"content": "hi", "target_channel": "c"}, svc)
     assert svc.sent == [("c", "hi")]
-    assert t.action_count == 1
-    assert t.history[0]["action"] == "speak"
+    assert new_thought.source_task_id == t.source_task_id
+    assert new_thought.related_thought_id == t.thought_id

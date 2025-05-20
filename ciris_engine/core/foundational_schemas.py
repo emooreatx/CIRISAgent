@@ -15,7 +15,7 @@ class HandlerActionType(str, Enum):
     # External actions
     OBSERVE = "observe"
     SPEAK = "speak"
-    ACT = "act"
+    TOOL = "tool"
 
     # Control responses
     REJECT = "reject"
@@ -26,6 +26,7 @@ class HandlerActionType(str, Enum):
     MEMORIZE = "memorize"
     REMEMBER = "remember"
     FORGET = "forget"
+    TASK_COMPLETE = "task_complete"
 
 class TaskStatus(str, Enum):
     PENDING = "pending"

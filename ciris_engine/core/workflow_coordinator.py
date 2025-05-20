@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
     from ciris_engine.utils import GraphQLContextProvider
 
-# MAX_PONDER_ROUNDS = 5 # REMOVED Constant - will use config
 
 class WorkflowCoordinator:
     """
@@ -38,14 +37,14 @@ class WorkflowCoordinator:
                  llm_client: CIRISLLMClient, # This LLM client MUST support async operations
                  ethical_pdma_evaluator: EthicalPDMAEvaluator,
                  csdma_evaluator: CSDMAEvaluator,
-                 action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator, # Corrected type
+                 action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator,
                  ethical_guardrails: EthicalGuardrails,
-                 app_config: AppConfig, # Corrected type hint to AppConfig
-                 # thought_queue_manager: ThoughtQueueManager, # <-- REMOVE THIS
+                 app_config: AppConfig,
+                 # thought_queue_manager: ThoughtQueueManager,
                  dsdma_evaluators: Optional[Dict[str, 'BaseDSDMA']] = None, # Use string literal for forward reference
                  memory_service: Optional['DiscordGraphMemory'] = None,
                  graphql_context_provider: Optional['GraphQLContextProvider'] = None,
-                 # current_round_number: int = 0 # REMOVED from parameters
+                 # current_round_number: int = 0
                 ):
         self.llm_client = llm_client
         self.ethical_pdma_evaluator = ethical_pdma_evaluator
@@ -58,10 +57,10 @@ class WorkflowCoordinator:
             enable_remote_graphql=app_config.enable_remote_graphql,
         )
         self.ethical_guardrails = ethical_guardrails
-        self.app_config = app_config # Store full AppConfig
-        self.workflow_config = app_config.workflow # Store workflow_config part
-        self.max_ponder_rounds = self.workflow_config.max_ponder_rounds # Store specific value
-        # self.thought_queue_manager = thought_queue_manager # <-- REMOVE THIS
+        self.app_config = app_config
+        self.workflow_config = app_config.workflow
+        self.max_ponder_rounds = self.workflow_config.max_ponder_rounds
+        # self.thought_queue_manager = thought_queue_manager
         self.current_round_number = 0 # Initialize internally
 
     def advance_round(self):
@@ -132,11 +131,22 @@ class WorkflowCoordinator:
 
         # 1. Ethical PDMA Task
         logging.debug(f"Scheduling Ethical PDMA for thought ID {thought_object.thought_id}") # Use thought_object
-        initial_dma_tasks.append(self.ethical_pdma_evaluator.evaluate(thought_object)) # Pass thought_object
+        from ciris_engine.dma.dma_executor import (
+            run_pdma,
+            run_csdma,
+            run_dsdma,
+            run_dma_with_retries,
+        )
+
+        initial_dma_tasks.append(
+            run_dma_with_retries(run_pdma, self.ethical_pdma_evaluator, thought_object)
+        )
 
         # 2. CSDMA Task
         logging.debug(f"Scheduling CSDMA for thought ID {thought_object.thought_id}") # Use thought_object
-        initial_dma_tasks.append(self.csdma_evaluator.evaluate_thought(thought_object)) # Pass thought_object
+        initial_dma_tasks.append(
+            run_dma_with_retries(run_csdma, self.csdma_evaluator, thought_object)
+        )
 
         # 3. DSDMA Task (select and run if applicable)
         selected_dsdma_instance: Optional['BaseDSDMA'] = None # Use string literal
@@ -160,8 +170,14 @@ class WorkflowCoordinator:
             active_profile_name_for_dsdma = next(iter(self.dsdma_evaluators)) # Key is assumed to be profile name
             active_dsdma = self.dsdma_evaluators.get(active_profile_name_for_dsdma)
             if active_dsdma:
-                logging.debug(f"Scheduling DSDMA '{active_dsdma.domain_name}' (Profile: {active_profile_name_for_dsdma}) for thought ID {thought_object.thought_id}")
-                initial_dma_tasks.append(active_dsdma.evaluate_thought(thought_object, current_platform_context)) # Pass thought_object
+                logging.debug(
+                    f"Scheduling DSDMA '{active_dsdma.domain_name}' (Profile: {active_profile_name_for_dsdma}) for thought ID {thought_object.thought_id}"
+                )
+                initial_dma_tasks.append(
+                    run_dma_with_retries(
+                        run_dsdma, active_dsdma, thought_object, current_platform_context
+                    )
+                )
                 selected_dsdma_instance = active_dsdma
             else: # Should not happen if dsdma_evaluators is not empty
                 logging.warning(f"DSDMA evaluators populated, but could not retrieve an instance for profile key {active_profile_name_for_dsdma} for thought {thought_object.thought_id}")
@@ -175,6 +191,36 @@ class WorkflowCoordinator:
         logging.debug(f"Awaiting {len(initial_dma_tasks)} initial DMA tasks for thought ID {thought_item.thought_id}")
         dma_results: List[Any] = await asyncio.gather(*initial_dma_tasks, return_exceptions=True)
         logging.debug(f"Initial DMA tasks completed for thought ID {thought_item.thought_id}")
+
+        for res in dma_results:
+            if isinstance(res, Thought) and any(
+                e.get("type") == "dma_failure" for e in res.escalations
+            ):
+                logging.error(
+                    "DMA failure detected for thought %s", res.thought_id
+                )
+                persistence.update_thought_status(
+                    thought_id=res.thought_id,
+                    new_status=ThoughtStatus.DEFERRED,
+                    round_processed=self.current_round_number,
+                    final_action_result={"status": "DMA failure"},
+                )
+                from .agent_core_schemas import DeferParams
+
+                last_event = res.escalations[-1]
+                defer_params = DeferParams(
+                    reason=last_event["reason"],
+                    target_wa_ual=DEFAULT_WA,
+                    deferral_package_content=last_event,
+                )
+                return ActionSelectionPDMAResult(
+                    context_summary_for_action_selection="DMA failure",
+                    action_alignment_check={"error": "DMA failure"},
+                    selected_handler_action=HandlerActionType.DEFER,
+                    action_parameters=defer_params,
+                    action_selection_rationale="DMA failure prior to ActionSelection",
+                    monitoring_for_selected_action={"status": "DMA failure"},
+                )
 
         ethical_pdma_result: Optional[EthicalPDMAResult] = None
         csdma_result: Optional[CSDMAResult] = None
@@ -280,8 +326,11 @@ class WorkflowCoordinator:
             "agent_profile": active_profile_for_as # Pass the determined agent profile object
         }
 
-        action_selection_result: ActionSelectionPDMAResult = await self.action_selection_pdma_evaluator.evaluate(
-            triaged_inputs=triaged_inputs_for_action_selection
+        from ciris_engine.dma.dma_executor import run_action_selection_pdma
+
+        action_selection_result: ActionSelectionPDMAResult = await run_action_selection_pdma(
+            self.action_selection_pdma_evaluator,
+            triaged_inputs_for_action_selection,
         )
         # Log action_parameters carefully, as it can be a Pydantic model
         logging.info(f"Action Selection PDMA chose: {action_selection_result.selected_handler_action.value} with params {str(action_selection_result.action_parameters)}")
