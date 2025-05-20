@@ -65,7 +65,7 @@ def format_system_snapshot_for_prompt(system_snapshot: Optional[Dict[str, Any]],
         
         recent_tasks_summary = system_snapshot.get("recently_completed_tasks_summary", [])
         if recent_tasks_summary:
-            formatted_lines.append("Recently Completed Tasks (for background awareness, not the current focus):")
+            formatted_lines.append("Recently Completed Tasks (Review for relevant context before responding):")
             for i, task_info_dict in enumerate(recent_tasks_summary[:3]): # Limit for prompt brevity
                 if isinstance(task_info_dict, dict):
                     desc = task_info_dict.get('description', 'N/A')
