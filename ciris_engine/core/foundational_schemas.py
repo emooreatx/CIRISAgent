@@ -4,16 +4,29 @@ import logging
 
 logger = logging.getLogger(__name__)
 from enum import Enum
+
+
+class CaseInsensitiveEnum(str, Enum):
+    """Enum that allows case-insensitive value lookup."""
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            lowered = value.lower()
+            for member in cls:
+                if member.value.lower() == lowered or member.name.lower() == lowered:
+                    return member
+        return None
 from typing import Union, List, Dict, Any, Optional # Retaining for now, can be pruned
 
 # Pydantic might not be strictly needed here if only Enums and type aliases
 # from pydantic import BaseModel, Field
 
-class CIRISSchemaVersion(str, Enum):
+class CIRISSchemaVersion(CaseInsensitiveEnum):
     V1_0_BETA = "1.0-beta"
     #... future versions
 
-class HandlerActionType(str, Enum):
+class HandlerActionType(CaseInsensitiveEnum):
     """The 3×3×3 action model for CIRIS handlers."""
 
     # External actions
@@ -32,7 +45,7 @@ class HandlerActionType(str, Enum):
     FORGET = "forget"
     TASK_COMPLETE = "task_complete"
 
-class TaskStatus(str, Enum):
+class TaskStatus(CaseInsensitiveEnum):
     PENDING = "pending"
     ACTIVE = "active"
     COMPLETED = "completed"
@@ -41,7 +54,7 @@ class TaskStatus(str, Enum):
     DEFERRED = "deferred" # Task deferred to WA
     REJECTED = "rejected" # Task rejected by agent
 
-class ThoughtStatus(str, Enum):
+class ThoughtStatus(CaseInsensitiveEnum):
     PENDING = "pending" # Includes thoughts queued for pondering
     PROCESSING = "processing"
     COMPLETED = "completed" # Terminal state after action/deferral
@@ -51,13 +64,13 @@ class ThoughtStatus(str, Enum):
     REJECTED = "rejected" # Outcome was rejection
 
 
-class MemoryUpdateContext(str, Enum):
+class MemoryUpdateContext(CaseInsensitiveEnum):
     """Context markers for memory updates."""
 
     CHANNEL_UPDATE_REQUEST = "channel_update_request"
     CHANNEL_UPDATE_WA_APPROVED = "channel_update_wa_approved"
 
-class ObservationSourceType(str, Enum):
+class ObservationSourceType(CaseInsensitiveEnum):
     DISCORD_MESSAGE = "discord_message"
     WBD_PACKAGE = "wbd_package" # Wisdom-Based Deferral package received
     CORRECTION_PACKAGE = "correction_package" # Feedback/correction received
@@ -68,7 +81,7 @@ class ObservationSourceType(str, Enum):
     AGENT_MESSAGE = "agent_message" # Observation derived from another agent's message
     DKG_UPDATE = "dkg_update" # Change detected in a relevant KA
 
-class DKGAssetType(str, Enum):
+class DKGAssetType(CaseInsensitiveEnum):
     AGENT_PROFILE = "AgentProfile"
     TASK_DEFINITION = "TaskDefinition"
     ENVIRONMENT_MODEL = "EnvironmentModel"
