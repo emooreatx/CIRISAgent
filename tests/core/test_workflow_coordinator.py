@@ -254,6 +254,8 @@ async def test_process_thought_guardrail_failure(
     assert result is not None
     assert result.selected_handler_action == HandlerActionType.DEFER # Should be deferred
     assert "Guardrail failed" in result.action_parameters.reason # Access the 'reason' attribute directly
+    assert sample_thought.escalations
+    assert sample_thought.escalations[0]["type"] == "guardrail_violation"
 
 
 @pytest.mark.skip(reason="Failing with AttributeError: 'PonderParams' object has no attribute 'get' in SUT")
