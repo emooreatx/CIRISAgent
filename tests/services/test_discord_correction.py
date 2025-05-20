@@ -14,7 +14,7 @@ async def test_create_correction_thought(monkeypatch):
     monkeypatch.setenv("DISCORD_BOT_TOKEN", "x")
     monkeypatch.setenv("DISCORD_CHANNEL_ID", "1")
 
-    dispatcher = ActionDispatcher()
+    dispatcher = ActionDispatcher({})
     service = DiscordService(dispatcher)
 
     added = {}
