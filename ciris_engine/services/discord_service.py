@@ -468,7 +468,7 @@ class DiscordService(Service):
                 else:
                     logger.error(f"DiscordService: Invalid params type for REJECT: {type(params)}") # Corrected log
             
-            elif action_type == HandlerActionType.ACT:
+            elif action_type == HandlerActionType.TOOL:
                 if isinstance(params, ActParams):
                     tool_name = params.tool_name
                     tool_args = params.arguments

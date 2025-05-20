@@ -7,13 +7,15 @@ from .action_handlers.observe_handler import handle_observe
 from .action_handlers.memorize_handler import handle_memorize
 from .action_handlers.defer_handler import handle_defer
 from .action_handlers.tool_handler import handle_tool
+from .action_handlers.task_complete_handler import handle_task_complete
 
 handler_map = {
     HandlerActionType.SPEAK: handle_speak,
     HandlerActionType.OBSERVE: handle_observe,
     HandlerActionType.MEMORIZE: handle_memorize,
     HandlerActionType.DEFER: handle_defer,
-    HandlerActionType.ACT: handle_tool,
+    HandlerActionType.TOOL: handle_tool,
+    HandlerActionType.TASK_COMPLETE: handle_task_complete,
 }
 
 ServiceHandlerCallable = Callable[[Any, Any], Awaitable[None]]
