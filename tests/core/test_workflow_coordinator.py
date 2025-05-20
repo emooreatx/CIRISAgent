@@ -5,7 +5,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
-from ciris_engine.core.agent_core_schemas import Thought, ActionSelectionPDMAResult, EthicalPDMAResult, CSDMAResult
+from ciris_engine.core.agent_core_schemas import (
+    Thought,
+    ActionSelectionPDMAResult,
+    EthicalPDMAResult,
+    CSDMAResult,
+    DSDMAResult,
+)
 from ciris_engine.core.foundational_schemas import ThoughtStatus, HandlerActionType, TaskStatus
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.config_schemas import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig, SerializableAgentProfile
@@ -65,6 +71,13 @@ async def memory_service(tmp_path: Path):
 def mock_dsdma_evaluators_dict():
     # For simplicity, start with an empty dict or a basic mock if needed
     return {}
+
+@pytest.fixture
+def mock_dsdma_evaluators_with_item():
+    dsdma = AsyncMock()
+    dsdma.evaluate_thought = AsyncMock()
+    dsdma.domain_name = "MockDomain"
+    return {"default_profile": dsdma}
 
 
 @pytest.fixture
@@ -426,3 +439,97 @@ async def test_process_thought_object_not_found(
     assert hasattr(result.action_parameters, 'reason'), "action_parameters object missing 'reason' attribute"
     assert f"Failed to retrieve thought object for ID {sample_processing_queue_item.thought_id}" in result.action_parameters.reason
     mock_persistence.update_thought_status.assert_not_called() # No status update if thought isn't processed
+
+
+@pytest.mark.asyncio
+@patch('ciris_engine.core.workflow_coordinator.persistence')
+async def test_process_thought_with_dsdma_success(
+    mock_persistence,
+    workflow_coordinator_instance: WorkflowCoordinator,
+    mock_dsdma_evaluators_with_item,
+    sample_processing_queue_item: ProcessingQueueItem,
+    sample_thought: Thought,
+    mock_ethical_pdma_evaluator: MagicMock,
+    mock_csdma_evaluator: MagicMock,
+    mock_action_selection_pdma_evaluator: MagicMock,
+    mock_ethical_guardrails: MagicMock,
+):
+    """Ensure PDMA, CSDMA, and DSDMA run and feed ActionSelectionPDMA."""
+    workflow_coordinator_instance.dsdma_evaluators = mock_dsdma_evaluators_with_item
+    dsdma_mock = mock_dsdma_evaluators_with_item["default_profile"]
+
+    mock_persistence.get_thought_by_id = MagicMock(return_value=sample_thought)
+    mock_persistence.update_thought_status = MagicMock(return_value=True)
+
+    ethical_result = EthicalPDMAResult(context="ctx", alignment_check={}, decision="dec", monitoring={})
+    cs_result = CSDMAResult(common_sense_plausibility_score=1.0, flags=[], reasoning="ok")
+    dsdma_result = DSDMAResult(domain_name="Mock", domain_alignment_score=0.5, recommended_action=None, flags=[], reasoning="ok")
+
+    mock_ethical_pdma_evaluator.evaluate.return_value = ethical_result
+    mock_csdma_evaluator.evaluate_thought.return_value = cs_result
+    dsdma_mock.evaluate_thought.return_value = dsdma_result
+
+    asp_result = ActionSelectionPDMAResult(
+        context_summary_for_action_selection="sum",
+        action_alignment_check={},
+        selected_handler_action=HandlerActionType.SPEAK,
+        action_parameters={"content": "hi"},
+        action_selection_rationale="r",
+        monitoring_for_selected_action={"s": "1"},
+    )
+    mock_action_selection_pdma_evaluator.evaluate.return_value = asp_result
+
+    result = await workflow_coordinator_instance.process_thought(sample_processing_queue_item)
+
+    assert result.selected_handler_action == HandlerActionType.SPEAK
+    mock_ethical_pdma_evaluator.evaluate.assert_called_once()
+    mock_csdma_evaluator.evaluate_thought.assert_called_once()
+    dsdma_mock.evaluate_thought.assert_called_once()
+    mock_action_selection_pdma_evaluator.evaluate.assert_called_once()
+    triaged = mock_action_selection_pdma_evaluator.evaluate.call_args.kwargs["triaged_inputs"]
+    assert triaged["dsdma_result"] is dsdma_result
+
+
+@pytest.mark.asyncio
+@patch('ciris_engine.core.workflow_coordinator.persistence')
+async def test_process_thought_dsdma_exception(
+    mock_persistence,
+    workflow_coordinator_instance: WorkflowCoordinator,
+    mock_dsdma_evaluators_with_item,
+    sample_processing_queue_item: ProcessingQueueItem,
+    sample_thought: Thought,
+    mock_ethical_pdma_evaluator: MagicMock,
+    mock_csdma_evaluator: MagicMock,
+    mock_action_selection_pdma_evaluator: MagicMock,
+    mock_ethical_guardrails: MagicMock,
+):
+    """If DSDMA fails, ActionSelectionPDMA still runs with None."""
+    workflow_coordinator_instance.dsdma_evaluators = mock_dsdma_evaluators_with_item
+    dsdma_mock = mock_dsdma_evaluators_with_item["default_profile"]
+
+    mock_persistence.get_thought_by_id = MagicMock(return_value=sample_thought)
+    mock_persistence.update_thought_status = MagicMock(return_value=True)
+
+    ethical_result = EthicalPDMAResult(context="ctx", alignment_check={}, decision="dec", monitoring={})
+    cs_result = CSDMAResult(common_sense_plausibility_score=1.0, flags=[], reasoning="ok")
+
+    mock_ethical_pdma_evaluator.evaluate.return_value = ethical_result
+    mock_csdma_evaluator.evaluate_thought.return_value = cs_result
+    dsdma_mock.evaluate_thought.side_effect = Exception("fail")
+
+    asp_result = ActionSelectionPDMAResult(
+        context_summary_for_action_selection="sum",
+        action_alignment_check={},
+        selected_handler_action=HandlerActionType.SPEAK,
+        action_parameters={"content": "hi"},
+        action_selection_rationale="r",
+        monitoring_for_selected_action={"s": "1"},
+    )
+    mock_action_selection_pdma_evaluator.evaluate.return_value = asp_result
+
+    result = await workflow_coordinator_instance.process_thought(sample_processing_queue_item)
+
+    assert result.selected_handler_action == HandlerActionType.SPEAK
+    mock_action_selection_pdma_evaluator.evaluate.assert_called_once()
+    triaged = mock_action_selection_pdma_evaluator.evaluate.call_args.kwargs["triaged_inputs"]
+    assert triaged["dsdma_result"] is None

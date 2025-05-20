@@ -132,11 +132,13 @@ class WorkflowCoordinator:
 
         # 1. Ethical PDMA Task
         logging.debug(f"Scheduling Ethical PDMA for thought ID {thought_object.thought_id}") # Use thought_object
-        initial_dma_tasks.append(self.ethical_pdma_evaluator.evaluate(thought_object)) # Pass thought_object
+        from ciris_engine.dma.dma_executor import run_pdma, run_csdma, run_dsdma
+
+        initial_dma_tasks.append(run_pdma(self.ethical_pdma_evaluator, thought_object))
 
         # 2. CSDMA Task
         logging.debug(f"Scheduling CSDMA for thought ID {thought_object.thought_id}") # Use thought_object
-        initial_dma_tasks.append(self.csdma_evaluator.evaluate_thought(thought_object)) # Pass thought_object
+        initial_dma_tasks.append(run_csdma(self.csdma_evaluator, thought_object))
 
         # 3. DSDMA Task (select and run if applicable)
         selected_dsdma_instance: Optional['BaseDSDMA'] = None # Use string literal
@@ -160,8 +162,12 @@ class WorkflowCoordinator:
             active_profile_name_for_dsdma = next(iter(self.dsdma_evaluators)) # Key is assumed to be profile name
             active_dsdma = self.dsdma_evaluators.get(active_profile_name_for_dsdma)
             if active_dsdma:
-                logging.debug(f"Scheduling DSDMA '{active_dsdma.domain_name}' (Profile: {active_profile_name_for_dsdma}) for thought ID {thought_object.thought_id}")
-                initial_dma_tasks.append(active_dsdma.evaluate_thought(thought_object, current_platform_context)) # Pass thought_object
+                logging.debug(
+                    f"Scheduling DSDMA '{active_dsdma.domain_name}' (Profile: {active_profile_name_for_dsdma}) for thought ID {thought_object.thought_id}"
+                )
+                initial_dma_tasks.append(
+                    run_dsdma(active_dsdma, thought_object, current_platform_context)
+                )
                 selected_dsdma_instance = active_dsdma
             else: # Should not happen if dsdma_evaluators is not empty
                 logging.warning(f"DSDMA evaluators populated, but could not retrieve an instance for profile key {active_profile_name_for_dsdma} for thought {thought_object.thought_id}")
@@ -280,8 +286,11 @@ class WorkflowCoordinator:
             "agent_profile": active_profile_for_as # Pass the determined agent profile object
         }
 
-        action_selection_result: ActionSelectionPDMAResult = await self.action_selection_pdma_evaluator.evaluate(
-            triaged_inputs=triaged_inputs_for_action_selection
+        from ciris_engine.dma.dma_executor import run_action_selection_pdma
+
+        action_selection_result: ActionSelectionPDMAResult = await run_action_selection_pdma(
+            self.action_selection_pdma_evaluator,
+            triaged_inputs_for_action_selection,
         )
         # Log action_parameters carefully, as it can be a Pydantic model
         logging.info(f"Action Selection PDMA chose: {action_selection_result.selected_handler_action.value} with params {str(action_selection_result.action_parameters)}")
