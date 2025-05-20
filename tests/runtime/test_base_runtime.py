@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -44,13 +45,15 @@ async def test_dream_action_filter_blocks(mocker):
 
     svc = DummySvc()
     runtime.dispatcher.register_service_handler("discord", svc)
-    await runtime.dispatcher.dispatch(HandlerActionType.SPEAK, Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"content": "x"}, {"discord_service": svc})
+    with patch.object(persistence, "add_thought", lambda t: t):
+        await runtime.dispatcher.dispatch(HandlerActionType.SPEAK, Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"content": "x"}, {"discord_service": svc})
     svc.send_message.assert_awaited_once()
 
     svc.send_message.reset_mock()
     runtime.dreaming = True
     runtime.dispatcher.action_filter = runtime._dream_action_filter
-    await runtime.dispatcher.dispatch(HandlerActionType.SPEAK, Thought(thought_id="t2", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"content": "x"}, {"discord_service": svc})
+    with patch.object(persistence, "add_thought", lambda t: t):
+        await runtime.dispatcher.dispatch(HandlerActionType.SPEAK, Thought(thought_id="t2", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"content": "x"}, {"discord_service": svc})
     svc.send_message.assert_not_awaited()
 
 @pytest.mark.asyncio

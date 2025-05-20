@@ -1,7 +1,10 @@
-from ..agent_core_schemas import Thought
+"""Service action for DEFER."""
 
-async def handle_defer(thought: Thought, params: dict):
+from ..agent_core_schemas import Thought
+from .helpers import create_follow_up_thought
+
+async def handle_defer(thought: Thought, params: dict) -> Thought:
+    """Mark the thought deferred and return a follow-up Thought."""
     reason = params.get("reason")
     thought.is_terminal = True
-    thought.action_count += 1
-    thought.history.append({"action": "defer", "reason": reason})
+    return create_follow_up_thought(thought, content=str(reason))
