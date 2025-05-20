@@ -188,10 +188,13 @@ class BaseRuntime:
 
     async def _dream_action_filter(self, result: ActionSelectionPDMAResult, ctx: dict) -> bool:
         allowed = result.selected_handler_action in self.DREAM_ALLOWED
-        if not allowed:
-            if self.audit_service:
-                await self.audit_service.log_action(result.selected_handler_action, {"dream": True, **ctx})
-        return allowed
+        if not allowed and self.audit_service:
+            await self.audit_service.log_action(
+                result.selected_handler_action,
+                {"dream": True, **ctx},
+            )
+        # Return True when the action should be skipped (i.e., not allowed)
+        return not allowed
 
     async def run_dream(self, duration: float = 3600, pulse_interval: float = 300):
         self.dreaming = True

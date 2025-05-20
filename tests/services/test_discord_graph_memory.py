@@ -9,6 +9,8 @@ from ciris_engine.services.discord_graph_memory import (
     MemoryOpStatus,
 )
 from ciris_engine.services.discord_observer import DiscordObserver
+from ciris_engine.services.discord_event_queue import DiscordEventQueue
+from ciris_engine.runtime.base_runtime import IncomingMessage
 
 
 @pytest.mark.asyncio
@@ -62,8 +64,10 @@ async def test_observe_does_not_modify_graph(tmp_path: Path):
     await service.start()
 
     dispatch_mock = AsyncMock()
-    observer = DiscordObserver(dispatch_mock)
-    await observer.handle_event("bob", "general", "hi")
+    q = DiscordEventQueue()
+    observer = DiscordObserver(dispatch_mock, message_queue=q)
+    msg = IncomingMessage(message_id="1", author_id="1", author_name="bob", content="hi", channel_id="general")
+    await observer.handle_incoming_message(msg)
 
     dispatch_mock.assert_awaited_once()
     assert len(service.graph.nodes) == 0
@@ -78,8 +82,10 @@ async def test_observe_queries_graph(tmp_path: Path):
     remember_mock = AsyncMock()
     service.remember = remember_mock
 
-    observer = DiscordObserver(lambda payload: service.remember(payload["context"]["user_nick"]))
-    await observer.handle_event("carol", "general", "hello")
+    q = DiscordEventQueue()
+    observer = DiscordObserver(lambda payload: service.remember(payload["context"]["author_name"]), message_queue=q)
+    msg = IncomingMessage(message_id="2", author_id="2", author_name="carol", content="hello", channel_id="general")
+    await observer.handle_incoming_message(msg)
 
     remember_mock.assert_awaited_once_with("carol")
 
