@@ -1,5 +1,8 @@
 from pydantic import BaseModel, Field
 from typing import Union, List, Dict, Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .foundational_schemas import (
     CIRISSchemaVersion,

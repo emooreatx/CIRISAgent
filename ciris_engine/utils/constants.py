@@ -1,4 +1,7 @@
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_WA = os.getenv("WA_DISCORD_USER", "somecomputerguy")
 WA_USER_ID = os.getenv("WA_USER_ID")

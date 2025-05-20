@@ -1,5 +1,7 @@
 import sys # Import sys for maxsize
 import logging
+
+logger = logging.getLogger(__name__)
 import asyncio # New import
 from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING # Added TYPE_CHECKING
 from pydantic import BaseModel # Added import

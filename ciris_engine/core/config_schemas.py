@@ -2,6 +2,9 @@ import os
 from enum import Enum
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import HandlerActionType for use in profile schema
 from .foundational_schemas import HandlerActionType
