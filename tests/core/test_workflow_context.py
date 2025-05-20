@@ -89,6 +89,6 @@ async def test_build_context_includes_recent_tasks_and_profiles(
 
     ctx = await workflow_coordinator_instance.build_context(task, sample_thought)
 
-    assert ctx['recently_completed_tasks'][0]['task_id'] == 'c1'
-    assert ctx['recently_completed_tasks'][0]['outcome'] == {'result': 'ok'}
+    assert ctx['recently_completed_tasks_summary'][0]['task_id'] == 'c1'
+    assert ctx['recently_completed_tasks_summary'][0]['outcome'] == {'result': 'ok'}
     assert ctx['user_profiles']['alice']['nick'] == 'Alice'
