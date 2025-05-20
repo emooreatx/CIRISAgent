@@ -261,3 +261,19 @@ class ActionDispatcher:
         # Handle any other unexpected action types
         else:
             logger.error(f"Unhandled action type received by ActionDispatcher: {action_type.value}")
+
+        thought_id = original_context.get("thought_id")
+        if thought_id:
+            thought = persistence.get_thought_by_id(thought_id)
+            if thought:
+                thought.action_count += 1
+                thought.history.append({
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "action": action_type.value,
+                    "service": origin_service,
+                })
+                if action_type == HandlerActionType.DEFER:
+                    thought.escalations.append({
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "type": "defer",
+                    })
