@@ -73,6 +73,10 @@ class Thought(BaseModel):
     related_thought_id: Optional[str] = None # Link to parent thought if spawned (metathoughts)
     final_action_result: Optional[ActionSelectionPDMAResult] = None # Stores the outcome
 
+    action_count: int = 0
+    history: List[Dict[str, Any]] = Field(default_factory=list)
+    escalations: List[Dict[str, Any]] = Field(default_factory=list)
+    is_terminal: bool = False
 # --- Epistemic Faculty Schemas ---
 
 class EntropyResult(BaseModel):
@@ -84,29 +88,3 @@ class CoherenceResult(BaseModel):
 # --- DMA Schemas ---
 
 
-# --- Observation Record ---
-
-class ObservationRecord(BaseModel):
-    schema_version: CIRISSchemaVersion = CIRISSchemaVersion.V1_0_BETA
-    observation_id: str # Unique identifier
-    timestamp: str # ISO8601 timestamp when observation was made/received
-    source_type: ObservationSourceType
-    source_identifier: Optional[str] = None # e.g., Discord message ID, Sensor ID, Agent UAL/DID
-    data_schema_ual: Optional[CIRISKnowledgeAssetUAL] = None # UAL pointing to the schema of the data payload
-    data_payload: Any # The actual observed data (structure depends on source_type/data_schema_ual)
-    confidence: float = Field(..., ge=0.0, le=1.0)
-    metadata: Optional[Dict[str, Any]] = None # Additional context
-
-# --- Audit Log Entry ---
-class AuditLogEntry(BaseModel):
-    schema_version: CIRISSchemaVersion = CIRISSchemaVersion.V1_0_BETA
-    event_id: str # Unique ID for this specific log entry (e.g., UUID)
-    event_timestamp: str # ISO8601 timestamp with high precision
-    event_type: str # e.g., "ActionExecuted", "MessageSent", "DKGQueryPerformed", "Error"
-    originator_id: Union[CIRISAgentUAL, VeilidDID] # ID of the entity generating the event
-    target_id: Optional[Union[CIRISAgentUAL, VeilidDID, CIRISTaskUAL, CIRISKnowledgeAssetUAL]] = None # ID of the target, if any
-    event_summary: str # Concise summary
-    event_payload_schema_ual: Optional[CIRISKnowledgeAssetUAL] = None # Schema for the payload
-    event_payload: Optional[Any] = None # Detailed data, potentially serialized or a reference
-    dkg_assertion_link: Optional[CIRISKnowledgeAssetUAL] = None # Link if event corresponds to a KA assertion
-    # Signature will be added externally during the logging process before batching
