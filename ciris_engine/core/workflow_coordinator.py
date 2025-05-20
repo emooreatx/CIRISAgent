@@ -18,6 +18,7 @@ from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.utils import DEFAULT_WA
 from ciris_engine.utils import GraphQLContextProvider
+from .thought_escalation import escalate_due_to_guardrail
 
 if TYPE_CHECKING:
     from ciris_engine.dma.dsdma_base import BaseDSDMA # Import only for type checking
@@ -334,6 +335,15 @@ class WorkflowCoordinator:
                 reason=f"Guardrail failure: {reason}",
                 target_wa_ual=DEFAULT_WA,
                 deferral_package_content=deferral_package_for_guardrail
+            )
+
+            escalate_due_to_guardrail(
+                thought_object,
+                reason=(
+                    f"Guardrail violation detected: {reason}. DMA: ActionSelectionPDMA, "
+                    f"Task: {thought_object.source_task_id}. "
+                    f"Last action: {thought_object.history[-1]['action']}" if thought_object.history else "Last action: None"
+                ),
             )
 
             final_action_result = ActionSelectionPDMAResult( 
