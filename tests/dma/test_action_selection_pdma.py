@@ -32,8 +32,8 @@ from ciris_engine.dma.action_selection_pdma import (
     _ActionSelectionLLMResponse, # Internal model for mocking LLM output
     ACTION_PARAM_MODELS
 )
+from ciris_engine.utils.constants import ENGINE_OVERVIEW_TEMPLATE
 import ciris_engine.dma.action_selection_pdma as action_selection_pdma_module # Import the module itself
-from ciris_engine.dma.dsdma_teacher import BasicTeacherDSDMA # For sample profile
 from ciris_engine.core.config_schemas import AppConfig, OpenAIConfig, LLMServicesConfig # Corrected import path
 from ciris_engine.core.config_manager import get_config # get_config is fine here
 
@@ -132,10 +132,10 @@ def sample_agent_profile():
     """Provides a sample SerializableAgentProfile."""
     return SerializableAgentProfile(
         name="TestProfile",
-        dsdma_identifier="BasicTeacherDSDMA", # Use identifier string
-        dsdma_kwargs={},
-        permitted_actions=[CoreHandlerActionType.SPEAK, CoreHandlerActionType.PONDER, CoreHandlerActionType.REJECT], # Include permitted actions
-        action_selection_pdma_overrides={"system_header": "You are a helpful test assistant."} # Use new field name
+        dsdma_identifier="BaseDSDMA",
+        dsdma_overrides={"prompt_template": "Test DSDMA {context_str} {rules_summary_str}"},
+        permitted_actions=[CoreHandlerActionType.SPEAK, CoreHandlerActionType.PONDER, CoreHandlerActionType.REJECT],
+        action_selection_pdma_overrides={"system_header": "You are a helpful test assistant."}
     )
 
 # sample_permitted_actions fixture is no longer needed as it's part of sample_agent_profile
@@ -223,6 +223,7 @@ class TestActionSelectionPDMAEvaluator:
         call_args = action_selection_pdma_evaluator.aclient.chat.completions.create.call_args.kwargs
         assert call_args['model'] == action_selection_pdma_evaluator.model_name
         assert call_args['response_model'] == _ActionSelectionLLMResponse
+        prompt_text = call_args['messages'][0]['content']
 
     async def test_evaluate_instructor_retry_exception(
         self, action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator, sample_triaged_inputs: Dict[str, Any] # Removed mock_openai_client
@@ -267,13 +268,13 @@ class TestActionSelectionPDMAEvaluator:
     ):
         """Test scenario where LLM returns an action for which no ParamModel is defined."""
         # Simulate LLM returning an action type that doesn't have a mapping in ACTION_PARAM_MODELS
-        # For this test, let's assume 'ACT' is temporarily unmapped.
+        # For this test, let's assume 'TOOL' is temporarily unmapped.
         
         expected_llm_response_data = {
             "schema_version": CIRISSchemaVersion.V1_0_BETA,
             "context_summary_for_action_selection": "LLM decided to use a tool.",
             "action_alignment_check": {"tool": "aligned"},
-            "selected_handler_action": CoreHandlerActionType.ACT,
+            "selected_handler_action": CoreHandlerActionType.TOOL,
             "action_parameters": {"tool_name": "calculator", "arguments": {"query": "2+2"}},
             "action_selection_rationale": "A calculation is needed.",
             "monitoring_for_selected_action": "Check tool output."
@@ -303,8 +304,8 @@ class TestActionSelectionPDMAEvaluator:
         
         original_models = action_selection_pdma_module.ACTION_PARAM_MODELS
         modified_models = original_models.copy()
-        if CoreHandlerActionType.ACT in modified_models:
-            del modified_models[CoreHandlerActionType.ACT]
+        if CoreHandlerActionType.TOOL in modified_models:
+            del modified_models[CoreHandlerActionType.TOOL]
 
         monkeypatch.setattr(action_selection_pdma_module, 'ACTION_PARAM_MODELS', modified_models)
         
@@ -314,7 +315,7 @@ class TestActionSelectionPDMAEvaluator:
         # to action_selection_pdma_module after the test.
 
         assert isinstance(result, ActionSelectionPDMAResult)
-        assert result.selected_handler_action == CoreHandlerActionType.ACT
+        assert result.selected_handler_action == CoreHandlerActionType.TOOL
         
         # Check the content of action_parameters
         # It could be an ActParams object (due to Pydantic Union behavior) or a dict.
