@@ -1,6 +1,9 @@
 import logging
 import sys
-from typing import Optional # Added import
+import os
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_LOG_FORMAT = '%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s'
 DEFAULT_LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
@@ -14,7 +17,8 @@ def setup_basic_logging(level: int = logging.INFO,
     Sets up basic logging configuration.
 
     Args:
-        level: The logging level (e.g., logging.INFO, logging.DEBUG).
+        level: The logging level (e.g., logging.INFO, logging.DEBUG). This will be
+            overridden by the ``LOG_LEVEL`` environment variable if present.
         log_format: The format string for log messages.
         date_format: The format string for timestamps in log messages.
         logger_instance: An optional specific logger instance to configure. 
@@ -22,6 +26,12 @@ def setup_basic_logging(level: int = logging.INFO,
         prefix: An optional prefix to add to log messages for this specific setup.
     """
     
+    env_level = os.getenv("LOG_LEVEL")
+    if env_level:
+        level_from_env = logging.getLevelName(env_level.upper())
+        if isinstance(level_from_env, int):
+            level = level_from_env
+
     if prefix:
         effective_log_format = f"{prefix} {log_format}"
     else:
@@ -54,20 +64,7 @@ def setup_basic_logging(level: int = logging.INFO,
     logging.info(f"Basic logging configured. Level: {logging.getLevelName(level)}")
 
 if __name__ == '__main__':
-    # Example usage:
     setup_basic_logging(level=logging.DEBUG)
-    
-    logger = logging.getLogger("MyTestApp")
-    logger.debug("This is a debug message from MyTestApp.")
-    logger.info("This is an info message from MyTestApp.")
-    
-    another_logger = logging.getLogger("AnotherModule")
-    another_logger.info("Info from AnotherModule (should use root config).")
-
-    # Example with a specific logger instance and prefix
-    custom_logger = logging.getLogger("CustomPrefixedLogger")
-    setup_basic_logging(logger_instance=custom_logger, level=logging.INFO, prefix="[CUSTOM]")
-    custom_logger.info("This message has a custom prefix.")
-    
-    # Root logger messages will still use the initial basicConfig setup
-    logging.info("Root logger info message.")
+    logger = logging.getLogger("logging_config_demo")
+    logger.debug("Debug message")
+    logger.info("Info message")

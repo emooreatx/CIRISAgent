@@ -3,6 +3,9 @@ import os
 import asyncio
 from pathlib import Path
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .config_schemas import AppConfig
 

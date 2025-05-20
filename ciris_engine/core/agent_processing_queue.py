@@ -1,6 +1,9 @@
 import collections
 from pydantic import BaseModel, Field
 from typing import Union, List, Dict, Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import the NEW Thought model from agent_core_schemas
 from .agent_core_schemas import Thought

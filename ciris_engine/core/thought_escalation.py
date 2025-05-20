@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 from typing import Dict
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .agent_core_schemas import Thought
 from .foundational_schemas import ThoughtStatus

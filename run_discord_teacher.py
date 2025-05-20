@@ -1,11 +1,13 @@
+import logging
+from ciris_engine.utils.logging_config import setup_basic_logging
+setup_basic_logging(level=logging.INFO)
+
 import os
 import asyncio
-import logging # Import logging
-from typing import Optional # Import Optional
+from typing import Optional
 
 from ciris_engine.runtime.base_runtime import BaseRuntime, DiscordAdapter
 from ciris_engine.core.ports import EventSource, ActionSink
-from ciris_engine.utils.logging_config import setup_basic_logging
 from ciris_engine.core import persistence
 from ciris_engine.core.config_manager import get_config_async
 from ciris_engine.core.agent_processor import AgentProcessor
@@ -122,7 +124,6 @@ async def main() -> None:
         print("DISCORD_BOT_TOKEN not set")
         return
 
-    setup_basic_logging()
     persistence.initialize_database()
 
     # Import IncomingMessage and the generic DiscordEventQueue

@@ -120,6 +120,7 @@ Set the following environment variables (see `.env.example` for a template):
 *   `DISCORD_DEFERRAL_CHANNEL_ID` (Optional): Channel ID used for deferral reports.
 *   `SNORE_CHANNEL_ID` (Optional): Channel ID used for runtime heartbeat notifications.
 *   `WA_DISCORD_USER` (Optional): Fallback Discord username for the Wise Authority. Defaults to `somecomputerguy`.
+*   `LOG_LEVEL` (Optional): Set to `DEBUG` for verbose logging. Defaults to `INFO`.
 
 Example:
 ```bash
@@ -149,7 +150,7 @@ Ensure environment variables (`OPENAI_API_KEY`, `DISCORD_BOT_TOKEN`) are set.
 ```bash
 python run_discord_student.py
 ```
-(The script uses `logging_config.py` for log levels, typically INFO by default).
+(The script uses `logging_config.py` for log levels. Set `LOG_LEVEL=DEBUG` to enable verbose output.)
 
 ### 2. `run_discord_teacher.py` — Discord Teacher Agent
 
