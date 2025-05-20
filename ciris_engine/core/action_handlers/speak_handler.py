@@ -12,10 +12,10 @@ if TYPE_CHECKING:
     from ...services.discord_service import DiscordService
 
 async def handle_speak(
-    thought: Thought, params: dict, discord_service: "DiscordService"
+    thought: Thought, params: dict, discord_service: "DiscordService", **kwargs
 ) -> Thought:
     """Send a Discord message and return a follow-up Thought."""
     content = params["content"]
     target_channel = params.get("target_channel")
-    await discord_service.send_message(target_channel, content)
+    await discord_service.send_output(target_channel, content)
     return create_follow_up_thought(thought)
