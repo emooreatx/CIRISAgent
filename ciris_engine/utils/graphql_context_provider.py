@@ -68,14 +68,8 @@ class GraphQLContextProvider:
             )
             for name, data in zip(missing, memory_results):
                 if data:
-                    # Prioritize "nick", then "data" field, then the original 'name' (author name from Discord)
-                    nick = data.get("nick", data.get("data", name))
-                    channel = data.get("channel")
-                    if not channel:
-                        channels = data.get("channels")
-                        if isinstance(channels, list) and channels:
-                            channel = channels[0]
-                    enriched[name] = {"nick": nick, "channel": channel}
+                    # Store the entire data object from memory
+                    enriched[name] = data
 
         if not enriched:
             return {}

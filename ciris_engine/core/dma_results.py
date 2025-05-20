@@ -46,6 +46,7 @@ class ActionSelectionPDMAResult(BaseModel):
     ethical_assessment_summary: Optional[Dict[str, Any]] = None
     csdma_assessment_summary: Optional[Dict[str, Any]] = None
     dsdma_assessment_summary: Optional[Dict[str, Any]] = None
+    decision_input_context_snapshot: Optional[Dict[str, Any]] = None # Added field for context snapshot
 
     class Config:
         populate_by_name = True
