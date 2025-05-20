@@ -11,7 +11,7 @@ class DummyObserver:
 async def test_handle_observe():
     t = Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content="")
     obs = DummyObserver()
-    await handle_observe(t, {"x": 1}, obs)
+    new_thought = await handle_observe(t, {"x": 1}, obs)
     obs.observe.assert_awaited_with({"x": 1})
-    assert t.action_count == 1
-    assert t.history[0]["action"] == "observe"
+    assert new_thought.source_task_id == t.source_task_id
+    assert new_thought.related_thought_id == t.thought_id
