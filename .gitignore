@@ -14,3 +14,4 @@ __pycache__/
 *.whl
 memory_graph.pkl
 audit_logs.jsonl
+data_archive/

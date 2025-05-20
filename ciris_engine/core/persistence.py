@@ -176,6 +176,52 @@ def _map_row_to_thought(row: sqlite3.Row) -> Thought:
 
 # --- Task Operations ---
 
+def get_tasks_by_status(status: TaskStatus) -> List[Task]:
+    """Retrieves all tasks with a specific status."""
+    sql = "SELECT * FROM tasks WHERE status = ? ORDER BY created_at ASC"
+    tasks = []
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (status.value,))
+            rows = cursor.fetchall()
+            for row in rows:
+                tasks.append(_map_row_to_task(row))
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to get tasks with status {status.value}: {e}")
+    return tasks
+
+def get_tasks_older_than(timestamp_iso: str) -> List[Task]:
+    """Retrieves all tasks created before a given ISO timestamp."""
+    sql = "SELECT * FROM tasks WHERE created_at < ? ORDER BY created_at ASC"
+    tasks = []
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (timestamp_iso,))
+            rows = cursor.fetchall()
+            for row in rows:
+                tasks.append(_map_row_to_task(row))
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to get tasks older than {timestamp_iso}: {e}")
+    return tasks
+
+def delete_tasks_by_ids(task_ids: List[str]) -> int:
+    """Deletes tasks by a list of IDs. Returns the number of tasks deleted."""
+    if not task_ids:
+        return 0
+    placeholders = ','.join('?' for _ in task_ids)
+    sql = f"DELETE FROM tasks WHERE task_id IN ({placeholders})"
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.execute(sql, task_ids)
+            conn.commit()
+            logging.info(f"Deleted {cursor.rowcount} tasks with IDs: {task_ids}")
+            return cursor.rowcount
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to delete tasks by IDs {task_ids}: {e}")
+        return 0
+
 def add_task(task: Task) -> str:
     """Adds a new task to the database."""
     # Use model_dump for serialization compatible with DB schema
@@ -303,6 +349,52 @@ def get_active_tasks_by_priority(limit: int) -> List[Task]:
     return tasks
 
 # --- Thought Operations ---
+
+def get_thoughts_by_status(status: ThoughtStatus) -> List[Thought]:
+    """Retrieves all thoughts with a specific status."""
+    sql = "SELECT * FROM thoughts WHERE status = ? ORDER BY created_at ASC"
+    thoughts = []
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (status.value,))
+            rows = cursor.fetchall()
+            for row in rows:
+                thoughts.append(_map_row_to_thought(row))
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to get thoughts with status {status.value}: {e}")
+    return thoughts
+
+def get_thoughts_older_than(timestamp_iso: str) -> List[Thought]:
+    """Retrieves all thoughts created before a given ISO timestamp."""
+    sql = "SELECT * FROM thoughts WHERE created_at < ? ORDER BY created_at ASC"
+    thoughts = []
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (timestamp_iso,))
+            rows = cursor.fetchall()
+            for row in rows:
+                thoughts.append(_map_row_to_thought(row))
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to get thoughts older than {timestamp_iso}: {e}")
+    return thoughts
+
+def delete_thoughts_by_ids(thought_ids: List[str]) -> int:
+    """Deletes thoughts by a list of IDs. Returns the number of thoughts deleted."""
+    if not thought_ids:
+        return 0
+    placeholders = ','.join('?' for _ in thought_ids)
+    sql = f"DELETE FROM thoughts WHERE thought_id IN ({placeholders})"
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.execute(sql, thought_ids)
+            conn.commit()
+            logging.info(f"Deleted {cursor.rowcount} thoughts with IDs: {thought_ids}")
+            return cursor.rowcount
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to delete thoughts by IDs {thought_ids}: {e}")
+        return 0
 
 def add_thought(thought: Thought) -> str:
     """Adds a new thought to the database."""
