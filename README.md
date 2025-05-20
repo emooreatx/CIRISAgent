@@ -28,7 +28,7 @@ The system is designed for modularity, allowing developers to create and integra
 
 ## Key Features
 
-*   **Modular DMA Pipeline:** A structured workflow for processing thoughts through multiple reasoning stages, managed by the `WorkflowCoordinator`.
+*   **Modular DMA Pipeline:** PDMA (ethical), CSDMA (common sense), and DSDMA (domain) run together for each thought. Once all three results are available, the `ActionSelectionPDMA` uses them to choose the next handler action. This flow is coordinated by the `WorkflowCoordinator`.
 *   **Agent Profiles:** Customizable YAML configurations (`ciris_profiles/`) that define an agent's behavior, DSDMA selection, permitted actions, and LLM prompting strategies for various DMAs.
 *   **Local Execution:** Designed to run locally, enabling edge-side reasoning.
 *   **LLM Integration:** Leverages Large Language Models (LLMs) via `instructor` for structured output from DMAs. Requires an OpenAI-compatible API.
