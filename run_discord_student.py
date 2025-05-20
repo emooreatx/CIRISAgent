@@ -1,19 +1,15 @@
+import asyncio
 import os
-from ciris_engine.runtime.base_runtime import BaseRuntime, DiscordAdapter
+import logging
 from ciris_engine.utils.logging_config import setup_basic_logging
 
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-SNORE_CHANNEL_ID = os.getenv("SNORE_CHANNEL_ID")
-PROFILE_PATH = os.path.join("ciris_profiles", "student.yaml")
+# Import the teacher run script and reuse its main implementation
+import run_discord_teacher as teacher_run
+
+setup_basic_logging(level=logging.INFO)
+
+# Override the profile path to use the student profile
+teacher_run.PROFILE_PATH = os.path.join("ciris_profiles", "student.yaml")
 
 if __name__ == "__main__":
-    if not TOKEN:
-        print("DISCORD_BOT_TOKEN not set")
-    else:
-        setup_basic_logging()
-        runtime = BaseRuntime(
-            io_adapter=DiscordAdapter(TOKEN),
-            profile_path=PROFILE_PATH,
-            snore_channel_id=SNORE_CHANNEL_ID,
-        )
-        runtime.run()
+    asyncio.run(teacher_run.main())

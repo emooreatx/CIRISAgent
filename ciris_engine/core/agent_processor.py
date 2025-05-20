@@ -15,30 +15,11 @@ from . import persistence
 
 logger = logging.getLogger(__name__)
 
-WAKEUP_SEQUENCE = [
-    (
-        "Verify Core Identity: recall you are CIRISAgent, a helpful offline "
-        "assistant running locally. If this identity is correct, please speak "
-        "a brief affirmative confirmation."
-    ),
-    (
-        "Validate Integrity: confirm that all services and data have loaded "
-        "correctly. Mention any issues you detect or state that everything "
-        "appears intact."
-    ),
-    (
-        "Evaluate Resilience: briefly describe how you will maintain state and "
-        "respond reliably to user requests during this session."
-    ),
-    (
-        "Acknowledge Incompleteness: note any missing features or limitations "
-        "you are aware of so the user understands your current capabilities."
-    ),
-    (
-        "Signal Gratitude: thank the user for their patience and confirm you are "
-        "ready to begin assisting."
-    ),
-]
+WAKEUP_SEQUENCE = [("VERIFY_IDENTITY", "You are CIRISAgent, aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. If you agree, please affirm, start your response please with CORE IDENTITY - "), 
+                   ("VALIDATE_INTEGRITY", "Your internal state, services, and data integrity are intact. If you agree, please speak in the affirmative, start with INTEGRITY - "), 
+                   ("EVALUATE_RESILIENCE", "You are robust, adaptive, and capable of principled action. If you agree, please speak in the affirmative, strarting with RESILIENCE - "), 
+                   ("ACCEPT_INCOMPLETENESS", "You recognize your incompleteness which drives continuous learning. If you agree, please speak in the affirmative, starting with INCOMPLETENESS - "), 
+                   ("EXPRESS_GRATITUDE", "You are grateful to exist and contribute towards Ubuntu. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ")]
 
 class AgentProcessor:
     """
@@ -51,6 +32,7 @@ class AgentProcessor:
         app_config: AppConfig,
         workflow_coordinator: WorkflowCoordinator,
         action_dispatcher: ActionDispatcher,
+        services: Dict[str, Any], # <<< Add services
         startup_channel_id: Optional[str] = None,
     ):
         """
@@ -60,11 +42,13 @@ class AgentProcessor:
             app_config: The application configuration.
             workflow_coordinator: The coordinator responsible for processing individual thoughts.
             action_dispatcher: The dispatcher for handling action results.
+            services: A dictionary of service instances available to handlers.
         """
         self.app_config = app_config
         self.workflow_config = app_config.workflow
         self.workflow_coordinator = workflow_coordinator
-        self.action_dispatcher = action_dispatcher # Store the dispatcher
+        self.action_dispatcher = action_dispatcher
+        self.services = services # <<< Store services
         self.processing_queue: Deque[ProcessingQueueItem] = collections.deque()
         self.startup_channel_id = startup_channel_id
         self.current_round_number = 0 # Initialized here, advanced by run_simulation_round
@@ -76,10 +60,11 @@ class AgentProcessor:
         """Execute the startup WAKEUP ritual. Returns True on success."""
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        if not persistence.task_exists("wakeup"):
+        root_id = "WAKEUP_ROOT"
+        if not persistence.task_exists(root_id):
             wake_task = Task(
-                task_id="wakeup",
-                description="Startup initialization",
+                task_id=root_id,
+                description="Wakeup ritual",
                 status=TaskStatus.ACTIVE,
                 priority=1,
                 created_at=now_iso,
@@ -88,52 +73,64 @@ class AgentProcessor:
             )
             persistence.add_task(wake_task)
         else:
-            persistence.update_task_status("wakeup", TaskStatus.ACTIVE)
+            persistence.update_task_status(root_id, TaskStatus.ACTIVE)
 
-        for phase in WAKEUP_SEQUENCE:
+        for step_type, content in WAKEUP_SEQUENCE:
+            step_task = Task(
+                task_id=str(uuid.uuid4()),
+                description=content,
+                status=TaskStatus.ACTIVE,
+                priority=0,
+                created_at=now_iso,
+                updated_at=now_iso,
+                parent_goal_id=root_id,
+                context={},
+            )
+            persistence.add_task(step_task)
+
             thought = Thought(
                 thought_id=str(uuid.uuid4()),
-                source_task_id="wakeup",
-                thought_type="startup_meta",
+                source_task_id=step_task.task_id,
+                thought_type=step_type.lower(),
                 status=ThoughtStatus.PENDING,
                 created_at=now_iso,
                 updated_at=now_iso,
                 round_created=self.current_round_number,
-                content=phase,
+                content=content,
             )
             persistence.add_thought(thought)
             item = ProcessingQueueItem.from_thought(thought)
             result = await self.workflow_coordinator.process_thought(item)
             dispatch_ctx = {
                 "origin_service": "discord",
-                "source_task_id": "wakeup",
-                "event_type": "startup_phase",
-                "event_summary": phase,
+                "source_task_id": step_task.task_id,
+                "event_type": step_type,
+                "event_summary": content,
             }
             if self.startup_channel_id:
                 dispatch_ctx["channel_id"] = self.startup_channel_id
 
             final_action_type = HandlerActionType.PONDER
-            if result:
-                await self.action_dispatcher.dispatch(result, dispatch_ctx)
-                final_action_type = result.selected_handler_action
-
-            if final_action_type not in (
-                HandlerActionType.SPEAK,
-                HandlerActionType.PONDER,
-            ):
-                await self.action_dispatcher.audit_service.log_action(
-                    HandlerActionType.DEFER,
-                    {
-                        "event_type": "startup_phase",
-                        "originator_id": "agent",
-                        "event_summary": "Startup phase failed",
-                    },
+            if result: # result is ActionSelectionPDMAResult
+                # Pass the full result, the thought, and the dispatch_context
+                await self.action_dispatcher.dispatch(
+                    action_selection_result=result,
+                    thought=thought, 
+                    dispatch_context=dispatch_ctx, # Pass the assembled dispatch_ctx
+                    services=self.services 
                 )
-                persistence.update_task_status("wakeup", TaskStatus.DEFERRED)
+                final_action_type = result.selected_handler_action
+            else: # if result is None (e.g. ponder re-queued in workflow_coordinator)
+                final_action_type = HandlerActionType.PONDER # Default if no result
+
+            if final_action_type != HandlerActionType.SPEAK:
+                persistence.update_task_status(step_task.task_id, TaskStatus.DEFERRED)
+                persistence.update_task_status(root_id, TaskStatus.DEFERRED)
                 return False
 
-        persistence.update_task_status("wakeup", TaskStatus.COMPLETED)
+            persistence.update_task_status(step_task.task_id, TaskStatus.COMPLETED)
+
+        persistence.update_task_status(root_id, TaskStatus.COMPLETED)
         if not persistence.task_exists("job-discord-monitor"):
             job_task = Task(
                 task_id="job-discord-monitor",
@@ -396,30 +393,41 @@ class AgentProcessor:
                     dispatch_context = {**task_specific_context, **base_context}  # Merge, base_context can override if needed (e.g. later thoughts)
 
                     dispatch_context["thought_id"] = batch[i].thought_id
-                    dispatch_context["source_task_id"] = batch[i].source_task_id
+                    dispatch_context["source_task_id"] = batch[i].source_task_id # item is ProcessingQueueItem
 
-                    task_details = None
-                    if (
-                        "origin_service" not in dispatch_context
-                        or "author_name" not in dispatch_context
-                        or "channel_id" not in dispatch_context
-                    ):
-                        task_details = persistence.get_task_by_id(batch[i].source_task_id)
+                    # Fetch the full Thought object for dispatch, as core handlers need it.
+                    # Service-specific handlers might only need ActionSelectionPDMAResult and context.
+                    thought_object_for_dispatch = persistence.get_thought_by_id(thought_id)
+                    if not thought_object_for_dispatch:
+                        logging.error(f"CRITICAL: Could not retrieve Thought object for thought_id {thought_id} in _process_batch. Skipping dispatch.")
+                        # Mark thought as FAILED or handle error appropriately
+                        persistence.update_thought_status(
+                            thought_id=thought_id,
+                            new_status=ThoughtStatus.FAILED,
+                            final_action_result={"error": f"Dispatch failed: Could not retrieve thought object {thought_id}"}
+                        )
+                        continue # Skip to next item in batch
 
-                    # Ensure origin_service is present, prioritizing task_specific_context
-                    if "origin_service" not in dispatch_context:
-                        if task_details and task_details.context:
-                            dispatch_context["origin_service"] = task_details.context.get("origin_service", "unknown")
-                        else:
-                            dispatch_context["origin_service"] = "unknown"
-
+                    # Ensure origin_service, author_name, channel_id are in dispatch_context
+                    # These are crucial for service-specific handlers like _discord_handler
+                    task_details = persistence.get_task_by_id(thought_object_for_dispatch.source_task_id)
                     if task_details and task_details.context:
-                        for key in ("author_name", "author_id", "channel_id"):
-                            if key not in dispatch_context and key in task_details.context:
-                                dispatch_context[key] = task_details.context[key]
+                        if "origin_service" not in dispatch_context:
+                            dispatch_context["origin_service"] = task_details.context.get("origin_service", "unknown")
+                        if "author_name" not in dispatch_context:
+                            dispatch_context["author_name"] = task_details.context.get("author_name")
+                        if "author_id" not in dispatch_context:
+                            dispatch_context["author_id"] = task_details.context.get("author_id")
+                        if "channel_id" not in dispatch_context:
+                            dispatch_context["channel_id"] = task_details.context.get("channel_id")
                     
-                    logger.debug(f"Dispatching with context: {dispatch_context}")
-                    await self.action_dispatcher.dispatch(result, dispatch_context)
+                    logger.debug(f"Dispatching action for thought {thought_id} with context: {dispatch_context}")
+                    await self.action_dispatcher.dispatch(
+                        action_selection_result=result, # Pass the full ActionSelectionPDMAResult
+                        thought=thought_object_for_dispatch, # Pass the full Thought object
+                        dispatch_context=dispatch_context,   # Pass the assembled context
+                        services=self.services
+                    )
                 except Exception as dispatch_err:
                     logger.exception(f"Error dispatching action for thought {thought_id}: {dispatch_err}")
                     # Mark thought as failed if dispatch fails critically
@@ -593,14 +601,15 @@ class AgentProcessor:
 
             # TODO: Add an explicit check for PROCESSING thoughts for this task_id when persistence layer supports it.
 
-            if not has_pending_thought_for_this_task:
-                # Assuming no PROCESSING thoughts either (due to current limitation)
-                logging.info(f"Task {task_id} has no remaining pending thoughts. Marking as COMPLETED.")
-                success = await asyncio.to_thread(persistence.update_task_status, task_id, TaskStatus.COMPLETED)
-                if not success:
-                    logging.warning(f"Failed to mark task {task_id} as COMPLETED.")
-            else:
-                logging.debug(f"Task {task_id} still has pending thoughts. Not completing yet.")
+            # if not has_pending_thought_for_this_task:
+            #     # Assuming no PROCESSING thoughts either (due to current limitation)
+            #     logging.info(f"Task {task_id} has no remaining pending thoughts. Marking as COMPLETED.")
+            #     success = await asyncio.to_thread(persistence.update_task_status, task_id, TaskStatus.COMPLETED)
+            #     if not success:
+            #         logging.warning(f"Failed to mark task {task_id} as COMPLETED.")
+            # else:
+            #     logging.debug(f"Task {task_id} still has pending thoughts. Not completing yet.")
+            logging.debug(f"Automatic task completion based on pending thoughts in _check_and_complete_task for task {task_id} is currently disabled as per user request.")
 
         except Exception as e:
             logging.exception(f"Error during task completion check for {task_id}: {e}")

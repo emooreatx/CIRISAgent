@@ -2,6 +2,9 @@ import os
 from enum import Enum
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import HandlerActionType for use in profile schema
 from .foundational_schemas import HandlerActionType
@@ -22,7 +25,9 @@ DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
 DEFAULT_OPENAI_TIMEOUT_SECONDS = 60.0
 DEFAULT_OPENAI_MAX_RETRIES = 2
 DEFAULT_ENTROPY_THRESHOLD = 0.40
-DEFAULT_COHERENCE_THRESHOLD = 0.80
+DEFAULT_COHERENCE_THRESHOLD = 0.60
+# Default retry limit for DMAs
+DMA_RETRY_LIMIT = 3
 # Default priorities are already in agent_core_schemas.py for Task and Thought.
 # If they need to be *dynamically configurable* by wise authorities,
 # they can be included in WorkflowConfig.

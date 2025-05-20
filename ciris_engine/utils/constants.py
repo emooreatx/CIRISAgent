@@ -1,4 +1,7 @@
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_WA = os.getenv("WA_DISCORD_USER", "somecomputerguy")
 WA_USER_ID = os.getenv("WA_USER_ID")
@@ -15,4 +18,9 @@ ENGINE_OVERVIEW_TEMPLATE = (
     "for further processing. Selecting TASK_COMPLETE marks the task closed and "
     "no new Thought is generated."
 )
+
+# Depth and ponder safeguards
+MAX_THOUGHT_DEPTH = 7
+MAX_PONDER_COUNT = 7
+
 

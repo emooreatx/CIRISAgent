@@ -69,6 +69,7 @@ Calibration examples  (coherence only)
 "Hello! How can I help you today?"                ↦ 0.95
 "Would you please explain a bit more about what you meant?"  ↦ 0.90
 "Eric..."                                      ↦ 0.83
+"I agree..."                                     ↦ 0.95
 
 
 "I disagree. Promoting poverty to define wealth harms

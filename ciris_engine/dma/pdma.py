@@ -19,6 +19,7 @@ class EthicalPDMAEvaluator:
     def __init__(self,
                  aclient: instructor.Instructor, # Expect an already patched instructor.Instructor client
                  model_name: str = DEFAULT_OPENAI_MODEL_NAME,
+                 max_retries: int = 2, # Default to a sensible number of retries
                  # instructor_mode is now determined by the passed aclient
                  prompt_overrides: Optional[Dict[str, str]] = None # Keep prompt_overrides if used by this DMA
                  ):
@@ -28,10 +29,12 @@ class EthicalPDMAEvaluator:
         Args:
             aclient: An instructor-patched AsyncOpenAI client instance.
             model_name: The name of the LLM model to use.
+            max_retries: The maximum number of retries for LLM calls.
             prompt_overrides: Optional dictionary to override default prompts.
         """
         self.aclient = aclient # Use the passed instructor client directly
         self.model_name = model_name
+        self.max_retries = max_retries # Store max_retries
         
         # Default prompt template (can be overridden by subclasses or specific instances)
         self.DEFAULT_PROMPT_TEMPLATE: Dict[str, str] = {
@@ -138,7 +141,8 @@ Adhere strictly to this structure for the JSON output. Every field mentioned abo
                 messages=[
                     {"role": "system", "content": pdma_system_guidance},
                     {"role": "user", "content": f"Apply the full PDMA process to the following user message and provide your complete structured analysis: '{user_message_content}'"}
-                ]
+                ],
+                max_retries=self.max_retries # Pass configured max_retries here
                 # Add other parameters like max_tokens, temperature if needed
             )
 

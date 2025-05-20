@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 from ..agent_core_schemas import Thought, ThoughtStatus
 

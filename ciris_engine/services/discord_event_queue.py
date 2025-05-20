@@ -1,5 +1,8 @@
 import asyncio
 from typing import TypeVar, Generic, Any # Dict is no longer needed directly for the class definition
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Define a generic type variable for the event/message type
 T_Event = TypeVar('T_Event')

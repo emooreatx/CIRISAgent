@@ -19,12 +19,14 @@ class CSDMAEvaluator:
     def __init__(self,
                  aclient: AsyncOpenAI, # Expect raw AsyncOpenAI client
                  model_name: Optional[str] = None, # Allow override, else use config
+                 max_retries: int = 2, # Default to a sensible number of retries
                  environmental_kg: Any = None,
                  task_specific_kg: Any = None,
                  prompt_overrides: Optional[Dict[str, str]] = None): # Added prompt_overrides
         
         app_config = get_config()
         self.model_name = model_name or app_config.llm_services.openai.model_name
+        self.max_retries = max_retries # Store max_retries
         self.prompt_overrides = prompt_overrides or {} # Store overrides
         
         try:
@@ -116,7 +118,8 @@ Your response MUST be a single JSON object adhering to the provided schema, with
                 model=self.model_name,
                 response_model=CSDMAResult, # Key instructor feature
                 messages=messages,
-                max_tokens=512 # CSDMA response is usually shorter
+                max_tokens=512, # CSDMA response is usually shorter
+                max_retries=self.max_retries # Pass configured max_retries here
             )
 
             # If raw_llm_response is a field in CSDMAResult and you want to populate it:

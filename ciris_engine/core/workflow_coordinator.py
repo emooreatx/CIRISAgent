@@ -1,5 +1,7 @@
 import sys # Import sys for maxsize
 import logging
+
+logger = logging.getLogger(__name__)
 import asyncio # New import
 from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING # Added TYPE_CHECKING
 from pydantic import BaseModel # Added import
@@ -10,11 +12,14 @@ from .agent_processing_queue import ProcessingQueueItem
 from .config_schemas import AppConfig, WorkflowConfig # Import AppConfig and WorkflowConfig
 from . import persistence # Import persistence module
 from ciris_engine.services.llm_client import CIRISLLMClient # Assume this will have an async call_llm
-# Direct imports for DMA evaluators to avoid circular dependencies
-from ciris_engine.dma.pdma import EthicalPDMAEvaluator
-from ciris_engine.dma.csdma import CSDMAEvaluator
-# from ciris_engine.dma.dsdma_base import BaseDSDMA # For type hinting - moved to TYPE_CHECKING
-from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
+from ciris_engine.core.dma_executor import (
+    run_pdma,
+    run_csdma,
+    run_dsdma,
+    run_action_selection_pdma,
+)
+from ciris_engine.core.config_schemas import DMA_RETRY_LIMIT
+from ciris_engine.core.action_tracker import track_action
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.utils import DEFAULT_WA
 from ciris_engine.utils import GraphQLContextProvider
@@ -24,6 +29,9 @@ if TYPE_CHECKING:
     from ciris_engine.dma.dsdma_base import BaseDSDMA # Import only for type checking
     from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
     from ciris_engine.utils import GraphQLContextProvider
+    from ciris_engine.dma.pdma import EthicalPDMAEvaluator
+    from ciris_engine.dma.csdma import CSDMAEvaluator
+    from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 
 
 class WorkflowCoordinator:
@@ -35,9 +43,9 @@ class WorkflowCoordinator:
 
     def __init__(self,
                  llm_client: CIRISLLMClient, # This LLM client MUST support async operations
-                 ethical_pdma_evaluator: EthicalPDMAEvaluator,
-                 csdma_evaluator: CSDMAEvaluator,
-                 action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator,
+                 ethical_pdma_evaluator: 'EthicalPDMAEvaluator',
+                 csdma_evaluator: 'CSDMAEvaluator',
+                 action_selection_pdma_evaluator: 'ActionSelectionPDMAEvaluator',
                  ethical_guardrails: EthicalGuardrails,
                  app_config: AppConfig,
                  # thought_queue_manager: ThoughtQueueManager,
@@ -131,21 +139,14 @@ class WorkflowCoordinator:
 
         # 1. Ethical PDMA Task
         logging.debug(f"Scheduling Ethical PDMA for thought ID {thought_object.thought_id}") # Use thought_object
-        from ciris_engine.dma.dma_executor import (
-            run_pdma,
-            run_csdma,
-            run_dsdma,
-            run_dma_with_retries,
-        )
-
         initial_dma_tasks.append(
-            run_dma_with_retries(run_pdma, self.ethical_pdma_evaluator, thought_object)
+            run_pdma(self.ethical_pdma_evaluator, thought_object, retry_limit=DMA_RETRY_LIMIT)
         )
 
         # 2. CSDMA Task
         logging.debug(f"Scheduling CSDMA for thought ID {thought_object.thought_id}") # Use thought_object
         initial_dma_tasks.append(
-            run_dma_with_retries(run_csdma, self.csdma_evaluator, thought_object)
+            run_csdma(self.csdma_evaluator, thought_object, retry_limit=DMA_RETRY_LIMIT)
         )
 
         # 3. DSDMA Task (select and run if applicable)
@@ -174,8 +175,11 @@ class WorkflowCoordinator:
                     f"Scheduling DSDMA '{active_dsdma.domain_name}' (Profile: {active_profile_name_for_dsdma}) for thought ID {thought_object.thought_id}"
                 )
                 initial_dma_tasks.append(
-                    run_dma_with_retries(
-                        run_dsdma, active_dsdma, thought_object, current_platform_context
+                    run_dsdma(
+                        active_dsdma,
+                        thought_object,
+                        current_platform_context,
+                        retry_limit=DMA_RETRY_LIMIT,
                     )
                 )
                 selected_dsdma_instance = active_dsdma
@@ -326,11 +330,10 @@ class WorkflowCoordinator:
             "agent_profile": active_profile_for_as # Pass the determined agent profile object
         }
 
-        from ciris_engine.dma.dma_executor import run_action_selection_pdma
-
         action_selection_result: ActionSelectionPDMAResult = await run_action_selection_pdma(
             self.action_selection_pdma_evaluator,
             triaged_inputs_for_action_selection,
+            retry_limit=DMA_RETRY_LIMIT,
         )
         # Log action_parameters carefully, as it can be a Pydantic model
         logging.info(f"Action Selection PDMA chose: {action_selection_result.selected_handler_action.value} with params {str(action_selection_result.action_parameters)}")
@@ -509,6 +512,11 @@ class WorkflowCoordinator:
         
         # For all other actions OR if PONDER re-queue failed and returned the Ponder action
         if final_action_result: # This means it's a terminal action for this processing cycle
+            track_action(
+                thought_object,
+                final_action_result.selected_handler_action,
+                final_action_result.action_parameters,
+            )
             success = persistence.update_thought_status(
                 thought_id=thought_object.thought_id,
                 new_status=ThoughtStatus.COMPLETED, # Or FAILED/DEFERRED if set by dispatcher
