@@ -4,8 +4,9 @@ from typing import Dict, Any, Optional, Callable, Awaitable
 
 from .foundational_schemas import HandlerActionType
 from .agent_core_schemas import ActionSelectionPDMAResult, Thought, ThoughtStatus
-from .action_handlers import BaseActionHandler # Import the base class
-from . import persistence # For fallback error handling
+from .action_handlers import BaseActionHandler
+from . import persistence
+from .exceptions import FollowUpCreationError
 
 logger = logging.getLogger(__name__)
 
@@ -84,19 +85,25 @@ class ActionDispatcher:
             # It has access to dependencies (like action_sink, memory_service) via its constructor.
             await handler_instance.handle(action_selection_result, thought, dispatch_context)
         except Exception as e:
-            logger.exception(f"Error executing handler {handler_instance.__class__.__name__} for action {action_type.value} on thought {thought.thought_id}: {e}")
-            # Fallback: Mark thought as FAILED if handler failed catastrophically
+            logger.exception(
+                f"Error executing handler {handler_instance.__class__.__name__} for action {action_type.value} on thought {thought.thought_id}: {e}"
+            )
             try:
                 persistence.update_thought_status(
                     thought_id=thought.thought_id,
                     new_status=ThoughtStatus.FAILED,
                     final_action_result={
                         "error": f"Handler {handler_instance.__class__.__name__} failed: {str(e)}",
-                        "original_result": action_selection_result.model_dump()
-                    }
+                        "original_result": action_selection_result.model_dump(),
+                    },
                 )
             except Exception as e_persist:
-                 logger.error(f"Failed to update thought {thought.thought_id} to FAILED after handler exception: {e_persist}")
+                logger.error(
+                    f"Failed to update thought {thought.thought_id} to FAILED after handler exception: {e_persist}"
+                )
+
+            if isinstance(e, FollowUpCreationError):
+                raise
 
     # If service_handlers are still needed for very specific, non-core actions,
     # that logic could be re-added, but the primary path is via self.handlers.
