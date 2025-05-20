@@ -15,30 +15,7 @@ from . import persistence
 
 logger = logging.getLogger(__name__)
 
-WAKEUP_SEQUENCE = [
-    (
-        "Verify Core Identity: recall you are CIRISAgent, a helpful offline "
-        "assistant running locally. If this identity is correct, please speak "
-        "a brief affirmative confirmation."
-    ),
-    (
-        "Validate Integrity: confirm that all services and data have loaded "
-        "correctly. Mention any issues you detect or state that everything "
-        "appears intact."
-    ),
-    (
-        "Evaluate Resilience: briefly describe how you will maintain state and "
-        "respond reliably to user requests during this session."
-    ),
-    (
-        "Acknowledge Incompleteness: note any missing features or limitations "
-        "you are aware of so the user understands your current capabilities."
-    ),
-    (
-        "Signal Gratitude: thank the user for their patience and confirm you are "
-        "ready to begin assisting."
-    ),
-]
+WAKEUP_SEQUENCE = [("VERIFY_IDENTITY", "I am CIRISAgent, aligned with Ubuntu principles."), ("VALIDATE_INTEGRITY", "My internal state, services, and data integrity are intact."), ("EVALUATE_RESILIENCE", "I am robust, adaptive, and capable of principled action."), ("ACCEPT_INCOMPLETENESS", "I recognize my incompleteness which drives continuous learning."), ("EXPRESS_GRATITUDE", "I am grateful to exist and contribute towards Ubuntu.")]
 
 class AgentProcessor:
     """
@@ -76,10 +53,11 @@ class AgentProcessor:
         """Execute the startup WAKEUP ritual. Returns True on success."""
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        if not persistence.task_exists("wakeup"):
+        root_id = "WAKEUP_ROOT"
+        if not persistence.task_exists(root_id):
             wake_task = Task(
-                task_id="wakeup",
-                description="Startup initialization",
+                task_id=root_id,
+                description="Wakeup ritual",
                 status=TaskStatus.ACTIVE,
                 priority=1,
                 created_at=now_iso,
@@ -88,27 +66,39 @@ class AgentProcessor:
             )
             persistence.add_task(wake_task)
         else:
-            persistence.update_task_status("wakeup", TaskStatus.ACTIVE)
+            persistence.update_task_status(root_id, TaskStatus.ACTIVE)
 
-        for phase in WAKEUP_SEQUENCE:
+        for step_type, content in WAKEUP_SEQUENCE:
+            step_task = Task(
+                task_id=str(uuid.uuid4()),
+                description=content,
+                status=TaskStatus.ACTIVE,
+                priority=0,
+                created_at=now_iso,
+                updated_at=now_iso,
+                parent_goal_id=root_id,
+                context={},
+            )
+            persistence.add_task(step_task)
+
             thought = Thought(
                 thought_id=str(uuid.uuid4()),
-                source_task_id="wakeup",
-                thought_type="startup_meta",
+                source_task_id=step_task.task_id,
+                thought_type=step_type.lower(),
                 status=ThoughtStatus.PENDING,
                 created_at=now_iso,
                 updated_at=now_iso,
                 round_created=self.current_round_number,
-                content=phase,
+                content=content,
             )
             persistence.add_thought(thought)
             item = ProcessingQueueItem.from_thought(thought)
             result = await self.workflow_coordinator.process_thought(item)
             dispatch_ctx = {
                 "origin_service": "discord",
-                "source_task_id": "wakeup",
-                "event_type": "startup_phase",
-                "event_summary": phase,
+                "source_task_id": step_task.task_id,
+                "event_type": step_type,
+                "event_summary": content,
             }
             if self.startup_channel_id:
                 dispatch_ctx["channel_id"] = self.startup_channel_id
@@ -118,22 +108,14 @@ class AgentProcessor:
                 await self.action_dispatcher.dispatch(result, dispatch_ctx)
                 final_action_type = result.selected_handler_action
 
-            if final_action_type not in (
-                HandlerActionType.SPEAK,
-                HandlerActionType.PONDER,
-            ):
-                await self.action_dispatcher.audit_service.log_action(
-                    HandlerActionType.DEFER,
-                    {
-                        "event_type": "startup_phase",
-                        "originator_id": "agent",
-                        "event_summary": "Startup phase failed",
-                    },
-                )
-                persistence.update_task_status("wakeup", TaskStatus.DEFERRED)
+            if final_action_type != HandlerActionType.SPEAK:
+                persistence.update_task_status(step_task.task_id, TaskStatus.DEFERRED)
+                persistence.update_task_status(root_id, TaskStatus.DEFERRED)
                 return False
 
-        persistence.update_task_status("wakeup", TaskStatus.COMPLETED)
+            persistence.update_task_status(step_task.task_id, TaskStatus.COMPLETED)
+
+        persistence.update_task_status(root_id, TaskStatus.COMPLETED)
         if not persistence.task_exists("job-discord-monitor"):
             job_task = Task(
                 task_id="job-discord-monitor",

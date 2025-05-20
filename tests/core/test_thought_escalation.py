@@ -6,6 +6,8 @@ from ciris_engine.core.thought_escalation import (
     escalate_due_to_action_limit,
     escalate_due_to_sla,
     escalate_due_to_guardrail,
+    escalate_due_to_depth_limit,
+    escalate_due_to_ponder_limit,
 )
 
 
@@ -50,4 +52,24 @@ def test_escalate_due_to_guardrail():
     event = thought.escalations[0]
     assert event["type"] == "guardrail_violation"
     assert "guardrail breached" in event["reason"]
+    assert thought.is_terminal is True
+
+
+def test_escalate_due_to_depth_limit():
+    thought = create_thought()
+    escalate_due_to_depth_limit(thought, 7)
+    assert len(thought.escalations) == 1
+    event = thought.escalations[0]
+    assert event["type"] == "depth_limit"
+    assert "7" in event["reason"]
+    assert thought.is_terminal is True
+
+
+def test_escalate_due_to_ponder_limit():
+    thought = create_thought()
+    escalate_due_to_ponder_limit(thought, 7)
+    assert len(thought.escalations) == 1
+    event = thought.escalations[0]
+    assert event["type"] == "ponder_limit"
+    assert "7" in event["reason"]
     assert thought.is_terminal is True
