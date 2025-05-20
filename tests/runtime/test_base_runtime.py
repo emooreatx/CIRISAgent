@@ -8,7 +8,15 @@ import pytest
 from ciris_engine.runtime.base_runtime import BaseRuntime, BaseIOAdapter, IncomingMessage
 from ciris_engine.core import persistence
 from ciris_engine.core.foundational_schemas import HandlerActionType
-from ciris_engine.core.agent_core_schemas import Thought
+from ciris_engine.core.action_dispatcher import ActionDispatcher
+from ciris_engine.core.agent_core_schemas import (
+    Thought,
+    ActionSelectionPDMAResult,
+    SpeakParams,
+)
+from ciris_engine.core.action_handlers.speak_handler import SpeakHandler
+from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
+from types import SimpleNamespace
 
 class DummyAdapter(BaseIOAdapter):
     def __init__(self):
@@ -28,7 +36,7 @@ async def test_create_task_if_new(tmp_path, monkeypatch):
     monkeypatch.setattr(persistence, "get_sqlite_db_full_path", lambda: str(db_file))
     persistence.initialize_database()
 
-    runtime = BaseRuntime(DummyAdapter(), "ciris_profiles/student.yaml")
+    runtime = BaseRuntime(DummyAdapter(), "ciris_profiles/student.yaml", ActionDispatcher({}))
 
     created = await runtime._create_task_if_new("1", "hi", {"origin_service": "discord"})
     created_again = await runtime._create_task_if_new("1", "hi", {"origin_service": "discord"})
@@ -38,28 +46,43 @@ async def test_create_task_if_new(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_dream_action_filter_blocks(mocker):
-    runtime = BaseRuntime(DummyAdapter(), "ciris_profiles/student.yaml")
-    class DummySvc:
-        def __init__(self):
-            self.send_message = mocker.AsyncMock()
+    svc = SimpleNamespace(send_message=mocker.AsyncMock())
+    handler = SpeakHandler(ActionHandlerDependencies(action_sink=svc))
+    dispatcher = ActionDispatcher({HandlerActionType.SPEAK: handler})
+    runtime = BaseRuntime(DummyAdapter(), "ciris_profiles/student.yaml", dispatcher)
 
-    svc = DummySvc()
-    runtime.dispatcher.register_service_handler("discord", svc)
-    with patch.object(persistence, "add_thought", lambda t: t):
-        await runtime.dispatcher.dispatch(HandlerActionType.SPEAK, Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"content": "x"}, {"discord_service": svc})
+    with patch.object(persistence, "add_thought", lambda t: t), patch.object(persistence, "update_thought_status", lambda **k: None):
+        result = ActionSelectionPDMAResult(
+            context_summary_for_action_selection="c",
+            action_alignment_check={},
+            selected_handler_action=HandlerActionType.SPEAK,
+            action_parameters=SpeakParams(content="x"),
+            action_selection_rationale="r",
+            monitoring_for_selected_action="m",
+        )
+        await runtime.dispatcher.dispatch(result, Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"channel_id": "1"})
     svc.send_message.assert_awaited_once()
 
     svc.send_message.reset_mock()
     runtime.dreaming = True
     runtime.dispatcher.action_filter = runtime._dream_action_filter
-    with patch.object(persistence, "add_thought", lambda t: t):
-        await runtime.dispatcher.dispatch(HandlerActionType.SPEAK, Thought(thought_id="t2", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"content": "x"}, {"discord_service": svc})
+    with patch.object(persistence, "add_thought", lambda t: t), patch.object(persistence, "update_thought_status", lambda **k: None):
+        result2 = ActionSelectionPDMAResult(
+            context_summary_for_action_selection="c",
+            action_alignment_check={},
+            selected_handler_action=HandlerActionType.SPEAK,
+            action_parameters=SpeakParams(content="x"),
+            action_selection_rationale="r",
+            monitoring_for_selected_action="m",
+        )
+        await runtime.dispatcher.dispatch(result2, Thought(thought_id="t2", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"channel_id": "1"})
     svc.send_message.assert_not_awaited()
 
 @pytest.mark.asyncio
 async def test_dream_protocol_emits_snore(mocker):
     adapter = DummyAdapter()
-    runtime = BaseRuntime(adapter, "ciris_profiles/student.yaml", snore_channel_id="c")
+    dispatcher = ActionDispatcher({})
+    runtime = BaseRuntime(adapter, "ciris_profiles/student.yaml", dispatcher, snore_channel_id="c")
     log_mock = mocker.AsyncMock()
     runtime.audit_service.log_action = log_mock
     await runtime.run_dream(duration=0.1, pulse_interval=0.05)
