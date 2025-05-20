@@ -7,7 +7,7 @@ import pytest
 from ciris_engine.runtime.base_runtime import BaseRuntime, BaseIOAdapter, IncomingMessage
 from ciris_engine.core import persistence
 from ciris_engine.core.foundational_schemas import HandlerActionType
-from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, SpeakParams, DeferParams
+from ciris_engine.core.agent_core_schemas import Thought
 
 class DummyAdapter(BaseIOAdapter):
     def __init__(self):
@@ -38,37 +38,20 @@ async def test_create_task_if_new(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_dream_action_filter_blocks(mocker):
     runtime = BaseRuntime(DummyAdapter(), "ciris_profiles/student.yaml")
-    handler = mocker.AsyncMock()
-    runtime.dispatcher.register_service_handler("discord", handler)
-    mocker.patch.object(runtime.dispatcher, "_enqueue_memory_metathought", return_value=asyncio.sleep(0))
-    await runtime.dispatcher.dispatch(
-        ActionSelectionPDMAResult(
-            context_summary_for_action_selection="c",
-            action_alignment_check={},
-            selected_handler_action=HandlerActionType.SPEAK,
-            action_parameters=SpeakParams(content="x"),
-            action_selection_rationale="r",
-            monitoring_for_selected_action={},
-        ),
-        {"origin_service": "discord"},
-    )
-    handler.assert_awaited()
+    class DummySvc:
+        def __init__(self):
+            self.send_message = mocker.AsyncMock()
 
-    handler.reset_mock()
+    svc = DummySvc()
+    runtime.dispatcher.register_service_handler("discord", svc)
+    await runtime.dispatcher.dispatch(HandlerActionType.SPEAK, Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"content": "x"}, {"discord_service": svc})
+    svc.send_message.assert_awaited_once()
+
+    svc.send_message.reset_mock()
     runtime.dreaming = True
     runtime.dispatcher.action_filter = runtime._dream_action_filter
-    await runtime.dispatcher.dispatch(
-        ActionSelectionPDMAResult(
-            context_summary_for_action_selection="c",
-            action_alignment_check={},
-            selected_handler_action=HandlerActionType.SPEAK,
-            action_parameters=SpeakParams(content="x"),
-            action_selection_rationale="r",
-            monitoring_for_selected_action={},
-        ),
-        {"origin_service": "discord"},
-    )
-    handler.assert_not_awaited()
+    await runtime.dispatcher.dispatch(HandlerActionType.SPEAK, Thought(thought_id="t2", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"content": "x"}, {"discord_service": svc})
+    svc.send_message.assert_not_awaited()
 
 @pytest.mark.asyncio
 async def test_dream_protocol_emits_snore(mocker):
