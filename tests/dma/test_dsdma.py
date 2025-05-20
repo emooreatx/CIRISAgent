@@ -9,7 +9,8 @@ from openai import AsyncOpenAI
 from instructor.exceptions import InstructorRetryException
 
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
-from ciris_engine.core.agent_core_schemas import DSDMAResult, ThoughtStatus
+from ciris_engine.core.dma_results import DSDMAResult
+from ciris_engine.core.agent_core_schemas import ThoughtStatus
 from ciris_engine.dma.dsdma_teacher import BasicTeacherDSDMA, LLMOutputForDSDMA as TeacherLLMOutput
 from ciris_engine.dma.dsdma_student import StudentDSDMA, LLMOutputForDSDMA as StudentLLMOutput
 from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME, AppConfig, OpenAIConfig, LLMServicesConfig # Added missing config imports here

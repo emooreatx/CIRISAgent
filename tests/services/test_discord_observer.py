@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 
 from ciris_engine.services.discord_observer import DiscordObserver
 from ciris_engine.services.discord_event_queue import DiscordEventQueue
+from ciris_engine.runtime.base_runtime import IncomingMessage
 from ciris_engine.services.discord_service import DiscordService
 from ciris_engine.core.action_dispatcher import ActionDispatcher
 from datetime import datetime, timezone
@@ -16,21 +17,27 @@ async def test_discord_observer_filters_channels():
     async def collect(payload):
         events.append(payload)
 
-    observer = DiscordObserver(collect, monitored_channel_id="allowed")
-    await observer.handle_event("nick", "ignored", "hello")
+    q = DiscordEventQueue()
+    observer = DiscordObserver(collect, message_queue=q, monitored_channel_id="allowed")
+    msg1 = IncomingMessage(message_id="1", author_id="1", author_name="nick", content="hello", channel_id="ignored")
+    await observer.handle_incoming_message(msg1)
     assert events == []
 
-    await observer.handle_event("nick", "allowed", "hi there")
+    msg2 = IncomingMessage(message_id="2", author_id="1", author_name="nick", content="hi there", channel_id="allowed")
+    await observer.handle_incoming_message(msg2)
     assert events == [
         {
             "type": "OBSERVATION",
+            "message_id": "2",
+            "content": "hi there",
             "context": {
-                "user_nick": "nick",
-                "channel": "allowed",
-                "message_text": "hi there",
+                "origin_service": "discord",
+                "author_id": "1",
+                "author_name": "nick",
+                "channel_id": "allowed",
             },
             "task_description": (
-                "As a result of your permanent job task, you observed user @nick in channel #allowed say: 'hi there'. Use your decision-making algorithms to decide whether to respond, ignore, or take any other appropriate action."
+                "Observed user @nick (ID: 1) in channel #allowed (Msg ID: 2) say: 'hi there'. Evaluate and decide on the appropriate course of action."
             ),
         }
     ]
@@ -44,9 +51,9 @@ async def test_discord_observer_queue_polling():
         events.append(payload)
 
     q = DiscordEventQueue()
-    observer = DiscordObserver(collect, monitored_channel_id="allowed", event_queue=q)
+    observer = DiscordObserver(collect, message_queue=q, monitored_channel_id="allowed")
     await observer.start()
-    await q.enqueue({"user_nick": "nick", "channel": "allowed", "message_content": "hi"})
+    await q.enqueue(IncomingMessage(message_id="3", author_id="1", author_name="nick", content="hi", channel_id="allowed"))
     await asyncio.sleep(0.05)
     await observer.stop()
     assert len(events) == 1

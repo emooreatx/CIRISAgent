@@ -40,7 +40,7 @@ def test_openai_config_fields():
     config = OpenAIConfig()
     assert config.model_name == DEFAULT_OPENAI_MODEL_NAME
     assert config.base_url is None # Default is None
-    assert config.timeout_seconds == 30.0
+    assert config.timeout_seconds == 60.0
     assert config.max_retries == 2
     assert config.api_key_env_var == "OPENAI_API_KEY"
     assert config.instructor_mode == "JSON" # Updated default

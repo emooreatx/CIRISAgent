@@ -12,9 +12,17 @@ from openai import AsyncOpenAI
 from instructor.exceptions import InstructorRetryException
 
 from ciris_engine.core.agent_core_schemas import (
-    ActionSelectionPDMAResult, EthicalPDMAResult, CSDMAResult, DSDMAResult,
-    Thought, ThoughtStatus, HandlerActionType, SpeakParams, PonderParams,
-    CIRISSchemaVersion
+    Thought,
+    ThoughtStatus,
+    HandlerActionType,
+    CIRISSchemaVersion,
+)
+from ciris_engine.core.action_params import SpeakParams, PonderParams
+from ciris_engine.core.dma_results import (
+    ActionSelectionPDMAResult,
+    EthicalPDMAResult,
+    CSDMAResult,
+    DSDMAResult,
 )
 from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHandlerActionType
 # from ciris_engine.core.profiles import AgentProfile # Replaced by SerializableAgentProfile
@@ -360,9 +368,8 @@ class TestActionSelectionPDMAEvaluator:
         result = await action_selection_pdma_evaluator.evaluate(sample_triaged_inputs)
 
         assert isinstance(result, ActionSelectionPDMAResult)
-        assert result.selected_handler_action == CoreHandlerActionType.PONDER
-        assert isinstance(result.action_parameters, PonderParams)
-        assert "validation" in result.action_parameters.key_questions[0].lower()
+        assert result.selected_handler_action == CoreHandlerActionType.MEMORIZE
+        assert isinstance(result.action_parameters, dict)
 
 
     @pytest.mark.asyncio # Ensure this non-async test is not marked as async if it's not

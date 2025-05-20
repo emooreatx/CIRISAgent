@@ -6,8 +6,8 @@ import instructor
 from openai import AsyncOpenAI # Needed for type hinting raw client
 
 # Adjusted import paths
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem # Renamed from ThoughtQueueItem
-from ciris_engine.core.agent_core_schemas import EthicalPDMAResult
+from ciris_engine.core.agent_processing_queue import ProcessingQueueItem  # Renamed from ThoughtQueueItem
+from ciris_engine.core.dma_results import EthicalPDMAResult
 # from ciris_engine.core.config import DEFAULT_OPENAI_MODEL_NAME # Get from config or define
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o" # Default model from OpenAIConfig
 
