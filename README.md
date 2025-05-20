@@ -59,11 +59,12 @@ The system enforces the following guardrails via `app_config.guardrails_config`:
 
 ## 3×3×3 Handler Actions
 
-The `HandlerActionType` enum defines nine core operations grouped as:
+The `HandlerActionType` enum defines core operations grouped as:
 
-* **External Actions:** `OBSERVE`, `SPEAK`, `ACT`
+* **External Actions:** `OBSERVE`, `SPEAK`, `TOOL`
 * **Control Responses:** `REJECT`, `PONDER`, `DEFER`
 * **Memory Operations:** `MEMORIZE`, `REMEMBER`, `FORGET`
+* **Terminal:** `TASK_COMPLETE`
 
 These actions are processed by matching handlers within the engine. Profiles typically enable `MEMORIZE` and may disable `REMEMBER` and `FORGET` while the feature is tested.
 
@@ -72,7 +73,7 @@ These actions are processed by matching handlers within the engine. Profiles typ
 ## Core Components (in `ciris_engine/`)
 
 *   `core/`: Contains data schemas (`config_schemas.py`, `agent_core_schemas.py`, `foundational_schemas.py`), configuration management (`config_manager.py`), the `AgentProcessor`, `WorkflowCoordinator`, `ActionDispatcher`, and persistence layer (`persistence.py`).
-*   `dma/`: Implementations of the various DMAs (EthicalPDMA, CSDMA, DSDMAs like `dsdma_student.py`, `dsdma_teacher.py`, ActionSelectionPDMA).
+*   `dma/`: Implementations of the various DMAs (EthicalPDMA, CSDMA, DSDMA, ActionSelectionPDMA).
 *   `utils/`: Utility helpers like `logging_config.py` and an asynchronous `load_profile` function in `profile_loader.py` (remember to `await` it).
 *   `guardrails/`: Ethical guardrail implementation.
 *   `services/`: LLM client abstractions (`llm_client.py`, `llm_service.py`) and service integrations like `discord_service.py`.

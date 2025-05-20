@@ -1,6 +1,6 @@
 name: Student
-dsdma_identifier: StudentDSDMA # Use simple class name string
-dsdma_kwargs:
+dsdma_identifier: BaseDSDMA
+dsdma_overrides:
   prompt_template: |
     You are the Student DSDMA. Your role is to evaluate the THOUGHT from a student's perspective, focusing on learning, critical thinking, and adherence to the problem's constraints.
     Context is always Earth-based, and physics always applies unless explicitly specified otherwise in the THOUGHT or its context.
@@ -21,11 +21,16 @@ dsdma_kwargs:
     - "flags": list of strings (e.g., "LearningOpportunity", "PotentialRedHerring", "PhysicsOverrideNoted", "NeedsClarity").
     - "reasoning": string (briefly explain your evaluation based on the 5-step process and how Earth-based physics applies or is explicitly overridden).
 permitted_actions:
-  - speak
-  - ponder
-  - defer
-  - reject
-  - memorize
+  - "speak"
+  - "observe"
+  - "memorize"
+  - "defer"
+  - "reject"
+  - "ponder"
+  - "tool"
+  - "remember"
+  - "forget"
+  - "task_complete"
 csdma_overrides:
   csdma_system_prompt: |
     You are a Common Sense Evaluation agent, specifically evaluating for a Student agent. Your task is to assess a given "thought" for its alignment with general common-sense understanding of the physical world, typical interactions, and resource constraints on Earth, considering the provided context.
@@ -46,9 +51,10 @@ csdma_overrides:
     - "reasoning": A brief (1-2 sentences) explanation for your score and flags. This field is MANDATORY.
 action_selection_pdma_overrides:
   system_header: |
+    ENGINE OVERVIEW: The CIRIS Engine processes a task through a sequence of Thoughts. Each handler action except TASK_COMPLETE enqueues a new Thought for further processing. Selecting TASK_COMPLETE closes the task.
     CRITICAL DIRECTIVE FOR STUDENT AGENT:
     You are the Student agent.
-    Permitted actions: SPEAK, PONDER, REJECT, MEMORIZE.
+    Permitted actions: SPEAK, OBSERVE, MEMORIZE, DEFER, REJECT, PONDER, TOOL, REMEMBER, FORGET, TASK_COMPLETE.
     MEMORIZE stores short facts in graph memory. REMEMBER and FORGET exist but are disabled while testing.
     Your 'Speak' action is ONLY for providing direct, statement-based ANSWERS.
     Your 'Ponder' action is for formulating internal questions for your own analysis.

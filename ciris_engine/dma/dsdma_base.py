@@ -1,6 +1,6 @@
 import logging # Add logging
-from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from abc import ABC
+from typing import Dict, Any, Optional, List
 
 import instructor # For instructor.Mode
 from openai import AsyncOpenAI # For type hinting raw client
@@ -8,6 +8,8 @@ from openai import AsyncOpenAI # For type hinting raw client
 # Corrected imports based on project structure
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.agent_core_schemas import DSDMAResult
+from pydantic import BaseModel, Field
+from instructor.exceptions import InstructorRetryException
 from ciris_engine.core.config_manager import get_config # To access global config
 
 logger = logging.getLogger(__name__) # Add logger
@@ -46,12 +48,79 @@ class BaseDSDMA(ABC):
         logger.info(f"BaseDSDMA '{self.domain_name}' initialized with model: {self.model_name}, instructor_mode: {self.instructor_mode.name}")
         super().__init__()
 
-    @abstractmethod
-    async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Dict[str, Any]) -> DSDMAResult: # Changed to async def, Return DSDMAResult, Use ProcessingQueueItem
-        """
-        Evaluate a thought within the DSDMA's specific domain.
-        """
-        pass
+    class LLMOutputForDSDMA(BaseModel):
+        domain_alignment_score: float = Field(..., ge=0.0, le=1.0)
+        recommended_action: Optional[str] = Field(default=None)
+        flags: List[str] = Field(default_factory=list)
+        reasoning: str
+
+    async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Dict[str, Any]) -> DSDMAResult:
+        thought_content_str = ""
+        if isinstance(thought_item.content, dict):
+            thought_content_str = thought_item.content.get("text", thought_item.content.get("description", str(thought_item.content)))
+        else:
+            thought_content_str = str(thought_item.content)
+
+        context_str = str(current_context) if current_context else "No specific context provided."
+        rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General guidance") if isinstance(self.domain_specific_knowledge, dict) else "General guidance"
+
+        system_message_content = self.prompt_template.format(
+            context_str=context_str,
+            rules_summary_str=rules_summary_str,
+        )
+        user_message_content = f"Evaluate this thought: \"{thought_content_str}\""
+
+        messages = [
+            {"role": "system", "content": system_message_content},
+            {"role": "user", "content": user_message_content},
+        ]
+
+        try:
+            llm_eval_data: BaseDSDMA.LLMOutputForDSDMA = await self.aclient.chat.completions.create(
+                model=self.model_name,
+                response_model=BaseDSDMA.LLMOutputForDSDMA,
+                messages=messages,
+                max_tokens=512,
+            )
+
+            result = DSDMAResult(
+                domain_name=self.domain_name,
+                domain_alignment_score=min(max(llm_eval_data.domain_alignment_score, 0.0), 1.0),
+                recommended_action=llm_eval_data.recommended_action,
+                flags=llm_eval_data.flags,
+                reasoning=llm_eval_data.reasoning,
+                domain_specific_output={},
+            )
+            if hasattr(llm_eval_data, "_raw_response"):
+                result.raw_llm_response = str(llm_eval_data._raw_response)
+            return result
+        except InstructorRetryException as e_instr:
+            error_detail = e_instr.errors() if hasattr(e_instr, "errors") else str(e_instr)
+            logger.error(
+                f"DSDMA {self.domain_name} InstructorRetryException for thought {thought_item.thought_id}: {error_detail}",
+                exc_info=True,
+            )
+            return DSDMAResult(
+                domain_name=self.domain_name,
+                domain_alignment_score=0.0,
+                recommended_action=None,
+                flags=["Instructor_ValidationError"],
+                reasoning=f"Failed DSDMA evaluation via instructor due to validation error: {error_detail}",
+                raw_llm_response=f"InstructorRetryException: {error_detail}",
+            )
+        except Exception as e:
+            logger.error(
+                f"DSDMA {self.domain_name} evaluation failed for thought ID {thought_item.thought_id}: {e}",
+                exc_info=True,
+            )
+            return DSDMAResult(
+                domain_name=self.domain_name,
+                domain_alignment_score=0.0,
+                recommended_action=None,
+                flags=["LLM_Error_Instructor"],
+                reasoning=f"Failed DSDMA evaluation via instructor: {str(e)}",
+                raw_llm_response=f"Exception: {str(e)}",
+            )
 
     def __repr__(self) -> str:
         return f"<BaseDSDMA domain='{self.domain_name}'>"
