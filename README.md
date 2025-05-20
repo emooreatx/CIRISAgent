@@ -16,7 +16,7 @@ The core of CIRIS Engine is its ability to process "thoughts" (inputs or interna
 *   **Ethical PDMA (Principled Decision-Making Algorithm):** Evaluates the ethical implications of a thought.
 *   **CSDMA (Common Sense DMA):** Assesses the common-sense plausibility and clarity of a thought.
 *   **DSDMA (Domain-Specific DMA):** Applies domain-specific knowledge and heuristics. Different DSDMAs can be created for various specialized tasks or agent roles (e.g., `StudentDSDMA`, `BasicTeacherDSDMA`).
-*   **ActionSelectionPDMA:** Determines the final action an agent should take based on the outputs of the preceding DMAs and the agent's current state.
+*   **ASPDMA (Action‑Selection PDMA):** Determines the final action an agent should take based on the outputs of the preceding DMAs and the agent's current state.
 
 Actions chosen by the PDMA are routed through an `ActionDispatcher`. Memory operations use `DiscordGraphMemory` for persistence.
 
@@ -28,11 +28,13 @@ The system is designed for modularity, allowing developers to create and integra
 
 ## Key Features
 
-*   **Modular DMA Pipeline:** PDMA (ethical), CSDMA (common sense), and DSDMA (domain) run together for each thought. Once all three results are available, the `ActionSelectionPDMA` uses them to choose the next handler action. This flow is coordinated by the `WorkflowCoordinator`.
+*   **Four‑DMA Pipeline:** PDMA (ethical), CSDMA (common sense), DSDMA (domain) and ASPDMA (action selection) run sequentially for each thought. The ASPDMA chooses the next handler action using the outputs of the preceding DMAs. This flow is coordinated by the `WorkflowCoordinator`.
 *   **Agent Profiles:** Customizable YAML configurations (`ciris_profiles/`) that define an agent's behavior, DSDMA selection, permitted actions, and LLM prompting strategies for various DMAs.
 *   **Local Execution:** Designed to run locally, enabling edge-side reasoning.
 *   **LLM Integration:** Leverages Large Language Models (LLMs) via `instructor` for structured output from DMAs. Requires an OpenAI-compatible API.
 *   **Thought Processing & Pondering:** Agents may "ponder" repeatedly. The `WorkflowCoordinator` tracks ponder rounds and automatically defers once a configured limit is hit.
+*   **DMA Retry & Escalation:** Each DMA invocation is retried on transient errors. Repeated failures generate an escalation to the Wise Authority.
+*   **Profile‑Driven Actions:** Allowed handler actions are loaded from the active profile and passed dynamically to the ASPDMA.
 *   **Basic Guardrails:** Includes an ethical guardrail to check action outputs.
 *   **SQLite Persistence:** Uses SQLite for persisting tasks and thoughts.
 *   **Graph Memory:** MEMORIZE actions store user metadata in `DiscordGraphMemory`. REMEMBER and FORGET exist but are often disabled via profiles during testing.
@@ -73,7 +75,7 @@ These actions are processed by matching handlers within the engine. Profiles typ
 ## Core Components (in `ciris_engine/`)
 
 *   `core/`: Contains data schemas (`config_schemas.py`, `agent_core_schemas.py`, `foundational_schemas.py`), configuration management (`config_manager.py`), the `AgentProcessor`, `WorkflowCoordinator`, `ActionDispatcher`, and persistence layer (`persistence.py`).
-*   `dma/`: Implementations of the various DMAs (EthicalPDMA, CSDMA, DSDMA, ActionSelectionPDMA).
+*   `dma/`: Implementations of the various DMAs (EthicalPDMA, CSDMA, DSDMA, ASPDMA).
 *   `utils/`: Utility helpers like `logging_config.py` and an asynchronous `load_profile` function in `profile_loader.py` (remember to `await` it).
 *   `guardrails/`: Ethical guardrail implementation.
 *   `services/`: LLM client abstractions (`llm_client.py`, `llm_service.py`) and service integrations like `discord_service.py`.

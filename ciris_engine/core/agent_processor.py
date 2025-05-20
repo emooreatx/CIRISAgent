@@ -7,13 +7,13 @@ from datetime import datetime, timezone
 
 from .config_schemas import AppConfig
 from .workflow_coordinator import WorkflowCoordinator
-from .action_dispatcher import ActionDispatcher # Added import
-from .agent_core_schemas import Task, Thought # <-- Remove ThoughtType import
-from .foundational_schemas import TaskStatus, ThoughtStatus, HandlerActionType # Added HandlerActionType
+from .action_dispatcher import ActionDispatcher
+from .agent_core_schemas import Task, Thought
+from .foundational_schemas import TaskStatus, ThoughtStatus, HandlerActionType
 from .agent_processing_queue import ProcessingQueueItem
 from . import persistence
 
-logger = logging.getLogger(__name__) # Define logger at module level
+logger = logging.getLogger(__name__)
 
 WAKEUP_SEQUENCE = [
     (
