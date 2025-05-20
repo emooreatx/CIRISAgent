@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field # Ensure BaseModel and Field are imported 
 from ciris_engine.dma.dsdma_base import BaseDSDMA
 # Corrected imports
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
-from ciris_engine.core.agent_core_schemas import DSDMAResult
+from ciris_engine.core.dma_results import DSDMAResult
 # DEFAULT_OPENAI_MODEL_NAME is not needed here if BaseDSDMA handles model_name from config
 # Import InstructorRetryException for specific error handling
 from instructor.exceptions import InstructorRetryException

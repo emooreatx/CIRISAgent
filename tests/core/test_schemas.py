@@ -17,10 +17,12 @@ from ciris_engine.core.agent_core_schemas import (
     ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams,
     MemorizeParams, RememberParams, ForgetParams,
     ActionSelectionPDMAResult,
-    Task, Thought, ObservationRecord, AuditLogEntry
+    Task, Thought
 )
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem, ProcessingQueue
 
+from ciris_engine.core.observation_schemas import ObservationRecord
+from ciris_engine.core.audit_schemas import AuditLogEntry
 # --- Tests for foundational_schemas.py ---
 
 def test_enum_values():
@@ -78,6 +80,10 @@ def test_thought_instantiation_and_defaults():
     assert thought.status == ThoughtStatus.PENDING # Default
     assert thought.priority == 0 # Added field, default 0
     assert thought.round_created == 1 # Added field
+    assert thought.action_count == 0
+    assert thought.history == []
+    assert thought.escalations == []
+    assert thought.is_terminal is False
     assert thought.round_processed is None # Added field, default None
     assert thought.depth == 0 # Default
     assert thought.ponder_count == 0 # Default
