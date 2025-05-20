@@ -15,6 +15,7 @@ from .agent_core_schemas import (
 from .action_params import SpeakParams, MemorizeParams
 from .dma_results import ActionSelectionPDMAResult
 from ciris_engine.services.audit_service import AuditService
+from .thought_escalation import escalate_due_to_failure
 
 logger = logging.getLogger(__name__)
 
@@ -273,7 +274,11 @@ class ActionDispatcher:
                     "service": origin_service,
                 })
                 if action_type == HandlerActionType.DEFER:
-                    thought.escalations.append({
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "type": "defer",
-                    })
+                    escalate_due_to_failure(
+                        thought,
+                        reason=(
+                            f"Internal deferral triggered. DMA: {origin_service}, "
+                            f"Task: {thought.source_task_id}. "
+                            f"Last action: {thought.history[-1]['action']}"
+                        ),
+                    )
