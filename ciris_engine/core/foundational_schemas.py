@@ -1,4 +1,8 @@
 """Core enums and type aliases for CIRIS Engine."""
+
+import logging
+
+logger = logging.getLogger(__name__)
 from enum import Enum
 from typing import Union, List, Dict, Any, Optional # Retaining for now, can be pruned
 

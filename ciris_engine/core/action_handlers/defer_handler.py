@@ -1,5 +1,9 @@
 """Service action for DEFER."""
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 from ..agent_core_schemas import Thought
 from .helpers import create_follow_up_thought
 

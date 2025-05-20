@@ -1,5 +1,9 @@
 """Dispatch actions and ensure follow-up Thought creation."""
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 from typing import Callable, Awaitable, Any
 from datetime import datetime, timezone
 import uuid
