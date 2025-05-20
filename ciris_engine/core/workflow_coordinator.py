@@ -535,30 +535,84 @@ class WorkflowCoordinator:
         
         return final_action_result # For all other actions
 
-    async def build_context(self, task: Task, thought: Thought) -> Dict[str, Any]:
-        """Builds the execution context for a thought."""
+    async def build_context(self, task: Optional[Task], thought: Thought) -> Dict[str, Any]:
+        """Builds the execution context for a thought, ensuring JSON serializability for persistence."""
+        
+        thought_summary = None
+        if thought:
+            # Handle status: it's an Enum (ThoughtStatus) in the model
+            status_val = None
+            if thought.status:
+                if isinstance(thought.status, ThoughtStatus): # Check if it's an Enum member
+                    status_val = thought.status.value
+                elif isinstance(thought.status, str): # Fallback if it's already a string
+                    status_val = thought.status
+            
+            # Handle thought_type: it's a str in the model
+            thought_type_val = thought.thought_type # Use directly as it's a string
+
+            thought_summary = {
+                "thought_id": thought.thought_id,
+                "content": thought.content,
+                "status": status_val,
+                "source_task_id": thought.source_task_id,
+                "thought_type": thought_type_val,
+                "ponder_count": thought.ponder_count
+            }
+
+        recent_tasks_list = []
+        db_recent_tasks = persistence.get_recent_completed_tasks(3) 
+        for t_obj in db_recent_tasks:
+            if isinstance(t_obj, BaseModel):
+                recent_tasks_list.append(t_obj.model_dump(mode='json', exclude_none=True))
+            else: 
+                recent_tasks_list.append(t_obj) # Should not happen if get_recent_completed_tasks returns Task objects
+
+        top_tasks_list = []
+        db_top_tasks = persistence.get_top_tasks(3)
+        for t_obj in db_top_tasks:
+            if isinstance(t_obj, BaseModel): # Assuming get_top_tasks returns Task objects
+                 top_tasks_list.append({"task_id": t_obj.task_id, "description": t_obj.description, "priority": t_obj.priority})
+            else:
+                 top_tasks_list.append(t_obj)
+
+
         context = {
-            "task": task,
-            "thought": thought,
-            "counts": {
+            "current_task_details": task.model_dump(mode='json', exclude_none=True) if task and isinstance(task, BaseModel) else None,
+            "current_thought_summary": thought_summary,
+            "system_counts": {
                 "total_tasks": persistence.count_tasks(),
                 "total_thoughts": persistence.count_thoughts(),
                 "pending_tasks": persistence.count_tasks(TaskStatus.PENDING),
                 "pending_thoughts": persistence.count_thoughts(ThoughtStatus.PENDING),
             },
-            "top_tasks": [t.task_id for t in persistence.get_top_tasks(3)],
-            "recently_completed_tasks": [
-                {
-                    "task_id": t.task_id,
-                    "description": t.description,
-                    "outcome": t.outcome, # Include outcome for context
-                    "updated_at": t.updated_at
-                }
-                for t in persistence.get_recent_completed_tasks(5)
-            ]
+            "top_pending_tasks_summary": top_tasks_list,
+            "recently_completed_tasks_summary": recent_tasks_list
         }
-        graphql_extra = await self.graphql_context_provider.enrich_context(task, thought)
-        context.update(graphql_extra)
+
+        graphql_extra_raw = await self.graphql_context_provider.enrich_context(task, thought)
+        
+        graphql_extra_processed = {}
+        if "user_profiles" in graphql_extra_raw and isinstance(graphql_extra_raw["user_profiles"], dict):
+            graphql_extra_processed["user_profiles"] = {}
+            for key, profile_obj in graphql_extra_raw["user_profiles"].items():
+                if isinstance(profile_obj, BaseModel):
+                    graphql_extra_processed["user_profiles"][key] = profile_obj.model_dump(mode='json', exclude_none=True)
+                else: 
+                    graphql_extra_processed["user_profiles"][key] = profile_obj
+        
+        # Generic handling for other potential Pydantic models in graphql_extra_raw
+        for key, value in graphql_extra_raw.items():
+            if key not in graphql_extra_processed: # Avoid reprocessing "user_profiles"
+                if isinstance(value, BaseModel):
+                    graphql_extra_processed[key] = value.model_dump(mode='json', exclude_none=True)
+                elif isinstance(value, list) and all(isinstance(item, BaseModel) for item in value):
+                    graphql_extra_processed[key] = [item.model_dump(mode='json', exclude_none=True) for item in value]
+                else:
+                    graphql_extra_processed[key] = value
+
+
+        context.update(graphql_extra_processed)
         return context
 
     def __repr__(self) -> str:

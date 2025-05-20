@@ -58,25 +58,26 @@ def format_system_snapshot_for_prompt(system_snapshot: Optional[Dict[str, Any]],
     if system_snapshot and isinstance(system_snapshot, dict):
         formatted_lines.append("\n\n--- Relevant System Snapshot Context ---")
         
-        current_task_info = system_snapshot.get("task")
-        if current_task_info and hasattr(current_task_info, 'description'):
-            formatted_lines.append(f"Current Task Context: {current_task_info.description}")
+        current_task_details = system_snapshot.get("current_task_details")
+        if current_task_details and isinstance(current_task_details, dict):
+            task_desc = current_task_details.get('description', 'N/A')
+            formatted_lines.append(f"Current Task Context: {task_desc}")
         
-        recent_tasks = system_snapshot.get("recently_completed_tasks", [])
-        if recent_tasks:
+        recent_tasks_summary = system_snapshot.get("recently_completed_tasks_summary", [])
+        if recent_tasks_summary:
             formatted_lines.append("Recently Completed Tasks (for background awareness, not the current focus):")
-            for i, task_info_dict in enumerate(recent_tasks[:3]): # Limit for prompt brevity
+            for i, task_info_dict in enumerate(recent_tasks_summary[:3]): # Limit for prompt brevity
                 if isinstance(task_info_dict, dict):
                     desc = task_info_dict.get('description', 'N/A')
                     outcome = task_info_dict.get('outcome', 'N/A')
                     formatted_lines.append(f"  - Prev. Task {i+1}: {desc[:100]}... (Outcome: {str(outcome)[:100]}...)")
-                else:
+                else: # Should be dicts due to model_dump
                     formatted_lines.append(f"  - Prev. Task {i+1}: {str(task_info_dict)[:150]}...")
         
-        # Example: Add other parts like counts if useful
-        # counts = system_snapshot.get("counts")
-        # if counts:
-        #     formatted_lines.append(f"System State: Pending Tasks={counts.get('pending_tasks', 'N/A')}")
+        system_counts = system_snapshot.get("system_counts")
+        if system_counts and isinstance(system_counts, dict):
+            pending_tasks_count = system_counts.get('pending_tasks', 'N/A')
+            formatted_lines.append(f"System State: Pending Tasks={pending_tasks_count}")
 
         if len(formatted_lines) > 1: # Only add if there's more than the header
              formatted_lines.append("--- End System Snapshot Context ---")
