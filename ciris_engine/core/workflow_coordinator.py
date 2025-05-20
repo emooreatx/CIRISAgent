@@ -407,7 +407,9 @@ class WorkflowCoordinator:
                 action_parameters=guardrail_defer_params, # Pass the DeferParams model
                 action_selection_rationale=f"Original action '{action_selection_result.selected_handler_action.value}' overridden by guardrail. Reason: {reason}",
                 monitoring_for_selected_action={"status": "Action overridden by guardrail"},
-                raw_llm_response=action_selection_result.raw_llm_response
+                raw_llm_response=action_selection_result.raw_llm_response,
+                # Ensure the decision_input_context_snapshot is carried over
+                decision_input_context_snapshot=action_selection_result.decision_input_context_snapshot
             )
             logging.info(f"Action for thought ID {thought_object.thought_id} is now DEFER due to guardrail failure.")
         else:

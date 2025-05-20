@@ -6,6 +6,7 @@ from openai import AsyncOpenAI
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.dma_results import CSDMAResult
 from ciris_engine.core.config_manager import get_config
+from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
 from instructor.exceptions import InstructorRetryException
 
 logger = logging.getLogger(__name__)
@@ -110,44 +111,27 @@ Your response MUST be a single JSON object adhering to the provided schema, with
             elif isinstance(env_ctx, str):
                 context_summary = env_ctx
         
-        system_snapshot_str = ""
+        system_snapshot_context_str = ""
+        user_profile_context_str = ""
+
         if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
             system_snapshot = thought_item.processing_context.get("system_snapshot")
             if system_snapshot:
-                formatted_parts = ["--- System Snapshot Context ---"]
-                if system_snapshot.get("task") and hasattr(system_snapshot["task"], 'description'):
-                    formatted_parts.append(f"Current Task Description: {system_snapshot['task'].description}")
+                user_profiles_data = system_snapshot.get("user_profiles")
+                user_profile_context_str = format_user_profiles_for_prompt(user_profiles_data)
                 
-                recent_tasks = system_snapshot.get("recently_completed_tasks", [])
-                if recent_tasks:
-                    formatted_parts.append("Recently Completed Tasks:")
-                    for i, task_info in enumerate(recent_tasks[:2]): # Limit to 2 for CSDMA brevity
-                        desc = task_info.get('description', 'N/A')
-                        outcome = task_info.get('outcome', 'N/A')
-                        formatted_parts.append(f"  - Task {i+1}: {desc[:70]}... (Outcome: {str(outcome)[:70]}...)")
+                # For CSDMA, we might want a more concise system snapshot, or let the utility handle it.
+                # The utility function format_system_snapshot_for_prompt already limits recent_tasks.
+                system_snapshot_context_str = format_system_snapshot_for_prompt(system_snapshot, thought_item.processing_context)
 
-                user_profiles = system_snapshot.get("user_profiles")
-                if user_profiles and isinstance(user_profiles, dict):
-                    formatted_parts.append("Known User Profiles (for awareness):")
-                    for user_key, profile_data in user_profiles.items():
-                        if isinstance(profile_data, dict):
-                            nick = profile_data.get('nick', user_key)
-                            profile_summary = f"User '{user_key}': Nickname/Name: '{nick}'"
-                            # Example: if 'interest' was in profile_data
-                            # interest = profile_data.get('interest')
-                            # if interest: profile_summary += f", Interest: '{str(interest)[:50]}...'"
-                            formatted_parts.append(f"  - {profile_summary}")
-
-                formatted_parts.append("--- End System Snapshot Context ---")
-                system_snapshot_str = "\n".join(formatted_parts) + "\n\n"
-
-        # Prepend system snapshot to the thought content for evaluation
-        thought_content_with_system_snapshot = f"{system_snapshot_str}Thought to Evaluate for Common Sense: '{thought_content_str}'"
+        full_context_str = user_profile_context_str + system_snapshot_context_str
         
-        # The context_summary for _create_csdma_messages_for_instructor is about the general environment,
-        # while system_snapshot provides more specific situational awareness.
-        messages = self._create_csdma_messages_for_instructor(thought_content_with_system_snapshot, context_summary)
-        logger.debug(f"CSDMA input to LLM for thought {thought_item.thought_id}:\nUser Message: {thought_content_with_system_snapshot}\nSystem Context for Prompt: {context_summary}")
+        # Prepend combined context to the thought content for evaluation
+        thought_content_with_full_context = f"{full_context_str}\nThought to Evaluate for Common Sense: '{thought_content_str}'"
+        
+        # The context_summary for _create_csdma_messages_for_instructor is about the general environment.
+        messages = self._create_csdma_messages_for_instructor(thought_content_with_full_context, context_summary)
+        logger.debug(f"CSDMA input to LLM for thought {thought_item.thought_id}:\nUser Message: {thought_content_with_full_context}\nSystem Context for Prompt: {context_summary}")
 
         try:
             csdma_eval: CSDMAResult = await self.aclient.chat.completions.create(
