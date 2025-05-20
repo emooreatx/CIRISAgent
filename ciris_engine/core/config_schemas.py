@@ -23,6 +23,8 @@ DEFAULT_OPENAI_TIMEOUT_SECONDS = 60.0
 DEFAULT_OPENAI_MAX_RETRIES = 2
 DEFAULT_ENTROPY_THRESHOLD = 0.40
 DEFAULT_COHERENCE_THRESHOLD = 0.80
+# Default retry limit for DMAs
+DMA_RETRY_LIMIT = 3
 # Default priorities are already in agent_core_schemas.py for Task and Thought.
 # If they need to be *dynamically configurable* by wise authorities,
 # they can be included in WorkflowConfig.
