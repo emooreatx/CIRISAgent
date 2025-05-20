@@ -7,7 +7,9 @@ import asyncio
 from typing import Optional
 
 from ciris_engine.runtime.base_runtime import BaseRuntime, DiscordAdapter
-from ciris_engine.core.ports import EventSource, ActionSink
+from ciris_engine.core.ports import ActionSink
+from ciris_engine.adapters.discord_event_source import DiscordEventSource
+from ciris_engine.core.event_router import handle_observation_event
 from ciris_engine.core import persistence
 from ciris_engine.core.config_manager import get_config_async
 from ciris_engine.core.agent_processor import AgentProcessor
@@ -41,19 +43,6 @@ logger = logging.getLogger(__name__) # Get logger
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 SNORE_CHANNEL_ID = os.getenv("SNORE_CHANNEL_ID")
 PROFILE_PATH = os.path.join("ciris_profiles", "teacher.yaml")
-
-
-class DiscordEventSource(EventSource):
-    """Expose DiscordObserver through the EventSource interface."""
-
-    def __init__(self, observer):
-        self.observer = observer
-
-    async def start(self) -> None:
-        await self.observer.start()
-
-    async def stop(self) -> None:
-        await self.observer.stop()
 
 
 class DiscordActionSink(ActionSink):
@@ -155,47 +144,12 @@ async def main() -> None:
     # Instantiate DiscordGraphMemory - this is the actual memory service
     memory_service = DiscordGraphMemory()
     
-    # --- Define on_observe callback for DiscordObserver ---
-    async def _on_discord_observation(payload: dict):
-        # This function will be called by DiscordObserver with the processed message data
-        # It's responsible for creating the actual Task object
-        message_id = payload.get("message_id")
-        content = payload.get("content")
-        context_data = payload.get("context", {})
-        task_description = payload.get("task_description", content) # Fallback for description
-
-        if not message_id or not content:
-            logger.error(f"DiscordObserver's on_observe: Missing message_id or content in payload. Cannot create task. Payload: {payload}")
-            return
-
-        if persistence.task_exists(message_id):
-            logger.debug(f"DiscordObserver's on_observe: Task {message_id} already exists. Skipping creation.")
-            return
-        
-        now_iso = datetime.now(timezone.utc).isoformat() # Get current time for task
-        
-        task = persistence.Task( # Use persistence.Task or agent_core_schemas.Task
-            task_id=message_id,
-            description=task_description,
-            status=persistence.TaskStatus.PENDING, # Use persistence.TaskStatus or foundational_schemas.TaskStatus
-            priority=1, # Default priority
-            created_at=now_iso,
-            updated_at=now_iso,
-            context=context_data,
-        )
-        try:
-            persistence.add_task(task)
-            logger.info(f"DiscordObserver's on_observe: Created task {message_id} from Discord message.")
-        except Exception as e:
-            logger.exception(f"DiscordObserver's on_observe: Failed to add task {message_id} to persistence: {e}")
-
-    # Instantiate DiscordObserver
-    # It needs the shared message queue and the on_observe callback
+    # Instantiate DiscordObserver and wire it to the transport-agnostic router
     from ciris_engine.services.discord_observer import DiscordObserver
-    from datetime import datetime, timezone # Ensure datetime and timezone are imported if not already
+    from datetime import datetime, timezone  # Ensure datetime and timezone are imported if not already
 
     discord_observer = DiscordObserver(
-        on_observe=_on_discord_observation,
+        on_observe=handle_observation_event,
         message_queue=discord_message_queue, # The same queue used by DiscordAdapter
         monitored_channel_id=os.getenv("DISCORD_CHANNEL_ID") # Optional: if you want to monitor a specific channel
     )
@@ -203,7 +157,6 @@ async def main() -> None:
     # Start services
     await llm_service.start()
     await memory_service.start()
-    await discord_observer.start() # Start the observer
 
     # --- Helper function to retrieve user_nick for memory operations ---
     async def _get_user_nick_for_memory(params: MemorizeParams, ctx: dict, thought_id: Optional[str]) -> Optional[str]:
@@ -583,7 +536,6 @@ async def main() -> None:
         await asyncio.gather(
             llm_service.stop(),
             memory_service.stop(),
-            discord_observer.stop()
         )
 
 
