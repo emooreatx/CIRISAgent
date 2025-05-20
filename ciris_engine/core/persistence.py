@@ -206,6 +206,21 @@ def get_tasks_older_than(timestamp_iso: str) -> List[Task]:
         logging.exception(f"Failed to get tasks older than {timestamp_iso}: {e}")
     return tasks
 
+def get_all_tasks() -> List[Task]:
+    """Retrieves all tasks from the database."""
+    sql = "SELECT * FROM tasks ORDER BY created_at ASC"
+    tasks = []
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            for row in rows:
+                tasks.append(_map_row_to_task(row))
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to get all tasks: {e}")
+    return tasks
+
 def delete_tasks_by_ids(task_ids: List[str]) -> int:
     """Deletes tasks by a list of IDs. Returns the number of tasks deleted."""
     if not task_ids:
@@ -438,6 +453,21 @@ def get_thought_by_id(thought_id: str) -> Optional[Thought]:
     except sqlite3.Error as e:
         logging.exception(f"Failed to get thought {thought_id}: {e}")
         return None
+
+def get_thoughts_by_task_id(task_id: str) -> List[Thought]:
+    """Retrieves all thoughts for a specific task_id, ordered by creation date."""
+    sql = "SELECT * FROM thoughts WHERE source_task_id = ? ORDER BY created_at ASC"
+    thoughts = []
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (task_id,))
+            rows = cursor.fetchall()
+            for row in rows:
+                thoughts.append(_map_row_to_thought(row))
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to get thoughts for task_id {task_id}: {e}")
+    return thoughts
 
 def update_thought_status(
     thought_id: str,
@@ -690,6 +720,28 @@ def thought_exists_for(task_id: str) -> bool:
 def get_top_tasks(limit: int) -> List[Task]:
     """Alias for get_active_tasks_by_priority to match API."""
     return get_active_tasks_by_priority(limit)
+
+def get_recent_completed_tasks(limit: int) -> List[Task]:
+    """Retrieves the most recent completed tasks, ordered by updated_at, up to a limit."""
+    sql = """
+        SELECT * FROM tasks
+        WHERE status = ?
+        ORDER BY updated_at DESC
+        LIMIT ?
+    """
+    tasks = []
+    try:
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            completed_status = TaskStatus.COMPLETED.value
+            cursor.execute(sql, (completed_status, limit))
+            rows = cursor.fetchall()
+            for row in rows:
+                tasks.append(_map_row_to_task(row))
+            logging.debug(f"Retrieved {len(tasks)} recent completed tasks (limit: {limit}).")
+    except sqlite3.Error as e:
+        logging.exception(f"Failed to get recent completed tasks: {e}")
+    return tasks
 
 # Ensure database is initialized when module is loaded (optional)
 # initialize_database()

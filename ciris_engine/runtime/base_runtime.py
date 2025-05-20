@@ -20,14 +20,8 @@ logger = logging.getLogger(__name__)
 def datetime_from_seconds(sec: float) -> str:
     return datetime.fromtimestamp(sec, tz=timezone.utc).isoformat()
 
-@dataclass
-class IncomingMessage:
-    message_id: str
-    author_id: str
-    author_name: str
-    content: str
-    channel_id: Optional[str] = None
-
+# IncomingMessage is now in ciris_engine.core.foundational_schemas
+from ciris_engine.core.foundational_schemas import IncomingMessage
 
 class BaseIOAdapter:
     """Abstract interface for runtime I/O."""
@@ -127,12 +121,16 @@ class BaseRuntime:
         HandlerActionType.PONDER,
     }
 
-    def __init__(self, io_adapter: BaseIOAdapter, profile_path: str, snore_channel_id: Optional[str] = None):
+    def __init__(self, 
+                 io_adapter: BaseIOAdapter, 
+                 profile_path: str, 
+                 action_dispatcher: ActionDispatcher, # Expect a pre-configured dispatcher
+                 snore_channel_id: Optional[str] = None):
         self.io_adapter = io_adapter
         self.profile_path = profile_path
         self.snore_channel_id = snore_channel_id
-        self.audit_service = AuditService()
-        self.dispatcher = ActionDispatcher(audit_service=self.audit_service)
+        self.audit_service = AuditService() # AuditService could also be passed in if needed elsewhere
+        self.dispatcher = action_dispatcher # Use the passed, configured dispatcher
         self.dreaming = False
         self._dream_task: Optional[asyncio.Task] = None
 

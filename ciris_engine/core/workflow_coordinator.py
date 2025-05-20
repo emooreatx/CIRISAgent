@@ -437,15 +437,6 @@ class WorkflowCoordinator:
 
             if current_ponder_count >= self.max_ponder_rounds:
                 logging.warning(f"Thought ID {thought_object.thought_id} has reached max ponder rounds ({self.max_ponder_rounds}). Overriding to DEFER.")
-                persistence.update_thought_status(
-                    thought_id=thought_object.thought_id,
-                    new_status=ThoughtStatus.DEFERRED,
-                    round_processed=self.current_round_number,
-                    final_action_result={"status": "Deferred due to max ponder rounds", "final_ponder_count": current_ponder_count},
-                    ponder_notes=key_questions_list, 
-                    ponder_count=current_ponder_count
-                )
-                
                 deferral_package_max_ponder = {
                     "original_ponder_questions": key_questions_list,
                     "final_ponder_count": current_ponder_count,
@@ -461,14 +452,26 @@ class WorkflowCoordinator:
                     target_wa_ual=DEFAULT_WA,
                     deferral_package_content=deferral_package_max_ponder
                 )
-                return ActionSelectionPDMAResult(
-                    context_summary_for_action_selection=final_action_result.context_summary_for_action_selection,
-                    action_alignment_check=final_action_result.action_alignment_check,
+                # Construct the ActionSelectionPDMAResult that represents this deferral
+                defer_action_selection_result = ActionSelectionPDMAResult(
+                    context_summary_for_action_selection=final_action_result.context_summary_for_action_selection if final_action_result else "Max ponder rounds reached.",
+                    action_alignment_check=final_action_result.action_alignment_check if final_action_result else {"DEFER": "Max ponder rounds reached"},
                     selected_handler_action=HandlerActionType.DEFER,
-                    action_parameters=max_ponder_defer_params, # Use DeferParams model
+                    action_parameters=max_ponder_defer_params,
                     action_selection_rationale=f"Ponder action overridden. Thought reached max ponder rounds ({self.max_ponder_rounds}).",
                     monitoring_for_selected_action={"status": "Max ponder rounds reached, deferred"}
                 )
+
+                persistence.update_thought_status(
+                    thought_id=thought_object.thought_id,
+                    new_status=ThoughtStatus.DEFERRED,
+                    round_processed=self.current_round_number,
+                    final_action_result=defer_action_selection_result.model_dump(), # Store the full result
+                    ponder_notes=key_questions_list, 
+                    ponder_count=current_ponder_count
+                )
+                # The deferral_package_max_ponder and max_ponder_defer_params were used to build defer_action_selection_result
+                return defer_action_selection_result # Return the constructed result
             else: # Re-queue for PONDER
                 new_ponder_count = current_ponder_count + 1
                 logging.info(f"Thought ID {thought_object.thought_id} resulted in PONDER action (count: {new_ponder_count}). Questions: {key_questions_list}. Re-queueing.")
@@ -542,6 +545,15 @@ class WorkflowCoordinator:
                 "pending_thoughts": persistence.count_thoughts(ThoughtStatus.PENDING),
             },
             "top_tasks": [t.task_id for t in persistence.get_top_tasks(3)],
+            "recently_completed_tasks": [
+                {
+                    "task_id": t.task_id,
+                    "description": t.description,
+                    "outcome": t.outcome, # Include outcome for context
+                    "updated_at": t.updated_at
+                }
+                for t in persistence.get_recent_completed_tasks(5)
+            ]
         }
         graphql_extra = await self.graphql_context_provider.enrich_context(task, thought)
         context.update(graphql_extra)

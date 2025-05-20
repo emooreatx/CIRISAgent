@@ -31,17 +31,31 @@ from ciris_engine.core.agent_core_schemas import (
     ForgetParams,
     ActParams,
     ActionSelectionPDMAResult,
-    ObserveParams,
+    ObserveParams, # ObserveParams is used by ObserveHandler
     Thought,
+    # ActParams, DeferParams, MemorizeParams, RejectParams, SpeakParams are used by their respective handlers
 )
-from ciris_engine.core.foundational_schemas import ThoughtStatus, TaskStatus # Added TaskStatus
-from pydantic import BaseModel
-import uuid
-from ciris_engine.utils.constants import DEFAULT_WA, WA_USER_ID
-from ciris_engine.core.action_handlers.helpers import create_follow_up_thought
-from datetime import datetime, timezone, timedelta # Added timedelta
-import json # Added json for archiving
-from pathlib import Path # Added Path for directory creation
+from ciris_engine.core.foundational_schemas import ThoughtStatus, TaskStatus
+from pydantic import BaseModel # Used by handlers for params
+import uuid # Used by handlers
+from ciris_engine.utils.constants import DEFAULT_WA, WA_USER_ID # Potentially used by handlers or context
+# from ciris_engine.core.action_handlers.helpers import create_follow_up_thought # Now used within handlers
+from datetime import datetime, timezone
+from ciris_engine.utils.profile_loader import load_profile # Added import
+
+# Centralized Action Handlers and Dispatcher
+from ciris_engine.core.action_dispatcher import ActionDispatcher
+from ciris_engine.core.action_handlers import (
+    ActionHandlerDependencies,
+    SpeakHandler,
+    DeferHandler,
+    RejectHandler,
+    ObserveHandler,
+    MemorizeHandler,
+    ToolHandler,
+    TaskCompleteHandler
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -57,209 +71,18 @@ class DiscordActionSink(ActionSink):
     async def stop(self) -> None: pass
     async def send_message(self, channel_id: str, content: str) -> None:
         await self.runtime.io_adapter.send_output(channel_id, content)
-    async def run_tool(self, tool_name: str, arguments: dict) -> None: return None
+    async def run_tool(self, tool_name: str, arguments: dict) -> None: 
+        # This is a basic sink; tool execution results would typically be handled
+        # by the agent observing the effects of the tool, or the tool directly
+        # creating new observations/events. For now, this is a placeholder.
+        logger.info(f"DiscordActionSink: Request to run tool '{tool_name}' with args: {arguments}. (Placeholder implementation)")
+        return None
 
-async def _discord_handler(runtime: BaseRuntime, sink: ActionSink, result: ActionSelectionPDMAResult, ctx: dict, services: dict) -> None:
-    thought_id = ctx.get("thought_id")
-    channel_id = ctx.get("channel_id")
-    action = result.selected_handler_action
-    params = result.action_parameters
-
-    final_thought_status = ThoughtStatus.COMPLETED
-    action_performed_successfully = False
-    follow_up_content = ""
-
-    try:
-        if action == HandlerActionType.SPEAK:
-            speak_content = None
-            target_channel_id_from_params = None
-
-            if isinstance(params, SpeakParams):
-                speak_content = params.content
-                target_channel_id_from_params = params.target_channel
-            elif isinstance(params, dict): # Handle raw dict if Pydantic parsing failed
-                speak_content = params.get("content")
-                target_channel_id_from_params = params.get("target_channel")
-            else:
-                logger.error(f"DiscordHandler: SPEAK action params are neither SpeakParams nor dict. Type: {type(params)}. Thought ID: {thought_id}")
-                final_thought_status = ThoughtStatus.FAILED # Mark as failed
-                action_performed_successfully = False
-                follow_up_content = f"SPEAK action failed: Invalid parameters type ({type(params)})."
-
-            if final_thought_status != ThoughtStatus.FAILED: # Proceed only if params type was okay
-                # Determine the channel to speak in. channel_id is from ctx.get("channel_id")
-                final_channel_id_to_speak = target_channel_id_from_params or channel_id 
-                
-                if not final_channel_id_to_speak and SNORE_CHANNEL_ID:
-                    logger.info(f"DiscordHandler: No target_channel in params or channel_id in context for SPEAK. Using SNORE_CHANNEL_ID: {SNORE_CHANNEL_ID}. Thought ID: {thought_id}")
-                    final_channel_id_to_speak = SNORE_CHANNEL_ID
-
-                if speak_content and final_channel_id_to_speak:
-                    try:
-                        # Ensure channel ID is just the number string
-                        numeric_channel_id_str = str(final_channel_id_to_speak).lstrip('#')
-                        await sink.send_message(numeric_channel_id_str, speak_content)
-                        action_performed_successfully = True
-                        follow_up_content = f"Spoke: '{str(speak_content)[:50]}...' in channel #{numeric_channel_id_str}"
-                        # final_thought_status remains COMPLETED (default)
-                    except Exception as send_ex:
-                        logger.exception(f"DiscordHandler: Error sending SPEAK message to channel {final_channel_id_to_speak}. Thought ID: {thought_id}: {send_ex}")
-                        final_thought_status = ThoughtStatus.FAILED
-                        action_performed_successfully = False
-                        follow_up_content = f"SPEAK action failed during send: {str(send_ex)}"
-                else:
-                    logger.error(f"DiscordHandler: SPEAK action failed. Content available: {speak_content is not None}, Channel determined: {final_channel_id_to_speak is not None}. Thought ID: {thought_id}")
-                    final_thought_status = ThoughtStatus.FAILED
-                    action_performed_successfully = False
-                    if not speak_content:
-                        follow_up_content = "SPEAK action failed: Missing content."
-                    elif not final_channel_id_to_speak:
-                        follow_up_content = "SPEAK action failed: Missing channel."
-                    else:
-                        follow_up_content = "SPEAK action failed: Unknown reason (missing content or channel)."
-        elif action == HandlerActionType.DEFER and isinstance(params, DeferParams) and channel_id:
-            await sink.send_message(channel_id, f"Deferred: {params.reason}")
-            final_thought_status = ThoughtStatus.DEFERRED
-            action_performed_successfully = True
-            follow_up_content = f"Deferred thought. Reason: {params.reason}"
-        elif action == HandlerActionType.REJECT and isinstance(params, RejectParams) and channel_id:
-            await sink.send_message(channel_id, f"Unable to proceed. Reason: {params.reason}")
-            action_performed_successfully = True
-            follow_up_content = f"Rejected thought. Reason: {params.reason}"
-        elif action == HandlerActionType.TOOL and isinstance(params, ActParams):
-            await sink.run_tool(params.tool_name, params.arguments)
-            action_performed_successfully = True
-            follow_up_content = f"Executed tool: {params.tool_name} with args {params.arguments}."
-        elif action == HandlerActionType.OBSERVE and isinstance(params, ObserveParams):
-            logger.info(f"DiscordHandler: Handling OBSERVE action. Perform active look: {params.perform_active_look}")
-            if params.perform_active_look:
-                active_look_channel_id_str = os.getenv("DISCORD_CHANNEL_ID")
-                if params.sources and isinstance(params.sources, list) and len(params.sources) > 0:
-                    potential_channel_id = params.sources[0].lstrip('#')
-                    if potential_channel_id.isdigit(): active_look_channel_id_str = potential_channel_id
-                if not active_look_channel_id_str:
-                    logger.error("DiscordHandler: Active look channel ID not configured."); final_thought_status = ThoughtStatus.FAILED; follow_up_content = "Active look failed: Channel ID not configured."; action_performed_successfully = False
-                else:
-                    try:
-                        channel_id_int = int(active_look_channel_id_str)
-                        if not hasattr(runtime.io_adapter, 'client') or not runtime.io_adapter.client:
-                            logger.error("DiscordHandler: Discord client unavailable."); final_thought_status = ThoughtStatus.FAILED; follow_up_content = "Active look failed: Discord client unavailable."; action_performed_successfully = False
-                        else:
-                            target_channel = runtime.io_adapter.client.get_channel(channel_id_int)
-                            if not target_channel:
-                                logger.error(f"DiscordHandler: Channel {active_look_channel_id_str} not found."); final_thought_status = ThoughtStatus.FAILED; follow_up_content = f"Active look failed: Channel {active_look_channel_id_str} not found."; action_performed_successfully = False
-                            else:
-                                fetched_messages_data = [{"id": str(m.id), "content": m.content, "author_id": str(m.author.id), "author_name": m.author.name, "timestamp": m.created_at.isoformat()} async for m in target_channel.history(limit=10)]
-                                logger.info(f"DiscordHandler: Fetched {len(fetched_messages_data)} messages for active look.")
-                                original_thought_for_active_look = persistence.get_thought_by_id(thought_id)
-                                if original_thought_for_active_look:
-                                    now_iso = datetime.now(timezone.utc).isoformat()
-                                    res_content = f"Active look from channel {active_look_channel_id_str}: Found {len(fetched_messages_data)} messages. Review to determine next steps. If task complete, use TASK_COMPLETE."
-                                    if not fetched_messages_data: res_content = f"Active look from channel {active_look_channel_id_str}: No recent messages. Consider if task complete."
-                                    res_thought = Thought(thought_id=f"th_active_obs_{str(uuid.uuid4())[:8]}", source_task_id=original_thought_for_active_look.source_task_id, thought_type="active_observation_result", status=ThoughtStatus.PENDING, created_at=now_iso, updated_at=now_iso, round_created=ctx.get("current_round_number", original_thought_for_active_look.round_created + 1), content=res_content, processing_context={"is_active_look_result": True, "original_observe_thought_id": thought_id, "source_observe_action_params": params.model_dump(mode="json"), "fetched_messages_details": fetched_messages_data}, priority=original_thought_for_active_look.priority)
-                                    persistence.add_thought(res_thought)
-                                    logger.info(f"DiscordHandler: Created result thought {res_thought.thought_id} for active look.")
-                                    action_performed_successfully = True; follow_up_content = f"Active look on {params.sources} created result thought {res_thought.thought_id}."
-                                else:
-                                    logger.error(f"DiscordHandler: Original thought {thought_id} not found for active look."); final_thought_status = ThoughtStatus.FAILED; follow_up_content = "Active look failed: original thought missing."; action_performed_successfully = False
-                    except ValueError: logger.error(f"DiscordHandler: Invalid active look channel ID '{active_look_channel_id_str}'."); final_thought_status = ThoughtStatus.FAILED; follow_up_content = "Active look failed: Invalid channel ID."; action_performed_successfully = False
-                    except Exception as e_al: logger.exception(f"DiscordHandler: Error in active look: {e_al}"); final_thought_status = ThoughtStatus.FAILED; follow_up_content = f"Active look error: {e_al}"; action_performed_successfully = False
-            else: # Passive observe
-                action_performed_successfully = True
-                follow_up_content = f"Passive observation initiated for sources: {params.sources}. System will monitor. Consider if task is complete."
-        elif action == HandlerActionType.MEMORIZE and isinstance(params, MemorizeParams):
-            logger.info(f"DiscordHandler: Handling MEMORIZE action for thought {thought_id}. Attempting to dispatch to 'memory' service.")
-            original_thought_for_dispatch = persistence.get_thought_by_id(thought_id)
-
-            if not original_thought_for_dispatch:
-                logger.error(f"DiscordHandler: Cannot dispatch MEMORIZE for thought {thought_id}. Original thought not found.")
-                # Let the main error handling of _discord_handler manage this failure.
-                # Set status and content for the follow-up thought.
-                final_thought_status = ThoughtStatus.FAILED
-                action_performed_successfully = False # The dispatch action itself failed
-                follow_up_content = f"Failed to dispatch MEMORIZE for thought {thought_id}: Original thought data not found."
-                # Do NOT return here; allow the standard status update and follow-up creation to occur.
-            else:
-                memory_dispatch_ctx = ctx.copy()
-                memory_dispatch_ctx["origin_service"] = "memory" # Set origin for the memory service call
-                
-                await runtime.dispatcher.dispatch(
-                    action_selection_result=result,
-                    thought=original_thought_for_dispatch,
-                    dispatch_context=memory_dispatch_ctx,
-                    services=services
-                )
-                # The dispatched 'memory' handler is now responsible for the lifecycle of this thought's MEMORIZE action.
-                # So, _discord_handler should not create a follow-up or update status for this specific MEMORIZE action.
-                return # Exit _discord_handler
-        elif action == HandlerActionType.TASK_COMPLETE:
-            logger.info(f"DiscordHandler: Handling TASK_COMPLETE for thought {thought_id}.")
-            action_performed_successfully = True # The action of deciding to complete is successful
-            final_thought_status = ThoughtStatus.COMPLETED # Current thought is completed
-            follow_up_content = "Task marked as complete by agent."
-            if thought_id:
-                current_thought_for_task_complete = persistence.get_thought_by_id(thought_id)
-                if current_thought_for_task_complete and current_thought_for_task_complete.source_task_id:
-                    parent_task_id = current_thought_for_task_complete.source_task_id
-                    logger.info(f"DiscordHandler: Marking parent task {parent_task_id} as COMPLETED due to TASK_COMPLETE action on thought {thought_id}.")
-                    persistence.update_task_status(parent_task_id, TaskStatus.COMPLETED)
-                else:
-                    logger.error(f"DiscordHandler: Could not find parent task for thought {thought_id} to mark as complete.")
-        else:
-            logger.error("DiscordHandler: Unhandled action %s for thought %s", action.value, thought_id)
-            final_thought_status = ThoughtStatus.FAILED
-            follow_up_content = f"Attempted unhandled action: {action.value}"
-
-    except Exception as e:
-        logger.exception(f"DiscordHandler: Error processing action {action.value} for thought {thought_id}: {e}")
-        final_thought_status = ThoughtStatus.FAILED
-        follow_up_content = f"Error during action {action.value}: {str(e)}"
-
-    if thought_id:
-        original_thought = persistence.get_thought_by_id(thought_id)
-        if original_thought:
-            try:
-                persistence.update_thought_status(
-                    thought_id=thought_id,
-                    new_status=final_thought_status,
-                    final_action_result=result.model_dump(),
-                )
-                logger.debug(f"DiscordHandler: Updated original thought {thought_id} to status {final_thought_status.value}")
-
-                if action_performed_successfully or final_thought_status == ThoughtStatus.FAILED:
-                    if action != HandlerActionType.TASK_COMPLETE: # TASK_COMPLETE is terminal, no standard follow-up from here
-                        
-                        current_follow_up_text = follow_up_content or f"Follow-up to {action.value} for thought {thought_id}"
-                        if action == HandlerActionType.SPEAK and action_performed_successfully:
-                            current_follow_up_text = f"Successfully spoke: '{params.content[:70]}...'. The original user request may now be addressed. Consider if any further memory operations or actions are needed. If the task is complete, the next action should be TASK_COMPLETE."
-                        elif action_performed_successfully and \
-                             not (action == HandlerActionType.OBSERVE and isinstance(params, ObserveParams) and params.perform_active_look and action_performed_successfully):
-                            # Add general guidance for other successful actions, but not for active OBSERVE that creates its own result thought.
-                            current_follow_up_text += " Review if this completes the task or if further steps (like TASK_COMPLETE) are needed."
-                        
-                        new_follow_up = create_follow_up_thought(
-                            parent=original_thought,
-                            content=current_follow_up_text
-                        )
-                        
-                        processing_ctx_for_follow_up = {"action_performed": action.value}
-                        if final_thought_status == ThoughtStatus.FAILED:
-                            processing_ctx_for_follow_up["error_details"] = follow_up_content
-                        
-                        current_action_params = result.action_parameters # Already a Pydantic model or dict
-                        if isinstance(current_action_params, BaseModel):
-                            processing_ctx_for_follow_up["action_params"] = current_action_params.model_dump(mode="json")
-                        else:
-                            processing_ctx_for_follow_up["action_params"] = current_action_params
-                        
-                        new_follow_up.processing_context = processing_ctx_for_follow_up
-                        
-                        persistence.add_thought(new_follow_up)
-                        logger.info(f"DiscordHandler: Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after action {action.value}")
-            except Exception as db_error:
-                logger.error(f"DiscordHandler: Failed to update thought {thought_id} status or create follow-up in DB: {db_error}")
-        else:
-            logger.error(f"DiscordHandler: Could not retrieve original thought {thought_id} for status update/follow-up.")
+# _discord_handler is removed as its logic is now in centralized handlers.
+# _memory_handler is removed as its logic is now in MemorizeHandler.
+# _get_user_nick_for_memory is removed as its logic is now in MemorizeHandler.
+# _observer_service_handler is removed as its logic is now in ObserveHandler (for active look)
+# or handled by the core event router for passive observations.
 
 async def main() -> None:
     if not TOKEN:
@@ -267,34 +90,38 @@ async def main() -> None:
         return
 
     persistence.initialize_database()
-    await _startup_db_cleanup_and_log() # Call the new cleanup function
+    app_config = await get_config_async() # Moved this line up
+
+    # Initialize and run DatabaseMaintenanceService
+    from ciris_engine.services.maintenance_service import DatabaseMaintenanceService
+    # Assuming app_config has these paths, or use defaults / direct strings if not
+    archive_dir = getattr(getattr(app_config, "data_paths", {}), "archive_dir", "data_archive")
+    archive_hours = getattr(getattr(app_config, "maintenance", {}), "archive_older_than_hours", 24)
+    
+    db_maintenance_service = DatabaseMaintenanceService(
+        archive_dir_path=archive_dir, 
+        archive_older_than_hours=archive_hours
+    )
+    await db_maintenance_service.perform_startup_cleanup()
 
     from ciris_engine.runtime.base_runtime import IncomingMessage
     from ciris_engine.services.discord_event_queue import DiscordEventQueue
     discord_message_queue = DiscordEventQueue[IncomingMessage]()
+    discord_adapter = DiscordAdapter(TOKEN, message_queue=discord_message_queue) # Create adapter first
+    discord_sink = DiscordActionSink(None) # Placeholder, will be set after runtime init
 
-    runtime = BaseRuntime(
-        io_adapter=DiscordAdapter(TOKEN, message_queue=discord_message_queue),
-        profile_path=PROFILE_PATH,
-        snore_channel_id=SNORE_CHANNEL_ID,
-    )
-
-    discord_sink = DiscordActionSink(runtime)
-    runtime.dispatcher.register_service_handler(
-        "discord", lambda res, d_ctx: _discord_handler(runtime, discord_sink, res, d_ctx, services_dict)
-    )
-
-    app_config = await get_config_async()
-    profile = await runtime._load_profile()
+    # app_config is already loaded
+    profile = await load_profile(PROFILE_PATH) # Load profile directly, not via runtime yet
+    if not profile:
+        raise FileNotFoundError(PROFILE_PATH)
 
     if profile.name.lower() not in app_config.agent_profiles:
         app_config.agent_profiles[profile.name.lower()] = profile
-
+    
     llm_service = LLMService(app_config.llm_services)
     memory_service = DiscordGraphMemory()
     
     from ciris_engine.services.discord_observer import DiscordObserver
-
     discord_observer = DiscordObserver(
         on_observe=handle_observation_event,
         message_queue=discord_message_queue,
@@ -304,105 +131,64 @@ async def main() -> None:
     await llm_service.start()
     await memory_service.start()
 
-    async def _get_user_nick_for_memory(params: MemorizeParams, ctx: dict, thought_id: Optional[str]) -> Optional[str]:
-        user_nick: Optional[str] = None
-        if isinstance(params.knowledge_data, dict):
-            user_nick = params.knowledge_data.get("nick")
-            if user_nick: return user_nick
-            user_nick = params.knowledge_data.get("user_id")
-            if user_nick: return user_nick
-        user_nick = ctx.get("author_name")
-        if user_nick: return user_nick
-        if thought_id:
-            try:
-                current_thought = persistence.get_thought_by_id(thought_id)
-                if current_thought and current_thought.source_task_id:
-                    parent_task = persistence.get_task_by_id(current_thought.source_task_id)
-                    if parent_task and isinstance(parent_task.context, dict):
-                        user_nick = parent_task.context.get("author_name")
-                        if user_nick: return user_nick
-            except Exception as e_fetch: logger.error(f"Error fetching parent task for thought {thought_id}: {e_fetch}")
-        logger.warning(f"Could not determine user_nick for thought {thought_id}.")
-        return None
-
-    async def _memory_handler(result: ActionSelectionPDMAResult, ctx: dict):
-        thought_id = ctx.get("thought_id")
-        action = result.selected_handler_action
-        params = result.action_parameters
-        final_thought_status = ThoughtStatus.COMPLETED
-        try:
-            if not isinstance(params, BaseModel):
-                 logger.error(f"MemoryHandler: Params not BaseModel. Type: {type(params)}."); final_thought_status = ThoughtStatus.FAILED
-            elif action == HandlerActionType.MEMORIZE and isinstance(params, MemorizeParams):
-                user_nick = await _get_user_nick_for_memory(params, ctx, thought_id)
-                channel = params.channel_metadata.get("channel") if isinstance(params.channel_metadata, dict) else ctx.get("channel_id")
-                metadata = params.knowledge_data if isinstance(params.knowledge_data, dict) else {"data": str(params.knowledge_data)}
-                if not user_nick or not channel:
-                     logger.error(f"MemoryHandler: MEMORIZE missing user_nick/channel."); final_thought_status = ThoughtStatus.FAILED
-                else:
-                    mem_result = await memory_service.memorize(
-                        user_nick=str(user_nick), channel=str(channel), metadata=metadata,
-                        channel_metadata=params.channel_metadata, is_correction=ctx.get("is_wa_correction", False)
-                    )
-                    if mem_result.status != MemoryOpStatus.SAVED:
-                        logger.error(f"MemoryHandler: MEMORIZE {mem_result.status.name}. Reason: {mem_result.reason}")
-                        final_thought_status = ThoughtStatus.FAILED if mem_result.status == MemoryOpStatus.FAILED else ThoughtStatus.DEFERRED
-            elif action == HandlerActionType.REMEMBER and isinstance(params, RememberParams):
-                 logger.warning(f"MemoryHandler: REMEMBER action pending implementation.") 
-            elif action == HandlerActionType.FORGET and isinstance(params, ForgetParams):
-                 logger.warning(f"MemoryHandler: FORGET action pending implementation.") 
-            else:
-                logger.error(f"MemoryHandler: Unexpected action/params type: {action}/{type(params)}."); final_thought_status = ThoughtStatus.FAILED
-        except Exception as e:
-            logger.exception(f"MemoryHandler: Error processing {action.value}: {e}"); final_thought_status = ThoughtStatus.FAILED
-        if thought_id:
-            try:
-                persistence.update_thought_status(thought_id, final_thought_status, final_action_result=result.model_dump())
-                logger.debug(f"MemoryHandler: Updated original thought {thought_id} to status {final_thought_status.value}")
-
-                if final_thought_status == ThoughtStatus.COMPLETED and action == HandlerActionType.MEMORIZE:
-                    original_thought_for_follow_up = persistence.get_thought_by_id(thought_id)
-                    if original_thought_for_follow_up:
-                        follow_up_content_text = (
-                            f"Memorization successful for original thought {thought_id} (Task: {original_thought_for_follow_up.source_task_id}). "
-                            f"Knowledge: '{str(params.knowledge_data)[:70]}...'. "
-                            "Consider informing the user with SPEAK or select TASK_COMPLETE if the overall task is finished."
-                        )
-                        new_follow_up = create_follow_up_thought(
-                            parent=original_thought_for_follow_up,
-                            content=follow_up_content_text
-                        )
-                        processing_ctx_for_follow_up = {
-                            "action_performed": "MEMORIZE_SUCCESS",
-                            "original_memorize_params": params.model_dump(mode="json") if isinstance(params, BaseModel) else params
-                        }
-                        new_follow_up.processing_context = processing_ctx_for_follow_up
-                        persistence.add_thought(new_follow_up)
-                        logger.info(f"MemoryHandler: Created follow-up thought {new_follow_up.thought_id} for successful MEMORIZE on {thought_id}")
-                    else:
-                        logger.error(f"MemoryHandler: Could not retrieve original thought {thought_id} to create MEMORIZE success follow-up.")
-                elif final_thought_status == ThoughtStatus.FAILED:
-                    # Potentially create a more specific "failed memory op" follow-up if needed
-                    pass
-
-            except Exception as db_error: logger.error(f"MemoryHandler: DB error for {thought_id}: {db_error}")
-
-    runtime.dispatcher.register_service_handler("memory", _memory_handler)
-
-    async def _observer_service_handler(runtime_ref: BaseRuntime, result: ActionSelectionPDMAResult, ctx: dict):
-        logger.info(f"Generic _observer_service_handler: Received OBSERVE. Params: {result.action_parameters}")
-        thought_id_for_status = ctx.get("thought_id")
-        if thought_id_for_status:
-            persistence.update_thought_status(thought_id_for_status, ThoughtStatus.COMPLETED, final_action_result=result.model_dump(mode="json"))
-            original_thought = persistence.get_thought_by_id(thought_id_for_status)
-            if original_thought:
-                follow_up = create_follow_up_thought(original_thought, "Generic observer service processed OBSERVE action.")
-                persistence.add_thought(follow_up)
-        logger.warning("_observer_service_handler: Placeholder. Active Discord look is in _discord_handler.")
-
-    runtime.dispatcher.register_service_handler("observer", lambda res, c: _observer_service_handler(runtime, res, c))
-
     llm_client = llm_service.get_client()
+
+    # Create dependencies for action handlers
+    # ActionSink needs runtime, but runtime needs dispatcher.
+    # We'll create a temporary sink or set it later if BaseRuntime needs it during init.
+    # For now, ActionHandlerDependencies can take None for action_sink if it's only used by handlers later.
+    # Or, we can initialize runtime, then sink, then update deps.
+    # Let's initialize ActionHandlerDependencies with a placeholder sink for now,
+    # and ensure the real sink is available when handlers are called.
+    # A better way: initialize sink after runtime, then pass to deps.
+
+    action_handler_deps = ActionHandlerDependencies(
+        action_sink=None, # Will be set after runtime is initialized
+        memory_service=memory_service,
+        observer_service=discord_observer,
+        io_adapter=discord_adapter # Pass the discord_adapter here
+    )
+
+    speak_handler = SpeakHandler(action_handler_deps, snore_channel_id=SNORE_CHANNEL_ID)
+    defer_handler = DeferHandler(action_handler_deps)
+    reject_handler = RejectHandler(action_handler_deps)
+    observe_handler = ObserveHandler(action_handler_deps)
+    memorize_handler = MemorizeHandler(action_handler_deps)
+    tool_handler = ToolHandler(action_handler_deps)
+    task_complete_handler = TaskCompleteHandler(action_handler_deps)
+
+    handlers_map = {
+        HandlerActionType.SPEAK: speak_handler,
+        HandlerActionType.DEFER: defer_handler,
+        HandlerActionType.REJECT: reject_handler,
+        HandlerActionType.OBSERVE: observe_handler,
+        HandlerActionType.MEMORIZE: memorize_handler,
+        HandlerActionType.TOOL: tool_handler,
+        HandlerActionType.TASK_COMPLETE: task_complete_handler,
+    }
+
+    # Instantiate the new ActionDispatcher
+    # The audit_service for ActionDispatcher can be created here if BaseRuntime doesn't own it solely.
+    # For now, ActionDispatcher's audit_service is optional.
+    new_action_dispatcher = ActionDispatcher(handlers=handlers_map)
+    
+    runtime = BaseRuntime(
+        io_adapter=discord_adapter,
+        profile_path=PROFILE_PATH, # Profile object could be passed instead if already loaded
+        action_dispatcher=new_action_dispatcher, # Pass the configured dispatcher
+        snore_channel_id=SNORE_CHANNEL_ID,
+    )
+    discord_sink.runtime = runtime # Now set the runtime for the sink
+    action_handler_deps.action_sink = discord_sink # Update dependency with real sink
+
+    # The old runtime.dispatcher.register_service_handler for "discord" and "memory" is no longer needed here
+    # as these are handled by the new ActionDispatcher and its centralized handlers.
+
+    # profile is already loaded and added to app_config.agent_profiles
+    # llm_service, memory_service, discord_observer are already initialized.
+    # llm_client is already initialized.
+    # action_handler_deps, handlers_map, and new_action_dispatcher are already initialized.
+
     ethical_pdma = EthicalPDMAEvaluator(
         aclient=llm_client.instruct_client, model_name=llm_client.model_name,
         max_retries=app_config.llm_services.openai.max_retries
@@ -426,16 +212,24 @@ async def main() -> None:
         ethical_guardrails=guardrails, app_config=app_config,
         dsdma_evaluators={}, memory_service=memory_service,
     )
+    # services_dict is still used by AgentProcessor for other potential needs or context.
+    # It's not directly used by the new ActionDispatcher's main path but could be part of dispatch_context.
     services_dict = {
-        "llm_client": llm_service.get_client(), "memory_service": memory_service,
-        "discord_service": runtime.io_adapter, "observer_service": discord_observer,
+        "llm_client": llm_service.get_client(), # For DMAs
+        "memory_service": memory_service, # For WorkflowCoordinator context, and handler deps
+        "discord_service": runtime.io_adapter, # For general Discord interactions if needed outside handlers
+        "observer_service": discord_observer, # For event source and handler deps
+        # Potentially add other services if AgentProcessor or other components need them.
     }
+    
     processor = AgentProcessor(
-        app_config=app_config, workflow_coordinator=workflow_coordinator,
-        action_dispatcher=runtime.dispatcher, services=services_dict,
+        app_config=app_config,
+        workflow_coordinator=workflow_coordinator,
+        action_dispatcher=new_action_dispatcher, # Pass the new dispatcher
+        services=services_dict, # services_dict is still passed for general context
         startup_channel_id=SNORE_CHANNEL_ID,
     )
-    event_source = DiscordEventSource(discord_observer)
+    event_source = DiscordEventSource(discord_observer) # DiscordObserver is the event generator
 
     async def main_loop():
         await event_source.start()
@@ -448,134 +242,11 @@ async def main() -> None:
     try:
         await main_loop()
     finally:
-        await asyncio.gather(llm_service.stop(), memory_service.stop())
-
-async def _startup_db_cleanup_and_log():
-    """
-    Performs database cleanup at startup:
-    1. Removes orphaned active tasks and thoughts.
-    2. Archives tasks and thoughts older than 24 hours.
-    Logs actions taken.
-    """
-    logger.info("--- Starting Startup Database Cleanup ---")
-    
-    # --- 1. Remove orphaned active tasks and thoughts ---
-    orphaned_tasks_deleted_count = 0
-    orphaned_thoughts_deleted_count = 0
-
-    # Check active tasks
-    active_tasks = persistence.get_tasks_by_status(TaskStatus.ACTIVE)
-    task_ids_to_delete = []
-    valid_root_task_ids = {"WAKEUP_ROOT", "job-discord-monitor"} 
-
-    for task in active_tasks:
-        is_orphan = False
-        if task.task_id in valid_root_task_ids and task.parent_goal_id is None:
-            # These are allowed to be active root tasks initially
-            pass
-        elif task.parent_goal_id:
-            parent_task = persistence.get_task_by_id(task.parent_goal_id)
-            if not parent_task or parent_task.status not in [TaskStatus.ACTIVE, TaskStatus.COMPLETED]:
-                is_orphan = True
-        elif task.task_id not in valid_root_task_ids: # Non-root, non-wakeup/job task that is active
-             logger.info(f"Task {task.task_id} ('{task.description[:30]}...') is active but not a recognized root task. Marking as orphaned for cleanup.")
-             is_orphan = True
-
-
-        if is_orphan:
-            logger.info(f"Orphaned active task found: {task.task_id} ('{task.description[:30]}...'). Parent missing or not active/completed. Marking for deletion.")
-            task_ids_to_delete.append(task.task_id)
-
-    if task_ids_to_delete:
-        # Deleting tasks will cascade delete their thoughts due to FOREIGN KEY ON DELETE CASCADE
-        orphaned_tasks_deleted_count = persistence.delete_tasks_by_ids(task_ids_to_delete)
-        logger.info(f"Deleted {orphaned_tasks_deleted_count} orphaned active tasks (and their thoughts).")
-
-    # Check active/processing thoughts for tasks that might have been missed or are not active
-    pending_thoughts_for_orphan_check = persistence.get_thoughts_by_status(ThoughtStatus.PENDING)
-    processing_thoughts_for_orphan_check = persistence.get_thoughts_by_status(ThoughtStatus.PROCESSING)
-    all_potentially_orphaned_thoughts = pending_thoughts_for_orphan_check + processing_thoughts_for_orphan_check
-    thought_ids_to_delete = []
-
-    for thought in all_potentially_orphaned_thoughts:
-        source_task = persistence.get_task_by_id(thought.source_task_id)
-        if not source_task or source_task.status != TaskStatus.ACTIVE:
-            # If source task doesn't exist, or isn't active (and wasn't caught by task deletion cascade)
-            logger.info(f"Orphaned thought found: {thought.thought_id} (Task: {thought.source_task_id} not found or not active). Marking for deletion.")
-            thought_ids_to_delete.append(thought.thought_id)
-    
-    if thought_ids_to_delete:
-        # Remove duplicates just in case, though task cascade should handle most
-        unique_thought_ids_to_delete = list(set(thought_ids_to_delete))
-        count = persistence.delete_thoughts_by_ids(unique_thought_ids_to_delete)
-        orphaned_thoughts_deleted_count += count
-        logger.info(f"Deleted {count} additional orphaned active/processing thoughts.")
-
-    logger.info(f"Orphan cleanup: {orphaned_tasks_deleted_count} tasks, {orphaned_thoughts_deleted_count} thoughts removed.")
-
-    # --- 2. Archive tasks/thoughts older than 24 hours ---
-    archived_tasks_count = 0
-    archived_thoughts_count = 0
-    
-    archive_dir = Path("data_archive")
-    archive_dir.mkdir(parents=True, exist_ok=True)
-    
-    now = datetime.now(timezone.utc)
-    archive_timestamp_str = now.strftime("%Y%m%d_%H%M%S")
-    older_than_timestamp = (now - timedelta(hours=24)).isoformat()
-
-    # Archive and delete old tasks
-    tasks_to_archive = persistence.get_tasks_older_than(older_than_timestamp)
-    if tasks_to_archive:
-        task_archive_file = archive_dir / f"archive_tasks_{archive_timestamp_str}.jsonl"
-        task_ids_to_delete_archive = []
-        with open(task_archive_file, "w") as f:
-            for task in tasks_to_archive:
-                # Do not archive WAKEUP_ROOT or job-discord-monitor
-                if task.task_id not in valid_root_task_ids:
-                    f.write(task.model_dump_json() + "\n")
-                    task_ids_to_delete_archive.append(task.task_id)
-        
-        if task_ids_to_delete_archive:
-            archived_tasks_count = persistence.delete_tasks_by_ids(task_ids_to_delete_archive)
-            logger.info(f"Archived and deleted {archived_tasks_count} tasks older than 24 hours to {task_archive_file}.")
-        else:
-            logger.info("No non-essential tasks older than 24 hours to archive.")
-    else:
-        logger.info("No tasks older than 24 hours found for archiving.")
-
-    # Archive and delete old thoughts
-    thoughts_to_archive = persistence.get_thoughts_older_than(older_than_timestamp)
-    if thoughts_to_archive:
-        thought_archive_file = archive_dir / f"archive_thoughts_{archive_timestamp_str}.jsonl"
-        thought_ids_to_delete_archive = []
-        
-        # Filter out thoughts belonging to WAKEUP_ROOT or job-discord-monitor if those tasks were not archived
-        # This avoids orphaning thoughts if their root tasks are preserved.
-        # A simpler approach for now: if a thought's task was archived, it's fine. If not, keep the thought.
-        # This means we only archive thoughts whose tasks were also eligible for archiving (and not special tasks).
-        
-        # Get IDs of tasks that were actually archived (or would have been if not special)
-        archivable_task_ids = {t.task_id for t in tasks_to_archive if t.task_id not in valid_root_task_ids}
-
-        with open(thought_archive_file, "w") as f:
-            for thought in thoughts_to_archive:
-                if thought.source_task_id in archivable_task_ids: # Only archive thoughts of archived tasks
-                    f.write(thought.model_dump_json() + "\n")
-                    thought_ids_to_delete_archive.append(thought.thought_id)
-        
-        if thought_ids_to_delete_archive:
-            archived_thoughts_count = persistence.delete_thoughts_by_ids(thought_ids_to_delete_archive)
-            logger.info(f"Archived and deleted {archived_thoughts_count} thoughts (linked to archived tasks) older than 24 hours to {thought_archive_file}.")
-        else:
-            logger.info("No thoughts (linked to archivable tasks) older than 24 hours to archive.")
-
-    else:
-        logger.info("No thoughts older than 24 hours found for archiving.")
-    
-    logger.info(f"Archival: {archived_tasks_count} tasks, {archived_thoughts_count} thoughts archived and removed.")
-    logger.info("--- Finished Startup Database Cleanup ---")
-
+        await asyncio.gather(
+            llm_service.stop(), 
+            memory_service.stop(),
+            db_maintenance_service.stop() # Add maintenance service to shutdown
+        )
 
 if __name__ == "__main__":
     asyncio.run(main())
