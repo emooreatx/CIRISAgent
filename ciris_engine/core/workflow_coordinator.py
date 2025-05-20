@@ -132,13 +132,22 @@ class WorkflowCoordinator:
 
         # 1. Ethical PDMA Task
         logging.debug(f"Scheduling Ethical PDMA for thought ID {thought_object.thought_id}") # Use thought_object
-        from ciris_engine.dma.dma_executor import run_pdma, run_csdma, run_dsdma
+        from ciris_engine.dma.dma_executor import (
+            run_pdma,
+            run_csdma,
+            run_dsdma,
+            run_dma_with_retries,
+        )
 
-        initial_dma_tasks.append(run_pdma(self.ethical_pdma_evaluator, thought_object))
+        initial_dma_tasks.append(
+            run_dma_with_retries(run_pdma, self.ethical_pdma_evaluator, thought_object)
+        )
 
         # 2. CSDMA Task
         logging.debug(f"Scheduling CSDMA for thought ID {thought_object.thought_id}") # Use thought_object
-        initial_dma_tasks.append(run_csdma(self.csdma_evaluator, thought_object))
+        initial_dma_tasks.append(
+            run_dma_with_retries(run_csdma, self.csdma_evaluator, thought_object)
+        )
 
         # 3. DSDMA Task (select and run if applicable)
         selected_dsdma_instance: Optional['BaseDSDMA'] = None # Use string literal
@@ -166,7 +175,9 @@ class WorkflowCoordinator:
                     f"Scheduling DSDMA '{active_dsdma.domain_name}' (Profile: {active_profile_name_for_dsdma}) for thought ID {thought_object.thought_id}"
                 )
                 initial_dma_tasks.append(
-                    run_dsdma(active_dsdma, thought_object, current_platform_context)
+                    run_dma_with_retries(
+                        run_dsdma, active_dsdma, thought_object, current_platform_context
+                    )
                 )
                 selected_dsdma_instance = active_dsdma
             else: # Should not happen if dsdma_evaluators is not empty
@@ -181,6 +192,36 @@ class WorkflowCoordinator:
         logging.debug(f"Awaiting {len(initial_dma_tasks)} initial DMA tasks for thought ID {thought_item.thought_id}")
         dma_results: List[Any] = await asyncio.gather(*initial_dma_tasks, return_exceptions=True)
         logging.debug(f"Initial DMA tasks completed for thought ID {thought_item.thought_id}")
+
+        for res in dma_results:
+            if isinstance(res, Thought) and any(
+                e.get("type") == "dma_failure" for e in res.escalations
+            ):
+                logging.error(
+                    "DMA failure detected for thought %s", res.thought_id
+                )
+                persistence.update_thought_status(
+                    thought_id=res.thought_id,
+                    new_status=ThoughtStatus.DEFERRED,
+                    round_processed=self.current_round_number,
+                    final_action_result={"status": "DMA failure"},
+                )
+                from .agent_core_schemas import DeferParams
+
+                last_event = res.escalations[-1]
+                defer_params = DeferParams(
+                    reason=last_event["reason"],
+                    target_wa_ual=DEFAULT_WA,
+                    deferral_package_content=last_event,
+                )
+                return ActionSelectionPDMAResult(
+                    context_summary_for_action_selection="DMA failure",
+                    action_alignment_check={"error": "DMA failure"},
+                    selected_handler_action=HandlerActionType.DEFER,
+                    action_parameters=defer_params,
+                    action_selection_rationale="DMA failure prior to ActionSelection",
+                    monitoring_for_selected_action={"status": "DMA failure"},
+                )
 
         ethical_pdma_result: Optional[EthicalPDMAResult] = None
         csdma_result: Optional[CSDMAResult] = None

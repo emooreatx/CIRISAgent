@@ -397,27 +397,18 @@ async def test_process_thought_dma_exception(
         common_sense_plausibility_score=0.5, flags=[], reasoning="CSDMA ran"
     )
 
-    # Mock ActionSelectionPDMA to return DEFER when it receives the fallback Ethical result
-    defer_result_on_exception = ActionSelectionPDMAResult(
-        context_summary_for_action_selection="Action selection deferred due to upstream DMA error.",
-        action_alignment_check={},
-        selected_handler_action=HandlerActionType.DEFER,
-        action_parameters={"reason": "Ethical PDMA failed: Ethical PDMA Error"}, # Ensure this is a dict
-        action_selection_rationale="Deferring because Ethical PDMA evaluation failed.",
-        monitoring_for_selected_action={"status": "DMA Exception Deferral"}
-    )
-    mock_action_selection_pdma_evaluator.evaluate.return_value = defer_result_on_exception
+    # ActionSelectionPDMA should not run when DMA fails repeatedly
+    mock_action_selection_pdma_evaluator.evaluate.reset_mock()
 
 
     result = await workflow_coordinator_instance.process_thought(sample_processing_queue_item)
 
-    # The WorkflowCoordinator creates a fallback EthicalPDMAResult.
-    # ActionSelectionPDMA receives this and should decide to DEFER (as mocked above).
     assert result is not None
     assert result.selected_handler_action == HandlerActionType.DEFER
-    # Check the reason attribute directly on the action_parameters object
-    assert hasattr(result.action_parameters, 'reason'), "action_parameters object missing 'reason' attribute"
-    assert "Ethical PDMA failed" in result.action_parameters.reason
+    assert "DMA failed" in result.action_parameters.reason
+    mock_action_selection_pdma_evaluator.evaluate.assert_not_called()
+    assert sample_thought.escalations
+    assert sample_thought.escalations[0]["type"] == "dma_failure"
 
 
 @pytest.mark.asyncio
@@ -503,7 +494,7 @@ async def test_process_thought_dsdma_exception(
     mock_action_selection_pdma_evaluator: MagicMock,
     mock_ethical_guardrails: MagicMock,
 ):
-    """If DSDMA fails, ActionSelectionPDMA still runs with None."""
+    """If DSDMA fails repeatedly, the thought is deferred."""
     workflow_coordinator_instance.dsdma_evaluators = mock_dsdma_evaluators_with_item
     dsdma_mock = mock_dsdma_evaluators_with_item["default_profile"]
 
@@ -525,11 +516,40 @@ async def test_process_thought_dsdma_exception(
         action_selection_rationale="r",
         monitoring_for_selected_action={"s": "1"},
     )
-    mock_action_selection_pdma_evaluator.evaluate.return_value = asp_result
+    mock_action_selection_pdma_evaluator.evaluate.reset_mock()
 
     result = await workflow_coordinator_instance.process_thought(sample_processing_queue_item)
 
-    assert result.selected_handler_action == HandlerActionType.SPEAK
-    mock_action_selection_pdma_evaluator.evaluate.assert_called_once()
-    triaged = mock_action_selection_pdma_evaluator.evaluate.call_args.kwargs["triaged_inputs"]
-    assert triaged["dsdma_result"] is None
+    assert result.selected_handler_action == HandlerActionType.DEFER
+    mock_action_selection_pdma_evaluator.evaluate.assert_not_called()
+    assert sample_thought.escalations
+    assert sample_thought.escalations[0]["type"] == "dma_failure"
+
+
+@pytest.mark.asyncio
+@patch('ciris_engine.core.workflow_coordinator.persistence')
+async def test_process_thought_dma_failure_escalates(
+    mock_persistence,
+    workflow_coordinator_instance: WorkflowCoordinator,
+    sample_processing_queue_item: ProcessingQueueItem,
+    sample_thought: Thought,
+    mock_ethical_pdma_evaluator: MagicMock,
+    mock_csdma_evaluator: MagicMock,
+    mock_action_selection_pdma_evaluator: MagicMock,
+    mock_ethical_guardrails: MagicMock,
+):
+    """Ensure DMA failures stop ActionSelection and escalate."""
+    mock_persistence.get_thought_by_id = MagicMock(return_value=sample_thought)
+    mock_persistence.update_thought_status = MagicMock(return_value=True)
+
+    mock_ethical_pdma_evaluator.evaluate.side_effect = Exception("fail")
+    mock_csdma_evaluator.evaluate_thought.return_value = CSDMAResult(
+        common_sense_plausibility_score=0.9, flags=[], reasoning="ok"
+    )
+
+    result = await workflow_coordinator_instance.process_thought(sample_processing_queue_item)
+
+    assert result.selected_handler_action == HandlerActionType.DEFER
+    mock_action_selection_pdma_evaluator.evaluate.assert_not_called()
+    assert sample_thought.escalations
+    assert sample_thought.escalations[0]["type"] == "dma_failure"
