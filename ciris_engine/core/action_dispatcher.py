@@ -8,13 +8,12 @@ from typing import Dict, Any, Callable, Coroutine, TYPE_CHECKING, Optional, Unio
 from ciris_engine.utils.constants import NEED_MEMORY_METATHOUGHT
 from . import persistence
 from .agent_core_schemas import (
-    ActionSelectionPDMAResult,
     HandlerActionType,
-    MemorizeParams,
-    SpeakParams,
     Thought,
     ThoughtStatus,
 )
+from .action_params import SpeakParams, MemorizeParams
+from .dma_results import ActionSelectionPDMAResult
 from ciris_engine.services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
@@ -236,12 +235,12 @@ class ActionDispatcher:
                 except Exception as e:
                     logger.exception(f"Error executing memory handler for action '{action_type.value}': {e}")
             else:
-                logger.warning(f"Received memory action '{action_type.value}' but no 'memory' handler registered. Action may not be fully processed.")
-                if not original_context.get("skip_memory_update"): 
+                logger.warning(
+                    f"Received memory action '{action_type.value}' but no 'memory' handler registered. Action may not be fully processed."
+                )
+                if not original_context.get("skip_memory_update"):
                     original_context[NEED_MEMORY_METATHOUGHT] = True
                     await self._enqueue_memory_metathought(original_context, result)
-                    if action_type == HandlerActionType.MEMORIZE:
-                        await self._enqueue_acknowledgment_thought(original_context, result, handler_type="no_memory_handler")
 
         # 3. Internal/Control Flow Actions (handled upstream or logged here)
         elif action_type == HandlerActionType.PONDER:

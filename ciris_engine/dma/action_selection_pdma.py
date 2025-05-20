@@ -7,16 +7,26 @@ from openai import AsyncOpenAI
 # Corrected imports
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem # Though 'Thought' model is used internally
 from ciris_engine.core.agent_core_schemas import (
-    Thought, # Assuming Thought model is passed in triaged_inputs
+    Thought,  # Assuming Thought model is passed in triaged_inputs
+    HandlerActionType,
+    CIRISSchemaVersion,
+)
+from ciris_engine.core.dma_results import (
+    ActionSelectionPDMAResult,
+    EthicalPDMAResult,
     CSDMAResult,
     DSDMAResult,
-    EthicalPDMAResult,
-    ActionSelectionPDMAResult,
-    HandlerActionType,
-    # Import all param types for potential parsing later, though not strictly needed for this file's direct logic
-    ObserveParams, SpeakParams, ActParams, PonderParams,
-    RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams,
-    CIRISSchemaVersion # Import CIRISSchemaVersion
+)
+from ciris_engine.core.action_params import (
+    ObserveParams,
+    SpeakParams,
+    ActParams,
+    PonderParams,
+    RejectParams,
+    DeferParams,
+    MemorizeParams,
+    RememberParams,
+    ForgetParams,
 )
 from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHandlerActionType # Alias to avoid conflict if any
 from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME # Corrected import
