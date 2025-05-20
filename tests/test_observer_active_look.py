@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock
 from ciris_engine.core.action_params import ObserveParams, SpeakParams
 from ciris_engine.core.agent_core_schemas import Thought, ActionSelectionPDMAResult, HandlerActionType
 from ciris_engine.core.foundational_schemas import ThoughtStatus
-from ciris_engine.core.action_dispatcher import dispatch as base_dispatch
+from ciris_engine.core.action_handlers.speak_handler import SpeakHandler
+from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.core import persistence
 
 # The actual observer handler is defined inside run_discord_teacher.main.
@@ -126,11 +127,9 @@ async def test_active_look_pipeline(monkeypatch):
         monitoring_for_selected_action="m",
     )
 
-    services = {"discord_service": SimpleNamespace(send_message=AsyncMock())}
-    await base_dispatch(
-        speak_result.selected_handler_action,
-        active_th,
-        speak_params.model_dump(),
-        services,
-    )
-    services["discord_service"].send_message.assert_awaited()
+    sink = SimpleNamespace(send_message=AsyncMock())
+    handler = SpeakHandler(ActionHandlerDependencies(action_sink=sink))
+    monkeypatch.setattr(persistence, "add_thought", lambda th: None)
+    monkeypatch.setattr(persistence, "update_thought_status", lambda **k: None)
+    await handler.handle(speak_result, active_th, {"channel_id": "1"})
+    sink.send_message.assert_awaited()

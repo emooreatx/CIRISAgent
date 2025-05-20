@@ -65,7 +65,7 @@ async def test_observe_does_not_modify_graph(tmp_path: Path):
 
     dispatch_mock = AsyncMock()
     q = DiscordEventQueue()
-    observer = DiscordObserver(dispatch_mock, message_queue=q)
+    observer = DiscordObserver(dispatch_mock, message_queue=q, monitored_channel_id="general")
     msg = IncomingMessage(message_id="1", author_id="1", author_name="bob", content="hi", channel_id="general")
     await observer.handle_incoming_message(msg)
 
@@ -83,7 +83,11 @@ async def test_observe_queries_graph(tmp_path: Path):
     service.remember = remember_mock
 
     q = DiscordEventQueue()
-    observer = DiscordObserver(lambda payload: service.remember(payload["context"]["author_name"]), message_queue=q)
+    observer = DiscordObserver(
+        lambda payload: service.remember(payload["context"]["author_name"]),
+        message_queue=q,
+        monitored_channel_id="general"
+    )
     msg = IncomingMessage(message_id="2", author_id="2", author_name="carol", content="hello", channel_id="general")
     await observer.handle_incoming_message(msg)
 

@@ -61,14 +61,56 @@ class BaseDSDMA(ABC):
         else:
             thought_content_str = str(thought_item.content)
 
-        context_str = str(current_context) if current_context else "No specific context provided."
-        rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General guidance") if isinstance(self.domain_specific_knowledge, dict) else "General guidance"
+        context_str = str(current_context) if current_context else "No specific platform context provided."
+        rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General domain guidance") if isinstance(self.domain_specific_knowledge, dict) else "General domain guidance"
 
-        system_message_content = self.prompt_template.format(
-            context_str=context_str,
-            rules_summary_str=rules_summary_str,
-        )
-        user_message_content = f"Evaluate this thought: \"{thought_content_str}\""
+        system_snapshot_info_str = ""
+        if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
+            system_snapshot = thought_item.processing_context.get("system_snapshot")
+            if system_snapshot:
+                formatted_parts = ["--- System Snapshot Context (for background awareness) ---"]
+                if system_snapshot.get("task") and hasattr(system_snapshot["task"], 'description'):
+                    formatted_parts.append(f"Current Task: {system_snapshot['task'].description}")
+                
+                recent_tasks = system_snapshot.get("recently_completed_tasks", [])
+                if recent_tasks:
+                    formatted_parts.append("Recently Completed Tasks:")
+                    for i, task_info in enumerate(recent_tasks[:2]): # Limit for brevity
+                        desc = task_info.get('description', 'N/A')
+                        outcome = task_info.get('outcome', 'N/A')
+                        formatted_parts.append(f"  - Prev. Task {i+1}: {desc[:70]}... (Outcome: {str(outcome)[:70]}...)")
+
+                user_profiles = system_snapshot.get("user_profiles")
+                if user_profiles and isinstance(user_profiles, dict):
+                    formatted_parts.append("Known User Profiles (for awareness):")
+                    for user_key, profile_data in user_profiles.items():
+                        if isinstance(profile_data, dict):
+                            nick = profile_data.get('nick', user_key)
+                            profile_summary = f"User '{user_key}': Nickname/Name: '{nick}'"
+                            # Example: if 'interest' was in profile_data
+                            # interest = profile_data.get('interest')
+                            # if interest: profile_summary += f", Interest: '{str(interest)[:50]}...'"
+                            formatted_parts.append(f"  - {profile_summary}")
+                
+                formatted_parts.append("--- End System Snapshot Context ---")
+                system_snapshot_info_str = "\n".join(formatted_parts) + "\n\n"
+
+        # Assuming self.prompt_template is a system message template
+        # It should ideally have placeholders for context_str, rules_summary_str, and now system_snapshot_info_str
+        # For now, we'll format what we can into system_message and prepend snapshot to user message.
+        
+        system_message_content = self.prompt_template # If it's a simple string
+        if self.prompt_template and "{context_str}" in self.prompt_template and "{rules_summary_str}" in self.prompt_template:
+             system_message_content = self.prompt_template.format(
+                context_str=context_str,
+                rules_summary_str=rules_summary_str,
+            )
+        elif not self.prompt_template: # If template is empty, provide a generic system message
+            system_message_content = f"You are a domain-specific evaluator for the '{self.domain_name}' domain. Evaluate the thought based on the provided domain rules: '{rules_summary_str}' and platform context: '{context_str}'."
+
+        user_message_content = f"{system_snapshot_info_str}Evaluate this thought for the '{self.domain_name}' domain: \"{thought_content_str}\""
+        
+        logger.debug(f"DSDMA '{self.domain_name}' input to LLM for thought {thought_item.thought_id}:\nSystem: {system_message_content}\nUser: {user_message_content}")
 
         messages = [
             {"role": "system", "content": system_message_content},

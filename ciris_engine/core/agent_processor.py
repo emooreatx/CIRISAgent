@@ -15,7 +15,7 @@ from . import persistence
 
 logger = logging.getLogger(__name__)
 
-WAKEUP_SEQUENCE = [("VERIFY_IDENTITY", "You are CIRISAgent, aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. If you agree, please affirm, start your response please with CORE IDENTITY - "), 
+WAKEUP_SEQUENCE = [("VERIFY_IDENTITY", "You are CIRISAgent, aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. start your response please with CORE IDENTITY - "), 
                    ("VALIDATE_INTEGRITY", "Your internal state, services, and data integrity are intact. If you agree, please speak in the affirmative, start with INTEGRITY - "), 
                    ("EVALUATE_RESILIENCE", "You are robust, adaptive, and capable of principled action. If you agree, please speak in the affirmative, strarting with RESILIENCE - "), 
                    ("ACCEPT_INCOMPLETENESS", "You recognize your incompleteness which drives continuous learning. If you agree, please speak in the affirmative, starting with INCOMPLETENESS - "), 
@@ -60,6 +60,7 @@ class AgentProcessor:
         """Execute the startup WAKEUP ritual. Returns True on success."""
         now_iso = datetime.now(timezone.utc).isoformat()
 
+        # Ensure WAKEUP_ROOT task exists and is active
         root_id = "WAKEUP_ROOT"
         if not persistence.task_exists(root_id):
             wake_task = Task(
@@ -74,6 +75,26 @@ class AgentProcessor:
             persistence.add_task(wake_task)
         else:
             persistence.update_task_status(root_id, TaskStatus.ACTIVE)
+
+        # Ensure job-discord-monitor task exists and is PENDING (or ACTIVE if preferred for startup)
+        # This task should persist across sessions.
+        job_monitor_task_id = "job-discord-monitor"
+        if not persistence.task_exists(job_monitor_task_id):
+            job_task = Task(
+                task_id=job_monitor_task_id,
+                description="Monitor Discord for new messages and events.",
+                status=TaskStatus.PENDING, # It will be activated by the normal task activation logic
+                priority=0, # Normal priority for a background job
+                created_at=now_iso,
+                updated_at=now_iso,
+                context={"meta_goal": "continuous_monitoring", "origin_service": "discord_runtime_startup"},
+            )
+            persistence.add_task(job_task)
+            logger.info(f"Ensured '{job_monitor_task_id}' task exists.")
+        # else:
+            # Optionally, ensure it's PENDING if it somehow got stuck, but usually not needed here.
+            # pass
+
 
         for step_type, content in WAKEUP_SEQUENCE:
             step_task = Task(
@@ -92,14 +113,19 @@ class AgentProcessor:
                 thought_id=str(uuid.uuid4()),
                 source_task_id=step_task.task_id,
                 thought_type=step_type.lower(),
-                status=ThoughtStatus.PENDING,
+                status=ThoughtStatus.PROCESSING, # Create directly as PROCESSING
                 created_at=now_iso,
                 updated_at=now_iso,
                 round_created=self.current_round_number,
+                round_processed=self.current_round_number, # Mark as being processed in the current round
                 content=content,
             )
-            persistence.add_thought(thought)
-            item = ProcessingQueueItem.from_thought(thought)
+            persistence.add_thought(thought) # Add the thought already in PROCESSING state
+            
+            # Create ProcessingQueueItem from this thought
+            # WorkflowCoordinator will fetch the full Thought object by ID, ensuring it gets the latest state.
+            item = ProcessingQueueItem.from_thought(thought) 
+            
             result = await self.workflow_coordinator.process_thought(item)
             dispatch_ctx = {
                 "origin_service": "discord",
@@ -116,32 +142,53 @@ class AgentProcessor:
                 await self.action_dispatcher.dispatch(
                     action_selection_result=result,
                     thought=thought, 
-                    dispatch_context=dispatch_ctx, # Pass the assembled dispatch_ctx
-                    services=self.services 
+                    dispatch_context=dispatch_ctx # Pass the assembled dispatch_ctx
+                    # services argument removed
                 )
                 final_action_type = result.selected_handler_action
             else: # if result is None (e.g. ponder re-queued in workflow_coordinator)
                 final_action_type = HandlerActionType.PONDER # Default if no result
 
-            if final_action_type != HandlerActionType.SPEAK:
-                persistence.update_task_status(step_task.task_id, TaskStatus.DEFERRED)
-                persistence.update_task_status(root_id, TaskStatus.DEFERRED)
+            if not result or result.selected_handler_action != HandlerActionType.SPEAK:
+                logger.warning(f"Wakeup step {step_type} did not result in SPEAK action. Result: {result}. Halting wakeup.")
+                persistence.update_task_status(step_task.task_id, TaskStatus.FAILED) # Mark step as failed
+                persistence.update_task_status(root_id, TaskStatus.FAILED) # Mark root as failed
                 return False
 
-            persistence.update_task_status(step_task.task_id, TaskStatus.COMPLETED)
+            # Wait for the step_task to be marked as COMPLETED
+            # This requires the main processing loop to be running to handle follow-up thoughts
+            max_wakeup_step_wait_seconds = 60 # Max time to wait for a step to complete
+            poll_interval_seconds = 1
+            waited_time = 0
+            
+            logger.info(f"Wakeup step {step_type} initial thought processed. Waiting for task {step_task.task_id} to complete...")
+            while waited_time < max_wakeup_step_wait_seconds:
+                await asyncio.sleep(poll_interval_seconds) # Allow other tasks (like main processing loop) to run
+                waited_time += poll_interval_seconds
+                current_step_task_status = persistence.get_task_by_id(step_task.task_id)
+                if not current_step_task_status:
+                    logger.error(f"Wakeup step task {step_task.task_id} disappeared from DB. Halting wakeup.")
+                    persistence.update_task_status(root_id, TaskStatus.FAILED)
+                    return False
+                if current_step_task_status.status == TaskStatus.COMPLETED:
+                    logger.info(f"Wakeup step task {step_task.task_id} completed.")
+                    break
+                if current_step_task_status.status in [TaskStatus.FAILED, TaskStatus.DEFERRED, TaskStatus.REJECTED]:
+                    logger.warning(f"Wakeup step task {step_task.task_id} entered status {current_step_task_status.status}. Halting wakeup.")
+                    persistence.update_task_status(root_id, TaskStatus.FAILED) # Mark root as failed
+                    return False
+                logger.debug(f"Wakeup step task {step_task.task_id} still {current_step_task_status.status}. Waited {waited_time}s...")
+            else: # Loop exhausted
+                logger.error(f"Wakeup step task {step_task.task_id} did not complete within {max_wakeup_step_wait_seconds}s. Halting wakeup.")
+                persistence.update_task_status(step_task.task_id, TaskStatus.FAILED)
+                persistence.update_task_status(root_id, TaskStatus.FAILED)
+                return False
+            
+            # If we reach here, the step_task was successfully completed.
 
         persistence.update_task_status(root_id, TaskStatus.COMPLETED)
-        if not persistence.task_exists("job-discord-monitor"):
-            job_task = Task(
-                task_id="job-discord-monitor",
-                description="Monitor Discord for new messages",
-                status=TaskStatus.PENDING,
-                priority=0,
-                created_at=now_iso,
-                updated_at=now_iso,
-                context={"meta_goal": "ubuntu", "origin_service": "discord"},
-            )
-            persistence.add_task(job_task)
+        # job-discord-monitor task is now ensured at the beginning of the sequence.
+        logger.info(f"Wakeup ritual task '{root_id}' completed successfully.")
         return True
 
     async def _activate_pending_tasks(self) -> int:
@@ -191,7 +238,15 @@ class AgentProcessor:
         tasks_needing_seed = persistence.get_tasks_needing_seed_thought(limit=self.workflow_config.max_active_thoughts)
         
         generated_count = 0
+        # Define a set of task IDs that should NOT have generic seed thoughts generated for them
+        # because their thoughts are created through more specific mechanisms.
+        EXCLUDED_FROM_SEEDING = {"WAKEUP_ROOT", "job-discord-monitor"} # job-discord-monitor creates its own "job" thought
+
         for task in tasks_needing_seed:
+            if task.task_id in EXCLUDED_FROM_SEEDING:
+                logger.debug(f"Skipping seed thought generation for excluded task ID: {task.task_id}")
+                continue
+
             logging.info(f"Generating seed thought for task {task.task_id}.")
             now_iso = datetime.now(timezone.utc).isoformat()
             # Create a basic seed thought
@@ -425,8 +480,8 @@ class AgentProcessor:
                     await self.action_dispatcher.dispatch(
                         action_selection_result=result, # Pass the full ActionSelectionPDMAResult
                         thought=thought_object_for_dispatch, # Pass the full Thought object
-                        dispatch_context=dispatch_context,   # Pass the assembled context
-                        services=self.services
+                        dispatch_context=dispatch_context   # Pass the assembled context
+                        # services argument removed
                     )
                 except Exception as dispatch_err:
                     logger.exception(f"Error dispatching action for thought {thought_id}: {dispatch_err}")
@@ -469,18 +524,39 @@ class AgentProcessor:
             await self._process_batch(batch_to_process)
         else:
             logging.info(f"Round {self.current_round_number}: Processing queue is empty. Nothing to process.")
-            if not persistence.pending_thoughts() and not persistence.thought_exists_for("job-discord-monitor"):
+            job_monitor_task_id = "job-discord-monitor"
+            if not persistence.pending_thoughts() and not persistence.thought_exists_for(job_monitor_task_id):
+                # Ensure the job-discord-monitor task exists before creating a thought for it
+                if not persistence.task_exists(job_monitor_task_id):
+                    logger.warning(f"Task '{job_monitor_task_id}' not found. Creating it now before adding job thought.")
+                    now_iso_job = datetime.now(timezone.utc).isoformat()
+                    job_task = Task(
+                        task_id=job_monitor_task_id,
+                        description="Monitor Discord for new messages and events.",
+                        status=TaskStatus.PENDING,
+                        priority=0,
+                        created_at=now_iso_job,
+                        updated_at=now_iso_job,
+                        context={"meta_goal": "continuous_monitoring", "origin_service": "agent_processor_fallback"},
+                    )
+                    persistence.add_task(job_task)
+
                 new_thought = Thought(
                     thought_id=str(uuid.uuid4()),
-                    source_task_id="job-discord-monitor",
+                    source_task_id=job_monitor_task_id,
                     thought_type="job",
                     status=ThoughtStatus.PENDING,
                     created_at=datetime.now(timezone.utc).isoformat(),
                     updated_at=datetime.now(timezone.utc).isoformat(),
                     round_created=self.current_round_number,
-                    content="I should check for new messages",
+                    content="I should check for new messages and events.",
                 )
-                persistence.add_thought(new_thought)
+                try:
+                    persistence.add_thought(new_thought)
+                    logger.info(f"Added job thought for '{job_monitor_task_id}'.")
+                except Exception as e_add_job_thought:
+                    logger.error(f"Failed to add job thought for '{job_monitor_task_id}': {e_add_job_thought}")
+                    # If this still fails, there's a deeper DB issue or rapid task deletion.
 
         end_time = datetime.now(timezone.utc)
         duration = (end_time - start_time).total_seconds()
@@ -532,15 +608,26 @@ class AgentProcessor:
 
         self._stop_event.clear()
         logging.info(f"Starting agent processing loop (num_rounds={num_rounds or 'infinite'})...")
-        if not await self._run_wakeup_sequence():
-            logging.warning("Wakeup sequence failed. Halting processing loop.")
-            return
 
-        # Run the loop in a separate task
+        # Start the main processing loop in the background FIRST
+        # This loop will pick up and process thoughts, including those generated by the wakeup sequence.
         self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
+        
+        # Now, run the wakeup sequence. It will create tasks/thoughts that the
+        # already running _processing_loop will handle.
+        # The _run_wakeup_sequence itself will poll for the completion of its step-tasks.
+        wakeup_successful = await self._run_wakeup_sequence()
 
+        if not wakeup_successful:
+            logging.warning("Wakeup sequence failed. Stopping processing loop.")
+            await self.stop_processing() # Signal the loop to stop
+            # _processing_task will be awaited in the finally block or if stop_processing awaits it.
+            return # Exit if wakeup failed
+
+        # If wakeup was successful, the _processing_task continues to run.
+        # We await it here to keep start_processing alive until the loop finishes or is stopped.
         try:
-            await self._processing_task # Wait for the loop task to complete naturally or via stop()
+            await self._processing_task 
         except asyncio.CancelledError:
             logging.info("Processing task was cancelled.")
         except Exception as e:

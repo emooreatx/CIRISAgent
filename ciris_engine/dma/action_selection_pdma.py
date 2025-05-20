@@ -291,6 +291,38 @@ class ActionSelectionPDMAEvaluator:
                     )
         # --- End User Profile Context Injection ---
 
+        # --- System Snapshot Context Injection ---
+        system_snapshot_context_str = ""
+        if original_thought.processing_context and \
+           isinstance(original_thought.processing_context.get("system_snapshot"), dict):
+            system_snapshot = original_thought.processing_context["system_snapshot"]
+            formatted_parts = ["\n\n--- Relevant System Snapshot Context ---"]
+            current_task_info = system_snapshot.get("task")
+            if current_task_info and hasattr(current_task_info, 'description'):
+                formatted_parts.append(f"Current Task Context: {current_task_info.description}")
+            
+            recent_tasks = system_snapshot.get("recently_completed_tasks", [])
+            if recent_tasks:
+                formatted_parts.append("Recently Completed Tasks (for background awareness, not the current focus):")
+                for i, task_info_dict in enumerate(recent_tasks[:3]): # Limit for prompt brevity
+                    if isinstance(task_info_dict, dict):
+                        desc = task_info_dict.get('description', 'N/A')
+                        outcome = task_info_dict.get('outcome', 'N/A')
+                        formatted_parts.append(f"  - Prev. Task {i+1}: {desc[:100]}... (Outcome: {str(outcome)[:100]}...)")
+                    else: # Handle if task_info is not a dict (e.g. if it's already a Task object summary)
+                        formatted_parts.append(f"  - Prev. Task {i+1}: {str(task_info_dict)[:150]}...")
+
+
+            # Optionally add other parts like counts if useful for Action Selection
+            # counts = system_snapshot.get("counts")
+            # if counts:
+            #     formatted_parts.append(f"System State: Pending Tasks={counts.get('pending_tasks', 'N/A')}, Active Tasks={persistence.count_active_tasks()}")
+
+            if len(formatted_parts) > 1: # Only add if there's more than the header
+                 formatted_parts.append("--- End System Snapshot Context ---\n")
+                 system_snapshot_context_str = "\n".join(formatted_parts)
+        # --- End System Snapshot Context Injection ---
+
         # Using original_thought.content which is a string
         main_user_content_prompt = f"""\
 {profile_specific_system_header_injection}Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
@@ -328,7 +360,8 @@ The JSON object MUST have these top-level keys, all populated:
 Original Thought: "{original_thought.content}"
 {ponder_notes_str_for_prompt_if_any}
 {user_profile_context_str}
-Original Thought Processing Context (excluding system_snapshot.user_profiles already detailed): {str(original_thought.processing_context) if original_thought.processing_context else "N/A"}
+{system_snapshot_context_str}
+Original Thought Full Processing Context (excluding system_snapshot, which is detailed above if present): {str({k: v for k, v in original_thought.processing_context.items() if k != 'system_snapshot'}) if original_thought.processing_context else "N/A"}
 
 DMA Summaries to consider for your PDMA reasoning:
 Ethical PDMA: {ethical_summary}
