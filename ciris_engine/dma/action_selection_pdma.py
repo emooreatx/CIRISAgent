@@ -506,9 +506,24 @@ Adhere strictly to the schema for your JSON output.
         except Exception as e:
             logger.error(f"ActionSelectionPDMA (instructor) evaluation failed for thought ID {original_thought.thought_id}: {e}", exc_info=True)
             fallback_params = PonderParams(key_questions=[f"System error during action selection: {str(e)}"])
+
+            # Capture context for general exception fallback result
+            captured_exception_context = {}
+            if original_thought.processing_context:
+                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
+                if system_snapshot_data is not None:
+                    if isinstance(system_snapshot_data, dict):
+                        captured_exception_context["system_snapshot"] = system_snapshot_data.copy()
+                    else:
+                        captured_exception_context["system_snapshot_error_details"] = str(system_snapshot_data)
+                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
+                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
+                    captured_exception_context["initial_task_context_at_decision"] = initial_task_ctx.copy()
+
             return ActionSelectionPDMAResult(
                 context_summary_for_action_selection=f"Error: General exception - {str(e)}",
                 action_alignment_check={"error": f"General Exception: {str(e)}"},
+                decision_input_context_snapshot=captured_exception_context if captured_exception_context else None,
                 selected_handler_action=HandlerActionType.PONDER,
                 action_parameters=fallback_params,
                 action_selection_rationale=f"Fallback due to General Exception: {str(e)}",
