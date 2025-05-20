@@ -8,7 +8,7 @@ from openai import AsyncOpenAI
 
 # Updated imports based on current project structure
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
-from ciris_engine.core.agent_core_schemas import CSDMAResult
+from ciris_engine.core.dma_results import CSDMAResult
 from ciris_engine.core.config_manager import get_config # To access global config
 # Import InstructorRetryException for specific error handling
 from instructor.exceptions import InstructorRetryException
