@@ -97,3 +97,13 @@ CIRISTaskUAL = str
 CIRISKnowledgeAssetUAL = str # Generic KA UAL
 VeilidDID = str # e.g., "did:key:z..." or a Veilid-specific method
 VeilidRouteID = str # Veilid's internal routing identifier
+
+from dataclasses import dataclass # For IncomingMessage
+
+@dataclass
+class IncomingMessage:
+    message_id: str
+    author_id: str
+    author_name: str
+    content: str
+    channel_id: Optional[str] = None

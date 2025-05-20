@@ -3,7 +3,7 @@ import os
 import asyncio
 from typing import Callable, Awaitable, Dict, Any, Optional
 
-from ciris_engine.runtime.base_runtime import IncomingMessage # Import IncomingMessage
+from ciris_engine.core.foundational_schemas import IncomingMessage # Import IncomingMessage from new location
 from .base import Service
 from .discord_event_queue import DiscordEventQueue # Import the generic DiscordEventQueue
 

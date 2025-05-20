@@ -87,8 +87,50 @@ The PDMA steps and their corresponding JSON fields (which you MUST generate) are
         Returns:
             An EthicalPDMAResult object containing the structured evaluation or error details.
         """
-        user_message_content = str(thought_item.content)
+        original_thought_content = str(thought_item.content)
         logger.debug(f"Starting EthicalPDMA evaluation for thought ID {thought_item.thought_id}")
+
+        system_snapshot_str = ""
+        if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
+            system_snapshot = thought_item.processing_context.get("system_snapshot")
+            if system_snapshot:
+                formatted_parts = ["--- System Snapshot Context ---"]
+                if system_snapshot.get("task") and hasattr(system_snapshot["task"], 'description'):
+                    formatted_parts.append(f"Current Task Description: {system_snapshot['task'].description}")
+                
+                recent_tasks = system_snapshot.get("recently_completed_tasks", [])
+                if recent_tasks:
+                    formatted_parts.append("Recently Completed Tasks:")
+                    for i, task_info in enumerate(recent_tasks[:3]): # Limit to 3 for brevity in prompt
+                        desc = task_info.get('description', 'N/A')
+                        outcome = task_info.get('outcome', 'N/A')
+                        formatted_parts.append(f"  - Task {i+1}: {desc[:100]}... (Outcome: {str(outcome)[:100]}...)")
+                
+                # Add other relevant parts from system_snapshot if needed, e.g., counts
+                # counts = system_snapshot.get("counts")
+                # if counts:
+                # formatted_parts.append(f"System Counts: Pending Tasks={counts.get('pending_tasks', 'N/A')}")
+
+                user_profiles = system_snapshot.get("user_profiles")
+                if user_profiles and isinstance(user_profiles, dict):
+                    formatted_parts.append("Known User Profiles (for awareness):")
+                    for user_key, profile_data in user_profiles.items():
+                        if isinstance(profile_data, dict):
+                            nick = profile_data.get('nick', user_key) # Fallback to key if nick is missing
+                            # Include other relevant profile data if available and concise
+                            profile_summary = f"User '{user_key}': Nickname/Name: '{nick}'"
+                            # Example: if 'interest' was in profile_data
+                            # interest = profile_data.get('interest')
+                            # if interest: profile_summary += f", Interest: '{str(interest)[:50]}...'"
+                            formatted_parts.append(f"  - {profile_summary}")
+                
+                formatted_parts.append("--- End System Snapshot Context ---")
+                system_snapshot_str = "\n".join(formatted_parts) + "\n\n"
+        
+        # Prepend system snapshot to the user message content
+        user_message_with_context = f"{system_snapshot_str}User Message to Evaluate (consider any provided context when performing your ethical analysis): '{original_thought_content}'"
+        
+        logger.debug(f"EthicalPDMA input to LLM for thought {thought_item.thought_id}:\n{user_message_with_context}")
 
         # System prompt instructing the LLM on its role and the expected JSON structure
         # using the ALIASED field names.
@@ -140,7 +182,7 @@ Adhere strictly to this structure for the JSON output. Every field mentioned abo
                 # mode= is set when patching the client, not per call
                 messages=[
                     {"role": "system", "content": pdma_system_guidance},
-                    {"role": "user", "content": f"Apply the full PDMA process to the following user message and provide your complete structured analysis: '{user_message_content}'"}
+                    {"role": "user", "content": f"Apply the full PDMA process to the following user message (which may include prefixed system context) and provide your complete structured analysis: {user_message_with_context}"}
                 ],
                 max_retries=self.max_retries # Pass configured max_retries here
                 # Add other parameters like max_tokens, temperature if needed

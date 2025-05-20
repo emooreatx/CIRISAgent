@@ -103,15 +103,51 @@ Your response MUST be a single JSON object adhering to the provided schema, with
         # Check initial_context for environment context description, as ProcessingQueueItem stores it there.
         if hasattr(thought_item, 'initial_context') and thought_item.initial_context and "environment_context" in thought_item.initial_context:
             env_ctx = thought_item.initial_context["environment_context"]
-            if isinstance(env_ctx, dict) and "description" in env_ctx: # Check if env_ctx is a dict and has 'description'
+            if isinstance(env_ctx, dict) and "description" in env_ctx:
                 context_summary = env_ctx["description"]
-            elif isinstance(env_ctx, dict) and "current_channel" in env_ctx: # Fallback to channel name if description missing
+            elif isinstance(env_ctx, dict) and "current_channel" in env_ctx:
                  context_summary = f"Context: Discord channel '{env_ctx['current_channel']}'"
             elif isinstance(env_ctx, str):
                 context_summary = env_ctx
+        
+        system_snapshot_str = ""
+        if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
+            system_snapshot = thought_item.processing_context.get("system_snapshot")
+            if system_snapshot:
+                formatted_parts = ["--- System Snapshot Context ---"]
+                if system_snapshot.get("task") and hasattr(system_snapshot["task"], 'description'):
+                    formatted_parts.append(f"Current Task Description: {system_snapshot['task'].description}")
+                
+                recent_tasks = system_snapshot.get("recently_completed_tasks", [])
+                if recent_tasks:
+                    formatted_parts.append("Recently Completed Tasks:")
+                    for i, task_info in enumerate(recent_tasks[:2]): # Limit to 2 for CSDMA brevity
+                        desc = task_info.get('description', 'N/A')
+                        outcome = task_info.get('outcome', 'N/A')
+                        formatted_parts.append(f"  - Task {i+1}: {desc[:70]}... (Outcome: {str(outcome)[:70]}...)")
 
+                user_profiles = system_snapshot.get("user_profiles")
+                if user_profiles and isinstance(user_profiles, dict):
+                    formatted_parts.append("Known User Profiles (for awareness):")
+                    for user_key, profile_data in user_profiles.items():
+                        if isinstance(profile_data, dict):
+                            nick = profile_data.get('nick', user_key)
+                            profile_summary = f"User '{user_key}': Nickname/Name: '{nick}'"
+                            # Example: if 'interest' was in profile_data
+                            # interest = profile_data.get('interest')
+                            # if interest: profile_summary += f", Interest: '{str(interest)[:50]}...'"
+                            formatted_parts.append(f"  - {profile_summary}")
 
-        messages = self._create_csdma_messages_for_instructor(thought_content_str, context_summary)
+                formatted_parts.append("--- End System Snapshot Context ---")
+                system_snapshot_str = "\n".join(formatted_parts) + "\n\n"
+
+        # Prepend system snapshot to the thought content for evaluation
+        thought_content_with_system_snapshot = f"{system_snapshot_str}Thought to Evaluate for Common Sense: '{thought_content_str}'"
+        
+        # The context_summary for _create_csdma_messages_for_instructor is about the general environment,
+        # while system_snapshot provides more specific situational awareness.
+        messages = self._create_csdma_messages_for_instructor(thought_content_with_system_snapshot, context_summary)
+        logger.debug(f"CSDMA input to LLM for thought {thought_item.thought_id}:\nUser Message: {thought_content_with_system_snapshot}\nSystem Context for Prompt: {context_summary}")
 
         try:
             csdma_eval: CSDMAResult = await self.aclient.chat.completions.create(
