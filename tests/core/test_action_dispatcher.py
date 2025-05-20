@@ -14,6 +14,8 @@ from ciris_engine.core.agent_core_schemas import (
     RememberParams,
     ForgetParams,
     ObserveParams,
+    Thought,
+    ThoughtStatus,
 )
 from ciris_engine.core.foundational_schemas import HandlerActionType, ObservationSourceType
 
@@ -147,3 +149,37 @@ async def test_audit_logging_for_each_action(mock_log_action, mock_add_thought):
     )
     await dispatcher.dispatch(ponder_result, {'origin_service': 'discord'})
     mock_log_action.assert_not_called()
+
+@pytest.mark.asyncio
+@patch('ciris_engine.core.persistence.get_thought_by_id')
+@patch('ciris_engine.services.audit_service.AuditService.log_action')
+async def test_dispatch_updates_thought_history(mock_log_action, mock_get_thought):
+    dispatcher = ActionDispatcher()
+    handler = AsyncMock()
+    dispatcher.register_service_handler("discord", handler)
+
+    thought = Thought(
+        thought_id="t1",
+        source_task_id="task1",
+        thought_type="seed",
+        status=ThoughtStatus.PENDING,
+        created_at="",
+        updated_at="",
+        round_created=0,
+        content="hello",
+    )
+    mock_get_thought.return_value = thought
+
+    result = ActionSelectionPDMAResult(
+        context_summary_for_action_selection='c',
+        action_alignment_check={},
+        selected_handler_action=HandlerActionType.SPEAK,
+        action_parameters=SpeakParams(content='hi'),
+        action_selection_rationale='r',
+        monitoring_for_selected_action={},
+    )
+    await dispatcher.dispatch(result, {'origin_service': 'discord', 'thought_id': 't1'})
+
+    assert thought.action_count == 1
+    assert len(thought.history) == 1
+    assert thought.history[0]['action'] == HandlerActionType.SPEAK.value
