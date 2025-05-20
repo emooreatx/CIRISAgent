@@ -68,7 +68,7 @@ async def test_discord_service_non_blocking_enqueue(monkeypatch, caplog):
     q = DiscordEventQueue(maxsize=1)
     q.enqueue_nowait({"user_nick": "a", "channel": "1", "message_content": "hi"})
 
-    dispatcher = ActionDispatcher()
+    dispatcher = ActionDispatcher({})
     service = DiscordService(dispatcher, event_queue=q)
 
     class Author:

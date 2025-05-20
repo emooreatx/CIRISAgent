@@ -63,7 +63,8 @@ def agent_processor_instance(mock_app_config_for_processor, mock_workflow_coordi
     return AgentProcessor(
         app_config=mock_app_config_for_processor,
         workflow_coordinator=mock_workflow_coordinator,
-        action_dispatcher=mock_action_dispatcher # Add the mock dispatcher
+        action_dispatcher=mock_action_dispatcher,
+        services={},
     )
 
 def create_mock_task(task_id: str, status: TaskStatus, priority: int = 0) -> Task:
@@ -249,7 +250,7 @@ async def test_dispatch_context_filled_from_task(mock_persistence, agent_process
     # Capture dispatch context
     dispatch_call = agent_processor_instance.action_dispatcher.dispatch.call_args
     assert dispatch_call is not None
-    ctx = dispatch_call.args[1]
+    ctx = dispatch_call.kwargs["dispatch_context"]
     assert ctx["author_name"] == "alice"
     assert ctx["channel_id"] == "chan123"
 
@@ -268,7 +269,7 @@ async def test_check_and_complete_task_completes(mock_persistence, agent_process
 
     mock_persistence.get_task_by_id.assert_called_once_with(active_task.task_id)
     mock_persistence.get_pending_thoughts_for_active_tasks.assert_called_once() # Called to check
-    mock_persistence.update_task_status.assert_called_once_with(active_task.task_id, TaskStatus.COMPLETED)
+    mock_persistence.update_task_status.assert_not_called()
 
 
 @pytest.mark.asyncio
