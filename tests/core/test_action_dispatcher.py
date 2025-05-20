@@ -1,25 +1,56 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
-from ciris_engine.core.action_dispatcher import ActionDispatcher, dispatch, handler_map
+from ciris_engine.core.action_dispatcher import ActionDispatcher
 from ciris_engine.core.foundational_schemas import HandlerActionType
-from ciris_engine.core.agent_core_schemas import Thought
-from ciris_engine.core import persistence
+from ciris_engine.core.agent_core_schemas import Thought, ActionSelectionPDMAResult
+
+class DummyHandler:
+    def __init__(self):
+        self.handle = AsyncMock()
 
 @pytest.mark.asyncio
 async def test_dispatch_invokes_correct_handler():
-    t = Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content="")
-    mock_handler = AsyncMock()
-    with patch.dict(handler_map, {HandlerActionType.SPEAK: mock_handler}):
-        with patch.object(persistence, "add_thought", lambda t: t):
-            await dispatch(HandlerActionType.SPEAK, t, {"content": "hi"}, {})
-        mock_handler.assert_awaited_once()
+    t = Thought(
+        thought_id="t",
+        source_task_id="task",
+        created_at="",
+        updated_at="",
+        round_created=0,
+        content="",
+    )
+    handler = DummyHandler()
+    dispatcher = ActionDispatcher({HandlerActionType.SPEAK: handler})
+    result = ActionSelectionPDMAResult(
+        context_summary_for_action_selection="c",
+        action_alignment_check={},
+        selected_handler_action=HandlerActionType.SPEAK,
+        action_parameters={"content": "hi"},
+        action_selection_rationale="r",
+        monitoring_for_selected_action="m",
+    )
+    await dispatcher.dispatch(result, t, {})
+    handler.handle.assert_awaited_once_with(result, t, {})
 
 @pytest.mark.asyncio
 async def test_action_dispatcher_wrapper():
-    dispatcher = ActionDispatcher()
-    mock_handler = AsyncMock()
-    with patch.dict(handler_map, {HandlerActionType.SPEAK: mock_handler}):
-        with patch.object(persistence, "add_thought", lambda t: t):
-            await dispatcher.dispatch(HandlerActionType.SPEAK, Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content=""), {"content": "hi"}, {})
-            mock_handler.assert_awaited_once()
+    handler = DummyHandler()
+    dispatcher = ActionDispatcher({HandlerActionType.SPEAK: handler})
+    t = Thought(
+        thought_id="t",
+        source_task_id="task",
+        created_at="",
+        updated_at="",
+        round_created=0,
+        content="",
+    )
+    result = ActionSelectionPDMAResult(
+        context_summary_for_action_selection="c",
+        action_alignment_check={},
+        selected_handler_action=HandlerActionType.SPEAK,
+        action_parameters={"content": "hi"},
+        action_selection_rationale="r",
+        monitoring_for_selected_action="m",
+    )
+    await dispatcher.dispatch(result, t, {})
+    handler.handle.assert_awaited_once_with(result, t, {})

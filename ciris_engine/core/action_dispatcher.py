@@ -1,5 +1,6 @@
 import logging
-from typing import Dict, Any, Optional
+import inspect
+from typing import Dict, Any, Optional, Callable, Awaitable
 
 from .foundational_schemas import HandlerActionType
 from .agent_core_schemas import ActionSelectionPDMAResult, Thought, ThoughtStatus
@@ -23,7 +24,7 @@ class ActionDispatcher:
         """
         self.handlers: Dict[HandlerActionType, BaseActionHandler] = handlers
         self.audit_service = audit_service
-        # self.action_filter = None # If action_filter is still needed, it can be set separately
+        self.action_filter: Optional[Callable[[ActionSelectionPDMAResult, Dict[str, Any]], Awaitable[bool] | bool]] = None
 
         # Log the registered handlers for clarity during startup
         for action_type, handler_instance in self.handlers.items():
@@ -43,7 +44,20 @@ class ActionDispatcher:
         and creating follow-up thoughts.
         """
         action_type = action_selection_result.selected_handler_action
-        
+
+        if self.action_filter:
+            try:
+                should_skip = self.action_filter(action_selection_result, dispatch_context)
+                if inspect.iscoroutine(should_skip):
+                    should_skip = await should_skip
+                if should_skip:
+                    logger.info(
+                        f"ActionDispatcher: action {action_type.value} for thought {thought.thought_id} skipped by filter"
+                    )
+                    return
+            except Exception as filter_ex:
+                logger.error(f"Action filter error for action {action_type.value}: {filter_ex}")
+
         handler_instance = self.handlers.get(action_type)
 
         if not handler_instance:

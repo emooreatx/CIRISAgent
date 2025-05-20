@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from ciris_engine.memory.simple_conversation_memory import SimpleConversationMemory # Import the new class
 
 from .base import Service
-from ciris_engine.core.action_dispatcher import ActionDispatcher, ServiceHandlerCallable
+from ciris_engine.core.action_dispatcher import ActionDispatcher
 from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType, Thought, ThoughtStatus, DeferParams, RejectParams, SpeakParams, ActParams
 from ciris_engine.core import persistence  # For creating tasks and updating status
 from .discord_event_queue import DiscordEventQueue
@@ -97,8 +97,7 @@ class DiscordService(Service):
         self.bot = discord.Client(intents=intents)
 
         self._register_discord_events()
-        self.action_dispatcher.register_service_handler("discord", self._handle_discord_action)
-        logger.info("DiscordService initialized and handler registered with ActionDispatcher.")
+        logger.info("DiscordService initialized.")
 
     def _create_correction_thought(
         self,

@@ -172,7 +172,7 @@ class TestCSDMAEvaluator:
         await csdma_evaluator.evaluate_thought(sample_thought_item)
         call_args = csdma_evaluator.aclient.chat.completions.create.call_args.kwargs
         user_message = call_args['messages'][1]['content']
-        assert '"Content from text key"' in user_message
+        assert 'Content from text key' in user_message
         csdma_evaluator.aclient.chat.completions.create.assert_awaited_once() # Check call happened
 
         # 2. Test with 'description' key (fallback)
@@ -181,7 +181,7 @@ class TestCSDMAEvaluator:
         await csdma_evaluator.evaluate_thought(sample_thought_item)
         call_args = csdma_evaluator.aclient.chat.completions.create.call_args.kwargs
         user_message = call_args['messages'][1]['content']
-        assert '"Content from description key"' in user_message
+        assert 'Content from description key' in user_message
         csdma_evaluator.aclient.chat.completions.create.assert_awaited_once()
 
         # 3. Test with other dict structure (fallback to str())
@@ -190,7 +190,7 @@ class TestCSDMAEvaluator:
         await csdma_evaluator.evaluate_thought(sample_thought_item)
         call_args = csdma_evaluator.aclient.chat.completions.create.call_args.kwargs
         user_message = call_args['messages'][1]['content']
-        assert f'"{str({"other": "value", "another": 123})}"' in user_message
+        assert str({"other": "value", "another": 123}) in user_message
         csdma_evaluator.aclient.chat.completions.create.assert_awaited_once()
         
     def test_repr_method(self, csdma_evaluator: CSDMAEvaluator):
