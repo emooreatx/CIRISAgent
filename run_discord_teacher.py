@@ -4,6 +4,7 @@ import logging # Import logging
 from typing import Optional # Import Optional
 
 from ciris_engine.runtime.base_runtime import BaseRuntime, DiscordAdapter
+from ciris_engine.core.ports import EventSource, ActionSink
 from ciris_engine.utils.logging_config import setup_basic_logging
 from ciris_engine.core import persistence
 from ciris_engine.core.config_manager import get_config_async
@@ -40,137 +41,82 @@ SNORE_CHANNEL_ID = os.getenv("SNORE_CHANNEL_ID")
 PROFILE_PATH = os.path.join("ciris_profiles", "teacher.yaml")
 
 
-async def _discord_handler(runtime: BaseRuntime, result: ActionSelectionPDMAResult, ctx: dict): # Added type hints
-    """Minimal handler to send outputs via the runtime's adapter."""
+class DiscordEventSource(EventSource):
+    """Expose DiscordObserver through the EventSource interface."""
+
+    def __init__(self, observer):
+        self.observer = observer
+
+    async def start(self) -> None:
+        await self.observer.start()
+
+    async def stop(self) -> None:
+        await self.observer.stop()
+
+
+class DiscordActionSink(ActionSink):
+    """Use the runtime adapter to send Discord actions."""
+
+    def __init__(self, runtime: BaseRuntime):
+        self.runtime = runtime
+
+    async def start(self) -> None:
+        pass
+
+    async def stop(self) -> None:
+        pass
+
+    async def send_message(self, channel_id: str, content: str) -> None:
+        await self.runtime.io_adapter.send_output(channel_id, content)
+
+    async def run_tool(self, tool_name: str, arguments: dict) -> None:
+        return None
+
+
+
+async def _discord_handler(runtime: BaseRuntime, sink: ActionSink, result: ActionSelectionPDMAResult, ctx: dict) -> None:
+    """Minimal handler forwarding actions through an ActionSink."""
     thought_id = ctx.get("thought_id")
     channel_id = ctx.get("channel_id")
     action = result.selected_handler_action
-    params = result.action_parameters # This should now be a Pydantic model or a dict if no ParamModel
+    params = result.action_parameters
 
-    # Use a more general status update at the end, after attempting the action
-    final_thought_status = ThoughtStatus.COMPLETED # Default to completed if action is handled
+    final_thought_status = ThoughtStatus.COMPLETED
 
     try:
-        if action == HandlerActionType.SPEAK and isinstance(params, SpeakParams):
-            if channel_id:
-                # Attempt to reply if original message ID is available in context
-                original_message_id = ctx.get("message_id")
-                if original_message_id:
-                     try:
-                         target_channel = runtime.io_adapter.client.get_channel(int(channel_id)) # Assuming adapter.client is discord.Client
-                         if target_channel:
-                              original_message = await target_channel.fetch_message(int(original_message_id))
-                              await original_message.reply(params.content)
-                              logger.info(f"DiscordHandler: Replied SPEAK message to message {original_message_id} in channel {channel_id} for thought {thought_id}.")
-                         else:
-                              logger.warning(f"DiscordHandler: Could not find channel {channel_id} to send SPEAK reply for thought {thought_id}.")
-                              await runtime.io_adapter.send_output(channel_id, params.content) # Fallback
-                     except Exception as reply_error:
-                          logger.error(f"DiscordHandler: Error sending SPEAK reply for thought {thought_id}: {reply_error}. Sending to channel instead.")
-                          await runtime.io_adapter.send_output(channel_id, params.content) # Fallback
-                else:
-                    # If no original message ID, just send to the channel
-                    await runtime.io_adapter.send_output(channel_id, params.content)
-                    logger.info(f"DiscordHandler: Sent SPEAK message to channel {channel_id} for thought {thought_id} (no reply).")
-            else:
-                logger.warning(f"DiscordHandler: SPEAK action for thought {thought_id} has no channel_id in context. Message not sent.")
-
-        elif action == HandlerActionType.DEFER and isinstance(params, DeferParams):
-            if channel_id:
-                content = (
-                    f"\U0001f6d1 Deferred update: {params.reason}\n"
-                    f"<@{WA_USER_ID}> please approve with \u2714 or reject with \u2716."
-                )
-                # Attempt to reply if original message ID is available in context
-                original_message_id = ctx.get("message_id")
-                if original_message_id:
-                    try:
-                        target_channel = runtime.io_adapter.client.get_channel(int(channel_id))  # Assuming adapter.client is discord.Client
-                        if target_channel:
-                            original_message = await target_channel.fetch_message(int(original_message_id))
-                            await original_message.reply(content)
-                            logger.info(
-                                f"DiscordHandler: Replied DEFER notification to message {original_message_id} in channel {channel_id} for thought {thought_id}."
-                            )
-                        else:
-                            logger.warning(
-                                f"DiscordHandler: Could not find channel {channel_id} to send DEFER reply for thought {thought_id}."
-                            )
-                            await runtime.io_adapter.send_output(channel_id, content)  # Fallback
-                    except Exception as reply_error:
-                        logger.error(
-                            f"DiscordHandler: Error sending DEFER reply for thought {thought_id}: {reply_error}. Sending to channel instead."
-                        )
-                        await runtime.io_adapter.send_output(channel_id, content)  # Fallback
-                else:
-                    # If no original message ID, just send to the channel
-                    await runtime.io_adapter.send_output(channel_id, content)
-                    logger.info(f"DiscordHandler: Sent DEFER notification to channel {channel_id} for thought {thought_id} (no reply).")
-
-                # Deferral report logic (often to a separate deferral channel) could go here if needed
-                # For this minimal handler, we just send the user-facing message.
-                final_thought_status = ThoughtStatus.DEFERRED # Explicitly mark thought as deferred
-
-            elif action == HandlerActionType.REJECT and isinstance(params, RejectParams):
-                if channel_id:
-                    rejection_message = f"Unable to proceed with this request. Reason: {params.reason}"
-                     # Attempt to reply if original message ID is available in context
-                    original_message_id = ctx.get("message_id")
-                    if original_message_id:
-                         try:
-                             target_channel = runtime.io_adapter.client.get_channel(int(channel_id))
-                             if target_channel:
-                                 original_message = await target_channel.fetch_message(int(original_message_id))
-                                 await original_message.reply(rejection_message)
-                                 logger.info(f"DiscordHandler: Replied REJECT message to message {original_message_id} in channel {channel_id} for thought {thought_id}.")
-                             else:
-                                 logger.warning(f"DiscordHandler: Could not find channel {channel_id} to send REJECT reply for thought {thought_id}.")
-                                 await runtime.io_adapter.send_output(channel_id, rejection_message) # Fallback
-                         except Exception as reply_error:
-                              logger.error(f"DiscordHandler: Error sending REJECT reply for thought {thought_id}: {reply_error}. Sending to channel instead.")
-                              await runtime.io_adapter.send_output(channel_id, rejection_message) # Fallback
-                    else:
-                         await runtime.io_adapter.send_output(channel_id, rejection_message)
-                         logger.info(f"DiscordHandler: Sent REJECT message to channel {channel_id} for thought {thought_id} (no reply).")
-
-
-            elif action == HandlerActionType.TOOL and isinstance(params, ActParams):
-                 # This handler doesn't implement TOOL directly; log for visibility.
-                 logger.warning(f"DiscordHandler: Received TOOL action '{params.tool_name}' for thought {thought_id}. No specific DiscordHandler implementation.")
-                 # The ActionDispatcher's main logic might handle TOOL based on origin_service,
-                 # so this warning might mean the dispatcher logic needs refinement too.
-                 # For now, just log and let the thought be marked completed below.
-
-            # --- Memory Actions ---
-            # These should ideally be handled by the 'memory' service handler.
-            # If they somehow arrive here due to a routing issue, log an error.
-            elif action in [HandlerActionType.MEMORIZE, HandlerActionType.REMEMBER, HandlerActionType.FORGET]:
-                 logger.error(f"DiscordHandler: Received a Memory Action ({action.value}) for thought {thought_id}. This should be routed to the 'memory' service handler. Possible ActionDispatcher routing issue.")
-                 final_thought_status = ThoughtStatus.FAILED # Mark as failed because it wasn't handled correctly
-
-            else:
-                # Catch any other unexpected action types reaching this handler
-                logger.error(f"DiscordHandler: Received unhandled action type '{action.value}' for thought {thought_id}. Parameters: {params}")
-                final_thought_status = ThoughtStatus.FAILED # Mark as failed
-
+        if action == HandlerActionType.SPEAK and isinstance(params, SpeakParams) and channel_id:
+            await sink.send_message(channel_id, params.content)
+        elif action == HandlerActionType.DEFER and isinstance(params, DeferParams) and channel_id:
+            await sink.send_message(channel_id, f"Deferred: {params.reason}")
+            final_thought_status = ThoughtStatus.DEFERRED
+        elif action == HandlerActionType.REJECT and isinstance(params, RejectParams) and channel_id:
+            await sink.send_message(channel_id, f"Unable to proceed. Reason: {params.reason}")
+        elif action == HandlerActionType.TOOL and isinstance(params, ActParams):
+            await sink.run_tool(params.tool_name, params.arguments)
+        else:
+            logger.error("DiscordHandler: Unhandled action %s", action.value)
+            final_thought_status = ThoughtStatus.FAILED
     except Exception as e:
-        logger.exception(f"DiscordHandler: Unexpected error processing action {action.value} for thought {thought_id}: {e}")
-        final_thought_status = ThoughtStatus.FAILED # Mark as failed on exception
+        logger.exception(
+            "DiscordHandler: Error processing action %s for thought %s: %s", action.value, thought_id, e
+        )
+        final_thought_status = ThoughtStatus.FAILED
 
-    # Always update thought status after attempting to handle the action
     if thought_id:
         try:
             persistence.update_thought_status(
                 thought_id=thought_id,
+
                 new_status=final_thought_status,
-                 # Store the final ActionSelectionPDMAResult regardless of success/failure
-                final_action_result=result.model_dump()
+                final_action_result=result.model_dump(),
             )
-            logger.debug(f"DiscordHandler: Updated thought {thought_id} status to {final_thought_status.value}.")
         except Exception as db_error:
-            logger.error(f"DiscordHandler: Failed to update thought {thought_id} status to {final_thought_status.value} in DB: {db_error}")
-
-
+            logger.error(
+                "DiscordHandler: Failed to update thought %s status to %s in DB: %s",
+                thought_id,
+                final_thought_status.value,
+                db_error,
+            )
 async def main() -> None:
     if not TOKEN:
         print("DISCORD_BOT_TOKEN not set")
@@ -187,14 +133,14 @@ async def main() -> None:
     discord_message_queue = DiscordEventQueue[IncomingMessage]()
 
     runtime = BaseRuntime(
-        io_adapter=DiscordAdapter(TOKEN, message_queue=discord_message_queue), # Pass the DiscordEventQueue
+        io_adapter=DiscordAdapter(TOKEN, message_queue=discord_message_queue),
         profile_path=PROFILE_PATH,
         snore_channel_id=SNORE_CHANNEL_ID,
     )
 
-    # Register the handler for Discord-specific actions
+    discord_sink = DiscordActionSink(runtime)
     runtime.dispatcher.register_service_handler(
-        "discord", lambda result, ctx: _discord_handler(runtime, result, ctx)
+        "discord", lambda result, ctx: _discord_handler(runtime, discord_sink, result, ctx)
     )
 
     app_config = await get_config_async()
@@ -616,19 +562,27 @@ async def main() -> None:
         startup_channel_id=SNORE_CHANNEL_ID,
     )
 
+    event_source = DiscordEventSource(discord_observer)
+
+    async def main_loop():
+        await event_source.start()
+        await discord_sink.start()
+        try:
+            await asyncio.gather(
+                runtime._main_loop(),
+                processor.start_processing(),
+            )
+        finally:
+            await discord_sink.stop()
+            await event_source.stop()
+
     try:
-        # processor.start_processing handles running the agent processing rounds
-        # runtime._main_loop() is still needed for the Discord client to run and populate the queue.
-        # DiscordObserver._poll_events() runs in its own task via discord_observer.start()
-        await asyncio.gather(
-            runtime._main_loop(), # Keeps Discord client running and feeding the queue
-            processor.start_processing() # Processes tasks from persistence
-        )
+        await main_loop()
     finally:
         await asyncio.gather(
-            llm_service.stop(), 
+            llm_service.stop(),
             memory_service.stop(),
-            discord_observer.stop() # Stop the observer
+            discord_observer.stop()
         )
 
 
