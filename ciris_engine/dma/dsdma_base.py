@@ -8,6 +8,7 @@ from openai import AsyncOpenAI # For type hinting raw client
 # Corrected imports based on project structure
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.agent_core_schemas import DSDMAResult
+from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
 from pydantic import BaseModel, Field
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.core.config_manager import get_config # To access global config
@@ -64,57 +65,48 @@ class BaseDSDMA(ABC):
         context_str = str(current_context) if current_context else "No specific platform context provided."
         rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General domain guidance") if isinstance(self.domain_specific_knowledge, dict) else "General domain guidance"
 
-        system_snapshot_info_str = ""
+        system_snapshot_context_str = ""
+        user_profile_context_str = ""
+
         if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
             system_snapshot = thought_item.processing_context.get("system_snapshot")
             if system_snapshot:
-                formatted_parts = ["--- System Snapshot Context (for background awareness) ---"]
-                if system_snapshot.get("task") and hasattr(system_snapshot["task"], 'description'):
-                    formatted_parts.append(f"Current Task: {system_snapshot['task'].description}")
+                user_profiles_data = system_snapshot.get("user_profiles")
+                user_profile_context_str = format_user_profiles_for_prompt(user_profiles_data)
                 
-                recent_tasks = system_snapshot.get("recently_completed_tasks", [])
-                if recent_tasks:
-                    formatted_parts.append("Recently Completed Tasks:")
-                    for i, task_info in enumerate(recent_tasks[:2]): # Limit for brevity
-                        desc = task_info.get('description', 'N/A')
-                        outcome = task_info.get('outcome', 'N/A')
-                        formatted_parts.append(f"  - Prev. Task {i+1}: {desc[:70]}... (Outcome: {str(outcome)[:70]}...)")
+                system_snapshot_context_str = format_system_snapshot_for_prompt(system_snapshot, thought_item.processing_context)
 
-                user_profiles = system_snapshot.get("user_profiles")
-                if user_profiles and isinstance(user_profiles, dict):
-                    formatted_parts.append("Known User Profiles (for awareness):")
-                    for user_key, profile_data in user_profiles.items():
-                        if isinstance(profile_data, dict):
-                            nick = profile_data.get('nick', user_key)
-                            profile_summary = f"User '{user_key}': Nickname/Name: '{nick}'"
-                            # Example: if 'interest' was in profile_data
-                            # interest = profile_data.get('interest')
-                            # if interest: profile_summary += f", Interest: '{str(interest)[:50]}...'"
-                            formatted_parts.append(f"  - {profile_summary}")
-                
-                formatted_parts.append("--- End System Snapshot Context ---")
-                system_snapshot_info_str = "\n".join(formatted_parts) + "\n\n"
-
-        # Assuming self.prompt_template is a system message template
-        # It should ideally have placeholders for context_str, rules_summary_str, and now system_snapshot_info_str
-        # For now, we'll format what we can into system_message and prepend snapshot to user message.
+        # Prepare system message content
+        # Subclasses might provide a more specific template.
+        # The template should ideally allow for {domain_name}, {rules_summary_str}, {platform_context_str}
+        # and then the user message would contain the thought and the formatted snapshot context.
         
-        system_message_content = self.prompt_template # If it's a simple string
-        if self.prompt_template and "{context_str}" in self.prompt_template and "{rules_summary_str}" in self.prompt_template:
-             system_message_content = self.prompt_template.format(
-                context_str=context_str,
-                rules_summary_str=rules_summary_str,
+        system_message_template = self.prompt_template
+        if not system_message_template: # Default if subclass doesn't provide one
+            system_message_template = (
+                "You are a domain-specific evaluator for the '{domain_name}' domain. "
+                "Your primary goal is to assess how well a given 'thought' aligns with the specific rules, "
+                "objectives, and knowledge pertinent to this domain. "
+                "Consider the provided domain rules: '{rules_summary_str}' and the general platform context: '{context_str}'. " # Changed placeholder
+                "Additionally, user profile information and system snapshot details will be provided with the thought for background awareness. "
+                "Focus your evaluation on domain alignment."
             )
-        elif not self.prompt_template: # If template is empty, provide a generic system message
-            system_message_content = f"You are a domain-specific evaluator for the '{self.domain_name}' domain. Evaluate the thought based on the provided domain rules: '{rules_summary_str}' and platform context: '{context_str}'."
 
-        user_message_content = f"{system_snapshot_info_str}Evaluate this thought for the '{self.domain_name}' domain: \"{thought_content_str}\""
+        system_message_content = system_message_template.format(
+            domain_name=self.domain_name,
+            rules_summary_str=rules_summary_str,
+            context_str=context_str # Changed keyword to context_str
+        )
+
+        # User message includes the thought and the formatted snapshot context (user profiles + system state)
+        full_snapshot_and_profile_context_str = user_profile_context_str + system_snapshot_context_str
+        user_message_content = f"{full_snapshot_and_profile_context_str}\nEvaluate this thought for the '{self.domain_name}' domain: \"{thought_content_str}\""
         
         logger.debug(f"DSDMA '{self.domain_name}' input to LLM for thought {thought_item.thought_id}:\nSystem: {system_message_content}\nUser: {user_message_content}")
 
         messages = [
             {"role": "system", "content": system_message_content},
-            {"role": "user", "content": user_message_content},
+            {"role": "user", "content": user_message_content}
         ]
 
         try:
