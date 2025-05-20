@@ -2,12 +2,14 @@ from datetime import datetime, timezone
 from typing import Dict
 
 from .agent_core_schemas import Thought
+from .foundational_schemas import ThoughtStatus
 
 __all__ = [
     "escalate_due_to_action_limit",
     "escalate_due_to_sla",
     "escalate_due_to_guardrail",
     "escalate_due_to_failure",
+    "escalate_dma_failure",
 ]
 
 
@@ -61,4 +63,19 @@ def escalate_due_to_failure(thought: Thought, reason: str) -> Thought:
         "type": "internal_failure",
     }
     thought.is_terminal = True
+    return _append_escalation(thought, event)
+
+
+def escalate_dma_failure(
+    thought: Thought, dma_name: str, error: Exception, retry_limit: int
+) -> Thought:
+    """Escalate when a DMA repeatedly fails."""
+    now = datetime.now(timezone.utc).isoformat()
+    event = {
+        "timestamp": now,
+        "dma": dma_name,
+        "reason": f"DMA failed after {retry_limit} attempts: {error}",
+        "type": "dma_failure",
+    }
+    thought.status = ThoughtStatus.DEFERRED
     return _append_escalation(thought, event)
