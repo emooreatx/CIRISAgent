@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
     from ciris_engine.utils import GraphQLContextProvider
 
-# MAX_PONDER_ROUNDS = 5 # REMOVED Constant - will use config
 
 class WorkflowCoordinator:
     """
@@ -38,14 +37,14 @@ class WorkflowCoordinator:
                  llm_client: CIRISLLMClient, # This LLM client MUST support async operations
                  ethical_pdma_evaluator: EthicalPDMAEvaluator,
                  csdma_evaluator: CSDMAEvaluator,
-                 action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator, # Corrected type
+                 action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator,
                  ethical_guardrails: EthicalGuardrails,
-                 app_config: AppConfig, # Corrected type hint to AppConfig
-                 # thought_queue_manager: ThoughtQueueManager, # <-- REMOVE THIS
+                 app_config: AppConfig,
+                 # thought_queue_manager: ThoughtQueueManager,
                  dsdma_evaluators: Optional[Dict[str, 'BaseDSDMA']] = None, # Use string literal for forward reference
                  memory_service: Optional['DiscordGraphMemory'] = None,
                  graphql_context_provider: Optional['GraphQLContextProvider'] = None,
-                 # current_round_number: int = 0 # REMOVED from parameters
+                 # current_round_number: int = 0
                 ):
         self.llm_client = llm_client
         self.ethical_pdma_evaluator = ethical_pdma_evaluator
@@ -58,10 +57,10 @@ class WorkflowCoordinator:
             enable_remote_graphql=app_config.enable_remote_graphql,
         )
         self.ethical_guardrails = ethical_guardrails
-        self.app_config = app_config # Store full AppConfig
-        self.workflow_config = app_config.workflow # Store workflow_config part
-        self.max_ponder_rounds = self.workflow_config.max_ponder_rounds # Store specific value
-        # self.thought_queue_manager = thought_queue_manager # <-- REMOVE THIS
+        self.app_config = app_config
+        self.workflow_config = app_config.workflow
+        self.max_ponder_rounds = self.workflow_config.max_ponder_rounds
+        # self.thought_queue_manager = thought_queue_manager
         self.current_round_number = 0 # Initialize internally
 
     def advance_round(self):

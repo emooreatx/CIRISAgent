@@ -1,13 +1,12 @@
-from typing import Dict, Any, Optional, List, Union  # Ensure Union, List, Dict are imported
+from typing import Dict, Any, Optional, List, Union
 import logging
 
 import instructor
 from openai import AsyncOpenAI
 
-# Corrected imports
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem # Though 'Thought' model is used internally
+from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.agent_core_schemas import (
-    Thought,  # Assuming Thought model is passed in triaged_inputs
+    Thought,
     HandlerActionType,
     CIRISSchemaVersion,
 )
@@ -28,10 +27,9 @@ from ciris_engine.core.action_params import (
     RememberParams,
     ForgetParams,
 )
-from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHandlerActionType # Alias to avoid conflict if any
-from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME # Corrected import
+from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHandlerActionType
+from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME
 from instructor.exceptions import InstructorRetryException
-import instructor # Import the main instructor module for Mode
 from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
 from pydantic import BaseModel, Field, ValidationError
 
