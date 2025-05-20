@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ...services.discord_graph_memory import DiscordGraphMemory
 
 async def handle_memorize(
-    thought: Thought, params: dict, memory_service: "DiscordGraphMemory"
+    thought: Thought, params: dict, memory_service: "DiscordGraphMemory", **kwargs
 ) -> Thought:
     """Write user metadata and return a follow-up Thought."""
     user_nick = params["user_nick"]

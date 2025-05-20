@@ -6,6 +6,6 @@ logger = logging.getLogger(__name__)
 
 from ..agent_core_schemas import Thought
 
-async def handle_task_complete(thought: Thought, params: dict) -> None:
+async def handle_task_complete(thought: Thought, params: dict, **kwargs) -> None:
     """Mark the originating thought as terminal."""
     thought.is_terminal = True
