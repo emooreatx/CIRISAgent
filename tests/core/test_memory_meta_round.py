@@ -26,7 +26,7 @@ def processor(simple_app_config):
     mock_wc.current_round_number = 0
     dispatcher = AsyncMock()
     dispatcher.dispatch = AsyncMock()
-    return AgentProcessor(app_config=simple_app_config, workflow_coordinator=mock_wc, action_dispatcher=dispatcher)
+    return AgentProcessor(app_config=simple_app_config, workflow_coordinator=mock_wc, action_dispatcher=dispatcher, services={})
 
 @patch('ciris_engine.core.agent_processor.persistence')
 @pytest.mark.asyncio
