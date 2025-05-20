@@ -121,7 +121,11 @@ async def _discord_handler(runtime: BaseRuntime, sink: ActionSink, result: Actio
                     except Exception as e_al: logger.exception(f"DiscordHandler: Error in active look: {e_al}"); final_thought_status = ThoughtStatus.FAILED; follow_up_content = f"Active look error: {e_al}"; action_performed_successfully = False
             else: # Passive observe
                 action_performed_successfully = True
-                follow_up_content = f"Passive observation initiated for sources: {params.sources}. System will monitor."
+                follow_up_content = f"Passive observation initiated for sources: {params.sources}. System will monitor. Consider if task is complete."
+        elif action == HandlerActionType.MEMORIZE and isinstance(params, MemorizeParams):
+            logger.info(f"DiscordHandler: Handling MEMORIZE action for thought {thought_id}. Delegating to _memory_handler.")
+            await _memory_handler(result, ctx) # _memory_handler handles its own status and follow-up
+            return # Exit _discord_handler as _memory_handler took over lifecycle for this thought
         elif action == HandlerActionType.TASK_COMPLETE:
             logger.info(f"DiscordHandler: Handling TASK_COMPLETE for thought {thought_id}.")
             action_performed_successfully = True # The action of deciding to complete is successful
