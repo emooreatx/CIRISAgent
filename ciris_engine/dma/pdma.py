@@ -1,15 +1,12 @@
 import logging
-# import os # Not needed directly here if client handles keys
-from typing import Dict, Any, Optional, Union # Added Union
+from typing import Dict, Any, Optional, Union
 
 import instructor
-from openai import AsyncOpenAI # Needed for type hinting raw client
+from openai import AsyncOpenAI
 
-# Adjusted import paths
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem  # Renamed from ThoughtQueueItem
+from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.dma_results import EthicalPDMAResult
-# from ciris_engine.core.config import DEFAULT_OPENAI_MODEL_NAME # Get from config or define
-DEFAULT_OPENAI_MODEL_NAME = "gpt-4o" # Default model from OpenAIConfig
+DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
 
 logger = logging.getLogger(__name__)
 
