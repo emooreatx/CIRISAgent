@@ -22,7 +22,7 @@ class SpeakParams(BaseModel):
     content: str
     target_channel: Optional[str] = None
     target_agent_did: Optional[VeilidDID] = None
-    modality: str = "text"
+    modality: Optional[str] = None
     correlation_id: Optional[str] = None
 
 

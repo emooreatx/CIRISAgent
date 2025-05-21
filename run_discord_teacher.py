@@ -55,6 +55,7 @@ from ciris_engine.core.action_handlers import (
     ToolHandler,
     TaskCompleteHandler
 )
+from ciris_engine.dma.factory import create_dsdma_from_profile
 
 
 logger = logging.getLogger(__name__)
@@ -206,11 +207,16 @@ async def main() -> None:
     guardrails = EthicalGuardrails(
         llm_client.instruct_client, app_config.guardrails, model_name=llm_client.model_name
     )
+
+    # Create the DSDMA instance for the loaded profile
+    dsdma_instance = await create_dsdma_from_profile(profile, llm_client.client, model_name=llm_client.model_name)
+    dsdma_evaluators = {profile.name.lower(): dsdma_instance} if dsdma_instance else {}
+
     workflow_coordinator = WorkflowCoordinator(
         llm_client=llm_client.client, ethical_pdma_evaluator=ethical_pdma,
         csdma_evaluator=csdma, action_selection_pdma_evaluator=action_pdma,
         ethical_guardrails=guardrails, app_config=app_config,
-        dsdma_evaluators={}, memory_service=memory_service,
+        dsdma_evaluators=dsdma_evaluators, memory_service=memory_service,
     )
     # services_dict is still used by AgentProcessor for other potential needs or context.
     # It's not directly used by the new ActionDispatcher's main path but could be part of dispatch_context.
