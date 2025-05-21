@@ -85,6 +85,7 @@ def _get_deferral_report_table_schema_sql() -> str:
         message_id TEXT PRIMARY KEY,
         task_id TEXT NOT NULL,
         thought_id TEXT NOT NULL,
+        package_json TEXT,
         FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE CASCADE,
         FOREIGN KEY (thought_id) REFERENCES thoughts(thought_id) ON DELETE CASCADE
     );
@@ -519,15 +520,21 @@ def update_thought_status(
         return False
 
 
-def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str) -> None:
+def save_deferral_report_mapping(
+    message_id: str,
+    task_id: str,
+    thought_id: str,
+    package: Optional[Dict[str, Any]] = None,
+) -> None:
     """Persist a mapping from a deferral report Discord message to its context."""
     sql = """
-        INSERT OR REPLACE INTO deferral_reports (message_id, task_id, thought_id)
-        VALUES (?, ?, ?)
+        INSERT OR REPLACE INTO deferral_reports (message_id, task_id, thought_id, package_json)
+        VALUES (?, ?, ?, ?)
     """
+    package_json = json.dumps(package) if package is not None else None
     try:
         with _get_db_connection() as conn:
-            conn.execute(sql, (message_id, task_id, thought_id))
+            conn.execute(sql, (message_id, task_id, thought_id, package_json))
             conn.commit()
         logging.debug(
             "Saved deferral report mapping: %s -> task %s, thought %s",
@@ -543,16 +550,22 @@ def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str)
         )
 
 
-def get_deferral_report_context(message_id: str) -> Optional[tuple[str, str]]:
-    """Retrieve original task and thought IDs for a deferral report message."""
-    sql = "SELECT task_id, thought_id FROM deferral_reports WHERE message_id = ?"
+def get_deferral_report_context(message_id: str) -> Optional[tuple[str, str, Optional[Dict[str, Any]]]]:
+    """Retrieve original task, thought IDs and package for a deferral report message."""
+    sql = "SELECT task_id, thought_id, package_json FROM deferral_reports WHERE message_id = ?"
     try:
         with _get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(sql, (message_id,))
             row = cursor.fetchone()
             if row:
-                return row["task_id"], row["thought_id"]
+                pkg = None
+                if row["package_json"]:
+                    try:
+                        pkg = json.loads(row["package_json"])
+                    except Exception:
+                        pkg = None
+                return row["task_id"], row["thought_id"], pkg
             return None
     except sqlite3.Error as e:
         logging.exception(

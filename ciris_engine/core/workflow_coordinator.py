@@ -24,6 +24,7 @@ from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.utils import DEFAULT_WA
 from ciris_engine.utils import GraphQLContextProvider
 from ciris_engine.utils.deferral_package_builder import build_deferral_package
+from ciris_engine.utils.deferral_utils import make_defer_result
 from .thought_escalation import escalate_due_to_guardrail
 
 if TYPE_CHECKING:
@@ -94,31 +95,20 @@ class WorkflowCoordinator:
         # Fetch the full Thought object using the thought_id from ProcessingQueueItem
         thought_object: Optional[Thought] = persistence.get_thought_by_id(thought_item.thought_id)
         if not thought_object:
-            logging.error(f"Critical: Could not retrieve Thought object for thought_id {thought_item.thought_id}. Aborting processing.")
-            from .agent_core_schemas import DeferParams
-            defer_reason = f"Failed to retrieve thought object for ID {thought_item.thought_id}"
+            logging.error(
+                f"Critical: Could not retrieve Thought object for thought_id {thought_item.thought_id}. Aborting processing."
+            )
             parent_task_obj = persistence.get_task_by_id(thought_item.source_task_id)
-            deferral_package = build_deferral_package(
+            return make_defer_result(
+                reason=f"Failed to retrieve thought object for ID {thought_item.thought_id}",
+                trigger="THOUGHT_NOT_FOUND",
                 thought=None,
                 parent_task=parent_task_obj,
-                ethical_pdma_result=None,
-                csdma_result=None,
-                dsdma_result=None,
-                trigger_reason="THOUGHT_NOT_FOUND",
-                extra={"error_details": defer_reason}
-            )
-            defer_params = DeferParams(
-                reason=defer_reason,
-                target_wa_ual=DEFAULT_WA,
-                deferral_package_content=deferral_package
-            )
-            return ActionSelectionPDMAResult(
-                context_summary_for_action_selection="Critical error: Thought object not found.",
-                action_alignment_check={"Error": "Thought object retrieval failed"},
-                selected_handler_action=HandlerActionType.DEFER,
-                action_parameters=defer_params,
-                action_selection_rationale="System error: Cannot process thought without its core object.",
-                monitoring_for_selected_action={"status": "Error: Thought object not found"},
+                ethical_pdma=None,
+                csdma=None,
+                dsdma=None,
+                extra={"error_details": f"Failed to retrieve thought object for ID {thought_item.thought_id}"},
+                context_summary="Critical error: Thought object not found.",
             )
 
 
@@ -198,29 +188,18 @@ class WorkflowCoordinator:
                 selected_dsdma_instance = active_dsdma
             else:
                 logging.critical(f"DSDMA evaluators present, but no DSDMA instance for active profile '{active_profile_name_for_dsdma}' for thought {thought_object.thought_id}. This is a critical error.")
-                from .agent_core_schemas import DeferParams
                 parent_task_obj = persistence.get_task_by_id(thought_object.source_task_id)
-                deferral_package = build_deferral_package(
+                return make_defer_result(
+                    reason=(
+                        f"Critical: No DSDMA instance for active profile '{active_profile_name_for_dsdma}' for thought {thought_object.thought_id}"
+                    ),
+                    trigger="NO_DSDMA_INSTANCE",
                     thought=thought_object,
                     parent_task=parent_task_obj,
-                    ethical_pdma_result=ethical_pdma_result,
-                    csdma_result=csdma_result,
-                    dsdma_result=None,
-                    trigger_reason="NO_DSDMA_INSTANCE",
-                    extra={"error": "No DSDMA instance for active profile"}
-                )
-                defer_params = DeferParams(
-                    reason=f"Critical: No DSDMA instance for active profile '{active_profile_name_for_dsdma}' for thought {thought_object.thought_id}",
-                    target_wa_ual=DEFAULT_WA,
-                    deferral_package_content=deferral_package
-                )
-                return ActionSelectionPDMAResult(
-                    context_summary_for_action_selection="Critical error: No DSDMA instance for active profile.",
-                    action_alignment_check={"Error": "No DSDMA instance for active profile"},
-                    selected_handler_action=HandlerActionType.DEFER,
-                    action_parameters=defer_params,
-                    action_selection_rationale="System error: No DSDMA instance for active profile.",
-                    monitoring_for_selected_action={"status": "Critical: No DSDMA instance for active profile"},
+                    ethical_pdma=ethical_pdma_result,
+                    csdma=csdma_result,
+                    dsdma=None,
+                    extra={"error": "No DSDMA instance for active profile"},
                 )
         else:
             logging.debug(f"No DSDMA evaluators configured or applicable for thought ID {thought_item.thought_id}, will pass None to ActionSelection.")
@@ -301,29 +280,16 @@ class WorkflowCoordinator:
             else:
                 # If DSDMA is required but failed or missing, this is a critical error
                 logging.critical(f"DSDMA ({selected_dsdma_instance.domain_name}) failed or did not return a result for thought {thought_item.thought_id}. This is a critical failure.")
-                from .agent_core_schemas import DeferParams
                 parent_task_obj = persistence.get_task_by_id(thought_object.source_task_id)
-                deferral_package = build_deferral_package(
+                return make_defer_result(
+                    reason=f"Critical: DSDMA failed or missing for thought {thought_item.thought_id}",
+                    trigger="DSDMA_FAILED_OR_MISSING",
                     thought=thought_object,
                     parent_task=parent_task_obj,
-                    ethical_pdma_result=ethical_pdma_result,
-                    csdma_result=csdma_result,
-                    dsdma_result=None,
-                    trigger_reason="DSDMA_FAILED_OR_MISSING",
-                    extra={"error": "DSDMA failed or missing"}
-                )
-                defer_params = DeferParams(
-                    reason=f"Critical: DSDMA failed or missing for thought {thought_item.thought_id}",
-                    target_wa_ual=DEFAULT_WA,
-                    deferral_package_content=deferral_package
-                )
-                return ActionSelectionPDMAResult(
-                    context_summary_for_action_selection="Critical error: DSDMA failed or missing.",
-                    action_alignment_check={"Error": "DSDMA failed or missing"},
-                    selected_handler_action=HandlerActionType.DEFER,
-                    action_parameters=defer_params,
-                    action_selection_rationale="System error: DSDMA failed or missing.",
-                    monitoring_for_selected_action={"status": "Critical: DSDMA failed or missing"},
+                    ethical_pdma=ethical_pdma_result,
+                    csdma=csdma_result,
+                    dsdma=None,
+                    extra={"error": "DSDMA failed or missing"},
                 )
         elif dma_results[2] is None:
             logging.debug("No DSDMA was run, dsdma_result is None.")
@@ -362,29 +328,18 @@ class WorkflowCoordinator:
         # CRITICAL: If profile_key_for_as is still None, treat as fatal error
         if not profile_key_for_as:
             logging.critical(f"No agent profile context available for ActionSelection for thought {thought_object.thought_id}. This is a critical error.")
-            from .agent_core_schemas import DeferParams
             parent_task_obj = persistence.get_task_by_id(thought_object.source_task_id)
-            deferral_package = build_deferral_package(
+            return make_defer_result(
+                reason=(
+                    f"Critical: No agent profile context available for ActionSelection for thought {thought_object.thought_id}"
+                ),
+                trigger="NO_AGENT_PROFILE_CONTEXT",
                 thought=thought_object,
                 parent_task=parent_task_obj,
-                ethical_pdma_result=ethical_pdma_result,
-                csdma_result=csdma_result,
-                dsdma_result=dsdma_result,
-                trigger_reason="NO_AGENT_PROFILE_CONTEXT",
-                extra={"error": "No agent profile context for ActionSelection"}
-            )
-            defer_params = DeferParams(
-                reason=f"Critical: No agent profile context available for ActionSelection for thought {thought_object.thought_id}",
-                target_wa_ual=DEFAULT_WA,
-                deferral_package_content=deferral_package
-            )
-            return ActionSelectionPDMAResult(
-                context_summary_for_action_selection="Critical error: No agent profile context for ActionSelection.",
-                action_alignment_check={"Error": "No agent profile context for ActionSelection"},
-                selected_handler_action=HandlerActionType.DEFER,
-                action_parameters=defer_params,
-                action_selection_rationale="System error: No agent profile context for ActionSelection.",
-                monitoring_for_selected_action={"status": "Critical: No agent profile context for ActionSelection"},
+                ethical_pdma=ethical_pdma_result,
+                csdma=csdma_result,
+                dsdma=dsdma_result,
+                extra={"error": "No agent profile context for ActionSelection"},
             )
 
         if profile_key_for_as:

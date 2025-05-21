@@ -2,8 +2,12 @@ from ciris_engine.utils.context_formatters import format_system_snapshot_for_pro
 from ciris_engine.utils.task_formatters import format_task_context
 
 def build_deferral_package(thought, parent_task, ethical_pdma_result=None, csdma_result=None, dsdma_result=None, trigger_reason=None, extra=None):
-    """
-    Build a rich deferral package for DEFER actions, including all relevant context and DMA results.
+    """Build a rich deferral package for DEFER actions.
+
+    The package may be persisted and later shown in a "Memory Deferral Report" on
+    Discord. When used for that purpose, callers should ensure the resulting
+    dictionary contains at least ``user_nick`` and ``channel`` keys so the
+    Discord service can display who triggered the deferral and where.
     """
     package = {
         "thought_id": getattr(thought, 'thought_id', None),
