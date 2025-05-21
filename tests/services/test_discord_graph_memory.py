@@ -66,7 +66,7 @@ async def test_observe_does_not_modify_graph(tmp_path: Path):
     dispatch_mock = AsyncMock()
     q = DiscordEventQueue()
     observer = DiscordObserver(dispatch_mock, message_queue=q, monitored_channel_id="general")
-    msg = IncomingMessage(message_id="1", author_id="1", author_name="bob", content="hi", channel_id="general")
+    msg = IncomingMessage(message_id="1", author_id="1", author_name="bob", content="hi", channel_id="general", reference_message_id=None)
     await observer.handle_incoming_message(msg)
 
     dispatch_mock.assert_awaited_once()
@@ -88,7 +88,7 @@ async def test_observe_queries_graph(tmp_path: Path):
         message_queue=q,
         monitored_channel_id="general"
     )
-    msg = IncomingMessage(message_id="2", author_id="2", author_name="carol", content="hello", channel_id="general")
+    msg = IncomingMessage(message_id="2", author_id="2", author_name="carol", content="hello", channel_id="general", reference_message_id=None)
     await observer.handle_incoming_message(msg)
 
     remember_mock.assert_awaited_once_with("carol")

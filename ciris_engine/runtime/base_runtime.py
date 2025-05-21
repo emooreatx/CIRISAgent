@@ -47,7 +47,8 @@ class CLIAdapter(BaseIOAdapter):
         return [IncomingMessage(message_id=str(asyncio.get_event_loop().time()),
                                author_id="local",
                                author_name="local",
-                               content=line)]
+                               content=line,
+                               reference_message_id=None)]
 
     async def send_output(self, target: Any, content: str):
         print(content)
@@ -72,15 +73,16 @@ class DiscordAdapter(BaseIOAdapter):
             if message.author == self.client.user or message.author.bot:
                 return
             # Put the message onto the externally provided DiscordEventQueue
-            await self.message_queue.enqueue( # Use enqueue method of DiscordEventQueue
-                IncomingMessage(
-                    message_id=str(message.id),
-                    author_id=str(message.author.id),
-                    author_name=message.author.name,
-                    content=message.content,
-                    channel_id=str(message.channel.id),
-                )
+            incoming = IncomingMessage(
+                message_id=str(message.id),
+                author_id=str(message.author.id),
+                author_name=message.author.name,
+                content=message.content,
+                channel_id=str(message.channel.id),
+                reference_message_id=str(message.reference.message_id) if message.reference and message.reference.message_id else None,
             )
+            setattr(incoming, "_raw_message", message)
+            await self.message_queue.enqueue(incoming)
 
     async def start(self):
         if not self._client_task:

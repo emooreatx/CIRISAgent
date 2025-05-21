@@ -107,3 +107,4 @@ class IncomingMessage:
     author_name: str
     content: str
     channel_id: Optional[str] = None
+    reference_message_id: Optional[str] = None
