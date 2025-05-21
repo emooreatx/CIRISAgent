@@ -3,7 +3,8 @@ import pytest
 from unittest.mock import AsyncMock
 
 from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
-from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
+from ciris_engine.core.graph_schemas import NodeType
 
 class DummyTask:
     def __init__(self, author):
@@ -20,7 +21,7 @@ def _mk_client(response):
 
 @pytest.mark.asyncio
 async def test_fallback_to_memory(tmp_path):
-    mem = DiscordGraphMemory(str(tmp_path / "graph.pkl"))
+    mem = CIRISLocalGraph(str(tmp_path / "graph.pkl"))
     await mem.start()
     await mem.memorize("alice", None, {"nick": "AliceNick", "channel": "general"})
 
@@ -28,12 +29,12 @@ async def test_fallback_to_memory(tmp_path):
     provider = GraphQLContextProvider(graphql_client=client, memory_service=mem)
     result = await provider.enrich_context(DummyTask("alice"), DummyThought())
 
-    assert result == {"user_profiles": {"alice": {"nick": "AliceNick", "channel": "general"}}}
+    assert result == {"user_profiles": {"alice": {"nick": "AliceNick", "channel": "general", "type": NodeType.USER}}}
     client.query.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_partial_fallback(tmp_path):
-    mem = DiscordGraphMemory(str(tmp_path / "graph.pkl"))
+    mem = CIRISLocalGraph(str(tmp_path / "graph.pkl"))
     await mem.start()
     await mem.memorize("bob", None, {"nick": "Bobby", "channel": "random"})
 
@@ -46,7 +47,7 @@ async def test_partial_fallback(tmp_path):
     assert result == {
         "user_profiles": {
             "alice": {"nick": "Alice", "channel": "general"},
-            "bob": {"nick": "Bobby", "channel": "random"},
+            "bob": {"nick": "Bobby", "channel": "random", "type": NodeType.USER},
         }
     }
     client.query.assert_called_once()

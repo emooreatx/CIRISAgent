@@ -4,9 +4,15 @@ from unittest.mock import AsyncMock
 import pickle
 import networkx as nx
 
-from ciris_engine.services.discord_graph_memory import (
-    DiscordGraphMemory,
+from ciris_engine.memory.ciris_local_graph import (
+    CIRISLocalGraph,
     MemoryOpStatus,
+)
+from ciris_engine.core.graph_schemas import (
+    GraphUpdateEvent,
+    GraphNode,
+    GraphScope,
+    NodeType,
 )
 from ciris_engine.services.discord_observer import DiscordObserver
 from ciris_engine.services.discord_event_queue import DiscordEventQueue
@@ -16,7 +22,7 @@ from ciris_engine.runtime.base_runtime import IncomingMessage
 @pytest.mark.asyncio
 async def test_memory_graph_starts_empty(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
     assert len(service.graph.nodes) == 0
 
@@ -27,16 +33,16 @@ async def test_memory_graph_loads_existing(tmp_path: Path):
     g = nx.DiGraph()
     g.add_node("alice", kind="nice")
     with storage.open("wb") as f:
-        pickle.dump(g, f)
+        pickle.dump({"local": g, "identity": nx.DiGraph(), "environment": nx.DiGraph()}, f)
 
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     assert "alice" in service.graph
 
 
 @pytest.mark.asyncio
 async def test_memorize_channel_write(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
 
     result = await service.memorize("alice", "general", {"kind": "nice"})
@@ -49,7 +55,7 @@ async def test_memorize_channel_write(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_user_memorize_no_channel(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
     result = await service.memorize("bob", None, {"score": 1})
     assert result.status == MemoryOpStatus.SAVED
@@ -60,7 +66,7 @@ async def test_user_memorize_no_channel(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_observe_does_not_modify_graph(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
 
     dispatch_mock = AsyncMock()
@@ -76,7 +82,7 @@ async def test_observe_does_not_modify_graph(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_observe_queries_graph(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
 
     remember_mock = AsyncMock()
@@ -97,14 +103,14 @@ async def test_observe_queries_graph(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_graph_persistence_roundtrip(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
 
     result = await service.memorize("dave", "general", {"level": 5})
     assert result.status == MemoryOpStatus.SAVED
     await service.stop()
 
-    new_service = DiscordGraphMemory(str(storage))
+    new_service = CIRISLocalGraph(str(storage))
     await new_service.start()
     data = await new_service.remember("dave")
     assert data["level"] == 5
@@ -117,7 +123,7 @@ async def test_memorize_and_remember_multiple_key_values(tmp_path: Path):
     retrieved correctly.
     """
     storage_path = tmp_path / "test_multi_key_graph.pkl"
-    service = DiscordGraphMemory(str(storage_path))
+    service = CIRISLocalGraph(str(storage_path))
     await service.start()
 
     user_nick = "test_user_multi"
@@ -149,8 +155,48 @@ async def test_memorize_and_remember_multiple_key_values(tmp_path: Path):
         assert retrieved_data[key] == expected_value, \
             f"Value for key '{key}' should be '{expected_value}', but got '{retrieved_data[key]}'"
     
-    # Ensure no extra keys were added (optional, but good for this test)
-    assert len(retrieved_data.keys()) == len(user_data_to_memorize.keys()), \
-        "Retrieved data should have the same number of keys as memorized data"
+    # The graph stores a 'type' attribute automatically
+    assert len(retrieved_data.keys()) == len(user_data_to_memorize.keys()) + 1
 
     await service.stop()
+
+
+@pytest.mark.asyncio
+async def test_identity_write_denied(tmp_path: Path):
+    service = CIRISLocalGraph(str(tmp_path / "graph.pkl"))
+    await service.start()
+    event = GraphUpdateEvent(
+        node=GraphNode(id="agent1", type=NodeType.AGENT, scope=GraphScope.IDENTITY, attrs={"bio": "x"}),
+        actor="user1",
+    )
+    status = await service.apply_update(event)
+    assert status == MemoryOpStatus.DEFERRED
+
+
+@pytest.mark.asyncio
+async def test_environment_sync_allowed(tmp_path: Path):
+    service = CIRISLocalGraph(str(tmp_path / "graph.pkl"))
+    await service.start()
+    event = GraphUpdateEvent(
+        node=GraphNode(id="ext1", type=NodeType.EXTERNAL_ENTITY, scope=GraphScope.ENVIRONMENT, attrs={}),
+        actor="external_sync",
+    )
+    status = await service.apply_update(event)
+    assert status == MemoryOpStatus.SAVED
+
+
+@pytest.mark.asyncio
+async def test_multi_graph_persistence(tmp_path: Path):
+    storage = tmp_path / "graphs.pkl"
+    service = CIRISLocalGraph(str(storage))
+    await service.start()
+    await service.apply_update(GraphUpdateEvent(node=GraphNode(id="u", type=NodeType.USER, scope=GraphScope.LOCAL, attrs={}), actor="wa"))
+    await service.apply_update(GraphUpdateEvent(node=GraphNode(id="a", type=NodeType.AGENT, scope=GraphScope.IDENTITY, attrs={}), actor="wa"))
+    await service.apply_update(GraphUpdateEvent(node=GraphNode(id="e", type=NodeType.EXTERNAL_ENTITY, scope=GraphScope.ENVIRONMENT, attrs={}), actor="external_sync"))
+    await service.stop()
+
+    new_service = CIRISLocalGraph(str(storage))
+    await new_service.start()
+    assert new_service._graphs[GraphScope.LOCAL].number_of_nodes() == 1
+    assert new_service._graphs[GraphScope.IDENTITY].number_of_nodes() == 1
+    assert new_service._graphs[GraphScope.ENVIRONMENT].number_of_nodes() == 1

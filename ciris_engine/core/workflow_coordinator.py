@@ -28,7 +28,7 @@ from .thought_escalation import escalate_due_to_guardrail
 
 if TYPE_CHECKING:
     from ciris_engine.dma.dsdma_base import BaseDSDMA # Import only for type checking
-    from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+    from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
     from ciris_engine.utils import GraphQLContextProvider
     from ciris_engine.dma.pdma import EthicalPDMAEvaluator
     from ciris_engine.dma.csdma import CSDMAEvaluator
@@ -51,7 +51,7 @@ class WorkflowCoordinator:
                  app_config: AppConfig,
                  # thought_queue_manager: ThoughtQueueManager,
                  dsdma_evaluators: Optional[Dict[str, 'BaseDSDMA']] = None, # Use string literal for forward reference
-                 memory_service: Optional['DiscordGraphMemory'] = None,
+                 memory_service: Optional['CIRISLocalGraph'] = None,
                  graphql_context_provider: Optional['GraphQLContextProvider'] = None,
                  # current_round_number: int = 0
                 ):
