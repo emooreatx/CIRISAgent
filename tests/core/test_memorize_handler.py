@@ -22,7 +22,7 @@ async def test_handle_memorize(monkeypatch):
     mem = DummyMemory()
     deps = ActionHandlerDependencies(memory_service=mem)
     handler = MemorizeHandler(deps)
-    mem.memorize.return_value = AsyncMock(status=MemoryOpStatus.SAVED)
+    mem.memorize.return_value = AsyncMock(status=MemoryOpStatus.OK)
     added = []
     monkeypatch.setattr(persistence, "add_thought", lambda th: added.append(th))
     monkeypatch.setattr(persistence, "update_thought_status", lambda **k: None)

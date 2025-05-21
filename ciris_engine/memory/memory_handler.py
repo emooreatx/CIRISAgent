@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 
 from ..services.discord_graph_memory import DiscordGraphMemory
+from ..core.graph_schemas import GraphNode, GraphScope, NodeType
 from ..core.agent_core_schemas import ActionSelectionPDMAResult
 from ..core.agent_core_schemas import Thought
 from ..core.foundational_schemas import HandlerActionType, ThoughtStatus
@@ -42,7 +43,8 @@ class MemoryHandler:
                     mem_write.key_path,
                     thought.thought_id,
                 )
-                await self.memory_service.memorize(user_nick, channel, metadata, chan_meta, is_correction=True)
+                node = GraphNode(id=user_nick, type=NodeType.USER, scope=GraphScope.LOCAL, attrs=metadata)
+                await self.memory_service.memorize(node)
                 persistence.update_thought_status(thought.thought_id, ThoughtStatus.COMPLETED)
                 return None
             else:
@@ -61,6 +63,7 @@ class MemoryHandler:
                     monitoring_for_selected_action="none",
                 )
         else:
-            await self.memory_service.memorize(user_nick, channel, metadata, chan_meta)
+            node = GraphNode(id=user_nick, type=NodeType.USER, scope=GraphScope.LOCAL, attrs=metadata)
+            await self.memory_service.memorize(node)
             persistence.update_thought_status(thought.thought_id, ThoughtStatus.COMPLETED)
             return None
