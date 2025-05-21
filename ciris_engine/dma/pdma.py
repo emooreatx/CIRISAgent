@@ -109,7 +109,8 @@ The PDMA steps and their corresponding JSON fields (which you MUST generate) are
         # The format_user_profiles_for_prompt already includes a header.
         # The format_system_snapshot_for_prompt also includes its own header.
         
-        full_context_str = user_profile_context_str + system_snapshot_context_str
+        # full_context_str = user_profile_context_str + system_snapshot_context_str
+        full_context_str = system_snapshot_context_str + user_profile_context_str
         
         # Prepend combined context to the user message content
         user_message_with_context = f"{full_context_str}\nSystem Thought to Evaluate (consider any provided context when performing your ethical analysis): '{original_thought_content}'"
@@ -166,7 +167,7 @@ Adhere strictly to this structure for the JSON output. Every field mentioned abo
                 # mode= is set when patching the client, not per call
                 messages=[
                     {"role": "system", "content": pdma_system_guidance},
-                    {"role": "user", "content": f"Apply the full PDMA process to the following user message (which may include prefixed system context) and provide your complete structured analysis: {user_message_with_context}"}
+                    {"role": "user", "content": f"{user_message_with_context}.\nThat was the context. Now here is the task: Apply the full PDMA process to the following user message (which may include prefixed system context) and provide your complete structured analysis."}
                 ],
                 max_retries=self.max_retries # Pass configured max_retries here
                 # Add other parameters like max_tokens, temperature if needed

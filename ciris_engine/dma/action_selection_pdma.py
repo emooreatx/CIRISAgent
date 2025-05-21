@@ -296,7 +296,7 @@ class ActionSelectionPDMAEvaluator:
         # --- End User Profile and System Snapshot Context Injection ---
 
         # Using original_thought.content which is a string
-        main_user_content_prompt = f"""\
+        main_user_content_prompt = f"""
 {profile_specific_system_header_injection}Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
 You MUST execute the Principled Decision-Making Algorithm (PDMA) to choose this HANDLER ACTION and structure your response as a JSON object matching the provided schema.
 All fields specified in the schema for your response are MANDATORY unless explicitly marked as optional.
