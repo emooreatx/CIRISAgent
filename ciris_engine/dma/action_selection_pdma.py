@@ -123,6 +123,12 @@ class ActionSelectionPDMAEvaluator:
             "Provide a clear 'reason' for the observation. "
             "Example: {{\"sources\": [\"#relevant_channel_id\"], \"reason\": \"To understand the latest messages from the user before responding.\", \"perform_active_look\": true}}"
         ),
+        "normal_mode_action_params_observe_guidance": (
+            "If 'Observe' is chosen to gather more context (e.g., about a user's message or current state of a discussion), 'perform_active_look' SHOULD generally be true to actively fetch recent information. "
+            "Set 'sources' to relevant identifiers (e.g., channel IDs, user IDs if applicable). "
+            "Provide a clear 'reason' for the observation. "
+            "Example: {{\"sources\": [\"#relevant_channel_id\"], \"reason\": \"To understand the latest messages from the user before responding.\", \"perform_active_look\": true}}"
+        ),
         "normal_mode_final_ponder_advisory": (
             "\nIMPORTANT FINAL PONDER ROUND ADVISORY (Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_ponder_rounds}):\n"
             "You have Pondered multiple times. This is your final opportunity to provide a direct answer or a definitive deferral.\n"
