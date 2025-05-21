@@ -99,46 +99,6 @@ class DiscordService(Service):
         self._register_discord_events()
         logger.info("DiscordService initialized.")
 
-    def _create_correction_thought(
-        self,
-        original_task_id: str,
-        corrected_thought_id: Optional[str],
-        message: "discord.Message",
-        deferral_data: Optional[dict],
-    ) -> Thought:
-        """Persist a Thought representing a WA correction reply."""
-        now_iso = datetime.now(timezone.utc).isoformat()
-        correction_thought_id = f"th_corr_{original_task_id}_{str(uuid.uuid4())[:4]}"
-        original_task = persistence.get_task_by_id(original_task_id)
-        priority = original_task.priority if original_task else 1
-        correction_thought = Thought(
-            thought_id=correction_thought_id,
-            source_task_id=original_task_id,
-            related_thought_id=corrected_thought_id,
-            thought_type="correction",
-            status=ThoughtStatus.PENDING,
-            created_at=now_iso,
-            updated_at=now_iso,
-            round_created=0,
-            content=f"WA Correction by {message.author.name}: {message.content}",
-            priority=priority,
-            processing_context={
-                "is_wa_correction": True,
-                "wa_author_id": str(message.author.id),
-                "wa_author_name": message.author.name,
-                "wa_message_id": str(message.id),
-                "wa_timestamp": message.created_at.isoformat(),
-                "deferral_package_content": deferral_data,
-            },
-        )
-        persistence.add_thought(correction_thought)
-        logger.info(
-            "DiscordService: Created new correction thought %s for task %s.",
-            correction_thought_id,
-            original_task_id,
-        )
-        return correction_thought
-
     async def fetch_new_messages(self) -> List[discord.Message]:
         """Fetches recent messages from the monitored channel."""
         if not self.config.monitored_channel_id:
@@ -272,20 +232,14 @@ class DiscordService(Service):
 
                 if original_task_id:
                     try:
-                        self._create_correction_thought(
-                            original_task_id,
-                            corrected_thought_id,
-                            message,
-                            deferral_data,
-                        )
                         await message.add_reaction("✅")
                     except Exception as e:
                         logger.exception(
-                            f"DiscordService: Failed to create correction thought for task {original_task_id}: {e}"
+                            f"DiscordService: Failed to add reaction for task {original_task_id}: {e}"
                         )
                         await message.add_reaction("❌")
                 else:
-                    logger.error("Cannot create correction thought: Original Task ID not found in deferral report.")
+                    logger.error("Cannot process correction: Original Task ID not found in deferral report.")
                     await message.add_reaction("❓")
                 
                 return # Stop further processing, as this was a correction

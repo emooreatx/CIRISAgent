@@ -118,7 +118,7 @@ class DiscordDeferralSink(Service, DeferralSink):
                 created_at=now_iso,
                 updated_at=now_iso,
                 round_created=0,
-                content=f"WA Correction by {message.author.name}: {message.content}",
+                content=f"This message was received in response a deferral or prior task, which should be in your context. WA Correction by {message.author.name}: {message.content}",
                 priority=priority,
                 processing_context={
                     "is_wa_correction": True,
