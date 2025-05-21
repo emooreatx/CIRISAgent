@@ -4,6 +4,7 @@ from datetime import datetime
 
 from ciris_engine.memory.memory_handler import MemoryHandler, MemoryWrite
 from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.core.graph_schemas import GraphScope
 from ciris_engine.core.agent_core_schemas import Thought, Task
 from ciris_engine.core.foundational_schemas import ThoughtStatus, HandlerActionType
 from ciris_engine.core import persistence
@@ -68,7 +69,7 @@ async def test_user_metadata_writes_directly(init_db, memory_service):
     assert result is None
     updated = persistence.get_thought_by_id("th1")
     assert updated.status == ThoughtStatus.COMPLETED
-    data = await memory_service.remember("alice")
+    data = (await memory_service.remember("alice", GraphScope.LOCAL)).data
     assert data["nick"] == "A"
 
 
@@ -105,8 +106,8 @@ async def test_wa_correction_applies(init_db, memory_service):
     assert result is None
     updated = persistence.get_thought_by_id("th3c")
     assert updated.status == ThoughtStatus.COMPLETED
-    data = await memory_service.remember("alice")
-    assert data.get("topic") == "Rules updated"
+    data = await memory_service.remember("alice", GraphScope.LOCAL)
+    assert data.data.get("topic") == "Rules updated"
 
 
 @pytest.mark.asyncio
@@ -139,5 +140,5 @@ async def test_deferral_approval_roundtrip(init_db, memory_service):
     result2 = await handler.process_memorize(correction, mem_write)
 
     assert result2 is None
-    data = await memory_service.remember("bob")
+    data = (await memory_service.remember("bob", GraphScope.LOCAL)).data
     assert data.get("topic") == "New rules"

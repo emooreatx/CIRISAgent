@@ -83,6 +83,7 @@ class CSDMAEvaluator:
         self,
         thought_content: str,
         context_summary: str,
+        identity_context_block: str,
         system_snapshot_block: str,
         user_profiles_block: str,
     ) -> List[Dict[str, str]]:
@@ -92,6 +93,7 @@ class CSDMAEvaluator:
             system_guidance = system_guidance.format(context_summary=context_summary)
 
         system_message = format_system_prompt_blocks(
+            identity_context_block,
             "",
             system_snapshot_block,
             user_profiles_block,
@@ -144,9 +146,14 @@ class CSDMAEvaluator:
                 user_profiles_block = format_user_profiles(user_profiles_data)
                 system_snapshot_block = format_system_snapshot(system_snapshot)
         
+        identity_block = ""
+        if hasattr(thought_item, "processing_context") and thought_item.processing_context:
+            identity_block = thought_item.processing_context.get("identity_context", "")
+
         messages = self._create_csdma_messages_for_instructor(
             thought_content_str,
             context_summary,
+            identity_block,
             system_snapshot_block,
             user_profiles_block,
         )
