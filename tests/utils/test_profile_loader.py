@@ -16,6 +16,10 @@ async def test_load_profile_defaults_to_default():
 @pytest.mark.asyncio
 async def test_create_dsdma_from_default_profile():
     mock_client = MagicMock(spec=AsyncOpenAI)
+    # Patch mock_client to have .chat.completions.create attribute for instructor.patch compatibility
+    mock_client.chat = MagicMock()
+    mock_client.chat.completions = MagicMock()
+    mock_client.chat.completions.create = MagicMock()
     dsdma = await create_dsdma_from_profile(None, mock_client, model_name="x")
     assert isinstance(dsdma, BaseDSDMA)
     assert "CIRIS Explainer" in dsdma.prompt_template
