@@ -3,11 +3,14 @@ import os
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "ciris_engine", "data", "ciris_engine.db")
 
-def print_table_data(table_name, conn):
+def print_table_data(table_name, conn, order_by=None):
     print(f"\n--- Contents of '{table_name}' table ---")
     cursor = conn.cursor()
     try:
-        cursor.execute(f"SELECT * FROM {table_name}")
+        query = f"SELECT * FROM {table_name}"
+        if order_by:
+            query += f" ORDER BY {order_by} DESC"
+        cursor.execute(query)
         rows = cursor.fetchall()
         if not rows:
             print(f"No data found in {table_name}.")
@@ -49,7 +52,7 @@ def main():
         conn = sqlite3.connect(DB_PATH)
         print(f"Successfully connected to database: {DB_PATH}")
 
-        print_table_data("tasks", conn)
+        print_table_data("tasks", conn, order_by="updated_at")
         print_table_data("thoughts", conn)
 
     except sqlite3.Error as e:
