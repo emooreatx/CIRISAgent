@@ -1,6 +1,10 @@
 import sys
 from pathlib import Path
 import pytest # Import pytest for potential future fixture use
+import os
+
+# Ensure OpenAI client can initialize during tests
+os.environ.setdefault("OPENAI_API_KEY", "test")
 
 # Add the project root directory (parent of 'tests' directory) to sys.path
 # This ensures that the 'ciris_engine' package can be imported by tests.
