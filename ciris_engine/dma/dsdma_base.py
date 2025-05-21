@@ -125,6 +125,10 @@ class BaseDSDMA(ABC):
                 reasoning=llm_eval_data.reasoning,
                 domain_specific_output={},
             )
+            logger.info(
+                f"DSDMA '{self.domain_name}' (instructor) evaluation successful for thought ID {thought_item.thought_id}: "
+                f"Score {result.domain_alignment_score}, Recommended Action: {result.recommended_action}"
+            )
             if hasattr(llm_eval_data, "_raw_response"):
                 result.raw_llm_response = str(llm_eval_data._raw_response)
             return result

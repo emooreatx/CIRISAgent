@@ -150,25 +150,27 @@ class WorkflowCoordinator:
         )
 
         # 3. DSDMA Task (select and run if applicable)
-        selected_dsdma_instance: Optional['BaseDSDMA'] = None # Use string literal
-        # Using the "BasicTeacherMod" key as per previous logic.
-        # The actual type of dsdma_evaluators values will be concrete DSDMA subclasses.
-        # For this example, we assume a profile might specify a DSDMA under a key like "teacher_profile_dsdma"
-        # or the profile name itself if only one DSDMA is expected per profile.
-        # For now, let's assume the dsdma_evaluators dict keys are profile names or specific DSDMA role names.
-        # The current logic in CIRISDiscordEngineBot uses profile.name as the key.
-        # We need a more generic way to pick the DSDMA or iterate if multiple could apply.
-        # For simplicity, if there's only one DSDMA in dsdma_evaluators, use it.
-        # This part needs to align with how profiles define which DSDMA to use.
-        
-        # Let's assume for now that if dsdma_evaluators is populated, we pick the first one.
-        # This is a simplification and might need refinement based on profile structure.
+        selected_dsdma_instance: Optional['BaseDSDMA'] = None
         active_profile_name_for_dsdma: Optional[str] = None
-        if self.dsdma_evaluators:
-            # Get the first DSDMA instance from the dictionary
-            # This assumes that the relevant DSDMA for the current thought/profile is present.
-            # A more robust system might involve matching thought context to DSDMA capabilities.
-            active_profile_name_for_dsdma = next(iter(self.dsdma_evaluators)) # Key is assumed to be profile name
+        # --- NEW LOGIC: Always use the active profile as the source of truth ---
+        active_profile_for_dsdma = None
+        if self.app_config.agent_profiles:
+            # Use the profile associated with this WorkflowCoordinator (or default)
+            # If the thought or context provides a profile, use it; else fallback to 'default'
+            profile_key = None
+            if hasattr(thought_object, 'profile_name') and thought_object.profile_name:
+                profile_key = thought_object.profile_name.lower()
+            elif 'default' in self.app_config.agent_profiles:
+                profile_key = 'default'
+            else:
+                profile_key = next(iter(self.app_config.agent_profiles), None)
+            if profile_key:
+                active_profile_for_dsdma = self.app_config.agent_profiles.get(profile_key)
+                active_profile_name_for_dsdma = profile_key
+        # --- END NEW LOGIC ---
+
+        if self.dsdma_evaluators and active_profile_name_for_dsdma:
+            # Use the DSDMA instance for the active profile
             active_dsdma = self.dsdma_evaluators.get(active_profile_name_for_dsdma)
             if active_dsdma:
                 logging.debug(
@@ -183,10 +185,22 @@ class WorkflowCoordinator:
                     )
                 )
                 selected_dsdma_instance = active_dsdma
-            else: # Should not happen if dsdma_evaluators is not empty
-                logging.warning(f"DSDMA evaluators populated, but could not retrieve an instance for profile key {active_profile_name_for_dsdma} for thought {thought_object.thought_id}")
-                async def no_dsdma_result(): return None
-                initial_dma_tasks.append(no_dsdma_result())
+            else:
+                logging.critical(f"DSDMA evaluators present, but no DSDMA instance for active profile '{active_profile_name_for_dsdma}' for thought {thought_object.thought_id}. This is a critical error.")
+                from .agent_core_schemas import DeferParams
+                defer_params = DeferParams(
+                    reason=f"Critical: No DSDMA instance for active profile '{active_profile_name_for_dsdma}' for thought {thought_object.thought_id}",
+                    target_wa_ual=DEFAULT_WA,
+                    deferral_package_content={"error": "No DSDMA instance for active profile"}
+                )
+                return ActionSelectionPDMAResult(
+                    context_summary_for_action_selection="Critical error: No DSDMA instance for active profile.",
+                    action_alignment_check={"Error": "No DSDMA instance for active profile"},
+                    selected_handler_action=HandlerActionType.DEFER,
+                    action_parameters=defer_params,
+                    action_selection_rationale="System error: No DSDMA instance for active profile.",
+                    monitoring_for_selected_action={"status": "Critical: No DSDMA instance for active profile"},
+                )
         else:
             logging.debug(f"No DSDMA evaluators configured or applicable for thought ID {thought_item.thought_id}, will pass None to ActionSelection.")
             async def no_dsdma_result(): return None
@@ -259,15 +273,28 @@ class WorkflowCoordinator:
             )
 
         # The DSDMA task is the third one if it was scheduled
-        if selected_dsdma_instance: 
+        if selected_dsdma_instance:
             if isinstance(dma_results[2], DSDMAResult):
                 dsdma_result = dma_results[2]
-                # Corrected field name from domain_specific_score to domain_alignment_score
                 logging.debug(f"DSDMA ({dsdma_result.domain_name if dsdma_result else 'N/A'}) Result: Score {dsdma_result.domain_alignment_score if dsdma_result else 'N/A'}, Action: {dsdma_result.recommended_action if dsdma_result else 'N/A'}")
-            elif isinstance(dma_results[2], Exception):
-                logging.error(f"DSDMA ({selected_dsdma_instance.domain_name}) failed for thought {thought_item.thought_id}: {dma_results[2]}")
-                # dsdma_result remains None, ActionSelectionPDMA should handle None input
-        elif dma_results[2] is None: 
+            else:
+                # If DSDMA is required but failed or missing, this is a critical error
+                logging.critical(f"DSDMA ({selected_dsdma_instance.domain_name}) failed or did not return a result for thought {thought_item.thought_id}. This is a critical failure.")
+                from .agent_core_schemas import DeferParams
+                defer_params = DeferParams(
+                    reason=f"Critical: DSDMA failed or missing for thought {thought_item.thought_id}",
+                    target_wa_ual=DEFAULT_WA,
+                    deferral_package_content={"error": "DSDMA failed or missing"}
+                )
+                return ActionSelectionPDMAResult(
+                    context_summary_for_action_selection="Critical error: DSDMA failed or missing.",
+                    action_alignment_check={"Error": "DSDMA failed or missing"},
+                    selected_handler_action=HandlerActionType.DEFER,
+                    action_parameters=defer_params,
+                    action_selection_rationale="System error: DSDMA failed or missing.",
+                    monitoring_for_selected_action={"status": "Critical: DSDMA failed or missing"},
+                )
+        elif dma_results[2] is None:
             logging.debug("No DSDMA was run, dsdma_result is None.")
             dsdma_result = None
         
@@ -296,14 +323,30 @@ class WorkflowCoordinator:
         # Attempt to get profile name from DSDMA context if available
         profile_key_for_as = active_profile_name_for_dsdma 
         if not profile_key_for_as and self.app_config.agent_profiles:
-            # Fallback: use the first profile defined in config if no DSDMA context
-            profile_key_for_as = next(iter(self.app_config.agent_profiles), None)
-            if profile_key_for_as:
-                 logging.warning(f"No DSDMA profile context for ActionSelection, falling back to first profile: {profile_key_for_as}")
-
+            # Always use 'default' as the single source of truth if present
+            if "default" in self.app_config.agent_profiles:
+                profile_key_for_as = "default"
+            else:
+                profile_key_for_as = next(iter(self.app_config.agent_profiles), None)
+        # CRITICAL: If profile_key_for_as is still None, treat as fatal error
+        if not profile_key_for_as:
+            logging.critical(f"No agent profile context available for ActionSelection for thought {thought_object.thought_id}. This is a critical error.")
+            from .agent_core_schemas import DeferParams
+            defer_params = DeferParams(
+                reason=f"Critical: No agent profile context available for ActionSelection for thought {thought_object.thought_id}",
+                target_wa_ual=DEFAULT_WA,
+                deferral_package_content={"error": "No agent profile context for ActionSelection"}
+            )
+            return ActionSelectionPDMAResult(
+                context_summary_for_action_selection="Critical error: No agent profile context for ActionSelection.",
+                action_alignment_check={"Error": "No agent profile context for ActionSelection"},
+                selected_handler_action=HandlerActionType.DEFER,
+                action_parameters=defer_params,
+                action_selection_rationale="System error: No agent profile context for ActionSelection.",
+                monitoring_for_selected_action={"status": "Critical: No agent profile context for ActionSelection"},
+            )
 
         if profile_key_for_as:
-            # Ensure consistent key lookup (e.g., lowercase if keys in app_config.agent_profiles are from filenames)
             active_profile_for_as = self.app_config.agent_profiles.get(profile_key_for_as.lower())
             if not active_profile_for_as: # Try original case if lowercase failed
                  active_profile_for_as = self.app_config.agent_profiles.get(profile_key_for_as)
