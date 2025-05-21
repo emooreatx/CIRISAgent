@@ -42,6 +42,17 @@ class DeferHandler(BaseActionHandler):
                 except Exception as e:
                     self.logger.error(f"Failed to send DEFER notification to channel {original_event_channel_id} for thought {thought_id}: {e}")
                     # Don't mark action as failed for this, just log. The core deferral is DB update.
+            if self.dependencies.deferral_sink:
+                try:
+                    source_task_id = dispatch_context.get("source_task_id", thought.source_task_id)
+                    await self.dependencies.deferral_sink.send_deferral(
+                        source_task_id,
+                        thought_id,
+                        params.reason,
+                        params.deferral_package_content or {},
+                    )
+                except Exception as e:
+                    self.logger.error(f"DeferralSink failed for thought {thought_id}: {e}")
             else:
                 # If no sink or channel, the deferral is silent, which is acceptable.
                 action_performed_successfully = True # Deferral itself is successful by updating status
