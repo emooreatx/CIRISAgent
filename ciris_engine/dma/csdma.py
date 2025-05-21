@@ -124,7 +124,7 @@ Your response MUST be a single JSON object adhering to the provided schema, with
                 # The utility function format_system_snapshot_for_prompt already limits recent_tasks.
                 system_snapshot_context_str = format_system_snapshot_for_prompt(system_snapshot, thought_item.processing_context)
 
-        full_context_str = user_profile_context_str + system_snapshot_context_str
+        full_context_str = system_snapshot_context_str + user_profile_context_str
         
         # Prepend combined context to the thought content for evaluation
         thought_content_with_full_context = f"{full_context_str}\nThought to Evaluate for Common Sense: '{thought_content_str}'"
