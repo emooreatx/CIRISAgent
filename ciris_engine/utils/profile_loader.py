@@ -58,6 +58,14 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[SerializableAge
         if "dsdma_kwargs" not in profile_data and "dsdma_overrides" in profile_data:
             profile_data["dsdma_kwargs"] = profile_data.pop("dsdma_overrides")
 
+        # Convert permitted_actions from string to HandlerActionType if needed
+        if "permitted_actions" in profile_data:
+            from ciris_engine.core.foundational_schemas import HandlerActionType
+            profile_data["permitted_actions"] = [
+                HandlerActionType(a) if not isinstance(a, HandlerActionType) else a
+                for a in profile_data["permitted_actions"]
+            ]
+
         # The profile_data should directly map to SerializableAgentProfile fields
         profile = SerializableAgentProfile(**profile_data)
         logger.info(f"Successfully loaded profile '{profile.name}' from {profile_path}")
