@@ -406,7 +406,12 @@ Adhere strictly to the schema for your JSON output.
             closing_reminder=self.prompt.get("closing_reminder", self.DEFAULT_PROMPT["closing_reminder"]),
         )
 
+        identity_block = ""
+        if hasattr(original_thought, "processing_context") and original_thought.processing_context:
+            identity_block = original_thought.processing_context.get("identity_context", "")
+
         system_message = format_system_prompt_blocks(
+            identity_block,
             "",
             system_snapshot_block,
             user_profiles_block,
