@@ -49,3 +49,45 @@ Channel updates in `DiscordGraphMemory` are deferred until a follow-up thought f
 
 
 `BaseRuntime` centralizes environment validation, audit logging, and the Dream Protocol. IO adapters expose a small interface (`fetch_inputs` and `send_output`) so new platforms can be added easily. Incoming Discord messages are deduplicated: each message ID maps to exactly one Task and one initial Thought. The helper `_create_task_if_new` performs this check before persisting.
+
+### Prompt Utilities & Templates
+
+Use the utilities in `ciris_engine.formatters` when constructing DMA prompts:
+
+- `format_system_snapshot`
+- `format_user_profiles`
+- `format_parent_task_chain`
+- `format_thoughts_chain`
+- `format_system_prompt_blocks`
+- `format_user_prompt_blocks`
+- `get_escalation_guidance`
+
+Assemble system prompts with `format_system_prompt_blocks` and user prompts with `format_user_prompt_blocks` in that order. New DMA classes should define a `DEFAULT_TEMPLATE` containing placeholder fields for these blocks and override only that template when subclassing. This keeps prompt assembly consistent and avoids manual string concatenation.
+
+Example snippet:
+
+```python
+from ciris_engine.formatters import (
+    format_system_snapshot, format_user_profiles,
+    format_parent_task_chain, format_thoughts_chain,
+    format_system_prompt_blocks, format_user_prompt_blocks,
+)
+
+class MyDMA(BaseDSDMA):
+    DEFAULT_TEMPLATE = """=== Task History ===\n{task_history_block}\n\n=== Custom Guidance ===\n{guidance_block}"""
+
+    async def evaluate_thought(...):
+        system_snapshot_block = format_system_snapshot(ctx["system_snapshot"])
+        profiles_block = format_user_profiles(ctx.get("user_profiles"))
+        system_msg = format_system_prompt_blocks(
+            task_history_block,
+            system_snapshot_block,
+            profiles_block,
+            None,
+            self.DEFAULT_TEMPLATE.format(task_history_block=task_history_block, guidance_block="...")
+        )
+        user_msg = format_user_prompt_blocks(
+            format_parent_task_chain(parent_tasks),
+            format_thoughts_chain(thoughts)
+        )
+```
