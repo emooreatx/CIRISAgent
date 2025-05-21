@@ -12,7 +12,13 @@ from ciris_engine.core import persistence
 @pytest.mark.asyncio
 async def test_handle_defer(monkeypatch):
     t = Thought(thought_id="t", source_task_id="task", created_at="", updated_at="", round_created=0, content="")
-    handler = DeferHandler(ActionHandlerDependencies(action_sink=None))
+    class DummyDeferral:
+        def __init__(self):
+            self.called = []
+        async def send_deferral(self, *a, **k):
+            self.called.append((a, k))
+    dummy = DummyDeferral()
+    handler = DeferHandler(ActionHandlerDependencies(action_sink=None, deferral_sink=dummy))
     called = {}
     def record_status(**kwargs):
         called.update(kwargs)
@@ -27,3 +33,4 @@ async def test_handle_defer(monkeypatch):
     )
     await handler.handle(result, t, {"channel_id": "1"})
     assert called.get("new_status") == ThoughtStatus.DEFERRED
+    assert dummy.called
