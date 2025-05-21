@@ -19,11 +19,11 @@ async def test_discord_observer_filters_channels():
 
     q = DiscordEventQueue()
     observer = DiscordObserver(collect, message_queue=q, monitored_channel_id="allowed")
-    msg1 = IncomingMessage(message_id="1", author_id="1", author_name="nick", content="hello", channel_id="ignored")
+    msg1 = IncomingMessage(message_id="1", author_id="1", author_name="nick", content="hello", channel_id="ignored", reference_message_id=None)
     await observer.handle_incoming_message(msg1)
     assert events == []
 
-    msg2 = IncomingMessage(message_id="2", author_id="1", author_name="nick", content="hi there", channel_id="allowed")
+    msg2 = IncomingMessage(message_id="2", author_id="1", author_name="nick", content="hi there", channel_id="allowed", reference_message_id=None)
     await observer.handle_incoming_message(msg2)
     assert events == [
         {
@@ -53,7 +53,7 @@ async def test_discord_observer_queue_polling():
     q = DiscordEventQueue()
     observer = DiscordObserver(collect, message_queue=q, monitored_channel_id="allowed")
     await observer.start()
-    await q.enqueue(IncomingMessage(message_id="3", author_id="1", author_name="nick", content="hi", channel_id="allowed"))
+    await q.enqueue(IncomingMessage(message_id="3", author_id="1", author_name="nick", content="hi", channel_id="allowed", reference_message_id=None))
     await asyncio.sleep(0.05)
     await observer.stop()
     assert len(events) == 1

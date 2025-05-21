@@ -110,6 +110,8 @@ async def main() -> None:
     discord_message_queue = DiscordEventQueue[IncomingMessage]()
     discord_adapter = DiscordAdapter(TOKEN, message_queue=discord_message_queue) # Create adapter first
     discord_sink = DiscordActionSink(None) # Placeholder, will be set after runtime init
+    from ciris_engine.services.discord_deferral_sink import DiscordDeferralSink
+    deferral_sink = DiscordDeferralSink(discord_adapter, os.getenv("DISCORD_DEFERRAL_CHANNEL_ID"))
 
     # app_config is already loaded
     profile = await load_profile(PROFILE_PATH) # Load profile directly, not via runtime yet
@@ -126,7 +128,8 @@ async def main() -> None:
     discord_observer = DiscordObserver(
         on_observe=handle_observation_event,
         message_queue=discord_message_queue,
-        monitored_channel_id=os.getenv("DISCORD_CHANNEL_ID")
+        monitored_channel_id=os.getenv("DISCORD_CHANNEL_ID"),
+        deferral_sink=deferral_sink,
     )
 
     await llm_service.start()
@@ -147,7 +150,8 @@ async def main() -> None:
         action_sink=None, # Will be set after runtime is initialized
         memory_service=memory_service,
         observer_service=discord_observer,
-        io_adapter=discord_adapter # Pass the discord_adapter here
+        io_adapter=discord_adapter, # Pass the discord_adapter here
+        deferral_sink=deferral_sink,
     )
 
     speak_handler = SpeakHandler(action_handler_deps, snore_channel_id=SNORE_CHANNEL_ID)
@@ -181,6 +185,7 @@ async def main() -> None:
     )
     discord_sink.runtime = runtime # Now set the runtime for the sink
     action_handler_deps.action_sink = discord_sink # Update dependency with real sink
+    action_handler_deps.deferral_sink = deferral_sink
 
     # The old runtime.dispatcher.register_service_handler for "discord" and "memory" is no longer needed here
     # as these are handled by the new ActionDispatcher and its centralized handlers.
@@ -240,10 +245,12 @@ async def main() -> None:
     async def main_loop():
         await event_source.start()
         await discord_sink.start()
+        await deferral_sink.start()
         try:
             await asyncio.gather(runtime._main_loop(), processor.start_processing())
         finally:
             await discord_sink.stop()
+            await deferral_sink.stop()
             await event_source.stop()
     try:
         await main_loop()
