@@ -1,6 +1,6 @@
 name: "default"
 dsdma_identifier: BaseDSDMA
-dsdma_overrides:
+dsdma_kwargs:
   prompt_template: |
     === Task History ===
     {task_history_block}

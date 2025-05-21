@@ -296,11 +296,16 @@ class WorkflowCoordinator:
         # Attempt to get profile name from DSDMA context if available
         profile_key_for_as = active_profile_name_for_dsdma 
         if not profile_key_for_as and self.app_config.agent_profiles:
-            # Fallback: use the first profile defined in config if no DSDMA context
-            profile_key_for_as = next(iter(self.app_config.agent_profiles), None)
-            if profile_key_for_as:
-                 logging.warning(f"No DSDMA profile context for ActionSelection, falling back to first profile: {profile_key_for_as}")
-
+            # Always use 'default' as the single source of truth if present
+            if "default" in self.app_config.agent_profiles:
+                profile_key_for_as = "default"
+            else:
+                profile_key_for_as = next(iter(self.app_config.agent_profiles), None)
+        if profile_key_for_as:
+            if profile_key_for_as == "default":
+                logging.info(f"No DSDMA profile context for ActionSelection, falling back to profile: default")
+            else:
+                logging.warning(f"No DSDMA profile context for ActionSelection, falling back to profile: {profile_key_for_as}")
 
         if profile_key_for_as:
             # Ensure consistent key lookup (e.g., lowercase if keys in app_config.agent_profiles are from filenames)
