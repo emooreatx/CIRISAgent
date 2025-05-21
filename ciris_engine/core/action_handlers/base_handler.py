@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 from abc import ABC, abstractmethod
 
 from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, Thought
-from ciris_engine.core.ports import ActionSink
+from ciris_engine.core.ports import ActionSink, DeferralSink
 from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
 from ciris_engine.services.discord_observer import DiscordObserver # For active look
 from ciris_engine.core import persistence
@@ -14,9 +14,10 @@ class ActionHandlerDependencies:
     """Services and context needed by action handlers."""
     def __init__(
         self,
-        action_sink: Optional[ActionSink] = None, 
+        action_sink: Optional[ActionSink] = None,
         memory_service: Optional[DiscordGraphMemory] = None,
-        observer_service: Optional[DiscordObserver] = None, 
+        observer_service: Optional[DiscordObserver] = None,
+        deferral_sink: Optional[DeferralSink] = None,
         # For Discord-specific active look, we might need the DiscordAdapter or its client
         # Let's pass the io_adapter (which could be DiscordAdapter)
         io_adapter: Optional[Any] = None, # General type, can be cast in handler
@@ -24,6 +25,7 @@ class ActionHandlerDependencies:
         self.action_sink = action_sink
         self.memory_service = memory_service
         self.observer_service = observer_service # Still useful for its config like monitored_channel_id
+        self.deferral_sink = deferral_sink
         self.io_adapter = io_adapter
 
 class BaseActionHandler(ABC):

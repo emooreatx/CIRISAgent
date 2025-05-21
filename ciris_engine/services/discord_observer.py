@@ -3,9 +3,10 @@ import os
 import asyncio
 from typing import Callable, Awaitable, Dict, Any, Optional
 
-from ciris_engine.core.foundational_schemas import IncomingMessage # Import IncomingMessage from new location
+from ciris_engine.core.foundational_schemas import IncomingMessage
+from ciris_engine.core.ports import DeferralSink
 from .base import Service
-from .discord_event_queue import DiscordEventQueue # Import the generic DiscordEventQueue
+from .discord_event_queue import DiscordEventQueue
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,12 @@ class DiscordObserver(Service):
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]], # This callback will create the Task
         message_queue: DiscordEventQueue[IncomingMessage], # Use DiscordEventQueue[IncomingMessage]
         monitored_channel_id: Optional[str] = None,
+        deferral_sink: Optional[DeferralSink] = None,
     ):
         super().__init__()
         self.on_observe = on_observe
         self.message_queue = message_queue # Store the DiscordEventQueue[IncomingMessage]
+        self.deferral_sink = deferral_sink
         self._poll_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
 
@@ -83,6 +86,17 @@ class DiscordObserver(Service):
         if self.monitored_channel_id and msg.channel_id != self.monitored_channel_id:
             logger.debug(f"DiscordObserver: Ignoring message from unmonitored channel: {msg.channel_id} for message {msg.message_id}")
             return
+
+        # Allow deferral sink to intercept WA corrections before task creation
+        raw_msg = getattr(msg, "_raw_message", None)
+        if self.deferral_sink and raw_msg:
+            try:
+                handled = await self.deferral_sink.process_possible_correction(msg, raw_msg)
+                if handled:
+                    logger.debug("DiscordObserver: message %s handled as correction", msg.message_id)
+                    return
+            except Exception as e:
+                logger.exception("DiscordObserver: deferral sink error: %s", e)
 
         # Construct the payload for the on_observe callback, which will create the Task
         # This payload should contain all necessary info for Task creation.
