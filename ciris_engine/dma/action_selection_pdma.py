@@ -154,9 +154,11 @@ class ActionSelectionPDMAEvaluator:
         self.prompt = {**self.DEFAULT_PROMPT, **(prompt_overrides or {})}
         self.instructor_mode = instructor_mode # Store for reference if needed
 
-    def _get_profile_specific_prompt(self, base_key: str, agent_profile_name: Optional[str]) -> str:
-        if agent_profile_name:
-            profile_key = f"{agent_profile_name.lower()}_mode_{base_key}"
+    def _get_profile_specific_prompt(self, base_key: str) -> str:
+        from ciris_engine.core.config_manager import get_config
+        app_config = get_config()
+        if app_config.agent_profile and app_config.agent_profile.name:
+            profile_key = f"{app_config.agent_profile.name.lower()}_mode_{base_key}"
             if profile_key in self.prompt:
                 return self.prompt[profile_key]
         
@@ -167,7 +169,9 @@ class ActionSelectionPDMAEvaluator:
         if base_key in self.prompt:
              return self.prompt[base_key]
 
-        logger.warning(f"Prompt key for '{base_key}' (profile: {agent_profile_name}) not found. Using default from DEFAULT_PROMPT or empty string.")
+        logger.warning(
+            f"Prompt key for '{base_key}' (profile: {app_config.agent_profile.name if app_config.agent_profile else 'None'}) not found. Using default from DEFAULT_PROMPT or empty string."
+        )
         return self.DEFAULT_PROMPT.get(normal_key, self.DEFAULT_PROMPT.get(base_key,""))
 
 
@@ -181,38 +185,26 @@ class ActionSelectionPDMAEvaluator:
         dsdma_result: Optional[DSDMAResult] = triaged_inputs.get('dsdma_result')
         current_ponder_count: int = triaged_inputs['current_ponder_count']
         max_ponder_rounds: int = triaged_inputs['max_ponder_rounds']
-        agent_profile: Optional[Any] = triaged_inputs.get('agent_profile') # Get the profile if available
 
-        agent_name_from_thought = None
-        # Prefer agent name from the passed agent_profile object
-        if agent_profile and hasattr(agent_profile, 'name'): # Check for 'name' attribute
-             agent_name_from_thought = agent_profile.name
-             logger.debug(f"Using agent name '{agent_name_from_thought}' from provided agent_profile object.")
-        elif hasattr(original_thought, 'processing_context') and original_thought.processing_context:
-            # Fallback to environment_context within the thought if agent_profile not passed or no name
-            environment_context = original_thought.processing_context.get('environment_context')
-            if isinstance(environment_context, dict):
-                agent_name_from_thought = environment_context.get('agent_name')
-                if agent_name_from_thought:
-                    logger.debug(f"Using agent name '{agent_name_from_thought}' from thought's environment_context.")
-        
-        # The old fallback to original_thought.context_json is removed as it was non-standard.
-        if not agent_name_from_thought:
-            logger.warning(f"Could not determine agent name for thought {original_thought.thought_id}. Profile-specific prompts might not apply.")
+        from ciris_engine.core.config_manager import get_config
+        app_config = get_config()
+        if not app_config.agent_profile:
+            raise RuntimeError("Global agent profile is not configured")
+        agent_profile = app_config.agent_profile
+        agent_name_from_thought = agent_profile.name
 
-        # --- Get permitted actions dynamically ---
-        # Default fallback list
-        default_permitted_actions = [
-            HandlerActionType.SPEAK, HandlerActionType.PONDER,
-            HandlerActionType.REJECT, HandlerActionType.DEFER
-        ]
-        permitted_actions: List[HandlerActionType] = triaged_inputs.get('permitted_actions', default_permitted_actions)
-
-        if 'permitted_actions' not in triaged_inputs:
-             logger.warning(f"ActionSelectionPDMA: 'permitted_actions' not found in triaged_inputs for thought {original_thought.thought_id}. Falling back to default: {[a.value for a in default_permitted_actions]}")
-        elif not permitted_actions: # Handle case where it's provided but empty
-             logger.warning(f"ActionSelectionPDMA: 'permitted_actions' in triaged_inputs is empty for thought {original_thought.thought_id}. Falling back to default.")
-             permitted_actions = default_permitted_actions
+        # --- Permitted actions from the global profile ---
+        permitted_actions: List[HandlerActionType] = agent_profile.permitted_actions
+        if not permitted_actions:
+            logger.warning(
+                f"ActionSelectionPDMA: 'permitted_actions' not defined in global agent profile. Using SPEAK/PONDER/REJECT/DEFER defaults."
+            )
+            permitted_actions = [
+                HandlerActionType.SPEAK,
+                HandlerActionType.PONDER,
+                HandlerActionType.REJECT,
+                HandlerActionType.DEFER,
+            ]
 
         action_options_str = ", ".join([action.value.upper() for action in permitted_actions])
         # --- End dynamic permitted actions ---
@@ -245,7 +237,7 @@ class ActionSelectionPDMAEvaluator:
         is_final_attempt_round = current_ponder_count >= max_ponder_rounds - 1
 
         if is_final_attempt_round:
-            final_ponder_advisory_template = self._get_profile_specific_prompt("final_ponder_advisory", agent_name_from_thought)
+            final_ponder_advisory_template = self._get_profile_specific_prompt("final_ponder_advisory")
             try:
                 final_ponder_advisory = final_ponder_advisory_template.format(
                     current_ponder_count_plus_1=current_ponder_count + 1,
@@ -257,13 +249,13 @@ class ActionSelectionPDMAEvaluator:
         
         reject_thought_guidance = "\nNote on 'Reject Thought': Use this action sparingly, primarily if the original thought is nonsensical, impossible to act upon even with clarification, or fundamentally misaligned with the agent's purpose. Prefer 'Ponder' or 'Speak' for clarification if possible."
         
-        action_alignment_csdma_guidance = self._get_profile_specific_prompt("csdma_ambiguity_guidance", agent_name_from_thought)
-        action_alignment_example = self._get_profile_specific_prompt("csdma_ambiguity_alignment_example", agent_name_from_thought)
-        action_parameters_speak_csdma_guidance = self._get_profile_specific_prompt("action_params_speak_csdma_guidance", agent_name_from_thought)
-        action_parameters_ponder_guidance = self._get_profile_specific_prompt("action_params_ponder_guidance", agent_name_from_thought)
-        # Get Observe guidance - will pick up teacher_mode if agent_name_from_thought is 'teacher'
-        action_parameters_observe_guidance = self._get_profile_specific_prompt("action_params_observe_guidance", agent_name_from_thought)
-        action_selection_rationale_csdma_guidance = self._get_profile_specific_prompt("action_selection_rationale_csdma_guidance", agent_name_from_thought)
+        action_alignment_csdma_guidance = self._get_profile_specific_prompt("csdma_ambiguity_guidance")
+        action_alignment_example = self._get_profile_specific_prompt("csdma_ambiguity_alignment_example")
+        action_parameters_speak_csdma_guidance = self._get_profile_specific_prompt("action_params_speak_csdma_guidance")
+        action_parameters_ponder_guidance = self._get_profile_specific_prompt("action_params_ponder_guidance")
+        # Get Observe guidance - will pick up teacher_mode if profile name is 'teacher'
+        action_parameters_observe_guidance = self._get_profile_specific_prompt("action_params_observe_guidance")
+        action_selection_rationale_csdma_guidance = self._get_profile_specific_prompt("action_selection_rationale_csdma_guidance")
         action_parameter_schemas = self.prompt.get("action_parameter_schemas", self.DEFAULT_PROMPT.get("action_parameter_schemas", ""))
 
         profile_specific_system_header_injection = ENGINE_OVERVIEW_TEMPLATE + "\n"
@@ -340,8 +332,11 @@ DSDMA: {dsdma_summary_str}
 Based on all the provided information and the PDMA framework for action selection, determine the appropriate handler action and structure your response as specified.
 Adhere strictly to the schema for your JSON output.
 """
-        if is_final_attempt_round and agent_name_from_thought and agent_name_from_thought.lower() == "student":
-            logger.debug(f"STUDENT PROFILE - FINAL PONDER ATTEMPT - ActionSelectionPDMA main_user_content_prompt:\n{main_user_content_prompt}")
+        if is_final_attempt_round and agent_profile.name.lower() == "student":
+            logger.debug(
+                "STUDENT PROFILE - FINAL PONDER ATTEMPT - ActionSelectionPDMA main_user_content_prompt:\n%s",
+                main_user_content_prompt,
+            )
         return main_user_content_prompt
 
     async def evaluate(

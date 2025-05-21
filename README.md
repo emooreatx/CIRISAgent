@@ -41,6 +41,17 @@ The system is designed for modularity, allowing developers to create and integra
     * Channel node updates require WA approval. The initial write is deferred and a new thought is generated for the Wise Authority. When that follow-up thought includes `is_wa_correction` and references the deferred thought, the update is applied automatically.
     * User nick node updates can be memorized immediately if guardrails are satisfied.
 
+## Repository Structure
+
+The repository root contains the following notable directories and scripts:
+
+* `ciris_engine/` – core engine code including DMAs, runtime logic, and prompt utilities.
+* `ciris_profiles/` – YAML files defining agent behavior and available actions.
+* `tests/` – unit and integration tests for the engine.
+* `docker/` – container build scripts and Dockerfiles.
+* `legacy/` – archived utilities and documents.
+* `run_*.py` – example launch scripts for CLI and Discord agents.
+
 ## Guardrails Summary
 
 The system enforces the following guardrails via `app_config.guardrails_config`:

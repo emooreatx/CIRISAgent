@@ -286,35 +286,11 @@ class WorkflowCoordinator:
         # current_ponder_count is now directly from thought_object fetched earlier
         current_ponder_count = thought_object.ponder_count
 
-        # Determine permitted_actions for ActionSelectionPDMA
-        # This assumes a single active profile context for the WorkflowCoordinator instance,
-        # or that the profile can be determined (e.g., from thought_object or context).
-        # For now, use the profile associated with the DSDMA if available, or a default/first profile.
-        permitted_actions_for_thought: List[HandlerActionType] = []
-        active_profile_for_as = None
-        
-        # Attempt to get profile name from DSDMA context if available
-        profile_key_for_as = active_profile_name_for_dsdma 
-        if not profile_key_for_as and self.app_config.agent_profiles:
-            # Fallback: use the first profile defined in config if no DSDMA context
-            profile_key_for_as = next(iter(self.app_config.agent_profiles), None)
-            if profile_key_for_as:
-                 logging.warning(f"No DSDMA profile context for ActionSelection, falling back to first profile: {profile_key_for_as}")
+        # Determine permitted actions from the global agent profile
+        if not self.app_config.agent_profile:
+            raise RuntimeError("Global agent profile is not configured")
 
-
-        if profile_key_for_as:
-            # Ensure consistent key lookup (e.g., lowercase if keys in app_config.agent_profiles are from filenames)
-            active_profile_for_as = self.app_config.agent_profiles.get(profile_key_for_as.lower())
-            if not active_profile_for_as: # Try original case if lowercase failed
-                 active_profile_for_as = self.app_config.agent_profiles.get(profile_key_for_as)
-
-        if active_profile_for_as:
-            permitted_actions_for_thought = active_profile_for_as.permitted_actions
-            logging.debug(f"Using permitted_actions from profile '{active_profile_for_as.name}' for thought {thought_object.thought_id}")
-        else:
-            # Fallback if no profile could be determined (should ideally not happen in a configured system)
-            logging.warning(f"Could not determine active profile for thought {thought_object.thought_id}. ActionSelectionPDMA might use defaults or fail.")
-            # ActionSelectionPDMA has its own default if 'permitted_actions' is missing.
+        active_profile_for_as = self.app_config.agent_profile
 
         logging.debug(f"Running Action Selection PDMA for thought ID {thought_object.thought_id} (Ponder count: {current_ponder_count}, Benchmark: {benchmark_mode})")
         
@@ -326,8 +302,6 @@ class WorkflowCoordinator:
             "current_ponder_count": current_ponder_count,
             "max_ponder_rounds": self.max_ponder_rounds,
             "benchmark_mode": benchmark_mode,
-            "permitted_actions": permitted_actions_for_thought, # Added permitted_actions
-            "agent_profile": active_profile_for_as # Pass the determined agent profile object
         }
 
         action_selection_result: ActionSelectionPDMAResult = await run_action_selection_pdma(

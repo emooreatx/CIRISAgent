@@ -54,6 +54,10 @@ def mock_app_config_json_mode():
     return AppConfig(
         llm_services=LLMServicesConfig(
             openai=OpenAIConfig(instructor_mode="JSON")
+        ),
+        agent_profile=SerializableAgentProfile(
+            name="test_profile",
+            permitted_actions=[CoreHandlerActionType.SPEAK, CoreHandlerActionType.PONDER]
         )
     )
 
@@ -154,8 +158,6 @@ def sample_triaged_inputs(sample_thought, sample_ethical_result, sample_csdma_re
         "dsdma_result": sample_dsdma_result,
         "current_ponder_count": sample_thought.ponder_count,
         "max_ponder_rounds": 3,
-        # "agent_profile": sample_agent_profile, # ActionSelectionPDMAEvaluator.evaluate doesn't expect agent_profile directly
-        "permitted_actions": sample_agent_profile.permitted_actions # Pass permitted_actions from the profile
     }
 
 # --- Test Cases ---

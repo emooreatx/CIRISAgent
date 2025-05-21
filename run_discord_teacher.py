@@ -117,6 +117,7 @@ async def main() -> None:
 
     if profile.name.lower() not in app_config.agent_profiles:
         app_config.agent_profiles[profile.name.lower()] = profile
+    app_config.agent_profile = profile
     
     llm_service = LLMService(app_config.llm_services)
     memory_service = DiscordGraphMemory()

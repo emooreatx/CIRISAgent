@@ -30,6 +30,10 @@ def simple_app_config():
                 permitted_actions=[HandlerActionType.SPEAK],
             )
         },
+        agent_profile=SerializableAgentProfile(
+            name="default_profile",
+            permitted_actions=[HandlerActionType.SPEAK]
+        )
     )
 
 

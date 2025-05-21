@@ -3,6 +3,7 @@ import pytest
 import pytest_asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 import uuid
+import os
 from datetime import datetime, timezone
 
 from ciris_engine.core import persistence
@@ -38,10 +39,12 @@ async def teacher_profile(app_config: AppConfig):
     profile = await load_profile(profile_path)
     if profile.name.lower() not in app_config.agent_profiles:
         app_config.agent_profiles[profile.name.lower()] = profile
+    app_config.agent_profile = profile
     return profile
 
 @pytest_asyncio.fixture
 async def llm_service(app_config: AppConfig):
+    os.environ.setdefault("OPENAI_API_KEY", "test-key")
     service = LLMService(app_config.llm_services)
     await service.start()
     yield service

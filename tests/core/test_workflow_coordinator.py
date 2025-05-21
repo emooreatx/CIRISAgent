@@ -32,7 +32,8 @@ def mock_app_config():
         guardrails=GuardrailsConfig(),
         agent_profiles={
             "default_profile": SerializableAgentProfile(name="default_profile", permitted_actions=[HandlerActionType.SPEAK])
-        }
+        },
+        agent_profile=SerializableAgentProfile(name="default_profile", permitted_actions=[HandlerActionType.SPEAK])
     )
 
 @pytest.fixture
