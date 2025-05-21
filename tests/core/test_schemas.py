@@ -44,7 +44,7 @@ def test_enum_case_insensitive():
     assert HandlerActionType("MEMORIZE") is HandlerActionType.MEMORIZE
     assert TaskStatus("PENDING") is TaskStatus.PENDING
     from ciris_engine.services.discord_graph_memory import MemoryOpStatus
-    assert MemoryOpStatus("SAVED") is MemoryOpStatus.SAVED
+    assert MemoryOpStatus("OK") is MemoryOpStatus.OK
 
 def test_ual_did_types():
     """Test that UAL/DID types are essentially strings."""

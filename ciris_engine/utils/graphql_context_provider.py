@@ -4,6 +4,7 @@ import asyncio
 from typing import Dict, Any, List, Optional
 import httpx
 from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.core.graph_schemas import GraphScope
 
 logger = logging.getLogger(__name__)
 
@@ -64,14 +65,22 @@ class GraphQLContextProvider:
         missing = [name for name in authors if name not in enriched]
         if self.memory_service and missing:
             memory_results = await asyncio.gather(
-                *(self.memory_service.remember(n) for n in missing)
+                *(self.memory_service.remember(n, GraphScope.LOCAL) for n in missing)
             )
-            for name, data in zip(missing, memory_results):
-                if data:
-                    # Store the entire data object from memory
-                    enriched[name] = data
+            for name, result in zip(missing, memory_results):
+                if result and result.data:
+                    enriched[name] = result.data
 
-        if not enriched:
-            return {}
+        identity_block = ""
+        if self.memory_service:
+            try:
+                identity_block = self.memory_service.export_identity_context()
+            except Exception as exc:
+                logger.warning("Failed to export identity context: %s", exc)
 
-        return {"user_profiles": enriched}
+        context = {}
+        if enriched:
+            context["user_profiles"] = enriched
+        if identity_block:
+            context["identity_context"] = identity_block
+        return context
