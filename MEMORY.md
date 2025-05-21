@@ -4,7 +4,7 @@ Channel updates to the agent's graph memory are deferred on the first attempt. T
 
 ## Manual persistence verification
 
-Until automated tests cover persistence, you can verify `DiscordGraphMemory` manually:
+Until automated tests cover persistence, you can verify `CIRISLocalGraph` manually:
 
 1. Run a MEMORIZE action.
 2. Wait a moment for the background persist thread to finish.
@@ -21,3 +21,11 @@ PY
 ```
 
 You should also see a log entry like `Persisted memory graph (...)` indicating a successful write.
+
+## Memory Actions
+Every memory action now specifies a `scope` field to target one of three graphs: `local`, `identity`, or `environment`.
+Example:
+```json
+{"action": "REMEMBER", "scope": "environment", "query": "User:1234"}
+```
+

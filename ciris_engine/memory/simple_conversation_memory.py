@@ -2,14 +2,12 @@ import logging
 from typing import Dict, Optional, List, Any
 from collections import deque
 
-import networkx as nx
-
 logger = logging.getLogger(__name__)
 
 class SimpleConversationMemory:
     def __init__(self, max_history_length: int = 2):
         self.max_history_length = max_history_length
-        self.conversation_graphs: Dict[Any, nx.DiGraph] = {}
+        self.conversation_graphs: Dict[Any, Dict[str, Dict[str, Any]]] = {}
         self.message_order: Dict[Any, deque[str]] = {}
         if self.max_history_length > 0:
             logger.info(f"SimpleConversationMemory initialized with max_history_length: {max_history_length}.")
@@ -28,7 +26,7 @@ class SimpleConversationMemory:
         while len(order_deque) > self.max_history_length:
             oldest_msg_id = order_deque.popleft()
             if oldest_msg_id in graph:
-                graph.remove_node(oldest_msg_id)
+                del graph[oldest_msg_id]
 
     def add_message(self, 
                     conversation_id: Any, 
@@ -42,20 +40,23 @@ class SimpleConversationMemory:
             return
 
         if conversation_id not in self.conversation_graphs:
-            self.conversation_graphs[conversation_id] = nx.DiGraph()
+            self.conversation_graphs[conversation_id] = {}
         if conversation_id not in self.message_order:
             self.message_order[conversation_id] = deque()
 
         graph = self.conversation_graphs[conversation_id]
         order_deque = self.message_order[conversation_id]
 
-        # Add new message to graph and deque
-        graph.add_node(message_id, content=content, author_name=author_name, timestamp=timestamp)
+        graph[message_id] = {
+            "content": content,
+            "author_name": author_name,
+            "timestamp": timestamp,
+            "replies": set(),
+        }
         order_deque.append(message_id)
 
-        # Add edge if it's a reply and the referenced message is in our history window
         if reference_message_id and reference_message_id in graph:
-            graph.add_edge(reference_message_id, message_id)
+            graph[reference_message_id].setdefault("replies", set()).add(message_id)
         
         # Prune old messages
         self._prune_history(conversation_id)
@@ -74,9 +75,9 @@ class SimpleConversationMemory:
             return ""
 
         history_lines = []
-        for msg_id_in_order in order_deque: # Iterates in order of addition (oldest to newest in window)
-            if msg_id_in_order in graph: # Check if message still in graph
-                node_data = graph.nodes[msg_id_in_order]
+        for msg_id_in_order in order_deque:
+            if msg_id_in_order in graph:
+                node_data = graph[msg_id_in_order]
                 history_lines.append(f"{node_data['author_name']}: {node_data['content']}")
         
         formatted_history = "\n".join(history_lines)
