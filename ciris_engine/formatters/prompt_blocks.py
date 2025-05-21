@@ -35,6 +35,7 @@ def format_thoughts_chain(thoughts: List[Dict[str, Any]]) -> str:
 
 
 def format_system_prompt_blocks(
+    identity_block: str,
     task_history_block: str,
     system_snapshot_block: str,
     user_profiles_block: str,
@@ -42,7 +43,7 @@ def format_system_prompt_blocks(
     system_guidance_block: Optional[str] = None,
 ) -> str:
     """Assemble the system prompt in canonical CIRIS order."""
-    blocks = [task_history_block]
+    blocks = [identity_block, task_history_block]
     if system_guidance_block:
         blocks.append(system_guidance_block)
     if escalation_guidance_block:

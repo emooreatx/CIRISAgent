@@ -27,9 +27,14 @@ def test_format_thoughts_chain():
 
 def test_prompt_block_ordering():
     sys_block = format_system_prompt_blocks(
-        "TASK", "SNAP", "PROFILES", "ESCALATE", "GUIDE"
+        "IDENTITY",
+        "TASK",
+        "SNAP",
+        "PROFILES",
+        "ESCALATE",
+        "GUIDE",
     )
-    assert sys_block.split("\n\n")[0] == "TASK"
+    assert sys_block.split("\n\n")[0] == "IDENTITY"
     user_block = format_user_prompt_blocks("PARENT", "THOUGHTS", "SCHEMA")
     parts = user_block.split("\n\n")
     assert parts[0] == "PARENT"
