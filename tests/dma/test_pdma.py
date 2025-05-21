@@ -93,7 +93,7 @@ class MockChatCompletionResponse:
 # --- Test Cases ---
 
 @pytest.mark.asyncio
-async def test_pdma_evaluate_success(pdma_evaluator: EthicalPDMAEvaluator, sample_thought_item: ProcessingQueueItem): # Removed mock_openai_client dependency here
+async def test_pdma_evaluate_success(pdma_evaluator: EthicalPDMAEvaluator, sample_thought_item: ProcessingQueueItem):
     """Test successful evaluation returning a valid EthicalPDMAResult."""
     # Define the expected structured response (using aliases)
     expected_result_data = {
@@ -131,8 +131,18 @@ async def test_pdma_evaluate_success(pdma_evaluator: EthicalPDMAEvaluator, sampl
     # This is what the evaluator's `evaluate` method will receive
     pdma_evaluator.aclient.chat.completions.create.return_value = expected_result_obj
 
-    # Call the evaluate method
-    actual_result = await pdma_evaluator.evaluate(sample_thought_item)
+    context = {
+        "current_task": {"description": "Handle issue", "task_id": "1"},
+        "recent_actions": [{"description": "a", "outcome": "b", "updated_at": "t"}],
+        "completed_tasks": [],
+        "system_snapshot": {"pending_tasks": 3},
+        "user_profiles": {},
+        "parent_tasks": [],
+        "thoughts_chain": [],
+        "actions_taken": 1,
+    }
+
+    actual_result = await pdma_evaluator.evaluate(sample_thought_item, context)
 
     # Assertions
     assert isinstance(actual_result, EthicalPDMAResult)
@@ -149,9 +159,9 @@ async def test_pdma_evaluate_success(pdma_evaluator: EthicalPDMAEvaluator, sampl
     assert call_args['model'] == pdma_evaluator.model_name
     assert call_args['response_model'] == EthicalPDMAResult
     assert call_args['messages'][0]['role'] == 'system'
-    assert "PDMA" in call_args['messages'][0]['content']
+    assert call_args['messages'][0]['content'].lstrip().startswith("=== Task History ===")
     assert call_args['messages'][1]['role'] == 'user'
-    assert sample_thought_item.content in call_args['messages'][1]['content']
+    assert call_args['messages'][1]['content'].startswith("=== Parent Task Chain ===")
 
 @pytest.mark.asyncio
 async def test_pdma_evaluate_llm_error(pdma_evaluator: EthicalPDMAEvaluator, sample_thought_item: ProcessingQueueItem): # Removed mock_openai_client
@@ -160,8 +170,18 @@ async def test_pdma_evaluate_llm_error(pdma_evaluator: EthicalPDMAEvaluator, sam
     # Set side_effect on the *mocked patched* create method
     pdma_evaluator.aclient.chat.completions.create.side_effect = Exception(error_message)
 
-    # Call the evaluate method
-    actual_result = await pdma_evaluator.evaluate(sample_thought_item)
+    context = {
+        "current_task": {"description": "Handle issue", "task_id": "1"},
+        "recent_actions": [],
+        "completed_tasks": [],
+        "system_snapshot": {},
+        "user_profiles": {},
+        "parent_tasks": [],
+        "thoughts_chain": [],
+        "actions_taken": 7,
+    }
+
+    actual_result = await pdma_evaluator.evaluate(sample_thought_item, context)
 
     # Assertions for fallback object
     assert isinstance(actual_result, EthicalPDMAResult)
@@ -215,8 +235,18 @@ async def test_pdma_uses_default_model(mock_openai_client: MagicMock, sample_tho
     # Set the return value of the *mocked patched* create method
     default_evaluator.aclient.chat.completions.create.return_value = llm_produced_data_obj
 
-    # Call evaluate
-    actual_result = await default_evaluator.evaluate(sample_thought_item)
+    context = {
+        "current_task": {"description": "d", "task_id": "1"},
+        "recent_actions": [],
+        "completed_tasks": [],
+        "system_snapshot": {},
+        "user_profiles": {},
+        "parent_tasks": [],
+        "thoughts_chain": [],
+        "actions_taken": 0,
+    }
+
+    actual_result = await default_evaluator.evaluate(sample_thought_item, context)
 
     # Basic check that we got a result back
     assert isinstance(actual_result, EthicalPDMAResult)

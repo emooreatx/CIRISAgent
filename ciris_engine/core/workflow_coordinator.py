@@ -112,6 +112,7 @@ class WorkflowCoordinator:
 
 
         # --- Populate System Context into thought_object.processing_context ---
+        system_context = {}
         try:
             parent_task_obj = persistence.get_task_by_id(thought_object.source_task_id)
             system_context = await self.build_context(parent_task_obj, thought_object)
@@ -140,7 +141,12 @@ class WorkflowCoordinator:
         # 1. Ethical PDMA Task
         logging.debug(f"Scheduling Ethical PDMA for thought ID {thought_object.thought_id}") # Use thought_object
         initial_dma_tasks.append(
-            run_pdma(self.ethical_pdma_evaluator, thought_object, retry_limit=DMA_RETRY_LIMIT)
+            run_pdma(
+                self.ethical_pdma_evaluator,
+                thought_object,
+                system_context,
+                retry_limit=DMA_RETRY_LIMIT,
+            )
         )
 
         # 2. CSDMA Task

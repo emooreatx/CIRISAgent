@@ -59,10 +59,19 @@ async def run_dma_with_retries(
 
 
 async def run_pdma(
-    evaluator: EthicalPDMAEvaluator, thought: ProcessingQueueItem
+    evaluator: EthicalPDMAEvaluator,
+    thought: ProcessingQueueItem,
+    context: Dict[str, Any],
+    *,
+    retry_limit: int = DMA_RETRY_LIMIT,
 ) -> EthicalPDMAResult:
-    """Run the Ethical PDMA for the given thought."""
-    return await evaluator.evaluate(thought)
+    """Run the Ethical PDMA for the given thought with retries."""
+    return await run_dma_with_retries(
+        evaluator.evaluate,
+        thought,
+        context,
+        retry_limit=retry_limit,
+    )
 
 
 async def run_csdma(
