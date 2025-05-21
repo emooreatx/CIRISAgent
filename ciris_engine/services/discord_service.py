@@ -211,7 +211,7 @@ class DiscordService(Service):
                 if message.reference and message.reference.message_id:
                     mapping = persistence.get_deferral_report_context(str(message.reference.message_id))
                     if mapping:
-                        original_task_id, corrected_thought_id = mapping
+                        original_task_id, corrected_thought_id, _ = mapping
                         logger.info(
                             "Retrieved deferral mapping for message %s -> task %s, thought %s",
                             message.reference.message_id,
@@ -397,6 +397,7 @@ class DiscordService(Service):
                                     str(sent_report.id),
                                     source_task_id,
                                     deferred_thought_id,
+                                    package,
                                 )
                             except Exception as send_exc:
                                 logger.error(
