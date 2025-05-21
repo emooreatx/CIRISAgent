@@ -54,33 +54,41 @@ def format_system_snapshot_for_prompt(system_snapshot: Optional[Dict[str, Any]],
         return ""
 
     formatted_lines: List[str] = []
+    system_snapshot_parts: List[str] = []
+    recent_tasks_parts: List[str] = []
 
     if system_snapshot and isinstance(system_snapshot, dict):
-        formatted_lines.append("\n\n--- Relevant System Snapshot Context ---")
-        
-        current_task_details = system_snapshot.get("current_task_details")
-        if current_task_details and isinstance(current_task_details, dict):
-            task_desc = current_task_details.get('description', 'N/A')
-            formatted_lines.append(f"Current Task Context: {task_desc}")
-        
+        # Prioritize Recently Completed Tasks
         recent_tasks_summary = system_snapshot.get("recently_completed_tasks_summary", [])
         if recent_tasks_summary:
-            formatted_lines.append("Recently Completed Tasks (Review for relevant context before responding):")
-            for i, task_info_dict in enumerate(recent_tasks_summary[:3]): # Limit for prompt brevity
+            recent_tasks_parts.append("Recently Completed Tasks (Review for relevant context before responding):")
+            for i, task_info_dict in enumerate(recent_tasks_summary[:10]): # Limit for prompt brevity
                 if isinstance(task_info_dict, dict):
                     desc = task_info_dict.get('description', 'N/A')
                     outcome = task_info_dict.get('outcome', 'N/A')
-                    formatted_lines.append(f"  - Prev. Task {i+1}: {desc[:100]}... (Outcome: {str(outcome)[:100]}...)")
+                    recent_tasks_parts.append(f"  - Prev. Task {i+1}: {desc[:1024]}... (Outcome: {str(outcome)[:1024]}...)")
                 else: # Should be dicts due to model_dump
-                    formatted_lines.append(f"  - Prev. Task {i+1}: {str(task_info_dict)[:150]}...")
+                    recent_tasks_parts.append(f"  - Prev. Task {i+1}: {str(task_info_dict)[:1024]}...")
+
+        # Other System Snapshot Details
+        current_task_details = system_snapshot.get("current_task_details")
+        if current_task_details and isinstance(current_task_details, dict):
+            task_desc = current_task_details.get('description', 'N/A')
+            system_snapshot_parts.append(f"Current Task Context: {task_desc}")
         
         system_counts = system_snapshot.get("system_counts")
         if system_counts and isinstance(system_counts, dict):
             pending_tasks_count = system_counts.get('pending_tasks', 'N/A')
-            formatted_lines.append(f"System State: Pending Tasks={pending_tasks_count}")
+            system_snapshot_parts.append(f"System State: Pending Tasks={pending_tasks_count}")
 
-        if len(formatted_lines) > 1: # Only add if there's more than the header
-             formatted_lines.append("--- End System Snapshot Context ---")
+        # Combine system snapshot parts if any exist
+        if recent_tasks_parts or system_snapshot_parts:
+            formatted_lines.append("\n\n--- Relevant System Snapshot Context ---")
+            if recent_tasks_parts:
+                formatted_lines.extend(recent_tasks_parts)
+            if system_snapshot_parts:
+                formatted_lines.extend(system_snapshot_parts)
+            formatted_lines.append("--- End System Snapshot Context ---")
 
     # Include other processing_context details if provided
     if thought_processing_context:

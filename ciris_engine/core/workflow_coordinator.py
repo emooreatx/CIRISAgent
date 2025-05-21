@@ -561,7 +561,7 @@ class WorkflowCoordinator:
             }
 
         recent_tasks_list = []
-        db_recent_tasks = persistence.get_recent_completed_tasks(3) 
+        db_recent_tasks = persistence.get_recent_completed_tasks(10) 
         for t_obj in db_recent_tasks:
             if isinstance(t_obj, BaseModel):
                 recent_tasks_list.append(t_obj.model_dump(mode='json', exclude_none=True))
@@ -569,7 +569,7 @@ class WorkflowCoordinator:
                 recent_tasks_list.append(t_obj) # Should not happen if get_recent_completed_tasks returns Task objects
 
         top_tasks_list = []
-        db_top_tasks = persistence.get_top_tasks(3)
+        db_top_tasks = persistence.get_top_tasks(10)
         for t_obj in db_top_tasks:
             if isinstance(t_obj, BaseModel): # Assuming get_top_tasks returns Task objects
                  top_tasks_list.append({"task_id": t_obj.task_id, "description": t_obj.description, "priority": t_obj.priority})

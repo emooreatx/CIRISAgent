@@ -99,7 +99,7 @@ class BaseDSDMA(ABC):
         )
 
         # User message includes the thought and the formatted snapshot context (user profiles + system state)
-        full_snapshot_and_profile_context_str = user_profile_context_str + system_snapshot_context_str
+        full_snapshot_and_profile_context_str = system_snapshot_context_str + user_profile_context_str
         user_message_content = f"{full_snapshot_and_profile_context_str}\nEvaluate this thought for the '{self.domain_name}' domain: \"{thought_content_str}\""
         
         logger.debug(f"DSDMA '{self.domain_name}' input to LLM for thought {thought_item.thought_id}:\nSystem: {system_message_content}\nUser: {user_message_content}")
