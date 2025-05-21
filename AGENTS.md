@@ -3,6 +3,8 @@
 - Always run `pytest -q` before committing changes.
 - Prefer asynchronous functions when dealing with I/O or long-running tasks. Use `asyncio.to_thread` for blocking calls.
 - Keep new scripts and services minimal and well-documented.
+- Use the canonical prompt-formatting utilities in `ciris_engine.formatters`
+  (`prompt_blocks`, `escalation`, etc.) instead of manual string concatenation.
 
 - After the setup script completes, the environment is locked down: only
   packages listed in `requirements.txt` are available and network access is
