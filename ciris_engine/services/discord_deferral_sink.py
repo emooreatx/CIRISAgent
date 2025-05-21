@@ -69,7 +69,9 @@ class DiscordDeferralSink(Service, DeferralSink):
                 f"**Deferral Package:** ```json\n{json.dumps(package, indent=2)}\n```"
             )
         sent = await channel.send(_truncate_discord_message(report))
-        persistence.save_deferral_report_mapping(str(sent.id), task_id, thought_id)
+        persistence.save_deferral_report_mapping(
+            str(sent.id), task_id, thought_id, package
+        )
 
     async def process_possible_correction(self, msg: IncomingMessage, raw_message: Any) -> bool:
         if not self.deferral_channel_id or str(self.deferral_channel_id) != msg.channel_id:
@@ -81,8 +83,8 @@ class DiscordDeferralSink(Service, DeferralSink):
         mapping = persistence.get_deferral_report_context(ref_message_id)
         if not mapping:
             return False
-        task_id, corrected_thought_id = mapping
-        deferral_data = None
+        task_id, corrected_thought_id, stored_package = mapping
+        deferral_data = stored_package
         try:
             replied_content = raw_message.reference.resolved.content if raw_message.reference.resolved else None
         except Exception:

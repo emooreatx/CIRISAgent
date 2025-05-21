@@ -217,3 +217,14 @@ def test_memorize_params_confidence_validation():
     # Valid
     params = MemorizeParams(knowledge_unit_description="test", knowledge_data="data", knowledge_type="fact", source="test", confidence=0.5)
     assert params.confidence == 0.5
+
+from ciris_engine.core.graph_schemas import GraphScope, MemoryAction, MemoryActionType
+
+
+def test_memory_action_scope_required():
+    m = MemoryAction(
+        action=MemoryActionType.MEMORIZE,
+        scope=GraphScope.LOCAL,
+        actor="did:example:agent1",
+    )
+    assert m.scope == GraphScope.LOCAL

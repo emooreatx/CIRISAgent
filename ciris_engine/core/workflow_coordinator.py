@@ -23,7 +23,10 @@ from ciris_engine.core.action_tracker import track_action
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.utils import DEFAULT_WA
 from ciris_engine.utils import GraphQLContextProvider
-from ciris_engine.utils.deferral_package_builder import build_deferral_package
+from ciris_engine.utils.deferral_package_builder import (
+    build_deferral_package,
+    make_defer_result,
+)
 from .thought_escalation import escalate_due_to_guardrail
 
 if TYPE_CHECKING:
@@ -94,31 +97,17 @@ class WorkflowCoordinator:
         # Fetch the full Thought object using the thought_id from ProcessingQueueItem
         thought_object: Optional[Thought] = persistence.get_thought_by_id(thought_item.thought_id)
         if not thought_object:
-            logging.error(f"Critical: Could not retrieve Thought object for thought_id {thought_item.thought_id}. Aborting processing.")
-            from .agent_core_schemas import DeferParams
-            defer_reason = f"Failed to retrieve thought object for ID {thought_item.thought_id}"
+            logging.error(
+                "Critical: Could not retrieve Thought object for thought_id %s. Aborting processing.",
+                thought_item.thought_id,
+            )
             parent_task_obj = persistence.get_task_by_id(thought_item.source_task_id)
-            deferral_package = build_deferral_package(
+            return make_defer_result(
+                reason=f"Failed to retrieve thought object for ID {thought_item.thought_id}",
+                trigger="THOUGHT_NOT_FOUND",
                 thought=None,
                 parent_task=parent_task_obj,
-                ethical_pdma_result=None,
-                csdma_result=None,
-                dsdma_result=None,
-                trigger_reason="THOUGHT_NOT_FOUND",
-                extra={"error_details": defer_reason}
-            )
-            defer_params = DeferParams(
-                reason=defer_reason,
-                target_wa_ual=DEFAULT_WA,
-                deferral_package_content=deferral_package
-            )
-            return ActionSelectionPDMAResult(
-                context_summary_for_action_selection="Critical error: Thought object not found.",
-                action_alignment_check={"Error": "Thought object retrieval failed"},
-                selected_handler_action=HandlerActionType.DEFER,
-                action_parameters=defer_params,
-                action_selection_rationale="System error: Cannot process thought without its core object.",
-                monitoring_for_selected_action={"status": "Error: Thought object not found"},
+                summary="Critical error: Thought object not found.",
             )
 
 

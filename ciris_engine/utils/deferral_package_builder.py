@@ -1,9 +1,31 @@
-from ciris_engine.utils.context_formatters import format_system_snapshot_for_prompt, format_user_profiles_for_prompt
+from ciris_engine.utils.context_formatters import (
+    format_system_snapshot_for_prompt,
+    format_user_profiles_for_prompt,
+)
 from ciris_engine.utils.task_formatters import format_task_context
+from typing import Optional, Dict, Any
+from ciris_engine.core.agent_core_schemas import (
+    ActionSelectionPDMAResult,
+    DeferParams,
+    Thought,
+    Task,
+)
+from ciris_engine.core.foundational_schemas import HandlerActionType
+from .constants import DEFAULT_WA
 
-def build_deferral_package(thought, parent_task, ethical_pdma_result=None, csdma_result=None, dsdma_result=None, trigger_reason=None, extra=None):
-    """
-    Build a rich deferral package for DEFER actions, including all relevant context and DMA results.
+def build_deferral_package(
+    thought: Thought | None,
+    parent_task: Task | None,
+    ethical_pdma_result: Optional[Any] = None,
+    csdma_result: Optional[Any] = None,
+    dsdma_result: Optional[Any] = None,
+    trigger_reason: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None,
+):
+    """Build a rich deferral package for DEFER actions.
+
+    For Discord deferrals, callers should include ``user_nick`` and ``channel``
+    in ``extra`` so corrections can be routed properly.
     """
     package = {
         "thought_id": getattr(thought, 'thought_id', None),
@@ -62,3 +84,38 @@ def build_deferral_package(thought, parent_task, ethical_pdma_result=None, csdma
     if extra:
         package.update(extra)
     return package
+
+def make_defer_result(
+    reason: str,
+    trigger: str,
+    thought: Thought | None,
+    parent_task: Task | None,
+    ethical_pdma_result: Optional[Any] = None,
+    csdma_result: Optional[Any] = None,
+    dsdma_result: Optional[Any] = None,
+    extra: Optional[Dict[str, Any]] = None,
+    summary: Optional[str] = None,
+) -> ActionSelectionPDMAResult:
+    """Construct a standard DEFER ActionSelectionPDMAResult."""
+    package = build_deferral_package(
+        thought,
+        parent_task,
+        ethical_pdma_result,
+        csdma_result,
+        dsdma_result,
+        trigger_reason=trigger,
+        extra=extra,
+    )
+    params = DeferParams(
+        reason=reason,
+        target_wa_ual=DEFAULT_WA,
+        deferral_package_content=package,
+    )
+    return ActionSelectionPDMAResult(
+        context_summary_for_action_selection=summary or reason,
+        action_alignment_check={"DEFER": reason},
+        selected_handler_action=HandlerActionType.DEFER,
+        action_parameters=params,
+        action_selection_rationale=summary or reason,
+        monitoring_for_selected_action={"status": "deferred"},
+    )
