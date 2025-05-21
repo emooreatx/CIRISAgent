@@ -2,6 +2,12 @@ import logging
 from ciris_engine.utils.logging_config import setup_basic_logging
 setup_basic_logging(level=logging.INFO)
 
+# Holistic logging fix: ensure all CIRIS loggers and submodules always log at INFO or lower
+for name in logging.root.manager.loggerDict:
+    if name.startswith("ciris_engine"):  # Apply to all CIRIS modules
+        logging.getLogger(name).setLevel(logging.INFO)
+        logging.getLogger(name).propagate = True
+
 import os
 import asyncio
 from typing import Optional

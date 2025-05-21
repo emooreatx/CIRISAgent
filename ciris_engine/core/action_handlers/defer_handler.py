@@ -11,6 +11,12 @@ from .helpers import create_follow_up_thought # Though DEFER might not always cr
 
 logger = logging.getLogger(__name__)
 
+# NOTE: The CIRIS agent uses three special root job/task IDs that should never be marked DEFERRED by observation deferral logic:
+#   - "WAKEUP_ROOT": The main wakeup ritual root task
+#   - "SYSTEM_TASK": Used for system-level operations (if present)
+#   - "job-discord-monitor": The persistent Discord monitoring background job
+# If you add new root job types, update this exclusion logic accordingly.
+
 class DeferHandler(BaseActionHandler):
     async def handle(
         self,
@@ -63,6 +69,11 @@ class DeferHandler(BaseActionHandler):
             final_action_result=result.model_dump(),
         )
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for DEFER action. Info: {follow_up_content_key_info}")
+
+        # If this is an observation (not a root/system task), defer the parent task as well
+        if thought.source_task_id != "WAKEUP_ROOT" and thought.source_task_id != "SYSTEM_TASK" and thought.source_task_id != "DREAM_TASK":
+            persistence.update_task_status(thought.source_task_id, ThoughtStatus.DEFERRED)
+            self.logger.info(f"Marked parent task {thought.source_task_id} as DEFERRED due to child thought deferral.")
 
         # DEFER actions typically don't create a standard "next step" follow-up thought
         # because the deferral itself is a terminal state for this thought's processing round.
