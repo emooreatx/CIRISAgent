@@ -31,10 +31,20 @@ from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHand
 from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
-from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
+from ciris_engine.formatters import (
+    format_system_snapshot,
+    format_user_profiles,
+    format_system_prompt_blocks,
+)
 from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_TEMPLATE = """{system_header}
+
+{decision_format}
+
+{closing_reminder}"""
 
 class ActionSelectionPDMAEvaluator:
     """
@@ -257,11 +267,6 @@ class ActionSelectionPDMAEvaluator:
         action_parameter_schemas = self.prompt.get("action_parameter_schemas", self.DEFAULT_PROMPT.get("action_parameter_schemas", ""))
 
         profile_specific_system_header_injection = ENGINE_OVERVIEW_TEMPLATE + "\n"
-        current_system_header = self.prompt.get("system_header", self.DEFAULT_PROMPT["system_header"])
-        if current_system_header != self.DEFAULT_PROMPT["system_header"]:
-            profile_specific_system_header_injection += f"IMPORTANT AGENT PROFILE DIRECTIVE: {current_system_header}\n\n"
-        else:
-            profile_specific_system_header_injection += "\n"
 
         startup_guidance = ""
         if original_thought.thought_type == "startup_meta":
@@ -280,15 +285,8 @@ class ActionSelectionPDMAEvaluator:
             system_snapshot = original_thought.processing_context.get("system_snapshot")
             if system_snapshot and isinstance(system_snapshot, dict):
                 user_profiles_data = system_snapshot.get("user_profiles")
-                user_profile_context_str = format_user_profiles_for_prompt(user_profiles_data)
-                
-                # format_system_snapshot_for_prompt now handles the general snapshot parts
-                # and can also take the full processing_context to extract other details.
-                # We pass original_thought.processing_context to include 'other_processing_context_str' details.
-                system_snapshot_context_str = format_system_snapshot_for_prompt(system_snapshot, original_thought.processing_context)
-            else: # system_snapshot might be missing or not a dict
-                # Still try to format other processing_context details if system_snapshot is absent
-                system_snapshot_context_str = format_system_snapshot_for_prompt(None, original_thought.processing_context)
+                user_profile_context_str = format_user_profiles(user_profiles_data)
+                system_snapshot_context_str = format_system_snapshot(system_snapshot)
         
         # The format_system_snapshot_for_prompt already includes a section for "Original Thought Full Processing Context"
         # so we don't need to add it separately here if we pass original_thought.processing_context to it.
@@ -388,11 +386,31 @@ Adhere strictly to the schema for your JSON output.
         # --- End special case ---
         
         main_user_content = self._prepare_main_user_content(triaged_inputs)
+
+        system_snapshot_block = ""
+        user_profiles_block = ""
+        if original_thought.processing_context and isinstance(original_thought.processing_context.get("system_snapshot"), dict):
+            system_snapshot = original_thought.processing_context.get("system_snapshot")
+            user_profiles_block = format_user_profiles(system_snapshot.get("user_profiles"))
+            system_snapshot_block = format_system_snapshot(system_snapshot)
+
+        system_guidance = DEFAULT_TEMPLATE.format(
+            system_header=self.prompt.get("system_header", self.DEFAULT_PROMPT["system_header"]),
+            decision_format=self.prompt.get("decision_format", self.DEFAULT_PROMPT["decision_format"]),
+            closing_reminder=self.prompt.get("closing_reminder", self.DEFAULT_PROMPT["closing_reminder"]),
+        )
+
+        system_message = format_system_prompt_blocks(
+            "",
+            system_snapshot_block,
+            user_profiles_block,
+            None,
+            system_guidance,
+        )
+
         messages = [
-            {"role": "system", "content": self.prompt.get("system_header", "")}, # Use .get for safety
-            {"role": "user",   "content": main_user_content},
-            {"role": "system", "content": self.prompt.get("decision_format", "")}, # Use .get
-            {"role": "system", "content": self.prompt.get("closing_reminder", "")}, # Use .get
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": main_user_content},
         ]
 
         try:
