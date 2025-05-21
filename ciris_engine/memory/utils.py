@@ -1,5 +1,13 @@
 import logging
-from typing import Any
+from typing import Any, Dict
+try:
+    import bleach
+    def _clean(text: str) -> str:
+        return bleach.clean(text)
+except Exception:  # noqa: BLE001
+    import html
+    def _clean(text: str) -> str:
+        return html.escape(text)
 
 from ..core.agent_core_schemas import Thought
 from ..core.foundational_schemas import ThoughtStatus
@@ -9,6 +17,17 @@ logger = logging.getLogger(__name__)
 
 class MemoryWriteKey:
     CHANNEL_PREFIX = "channel/"
+
+
+def sanitize_dict(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Sanitize a dictionary's string values using bleach."""
+    sanitized: Dict[str, Any] = {}
+    for k, v in data.items():
+        if isinstance(v, str):
+            sanitized[k] = _clean(v)
+        else:
+            sanitized[k] = v
+    return sanitized
 
 
 def classify_target(mem_write: "MemoryWrite") -> str:

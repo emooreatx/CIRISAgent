@@ -274,8 +274,9 @@ def test_deferral_report_mapping(initialized_db):
     persistence.add_task(task)
     persistence.add_thought(thought)
 
-    persistence.save_deferral_report_mapping("msg1", "task1", "th1")
+    package = {"k": "v"}
+    persistence.save_deferral_report_mapping("msg1", "task1", "th1", package)
     result = persistence.get_deferral_report_context("msg1")
-    assert result == ("task1", "th1")
+    assert result == ("task1", "th1", package)
 
     assert persistence.get_deferral_report_context("missing") is None

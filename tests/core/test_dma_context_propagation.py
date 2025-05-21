@@ -11,7 +11,7 @@ from ciris_engine.utils.profile_loader import load_profile # AgentProfile will b
 from ciris_engine.core.config_schemas import SerializableAgentProfile as AgentProfile # Correct import
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem # Added import
 from ciris_engine.services.llm_service import LLMService
-from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
@@ -49,7 +49,7 @@ async def llm_service(app_config: AppConfig):
 
 @pytest_asyncio.fixture
 async def memory_service():
-    service = DiscordGraphMemory() # Using real one, can be mocked if complex
+    service = CIRISLocalGraph()
     await service.start()
     yield service
     await service.stop()
@@ -96,7 +96,7 @@ def workflow_coordinator(
     action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator,
     ethical_guardrails: EthicalGuardrails,
     app_config: AppConfig,
-    memory_service: DiscordGraphMemory
+    memory_service: CIRISLocalGraph
 ):
     return WorkflowCoordinator(
         llm_client=llm_service.get_client().client, # raw client

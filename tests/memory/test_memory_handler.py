@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import datetime
 
 from ciris_engine.memory.memory_handler import MemoryHandler, MemoryWrite
-from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.core.agent_core_schemas import Thought, Task
 from ciris_engine.core.foundational_schemas import ThoughtStatus, HandlerActionType
 from ciris_engine.core import persistence
@@ -19,7 +19,7 @@ def init_db(tmp_path: Path, monkeypatch):
 
 @pytest.fixture
 async def memory_service(tmp_path: Path):
-    service = DiscordGraphMemory(str(tmp_path / "graph.pkl"))
+    service = CIRISLocalGraph(str(tmp_path / "graph.pkl"))
     await service.start()
     yield service
 

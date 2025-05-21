@@ -18,7 +18,7 @@ The core of CIRIS Engine is its ability to process "thoughts" (inputs or interna
 *   **DSDMA (Domain-Specific DMA):** Applies domain-specific knowledge and heuristics. Different DSDMAs can be created for various specialized tasks or agent roles (e.g., `StudentDSDMA`, `BasicTeacherDSDMA`).
 *   **ASPDMA (Action‑Selection PDMA):** Determines the final action an agent should take based on the outputs of the preceding DMAs and the agent's current state.
 
-Actions chosen by the PDMA are routed through an `ActionDispatcher`. Memory operations use `DiscordGraphMemory` for persistence.
+Actions chosen by the PDMA are routed through an `ActionDispatcher`. Memory operations use `CIRISLocalGraph` for persistence.
 
 CIRIS Engine supports different **agent profiles** (e.g., "Student", "Teacher" defined in `ciris_profiles/`) which can customize the behavior, prompting, and available DSDMAs for an agent. This allows for tailored reasoning processes depending on the agent's role or task.
 
@@ -37,7 +37,7 @@ The system is designed for modularity, allowing developers to create and integra
 *   **Profile‑Driven Actions:** Allowed handler actions are loaded from the active profile and passed dynamically to the ASPDMA.
 *   **Basic Guardrails:** Includes an ethical guardrail to check action outputs.
 *   **SQLite Persistence:** Uses SQLite for persisting tasks and thoughts.
-*   **Graph Memory:** MEMORIZE actions store user metadata in `DiscordGraphMemory`. REMEMBER and FORGET exist but are often disabled via profiles during testing.
+*   **Graph Memory:** MEMORIZE actions store user metadata in `CIRISLocalGraph`. REMEMBER and FORGET exist but are often disabled via profiles during testing.
     * Channel node updates require WA approval. The initial write is deferred and a new thought is generated for the Wise Authority. When that follow-up thought includes `is_wa_correction` and references the deferred thought, the update is applied automatically.
     * User nick node updates can be memorized immediately if guardrails are satisfied.
 

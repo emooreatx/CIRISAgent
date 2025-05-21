@@ -4,7 +4,7 @@ Channel updates to the agent's graph memory are deferred on the first attempt. T
 
 ## Manual persistence verification
 
-Until automated tests cover persistence, you can verify `DiscordGraphMemory` manually:
+Until automated tests cover persistence, you can verify `CIRISLocalGraph` manually:
 
 1. Run a MEMORIZE action.
 2. Wait a moment for the background persist thread to finish.
