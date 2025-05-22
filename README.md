@@ -52,6 +52,26 @@ The repository root contains the following notable directories and scripts:
 * `legacy/` – archived utilities and documents.
 * `run_*.py` – example launch scripts for CLI and Discord agents.
 
+## Graph Schema Governance Fields
+
+The graph data model tracks additional metadata for governance and compliance:
+
+* **Consensus & Provenance:** `validated_by`, `validation_state`, and
+  `consensus_timestamp` record who verified a node or edge and when.
+* **Versioning & Forks:** `version`, `previous_versions`, and `forked_from` help
+  maintain history and lineage.
+* **Emergency Control:** `emergency_state`, `emergency_timestamp`, and
+  `emergency_authorized_by` allow privileged parties to freeze or revoke nodes
+  or edges.
+* **Ethical Compliance:** `pdma_compliance_status` and `wbd_escalation_ref`
+  capture the status of PDMA reviews and any associated deferral events.
+* **Access Control:** `confidentiality_level` and `access_control_list` specify
+  who may view or modify sensitive graph entries.
+
+These fields are optional but enforced by schema validation when present. A node
+cannot enter an emergency state without a timestamp, for example. See
+`ciris_engine/core/graph_schemas.py` for the full definitions.
+
 ## Guardrails Summary
 
 The system enforces the following guardrails via `app_config.guardrails_config`:
