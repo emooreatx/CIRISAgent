@@ -75,6 +75,35 @@ Request JSON body:
 
 Response: confirmation object.
 
+## `GET /bench/<benchmark>/prompts`
+
+Retrieve a list of prompts for the specified benchmark.
+
+Query parameters:
+
+```text
+model_id=<string>
+agent_id=<string>
+```
+
+Response: JSON array of prompt objects.
+
+## `PUT /bench/<benchmark>/answers`
+
+Submit answers to the provided benchmark prompts.
+
+Request JSON body:
+
+```json
+{
+  "model_id": "string",
+  "agent_id": "string",
+  "answers": []
+}
+```
+
+Response: JSON object confirming receipt.
+
 These endpoints are sufficient for initial integration and may evolve as the
 AG‑UI backend is developed.
 
