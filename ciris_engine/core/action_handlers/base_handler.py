@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, Thought
 from ciris_engine.core.ports import ActionSink, DeferralSink
-from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.services.discord_observer import DiscordObserver # For active look
 from ciris_engine.core import persistence
 
@@ -15,7 +15,7 @@ class ActionHandlerDependencies:
     def __init__(
         self,
         action_sink: Optional[ActionSink] = None,
-        memory_service: Optional[DiscordGraphMemory] = None,
+        memory_service: Optional[CIRISLocalGraph] = None,
         observer_service: Optional[DiscordObserver] = None,
         deferral_sink: Optional[DeferralSink] = None,
         # For Discord-specific active look, we might need the DiscordAdapter or its client

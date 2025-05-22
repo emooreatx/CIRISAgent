@@ -3,7 +3,7 @@ import logging
 import asyncio
 from typing import Dict, Any, List, Optional
 import httpx
-from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.core.graph_schemas import GraphScope
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class GraphQLClient:
 
 class GraphQLContextProvider:
     def __init__(self, graphql_client: GraphQLClient | None = None,
-                 memory_service: Optional[DiscordGraphMemory] = None,
+                 memory_service: Optional[CIRISLocalGraph] = None,
                  enable_remote_graphql: bool = False):
         self.enable_remote_graphql = enable_remote_graphql
         if enable_remote_graphql:

@@ -4,10 +4,7 @@ from unittest.mock import AsyncMock
 import pickle
 import networkx as nx
 
-from ciris_engine.services.discord_graph_memory import (
-    DiscordGraphMemory,
-    MemoryOpStatus,
-)
+from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph, MemoryOpStatus, MemoryOpResult
 from ciris_engine.core.graph_schemas import GraphNode, GraphScope, NodeType
 from ciris_engine.services.discord_observer import DiscordObserver
 from ciris_engine.services.discord_event_queue import DiscordEventQueue
@@ -17,7 +14,7 @@ from ciris_engine.runtime.base_runtime import IncomingMessage
 @pytest.mark.asyncio
 async def test_memory_graph_starts_empty(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
     result = await service.remember("alice", GraphScope.LOCAL)
     assert result.data is None
@@ -32,7 +29,7 @@ async def test_memory_graph_loads_existing(tmp_path: Path):
     with storage.open("wb") as f:
         pickle.dump(data, f)
 
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     result = await service.remember("alice", GraphScope.LOCAL)
     assert result.data["kind"] == "nice"
 
@@ -40,7 +37,7 @@ async def test_memory_graph_loads_existing(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_memorize_channel_write(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
 
     node = GraphNode(id="alice", type=NodeType.USER, scope=GraphScope.LOCAL, attrs={"kind": "nice"})
@@ -53,7 +50,7 @@ async def test_memorize_channel_write(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_user_memorize_no_channel(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
     node = GraphNode(id="bob", type=NodeType.USER, scope=GraphScope.LOCAL, attrs={"score": 1})
     result = await service.memorize(node)
@@ -65,7 +62,7 @@ async def test_user_memorize_no_channel(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_observe_does_not_modify_graph(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
 
     dispatch_mock = AsyncMock()
@@ -81,7 +78,7 @@ async def test_observe_does_not_modify_graph(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_observe_queries_graph(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
 
     remember_mock = AsyncMock()
@@ -102,7 +99,7 @@ async def test_observe_queries_graph(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_graph_persistence_roundtrip(tmp_path: Path):
     storage = tmp_path / "graph.pkl"
-    service = DiscordGraphMemory(str(storage))
+    service = CIRISLocalGraph(str(storage))
     await service.start()
 
     node = GraphNode(id="dave", type=NodeType.USER, scope=GraphScope.LOCAL, attrs={"level": 5})
@@ -110,7 +107,7 @@ async def test_graph_persistence_roundtrip(tmp_path: Path):
     assert result.status == MemoryOpStatus.OK
     await service.stop()
 
-    new_service = DiscordGraphMemory(str(storage))
+    new_service = CIRISLocalGraph(str(storage))
     await new_service.start()
     data = await new_service.remember("dave", GraphScope.LOCAL)
     assert data.data["level"] == 5
@@ -123,7 +120,7 @@ async def test_memorize_and_remember_multiple_key_values(tmp_path: Path):
     retrieved correctly.
     """
     storage_path = tmp_path / "test_multi_key_graph.pkl"
-    service = DiscordGraphMemory(str(storage_path))
+    service = CIRISLocalGraph(str(storage_path))
     await service.start()
 
     user_nick = "test_user_multi"

@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict, Optional
 from pydantic import BaseModel
 
-from ..services.discord_graph_memory import DiscordGraphMemory
+from .ciris_local_graph import CIRISLocalGraph
 from ..core.graph_schemas import GraphNode, GraphScope, NodeType
 from ..core.agent_core_schemas import ActionSelectionPDMAResult
 from ..core.agent_core_schemas import Thought
@@ -29,7 +29,7 @@ class MemoryWrite(BaseModel):
 
 
 class MemoryHandler:
-    def __init__(self, memory_service: DiscordGraphMemory):
+    def __init__(self, memory_service: CIRISLocalGraph):
         self.memory_service = memory_service
 
     async def process_memorize(self, thought: Thought, mem_write: MemoryWrite) -> Optional[ActionSelectionPDMAResult]:
