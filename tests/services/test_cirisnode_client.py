@@ -15,6 +15,8 @@ def mock_async_client(monkeypatch):
     mock_response.json.return_value = {"ok": True}
     mock_response.raise_for_status.return_value = None
     mock_client.post.return_value = mock_response
+    mock_client.get.return_value = mock_response
+    mock_client.put.return_value = mock_response
     monkeypatch.setattr(
         "ciris_engine.services.cirisnode_client.httpx.AsyncClient",
         MagicMock(return_value=mock_client),
@@ -108,3 +110,44 @@ async def test_cirisnode_client_logs_event(tmp_path: Path, mock_async_client):
 
     entry = AuditLogEntry.model_validate_json(log_file.read_text().splitlines()[0])
     assert entry.event_type == "cirisnode_event"
+
+
+@pytest.mark.asyncio
+async def test_fetch_benchmark_prompts(tmp_path: Path, mock_async_client):
+    log_file = tmp_path / "audit.jsonl"
+    audit = AuditService(log_path=str(log_file))
+    client = CIRISNodeClient(audit_service=audit, base_url="http://test")
+
+    result = await client.fetch_benchmark_prompts("demo", "m3", "agentZ")
+
+    mock_async_client.get.assert_awaited_once_with(
+        "/bench/demo/prompts", params={"model_id": "m3", "agent_id": "agentZ"}
+    )
+    assert result == {"ok": True}
+
+    entry = AuditLogEntry.model_validate_json(log_file.read_text().splitlines()[0])
+    assert entry.event_summary == "demo_prompts"
+
+
+@pytest.mark.asyncio
+async def test_submit_benchmark_answers(tmp_path: Path, mock_async_client):
+    log_file = tmp_path / "audit.jsonl"
+    audit = AuditService(log_path=str(log_file))
+    client = CIRISNodeClient(audit_service=audit, base_url="http://test")
+
+    result = await client.submit_benchmark_answers(
+        "demo", "m4", "agentW", [{"id": 1, "answer": "42"}]
+    )
+
+    mock_async_client.put.assert_awaited_once_with(
+        "/bench/demo/answers",
+        json={
+            "model_id": "m4",
+            "agent_id": "agentW",
+            "answers": [{"id": 1, "answer": "42"}],
+        },
+    )
+    assert result == {"ok": True}
+
+    entry = AuditLogEntry.model_validate_json(log_file.read_text().splitlines()[0])
+    assert entry.event_summary == "demo_answers"
