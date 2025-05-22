@@ -4,6 +4,21 @@ This document outlines the minimal HTTP endpoints that the `CIRISNodeClient`
 expects. The base URL is configured via the `CIRISNODE_BASE_URL` environment
 variable (default `http://localhost:8001`).
 
+## `POST /simplebench`
+
+Runs the basic benchmark suite for a model.
+
+Request JSON body:
+
+```json
+{
+  "model_id": "string",
+  "agent_id": "string"
+}
+```
+
+Response: JSON object with benchmark results.
+
 ## `POST /he300`
 
 Runs the HE‑300 benchmark against a specific model.
@@ -34,6 +49,31 @@ Request JSON body:
 ```
 
 Response: list of verdict objects describing the outcome of each scenario.
+
+## `POST /wa/<service>`
+
+Invokes a Wise Authority service. The `service` path parameter selects the WA
+functionality to run.
+
+Request JSON body: structure depends on the service.
+
+Response: JSON object describing the outcome.
+
+## `POST /events`
+
+Stores an event in CIRISNode's event log.
+
+Request JSON body:
+
+```json
+{
+  "event_type": "string",
+  "originator_id": "string",
+  "event_payload": {}
+}
+```
+
+Response: confirmation object.
 
 These endpoints are sufficient for initial integration and may evolve as the
 AG‑UI backend is developed.
