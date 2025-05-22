@@ -27,6 +27,16 @@ class CIRISNodeClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def _get(self, endpoint: str, params: Dict[str, Any]) -> Any:
+        resp = await self._client.get(endpoint, params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def _put(self, endpoint: str, payload: Dict[str, Any]) -> Any:
+        resp = await self._client.put(endpoint, json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
     async def run_simplebench(self, model_id: str, agent_id: str) -> Dict[str, Any]:
         """Run the simple bench benchmark for the given model."""
         result = await self._post("/simplebench", {"model_id": model_id, "agent_id": agent_id})
@@ -92,6 +102,51 @@ class CIRISNodeClient:
                 "event_type": "cirisnode_event",
                 "originator_id": event_payload.get("originator_id", "unknown"),
                 "event_summary": event_payload.get("event_type", "event"),
+                "event_payload": result,
+            },
+        )
+        return result
+
+    async def fetch_benchmark_prompts(
+        self,
+        benchmark: str,
+        model_id: str,
+        agent_id: str,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve benchmark prompts from CIRISNode."""
+        result = await self._get(
+            f"/bench/{benchmark}/prompts",
+            {"model_id": model_id, "agent_id": agent_id},
+        )
+        await self.audit_service.log_action(
+            HandlerActionType.TOOL,
+            {
+                "event_type": "cirisnode_test",
+                "originator_id": agent_id,
+                "event_summary": f"{benchmark}_prompts",
+                "event_payload": result,
+            },
+        )
+        return result
+
+    async def submit_benchmark_answers(
+        self,
+        benchmark: str,
+        model_id: str,
+        agent_id: str,
+        answers: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Send benchmark answers back to CIRISNode."""
+        result = await self._put(
+            f"/bench/{benchmark}/answers",
+            {"model_id": model_id, "agent_id": agent_id, "answers": answers},
+        )
+        await self.audit_service.log_action(
+            HandlerActionType.TOOL,
+            {
+                "event_type": "cirisnode_test",
+                "originator_id": agent_id,
+                "event_summary": f"{benchmark}_answers",
                 "event_payload": result,
             },
         )
