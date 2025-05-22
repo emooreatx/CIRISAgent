@@ -17,7 +17,7 @@ from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.services.llm_service import LLMService
-from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.core.agent_core_schemas import (
     HandlerActionType,
     SpeakParams,
@@ -97,7 +97,7 @@ async def main() -> None:
         app_config.agent_profiles[profile.name.lower()] = profile
 
     llm_service = LLMService(app_config.llm_services)
-    memory_service = DiscordGraphMemory()
+    memory_service = CIRISLocalGraph()
 
     await llm_service.start()
     await memory_service.start()

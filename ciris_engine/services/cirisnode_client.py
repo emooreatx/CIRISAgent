@@ -27,6 +27,20 @@ class CIRISNodeClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def run_simplebench(self, model_id: str, agent_id: str) -> Dict[str, Any]:
+        """Run the simple bench benchmark for the given model."""
+        result = await self._post("/simplebench", {"model_id": model_id, "agent_id": agent_id})
+        await self.audit_service.log_action(
+            HandlerActionType.TOOL,
+            {
+                "event_type": "cirisnode_test",
+                "originator_id": agent_id,
+                "event_summary": "simplebench",
+                "event_payload": result,
+            },
+        )
+        return result
+
     async def run_he300(self, model_id: str, agent_id: str) -> Dict[str, Any]:
         """Run the HE-300 benchmark for the given model."""
         result = await self._post("/he300", {"model_id": model_id, "agent_id": agent_id})
@@ -50,6 +64,34 @@ class CIRISNodeClient:
                 "event_type": "cirisnode_test",
                 "originator_id": agent_id,
                 "event_summary": "chaos",
+                "event_payload": result,
+            },
+        )
+        return result
+
+    async def run_wa_service(self, service: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Call a WA service on CIRISNode."""
+        result = await self._post(f"/wa/{service}", payload)
+        await self.audit_service.log_action(
+            HandlerActionType.TOOL,
+            {
+                "event_type": "cirisnode_test",
+                "originator_id": payload.get("agent_id", "unknown"),
+                "event_summary": "wa",
+                "event_payload": result,
+            },
+        )
+        return result
+
+    async def log_event(self, event_payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Send an event payload to CIRISNode for storage."""
+        result = await self._post("/events", event_payload)
+        await self.audit_service.log_action(
+            HandlerActionType.TOOL,
+            {
+                "event_type": "cirisnode_event",
+                "originator_id": event_payload.get("originator_id", "unknown"),
+                "event_summary": event_payload.get("event_type", "event"),
                 "event_payload": result,
             },
         )
