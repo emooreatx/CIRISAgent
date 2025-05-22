@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, MemorizeParams, Thought
 from ciris_engine.core.foundational_schemas import ThoughtStatus, HandlerActionType # Added HandlerActionType
 from ciris_engine.core import persistence
-from ciris_engine.services.discord_graph_memory import MemoryOpStatus # Assuming this is the correct import
+from ciris_engine.memory.ciris_local_graph import MemoryOpStatus
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from ..exceptions import FollowUpCreationError

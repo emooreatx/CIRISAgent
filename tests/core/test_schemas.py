@@ -23,6 +23,8 @@ from ciris_engine.core.agent_processing_queue import ProcessingQueueItem, Proces
 
 from ciris_engine.core.observation_schemas import ObservationRecord
 from ciris_engine.core.audit_schemas import AuditLogEntry
+from ciris_engine.memory.ciris_local_graph import MemoryOpStatus
+
 # --- Tests for foundational_schemas.py ---
 
 def test_enum_values():
@@ -43,7 +45,6 @@ def test_enum_case_insensitive():
     """Enums should accept case-insensitive inputs."""
     assert HandlerActionType("MEMORIZE") is HandlerActionType.MEMORIZE
     assert TaskStatus("PENDING") is TaskStatus.PENDING
-    from ciris_engine.services.discord_graph_memory import MemoryOpStatus
     assert MemoryOpStatus("OK") is MemoryOpStatus.OK
 
 def test_ual_did_types():

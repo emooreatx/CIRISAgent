@@ -18,7 +18,7 @@ from ciris_engine.core.agent_core_schemas import (
 from ciris_engine.core.foundational_schemas import ThoughtStatus, HandlerActionType, TaskStatus
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.core.config_schemas import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig, SerializableAgentProfile
-from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 
 # --- Fixtures ---
 
@@ -66,7 +66,7 @@ def mock_ethical_guardrails():
 
 @pytest.fixture
 async def memory_service(tmp_path: Path):
-    service = DiscordGraphMemory(str(tmp_path / "graph.pkl"))
+    service = CIRISLocalGraph(str(tmp_path / "graph.pkl"))
     await service.start()
     yield service
 
@@ -131,7 +131,7 @@ def workflow_coordinator_instance(
 async def test_memory_meta_thought(
     mock_persistence,
     workflow_coordinator_instance: WorkflowCoordinator,
-    memory_service: DiscordGraphMemory,
+    memory_service: CIRISLocalGraph,
     dma_executor_patches,
     track_action_patch,
 ):
