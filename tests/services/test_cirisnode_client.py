@@ -57,3 +57,54 @@ async def test_cirisnode_client_logs_chaos(tmp_path: Path, mock_async_client):
     entry = AuditLogEntry.model_validate_json(lines[0])
     assert entry.event_type == "cirisnode_test"
     assert entry.originator_id == "agentX"
+
+
+@pytest.mark.asyncio
+async def test_cirisnode_client_logs_simplebench(tmp_path: Path, mock_async_client):
+    log_file = tmp_path / "audit.jsonl"
+    audit = AuditService(log_path=str(log_file))
+    client = CIRISNodeClient(audit_service=audit, base_url="http://test")
+
+    result = await client.run_simplebench("m2", "agentY")
+
+    mock_async_client.post.assert_awaited_once_with(
+        "/simplebench", json={"model_id": "m2", "agent_id": "agentY"}
+    )
+    assert result == {"ok": True}
+
+    entry = AuditLogEntry.model_validate_json(log_file.read_text().splitlines()[0])
+    assert entry.event_summary == "simplebench"
+
+
+@pytest.mark.asyncio
+async def test_cirisnode_client_logs_wa_service(tmp_path: Path, mock_async_client):
+    log_file = tmp_path / "audit.jsonl"
+    audit = AuditService(log_path=str(log_file))
+    client = CIRISNodeClient(audit_service=audit, base_url="http://test")
+
+    result = await client.run_wa_service("eval", {"agent_id": "wa1", "data": 1})
+
+    mock_async_client.post.assert_awaited_once_with(
+        "/wa/eval", json={"agent_id": "wa1", "data": 1}
+    )
+    assert result == {"ok": True}
+
+    entry = AuditLogEntry.model_validate_json(log_file.read_text().splitlines()[0])
+    assert entry.event_summary == "wa"
+
+
+@pytest.mark.asyncio
+async def test_cirisnode_client_logs_event(tmp_path: Path, mock_async_client):
+    log_file = tmp_path / "audit.jsonl"
+    audit = AuditService(log_path=str(log_file))
+    client = CIRISNodeClient(audit_service=audit, base_url="http://test")
+
+    result = await client.log_event({"event_type": "test", "originator_id": "e1"})
+
+    mock_async_client.post.assert_awaited_once_with(
+        "/events", json={"event_type": "test", "originator_id": "e1"}
+    )
+    assert result == {"ok": True}
+
+    entry = AuditLogEntry.model_validate_json(log_file.read_text().splitlines()[0])
+    assert entry.event_type == "cirisnode_event"
