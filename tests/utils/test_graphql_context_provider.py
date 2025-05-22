@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import AsyncMock
 
 from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
-from ciris_engine.services.discord_graph_memory import DiscordGraphMemory
+from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.core.graph_schemas import GraphNode, GraphScope, NodeType
 
 class DummyTask:
@@ -21,7 +21,7 @@ def _mk_client(response):
 
 @pytest.mark.asyncio
 async def test_fallback_to_memory(tmp_path):
-    mem = DiscordGraphMemory(str(tmp_path / "graph.pkl"))
+    mem = CIRISLocalGraph(str(tmp_path / "graph.pkl"))
     await mem.start()
     node = GraphNode(id="alice", type=NodeType.USER, scope=GraphScope.LOCAL, attrs={"nick": "AliceNick", "channel": "general"})
     await mem.memorize(node)
@@ -36,7 +36,7 @@ async def test_fallback_to_memory(tmp_path):
 
 @pytest.mark.asyncio
 async def test_partial_fallback(tmp_path):
-    mem = DiscordGraphMemory(str(tmp_path / "graph.pkl"))
+    mem = CIRISLocalGraph(str(tmp_path / "graph.pkl"))
     await mem.start()
     node_bob = GraphNode(id="bob", type=NodeType.USER, scope=GraphScope.LOCAL, attrs={"nick": "Bobby", "channel": "random"})
     await mem.memorize(node_bob)

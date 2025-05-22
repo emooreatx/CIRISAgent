@@ -9,7 +9,7 @@ from ciris_engine.core.agent_core_schemas import (
 from ciris_engine.core.foundational_schemas import HandlerActionType
 from ciris_engine.core.action_handlers.memorize_handler import MemorizeHandler
 from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.services.discord_graph_memory import MemoryOpStatus
+from ciris_engine.memory.ciris_local_graph import MemoryOpStatus
 from ciris_engine.core import persistence
 
 class DummyMemory:
