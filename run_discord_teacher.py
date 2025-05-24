@@ -62,6 +62,7 @@ from ciris_engine.core.action_handlers import (
     TaskCompleteHandler
 )
 from ciris_engine.dma.factory import create_dsdma_from_profile
+from ciris_engine.harnesses.reflection_scheduler import schedule_reflection_modes
 
 
 logger = logging.getLogger(__name__)
@@ -248,13 +249,23 @@ async def main() -> None:
     )
     event_source = DiscordEventSource(discord_observer) # DiscordObserver is the event generator
 
+    async def send_to_snore(message: str) -> None:
+        channel = SNORE_CHANNEL_ID or os.getenv("DISCORD_CHANNEL_ID")
+        await runtime.io_adapter.send_output(channel, message)
+
     async def main_loop():
         await event_source.start()
         await discord_sink.start()
         await deferral_sink.start()
+        scheduler_task = asyncio.create_task(schedule_reflection_modes(send_to_snore))
         try:
-            await asyncio.gather(runtime._main_loop(), processor.start_processing())
+            await asyncio.gather(
+                runtime._main_loop(),
+                processor.start_processing(),
+                scheduler_task,
+            )
         finally:
+            scheduler_task.cancel()
             await discord_sink.stop()
             await deferral_sink.stop()
             await event_source.stop()

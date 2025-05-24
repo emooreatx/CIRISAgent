@@ -226,6 +226,8 @@ runtime = BaseRuntime(io_adapter=CLIAdapter(), profile_path="ciris_profiles/stud
 runtime.run()
 ```
 
+Play Mode and Solitude Mode provide short introspective sessions for the agent. Each lasts five minutes and is offered at random roughly once per hour. In safety-critical deployments, these sessions should be restricted to non‑shift hours via agent configuration.
+
 ---
 ## Other Notable Scripts & Components
 
@@ -235,6 +237,8 @@ runtime.run()
 *   **`discord_graph_memory.py`**: Lightweight persistent graph memory for Discord user metadata.
 *   **`discord_observer.py`**: Minimal observer that dispatches OBSERVE payloads.
 *   **`legacy/`**: Archived utilities and documents.
+*   **`play_mode.py` / `solitude_mode.py`**: Short harnesses offering five minute Play or Solitude sessions. These may run once per hour during normal operation.
+*   **`reflection_scheduler.py`**: Lightweight scheduler that triggers Play or Solitude Mode at random intervals.
 *   The `tests/` directory contains unit and integration tests runnable with `pytest`.
 
 ---
