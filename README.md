@@ -80,6 +80,8 @@ The system enforces the following guardrails via `app_config.guardrails_config`:
 |----------------------|-----------------------------------------------------------------------------------|
 | entropy              | Prevents nonsensical replies                                                       |
 | coherence            | Ensures output flows logically from prior context                                 |
+| optimization_veto    | Aborts actions that sacrifice autonomy or diversity for entropy reduction |
+| epistemic_humility   | Reflects on uncertainties and may defer or abort if certainty is low |
 | rate_limit_observe   | Caps new tasks from Discord per OBSERVE cycle (10 messages max)                    |
 | idempotency_tasks    | Prevents duplicate tasks for the same message                                      |
 | pii_non_repetition   | Flags and prevents verbatim repetition of personal information                     |
