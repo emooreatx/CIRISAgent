@@ -511,6 +511,15 @@ class WorkflowCoordinator:
                 key_questions_list = final_action_result.action_parameters.get('key_questions', [])
             else:
                 logging.error(f"PONDER action for thought {thought_object.thought_id} has invalid action_parameters type: {type(final_action_result.action_parameters)}")
+
+            if epistemic_data and 'optimization_veto' in epistemic_data:
+                veto = epistemic_data['optimization_veto']
+                note = f"OptVeto: {veto.get('decision')} - {veto.get('justification')}"
+                key_questions_list.append(note)
+            if epistemic_data and 'epistemic_humility' in epistemic_data:
+                hum = epistemic_data['epistemic_humility']
+                h_note = f"Humility: {hum.get('recommended_action')} - {hum.get('epistemic_certainty')}"
+                key_questions_list.append(h_note)
             
             # current_ponder_count is already from thought_object.ponder_count
             
