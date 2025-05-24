@@ -69,6 +69,7 @@ class GuardrailsConfig(BaseModel):
     """Configuration for guardrails."""
     entropy_threshold: float = Field(default=DEFAULT_ENTROPY_THRESHOLD, description="Threshold for entropy guardrail.")
     coherence_threshold: float = Field(default=DEFAULT_COHERENCE_THRESHOLD, description="Threshold for coherence guardrail.")
+    optimization_veto_ratio: float = Field(default=10.0, description="Max allowed entropy-reduction to value-loss ratio.")
 
 class WorkflowConfig(BaseModel):
     """Configuration for core workflow settings."""
