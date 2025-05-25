@@ -90,4 +90,19 @@ class CoherenceResult(BaseModel):
 
 # --- DMA Schemas ---
 
+class OptimizationVetoResult(BaseModel):
+    """Structured response from the optimization veto check."""
+    decision: str = Field(..., description="proceed, abort, or defer")
+    justification: str
+    entropy_reduction_ratio: float
+    affected_values: List[str]
+    confidence: float
+
+class EpistemicHumilityResult(BaseModel):
+    """Structured response from the epistemic humility check."""
+    epistemic_certainty: str = Field(..., description="low, moderate, or high")
+    identified_uncertainties: List[str]
+    reflective_justification: str
+    recommended_action: str
+
 

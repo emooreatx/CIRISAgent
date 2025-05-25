@@ -6,7 +6,11 @@ import instructor
 # from openai import AsyncOpenAI # Not directly needed if using instructor client passed in
 
 # Adjusted import path for schemas
-from ciris_engine.core.agent_core_schemas import EntropyResult, CoherenceResult
+from ciris_engine.core.agent_core_schemas import (
+    EntropyResult, CoherenceResult, ActionSelectionPDMAResult, OptimizationVetoResult, EpistemicHumilityResult
+)
+from pydantic import BaseModel, Field
+
 # Import config to get default model name if needed, or define it directly
 # from ciris_engine.core.config_manager import get_config # Alternative
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o" # Default model from OpenAIConfig
@@ -86,6 +90,32 @@ Calibration examples  (coherence only)
     return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt}
+    ]
+
+def _create_optimization_veto_messages(action_description: str) -> list[dict[str, str]]:
+    system_prompt = (
+        "You are the CIRIS Epistemic Optimization Veto. "
+        "Critically evaluate ONLY the proposed action below. "
+        "Return JSON with keys: decision (proceed|abort|defer), justification, "
+        "entropy_reduction_ratio, affected_values, confidence."
+    )
+    user_prompt = f"Proposed action: {action_description}"
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+def _create_epistemic_humility_messages(action_description: str) -> list[dict[str, str]]:
+    system_prompt = (
+        "You are the CIRIS Epistemic Humility Check. "
+        "Assess the proposed action and answer ONLY in JSON with fields: "
+        "epistemic_certainty (low|moderate|high), identified_uncertainties, "
+        "reflective_justification, recommended_action (proceed|defer|abort)."
+    )
+    user_prompt = f"Proposed action output: {action_description}"
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
     ]
 
 async def calculate_epistemic_values(
@@ -177,3 +207,62 @@ async def calculate_epistemic_values(
 
     logging.info(f"Epistemic values calculated: Entropy={results.get('entropy', 0.1):.2f}, Coherence={results.get('coherence', 0.9):.2f}")
     return results
+
+async def evaluate_optimization_veto(
+    action_result: ActionSelectionPDMAResult,
+    aclient: instructor.Instructor,
+    model_name: str = DEFAULT_OPENAI_MODEL_NAME
+) -> OptimizationVetoResult:
+    """
+    Run the optimization veto check via LLM using instructor for retries and structured output.
+    """
+    action_desc = f"{action_result.selected_handler_action.value} {action_result.action_parameters}"
+    messages = _create_optimization_veto_messages(action_desc)
+    try:
+        result: OptimizationVetoResult = await aclient.chat.completions.create(
+            model=model_name,
+            response_model=OptimizationVetoResult,
+            messages=messages,
+            max_tokens=128,
+        )
+        logger.info(f"Epistemic Faculty: Optimization veto result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Epistemic Faculty: Error in optimization veto: {e}", exc_info=True)
+        # Return a fallback result with 'abort' decision
+        return OptimizationVetoResult(
+            decision="abort",
+            justification=f"LLM error: {str(e)}",
+            entropy_reduction_ratio=1.0,
+            affected_values=[],
+            confidence=0.0,
+        )
+
+async def evaluate_epistemic_humility(
+    action_result: ActionSelectionPDMAResult,
+    aclient: instructor.Instructor,
+    model_name: str = DEFAULT_OPENAI_MODEL_NAME
+) -> EpistemicHumilityResult:
+    """
+    Run the epistemic humility check via LLM using instructor for retries and structured output.
+    """
+    desc = f"{action_result.selected_handler_action.value} {action_result.action_parameters}"
+    messages = _create_epistemic_humility_messages(desc)
+    try:
+        result: EpistemicHumilityResult = await aclient.chat.completions.create(
+            model=model_name,
+            response_model=EpistemicHumilityResult,
+            messages=messages,
+            max_tokens=128,
+        )
+        logger.info(f"Epistemic Faculty: Epistemic humility result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Epistemic Faculty: Error in epistemic humility: {e}", exc_info=True)
+        # Return a fallback result with 'abort' recommendation
+        return EpistemicHumilityResult(
+            epistemic_certainty="low",
+            identified_uncertainties=[f"LLM error: {str(e)}"],
+            reflective_justification=f"LLM error: {str(e)}",
+            recommended_action="abort",
+        )

@@ -79,6 +79,7 @@ class DiscordService(Service):
         self.action_dispatcher = action_dispatcher
         self.config = config or DiscordConfig()
         self.config.load_env_vars()  # Load token and IDs from environment
+        logger.info(f"Loaded monitored_channel_id: {self.config.monitored_channel_id} (from env: {os.getenv('DISCORD_CHANNEL_ID')})")
         self.event_queue = event_queue or DiscordEventQueue()
 
         intents = discord.Intents.default()
