@@ -223,7 +223,7 @@ async def evaluate_optimization_veto(
             model=model_name,
             response_model=OptimizationVetoResult,
             messages=messages,
-            max_tokens=128,
+            max_tokens=500,  
         )
         logger.info(f"Epistemic Faculty: Optimization veto result: {result}")
         return result
@@ -253,7 +253,7 @@ async def evaluate_epistemic_humility(
             model=model_name,
             response_model=EpistemicHumilityResult,
             messages=messages,
-            max_tokens=128,
+            max_tokens=384,  # Increased from 128 to 384
         )
         logger.info(f"Epistemic Faculty: Epistemic humility result: {result}")
         return result
