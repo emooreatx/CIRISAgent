@@ -4,10 +4,10 @@ import asyncio
 from typing import Dict, Optional
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from ciris_core.schemas.agent_core_schemas_v1 import Task, Thought
+from ciris_core.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 
-from .states import AgentState
+from ..schemas.states import AgentState
 from .coordinator import Coordinator
 
 
