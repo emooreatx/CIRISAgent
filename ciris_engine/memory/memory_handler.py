@@ -8,7 +8,10 @@ from ..core.agent_core_schemas import Thought
 from ..core.foundational_schemas import HandlerActionType, ThoughtStatus
 from ..core import persistence
 from .utils import is_wa_feedback
-from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+# Use the legacy graph schemas for now because CIRISLocalGraph expects
+# those classes. The v1 schemas are being adopted incrementally and
+# aren't compatible with the current memory service implementation.
+from ..core.graph_schemas import GraphNode, NodeType, GraphScope
 
 logger = logging.getLogger(__name__)
 
