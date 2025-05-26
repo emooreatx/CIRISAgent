@@ -69,7 +69,7 @@ class Thought(BaseModel):
     round_processed: Optional[int] = None # Added based on user feedback
     priority: int = 0 # Added based on user feedback (from old Thought model)
     content: str # The core text/data being processed
-    processing_context: Dict[str, Any] = {} # Context inherited/added during processing (DKG enrichments etc.)
+    processing_context: Dict[str, Any] = Field(default_factory=dict) # Context inherited/added during processing (DKG enrichments etc.)
     depth: int = 0 # Metathought depth tracking (0 for seed)
     ponder_count: int = 0
     ponder_notes: Optional[List[str]] = None # Stores key_questions from Ponder action
