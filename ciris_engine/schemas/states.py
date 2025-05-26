@@ -5,5 +5,6 @@ class AgentState(str, Enum):
     WAKEUP = "wakeup"
     DREAM = "dream"
     PLAY = "play"
+    WORK = "work"
     SOLITUDE = "solitude"
     SHUTDOWN = "shutdown"
