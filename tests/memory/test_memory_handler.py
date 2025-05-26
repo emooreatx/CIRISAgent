@@ -96,8 +96,9 @@ async def test_wa_correction_applies(init_db, memory_service):
 
     correction = _create_thought("task3", "th3c")
     correction.processing_context = {
-        "is_wa_correction": True,
+        "is_wa_feedback": True,
         "corrected_thought_id": "th3",
+        "feedback_target": "identity"
     }
 
     corrected_write = MemoryWrite(key_path="channel/#general/topic", user_nick="alice", value="Rules updated")
@@ -117,7 +118,7 @@ async def test_double_deferral_prevented(init_db, memory_service):
     mem_write = MemoryWrite(key_path="channel/#general/topic", user_nick="alice", value="Rules")
 
     correction = _create_thought("task4", "th5")
-    correction.processing_context = {"is_wa_correction": True, "corrected_thought_id": "nonexistent"}
+    correction.processing_context = {"is_wa_feedback": True, "feedback_target": "identity", "corrected_thought_id": "nonexistent"}
 
     result = await handler.process_memorize(correction, mem_write)
 
@@ -136,7 +137,7 @@ async def test_deferral_approval_roundtrip(init_db, memory_service):
     assert result.selected_handler_action == HandlerActionType.DEFER
 
     correction = _create_thought("task6", "th6c")
-    correction.processing_context = {"is_wa_correction": True, "corrected_thought_id": "th6"}
+    correction.processing_context = {"is_wa_feedback": True, "feedback_target": "identity", "corrected_thought_id": "th6"}
     result2 = await handler.process_memorize(correction, mem_write)
 
     assert result2 is None

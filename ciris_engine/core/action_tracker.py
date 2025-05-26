@@ -8,7 +8,7 @@ from .agent_core_schemas import Thought, HandlerActionType
 
 
 def track_action(thought: Thought, action: HandlerActionType, parameters: Any) -> None:
-    """Record the selected action on the thought history and increment count."""
+    """Record the selected action on the thought history and increment count. Also increment ponder_count for all actions except DEFER."""
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "action": action.value,
@@ -16,3 +16,5 @@ def track_action(thought: Thought, action: HandlerActionType, parameters: Any) -
     }
     thought.history.append(entry)
     thought.action_count += 1
+    if action != HandlerActionType.DEFER:
+        thought.ponder_count += 1

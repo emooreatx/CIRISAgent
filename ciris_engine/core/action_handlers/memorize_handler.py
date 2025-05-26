@@ -84,7 +84,7 @@ class MemorizeHandler(BaseActionHandler):
                         channel=str(channel),
                         metadata=metadata,
                         channel_metadata=params.channel_metadata, # Pass full channel_metadata
-                        is_correction=dispatch_context.get("is_wa_correction", False) # from original context
+                        is_feedback=dispatch_context.get("is_wa_feedback", False) # from original context
                     )
                     if mem_op_result.status == MemoryOpStatus.SAVED:
                         action_performed_successfully = True
