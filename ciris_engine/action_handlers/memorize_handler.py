@@ -13,42 +13,12 @@ from ciris_engine.memory.ciris_local_graph import MemoryOpStatus
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
+from ciris_engine.utils import extract_user_nick
 
 logger = logging.getLogger(__name__)
 
 
 class MemorizeHandler(BaseActionHandler):
-    async def _get_user_nick_for_memory(self, params: MemorizeParams, dispatch_context: Dict[str, Any], thought_id: Optional[str]) -> Optional[str]:
-        """Helper to determine user nickname for memory operations."""
-        user_nick: Optional[str] = None
-        
-        # v1 MemorizeParams has 'value' field which could contain user info
-        if isinstance(params.value, dict):
-            user_nick = params.value.get("nick")
-            if user_nick: return user_nick
-            user_nick = params.value.get("user_id")  # Check for user_id as well
-            if user_nick: return user_nick
-        
-        user_nick = dispatch_context.get("author_name")  # From original event context
-        if user_nick: return user_nick
-
-        # Fallback to checking parent task context if thought_id is available
-        if thought_id:
-            try:
-                current_thought = persistence.get_thought_by_id(thought_id)
-                if current_thought and current_thought.source_task_id:
-                    parent_task = persistence.get_task_by_id(current_thought.source_task_id)
-                    if parent_task and isinstance(parent_task.context, dict):
-                        user_nick = parent_task.context.get("author_name")
-                        if user_nick: return user_nick
-                        # Could also check for a user_id in task context if that's a pattern
-                        user_nick = parent_task.context.get("user_id")
-                        if user_nick: return user_nick
-            except Exception as e_fetch:
-                self.logger.error(f"Error fetching parent task context for thought {thought_id} to find user_nick: {e_fetch}")
-        
-        self.logger.warning(f"Could not determine user_nick for MEMORIZE operation related to thought {thought_id}.")
-        return None
 
     async def handle(
         self,
@@ -72,7 +42,11 @@ class MemorizeHandler(BaseActionHandler):
             final_thought_status = ThoughtStatus.FAILED
             follow_up_content_key_info = f"MEMORIZE action failed: MemoryService unavailable for thought {thought_id}."
         else:
-            user_nick = await self._get_user_nick_for_memory(params, dispatch_context, thought_id)
+            user_nick = await extract_user_nick(
+                params=params,
+                dispatch_context=dispatch_context,
+                thought_id=thought_id,
+            )
             # Get channel from dispatch context (v1 doesn't have channel_metadata field)
             channel = dispatch_context.get("channel_id")
             
