@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import json
 
-from ciris_engine.core import persistence
+from ciris_engine import persistence
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 
 logger = logging.getLogger(__name__)

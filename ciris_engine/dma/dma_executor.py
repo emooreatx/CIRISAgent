@@ -1,15 +1,14 @@
 import logging
 from typing import Any, Dict, Optional, Callable, Awaitable
 
-from ..core.thought_escalation import escalate_dma_failure
+from ..processor.thought_escalation import escalate_dma_failure
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ..core.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 
 from .pdma import EthicalPDMAEvaluator
 from .csdma import CSDMAEvaluator
 from .dsdma_base import BaseDSDMA
 from .action_selection_pdma import ActionSelectionPDMAEvaluator
-from ..core.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import (
     EthicalDMAResult,
     CSDMAResult,

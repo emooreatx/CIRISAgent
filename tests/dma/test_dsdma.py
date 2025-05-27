@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 from openai import AsyncOpenAI
 from instructor.exceptions import InstructorRetryException
 
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import DSDMAResult
 from ciris_engine.schemas.agent_core_schemas_v1 import ThoughtStatus
 from ciris_engine.dma.dsdma_base import BaseDSDMA

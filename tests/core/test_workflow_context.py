@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from datetime import datetime, timezone
 
-from ciris_engine.core.thought_processor import ThoughtProcessor
+from ciris_engine.thought_processor import ThoughtProcessor
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.config_schemas_v1 import (
     AppConfig,
@@ -59,7 +59,7 @@ def sample_thought():
     )
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_build_context_includes_recent_tasks_and_profiles(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,

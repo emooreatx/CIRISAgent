@@ -8,9 +8,9 @@ from ciris_engine.schemas.agent_core_schemas_v1 import (
 )
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.core.action_handlers.observe_handler import ObserveHandler
-from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.core import persistence
+from ciris_engine.action_handlers.observe_handler import ObserveHandler
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine import persistence
 
 class DummyObserver:
     def __init__(self):

@@ -6,7 +6,7 @@ from datetime import datetime
 import uuid
 
 # Module to test
-from ciris_engine.core import persistence
+from ciris_engine import persistence
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 

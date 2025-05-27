@@ -4,9 +4,9 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ciris_engine.core.thought_processor import ThoughtProcessor
-import ciris_engine.core.thought_processor as wc_module
-from ciris_engine.core.thought_escalation import escalate_dma_failure
+from ciris_engine.thought_processor import ThoughtProcessor
+import ciris_engine.thought_processor as wc_module
+from ciris_engine.thought_escalation import escalate_dma_failure
 from ciris_engine.schemas.config_schemas_v1 import DMA_RETRY_LIMIT
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
@@ -16,7 +16,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import (
     DSDMAResult,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType, TaskStatus
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig, SerializableAgentProfile
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 
@@ -124,7 +124,7 @@ def workflow_coordinator_instance(
     )
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_memory_meta_thought(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -202,7 +202,7 @@ async def test_advance_round(workflow_coordinator_instance: ThoughtProcessor):
     assert workflow_coordinator_instance.current_round_number == 2
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_process_thought_successful_run(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -270,7 +270,7 @@ async def test_process_thought_successful_run(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_process_thought_guardrail_failure(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -328,7 +328,7 @@ async def test_process_thought_guardrail_failure(
 
 @pytest.mark.skip(reason="Failing with AttributeError: 'PonderParams' object has no attribute 'get' in SUT")
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_process_thought_ponder_action(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -377,7 +377,7 @@ async def test_process_thought_ponder_action(
 
 @pytest.mark.skip(reason="Failing with AttributeError: 'PonderParams' object has no attribute 'get' in SUT")
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_process_thought_max_ponder_rounds_reached(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -430,7 +430,7 @@ async def test_process_thought_max_ponder_rounds_reached(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_process_thought_dma_exception(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -470,7 +470,7 @@ async def test_process_thought_dma_exception(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_process_thought_object_not_found(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -493,7 +493,7 @@ async def test_process_thought_object_not_found(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_process_thought_with_dsdma_success(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -549,7 +549,7 @@ async def test_process_thought_with_dsdma_success(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_process_thought_dsdma_exception(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -598,7 +598,7 @@ async def test_process_thought_dsdma_exception(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.thought_processor.persistence')
+@patch('ciris_engine.thought_processor.persistence')
 async def test_process_thought_dma_failure_escalates(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,

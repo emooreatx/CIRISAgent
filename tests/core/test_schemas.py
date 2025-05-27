@@ -19,10 +19,10 @@ from ciris_engine.schemas.agent_core_schemas_v1 import (
     ActionSelectionPDMAResult,
     Task, Thought
 )
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem, ProcessingQueue
+from ciris_engine.agent_processing_queue import ProcessingQueueItem, ProcessingQueue
 
-from ciris_engine.core.observation_schemas import ObservationRecord
-from ciris_engine.core.audit_schemas import AuditLogEntry
+from ciris_engine.observation_schemas import ObservationRecord
+from ciris_engine.audit_schemas import AuditLogEntry
 from ciris_engine.memory.ciris_local_graph import MemoryOpStatus
 
 # --- Tests for foundational_schemas.py ---

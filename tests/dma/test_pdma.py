@@ -6,7 +6,7 @@ import asyncio
 # Module to test
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator, DEFAULT_OPENAI_MODEL_NAME
 from ciris_engine.schemas.agent_core_schemas_v1 import EthicalPDMAResult
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.agent_processing_queue import ProcessingQueueItem
 import instructor # For type hinting the mock
 from openai import AsyncOpenAI # For mock_openai_client fixture
 # Added imports for mocking OpenAI response structure

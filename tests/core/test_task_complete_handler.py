@@ -5,9 +5,9 @@ from ciris_engine.schemas.agent_core_schemas_v1 import (
     ActionSelectionPDMAResult,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, TaskStatus
-from ciris_engine.core.action_handlers.task_complete_handler import TaskCompleteHandler
-from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.core import persistence
+from ciris_engine.action_handlers.task_complete_handler import TaskCompleteHandler
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine import persistence
 
 @pytest.mark.asyncio
 async def test_handle_task_complete(monkeypatch):

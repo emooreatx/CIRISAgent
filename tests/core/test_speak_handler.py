@@ -5,10 +5,10 @@ from ciris_engine.schemas.agent_core_schemas_v1 import (
     SpeakParams,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
-from ciris_engine.core.action_handlers.speak_handler import SpeakHandler
-from ciris_engine.core.exceptions import FollowUpCreationError
-from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.core import persistence
+from ciris_engine.action_handlers.speak_handler import SpeakHandler
+from ciris_engine.exceptions import FollowUpCreationError
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine import persistence
 
 class DummyDiscord:
     def __init__(self):

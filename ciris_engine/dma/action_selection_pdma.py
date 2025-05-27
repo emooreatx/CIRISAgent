@@ -4,7 +4,7 @@ import logging
 import instructor
 from openai import AsyncOpenAI
 
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
     HandlerActionType,

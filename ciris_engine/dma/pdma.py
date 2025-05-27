@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, Union
 import instructor
 from openai import AsyncOpenAI
 
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult
 from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"

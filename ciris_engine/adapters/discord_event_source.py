@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ciris_engine.core.ports import EventSource
+from ciris_engine.ports import EventSource
 
 class DiscordEventSource(EventSource):
     """Expose a DiscordObserver through the EventSource interface."""

@@ -13,13 +13,12 @@ import asyncio
 from typing import Optional
 
 from ciris_engine.runtime.base_runtime import BaseRuntime, DiscordAdapter
-from ciris_engine.core.ports import ActionSink
+from ciris_engine.ports import ActionSink, DeferralSink
 from ciris_engine.adapters.discord_event_source import DiscordEventSource
-from ciris_engine.core.event_router import handle_observation_event
-from ciris_engine.core import persistence
+from ciris_engine.action_handlers.observation_event_handler import handle_observation_event
+import ciris_engine.persistence as persistence
 from ciris_engine.config.config_manager import get_config_async
-from ciris_engine.core.processor import AgentProcessor
-from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
+from ciris_engine.processor import AgentProcessor
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
@@ -44,13 +43,13 @@ from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStat
 from pydantic import BaseModel # Used by handlers for params
 import uuid # Used by handlers
 from ciris_engine.utils.constants import DEFAULT_WA, WA_USER_ID # Potentially used by handlers or context
-# from ciris_engine.core.action_handlers.helpers import create_follow_up_thought # Now used within handlers
+# from ciris_engine.action_handlers.helpers import create_follow_up_thought # Now used within handlers
 from datetime import datetime, timezone
 from ciris_engine.utils.profile_loader import load_profile # Added import
 
 # Centralized Action Handlers and Dispatcher
-from ciris_engine.core.action_dispatcher import ActionDispatcher
-from ciris_engine.core.action_handlers import (
+from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
+from ciris_engine.action_handlers import (
     ActionHandlerDependencies,
     SpeakHandler,
     DeferHandler,
@@ -223,25 +222,24 @@ async def main() -> None:
     dsdma_instance = await create_dsdma_from_profile(profile, llm_client.client, model_name=llm_client.model_name)
     dsdma_evaluators = {profile.name.lower(): dsdma_instance} if dsdma_instance else {}
 
-    workflow_coordinator = WorkflowCoordinator(
-        llm_client=llm_client.client, ethical_pdma_evaluator=ethical_pdma,
-        csdma_evaluator=csdma, action_selection_pdma_evaluator=action_pdma,
-        ethical_guardrails=guardrails, app_config=app_config,
-        dsdma_evaluators=dsdma_evaluators, memory_service=memory_service,
-    )
-    # services_dict is still used by AgentProcessor for other potential needs or context.
-    # It's not directly used by the new ActionDispatcher's main path but could be part of dispatch_context.
+    # Instead of WorkflowCoordinator, include all relevant services in services_dict for AgentProcessor
     services_dict = {
-        "llm_client": llm_service.get_client(), # For DMAs
-        "memory_service": memory_service, # For WorkflowCoordinator context, and handler deps
-        "discord_service": runtime.io_adapter, # For general Discord interactions if needed outside handlers
-        "observer_service": discord_observer, # For event source and handler deps
-        # Potentially add other services if AgentProcessor or other components need them.
+        "llm_client": llm_service.get_client(),
+        "ethical_pdma_evaluator": ethical_pdma,
+        "csdma_evaluator": csdma,
+        "action_selection_pdma_evaluator": action_pdma,
+        "ethical_guardrails": guardrails,
+        "app_config": app_config,
+        "dsdma_evaluators": dsdma_evaluators,
+        "memory_service": memory_service,
+        "discord_service": runtime.io_adapter,
+        "observer_service": discord_observer,
+        # Add any other services needed by AgentProcessor
     }
     
     processor = AgentProcessor(
         app_config=app_config,
-        workflow_coordinator=workflow_coordinator,
+        # workflow_coordinator=workflow_coordinator,  # Remove this argument if not required
         action_dispatcher=new_action_dispatcher, # Pass the new dispatcher
         services=services_dict, # services_dict is still passed for general context
         startup_channel_id=SNORE_CHANNEL_ID,
