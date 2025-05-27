@@ -3,15 +3,15 @@ from typing import Any, Optional
 from pydantic import BaseModel
 
 from .ciris_local_graph import CIRISLocalGraph
-from ..core.agent_core_schemas import ActionSelectionPDMAResult
-from ..core.agent_core_schemas import Thought
-from ..core.foundational_schemas import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 from ..core import persistence
 from .utils import is_wa_feedback
 # Use the legacy graph schemas for now because CIRISLocalGraph expects
 # those classes. The v1 schemas are being adopted incrementally and
 # aren't compatible with the current memory service implementation.
-from ..core.graph_schemas import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class MemoryHandler:
     def __init__(self, memory_service: CIRISLocalGraph):
         self.memory_service = memory_service
 
-    async def process_memorize(self, thought: Thought, mem_write: MemoryWrite) -> Optional[ActionSelectionPDMAResult]:
+    async def process_memorize(self, thought: Thought, mem_write: MemoryWrite) -> Optional[ActionSelectionResult]:
         user_nick, channel, metadata, chan_meta = mem_write.to_memorize_args()
         target = classify_target(mem_write)
 
@@ -71,7 +71,7 @@ class MemoryHandler:
                         thought.thought_id,
                     )
                     persistence.update_thought_status(thought.thought_id, ThoughtStatus.DEFERRED)
-                    return ActionSelectionPDMAResult(
+                    return ActionSelectionResult(
                         context_summary_for_action_selection="Invalid WA feedback: missing or invalid corrected_thought_id; deferring to WA",
                         action_alignment_check={"DEFER": "Correction target not found"},
                         selected_handler_action=HandlerActionType.DEFER,
@@ -86,7 +86,7 @@ class MemoryHandler:
                     thought.thought_id,
                 )
                 persistence.update_thought_status(thought.thought_id, ThoughtStatus.DEFERRED)
-                return ActionSelectionPDMAResult(
+                return ActionSelectionResult(
                     context_summary_for_action_selection="Channel metadata update requires WA approval",
                     action_alignment_check={"DEFER": "Policy mandates WA sign-off"},
                     selected_handler_action=HandlerActionType.DEFER,

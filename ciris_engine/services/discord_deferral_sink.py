@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from ciris_engine.core.ports import DeferralSink
 from ciris_engine.core import persistence
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
-from ciris_engine.core.foundational_schemas import IncomingMessage # ERIC
+from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage # ERIC
 from ciris_engine.services.base import Service
 from ciris_engine.runtime.base_runtime import DiscordAdapter
 

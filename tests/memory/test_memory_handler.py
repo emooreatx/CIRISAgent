@@ -4,9 +4,9 @@ from datetime import datetime
 
 from ciris_engine.memory.memory_handler import MemoryHandler, MemoryWrite
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
-from ciris_engine.core.graph_schemas import GraphScope
-from ciris_engine.core.agent_core_schemas import Thought, Task
-from ciris_engine.core.foundational_schemas import ThoughtStatus, HandlerActionType
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
 from ciris_engine.core import persistence
 
 
