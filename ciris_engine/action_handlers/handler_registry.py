@@ -11,8 +11,8 @@ from .defer_handler import DeferHandler
 from .reject_handler import RejectHandler
 from .task_complete_handler import TaskCompleteHandler
 from .tool_handler import ToolHandler
-from .discord_observe_handler import handle_discord_observe_event  # Importing the Discord-specific handler
 from .action_dispatcher import ActionDispatcher
+from .base_handler import ActionHandlerDependencies
 
 # Add any required dependencies for handlers here, e.g., services, sinks, etc.
 def build_action_dispatcher(audit_service=None, **handler_dependencies):
@@ -20,14 +20,16 @@ def build_action_dispatcher(audit_service=None, **handler_dependencies):
     Instantiates all handlers and returns a ready-to-use ActionDispatcher.
     Passes handler_dependencies to each handler as needed.
     """
+    deps = ActionHandlerDependencies(**handler_dependencies)
     handlers = {
-        HandlerActionType.MEMORIZE: MemorizeHandler(**handler_dependencies),
-        HandlerActionType.SPEAK: SpeakHandler(**handler_dependencies),
-        HandlerActionType.OBSERVE: ObserveHandler(**handler_dependencies),
-        HandlerActionType.DEFER: DeferHandler(**handler_dependencies),
-        HandlerActionType.REJECT: RejectHandler(**handler_dependencies),
-        HandlerActionType.TASK_COMPLETE: TaskCompleteHandler(**handler_dependencies),
-        HandlerActionType.TOOL: ToolHandler(**handler_dependencies),
-        HandlerActionType.OBSERVATION_EVENT: handle_discord_observe_event,  # Now uses Discord-specific handler
+        HandlerActionType.MEMORIZE: MemorizeHandler(deps),
+        HandlerActionType.SPEAK: SpeakHandler(deps),
+        HandlerActionType.OBSERVE: ObserveHandler(deps),
+        HandlerActionType.DEFER: DeferHandler(deps),
+        HandlerActionType.REJECT: RejectHandler(deps),
+        HandlerActionType.TASK_COMPLETE: TaskCompleteHandler(deps),
+        HandlerActionType.TOOL: ToolHandler(deps),
+        # HandlerActionType.OBSERVATION_EVENT: handle_discord_observe_event,  # Now uses Discord-specific handler
+        # Remove or comment out the OBSERVATION_EVENT line, as it is not in the enum
     }
     return ActionDispatcher(handlers, audit_service=audit_service)

@@ -128,14 +128,21 @@ def get_sqlite_db_full_path() -> str:
     """
     config = get_config()
     project_root = get_project_root_for_config() # Assumes 'cirisengine' is the reference
-    
-    # Construct path: project_root / data_directory / db_filename
-    db_path = project_root / config.db.data_directory / config.db.db_filename
-    
-    # Ensure the directory exists
+    # Use config.database instead of config.db
+    db_path = project_root / config.database.data_directory / config.database.db_filename
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    
     return str(db_path.resolve())
+
+def get_graph_memory_full_path() -> str:
+    """
+    Constructs the full, absolute path to the graph memory pickle file
+    based on the current configuration.
+    """
+    config = get_config()
+    project_root = get_project_root_for_config()
+    graph_path = project_root / config.database.data_directory / config.database.graph_memory_filename
+    graph_path.parent.mkdir(parents=True, exist_ok=True)
+    return str(graph_path.resolve())
 
 # Example of how to initialize and potentially create a default config file at startup.
 # This line could be called explicitly in the main application entry point.
