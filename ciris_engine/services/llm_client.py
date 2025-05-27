@@ -9,7 +9,7 @@ from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusErr
 import instructor
 
 # Configuration
-from ciris_engine.core.config_manager import get_config
+from ciris_engine.config.config_manager import get_config
 from ciris_engine.schemas.config_schemas_v1 import OpenAIConfig
 
 logger = logging.getLogger(__name__)

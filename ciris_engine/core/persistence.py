@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any, Union
 from pathlib import Path
 
 # Configuration and Schemas
-from .config_manager import get_sqlite_db_full_path
+from ciris_engine.config.config_manager import get_sqlite_db_full_path
 from ..schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 from ..schemas.agent_core_schemas_v1 import Task, Thought
 

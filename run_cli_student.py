@@ -9,7 +9,7 @@ from typing import Optional
 from ciris_engine.runtime.base_runtime import BaseRuntime, CLIAdapter
 from ciris_engine.core.ports import ActionSink
 from ciris_engine.core import persistence
-from ciris_engine.core.config_manager import get_config_async
+from ciris_engine.config.config_manager import get_config_async
 from ciris_engine.core.processor import AgentProcessor
 from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator

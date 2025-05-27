@@ -35,7 +35,7 @@ from ciris_engine.dma.action_selection_pdma import (
 from ciris_engine.utils.constants import ENGINE_OVERVIEW_TEMPLATE
 import ciris_engine.dma.action_selection_pdma as action_selection_pdma_module # Import the module itself
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, OpenAIConfig, LLMServicesConfig # Corrected import path
-from ciris_engine.core.config_manager import get_config # get_config is fine here
+from ciris_engine.config.config_manager import get_config # get_config is fine here
 
 # --- Fixtures ---
 
@@ -61,7 +61,7 @@ def mock_app_config_json_mode():
 def action_selection_pdma_evaluator(mock_openai_client, mock_app_config_json_mode, monkeypatch):
     """Provides an ActionSelectionPDMAEvaluator instance, mocking get_config."""
     # Patch get_config in the module where it's defined and imported by action_selection_pdma
-    monkeypatch.setattr("ciris_engine.core.config_manager.get_config", lambda: mock_app_config_json_mode)
+    monkeypatch.setattr("ciris_engine.config.config_manager.get_config", lambda: mock_app_config_json_mode)
     # Also, ensure that the action_selection_pdma module re-imports or uses the patched version.
     # Forcing a re-import or patching where it's directly used in action_selection_pdma.py might be needed if the import is sticky.
     # However, typically, patching the source is enough if the module under test (action_selection_pdma) imports it fresh or at runtime.

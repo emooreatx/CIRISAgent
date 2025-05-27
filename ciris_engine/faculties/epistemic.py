@@ -12,7 +12,7 @@ from ciris_engine.schemas.guardrails_schemas_v1 import GuardrailCheckResult, Gua
 from pydantic import BaseModel, Field
 
 # Import config to get default model name if needed, or define it directly
-# from ciris_engine.core.config_manager import get_config # Alternative
+# from ciris_engine.config.config_manager import get_config # Alternative
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o" # Default model from OpenAIConfig
 
 # instructor.exceptions might be useful for more granular error handling if needed later

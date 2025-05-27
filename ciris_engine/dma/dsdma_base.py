@@ -11,7 +11,7 @@ from ciris_engine.schemas.dma_results_v1 import DSDMAResult
 from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
 from pydantic import BaseModel, Field
 from instructor.exceptions import InstructorRetryException
-from ciris_engine.core.config_manager import get_config # To access global config
+from ciris_engine.config.config_manager import get_config # To access global config
 
 logger = logging.getLogger(__name__) # Add logger
 

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 
 from ciris_engine.core import persistence
-from ciris_engine.core.config_manager import get_config_async, AppConfig
+from ciris_engine.config.config_manager import get_config_async, AppConfig
 from ciris_engine.utils.profile_loader import load_profile # AgentProfile will be imported from config_schemas
 from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile as AgentProfile # Correct import
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem # Added import
