@@ -15,7 +15,10 @@ from pydantic import BaseModel, Field
 
 from .base import Service
 from ciris_engine.core.action_dispatcher import ActionDispatcher
-from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, HandlerActionType, Thought, ThoughtStatus, DeferParams, RejectParams, SpeakParams, ActParams
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.action_params_v1 import DeferParams, RejectParams, SpeakParams, ToolParams
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.core import persistence  # For creating tasks and updating status
 from .discord_event_queue import DiscordEventQueue
 
@@ -239,7 +242,7 @@ class DiscordService(Service):
                 )
 
 
-    async def _handle_discord_action(self, result: ActionSelectionPDMAResult, dispatch_context: Dict[str, Any]):
+    async def _handle_discord_action(self, result: ActionSelectionResult, dispatch_context: Dict[str, Any]):
         logger.debug(f"DiscordService handling action: {result.selected_handler_action.value} with context: {dispatch_context}")
         
         # dispatch_context contains 'thought_id', 'source_task_id', 'origin_service',
@@ -394,7 +397,7 @@ class DiscordService(Service):
                     logger.error(f"DiscordService: Invalid params type for REJECT: {type(params)}") # Corrected log
             
             elif action_type == HandlerActionType.TOOL:
-                if isinstance(params, ActParams):
+                if isinstance(params, ToolParams):
                     tool_name = params.tool_name
                     tool_args = params.arguments
                     logger.info(f"DiscordService: Received USE_TOOL action: {tool_name} with args {tool_args}.")

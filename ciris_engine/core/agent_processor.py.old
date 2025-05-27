@@ -138,7 +138,7 @@ class AgentProcessor:
                 dispatch_ctx["channel_id"] = self.startup_channel_id
 
             final_action_type = HandlerActionType.PONDER
-            if result: # result is ActionSelectionPDMAResult
+            if result: # result is ActionSelectionResult
                 # Pass the full result, the thought, and the dispatch_context
                 await self.action_dispatcher.dispatch(
                     action_selection_result=result,
@@ -409,9 +409,9 @@ class AgentProcessor:
                 logging.error(f"Error processing thought {thought_id}: {result}", exc_info=result)
                 # Optionally, mark thought as FAILED in DB here
                 try:
-                    # Create a minimal ActionSelectionPDMAResult for error reporting
-                    from .agent_core_schemas import ActionSelectionPDMAResult, RejectParams # Import locally
-                    error_action_result = ActionSelectionPDMAResult(
+                    # Create a minimal ActionSelectionResult for error reporting
+                    from ..schemas.dma_results_v1 import ActionSelectionResult, RejectParams # Import locally
+                    error_action_result = ActionSelectionResult(
                         context_summary_for_action_selection=f"Processing failed for thought {thought_id}.",
                         action_alignment_check={"error": "Processing exception"},
                         selected_handler_action=HandlerActionType.REJECT, # Or a new ERROR action type
@@ -463,7 +463,7 @@ class AgentProcessor:
                     dispatch_context["source_task_id"] = batch[i].source_task_id # item is ProcessingQueueItem
 
                     # Fetch the full Thought object for dispatch, as core handlers need it.
-                    # Service-specific handlers might only need ActionSelectionPDMAResult and context.
+                    # Service-specific handlers might only need ActionSelectionResult and context.
                     thought_object_for_dispatch = persistence.get_thought_by_id(thought_id)
                     if not thought_object_for_dispatch:
                         logging.error(f"CRITICAL: Could not retrieve Thought object for thought_id {thought_id} in _process_batch. Skipping dispatch.")
@@ -490,7 +490,7 @@ class AgentProcessor:
                     
                     logger.debug(f"Dispatching action for thought {thought_id} with context: {dispatch_context}")
                     await self.action_dispatcher.dispatch(
-                        action_selection_result=result, # Pass the full ActionSelectionPDMAResult
+                        action_selection_result=result, # Pass the full ActionSelectionResult
                         thought=thought_object_for_dispatch, # Pass the full Thought object
                         dispatch_context=dispatch_context   # Pass the assembled context
                         # services argument removed

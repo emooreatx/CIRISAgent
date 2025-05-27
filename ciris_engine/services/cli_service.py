@@ -6,15 +6,14 @@ from typing import Any, Dict
 
 from .base import Service
 from ciris_engine.core.action_dispatcher import ActionDispatcher
-from ciris_engine.core.agent_core_schemas import (
-    ActionSelectionPDMAResult,
-    HandlerActionType,
+from ciris_engine.schemas.action_params_v1 import (
     SpeakParams,
     DeferParams,
     RejectParams,
 )
-from ciris_engine.core.agent_core_schemas import Task
-from ciris_engine.core.foundational_schemas import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.agent_core_schemas_v1 import Task
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType
 from ciris_engine.core import persistence
 
 logger = logging.getLogger(__name__)
@@ -63,7 +62,7 @@ class CLIService(Service):
         persistence.add_task(task)
         logger.info(f"CLIService: Added task {new_task_id}")
 
-    async def _handle_cli_action(self, result: ActionSelectionPDMAResult, dispatch_context: Dict[str, Any]):
+    async def _handle_cli_action(self, result: ActionSelectionResult, dispatch_context: Dict[str, Any]):
         action_type = result.selected_handler_action
         params = result.action_parameters
         if action_type == HandlerActionType.SPEAK and isinstance(params, SpeakParams):

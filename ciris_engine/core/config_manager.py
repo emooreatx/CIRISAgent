@@ -7,7 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .config_schemas import AppConfig
+from ..schemas.config_schemas_v1 import AppConfig
 
 # --- Global Configuration Instance ---
 # This will hold the loaded application configuration.
