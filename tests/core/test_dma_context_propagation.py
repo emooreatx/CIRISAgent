@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from ciris_engine.core import persistence
 from ciris_engine.core.config_manager import get_config_async, AppConfig
 from ciris_engine.utils.profile_loader import load_profile # AgentProfile will be imported from config_schemas
-from ciris_engine.core.config_schemas import SerializableAgentProfile as AgentProfile # Correct import
+from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile as AgentProfile # Correct import
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem # Added import
 from ciris_engine.services.llm_service import LLMService
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
@@ -16,11 +16,11 @@ from ciris_engine.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.guardrails import EthicalGuardrails
-from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
-from ciris_engine.core.agent_core_schemas import Task, Thought, DSDMAResult
-from ciris_engine.core.dma_results import EthicalPDMAResult, CSDMAResult, ActionSelectionPDMAResult
-from ciris_engine.core.foundational_schemas import TaskStatus, ThoughtStatus, HandlerActionType
-from ciris_engine.core.action_params import SpeakParams
+from ciris_engine.core.thought_processor import ThoughtProcessor
+from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought, DSDMAResult
+from ciris_engine.schemas.dma_results_v1 import EthicalPDMAResult, CSDMAResult, ActionSelectionPDMAResult
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType
+from ciris_engine.schemas.action_params_v1 import SpeakParams
 from ciris_engine.utils.context_formatters import format_system_snapshot_for_prompt # For assertion
 
 # Ensure database is initialized for tests that might use it
@@ -89,7 +89,7 @@ def ethical_guardrails(llm_service: LLMService, app_config: AppConfig):
     )
 
 @pytest_asyncio.fixture
-def workflow_coordinator(
+def thought_processor(
     llm_service: LLMService,
     ethical_pdma_evaluator: EthicalPDMAEvaluator,
     csdma_evaluator: CSDMAEvaluator,
@@ -98,20 +98,17 @@ def workflow_coordinator(
     app_config: AppConfig,
     memory_service: CIRISLocalGraph
 ):
-    return WorkflowCoordinator(
-        llm_client=llm_service.get_client().client, # raw client
-        ethical_pdma_evaluator=ethical_pdma_evaluator,
-        csdma_evaluator=csdma_evaluator,
-        action_selection_pdma_evaluator=action_selection_pdma_evaluator,
-        ethical_guardrails=ethical_guardrails,
-        app_config=app_config,
-        dsdma_evaluators={}, # No DSDMAs for this test
-        memory_service=memory_service
+    return ThoughtProcessor(
+        dma_orchestrator=AsyncMock(),
+        context_builder=AsyncMock(),
+        guardrail_orchestrator=AsyncMock(),
+        ponder_manager=AsyncMock(),
+        app_config=app_config
     )
 
 @pytest.mark.asyncio
 async def test_recently_completed_tasks_in_dma_prompts(
-    workflow_coordinator: WorkflowCoordinator,
+    thought_processor: ThoughtProcessor,
     teacher_profile: AgentProfile,
     ethical_pdma_evaluator: EthicalPDMAEvaluator,
     csdma_evaluator: CSDMAEvaluator,
@@ -163,7 +160,7 @@ async def test_recently_completed_tasks_in_dma_prompts(
     # This will populate thought.processing_context["system_snapshot"]["recently_completed_tasks_summary"]
     # Corrected argument order: (task, thought)
     # build_context returns the system_snapshot dict, not the modified thought object.
-    system_snapshot_dict = await workflow_coordinator.build_context(active_task, thought)
+    system_snapshot_dict = await thought_processor.build_context(active_task, thought)
     
     # Manually assign the system_snapshot to the thought's processing_context for the test
     if thought.processing_context is None:
@@ -216,15 +213,15 @@ async def test_recently_completed_tasks_in_dma_prompts(
     # Patch the 'create' method on the 'chat.completions' attribute of the aclient
     # For EthicalPDMA, aclient is already an instructor client
     # For CSDMA and ActionSelectionPDMA, aclient is patched inside them, so we patch their internal instructor client.
-    # We will patch the run_X_dma functions in the workflow_coordinator's namespace.
+    # We will patch the run_X_dma functions in the thought_processor's namespace.
     
     mock_run_pdma = AsyncMock(return_value=mock_ethical_create.return_value) # Use the same return value
     mock_run_csdma = AsyncMock(return_value=mock_csdma_create.return_value)
     mock_run_action_selection_pdma = AsyncMock(return_value=mock_action_selection_create.return_value)
 
-    with patch('ciris_engine.core.workflow_coordinator.run_pdma', mock_run_pdma), \
-         patch('ciris_engine.core.workflow_coordinator.run_csdma', mock_run_csdma), \
-         patch('ciris_engine.core.workflow_coordinator.run_action_selection_pdma', mock_run_action_selection_pdma):
+    with patch('ciris_engine.core.thought_processor.run_pdma', mock_run_pdma), \
+         patch('ciris_engine.core.thought_processor.run_csdma', mock_run_csdma), \
+         patch('ciris_engine.core.thought_processor.run_action_selection_pdma', mock_run_action_selection_pdma):
 
         # Create a ProcessingQueueItem for the thought
         processing_item = ProcessingQueueItem(
@@ -238,9 +235,9 @@ async def test_recently_completed_tasks_in_dma_prompts(
         # Mock persistence.get_thought_by_id to return our thought_with_context
         # when process_thought tries to fetch it.
         # And mock persistence.get_task_by_id for when build_context is called internally.
-        with patch('ciris_engine.core.workflow_coordinator.persistence.get_thought_by_id', return_value=thought_with_context), \
-             patch('ciris_engine.core.workflow_coordinator.persistence.get_task_by_id', return_value=active_task):
-            final_action_result = await workflow_coordinator.process_thought(
+        with patch('ciris_engine.core.thought_processor.persistence.get_thought_by_id', return_value=thought_with_context), \
+             patch('ciris_engine.core.thought_processor.persistence.get_task_by_id', return_value=active_task):
+            final_action_result = await thought_processor.process_thought(
                 processing_item,
             )
         

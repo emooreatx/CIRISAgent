@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import pytest
 
 from ciris_engine.services.discord_deferral_sink import DiscordDeferralSink
-from ciris_engine.core.agent_core_schemas import Task
+from ciris_engine.schemas.agent_core_schemas_v1 import Task
 from ciris_engine.core import persistence
 
 @pytest.mark.asyncio

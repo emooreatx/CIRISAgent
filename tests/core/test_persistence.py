@@ -7,8 +7,8 @@ import uuid
 
 # Module to test
 from ciris_engine.core import persistence
-from ciris_engine.core.foundational_schemas import TaskStatus, ThoughtStatus
-from ciris_engine.core.agent_core_schemas import Task, Thought
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 
 # --- Fixtures ---
 
@@ -169,7 +169,7 @@ def test_update_thought_status(initialized_db):
     assert updated_thought.final_action_result is not None
     assert updated_thought.final_action_result.selected_handler_action.value == "speak"
     # action_parameters is now a SpeakParams model instance
-    from ciris_engine.core.agent_core_schemas import SpeakParams
+    from ciris_engine.schemas.agent_core_schemas_v1 import SpeakParams
     assert isinstance(updated_thought.final_action_result.action_parameters, SpeakParams)
     assert updated_thought.final_action_result.action_parameters.content == "processed content for persistence" # Corrected expected content
     assert updated_thought.ponder_count == 1

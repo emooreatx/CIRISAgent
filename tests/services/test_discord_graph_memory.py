@@ -5,7 +5,7 @@ import pickle
 import networkx as nx
 
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph, MemoryOpStatus, MemoryOpResult
-from ciris_engine.core.graph_schemas import GraphNode, GraphScope, NodeType
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
 from ciris_engine.services.discord_observer import DiscordObserver
 from ciris_engine.services.discord_event_queue import DiscordEventQueue
 from ciris_engine.runtime.base_runtime import IncomingMessage

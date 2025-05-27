@@ -2,12 +2,12 @@ import pytest
 from unittest.mock import AsyncMock
 from types import SimpleNamespace
 
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
     ActionSelectionPDMAResult,
     ActParams,
 )
-from ciris_engine.core.foundational_schemas import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.core.action_handlers.tool_handler import ToolHandler
 from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.core import persistence

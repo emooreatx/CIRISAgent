@@ -1,12 +1,12 @@
 import pytest
 from unittest.mock import AsyncMock
 
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
     ActionSelectionPDMAResult,
     MemorizeParams,
 )
-from ciris_engine.core.foundational_schemas import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.core.action_handlers.memorize_handler import MemorizeHandler
 from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.memory.ciris_local_graph import MemoryOpStatus

@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph, MemoryOpStatus
-from ciris_engine.core.graph_schemas import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
 @pytest.mark.asyncio
 async def test_memory_action_roundtrip(tmp_path: Path):

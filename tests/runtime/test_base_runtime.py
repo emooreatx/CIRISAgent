@@ -7,9 +7,9 @@ import pytest
 
 from ciris_engine.runtime.base_runtime import BaseRuntime, BaseIOAdapter, IncomingMessage
 from ciris_engine.core import persistence
-from ciris_engine.core.foundational_schemas import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.core.action_dispatcher import ActionDispatcher
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
     ActionSelectionPDMAResult,
     SpeakParams,

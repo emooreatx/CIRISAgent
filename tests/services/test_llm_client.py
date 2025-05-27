@@ -7,7 +7,7 @@ import openai # Import the openai module itself for direct reference
 
 # Module to test
 from ciris_engine.services.llm_client import CIRISLLMClient
-from ciris_engine.core.config_schemas import AppConfig, OpenAIConfig, LLMServicesConfig
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, OpenAIConfig, LLMServicesConfig
 from pydantic import BaseModel, Field
 
 # --- Test Pydantic Model for structured responses ---
