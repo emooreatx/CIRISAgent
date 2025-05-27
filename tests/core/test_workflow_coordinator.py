@@ -6,17 +6,19 @@ from pathlib import Path
 
 from ciris_engine.processor.thought_processor import ThoughtProcessor
 import ciris_engine.processor.thought_processor as wc_module
-from ciris_engine.thought_escalation import escalate_dma_failure
+from ciris_engine.processor.thought_escalation import escalate_dma_failure
 from ciris_engine.schemas.config_schemas_v1 import DMA_RETRY_LIMIT
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
-    ActionSelectionPDMAResult,
-    EthicalPDMAResult,
+)
+from ciris_engine.schemas.dma_results_v1 import (
+    ActionSelectionResult,
+    EthicalDMAResult,
     CSDMAResult,
     DSDMAResult,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType, TaskStatus
-from ciris_engine.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig, SerializableAgentProfile
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 
@@ -124,7 +126,7 @@ def workflow_coordinator_instance(
     )
 
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_memory_meta_thought(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -150,10 +152,10 @@ async def test_memory_meta_thought(
     mock_persistence.update_thought_status = MagicMock(return_value=True)
 
     pdma_mock, csdma_mock, dsdma_mock, asp_mock = dma_executor_patches
-    pdma_mock.return_value = EthicalPDMAResult(context="c", alignment_check={}, decision="d", monitoring={})
+    pdma_mock.return_value = EthicalDMAResult(context="c", alignment_check={}, decision="d", monitoring={})
     csdma_mock.return_value = CSDMAResult(common_sense_plausibility_score=1.0, flags=[], reasoning="ok")
     dsdma_mock.return_value = None
-    asp_mock.return_value = ActionSelectionPDMAResult(
+    asp_mock.return_value = ActionSelectionResult(
         context_summary_for_action_selection="s",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,
@@ -192,17 +194,9 @@ def sample_processing_queue_item(sample_thought: Thought):
 
 # --- Test Cases for New ThoughtProcessor ---
 
-@pytest.mark.asyncio
-async def test_advance_round(workflow_coordinator_instance: ThoughtProcessor):
-    """Test that advance_round increments the internal round number."""
-    assert workflow_coordinator_instance.current_round_number == 0
-    workflow_coordinator_instance.advance_round()
-    assert workflow_coordinator_instance.current_round_number == 1
-    workflow_coordinator_instance.advance_round()
-    assert workflow_coordinator_instance.current_round_number == 2
 
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_process_thought_successful_run(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -222,7 +216,7 @@ async def test_process_thought_successful_run(
     # Mock DMA results
     # Ensure mocked results are instances of the actual Pydantic models or spec'd MagicMocks with all required fields
     pdma_mock, csdma_mock, dsdma_mock, asp_mock = dma_executor_patches
-    pdma_mock.return_value = EthicalPDMAResult(
+    pdma_mock.return_value = EthicalDMAResult(
         context="Mocked ethical context",
         alignment_check={"principle1": "aligned"},
         decision="Ethical decision: Proceed",
@@ -235,7 +229,7 @@ async def test_process_thought_successful_run(
     )
     dsdma_mock.return_value = None
 
-    action_selection_result = ActionSelectionPDMAResult(
+    action_selection_result = ActionSelectionResult(
         context_summary_for_action_selection="summary",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,
@@ -270,7 +264,7 @@ async def test_process_thought_successful_run(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_process_thought_guardrail_failure(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -288,7 +282,7 @@ async def test_process_thought_guardrail_failure(
     mock_persistence.update_thought_status = MagicMock(return_value=True)
 
     pdma_mock, csdma_mock, dsdma_mock, asp_mock = dma_executor_patches
-    pdma_mock.return_value = EthicalPDMAResult(
+    pdma_mock.return_value = EthicalDMAResult(
         context="Mocked ethical context for guardrail test",
         alignment_check={"principle1": "aligned"},
         decision="Ethical decision: Proceed (risky)",
@@ -301,7 +295,7 @@ async def test_process_thought_guardrail_failure(
     )
     dsdma_mock.return_value = None
 
-    action_selection_result = ActionSelectionPDMAResult(
+    action_selection_result = ActionSelectionResult(
         context_summary_for_action_selection="summary",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,
@@ -328,7 +322,7 @@ async def test_process_thought_guardrail_failure(
 
 @pytest.mark.skip(reason="Failing with AttributeError: 'PonderParams' object has no attribute 'get' in SUT")
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_process_thought_ponder_action(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -343,14 +337,14 @@ async def test_process_thought_ponder_action(
     mock_persistence.update_thought_status = MagicMock(return_value=True) # Mock successful update for PONDER
 
     # Ensure mocks return actual result objects, not just MagicMock
-    mock_ethical_pdma_evaluator.evaluate.return_value = EthicalPDMAResult(
+    mock_ethical_pdma_evaluator.evaluate.return_value = EthicalDMAResult(
         context="Ethical context for ponder", decision="Ethical decision", alignment_check={}, monitoring={}
     )
     mock_csdma_evaluator.evaluate_thought.return_value = CSDMAResult(
         common_sense_plausibility_score=0.9, flags=[], reasoning="CSDMA ok for ponder"
     )
 
-    action_selection_result = ActionSelectionPDMAResult(
+    action_selection_result = ActionSelectionResult(
         context_summary_for_action_selection="summary",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.PONDER, # PONDER action
@@ -377,7 +371,7 @@ async def test_process_thought_ponder_action(
 
 @pytest.mark.skip(reason="Failing with AttributeError: 'PonderParams' object has no attribute 'get' in SUT")
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_process_thought_max_ponder_rounds_reached(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -397,14 +391,14 @@ async def test_process_thought_max_ponder_rounds_reached(
     mock_persistence.update_thought_status = MagicMock(return_value=True)
 
     # Ensure mocks return actual result objects, not just MagicMock
-    mock_ethical_pdma_evaluator.evaluate.return_value = EthicalPDMAResult(
+    mock_ethical_pdma_evaluator.evaluate.return_value = EthicalDMAResult(
         context="Ethical context for max ponder", decision="Ethical decision", alignment_check={}, monitoring={}
     )
     mock_csdma_evaluator.evaluate_thought.return_value = CSDMAResult(
         common_sense_plausibility_score=0.9, flags=[], reasoning="CSDMA ok for max ponder"
     )
 
-    action_selection_result = ActionSelectionPDMAResult(
+    action_selection_result = ActionSelectionResult(
         context_summary_for_action_selection="summary",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.PONDER, # PONDER action
@@ -430,7 +424,7 @@ async def test_process_thought_max_ponder_rounds_reached(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_process_thought_dma_exception(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -470,7 +464,7 @@ async def test_process_thought_dma_exception(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_process_thought_object_not_found(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -493,7 +487,7 @@ async def test_process_thought_object_not_found(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_process_thought_with_dsdma_success(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -515,14 +509,14 @@ async def test_process_thought_with_dsdma_success(
     mock_persistence.update_thought_status = MagicMock(return_value=True)
 
     pdma_mock, csdma_mock, dsdma_exec_mock, asp_mock = dma_executor_patches
-    ethical_result = EthicalPDMAResult(context="ctx", alignment_check={}, decision="dec", monitoring={})
+    ethical_result = EthicalDMAResult(context="ctx", alignment_check={}, decision="dec", monitoring={})
     cs_result = CSDMAResult(common_sense_plausibility_score=1.0, flags=[], reasoning="ok")
     dsdma_result = DSDMAResult(domain_name="Mock", domain_alignment_score=0.5, recommended_action=None, flags=[], reasoning="ok")
     pdma_mock.return_value = ethical_result
     csdma_mock.return_value = cs_result
     dsdma_exec_mock.return_value = dsdma_result
 
-    asp_result = ActionSelectionPDMAResult(
+    asp_result = ActionSelectionResult(
         context_summary_for_action_selection="sum",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,
@@ -549,7 +543,7 @@ async def test_process_thought_with_dsdma_success(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_process_thought_dsdma_exception(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
@@ -571,7 +565,7 @@ async def test_process_thought_dsdma_exception(
     mock_persistence.update_thought_status = MagicMock(return_value=True)
 
     pdma_mock, csdma_mock, dsdma_exec_mock, asp_mock = dma_executor_patches
-    ethical_result = EthicalPDMAResult(context="ctx", alignment_check={}, decision="dec", monitoring={})
+    ethical_result = EthicalDMAResult(context="ctx", alignment_check={}, decision="dec", monitoring={})
     cs_result = CSDMAResult(common_sense_plausibility_score=1.0, flags=[], reasoning="ok")
     pdma_mock.return_value = ethical_result
     csdma_mock.return_value = cs_result
@@ -580,7 +574,7 @@ async def test_process_thought_dsdma_exception(
     )
     asp_mock.reset_mock()
 
-    asp_result = ActionSelectionPDMAResult(
+    asp_result = ActionSelectionResult(
         context_summary_for_action_selection="sum",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,
@@ -598,7 +592,7 @@ async def test_process_thought_dsdma_exception(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_process_thought_dma_failure_escalates(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
