@@ -4,8 +4,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ciris_engine.thought_processor import ThoughtProcessor
-import ciris_engine.thought_processor as wc_module
+from ciris_engine.processor.thought_processor import ThoughtProcessor
+import ciris_engine.processor.thought_processor as wc_module
 from ciris_engine.thought_escalation import escalate_dma_failure
 from ciris_engine.schemas.config_schemas_v1 import DMA_RETRY_LIMIT
 from ciris_engine.schemas.agent_core_schemas_v1 import (

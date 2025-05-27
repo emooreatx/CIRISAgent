@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from datetime import datetime, timezone
 
-from ciris_engine.thought_processor import ThoughtProcessor
+from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.config_schemas_v1 import (
     AppConfig,

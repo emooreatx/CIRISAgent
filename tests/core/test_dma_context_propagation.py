@@ -16,7 +16,7 @@ from ciris_engine.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.guardrails import EthicalGuardrails
-from ciris_engine.thought_processor import ThoughtProcessor
+from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought, DSDMAResult
 from ciris_engine.schemas.dma_results_v1 import EthicalPDMAResult, CSDMAResult, ActionSelectionPDMAResult
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType

@@ -8,10 +8,10 @@ from datetime import datetime, timezone
 from ciris_engine.schemas.states import AgentState
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
 from ciris_engine import persistence
-
-from .base_processor import BaseProcessor
-from .task_manager import TaskManager
-from .thought_manager import ThoughtManager
+from ciris_engine.processor.base_processor import BaseProcessor
+from ciris_engine.processor.task_manager import TaskManager
+from ciris_engine.processor.thought_manager import ThoughtManager
+from ciris_engine.processor.thought_processor import ThoughtProcessor
 
 logger = logging.getLogger(__name__)
 

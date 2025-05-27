@@ -7,8 +7,6 @@ from openai import AsyncOpenAI
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
-    HandlerActionType,
-    CIRISSchemaVersion,
 )
 from ciris_engine.schemas.dma_results_v1 import (
     ActionSelectionResult,
@@ -27,7 +25,7 @@ from ciris_engine.schemas.action_params_v1 import (
     ForgetParams,
 )
 from ciris_engine.schemas.action_params_v1 import ToolParams
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType as CoreHandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, CIRISSchemaVersion
 from ciris_engine.schemas.config_schemas_v1 import DEFAULT_OPENAI_MODEL_NAME
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
@@ -584,7 +582,7 @@ class _ActionSelectionLLMResponse(BaseModel):
     action_alignment_check: Dict[str, Any]
     action_conflicts: Optional[str] = None
     action_resolution: Optional[str] = None
-    selected_handler_action: CoreHandlerActionType  # Use aliased HandlerActionType
+    selected_handler_action: HandlerActionType  # Use aliased HandlerActionType
     action_parameters: Union[
         ObserveParams, SpeakParams, ToolParams, PonderParams,
         RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]
@@ -596,14 +594,14 @@ class _ActionSelectionLLMResponse(BaseModel):
         populate_by_name = True
 
 # --- Mapping from HandlerActionType to specific Param Model ---
-ACTION_PARAM_MODELS: Dict[CoreHandlerActionType, type[BaseModel]] = {
-    CoreHandlerActionType.OBSERVE: ObserveParams,
-    CoreHandlerActionType.SPEAK: SpeakParams,
-    CoreHandlerActionType.TOOL: ToolParams,
-    CoreHandlerActionType.PONDER: PonderParams,
-    CoreHandlerActionType.REJECT: RejectParams,
-    CoreHandlerActionType.DEFER: DeferParams,
-    CoreHandlerActionType.MEMORIZE: MemorizeParams,
-    CoreHandlerActionType.REMEMBER: RememberParams,
-    CoreHandlerActionType.FORGET: ForgetParams,
+ACTION_PARAM_MODELS: Dict[HandlerActionType, type[BaseModel]] = {
+    HandlerActionType.OBSERVE: ObserveParams,
+    HandlerActionType.SPEAK: SpeakParams,
+    HandlerActionType.TOOL: ToolParams,
+    HandlerActionType.PONDER: PonderParams,
+    HandlerActionType.REJECT: RejectParams,
+    HandlerActionType.DEFER: DeferParams,
+    HandlerActionType.MEMORIZE: MemorizeParams,
+    HandlerActionType.REMEMBER: RememberParams,
+    HandlerActionType.FORGET: ForgetParams,
 }
