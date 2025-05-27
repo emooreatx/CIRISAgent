@@ -136,7 +136,7 @@ def test_update_thought_status(initialized_db):
     )
     persistence.add_thought(thought_data)
 
-    # Create a more complete ActionSelectionPDMAResult-like dict
+    # Create a more complete ActionSelectionResult-like dict
     complete_action_result_dict = {
         "schema_version": "1.0-beta",
         "context_summary_for_action_selection": "Summary for persistence test",
@@ -165,7 +165,7 @@ def test_update_thought_status(initialized_db):
     assert updated_thought is not None
     assert updated_thought.status == ThoughtStatus.PROCESSING
     assert updated_thought.round_processed == 1
-    # Pydantic will have converted the dict to the ActionSelectionPDMAResult model
+    # Pydantic will have converted the dict to the ActionSelectionResult model
     assert updated_thought.final_action_result is not None
     assert updated_thought.final_action_result.selected_handler_action.value == "speak"
     # action_parameters is now a SpeakParams model instance

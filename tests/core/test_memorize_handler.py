@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
-    ActionSelectionPDMAResult,
+    ActionSelectionResult,
     MemorizeParams,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
@@ -34,7 +34,7 @@ async def test_handle_memorize(monkeypatch):
         confidence=0.9,
         channel_metadata={"channel": "c"},
     )
-    result = ActionSelectionPDMAResult(
+    result = ActionSelectionResult(
         context_summary_for_action_selection="c",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.MEMORIZE,

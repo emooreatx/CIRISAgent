@@ -4,9 +4,10 @@ import pytest
 from collections import deque
 
 from ciris_engine.processor.main_processor import AgentProcessor
+from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
-from ciris_engine.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig
 
 @pytest.fixture
@@ -20,13 +21,11 @@ def simple_app_config():
 
 @pytest.fixture
 def processor(simple_app_config):
-    mock_wc = AsyncMock()
-    mock_wc.process_thought = AsyncMock()
-    mock_wc.advance_round = MagicMock()
-    mock_wc.current_round_number = 0
+    mock_tp = AsyncMock(spec=ThoughtProcessor)
+    mock_tp.process_thought = AsyncMock()
     dispatcher = AsyncMock()
     dispatcher.dispatch = AsyncMock()
-    return AgentProcessor(app_config=simple_app_config, workflow_coordinator=mock_wc, action_dispatcher=dispatcher, services={})
+    return AgentProcessor(app_config=simple_app_config, thought_processor=mock_tp, action_dispatcher=dispatcher, services={})
 
 @patch('ciris_engine.processor.main_processor.persistence')
 @pytest.mark.asyncio

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ActionSelectionPDMAResult
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ActionSelectionResult
 
 class DummyHandler:
     def __init__(self):
@@ -21,7 +21,7 @@ async def test_dispatch_invokes_correct_handler():
     )
     handler = DummyHandler()
     dispatcher = ActionDispatcher({HandlerActionType.SPEAK: handler})
-    result = ActionSelectionPDMAResult(
+    result = ActionSelectionResult(
         context_summary_for_action_selection="c",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,
@@ -44,7 +44,7 @@ async def test_action_dispatcher_wrapper():
         round_number=0,
         content="",
     )
-    result = ActionSelectionPDMAResult(
+    result = ActionSelectionResult(
         context_summary_for_action_selection="c",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,

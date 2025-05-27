@@ -59,7 +59,7 @@ def sample_thought():
     )
 
 @pytest.mark.asyncio
-@patch('ciris_engine.thought_processor.persistence')
+@patch('ciris_engine.processor.thought_processor.persistence')
 async def test_build_context_includes_recent_tasks_and_profiles(
     mock_persistence,
     workflow_coordinator_instance: ThoughtProcessor,
