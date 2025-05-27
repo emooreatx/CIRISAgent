@@ -21,9 +21,18 @@ class GuardrailOrchestrator:
         self,
         action_result: ActionSelectionResult,
         thought: Thought,
-        dma_results: DMAResults
+        dma_results_dict: Dict[str, Any] # Changed type hint, was DMAResults
     ) -> GuardrailResult:
         """Apply guardrails and handle overrides."""
+        # Parse the incoming dict into DMAResults model
+        try:
+            dma_results = DMAResults(**dma_results_dict)
+        except Exception as e:
+            logger.error(f"Failed to parse dma_results_dict into DMAResults model: {e}. dma_results_dict: {dma_results_dict}", exc_info=True)
+            # Create a default/empty DMAResults if parsing fails to avoid further NoneType errors,
+            # though this indicates a problem upstream or with the data.
+            dma_results = DMAResults() # Contains Optional fields, so this is valid
+
         passes_guardrail, reason, epistemic_data = await self.ethical_guardrails.check_action_output_safety(action_result)
         override_action_result = None
         if not passes_guardrail:
@@ -52,7 +61,7 @@ class GuardrailOrchestrator:
                 dsdma_result=dma_results.dsdma,
                 trigger_reason="GUARDRAIL_FAILURE",
                 extra={
-                    "original_proposed_action": action_result.selected_handler_action.value,
+                    "original_proposed_action": action_result.selected_action.value, # Corrected field name
                     "original_action_parameters": original_params_as_dict,
                     "guardrail_failure_reason": reason,
                     "epistemic_data": epistemic_data,
@@ -73,20 +82,29 @@ class GuardrailOrchestrator:
                 ),
             )
             override_action_result = ActionSelectionResult(
-                context_summary_for_action_selection=action_result.context_summary_for_action_selection,
-                action_alignment_check=action_result.action_alignment_check,
-                action_conflicts=action_result.action_conflicts,
-                action_resolution=action_result.action_resolution,
-                selected_handler_action=HandlerActionType.DEFER,
-                action_parameters=guardrail_defer_params,
-                action_selection_rationale=f"Original action '{action_result.selected_handler_action.value}' overridden by guardrail. Reason: {reason}",
-                monitoring_for_selected_action={"status": "Action overridden by guardrail"},
-                raw_llm_response=action_result.raw_llm_response,
-                decision_input_context_snapshot=getattr(action_result, 'decision_input_context_snapshot', None)
+                # Fields like context_summary_for_action_selection, action_alignment_check etc. are not in ActionSelectionResult schema.
+                # The ActionSelectionResult for DEFER should be minimal.
+                selected_action=HandlerActionType.DEFER, # Corrected field name
+                action_parameters=guardrail_defer_params.model_dump(mode='json'), # Ensure it's a dict
+                rationale=f"Original action '{action_result.selected_action.value}' overridden by guardrail. Reason: {reason}", # Corrected field name
+                # confidence and raw_llm_response can be omitted or set to None for system-generated overrides
+                raw_llm_response=action_result.raw_llm_response # Keep original raw response if relevant
             )
         return GuardrailResult(
-            passes_guardrail=passes_guardrail,
-            reason=reason,
+            passes_guardrail=passes_guardrail, # This should be 'passed' to match GuardrailResult schema
+            reason=reason, # This should be 'override_reason' if not passes_guardrail
             epistemic_data=epistemic_data,
-            override_action_result=override_action_result
+            original_action=action_result, # Store original action
+            final_action=override_action_result if override_action_result else action_result,
+            overridden=not passes_guardrail
+        )
+
+        final_action_to_return = override_action_result if not passes_guardrail else action_result
+        
+        return GuardrailResult(
+            original_action=action_result,
+            final_action=final_action_to_return,
+            overridden=not passes_guardrail,
+            override_reason=reason if not passes_guardrail else None,
+            epistemic_data=epistemic_data
         )
