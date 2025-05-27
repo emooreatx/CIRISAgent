@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Import the NEW Thought model from agent_core_schemas
-from .agent_core_schemas import Thought
+from ..schemas.agent_core_schemas_v1 import Thought
 
 class ProcessingQueueItem(BaseModel):
     """

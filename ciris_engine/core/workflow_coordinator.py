@@ -6,10 +6,11 @@ import asyncio # New import
 from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING # Added TYPE_CHECKING
 from pydantic import BaseModel # Added import
 
-from .foundational_schemas import TaskStatus, ThoughtStatus, HandlerActionType
-from .agent_core_schemas import EthicalPDMAResult, CSDMAResult, DSDMAResult, ActionSelectionPDMAResult, Thought, Task
+from ..schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType
+from ..schemas.dma_results_v1 import EthicalDMAResult, CSDMAResult, DSDMAResult, ActionSelectionResult
+from ..schemas.agent_core_schemas_v1 import Thought, Task
 from .agent_processing_queue import ProcessingQueueItem
-from .config_schemas import AppConfig, WorkflowConfig # Import AppConfig and WorkflowConfig
+from ..schemas.config_schemas_v1 import AppConfig, WorkflowConfig # Import AppConfig and WorkflowConfig # ERIC HELP
 from . import persistence # Import persistence module
 from ciris_engine.services.llm_client import CIRISLLMClient # Assume this will have an async call_llm
 from ciris_engine.core.dma_executor import (
@@ -18,7 +19,7 @@ from ciris_engine.core.dma_executor import (
     run_dsdma,
     run_action_selection_pdma,
 )
-from ciris_engine.core.config_schemas import DMA_RETRY_LIMIT
+from ciris_engine.core.config_schemas import DMA_RETRY_LIMIT # ERIC HELP
 from ciris_engine.core.action_tracker import track_action
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.utils import DEFAULT_WA
@@ -84,7 +85,7 @@ class WorkflowCoordinator:
     async def process_thought(self, thought_item: ProcessingQueueItem, # Changed type to ProcessingQueueItem
                               current_platform_context: Optional[Dict[str, Any]] = None,
                               benchmark_mode: bool = False # Add benchmark_mode parameter
-                              ) -> Optional[ActionSelectionPDMAResult]: # Return type can be None now
+                              ) -> Optional[ActionSelectionResult]: # Return type can be None now
         """
         Processes a single thought item through the full DMA and guardrail pipeline.
         The initial Ethical PDMA, CSDMA, and DSDMA calls are made concurrently.
@@ -112,7 +113,7 @@ class WorkflowCoordinator:
                 target_wa_ual=DEFAULT_WA,
                 deferral_package_content=deferral_package
             )
-            return ActionSelectionPDMAResult(
+            return ActionSelectionResult(
                 context_summary_for_action_selection="Critical error: Thought object not found.",
                 action_alignment_check={"Error": "Thought object retrieval failed"},
                 selected_handler_action=HandlerActionType.DEFER,
@@ -214,7 +215,7 @@ class WorkflowCoordinator:
                     target_wa_ual=DEFAULT_WA,
                     deferral_package_content=deferral_package
                 )
-                return ActionSelectionPDMAResult(
+                return ActionSelectionResult(
                     context_summary_for_action_selection="Critical error: No DSDMA instance for active profile.",
                     action_alignment_check={"Error": "No DSDMA instance for active profile"},
                     selected_handler_action=HandlerActionType.DEFER,
@@ -252,7 +253,7 @@ class WorkflowCoordinator:
                     target_wa_ual=DEFAULT_WA,
                     deferral_package_content=last_event,
                 )
-                return ActionSelectionPDMAResult(
+                return ActionSelectionResult(
                     context_summary_for_action_selection="DMA failure",
                     action_alignment_check={"error": "DMA failure"},
                     selected_handler_action=HandlerActionType.DEFER,
@@ -261,18 +262,18 @@ class WorkflowCoordinator:
                     monitoring_for_selected_action={"status": "DMA failure"},
                 )
 
-        ethical_pdma_result: Optional[EthicalPDMAResult] = None
+        ethical_pdma_result: Optional[EthicalDMAResult] = None
         csdma_result: Optional[CSDMAResult] = None
         dsdma_result: Optional[DSDMAResult] = None
 
-        if isinstance(dma_results[0], EthicalPDMAResult):
+        if isinstance(dma_results[0], EthicalDMAResult):
             ethical_pdma_result = dma_results[0]
             # Use .decision instead of .decision_rationale
             logging.debug(f"Ethical PDMA Result (Decision): {ethical_pdma_result.decision[:100]}...")
         elif isinstance(dma_results[0], Exception):
             logging.error(f"Ethical PDMA failed for thought {thought_item.thought_id}: {dma_results[0]}")
-            # Create a fallback EthicalPDMAResult, ensure fields match schema
-            ethical_pdma_result = EthicalPDMAResult(
+            # Create a fallback EthicalDMAResult, ensure fields match schema
+            ethical_pdma_result = EthicalDMAResult(
                 context=f"Ethical PDMA failed: {str(dma_results[0])}", # Mapped to 'context'
                 alignment_check={"error": "Ethical PDMA exception"},
                 decision="Ethical PDMA evaluation failed due to exception.", # Mapped to 'decision'
@@ -317,7 +318,7 @@ class WorkflowCoordinator:
                     target_wa_ual=DEFAULT_WA,
                     deferral_package_content=deferral_package
                 )
-                return ActionSelectionPDMAResult(
+                return ActionSelectionResult(
                     context_summary_for_action_selection="Critical error: DSDMA failed or missing.",
                     action_alignment_check={"Error": "DSDMA failed or missing"},
                     selected_handler_action=HandlerActionType.DEFER,
@@ -332,7 +333,7 @@ class WorkflowCoordinator:
         # Ensure critical results are present, even if they are error fallbacks
         if not ethical_pdma_result or not csdma_result:
             logging.critical(f"Missing critical DMA results (Ethical or CSDMA) for thought {thought_object.thought_id} even after fallback. Cannot proceed to Action Selection.") # Use thought_object
-            return ActionSelectionPDMAResult(
+            return ActionSelectionResult(
                 context_summary_for_action_selection="Critical DMA failure upstream (Ethical or CSDMA).",
                 action_alignment_check={"Error": "Upstream DMA failure (Ethical or CSDMA)"},
                 selected_handler_action=HandlerActionType.DEFER,
@@ -378,7 +379,7 @@ class WorkflowCoordinator:
                 target_wa_ual=DEFAULT_WA,
                 deferral_package_content=deferral_package
             )
-            return ActionSelectionPDMAResult(
+            return ActionSelectionResult(
                 context_summary_for_action_selection="Critical error: No agent profile context for ActionSelection.",
                 action_alignment_check={"Error": "No agent profile context for ActionSelection"},
                 selected_handler_action=HandlerActionType.DEFER,
@@ -414,7 +415,7 @@ class WorkflowCoordinator:
             "agent_profile": active_profile_for_as # Pass the determined agent profile object
         }
 
-        action_selection_result: ActionSelectionPDMAResult = await run_action_selection_pdma(
+        action_selection_result: ActionSelectionResult = await run_action_selection_pdma(
             self.action_selection_pdma_evaluator,
             triaged_inputs_for_action_selection,
             retry_limit=DMA_RETRY_LIMIT,
@@ -446,7 +447,7 @@ class WorkflowCoordinator:
                  candidate_response_content = original_params_as_dict.get("content", candidate_response_content)
 
             # For DEFER action, action_parameters should be DeferParams or a dict that can initialize it.
-            # The ActionSelectionPDMAResult expects a Pydantic model for action_parameters.
+            # The ActionSelectionResult expects a Pydantic model for action_parameters.
             # We will construct a DeferParams model here.
             
             # First, create the deferral package content
@@ -486,7 +487,7 @@ class WorkflowCoordinator:
                 ),
             )
 
-            final_action_result = ActionSelectionPDMAResult( 
+            final_action_result = ActionSelectionResult( 
                 context_summary_for_action_selection=action_selection_result.context_summary_for_action_selection,
                 action_alignment_check=action_selection_result.action_alignment_check,
                 action_conflicts=action_selection_result.action_conflicts,
@@ -525,7 +526,7 @@ class WorkflowCoordinator:
             
             if not thought_object: # Should not happen due to early check, but as safeguard
                 logging.error(f"PONDER: Critical - thought_object became None for ID {thought_item.thought_id}. Cannot process Ponder action.")
-                return ActionSelectionPDMAResult(
+                return ActionSelectionResult(
                     context_summary_for_action_selection=final_action_result.context_summary_for_action_selection,
                     action_alignment_check=final_action_result.action_alignment_check,
                     selected_handler_action=HandlerActionType.DEFER,
@@ -555,8 +556,8 @@ class WorkflowCoordinator:
                     target_wa_ual=DEFAULT_WA,
                     deferral_package_content=deferral_package_max_ponder
                 )
-                # Construct the ActionSelectionPDMAResult that represents this deferral
-                defer_action_selection_result = ActionSelectionPDMAResult(
+                # Construct the ActionSelectionResult that represents this deferral
+                defer_action_selection_result = ActionSelectionResult(
                     context_summary_for_action_selection=final_action_result.context_summary_for_action_selection if final_action_result else "Max ponder rounds reached.",
                     action_alignment_check=final_action_result.action_alignment_check if final_action_result else {"DEFER": "Max ponder rounds reached"},
                     selected_handler_action=HandlerActionType.DEFER,
@@ -600,7 +601,7 @@ class WorkflowCoordinator:
                         except Exception: # Catch Pydantic validation error or others
                              logging.error(f"Could not convert action_parameters dict to PonderParams for thought {thought_object.thought_id}")
                              # Fallback to a generic Reject if conversion fails
-                             return ActionSelectionPDMAResult(
+                             return ActionSelectionResult(
                                  context_summary_for_action_selection="Ponder re-queue failed, and action_parameters invalid.",
                                  selected_handler_action=HandlerActionType.REJECT,
                                  action_parameters=RejectParams(reason="Ponder re-queue failed and parameters were invalid."),
@@ -611,7 +612,7 @@ class WorkflowCoordinator:
                     if isinstance(final_action_result.action_parameters, PonderParams):
                         # PonderParams doesn't have a ponder_count_at_failure field.
                         # We might log this or add it to a generic dict in action_parameters if needed,
-                        # but ActionSelectionPDMAResult expects a specific Pydantic model for action_parameters.
+                        # but ActionSelectionResult expects a specific Pydantic model for action_parameters.
                         # For now, we just return the Ponder action.
                         pass
                     return final_action_result
@@ -627,7 +628,7 @@ class WorkflowCoordinator:
                 thought_id=thought_object.thought_id,
                 new_status=ThoughtStatus.COMPLETED, # Or FAILED/DEFERRED if set by dispatcher
                 round_processed=self.current_round_number,
-                final_action_result=final_action_result.model_dump() # Store the full ActionSelectionPDMAResult
+                final_action_result=final_action_result.model_dump() # Store the full ActionSelectionResult
             )
             if success:
                 logging.info(f"Thought ID {thought_object.thought_id} successfully updated with final action result.")

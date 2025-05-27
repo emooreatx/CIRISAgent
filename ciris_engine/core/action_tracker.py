@@ -4,7 +4,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .agent_core_schemas import Thought, HandlerActionType
+from ..schemas.agent_core_schemas_v1 import Thought
+from ..schemas.foundational_schemas_v1 import HandlerActionType
 
 
 def track_action(thought: Thought, action: HandlerActionType, parameters: Any) -> None:

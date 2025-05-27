@@ -4,8 +4,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .agent_core_schemas import Thought
-from .foundational_schemas import ThoughtStatus
+from ..schemas.agent_core_schemas_v1 import Thought
+from ..schemas.foundational_schemas_v1 import ThoughtStatus
 
 __all__ = [
     "escalate_due_to_action_limit",
