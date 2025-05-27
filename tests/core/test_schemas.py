@@ -11,18 +11,17 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     ThoughtStatus,
     ObservationSourceType,
     DKGAssetType,
-    CIRISAgentUAL, CIRISTaskUAL, CIRISKnowledgeAssetUAL, VeilidDID, VeilidRouteID
 )
 from ciris_engine.schemas.agent_core_schemas_v1 import (
-    ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams,
+    ObserveParams, SpeakParams, PonderParams, RejectParams, DeferParams,
     MemorizeParams, RememberParams, ForgetParams,
-    ActionSelectionPDMAResult,
     Task, Thought
 )
-from ciris_engine.agent_processing_queue import ProcessingQueueItem, ProcessingQueue
+from ciris_engine.schemas.action_params_v1 import ToolParams
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.processor.processing_queue import ProcessingQueueItem, ProcessingQueue
 
-from ciris_engine.observation_schemas import ObservationRecord
-from ciris_engine.audit_schemas import AuditLogEntry
+from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry
 from ciris_engine.memory.ciris_local_graph import MemoryOpStatus
 
 # --- Tests for foundational_schemas.py ---
@@ -47,18 +46,6 @@ def test_enum_case_insensitive():
     assert TaskStatus("PENDING") is TaskStatus.PENDING
     assert MemoryOpStatus("OK") is MemoryOpStatus.OK
 
-def test_ual_did_types():
-    """Test that UAL/DID types are essentially strings."""
-    agent_ual: CIRISAgentUAL = "did:example:agent1"
-    task_ual: CIRISTaskUAL = "ual:task:abc"
-    ka_ual: CIRISKnowledgeAssetUAL = "ual:ka:xyz"
-    veilid_did: VeilidDID = "did:key:zExampleKey"
-    veilid_route: VeilidRouteID = "route_id_example"
-    assert isinstance(agent_ual, str)
-    assert isinstance(task_ual, str)
-    assert isinstance(ka_ual, str)
-    assert isinstance(veilid_did, str)
-    assert isinstance(veilid_route, str)
 
 # --- Tests for agent_core_schemas.py ---
 
@@ -92,7 +79,7 @@ def test_thought_instantiation_and_defaults():
 
 def test_action_selection_pdma_result_instantiation():
     # Basic instantiation check with all required fields
-    result = ActionSelectionPDMAResult(
+    result = ActionSelectionResult(
         context_summary_for_action_selection="Test context summary",
         action_alignment_check={"speak": "aligned", "ponder": "neutral"},
         selected_handler_action=HandlerActionType.SPEAK,

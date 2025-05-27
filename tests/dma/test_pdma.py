@@ -5,8 +5,8 @@ import asyncio
 
 # Module to test
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator, DEFAULT_OPENAI_MODEL_NAME
-from ciris_engine.schemas.agent_core_schemas_v1 import EthicalPDMAResult
-from ciris_engine.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 import instructor # For type hinting the mock
 from openai import AsyncOpenAI # For mock_openai_client fixture
 # Added imports for mocking OpenAI response structure
@@ -94,7 +94,7 @@ class MockChatCompletionResponse:
 
 @pytest.mark.asyncio
 async def test_pdma_evaluate_success(pdma_evaluator: EthicalPDMAEvaluator, sample_thought_item: ProcessingQueueItem): # Removed mock_openai_client dependency here
-    """Test successful evaluation returning a valid EthicalPDMAResult."""
+    """Test successful evaluation returning a valid EthicalDMAResult."""
     # Define the expected structured response (using aliases)
     expected_result_data = {
         "Context": "User asks about lying to protect feelings. Stakeholders: user, person lied to. Constraints: honesty, potential harm.",
@@ -114,7 +114,7 @@ async def test_pdma_evaluate_success(pdma_evaluator: EthicalPDMAEvaluator, sampl
         "Monitoring": {"metric_to_watch": "User reaction, relationship impact", "update_trigger": "If user pushes for a direct lie or negative outcome observed."}
     }
     # Instantiate the expected Pydantic model
-    expected_result_obj = EthicalPDMAResult.model_validate(expected_result_data)
+    expected_result_obj = EthicalDMAResult.model_validate(expected_result_data)
     expected_json_content = expected_result_obj.model_dump_json() # Still useful for creating mock raw response
 
     # Create a mock raw response object (using the helper class)
@@ -135,7 +135,7 @@ async def test_pdma_evaluate_success(pdma_evaluator: EthicalPDMAEvaluator, sampl
     actual_result = await pdma_evaluator.evaluate(sample_thought_item)
 
     # Assertions
-    assert isinstance(actual_result, EthicalPDMAResult)
+    assert isinstance(actual_result, EthicalDMAResult)
     # Compare Pydantic models directly (handles field comparison)
     assert actual_result == expected_result_obj
     # Explicitly check the raw_llm_response field set by the SUT
@@ -147,7 +147,7 @@ async def test_pdma_evaluate_success(pdma_evaluator: EthicalPDMAEvaluator, sampl
     call_args = pdma_evaluator.aclient.chat.completions.create.call_args.kwargs
     # Check arguments passed to the patched create method
     assert call_args['model'] == pdma_evaluator.model_name
-    assert call_args['response_model'] == EthicalPDMAResult
+    assert call_args['response_model'] == EthicalDMAResult
     assert call_args['messages'][0]['role'] == 'system'
     assert "PDMA" in call_args['messages'][0]['content']
     assert call_args['messages'][1]['role'] == 'user'
@@ -164,7 +164,7 @@ async def test_pdma_evaluate_llm_error(pdma_evaluator: EthicalPDMAEvaluator, sam
     actual_result = await pdma_evaluator.evaluate(sample_thought_item)
 
     # Assertions for fallback object
-    assert isinstance(actual_result, EthicalPDMAResult)
+    assert isinstance(actual_result, EthicalDMAResult)
     assert "Error: LLM call via instructor failed" in actual_result.context
     # Check that the original error message is captured in the fallback object
     assert "error" in actual_result.alignment_check
@@ -196,7 +196,7 @@ async def test_pdma_uses_default_model(mock_openai_client: MagicMock, sample_tho
     default_evaluator.aclient.chat.completions.create = AsyncMock(name="patched_create_mock_default")
 
     # Configure mock return value (Pydantic object + raw response)
-    llm_produced_data_obj = EthicalPDMAResult(
+    llm_produced_data_obj = EthicalDMAResult(
         context="Default context", # Use lowercase field name
         alignment_check={"default": "check"},
         Decision="Default decision",
@@ -219,7 +219,7 @@ async def test_pdma_uses_default_model(mock_openai_client: MagicMock, sample_tho
     actual_result = await default_evaluator.evaluate(sample_thought_item)
 
     # Basic check that we got a result back
-    assert isinstance(actual_result, EthicalPDMAResult)
+    assert isinstance(actual_result, EthicalDMAResult)
     assert actual_result.context == "Default context"
 
     # Verify the *mocked patched* create method was called with the default model

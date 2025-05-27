@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
-    ActionSelectionPDMAResult,
-    ActParams,
+    ActionSelectionResult,
 )
+from ciris_engine.schemas.action_params_v1 import ToolParams
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.action_handlers.tool_handler import ToolHandler
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
@@ -25,8 +25,8 @@ async def test_handle_tool(monkeypatch):
     added = []
     monkeypatch.setattr(persistence, "add_thought", lambda th: added.append(th))
     monkeypatch.setattr(persistence, "update_thought_status", lambda **k: None)
-    params = ActParams(tool_name="x", arguments={"a": 1})
-    result = ActionSelectionPDMAResult(
+    params = ToolParams(name="x", args={"a": 1})
+    result = ActionSelectionResult(
         context_summary_for_action_selection="c",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.TOOL,

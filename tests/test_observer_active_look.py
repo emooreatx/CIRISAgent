@@ -5,8 +5,9 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 from ciris_engine.schemas.action_params_v1 import ObserveParams, SpeakParams
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ActionSelectionPDMAResult, HandlerActionType
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
 from ciris_engine.action_handlers.speak_handler import SpeakHandler
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine import persistence
@@ -76,7 +77,7 @@ async def test_observer_handler_active_look_creates_thought(monkeypatch):
     monkeypatch.setattr(persistence, "update_thought_status", lambda *a, **k: None)
 
     params = ObserveParams(sources=["discord"], perform_active_look=True)
-    result = ActionSelectionPDMAResult(
+    result = ActionSelectionResult(
         context_summary_for_action_selection="c",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.OBSERVE,
@@ -104,7 +105,7 @@ async def test_active_look_pipeline(monkeypatch):
     monkeypatch.setattr(persistence, "update_thought_status", lambda *a, **k: None)
 
     obs_params = ObserveParams(sources=["discord"], perform_active_look=True)
-    obs_result = ActionSelectionPDMAResult(
+    obs_result = ActionSelectionResult(
         context_summary_for_action_selection="c",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.OBSERVE,
@@ -118,7 +119,7 @@ async def test_active_look_pipeline(monkeypatch):
     active_th = added[0]
 
     speak_params = SpeakParams(content="done")
-    speak_result = ActionSelectionPDMAResult(
+    speak_result = ActionSelectionResult(
         context_summary_for_action_selection="c",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,

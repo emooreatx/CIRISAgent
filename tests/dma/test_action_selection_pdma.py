@@ -14,17 +14,15 @@ from instructor.exceptions import InstructorRetryException
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
     ThoughtStatus,
-    HandlerActionType,
-    CIRISSchemaVersion,
 )
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, CIRISSchemaVersion, HandlerActionType as CoreHandlerActionType
 from ciris_engine.schemas.action_params_v1 import SpeakParams, PonderParams
 from ciris_engine.schemas.dma_results_v1 import (
-    ActionSelectionPDMAResult,
-    EthicalPDMAResult,
+    ActionSelectionResult,
+    EthicalDMAResult,
     CSDMAResult,
     DSDMAResult,
 )
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType as CoreHandlerActionType
 # from ciris_engine.profiles import AgentProfile # Replaced by SerializableAgentProfile
 from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile # Import new profile
 from ciris_engine.dma.action_selection_pdma import (

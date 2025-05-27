@@ -9,7 +9,7 @@ from ciris_engine import persistence
 from ciris_engine.config.config_manager import get_config_async, AppConfig
 from ciris_engine.utils.profile_loader import load_profile # AgentProfile will be imported from config_schemas
 from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile as AgentProfile # Correct import
-from ciris_engine.agent_processing_queue import ProcessingQueueItem # Added import
+from ciris_engine.processor.processing_queue import ProcessingQueueItem  # Updated import path
 from ciris_engine.services.llm_service import LLMService
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator
@@ -17,8 +17,13 @@ from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.processor.thought_processor import ThoughtProcessor
-from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought, DSDMAResult
-from ciris_engine.schemas.dma_results_v1 import EthicalPDMAResult, CSDMAResult, ActionSelectionPDMAResult
+from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+from ciris_engine.schemas.dma_results_v1 import (
+    DSDMAResult,
+    EthicalDMAResult,
+    CSDMAResult,
+    ActionSelectionResult,
+)
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType
 from ciris_engine.schemas.action_params_v1 import SpeakParams
 from ciris_engine.utils.context_formatters import format_system_snapshot_for_prompt # For assertion
@@ -184,7 +189,7 @@ async def test_recently_completed_tasks_in_dma_prompts(
 
     # 5. Mock the LLM calls for each DMA
     mock_ethical_create = AsyncMock(
-        return_value=EthicalPDMAResult(
+        return_value=EthicalDMAResult(
             context="Test context", # Using actual field name
             alignment_check={"do_good": "High"}, # Using actual field name
             decision="Proceed", # Using actual field name
@@ -200,7 +205,7 @@ async def test_recently_completed_tasks_in_dma_prompts(
         )
     )
     mock_action_selection_create = AsyncMock(
-        return_value=ActionSelectionPDMAResult( # This is the internal _ActionSelectionLLMResponse structure
+        return_value=ActionSelectionResult( # This is the internal _ActionSelectionLLMResponse structure
             context_summary_for_action_selection="Summary",
             action_alignment_check={"SPEAK": "High"},
             selected_handler_action=HandlerActionType.SPEAK,
@@ -219,9 +224,9 @@ async def test_recently_completed_tasks_in_dma_prompts(
     mock_run_csdma = AsyncMock(return_value=mock_csdma_create.return_value)
     mock_run_action_selection_pdma = AsyncMock(return_value=mock_action_selection_create.return_value)
 
-    with patch('ciris_engine.thought_processor.run_pdma', mock_run_pdma), \
-         patch('ciris_engine.thought_processor.run_csdma', mock_run_csdma), \
-         patch('ciris_engine.thought_processor.run_action_selection_pdma', mock_run_action_selection_pdma):
+    with patch('ciris_engine.processor.thought_processor.run_pdma', mock_run_pdma), \
+         patch('ciris_engine.processor.thought_processor.run_csdma', mock_run_csdma), \
+         patch('ciris_engine.processor.thought_processor.run_action_selection_pdma', mock_run_action_selection_pdma):
 
         # Create a ProcessingQueueItem for the thought
         processing_item = ProcessingQueueItem(
@@ -235,8 +240,8 @@ async def test_recently_completed_tasks_in_dma_prompts(
         # Mock persistence.get_thought_by_id to return our thought_with_context
         # when process_thought tries to fetch it.
         # And mock persistence.get_task_by_id for when build_context is called internally.
-        with patch('ciris_engine.thought_processor.persistence.get_thought_by_id', return_value=thought_with_context), \
-             patch('ciris_engine.thought_processor.persistence.get_task_by_id', return_value=active_task):
+        with patch('ciris_engine.processor.thought_processor.persistence.get_thought_by_id', return_value=thought_with_context), \
+             patch('ciris_engine.processor.thought_processor.persistence.get_task_by_id', return_value=active_task):
             final_action_result = await thought_processor.process_thought(
                 processing_item,
             )
