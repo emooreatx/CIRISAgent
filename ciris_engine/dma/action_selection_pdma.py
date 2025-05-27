@@ -143,20 +143,30 @@ class ActionSelectionPDMAEvaluator:
         )
     }
 
-    def __init__(self,
-                 aclient: AsyncOpenAI, # Expect raw AsyncOpenAI client
-                 model_name: str = DEFAULT_OPENAI_MODEL_NAME,
-                 max_retries: int = 2, # Default to a sensible number of retries
-                 prompt_overrides: Optional[Dict[str, str]] = None,
-                 instructor_mode: instructor.Mode = instructor.Mode.JSON): # Add instructor_mode
+    def __init__(
+        self,
+        aclient: AsyncOpenAI,  # Expect raw AsyncOpenAI client
+        model_name: str = DEFAULT_OPENAI_MODEL_NAME,
+        max_retries: int = 2,  # Default to a sensible number of retries
+        prompt_overrides: Optional[Dict[str, str]] = None,
+        *,  # Enforce instructor_mode as keyword-only
+        instructor_mode: instructor.Mode = instructor.Mode.JSON
+    ):
+        """
+        Initialize ActionSelectionPDMAEvaluator.
+        Args:
+            aclient: AsyncOpenAI client (will be patched with instructor).
+            model_name: LLM model name.
+            max_retries: Max retries for LLM calls.
+            prompt_overrides: Optional prompt overrides dict.
+            instructor_mode: instructor.Mode (must be passed as keyword argument).
+        """
         # Patch the client with instructor and the specified mode
-        # instructor.patch itself does not take max_retries for the patch operation,
-        # max_retries is typically passed to the .create() call.
         self.aclient: instructor.Instructor = instructor.patch(aclient, mode=instructor_mode)
         self.model_name = model_name
-        self.max_retries = max_retries # Store max_retries
+        self.max_retries = max_retries  # Store max_retries
         self.prompt = {**self.DEFAULT_PROMPT, **(prompt_overrides or {})}
-        self.instructor_mode = instructor_mode # Store for reference if needed
+        self.instructor_mode = instructor_mode  # Store for reference if needed
 
     def _get_profile_specific_prompt(self, base_key: str, agent_profile_name: Optional[str]) -> str:
         if agent_profile_name:

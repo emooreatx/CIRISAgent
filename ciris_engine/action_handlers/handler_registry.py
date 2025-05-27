@@ -15,6 +15,7 @@ from .remember_handler import RememberHandler
 from .forget_handler import ForgetHandler
 from .action_dispatcher import ActionDispatcher
 from .base_handler import ActionHandlerDependencies
+import os
 
 # Add any required dependencies for handlers here, e.g., services, sinks, etc.
 def build_action_dispatcher(audit_service=None, **handler_dependencies):
@@ -25,7 +26,7 @@ def build_action_dispatcher(audit_service=None, **handler_dependencies):
     deps = ActionHandlerDependencies(**handler_dependencies)
     handlers = {
         HandlerActionType.MEMORIZE: MemorizeHandler(deps),
-        HandlerActionType.SPEAK: SpeakHandler(deps),
+        HandlerActionType.SPEAK: SpeakHandler(deps, snore_channel_id=os.getenv("SNORE_CHANNEL_ID")),
         HandlerActionType.OBSERVE: ObserveHandler(deps),
         HandlerActionType.DEFER: DeferHandler(deps),
         HandlerActionType.REJECT: RejectHandler(deps),

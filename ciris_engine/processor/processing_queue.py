@@ -16,7 +16,6 @@ class ProcessingQueueItem(BaseModel):
     source_task_id: str
     thought_type: str # Corresponds to Thought.thought_type (string)
     content: Union[str, Dict[str, Any]]
-    priority: int # Derived from the associated Thought
     raw_input_string: Optional[str] = Field(default=None, description="The original input string that generated this thought, if applicable.")
     initial_context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Initial context when the thought was first received/generated for processing.")
     ponder_notes: Optional[List[str]] = Field(default=None, description="Key questions from a previous Ponder action if this item is being re-queued.")
@@ -39,7 +38,6 @@ class ProcessingQueueItem(BaseModel):
             source_task_id=thought_instance.source_task_id,
             thought_type=thought_instance.thought_type,
             content=resolved_content,
-            priority=thought_instance.priority,
             raw_input_string=raw_input if raw_input is not None else str(thought_instance.content),
             initial_context=final_initial_ctx if final_initial_ctx is not None else {},
             ponder_notes=thought_instance.ponder_notes
