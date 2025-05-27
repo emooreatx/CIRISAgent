@@ -1,8 +1,8 @@
 import logging
 from typing import Any
 
-from ..core.agent_core_schemas import Thought
-from ..core.foundational_schemas import ThoughtStatus
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 from ..core import persistence
 from .ciris_local_graph import CIRISLocalGraph, MemoryOpResult, MemoryOpStatus
 

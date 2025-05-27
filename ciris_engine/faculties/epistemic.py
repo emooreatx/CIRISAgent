@@ -7,11 +7,8 @@ import instructor
 
 # Adjusted import path for schemas
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
-
-from ciris_engine.core.agent_core_schemas import (
-    EntropyResult, CoherenceResult
-)
+from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
+from ciris_engine.schemas.guardrails_schemas_v1 import GuardrailCheckResult, GuardrailStatus
 from pydantic import BaseModel, Field
 
 # Import config to get default model name if needed, or define it directly
@@ -212,60 +209,71 @@ async def calculate_epistemic_values(
     return results
 
 async def evaluate_optimization_veto(
-    action_result: ActionSelectionPDMAResult,
+    action_result: ActionSelectionResult,
     aclient: instructor.Instructor,
     model_name: str = DEFAULT_OPENAI_MODEL_NAME
-) -> OptimizationVetoResult:
+) -> GuardrailCheckResult:
     """
     Run the optimization veto check via LLM using instructor for retries and structured output.
     """
     action_desc = f"{action_result.selected_handler_action.value} {action_result.action_parameters}"
     messages = _create_optimization_veto_messages(action_desc)
     try:
-        result: OptimizationVetoResult = await aclient.chat.completions.create(
+        result = await aclient.chat.completions.create(
             model=model_name,
-            response_model=OptimizationVetoResult,
+            response_model=dict,  # Expecting a dict for the raw result
             messages=messages,
             max_tokens=500,  
         )
         logger.info(f"Epistemic Faculty: Optimization veto result: {result}")
-        return result
+        return GuardrailCheckResult(
+            status=GuardrailStatus.PASSED if result.get("decision", "proceed") == "proceed" else GuardrailStatus.FAILED,
+            passed=result.get("decision", "proceed") == "proceed",
+            reason=result.get("justification"),
+            optimization_veto_check=result,
+            check_timestamp="",  # Should be set by caller or with datetime.now().isoformat()
+        )
     except Exception as e:
         logger.error(f"Epistemic Faculty: Error in optimization veto: {e}", exc_info=True)
-        # Return a fallback result with 'abort' decision
-        return OptimizationVetoResult(
-            decision="abort",
-            justification=f"LLM error: {str(e)}",
-            entropy_reduction_ratio=1.0,
-            affected_values=[],
-            confidence=0.0,
+        return GuardrailCheckResult(
+            status=GuardrailStatus.FAILED,
+            passed=False,
+            reason=f"LLM error: {str(e)}",
+            optimization_veto_check={"error": str(e)},
+            check_timestamp="",
         )
 
 async def evaluate_epistemic_humility(
-    action_result: ActionSelectionPDMAResult,
+    action_result: ActionSelectionResult,
     aclient: instructor.Instructor,
     model_name: str = DEFAULT_OPENAI_MODEL_NAME
-) -> EpistemicHumilityResult:
+) -> GuardrailCheckResult:
     """
     Run the epistemic humility check via LLM using instructor for retries and structured output.
     """
     desc = f"{action_result.selected_handler_action.value} {action_result.action_parameters}"
     messages = _create_epistemic_humility_messages(desc)
     try:
-        result: EpistemicHumilityResult = await aclient.chat.completions.create(
+        result = await aclient.chat.completions.create(
             model=model_name,
-            response_model=EpistemicHumilityResult,
+            response_model=dict,  # Expecting a dict for the raw result
             messages=messages,
-            max_tokens=384,  # Increased from 128 to 384
+            max_tokens=384,
         )
         logger.info(f"Epistemic Faculty: Epistemic humility result: {result}")
-        return result
+        return GuardrailCheckResult(
+            status=GuardrailStatus.PASSED if result.get("recommended_action", "proceed") == "proceed" else GuardrailStatus.FAILED,
+            passed=result.get("recommended_action", "proceed") == "proceed",
+            reason=result.get("reflective_justification"),
+            epistemic_humility_check=result,
+            check_timestamp="",
+        )
     except Exception as e:
         logger.error(f"Epistemic Faculty: Error in epistemic humility: {e}", exc_info=True)
-        # Return a fallback result with 'abort' recommendation
-        return EpistemicHumilityResult(
-            epistemic_certainty="low",
-            identified_uncertainties=[f"LLM error: {str(e)}"],
-            reflective_justification=f"LLM error: {str(e)}",
-            recommended_action="abort",
+        return GuardrailCheckResult(
+            status=GuardrailStatus.FAILED,
+            passed=False,
+            reason=f"LLM error: {str(e)}",
+            epistemic_humility_check={"error": str(e)},
+            check_timestamp="",
         )

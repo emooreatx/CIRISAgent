@@ -1,4 +1,6 @@
 from enum import Enum
+from pydantic import BaseModel
+from typing import Optional
 
 class CaseInsensitiveEnum(str, Enum):
     """Enum that allows case-insensitive value lookup."""
@@ -48,3 +50,19 @@ class ObservationSourceType(CaseInsensitiveEnum):
     USER_REQUEST = "user_request"
     AGENT_MESSAGE = "agent_message"
     INTERNAL_SIGNAL = "internal_signal"  # Simplified from INTERNAL_SENSOR
+
+class IncomingMessage(BaseModel):
+    """Schema for incoming messages from various sources."""
+    message_id: str
+    author_id: str
+    author_name: str
+    content: str
+    channel_id: Optional[str] = None
+    reference_message_id: Optional[str] = None
+    timestamp: Optional[str] = None
+    is_bot: bool = False
+    is_dm: bool = False
+
+class CIRISSchemaVersion(str, Enum):
+    """Version tracking for schema evolution."""
+    V1_0_BETA = "1.0-beta"
