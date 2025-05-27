@@ -66,3 +66,21 @@ class IncomingMessage(BaseModel):
 class CIRISSchemaVersion(str, Enum):
     """Version tracking for schema evolution."""
     V1_0_BETA = "1.0-beta"
+
+
+class DKGAssetType(str, Enum):
+    """Simplified asset type identifiers for tests."""
+    AGENT_PROFILE = "AgentProfile"
+    KNOWLEDGE_ASSET = "KnowledgeAsset"
+
+
+__all__ = [
+    "CaseInsensitiveEnum",
+    "HandlerActionType",
+    "TaskStatus",
+    "ThoughtStatus",
+    "ObservationSourceType",
+    "IncomingMessage",
+    "CIRISSchemaVersion",
+    "DKGAssetType",
+]
