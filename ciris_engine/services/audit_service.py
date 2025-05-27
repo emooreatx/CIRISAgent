@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any, Dict
 
 from .base import Service
-from ciris_engine.core.audit_schemas import AuditLogEntry
-from ciris_engine.core.foundational_schemas import HandlerActionType
+from ciris_engine.core.audit_schemas import AuditLogEntry # ERIC
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 logger = logging.getLogger(__name__)
 
