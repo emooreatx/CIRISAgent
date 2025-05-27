@@ -33,7 +33,7 @@ def pdma_evaluator(mock_openai_client, monkeypatch): # Use the raw mock_openai_c
     """
     # Mock config if needed by __init__
     mock_config = AppConfig(llm_services=LLMServicesConfig(openai=OpenAIConfig(instructor_mode="JSON", model_name="default-model-from-config")))
-    monkeypatch.setattr("ciris_engine.core.config_manager.get_config", lambda: mock_config)
+    monkeypatch.setattr("ciris_engine.config.config_manager.get_config", lambda: mock_config)
 
     # Initialize the evaluator - this will patch the mock_openai_client internally
     evaluator = EthicalPDMAEvaluator(aclient=mock_openai_client, model_name="test-pdma-model")
@@ -186,7 +186,7 @@ async def test_pdma_uses_default_model(mock_openai_client: MagicMock, sample_tho
     """Test that the default model is used if none is provided during init."""
     # Mock get_config for default model name
     mock_config = AppConfig(llm_services=LLMServicesConfig(openai=OpenAIConfig(model_name=DEFAULT_OPENAI_MODEL_NAME, instructor_mode="JSON")))
-    monkeypatch.setattr("ciris_engine.core.config_manager.get_config", lambda: mock_config)
+    monkeypatch.setattr("ciris_engine.config.config_manager.get_config", lambda: mock_config)
 
     # Create evaluator without specifying model_name - it patches mock_openai_client
     default_evaluator = EthicalPDMAEvaluator(aclient=mock_openai_client)

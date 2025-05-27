@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from ciris_engine.services.audit_service import AuditService
-from ciris_engine.core.config_manager import get_config
+from ciris_engine.config.config_manager import get_config
 from ciris_engine.schemas.config_schemas_v1 import CIRISNodeConfig
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 

@@ -14,7 +14,7 @@ from ciris_engine.schemas.config_schemas_v1 import (
     DEFAULT_DATA_DIR,
     DEFAULT_OPENAI_MODEL_NAME
 )
-from ciris_engine.core import config_manager
+from ciris_engine.config import config_manager
 
 # --- Tests for config_schemas.py ---
 
