@@ -6,7 +6,7 @@ from openai import AsyncOpenAI
 
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult
-from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
+from ciris_engine.formatters import format_user_profiles, format_system_snapshot
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
 
 logger = logging.getLogger(__name__)
@@ -97,17 +97,14 @@ The PDMA steps and their corresponding JSON fields (which you MUST generate) are
         if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
             system_snapshot = thought_item.processing_context.get("system_snapshot")
             if system_snapshot:
-                # Format user profiles using the utility function
+                # Format user profiles using the shared formatter
                 user_profiles_data = system_snapshot.get("user_profiles")
-                user_profile_context_str = format_user_profiles_for_prompt(user_profiles_data)
-                
-                # Format the rest of the system snapshot (excluding user profiles as they are handled)
-                # and other processing context details
-                system_snapshot_context_str = format_system_snapshot_for_prompt(system_snapshot, thought_item.processing_context)
+                user_profile_context_str = format_user_profiles(user_profiles_data)
 
-        # Combine context strings. User profiles are usually presented first or as part of a broader context.
-        # The format_user_profiles_for_prompt already includes a header.
-        # The format_system_snapshot_for_prompt also includes its own header.
+                # Format the rest of the system snapshot (excluding user profiles as they are handled)
+                system_snapshot_context_str = format_system_snapshot(system_snapshot)
+
+        # Combine context strings. User profiles are usually presented first.
         
         # full_context_str = user_profile_context_str + system_snapshot_context_str
         full_context_str = system_snapshot_context_str + user_profile_context_str

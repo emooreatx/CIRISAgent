@@ -8,7 +8,7 @@ from openai import AsyncOpenAI # For type hinting raw client
 # Corrected imports based on project structure
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import DSDMAResult
-from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
+from ciris_engine.formatters import format_user_profiles, format_system_snapshot
 from pydantic import BaseModel, Field
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.config.config_manager import get_config # To access global config
@@ -72,9 +72,9 @@ class BaseDSDMA(ABC):
             system_snapshot = thought_item.processing_context.get("system_snapshot")
             if system_snapshot:
                 user_profiles_data = system_snapshot.get("user_profiles")
-                user_profile_context_str = format_user_profiles_for_prompt(user_profiles_data)
-                
-                system_snapshot_context_str = format_system_snapshot_for_prompt(system_snapshot, thought_item.processing_context)
+                user_profile_context_str = format_user_profiles(user_profiles_data)
+
+                system_snapshot_context_str = format_system_snapshot(system_snapshot)
 
         # Prepare system message content
         # Subclasses might provide a more specific template.
