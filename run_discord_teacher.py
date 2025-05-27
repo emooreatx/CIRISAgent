@@ -15,7 +15,7 @@ from typing import Optional
 from ciris_engine.runtime.base_runtime import BaseRuntime, DiscordAdapter
 from ciris_engine.ports import ActionSink, DeferralSink
 from ciris_engine.adapters.discord_event_source import DiscordEventSource
-from ciris_engine.action_handlers.observation_event_handler import handle_observation_event
+from ciris_engine.action_handlers.discord_observe_handler import handle_discord_observe_event
 import ciris_engine.persistence as persistence
 from ciris_engine.config.config_manager import get_config_async
 from ciris_engine.processor import AgentProcessor
@@ -27,19 +27,18 @@ from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.services.llm_service import LLMService
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph, MemoryOpStatus
 from ciris_engine.schemas.agent_core_schemas_v1 import (
-    HandlerActionType,
     SpeakParams,
     DeferParams,
     RejectParams,
     MemorizeParams,
     RememberParams,
     ForgetParams,
-    ActParams,
+    ToolParams,
     ObserveParams,
     Thought,
 )
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, TaskStatus
 from pydantic import BaseModel # Used by handlers for params
 import uuid # Used by handlers
 from ciris_engine.utils.constants import DEFAULT_WA, WA_USER_ID # Potentially used by handlers or context
@@ -49,16 +48,9 @@ from ciris_engine.utils.profile_loader import load_profile # Added import
 
 # Centralized Action Handlers and Dispatcher
 from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
-from ciris_engine.action_handlers import (
-    ActionHandlerDependencies,
-    SpeakHandler,
-    DeferHandler,
-    RejectHandler,
-    ObserveHandler,
-    MemorizeHandler,
-    ToolHandler,
-    TaskCompleteHandler
-)
+from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+
 from ciris_engine.dma.factory import create_dsdma_from_profile
 from ciris_engine.harnesses.reflection_scheduler import schedule_reflection_modes
 
@@ -131,7 +123,7 @@ async def main() -> None:
     
     from ciris_engine.services.discord_observer import DiscordObserver
     discord_observer = DiscordObserver(
-        on_observe=handle_observation_event,
+        on_observe=handle_discord_observe_event,
         message_queue=discord_message_queue,
         monitored_channel_id=os.getenv("DISCORD_CHANNEL_ID"),
         deferral_sink=deferral_sink,
@@ -143,14 +135,6 @@ async def main() -> None:
     llm_client = llm_service.get_client()
 
     # Create dependencies for action handlers
-    # ActionSink needs runtime, but runtime needs dispatcher.
-    # We'll create a temporary sink or set it later if BaseRuntime needs it during init.
-    # For now, ActionHandlerDependencies can take None for action_sink if it's only used by handlers later.
-    # Or, we can initialize runtime, then sink, then update deps.
-    # Let's initialize ActionHandlerDependencies with a placeholder sink for now,
-    # and ensure the real sink is available when handlers are called.
-    # A better way: initialize sink after runtime, then pass to deps.
-
     action_handler_deps = ActionHandlerDependencies(
         action_sink=None, # Will be set after runtime is initialized
         memory_service=memory_service,
@@ -159,29 +143,12 @@ async def main() -> None:
         deferral_sink=deferral_sink,
     )
 
-    speak_handler = SpeakHandler(action_handler_deps, snore_channel_id=SNORE_CHANNEL_ID)
-    defer_handler = DeferHandler(action_handler_deps)
-    reject_handler = RejectHandler(action_handler_deps)
-    observe_handler = ObserveHandler(action_handler_deps)
-    memorize_handler = MemorizeHandler(action_handler_deps)
-    tool_handler = ToolHandler(action_handler_deps)
-    task_complete_handler = TaskCompleteHandler(action_handler_deps)
+    # Use the handler registry to build the dispatcher
+    new_action_dispatcher = build_action_dispatcher(
+        audit_service=None,  # Add your audit service if needed
+        **{"action_sink": None, "memory_service": memory_service, "observer_service": discord_observer, "io_adapter": discord_adapter, "deferral_sink": deferral_sink}
+    )
 
-    handlers_map = {
-        HandlerActionType.SPEAK: speak_handler,
-        HandlerActionType.DEFER: defer_handler,
-        HandlerActionType.REJECT: reject_handler,
-        HandlerActionType.OBSERVE: observe_handler,
-        HandlerActionType.MEMORIZE: memorize_handler,
-        HandlerActionType.TOOL: tool_handler,
-        HandlerActionType.TASK_COMPLETE: task_complete_handler,
-    }
-
-    # Instantiate the new ActionDispatcher
-    # The audit_service for ActionDispatcher can be created here if BaseRuntime doesn't own it solely.
-    # For now, ActionDispatcher's audit_service is optional.
-    new_action_dispatcher = ActionDispatcher(handlers=handlers_map)
-    
     runtime = BaseRuntime(
         io_adapter=discord_adapter,
         profile_path=PROFILE_PATH, # Profile object could be passed instead if already loaded

@@ -3,14 +3,16 @@ Base processor abstract class defining the interface for all processor types.
 """
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from datetime import datetime, timezone
 
+from ciris_engine.processor.thought_processor import ThoughtProcessor
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.states import AgentState
-from ciris_engine.thought_processor import ThoughtProcessor
-from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
-from ciris_engine.processor.processing_queue import ProcessingQueueItem
+
+if TYPE_CHECKING:
+    from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +24,12 @@ class BaseProcessor(ABC):
         self,
         app_config: AppConfig,
         thought_processor: ThoughtProcessor,
-        action_dispatcher: ActionDispatcher,
+        action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any]
     ):
         """Initialize base processor with common dependencies."""
         self.app_config = app_config
-        self.thought_processor = thought_processor
+        self.thought_processor = thought_processor  # type: ignore  # ThoughtProcessor is imported at runtime or via forward reference
         self.action_dispatcher = action_dispatcher
         self.services = services
         self.metrics: Dict[str, Any] = {

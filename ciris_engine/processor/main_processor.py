@@ -4,14 +4,15 @@ Uses v1 schemas and integrates state management.
 """
 import asyncio
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.states import AgentState
 
-from ciris_engine.thought_processor import ThoughtProcessor
-from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
+from ciris_engine.processor.thought_processor import ThoughtProcessor
+if TYPE_CHECKING:
+    from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 
 from .state_manager import StateManager
 from .wakeup_processor import WakeupProcessor
@@ -33,7 +34,7 @@ class AgentProcessor:
         self,
         app_config: AppConfig,
         thought_processor: ThoughtProcessor,
-        action_dispatcher: ActionDispatcher,
+        action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any],
         startup_channel_id: Optional[str] = None,
     ):

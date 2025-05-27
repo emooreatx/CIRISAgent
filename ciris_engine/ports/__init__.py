@@ -1,1 +1,1 @@
-from .ports import ActionSink, DeferralSink
+from .ports import ActionSink, DeferralSink, EventSource
