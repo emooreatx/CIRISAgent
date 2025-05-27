@@ -18,7 +18,7 @@ from ciris_engine.adapters.discord_event_source import DiscordEventSource
 from ciris_engine.core.event_router import handle_observation_event
 from ciris_engine.core import persistence
 from ciris_engine.core.config_manager import get_config_async
-from ciris_engine.core.agent_processor import AgentProcessor
+from ciris_engine.core.processor import AgentProcessor
 from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.dma.csdma import CSDMAEvaluator
@@ -36,11 +36,11 @@ from ciris_engine.core.agent_core_schemas import (
     RememberParams,
     ForgetParams,
     ActParams,
-    ActionSelectionPDMAResult,
     ObserveParams, # ObserveParams is used by ObserveHandler
     Thought,
     # ActParams, DeferParams, MemorizeParams, RejectParams, SpeakParams are used by their respective handlers
 )
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.core.foundational_schemas import ThoughtStatus, TaskStatus
 from pydantic import BaseModel # Used by handlers for params
 import uuid # Used by handlers

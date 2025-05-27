@@ -3,8 +3,11 @@ from typing import Dict, Any, Optional
 
 from pydantic import BaseModel
 
-from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, MemorizeParams, Thought
-from ciris_engine.core.foundational_schemas import ThoughtStatus, HandlerActionType # Added HandlerActionType
+# Updated imports for v1 schemas
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.action_params_v1 import MemorizeParams
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.core import persistence
 from ciris_engine.memory.ciris_local_graph import MemoryOpStatus
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
@@ -13,17 +16,20 @@ from ..exceptions import FollowUpCreationError
 
 logger = logging.getLogger(__name__)
 
+
 class MemorizeHandler(BaseActionHandler):
     async def _get_user_nick_for_memory(self, params: MemorizeParams, dispatch_context: Dict[str, Any], thought_id: Optional[str]) -> Optional[str]:
         """Helper to determine user nickname for memory operations."""
         user_nick: Optional[str] = None
-        if isinstance(params.knowledge_data, dict):
-            user_nick = params.knowledge_data.get("nick")
+        
+        # v1 MemorizeParams has 'value' field which could contain user info
+        if isinstance(params.value, dict):
+            user_nick = params.value.get("nick")
             if user_nick: return user_nick
-            user_nick = params.knowledge_data.get("user_id") # Check for user_id as well
+            user_nick = params.value.get("user_id")  # Check for user_id as well
             if user_nick: return user_nick
         
-        user_nick = dispatch_context.get("author_name") # From original event context
+        user_nick = dispatch_context.get("author_name")  # From original event context
         if user_nick: return user_nick
 
         # Fallback to checking parent task context if thought_id is available
@@ -46,7 +52,7 @@ class MemorizeHandler(BaseActionHandler):
 
     async def handle(
         self,
-        result: ActionSelectionPDMAResult,
+        result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
@@ -67,11 +73,16 @@ class MemorizeHandler(BaseActionHandler):
             follow_up_content_key_info = f"MEMORIZE action failed: MemoryService unavailable for thought {thought_id}."
         else:
             user_nick = await self._get_user_nick_for_memory(params, dispatch_context, thought_id)
-            # Channel from params.channel_metadata, fallback to dispatch_context.channel_id
-            channel_from_meta = params.channel_metadata.get("channel") if isinstance(params.channel_metadata, dict) else None
-            channel = channel_from_meta or dispatch_context.get("channel_id")
+            # Get channel from dispatch context (v1 doesn't have channel_metadata field)
+            channel = dispatch_context.get("channel_id")
             
-            metadata = params.knowledge_data if isinstance(params.knowledge_data, dict) else {"data": str(params.knowledge_data)}
+            # v1 MemorizeParams has 'key', 'value', and 'scope' fields
+            metadata = params.value if isinstance(params.value, dict) else {"data": str(params.value)}
+            
+            # Prepare channel metadata from scope or context
+            channel_metadata = {"scope": params.scope}
+            if channel:
+                channel_metadata["channel"] = channel
 
             if not user_nick or not channel:
                 self.logger.error(f"MEMORIZE failed for thought {thought_id}: Missing user_nick ('{user_nick}') or channel ('{channel}').")
@@ -83,12 +94,12 @@ class MemorizeHandler(BaseActionHandler):
                         user_nick=str(user_nick),
                         channel=str(channel),
                         metadata=metadata,
-                        channel_metadata=params.channel_metadata, # Pass full channel_metadata
-                        is_feedback=dispatch_context.get("is_wa_feedback", False) # from original context
+                        channel_metadata=channel_metadata,
+                        is_feedback=dispatch_context.get("is_wa_feedback", False)  # from original context
                     )
                     if mem_op_result.status == MemoryOpStatus.SAVED:
                         action_performed_successfully = True
-                        follow_up_content_key_info = f"Memorization successful. Knowledge: '{str(params.knowledge_data)[:50]}...'"
+                        follow_up_content_key_info = f"Memorization successful. Key: '{params.key}', Value: '{str(params.value)[:50]}...'"
                     else:
                         self.logger.error(f"Memorization operation status: {mem_op_result.status.name}. Reason: {mem_op_result.reason}. Thought ID: {thought_id}")
                         final_thought_status = ThoughtStatus.FAILED if mem_op_result.status == MemoryOpStatus.FAILED else ThoughtStatus.DEFERRED
@@ -98,10 +109,11 @@ class MemorizeHandler(BaseActionHandler):
                     final_thought_status = ThoughtStatus.FAILED
                     follow_up_content_key_info = f"MEMORIZE action failed due to exception: {str(e_mem)}"
         
+        # v1 uses 'final_action' instead of 'final_action_result'
         persistence.update_thought_status(
             thought_id=thought_id,
             new_status=final_thought_status,
-            final_action_result=result.model_dump(),
+            final_action=result.model_dump(),  # Changed from final_action_result
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after MEMORIZE attempt.")
 
@@ -113,7 +125,7 @@ class MemorizeHandler(BaseActionHandler):
                 f"Info: {follow_up_content_key_info}. "
                 "Consider informing the user with SPEAK or select TASK_COMPLETE if the overall task is finished."
             )
-        else: # Failed or Deferred
+        else:  # Failed or Deferred
             follow_up_text = f"MEMORIZE action for thought {thought_id} resulted in status {final_thought_status.value}. Info: {follow_up_content_key_info}. Review and determine next steps."
 
         try:
@@ -123,18 +135,19 @@ class MemorizeHandler(BaseActionHandler):
                 priority_offset=1 if action_performed_successfully else 0,
             )
 
-            processing_ctx_for_follow_up = {
+            # v1 uses 'context' instead of 'processing_context'
+            context_for_follow_up = {
                 "action_performed": HandlerActionType.MEMORIZE.value
             }
             if final_thought_status != ThoughtStatus.COMPLETED:
-                processing_ctx_for_follow_up["error_details"] = follow_up_content_key_info
+                context_for_follow_up["error_details"] = follow_up_content_key_info
 
             action_params_dump = result.action_parameters
             if isinstance(action_params_dump, BaseModel):
                 action_params_dump = action_params_dump.model_dump(mode="json")
-            processing_ctx_for_follow_up["action_params"] = action_params_dump
+            context_for_follow_up["action_params"] = action_params_dump
 
-            new_follow_up.processing_context = processing_ctx_for_follow_up
+            new_follow_up.context = context_for_follow_up  # v1 uses 'context'
             persistence.add_thought(new_follow_up)
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after MEMORIZE action."

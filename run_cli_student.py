@@ -10,7 +10,7 @@ from ciris_engine.runtime.base_runtime import BaseRuntime, CLIAdapter
 from ciris_engine.core.ports import ActionSink
 from ciris_engine.core import persistence
 from ciris_engine.core.config_manager import get_config_async
-from ciris_engine.core.agent_processor import AgentProcessor
+from ciris_engine.core.processor import AgentProcessor
 from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.dma.csdma import CSDMAEvaluator
@@ -18,16 +18,10 @@ from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.services.llm_service import LLMService
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
-from ciris_engine.core.agent_core_schemas import (
-    HandlerActionType,
-    SpeakParams,
-    DeferParams,
-    RejectParams,
-    MemorizeParams,
-    ActParams,
-    ActionSelectionPDMAResult,
-)
-from ciris_engine.core.foundational_schemas import ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.dma_results_v1 import SpeakParams, DeferParams, RejectParams, MemorizeParams
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +47,7 @@ class CLIActionSink(ActionSink):
         return None
 
 
-async def _cli_handler(runtime: BaseRuntime, sink: ActionSink, result: ActionSelectionPDMAResult, ctx: dict) -> None:
+async def _cli_handler(runtime: BaseRuntime, sink: ActionSink, result: ActionSelectionResult, ctx: dict) -> None:
     """Handle speak/notify style actions for CLI output."""
     thought_id = ctx.get("thought_id")
     action = result.selected_handler_action

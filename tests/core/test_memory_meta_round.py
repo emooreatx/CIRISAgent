@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from collections import deque
 
-from ciris_engine.core.agent_processor import AgentProcessor
+from ciris_engine.core.processor import AgentProcessor
 from ciris_engine.core.agent_core_schemas import Thought
 from ciris_engine.core.foundational_schemas import ThoughtStatus
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem

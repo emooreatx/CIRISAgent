@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timezone
 import collections
 
-from ciris_engine.core.agent_processor import AgentProcessor
+from ciris_engine.core.processor import AgentProcessor
 from ciris_engine.core.config_schemas import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig
 from ciris_engine.core.agent_core_schemas import Task, Thought, ActionSelectionPDMAResult
 from ciris_engine.core.foundational_schemas import TaskStatus, ThoughtStatus, HandlerActionType # <-- Import HandlerActionType
