@@ -69,6 +69,7 @@ class AppConfig(BaseModel):
     guardrails: GuardrailsConfig = GuardrailsConfig()
     workflow: WorkflowConfig = WorkflowConfig()
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
+    default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
 
 # Expose commonly used constants at module level for convenience

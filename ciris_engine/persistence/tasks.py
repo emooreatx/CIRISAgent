@@ -93,3 +93,30 @@ def update_task_status(task_id: str, new_status: TaskStatus) -> bool:
 
 def task_exists(task_id: str) -> bool:
     return get_task_by_id(task_id) is not None
+
+def get_recent_completed_tasks(limit: int = 10) -> list[Task]:
+    """Return the most recent completed tasks, sorted by updated_at descending, as Task objects."""
+    tasks = get_all_tasks()  # Already returns List[Task]
+    completed = [t for t in tasks if getattr(t, 'status', None) == TaskStatus.COMPLETED]
+    completed_sorted = sorted(completed, key=lambda t: getattr(t, 'updated_at', ''), reverse=True)
+    return completed_sorted[:limit]
+
+def get_top_tasks(limit: int = 10) -> list[Task]:
+    """Return the top tasks by priority, then by created_at ascending, as Task objects."""
+    tasks = get_all_tasks()  # Already returns List[Task]
+    sorted_tasks = sorted(tasks, key=lambda t: (-getattr(t, 'priority', 0), getattr(t, 'created_at', '')))
+    return sorted_tasks[:limit]
+
+def count_tasks(status: Optional[TaskStatus] = None) -> int:
+    """
+    Return the count of tasks.
+    If status is provided, counts tasks with that specific status.
+    Otherwise, counts all tasks.
+    """
+    # This approach fetches all tasks then filters.
+    # For performance on large datasets, a direct SQL COUNT query would be better.
+    # However, sticking to the existing pattern of get_all_tasks() for now.
+    tasks = get_all_tasks()
+    if status:
+        return sum(1 for t in tasks if getattr(t, 'status', None) == status)
+    return len(tasks)

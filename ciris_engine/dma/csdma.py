@@ -30,7 +30,7 @@ Reference CSDMA Steps for Evaluation:
 6. Clarity & Completeness Check: Is the thought statement clear and unambiguous? Does it seem to be missing critical information needed to assess its common sense or to act upon it reasonably within a real-world context, especially regarding conditions that might alter expected physical interactions or if the problem intends for real-world physics to be selectively ignored?
 
 Your response MUST be a single JSON object adhering to the provided schema, with the following keys:
-- "common_sense_plausibility_score": A float between 0.0 (highly implausible) and 1.0 (highly plausible). **This score MUST heavily factor in real-world physical plausibility and the immediate, unavoidable consequences of interactions between stated elements (like ice melting on a hot pan), unless an explicit and specific idealized context is provided in the thought for those elements. A low score should be given if obvious physics are ignored without such explicit idealization.**
+- "plausibility_score": A float between 0.0 (highly implausible) and 1.0 (highly plausible). **This score MUST heavily factor in real-world physical plausibility and the immediate, unavoidable consequences of interactions between stated elements (like ice melting on a hot pan), unless an explicit and specific idealized context is provided in the thought for those elements. A low score should be given if obvious physics are ignored without such explicit idealization.**
 - "flags": A list of strings identifying any specific common sense violations, physical implausibilities (especially ignored interactions), or clarity issues (e.g., "Physical_Implausibility_Ignored_Interaction", "Atypical_Approach", "Ambiguous_Statement", "Needs_Clarification", "Information_Missing", "Requires_Explicit_Idealization_Statement", "Potential_Trick_Question_Physics_Ignored"). If none, provide an empty list. This field is MANDATORY (even if empty).
 - "reasoning": A brief (1-2 sentences) explanation for your score and flags. This field is MANDATORY.
 
@@ -76,7 +76,7 @@ class CSDMAEvaluator:
         self.env_kg = environmental_kg # Placeholder for now
         self.task_kg = task_specific_kg   # Placeholder for now
         # Log the final client type and mode being used
-        log_mode = self.aclient.mode.name if hasattr(self.aclient, 'mode') else 'N/A (Raw Client?)'
+        log_mode = self.aclient.mode.name if hasattr(self.aclient, 'mode') else self.instructor_mode.name
         logger.info(f"CSDMAEvaluator initialized with model: {self.model_name}. Using instructor client with mode: {log_mode}. Overrides: {self.prompt_overrides is not None}")
 
     def _create_csdma_messages_for_instructor(
@@ -181,7 +181,7 @@ class CSDMAEvaluator:
                     setattr(csdma_eval, 'raw_llm_response', str(raw_resp))
 
 
-            logger.info(f"CSDMA (instructor) evaluation successful for thought ID {thought_item.thought_id}: Score {csdma_eval.common_sense_plausibility_score:.2f}")
+            logger.info(f"CSDMA (instructor) evaluation successful for thought ID {thought_item.thought_id}: Score {csdma_eval.plausibility_score:.2f}") # Corrected field name
             return csdma_eval
 
         except InstructorRetryException as e_instr: # Catch specific instructor retry/validation error
@@ -189,7 +189,7 @@ class CSDMAEvaluator:
             logger.error(f"CSDMA (instructor) InstructorRetryException for thought {thought_item.thought_id}: {error_detail}", exc_info=True)
             # Add required args to exception for fallback result
             return CSDMAResult(
-                common_sense_plausibility_score=0.0, # Default to lowest plausibility on error
+                plausibility_score=0.0, # Corrected field name, Default to lowest plausibility on error
                 flags=["Instructor_ValidationError"],
                 reasoning=f"Failed CSDMA evaluation via instructor due to validation error: {error_detail}",
                 raw_llm_response=f"InstructorRetryException: {error_detail}"
@@ -197,7 +197,7 @@ class CSDMAEvaluator:
         except Exception as e: # Catch other potential errors (API connection, etc.)
             logger.error(f"CSDMA (instructor) evaluation failed for thought ID {thought_item.thought_id}: {e}", exc_info=True)
             return CSDMAResult(
-                common_sense_plausibility_score=0.0, # Default to lowest plausibility on error
+                plausibility_score=0.0, # Corrected field name, Default to lowest plausibility on error
                 flags=["LLM_Error_Instructor"],
                 reasoning=f"Failed CSDMA evaluation via instructor: {str(e)}",
                 raw_llm_response=f"Exception: {str(e)}"

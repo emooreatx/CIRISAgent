@@ -202,9 +202,12 @@ class ActionSelectionPDMAEvaluator:
         if agent_profile and hasattr(agent_profile, 'name'): # Check for 'name' attribute
              agent_name_from_thought = agent_profile.name
              logger.debug(f"Using agent name '{agent_name_from_thought}' from provided agent_profile object.")
-        elif hasattr(original_thought, 'processing_context') and original_thought.processing_context:
+        
+        # Access processing_context from triaged_inputs
+        processing_context_data = triaged_inputs.get('processing_context')
+        if not agent_name_from_thought and processing_context_data and isinstance(processing_context_data, dict):
             # Fallback to environment_context within the thought if agent_profile not passed or no name
-            environment_context = original_thought.processing_context.get('environment_context')
+            environment_context = processing_context_data.get('environment_context') # Use processing_context_data
             if isinstance(environment_context, dict):
                 agent_name_from_thought = environment_context.get('agent_name')
                 if agent_name_from_thought:
@@ -231,14 +234,21 @@ class ActionSelectionPDMAEvaluator:
         action_options_str = ", ".join([action.value.upper() for action in permitted_actions])
         # --- End dynamic permitted actions ---
 
-        # Using ethical_pdma_result.decision as decision_rationale is not present
-        ethical_summary = f"Ethical PDMA Stance: {ethical_pdma_result.decision}. Key Conflicts: {ethical_pdma_result.conflicts or 'None'}. Resolution: {ethical_pdma_result.resolution or 'None'}."
-        csdma_summary = f"CSDMA Output: Plausibility {csdma_result.common_sense_plausibility_score:.2f}, Flags: {', '.join(csdma_result.flags) if csdma_result.flags else 'None'}. Reasoning: {csdma_result.reasoning}"
+        # Construct ethical_summary carefully, accessing potential nested fields in alignment_check
+        conflicts_str = "None"
+        resolution_str = "None"
+        if isinstance(ethical_pdma_result.alignment_check, dict):
+            conflicts_str = str(ethical_pdma_result.alignment_check.get('conflicts', "None"))
+            resolution_str = str(ethical_pdma_result.alignment_check.get('resolution', "None"))
+        
+        ethical_summary = f"Ethical PDMA Stance: {ethical_pdma_result.decision}. Key Conflicts: {conflicts_str}. Resolution: {resolution_str}."
+        # Note: csdma_result.common_sense_plausibility_score was an old field name, schema uses plausibility_score
+        csdma_summary = f"CSDMA Output: Plausibility {csdma_result.plausibility_score:.2f}, Flags: {', '.join(csdma_result.flags) if csdma_result.flags else 'None'}. Reasoning: {csdma_result.reasoning}"
         
         dsdma_summary_str = "DSDMA did not apply or did not run for this thought."
         if dsdma_result:
-            # Accessing dsdma_result.domain_name which was added to the schema
-            dsdma_summary_str = f"DSDMA ({dsdma_result.domain_name}) Output: Score {dsdma_result.domain_alignment_score:.2f}, Recommended Domain Action: {dsdma_result.recommended_action or 'None'}, Flags: {', '.join(dsdma_result.flags) if dsdma_result.flags else 'None'}. Reasoning: {dsdma_result.reasoning}"
+            # Accessing dsdma_result.domain and dsdma_result.alignment_score as per schema
+            dsdma_summary_str = f"DSDMA ({dsdma_result.domain}) Output: Score {dsdma_result.alignment_score:.2f}, Recommended Domain Action: {dsdma_result.recommended_action or 'None'}, Flags: {', '.join(dsdma_result.flags) if dsdma_result.flags else 'None'}. Reasoning: {dsdma_result.reasoning}"
 
         ponder_notes_str_for_prompt_if_any = ""
         notes_list = original_thought.ponder_notes if original_thought.ponder_notes else []
@@ -295,8 +305,9 @@ class ActionSelectionPDMAEvaluator:
         system_snapshot_context_str = "" # This will include general system snapshot details
         other_processing_context_str = ""
 
-        if original_thought.processing_context:
-            system_snapshot = original_thought.processing_context.get("system_snapshot")
+        # Use processing_context_data obtained from triaged_inputs
+        if processing_context_data and isinstance(processing_context_data, dict):
+            system_snapshot = processing_context_data.get("system_snapshot")
             if system_snapshot and isinstance(system_snapshot, dict):
                 user_profiles_data = system_snapshot.get("user_profiles")
                 user_profile_context_str = format_user_profiles(user_profiles_data)
@@ -363,13 +374,15 @@ Adhere strictly to the schema for your JSON output.
         triaged_inputs: Dict[str, Any]
     ) -> ActionSelectionResult:
         original_thought: Thought = triaged_inputs['original_thought'] # For logging & post-processing
+        processing_context_data = triaged_inputs.get('processing_context') # Define this at the start of the method
 
         # --- Special case for forcing PONDER ---
-        # Check the original message content from the task context stored in the thought's processing_context
+        # Check the original message content from the task context stored in the processing_context
         original_message_content = None
-        if original_thought.processing_context and \
-           isinstance(original_thought.processing_context.get("initial_task_context"), dict):
-            original_message_content = original_thought.processing_context["initial_task_context"].get("content")
+        # Use processing_context_data defined above
+        if processing_context_data and isinstance(processing_context_data, dict) and \
+           isinstance(processing_context_data.get("initial_task_context"), dict):
+            original_message_content = processing_context_data["initial_task_context"].get("content")
 
         if original_message_content and original_message_content.strip().lower() == "ponder":
             logger.info(f"ActionSelectionPDMA: Detected 'ponder' keyword in original message for thought ID {original_thought.thought_id}. Forcing PONDER action.")
@@ -403,8 +416,10 @@ Adhere strictly to the schema for your JSON output.
 
         system_snapshot_block = ""
         user_profiles_block = ""
-        if original_thought.processing_context and isinstance(original_thought.processing_context.get("system_snapshot"), dict):
-            system_snapshot = original_thought.processing_context.get("system_snapshot")
+        # Use processing_context_data obtained from triaged_inputs
+        if processing_context_data and isinstance(processing_context_data, dict) and \
+           isinstance(processing_context_data.get("system_snapshot"), dict):
+            system_snapshot = processing_context_data.get("system_snapshot")
             user_profiles_block = format_user_profiles(system_snapshot.get("user_profiles"))
             system_snapshot_block = format_system_snapshot(system_snapshot)
 
@@ -415,8 +430,9 @@ Adhere strictly to the schema for your JSON output.
         )
 
         identity_block = ""
-        if hasattr(original_thought, "processing_context") and original_thought.processing_context:
-            identity_block = original_thought.processing_context.get("identity_context", "")
+        # Use processing_context_data obtained from triaged_inputs
+        if processing_context_data and isinstance(processing_context_data, dict):
+            identity_block = processing_context_data.get("identity_context", "")
 
         system_message = format_system_prompt_blocks(
             identity_block,
@@ -480,103 +496,66 @@ Adhere strictly to the schema for your JSON output.
             if hasattr(llm_response_internal, '_raw_response'):
                 raw_llm_response_str = str(llm_response_internal._raw_response)
 
+            action_params_dict = {}
+            if isinstance(parsed_action_params, BaseModel):
+                action_params_dict = parsed_action_params.model_dump(mode='json')
+            elif isinstance(parsed_action_params, dict):
+                action_params_dict = parsed_action_params
+            else:
+                logger.warning(f"action_parameters is not a Pydantic model or dict: {type(parsed_action_params)}. Using empty dict.")
+
             final_action_eval = ActionSelectionResult(
-                schema_version=llm_response_internal.schema_version,
-                context_summary_for_action_selection=llm_response_internal.context_summary_for_action_selection,
-                action_alignment_check=llm_response_internal.action_alignment_check,
-                action_conflicts=llm_response_internal.action_conflicts,
-                action_resolution=llm_response_internal.action_resolution,
-                selected_handler_action=llm_response_internal.selected_handler_action,
-                action_parameters=parsed_action_params, # Use the parsed or original dict
-                action_selection_rationale=llm_response_internal.action_selection_rationale,
-                monitoring_for_selected_action=llm_response_internal.monitoring_for_selected_action,
-                confidence_score=llm_response_internal.confidence_score,
-                raw_llm_response=raw_llm_response_str # Populate from the internal response
+                selected_action=llm_response_internal.selected_handler_action,
+                action_parameters=action_params_dict,
+                rationale=llm_response_internal.action_selection_rationale,
+                confidence=llm_response_internal.confidence_score,
+                raw_llm_response=raw_llm_response_str
             )
 
-            # Populate the decision_input_context_snapshot
-            input_snapshot_for_decision = {}
-            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
-                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
-                if system_snapshot_data is not None:
-                    if isinstance(system_snapshot_data, dict): # Ensure it's a dict
-                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
-                    else: # It's not a dict but not None (e.g. error string)
-                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
-                else: # system_snapshot key not found
-                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
-                
-                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
-                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
-                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
-            else: # processing_context attribute doesn't exist or is None/empty
-                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
-            
-            final_action_eval.decision_input_context_snapshot = input_snapshot_for_decision
+            # Fields like schema_version, context_summary_for_action_selection, action_alignment_check,
+            # action_conflicts, action_resolution, monitoring_for_selected_action,
+            # and decision_input_context_snapshot are part of _ActionSelectionLLMResponse (LLM output)
+            # but not part of the final ActionSelectionResult schema.
+            # They can be logged or used internally if needed before returning ActionSelectionResult.
+            # For example, logging them:
+            logger.debug(f"LLM Response Details for thought {original_thought.thought_id}: "
+                         f"schema_version={llm_response_internal.schema_version}, "
+                         f"context_summary={llm_response_internal.context_summary_for_action_selection}, "
+                         f"alignment_check={llm_response_internal.action_alignment_check}, "
+                         f"conflicts={llm_response_internal.action_conflicts}, "
+                         f"resolution={llm_response_internal.action_resolution}, "
+                         f"monitoring={llm_response_internal.monitoring_for_selected_action}")
 
-            logger.info(f"ActionSelectionPDMA (instructor) evaluation successful for thought ID {original_thought.thought_id}: Chose {final_action_eval.selected_handler_action.value}")
+
+            logger.info(f"ActionSelectionPDMA (instructor) evaluation successful for thought ID {original_thought.thought_id}: Chose {final_action_eval.selected_action.value}")
             logger.debug(f"ActionSelectionPDMA (instructor) action_parameters: {final_action_eval.action_parameters}")
             return final_action_eval
 
         except InstructorRetryException as e_instr:
             error_detail = e_instr.errors() if hasattr(e_instr, 'errors') else str(e_instr)
             logger.error(f"ActionSelectionPDMA (instructor) InstructorRetryException for thought {original_thought.thought_id}: {error_detail}", exc_info=True)
-            fallback_params = PonderParams(key_questions=[f"System error during action selection: {error_detail}"])
+            fallback_params = PonderParams(questions=[f"System error during action selection: {error_detail}"]) # Corrected key_questions to questions
 
-            input_snapshot_for_decision = {}
-            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
-                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
-                if system_snapshot_data is not None:
-                    if isinstance(system_snapshot_data, dict):
-                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
-                    else:
-                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
-                else:
-                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
-                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
-                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
-                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
-            else:
-                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
-
+            # input_snapshot_for_decision logic removed as it's not part of ActionSelectionResult
+            # The fields context_summary_for_action_selection, action_alignment_check, decision_input_context_snapshot,
+            # selected_handler_action, action_selection_rationale, monitoring_for_selected_action
+            # are not part of ActionSelectionResult schema for fallback.
+            # Fallback should only populate fields of ActionSelectionResult.
             return ActionSelectionResult(
-                context_summary_for_action_selection="Error: LLM/Instructor validation error during action selection.",
-                action_alignment_check={"error": f"InstructorRetryException: {error_detail}"},
-                decision_input_context_snapshot=input_snapshot_for_decision,
-                selected_handler_action=HandlerActionType.PONDER, 
-                action_parameters=fallback_params,
-                action_selection_rationale=f"Fallback due to InstructorRetryException: {error_detail}",
-                monitoring_for_selected_action="Monitor system logs for error resolution.",
+                selected_action=HandlerActionType.PONDER, 
+                action_parameters=fallback_params.model_dump(mode='json'),
+                rationale=f"Fallback due to InstructorRetryException: {error_detail}",
                 raw_llm_response=f"InstructorRetryException: {error_detail}"
             )
         except Exception as e:
             logger.error(f"ActionSelectionPDMA (instructor) evaluation failed for thought ID {original_thought.thought_id}: {e}", exc_info=True)
-            fallback_params = PonderParams(key_questions=[f"System error during action selection: {str(e)}"])
+            fallback_params = PonderParams(questions=[f"System error during action selection: {str(e)}"]) # Corrected key_questions to questions
 
-            input_snapshot_for_decision = {}
-            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
-                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
-                if system_snapshot_data is not None:
-                    if isinstance(system_snapshot_data, dict):
-                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
-                    else:
-                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
-                else:
-                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
-                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
-                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
-                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
-            else:
-                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
-
+            # input_snapshot_for_decision logic removed as it's not part of ActionSelectionResult
             return ActionSelectionResult(
-                context_summary_for_action_selection=f"Error: General exception - {str(e)}",
-                action_alignment_check={"error": f"General Exception: {str(e)}"},
-                decision_input_context_snapshot=input_snapshot_for_decision,
-                selected_handler_action=HandlerActionType.PONDER,
-                action_parameters=fallback_params,
-                action_selection_rationale=f"Fallback due to General Exception: {str(e)}",
-                monitoring_for_selected_action="Monitor system logs for error resolution.",
+                selected_action=HandlerActionType.PONDER,
+                action_parameters=fallback_params.model_dump(mode='json'),
+                rationale=f"Fallback due to General Exception: {str(e)}",
                 raw_llm_response=f"Exception: {str(e)}"
             )
 

@@ -20,21 +20,31 @@ class ContextBuilder:
         task: Optional[Task] = None
     ) -> ThoughtContext:
         """Build complete context for thought processing."""
-        # Extract all context building logic from WorkflowCoordinator.build_context
-        # Return structured ThoughtContext object
-        system_snapshot = await self.build_system_snapshot(task, thought)
-        # Compose the ThoughtContext (minimal v1)
+        system_snapshot_data = await self.build_system_snapshot(task, thought)
+
+        # Extract user_profiles for the top-level field, providing a default.
+        # The build_system_snapshot method already puts 'user_profiles' into its result if available.
+        # If user_profiles is part of system_snapshot_data and also a top-level field in ThoughtContext,
+        # we might want to avoid duplication. For now, we get it and pass it separately.
+        # If it's intended to remain in system_snapshot_data as well, this is fine.
+        user_profiles_data = system_snapshot_data.get("user_profiles", {})
+        
+        # Use recently_completed_tasks_summary from the snapshot as task_history for now.
+        # This matches the List[Dict[str, Any]] type.
+        # A more specific source for task_history might be needed in the future.
+        task_history_data = system_snapshot_data.get("recently_completed_tasks_summary", [])
+
+        identity_context_str = self.memory_service.export_identity_context() if self.memory_service else None
+        
+        # Note: The original instantiation had thought_id, task_id, and thought_summary.
+        # These are not direct fields of ThoughtContext schema.
+        # current_thought_summary and current_task_details are already part of system_snapshot_data.
+        
         return ThoughtContext(
-            thought_id=thought.thought_id,
-            task_id=thought.source_task_id,
-            system_snapshot=system_snapshot,
-            thought_summary={
-                "content": thought.content,
-                "status": thought.status.value if hasattr(thought.status, 'value') else str(thought.status),
-                "ponder_count": thought.ponder_count,
-                "thought_type": thought.thought_type
-            },
-            # Add more fields as needed for v1 extensibility
+            system_snapshot=system_snapshot_data,
+            user_profiles=user_profiles_data,
+            task_history=task_history_data,
+            identity_context=identity_context_str
         )
 
     async def build_system_snapshot(
@@ -87,9 +97,9 @@ class ContextBuilder:
             "current_thought_summary": thought_summary,
             "system_counts": {
                 "total_tasks": self.memory_service.count_tasks() if self.memory_service else 0,
-                "total_thoughts": self.memory_service.count_thoughts() if self.memory_service else 0,
+                "total_thoughts": self.memory_service.count_thoughts() if self.memory_service else 0, # This now correctly counts PENDING + PROCESSING
                 "pending_tasks": self.memory_service.count_tasks("pending") if self.memory_service else 0,
-                "pending_thoughts": self.memory_service.count_thoughts("pending") if self.memory_service else 0,
+                "pending_thoughts": self.memory_service.count_thoughts() if self.memory_service else 0, # Corrected: count_thoughts takes no args
             },
             "top_pending_tasks_summary": top_tasks_list,
             "recently_completed_tasks_summary": recent_tasks_list

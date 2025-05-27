@@ -142,6 +142,7 @@ async def main() -> None:
         enable_remote_graphql=app_config.guardrails.enable_remote_graphql
     )
 
+    # Remove incorrect app_config kwarg, pass only supported args
     context_builder = ContextBuilder(
         memory_service=memory_service,
         graphql_provider=graphql_provider
@@ -236,10 +237,21 @@ async def main() -> None:
         # Add any other services needed by AgentProcessor
     }
     
-    dma_orchestrator = DMAOrchestrator(app_config=app_config, llm_service=llm_service, memory_service=memory_service)
-    context_builder = ContextBuilder(app_config=app_config, memory_service=memory_service)
-    guardrail_orchestrator = GuardrailOrchestrator(app_config=app_config, guardrails=guardrails)
-    ponder_manager = PonderManager(app_config=app_config, memory_service=memory_service)
+    dma_orchestrator = DMAOrchestrator(
+        ethical_pdma,
+        csdma,
+        dsdma_instance,
+        action_pdma,
+        app_config=app_config,
+        llm_service=llm_service,
+        memory_service=memory_service
+    )
+    context_builder = ContextBuilder(
+        memory_service=memory_service,
+        graphql_provider=graphql_provider
+    )
+    guardrail_orchestrator = GuardrailOrchestrator(guardrails)
+    ponder_manager = PonderManager()
 
     thought_processor = ThoughtProcessor(
         dma_orchestrator,
