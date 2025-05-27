@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 
 from ciris_engine.core import persistence
-from ciris_engine.core.foundational_schemas import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 
 logger = logging.getLogger(__name__)
 

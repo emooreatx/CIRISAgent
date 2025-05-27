@@ -18,14 +18,8 @@ from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.services.llm_service import LLMService
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
-from ciris_engine.core.agent_core_schemas import (
-    HandlerActionType,
-    SpeakParams,
-    DeferParams,
-    RejectParams,
-    MemorizeParams,
-    ActParams,
-)
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.dma_results_v1 import SpeakParams, DeferParams, RejectParams, MemorizeParams
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 

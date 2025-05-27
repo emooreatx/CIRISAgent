@@ -19,7 +19,6 @@ from ciris_engine.schemas.dma_results_v1 import (
 from ciris_engine.schemas.action_params_v1 import (
     ObserveParams,
     SpeakParams,
-    ActParams, # ERIC?
     PonderParams,
     RejectParams,
     DeferParams,
@@ -27,8 +26,9 @@ from ciris_engine.schemas.action_params_v1 import (
     RememberParams,
     ForgetParams,
 )
-from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHandlerActionType
-from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME
+from ciris_engine.schemas.action_params_v1 import ToolParams
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType as CoreHandlerActionType
+from ciris_engine.schemas.config_schemas_v1 import DEFAULT_OPENAI_MODEL_NAME
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
 from ciris_engine.formatters import (
@@ -436,17 +436,17 @@ Adhere strictly to the schema for your JSON output.
 
             # Manually construct the final ActionSelectionResult
             # and parse action_parameters
-            parsed_action_params: Union[ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]] = llm_response_internal.action_parameters
+            parsed_action_params: Union[ObserveParams, SpeakParams, ToolParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]] = llm_response_internal.action_parameters
             if isinstance(llm_response_internal.action_parameters, dict):  # If LLM returns a dict, try to parse to specific type
                 action_type = llm_response_internal.selected_handler_action
-                if not isinstance(llm_response_internal.action_parameters, (ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams)):
+                if not isinstance(llm_response_internal.action_parameters, (ObserveParams, SpeakParams, ToolParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams)):
                     try:
                         if action_type == HandlerActionType.OBSERVE:
                             parsed_action_params = ObserveParams(**llm_response_internal.action_parameters)
                         elif action_type == HandlerActionType.SPEAK:
                             parsed_action_params = SpeakParams(**llm_response_internal.action_parameters)
                         elif action_type == HandlerActionType.TOOL:
-                            parsed_action_params = ActParams(**llm_response_internal.action_parameters)
+                            parsed_action_params = ToolParams(**llm_response_internal.action_parameters)
                         elif action_type == HandlerActionType.PONDER:
                             parsed_action_params = PonderParams(**llm_response_internal.action_parameters)
                         elif action_type == HandlerActionType.REJECT:
@@ -586,7 +586,7 @@ class _ActionSelectionLLMResponse(BaseModel):
     action_resolution: Optional[str] = None
     selected_handler_action: CoreHandlerActionType  # Use aliased HandlerActionType
     action_parameters: Union[
-        ObserveParams, SpeakParams, ActParams, PonderParams,
+        ObserveParams, SpeakParams, ToolParams, PonderParams,
         RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]
     ]
     action_selection_rationale: str
@@ -599,7 +599,7 @@ class _ActionSelectionLLMResponse(BaseModel):
 ACTION_PARAM_MODELS: Dict[CoreHandlerActionType, type[BaseModel]] = {
     CoreHandlerActionType.OBSERVE: ObserveParams,
     CoreHandlerActionType.SPEAK: SpeakParams,
-    CoreHandlerActionType.TOOL: ActParams,
+    CoreHandlerActionType.TOOL: ToolParams,
     CoreHandlerActionType.PONDER: PonderParams,
     CoreHandlerActionType.REJECT: RejectParams,
     CoreHandlerActionType.DEFER: DeferParams,
