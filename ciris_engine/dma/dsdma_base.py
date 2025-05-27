@@ -118,16 +118,16 @@ class BaseDSDMA(ABC):
             )
 
             result = DSDMAResult(
-                domain_name=self.domain_name,
-                domain_alignment_score=min(max(llm_eval_data.domain_alignment_score, 0.0), 1.0),
+                domain=self.domain_name, # Corrected field name
+                alignment_score=min(max(llm_eval_data.domain_alignment_score, 0.0), 1.0), # Corrected field name
                 recommended_action=llm_eval_data.recommended_action,
                 flags=llm_eval_data.flags,
-                reasoning=llm_eval_data.reasoning,
-                domain_specific_output={},
+                reasoning=llm_eval_data.reasoning
+                # domain_specific_output was not a field in DSDMAResult schema
             )
             logger.info(
                 f"DSDMA '{self.domain_name}' (instructor) evaluation successful for thought ID {thought_item.thought_id}: "
-                f"Score {result.domain_alignment_score}, Recommended Action: {result.recommended_action}"
+                f"Score {result.alignment_score}, Recommended Action: {result.recommended_action}" # Corrected field name
             )
             if hasattr(llm_eval_data, "_raw_response"):
                 result.raw_llm_response = str(llm_eval_data._raw_response)
@@ -139,8 +139,8 @@ class BaseDSDMA(ABC):
                 exc_info=True,
             )
             return DSDMAResult(
-                domain_name=self.domain_name,
-                domain_alignment_score=0.0,
+                domain=self.domain_name, # Corrected field name
+                alignment_score=0.0,   # Corrected field name
                 recommended_action=None,
                 flags=["Instructor_ValidationError"],
                 reasoning=f"Failed DSDMA evaluation via instructor due to validation error: {error_detail}",
@@ -152,8 +152,8 @@ class BaseDSDMA(ABC):
                 exc_info=True,
             )
             return DSDMAResult(
-                domain_name=self.domain_name,
-                domain_alignment_score=0.0,
+                domain=self.domain_name, # Corrected field name
+                alignment_score=0.0,   # Corrected field name
                 recommended_action=None,
                 flags=["LLM_Error_Instructor"],
                 reasoning=f"Failed DSDMA evaluation via instructor: {str(e)}",

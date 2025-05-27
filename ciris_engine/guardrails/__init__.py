@@ -60,7 +60,7 @@ class EthicalGuardrails:
         Returns:
             A tuple: (passes_guardrail: bool, reason: Optional[str], epistemic_data: Optional[Dict[str, Any]])
         """
-        action_type = proposed_action_result.selected_handler_action
+        action_type = proposed_action_result.selected_action # Corrected field name
         action_params = proposed_action_result.action_parameters
 
         epistemic_data: Dict[str, Any] = {}

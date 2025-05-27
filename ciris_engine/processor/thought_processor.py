@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import ActionSelectionResult, Thought
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType # Added imports
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +44,13 @@ class ThoughtProcessor:
         context = await self.context_builder.build_thought_context(thought)
 
         # 3. Run DMAs
+        # profile_name is not an accepted argument by run_initial_dmas.
+        # If profile specific DMA behavior is needed, it might be part of thought_item's context
+        # or run_initial_dmas and its sub-runners would need to be updated.
+        # For now, removing profile_name to fix TypeError.
+        # The dsdma_context argument is optional and defaults to None if not provided.
         dma_results = await self.dma_orchestrator.run_initial_dmas(
-            thought_item, 
-            profile_name=self._get_profile_name(thought)
+            thought_item=thought_item
         )
 
         # 4. Check for failures/escalations
@@ -53,8 +58,13 @@ class ThoughtProcessor:
             return self._create_deferral_result(dma_results, thought)
 
         # 5. Run action selection
+        profile_name = self._get_profile_name(thought)
         action_result = await self.dma_orchestrator.run_action_selection(
-            dma_results, thought, self._get_permitted_actions(thought)
+            thought_item=thought_item,
+            actual_thought=thought,
+            processing_context=context, # This is the ThoughtContext
+            dma_results=dma_results,
+            profile_name=profile_name
         )
 
         # 6. Apply guardrails
@@ -89,25 +99,68 @@ class ThoughtProcessor:
         # Placeholder: implement logic to detect critical DMA failures
         return getattr(dma_results, 'critical_failure', False)
 
-    def _create_deferral_result(self, dma_results: Any, thought: Thought) -> ActionSelectionResult:
-        # Placeholder: create a deferral ActionSelectionResult
+    def _create_deferral_result(self, dma_results: Dict[str, Any], thought: Thought) -> ActionSelectionResult:
+        from ciris_engine.schemas.action_params_v1 import DeferParams
+        from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+        from ciris_engine.utils.constants import DEFAULT_WA
+
+        defer_reason = "Critical DMA failure or guardrail override."
+        # Ensure dma_results are serializable if they contain Pydantic models
+        serializable_dma_results = {}
+        for k, v in dma_results.items():
+            if hasattr(v, 'model_dump'):
+                serializable_dma_results[k] = v.model_dump(mode='json')
+            else:
+                serializable_dma_results[k] = v
+
+        defer_params = DeferParams(
+            reason=defer_reason,
+            target_wa_ual=DEFAULT_WA, # Or a more specific UAL if available
+            context={"original_thought_id": thought.thought_id, "dma_results_summary": serializable_dma_results}
+        )
+        
         return ActionSelectionResult(
-            thought_id=thought.thought_id,
-            selected_handler_action='DEFER',
-            details={"reason": "Critical DMA failure", "dma_results": dma_results}
+            selected_action=HandlerActionType.DEFER,
+            action_parameters=defer_params.model_dump(mode='json'), # Pass as dict
+            rationale=defer_reason
+            # Confidence and raw_llm_response can be None/omitted for system-generated deferrals
         )
 
     async def _handle_special_cases(self, result: ActionSelectionResult, thought: Thought, context: Dict[str, Any]) -> ActionSelectionResult:
+        # HandlerActionType is now imported at the top level
         # Example: handle PONDER, DEFER, or other overrides
-        if result.selected_handler_action == 'PONDER':
+        if result.selected_action == HandlerActionType.PONDER: # Corrected to use result.selected_action
             await self.ponder_manager.ponder(thought, context)
         return result
 
     async def _update_thought_status(self, thought: Thought, result: ActionSelectionResult):
         from ciris_engine import persistence
         # Update the thought status in persistence
+        # ActionSelectionResult.selected_action is HandlerActionType enum
+        # update_thought_status expects ThoughtStatus enum or its string value.
+        # This needs careful mapping if selected_action isn't directly a ThoughtStatus.
+        # For DEFER, the thought status should become ThoughtStatus.DEFERRED.
+        
+        new_status_val = ThoughtStatus.COMPLETED # Default, will be overridden by specific actions
+        if result.selected_action == HandlerActionType.DEFER:
+            new_status_val = ThoughtStatus.DEFERRED
+        elif result.selected_action == HandlerActionType.PONDER:
+            new_status_val = ThoughtStatus.PENDING # Ponder implies it goes back to pending for re-evaluation
+        elif result.selected_action == HandlerActionType.REJECT:
+            new_status_val = ThoughtStatus.FAILED # Reject implies failure of this thought path
+        # Other actions might imply ThoughtStatus.COMPLETED if they are terminal for the thought.
+
+        # The 'details' field in ActionSelectionResult is not standard.
+        # ActionSelectionResult has 'action_parameters' (dict) and 'rationale' (str).
+        # We should store a summary or relevant parts of these.
+        final_action_details = {
+            "action_type": result.selected_action.value,
+            "parameters": result.action_parameters,
+            "rationale": result.rationale
+        }
+
         persistence.update_thought_status(
             thought_id=thought.thought_id,
-            new_status=result.selected_handler_action,
-            final_action=result.details
+            status=new_status_val, # Pass ThoughtStatus enum member
+            final_action=final_action_details
         )

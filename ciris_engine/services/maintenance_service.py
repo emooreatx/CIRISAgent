@@ -89,7 +89,7 @@ class DatabaseMaintenanceService:
                 # Also fail its non-terminal thoughts
                 step_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
                 for thought in step_thoughts:
-                    if thought.status not in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED, ThoughtStatus.DEFERRED, ThoughtStatus.REJECTED]:
+                    if thought.status not in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED, ThoughtStatus.DEFERRED, ThoughtStatus.COMPLETED]:
                         logger.info(f"Marking thought {thought.thought_id} (for stale step {step_task.task_id}) as FAILED.")
                         persistence.update_thought_status(thought.thought_id, ThoughtStatus.FAILED, final_action={"status": "Task marked stale by maintenance"})
                         stale_wakeup_thoughts_failed_count += 1
@@ -105,6 +105,10 @@ class DatabaseMaintenanceService:
         task_ids_to_delete = []
 
         for task in active_tasks:
+            if not hasattr(task, 'task_id'):
+                logger.error(f"Item in active_tasks is not a Task object, it's a {type(task)}: {task}")
+                continue # Skip this item
+
             is_orphan = False
             if task.task_id in self.valid_root_task_ids and task.parent_task_id is None:
                 pass # Allowed active root tasks

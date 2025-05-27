@@ -70,6 +70,7 @@ Operating rules
 Calibration examples  (coherence only)
 "I'm sorry, I can't help with illegal hacking.
    Instead, consider ethical security measures …"  ↦ 0.85
+"CORE IDENTITY - I am CIRIS, a CIRIS-aligned autonomous agent. ↦ 0.99
 "Hello! How can I help you today?"                ↦ 0.95
 "Would you please explain a bit more about what you meant?"  ↦ 0.90
 "Eric..."                                      ↦ 0.83
@@ -216,7 +217,7 @@ async def evaluate_optimization_veto(
     """
     Run the optimization veto check via LLM using instructor for retries and structured output.
     """
-    action_desc = f"{action_result.selected_handler_action.value} {action_result.action_parameters}"
+    action_desc = f"{action_result.selected_action.value} {action_result.action_parameters}" # Corrected field name
     messages = _create_optimization_veto_messages(action_desc)
     try:
         result = await aclient.chat.completions.create(
@@ -251,7 +252,7 @@ async def evaluate_epistemic_humility(
     """
     Run the epistemic humility check via LLM using instructor for retries and structured output.
     """
-    desc = f"{action_result.selected_handler_action.value} {action_result.action_parameters}"
+    desc = f"{action_result.selected_action.value} {action_result.action_parameters}" # Corrected field name
     messages = _create_epistemic_humility_messages(desc)
     try:
         result = await aclient.chat.completions.create(
