@@ -9,8 +9,8 @@ from pathlib import Path
 
 # Configuration and Schemas
 from .config_manager import get_sqlite_db_full_path
-from .foundational_schemas import TaskStatus, ThoughtStatus
-from .agent_core_schemas import Task, Thought
+from ..schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from ..schemas.agent_core_schemas_v1 import Task, Thought
 
 # --- Database Initialization ---
 

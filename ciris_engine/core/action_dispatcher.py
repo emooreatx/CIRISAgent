@@ -2,8 +2,8 @@ import logging
 import inspect
 from typing import Dict, Any, Optional, Callable, Awaitable
 
-from .foundational_schemas import HandlerActionType
-from .agent_core_schemas import Thought, ThoughtStatus
+from ..schemas.foundational_schemas_v1 import HandlerActionType
+from ..schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
 from ..schemas.dma_results_v1 import ActionSelectionResult
 from .action_handlers import BaseActionHandler
 from . import persistence

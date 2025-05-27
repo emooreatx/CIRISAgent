@@ -27,7 +27,7 @@ from ciris_engine.core.agent_core_schemas import (
     ActParams,
 )
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.core.foundational_schemas import ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 
 logger = logging.getLogger(__name__)
 
