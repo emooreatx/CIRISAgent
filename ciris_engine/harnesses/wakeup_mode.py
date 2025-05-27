@@ -1,4 +1,4 @@
-from ciris_engine.core.agent_processor import AgentProcessor
+from ciris_engine.core.processor import AgentProcessor
 
 from typing import Callable, Any
 

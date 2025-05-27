@@ -1,10 +1,13 @@
 import logging
 from typing import Dict, Any
 
-from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, Thought, HandlerActionType
-from ciris_engine.core.foundational_schemas import ThoughtStatus, TaskStatus
+# Updated imports for v1 schemas
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.core import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
+
 # No standard follow-up thought for TASK_COMPLETE as it's a terminal action for the task.
 
 logger = logging.getLogger(__name__)
@@ -16,7 +19,7 @@ PERSISTENT_TASK_IDS = {"job-discord-monitor"}
 class TaskCompleteHandler(BaseActionHandler):
     async def handle(
         self,
-        result: ActionSelectionPDMAResult, # Params for TASK_COMPLETE are usually minimal or None
+        result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
@@ -29,10 +32,11 @@ class TaskCompleteHandler(BaseActionHandler):
         self.logger.info(f"Handling TASK_COMPLETE for thought {thought_id} (Task: {parent_task_id}).")
 
         # Update the current thought that led to TASK_COMPLETE
+        # v1 schema uses 'final_action' instead of 'final_action_result'
         persistence.update_thought_status(
             thought_id=thought_id,
             new_status=final_thought_status,
-            final_action_result=result.model_dump(),
+            final_action=result.model_dump(),  # Changed from final_action_result to final_action
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} for TASK_COMPLETE.")
 

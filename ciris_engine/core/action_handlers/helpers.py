@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 import uuid
 import logging
+from typing import Optional
+
+# Updated imports for v1 schemas
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 
 logger = logging.getLogger(__name__)
-
-from ..agent_core_schemas import Thought, ThoughtStatus
-from typing import Optional # Added Optional for priority_offset
 
 
 def create_follow_up_thought(
@@ -17,31 +19,46 @@ def create_follow_up_thought(
     """Return a new Thought linked to ``parent``.
 
     The original Thought instance is never mutated.
-    ``source_task_id`` is inherited and ``related_thought_id`` references the
+    ``source_task_id`` is inherited and ``parent_thought_id`` references the
     parent thought's ID to maintain lineage.
     Priority can be adjusted using priority_offset.
     """
     now = datetime.now(timezone.utc).isoformat()
     
-    new_priority = parent.priority
+    # v1 schema doesn't have priority field for thoughts
+    # If priority is needed, it could be stored in the context
+    priority = 0
+    if hasattr(parent, 'priority'):
+        priority = parent.priority
+    
     if priority_offset is not None:
-        new_priority += priority_offset
-        # Ensure priority doesn't go below a reasonable minimum (e.g., 0 or 1)
-        # or above a maximum if defined. For now, just simple addition.
-        # Consider clamping if priorities have strict bounds.
-        new_priority = max(0, new_priority) # Example: ensure non-negative
+        priority += priority_offset
+        # Ensure priority doesn't go below a reasonable minimum (e.g., 0)
+        priority = max(0, priority)
+    
+    # Get parent's round number (v1 uses single round_number field)
+    parent_round = parent.round_number if hasattr(parent, 'round_number') else 0
 
-    return Thought(
+    # Create follow-up thought with v1 schema
+    follow_up = Thought(
         thought_id=str(uuid.uuid4()),
         source_task_id=parent.source_task_id,
         thought_type=thought_type,
         status=ThoughtStatus.PENDING,
         created_at=now,
         updated_at=now,
-        round_created=parent.round_created, # Should this be current round? Or parent's round?
-                                           # For now, keeping parent.round_created as it was.
-                                           # If it's for the *next* round, it should be incremented.
+        round_number=parent_round,  # v1 uses single round_number instead of round_created
         content=content,
-        related_thought_id=parent.thought_id,
-        priority=new_priority, # Use adjusted priority
+        parent_thought_id=parent.thought_id,  # v1 uses parent_thought_id instead of related_thought_id
+        # v1 schema has these fields with defaults:
+        context={},  # v1 uses 'context' instead of 'processing_context'
+        ponder_count=0,
+        ponder_notes=None,
+        final_action={},
     )
+    
+    # If priority tracking is needed, store it in context
+    if priority != 0:
+        follow_up.context["priority"] = priority
+    
+    return follow_up

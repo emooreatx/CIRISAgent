@@ -3,7 +3,8 @@ import inspect
 from typing import Dict, Any, Optional, Callable, Awaitable
 
 from .foundational_schemas import HandlerActionType
-from .agent_core_schemas import ActionSelectionPDMAResult, Thought, ThoughtStatus
+from .agent_core_schemas import Thought, ThoughtStatus
+from ..schemas.dma_results_v1 import ActionSelectionResult
 from .action_handlers import BaseActionHandler
 from . import persistence
 from .exceptions import FollowUpCreationError
@@ -25,7 +26,7 @@ class ActionDispatcher:
         """
         self.handlers: Dict[HandlerActionType, BaseActionHandler] = handlers
         self.audit_service = audit_service
-        self.action_filter: Optional[Callable[[ActionSelectionPDMAResult, Dict[str, Any]], Awaitable[bool] | bool]] = None
+        self.action_filter: Optional[Callable[[ActionSelectionResult, Dict[str, Any]], Awaitable[bool] | bool]] = None
 
         # Log the registered handlers for clarity during startup
         for action_type, handler_instance in self.handlers.items():
@@ -33,7 +34,7 @@ class ActionDispatcher:
 
     async def dispatch(
         self,
-        action_selection_result: ActionSelectionPDMAResult,
+        action_selection_result: ActionSelectionResult,
         thought: Thought, # The original thought that led to this action
         dispatch_context: Dict[str, Any], # Context from the caller (e.g., channel_id, author_name, services)
         # Services are now expected to be part of ActionHandlerDependencies,
