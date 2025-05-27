@@ -2,9 +2,9 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from datetime import datetime, timezone
 
-from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
-from ciris_engine.core.agent_core_schemas import Task, Thought
-from ciris_engine.core.config_schemas import (
+from ciris_engine.core.thought_processor import ThoughtProcessor
+from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+from ciris_engine.schemas.config_schemas_v1 import (
     AppConfig,
     WorkflowConfig,
     LLMServicesConfig,
@@ -13,8 +13,8 @@ from ciris_engine.core.config_schemas import (
     GuardrailsConfig,
     SerializableAgentProfile,
 )
-from ciris_engine.core.foundational_schemas import HandlerActionType
-from ciris_engine.core.foundational_schemas import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 
 
 @pytest.fixture
@@ -34,15 +34,13 @@ def simple_app_config():
 
 
 @pytest.fixture
-def workflow_coordinator_instance(simple_app_config) -> WorkflowCoordinator:
-    return WorkflowCoordinator(
-        llm_client=AsyncMock(),
-        ethical_pdma_evaluator=AsyncMock(),
-        csdma_evaluator=AsyncMock(),
-        action_selection_pdma_evaluator=AsyncMock(),
-        ethical_guardrails=AsyncMock(),
+def workflow_coordinator_instance(simple_app_config) -> ThoughtProcessor:
+    return ThoughtProcessor(
+        dma_orchestrator=AsyncMock(),
+        context_builder=AsyncMock(),
+        guardrail_orchestrator=AsyncMock(),
+        ponder_manager=AsyncMock(),
         app_config=simple_app_config,
-        memory_service=None,
     )
 
 
@@ -61,10 +59,10 @@ def sample_thought():
     )
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_build_context_includes_recent_tasks_and_profiles(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     sample_thought: Thought,
 ):
     now = datetime.now(timezone.utc).isoformat()

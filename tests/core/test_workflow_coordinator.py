@@ -4,20 +4,20 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
-import ciris_engine.core.workflow_coordinator as wc_module
+from ciris_engine.core.thought_processor import ThoughtProcessor
+import ciris_engine.core.thought_processor as wc_module
 from ciris_engine.core.thought_escalation import escalate_dma_failure
-from ciris_engine.core.config_schemas import DMA_RETRY_LIMIT
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.schemas.config_schemas_v1 import DMA_RETRY_LIMIT
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
     ActionSelectionPDMAResult,
     EthicalPDMAResult,
     CSDMAResult,
     DSDMAResult,
 )
-from ciris_engine.core.foundational_schemas import ThoughtStatus, HandlerActionType, TaskStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType, TaskStatus
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
-from ciris_engine.core.config_schemas import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig, SerializableAgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig, SerializableAgentProfile
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 
 # --- Fixtures ---
@@ -110,27 +110,24 @@ def workflow_coordinator_instance(
     mock_csdma_evaluator,
     mock_action_selection_pdma_evaluator,
     mock_ethical_guardrails,
-    mock_app_config, # Use the more complete AppConfig mock
+    mock_app_config,
     mock_dsdma_evaluators_dict,
     memory_service
 ):
-    """Provides a WorkflowCoordinator instance with mocked dependencies."""
-    return WorkflowCoordinator(
-        llm_client=mock_llm_client,
-        ethical_pdma_evaluator=mock_ethical_pdma_evaluator,
-        csdma_evaluator=mock_csdma_evaluator,
-        action_selection_pdma_evaluator=mock_action_selection_pdma_evaluator,
-        ethical_guardrails=mock_ethical_guardrails,
-        app_config=mock_app_config, # Pass the AppConfig object
-        dsdma_evaluators=mock_dsdma_evaluators_dict,
-        memory_service=memory_service
+    """Provides a ThoughtProcessor instance with mocked dependencies."""
+    return ThoughtProcessor(
+        dma_orchestrator=AsyncMock(),
+        context_builder=AsyncMock(),
+        guardrail_orchestrator=AsyncMock(),
+        ponder_manager=AsyncMock(),
+        app_config=mock_app_config,
     )
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_memory_meta_thought(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     memory_service: CIRISLocalGraph,
     dma_executor_patches,
     track_action_patch,
@@ -193,10 +190,10 @@ def sample_thought():
 def sample_processing_queue_item(sample_thought: Thought):
     return ProcessingQueueItem.from_thought(sample_thought)
 
-# --- Test Cases for New WorkflowCoordinator ---
+# --- Test Cases for New ThoughtProcessor ---
 
 @pytest.mark.asyncio
-async def test_advance_round(workflow_coordinator_instance: WorkflowCoordinator):
+async def test_advance_round(workflow_coordinator_instance: ThoughtProcessor):
     """Test that advance_round increments the internal round number."""
     assert workflow_coordinator_instance.current_round_number == 0
     workflow_coordinator_instance.advance_round()
@@ -205,10 +202,10 @@ async def test_advance_round(workflow_coordinator_instance: WorkflowCoordinator)
     assert workflow_coordinator_instance.current_round_number == 2
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_process_thought_successful_run(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     sample_processing_queue_item: ProcessingQueueItem,
     sample_thought: Thought,
     mock_ethical_pdma_evaluator: MagicMock,
@@ -273,10 +270,10 @@ async def test_process_thought_successful_run(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_process_thought_guardrail_failure(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     sample_processing_queue_item: ProcessingQueueItem,
     sample_thought: Thought,
     mock_ethical_pdma_evaluator: MagicMock,
@@ -331,10 +328,10 @@ async def test_process_thought_guardrail_failure(
 
 @pytest.mark.skip(reason="Failing with AttributeError: 'PonderParams' object has no attribute 'get' in SUT")
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_process_thought_ponder_action(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     sample_processing_queue_item: ProcessingQueueItem,
     sample_thought: Thought,
     mock_ethical_pdma_evaluator: MagicMock,
@@ -380,10 +377,10 @@ async def test_process_thought_ponder_action(
 
 @pytest.mark.skip(reason="Failing with AttributeError: 'PonderParams' object has no attribute 'get' in SUT")
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_process_thought_max_ponder_rounds_reached(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     sample_processing_queue_item: ProcessingQueueItem,
     sample_thought: Thought, # sample_thought has ponder_count = 0
     mock_ethical_pdma_evaluator: MagicMock,
@@ -433,10 +430,10 @@ async def test_process_thought_max_ponder_rounds_reached(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_process_thought_dma_exception(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     sample_processing_queue_item: ProcessingQueueItem,
     sample_thought: Thought,
     mock_ethical_pdma_evaluator: MagicMock,  # This one will raise an exception
@@ -473,10 +470,10 @@ async def test_process_thought_dma_exception(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_process_thought_object_not_found(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     sample_processing_queue_item: ProcessingQueueItem,
     track_action_patch,
 ):
@@ -496,10 +493,10 @@ async def test_process_thought_object_not_found(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_process_thought_with_dsdma_success(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     mock_dsdma_evaluators_with_item,
     sample_processing_queue_item: ProcessingQueueItem,
     sample_thought: Thought,
@@ -552,10 +549,10 @@ async def test_process_thought_with_dsdma_success(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_process_thought_dsdma_exception(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     mock_dsdma_evaluators_with_item,
     sample_processing_queue_item: ProcessingQueueItem,
     sample_thought: Thought,
@@ -601,10 +598,10 @@ async def test_process_thought_dsdma_exception(
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.workflow_coordinator.persistence')
+@patch('ciris_engine.core.thought_processor.persistence')
 async def test_process_thought_dma_failure_escalates(
     mock_persistence,
-    workflow_coordinator_instance: WorkflowCoordinator,
+    workflow_coordinator_instance: ThoughtProcessor,
     sample_processing_queue_item: ProcessingQueueItem,
     sample_thought: Thought,
     mock_ethical_pdma_evaluator: MagicMock,

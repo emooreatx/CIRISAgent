@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from ciris_engine.core.agent_core_schemas import Thought, ThoughtStatus
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
 from ciris_engine.core.thought_escalation import (
     escalate_due_to_action_limit,
     escalate_due_to_sla,

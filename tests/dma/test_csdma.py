@@ -8,10 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from openai import AsyncOpenAI
 
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
-from ciris_engine.core.dma_results import CSDMAResult
-from ciris_engine.core.agent_core_schemas import ThoughtStatus
+from ciris_engine.schemas.dma_results_v1 import CSDMAResult
+from ciris_engine.schemas.agent_core_schemas_v1 import ThoughtStatus
 from ciris_engine.dma.csdma import CSDMAEvaluator
-from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME, AppConfig, OpenAIConfig, LLMServicesConfig # Added imports
+from ciris_engine.schemas.config_schemas_v1 import DEFAULT_OPENAI_MODEL_NAME, AppConfig, OpenAIConfig, LLMServicesConfig # Added imports
 
 # Fixture for a mock instructor client
 @pytest.fixture

@@ -11,10 +11,10 @@ import uuid
 from datetime import datetime, timezone
 import collections
 
-from ciris_engine.core.processor import AgentProcessor
-from ciris_engine.core.config_schemas import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig
-from ciris_engine.core.agent_core_schemas import Task, Thought, ActionSelectionPDMAResult
-from ciris_engine.core.foundational_schemas import TaskStatus, ThoughtStatus, HandlerActionType # <-- Import HandlerActionType
+from ciris_engine.core.processor.main_processor import AgentProcessor
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig
+from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought, ActionSelectionPDMAResult
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType # <-- Import HandlerActionType
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 
 # --- Fixtures ---
@@ -96,7 +96,7 @@ def create_mock_thought(thought_id: str, task_id: str, status: ThoughtStatus, pr
 # --- Test Cases ---
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.agent_processor.persistence')
+@patch('ciris_engine.core.processor.main_processor.persistence')
 async def test_activate_pending_tasks(mock_persistence, agent_processor_instance: AgentProcessor, mock_app_config_for_processor):
     """Test activating pending tasks."""
     max_can_activate = mock_app_config_for_processor.workflow.max_active_tasks
@@ -127,7 +127,7 @@ async def test_activate_pending_tasks(mock_persistence, agent_processor_instance
         mock_persistence.update_task_status.assert_any_call(all_pending_tasks[i].task_id, TaskStatus.ACTIVE)
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.agent_processor.persistence')
+@patch('ciris_engine.core.processor.main_processor.persistence')
 async def test_generate_seed_thoughts(mock_persistence, agent_processor_instance: AgentProcessor, mock_app_config_for_processor):
     """Test generating seed thoughts."""
     task_needing_seed1 = create_mock_task("task_s1", TaskStatus.ACTIVE)
@@ -148,7 +148,7 @@ async def test_generate_seed_thoughts(mock_persistence, agent_processor_instance
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.agent_processor.persistence')
+@patch('ciris_engine.core.processor.main_processor.persistence')
 async def test_populate_round_queue(mock_persistence, agent_processor_instance: AgentProcessor, mock_app_config_for_processor):
     """Test populating the round queue."""
     # Mock activate_pending_tasks
@@ -175,7 +175,7 @@ async def test_populate_round_queue(mock_persistence, agent_processor_instance: 
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.agent_processor.persistence')
+@patch('ciris_engine.core.processor.main_processor.persistence')
 async def test_process_batch(mock_persistence, agent_processor_instance: AgentProcessor, mock_workflow_coordinator):
     """Test processing a batch of thoughts."""
     thought1 = create_mock_thought("th_batch1", "task_b1", ThoughtStatus.PENDING)
@@ -225,7 +225,7 @@ async def test_process_batch(mock_persistence, agent_processor_instance: AgentPr
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.agent_processor.persistence')
+@patch('ciris_engine.core.processor.main_processor.persistence')
 async def test_dispatch_context_filled_from_task(mock_persistence, agent_processor_instance: AgentProcessor, mock_workflow_coordinator):
     """Ensure missing metadata in dispatch context is sourced from the parent task."""
 
@@ -256,7 +256,7 @@ async def test_dispatch_context_filled_from_task(mock_persistence, agent_process
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.agent_processor.persistence')
+@patch('ciris_engine.core.processor.main_processor.persistence')
 async def test_check_and_complete_task_completes(mock_persistence, agent_processor_instance: AgentProcessor):
     """Test _check_and_complete_task when a task should be completed."""
     active_task = create_mock_task("task_c1", TaskStatus.ACTIVE)
@@ -273,7 +273,7 @@ async def test_check_and_complete_task_completes(mock_persistence, agent_process
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.agent_processor.persistence')
+@patch('ciris_engine.core.processor.main_processor.persistence')
 async def test_check_and_complete_task_not_active(mock_persistence, agent_processor_instance: AgentProcessor):
     """Test _check_and_complete_task when task is not active."""
     pending_task = create_mock_task("task_c2", TaskStatus.PENDING)
@@ -287,7 +287,7 @@ async def test_check_and_complete_task_not_active(mock_persistence, agent_proces
 
 
 @pytest.mark.asyncio
-@patch('ciris_engine.core.agent_processor.persistence')
+@patch('ciris_engine.core.processor.main_processor.persistence')
 async def test_check_and_complete_task_has_pending(mock_persistence, agent_processor_instance: AgentProcessor):
     """Test _check_and_complete_task when task still has pending thoughts."""
     active_task = create_mock_task("task_c3", TaskStatus.ACTIVE)

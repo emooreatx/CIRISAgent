@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
-from ciris_engine.core.graph_schemas import GraphNode, GraphScope, NodeType
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
 
 class DummyTask:
     def __init__(self, author):

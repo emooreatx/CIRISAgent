@@ -11,22 +11,22 @@ from pydantic import BaseModel # Added BaseModel import
 from openai import AsyncOpenAI
 from instructor.exceptions import InstructorRetryException
 
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
     ThoughtStatus,
     HandlerActionType,
     CIRISSchemaVersion,
 )
-from ciris_engine.core.action_params import SpeakParams, PonderParams
-from ciris_engine.core.dma_results import (
+from ciris_engine.schemas.action_params_v1 import SpeakParams, PonderParams
+from ciris_engine.schemas.dma_results_v1 import (
     ActionSelectionPDMAResult,
     EthicalPDMAResult,
     CSDMAResult,
     DSDMAResult,
 )
-from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType as CoreHandlerActionType
 # from ciris_engine.core.profiles import AgentProfile # Replaced by SerializableAgentProfile
-from ciris_engine.core.config_schemas import SerializableAgentProfile # Import new profile
+from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile # Import new profile
 from ciris_engine.dma.action_selection_pdma import (
     ActionSelectionPDMAEvaluator,
     _ActionSelectionLLMResponse, # Internal model for mocking LLM output
@@ -34,7 +34,7 @@ from ciris_engine.dma.action_selection_pdma import (
 )
 from ciris_engine.utils.constants import ENGINE_OVERVIEW_TEMPLATE
 import ciris_engine.dma.action_selection_pdma as action_selection_pdma_module # Import the module itself
-from ciris_engine.core.config_schemas import AppConfig, OpenAIConfig, LLMServicesConfig # Corrected import path
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, OpenAIConfig, LLMServicesConfig # Corrected import path
 from ciris_engine.core.config_manager import get_config # get_config is fine here
 
 # --- Fixtures ---
