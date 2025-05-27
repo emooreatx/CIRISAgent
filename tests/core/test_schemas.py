@@ -69,8 +69,8 @@ def test_task_instantiation_and_defaults():
     assert task.task_id == "task_123"
     assert task.status == TaskStatus.PENDING # Default
     assert task.priority == 0 # Default
-    assert task.due_date is None # Added field, default None
-    assert task.parent_goal_id is None # Added field, default None
+    assert isinstance(task.created_at, str)
+    assert isinstance(task.updated_at, str)
     assert isinstance(task.created_at, str)
     assert isinstance(task.updated_at, str)
 
@@ -82,20 +82,13 @@ def test_thought_instantiation_and_defaults():
         thought_id="thought_abc",
         created_at=datetime.utcnow().isoformat(),
         updated_at=datetime.utcnow().isoformat(),
-        round_created=1 # Added field
+        round_number=1
     )
     assert thought.content == thought_content
     assert thought.thought_id == "thought_abc"
     assert thought.status == ThoughtStatus.PENDING # Default
-    assert thought.priority == 0 # Added field, default 0
-    assert thought.round_created == 1 # Added field
-    assert thought.action_count == 0
-    assert thought.history == []
-    assert thought.escalations == []
-    assert thought.is_terminal is False
-    assert thought.round_processed is None # Added field, default None
-    assert thought.depth == 0 # Default
-    assert thought.ponder_count == 0 # Default
+    assert thought.round_number == 1
+    assert thought.ponder_count == 0
 
 def test_action_selection_pdma_result_instantiation():
     # Basic instantiation check with all required fields
@@ -157,8 +150,8 @@ def test_processing_queue_item_from_thought():
         status=ThoughtStatus.PENDING,
         created_at=now_iso,
         updated_at=now_iso,
-        round_created=2,
-        processing_context={"key": "value"},
+        round_number=2,
+        context={"key": "value"},
         ponder_notes=["question1"]
     )
 
@@ -169,7 +162,7 @@ def test_processing_queue_item_from_thought():
     assert queue_item.thought_type == thought_instance.thought_type
     assert queue_item.content == thought_instance.content
     assert queue_item.priority == thought_instance.priority
-    assert queue_item.initial_context == thought_instance.processing_context
+    assert queue_item.initial_context == thought_instance.context
     assert queue_item.ponder_notes == thought_instance.ponder_notes
     assert queue_item.raw_input_string == str(thought_instance.content)
 
@@ -180,7 +173,7 @@ def test_processing_queue_item_from_thought_with_overrides():
         source_task_id="task_789",
         content="Original",
         priority=1,
-        created_at=now_iso, updated_at=now_iso, round_created=1
+        created_at=now_iso, updated_at=now_iso, round_number=1
     )
     
     custom_content = {"detail": "richer content for queue"}

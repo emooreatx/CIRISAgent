@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 from typing import Optional
 
-from ciris_engine.core.config_schemas import SerializableAgentProfile
+from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[SerializableAge
 
         # Convert permitted_actions from string to HandlerActionType if needed
         if "permitted_actions" in profile_data:
-            from ciris_engine.core.foundational_schemas import HandlerActionType
+            from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
             profile_data["permitted_actions"] = [
                 HandlerActionType(a) if not isinstance(a, HandlerActionType) else a
                 for a in profile_data["permitted_actions"]
