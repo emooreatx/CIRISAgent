@@ -10,6 +10,7 @@ from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
 from ciris_engine.schemas.guardrails_schemas_v1 import GuardrailCheckResult, GuardrailStatus
 from pydantic import BaseModel, Field
+from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
 
 # Import config to get default model name if needed, or define it directly
 # from ciris_engine.config.config_manager import get_config # Alternative
@@ -222,7 +223,7 @@ async def evaluate_optimization_veto(
     try:
         result = await aclient.chat.completions.create(
             model=model_name,
-            response_model=dict,  # Expecting a dict for the raw result
+            response_model=OptimizationVetoResult,  # Expecting a dict for the raw result
             messages=messages,
             max_tokens=500,  
         )
@@ -257,7 +258,7 @@ async def evaluate_epistemic_humility(
     try:
         result = await aclient.chat.completions.create(
             model=model_name,
-            response_model=dict,  # Expecting a dict for the raw result
+            response_model=EpistemicHumilityResult,  # Expecting a dict for the raw result
             messages=messages,
             max_tokens=384,
         )

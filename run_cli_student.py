@@ -106,9 +106,24 @@ async def main() -> None:
     runtime.dispatcher.register_service_handler("cli", lambda res, ctx: _cli_handler(runtime, sink, res, ctx))
 
     app_config = await get_config_async()
-    profile = await runtime._load_profile()
-    if profile.name.lower() not in app_config.agent_profiles:
+    profile = await runtime._load_profile() # Loads student.yaml by default from PROFILE_PATH
+    if profile:
         app_config.agent_profiles[profile.name.lower()] = profile
+    else:
+        logger.error(f"Failed to load primary profile from {PROFILE_PATH}. Exiting.")
+        return
+
+    # Attempt to load the "default" profile as well
+    from ciris_engine.utils.profile_loader import load_profile as load_profile_util
+    from pathlib import Path
+    default_profile_path = Path(app_config.profile_directory) / "default.yaml"
+    default_profile_obj = await load_profile_util(default_profile_path)
+    if default_profile_obj:
+        app_config.agent_profiles["default"] = default_profile_obj
+        logger.info(f"Successfully loaded and registered 'default' profile from {default_profile_path}")
+    else:
+        logger.warning(f"'default' profile not found or failed to load from {default_profile_path}. Some profile-specific features for 'default' may not work.")
+
 
     llm_service = LLMService(app_config.llm_services)
     memory_service = CIRISLocalGraph()
