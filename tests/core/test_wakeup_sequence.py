@@ -8,13 +8,13 @@ import pytest
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
-from ciris_engine.core.processor import AgentProcessor, WAKEUP_SEQUENCE
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.core.processor.main_processor import AgentProcessor, WAKEUP_SEQUENCE
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     ActionSelectionPDMAResult,
     SpeakParams,
     PonderParams,
 )
-from ciris_engine.core.foundational_schemas import HandlerActionType, TaskStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, TaskStatus
 
 from .test_agent_processor import (
     mock_app_config_for_processor,
@@ -25,7 +25,7 @@ from .test_agent_processor import (
 
 
 @pytest.mark.asyncio
-@patch("ciris_engine.core.agent_processor.persistence")
+@patch("ciris_engine.core.processor.main_processor.persistence")
 async def test_wakeup_sequence_success(mock_persistence, agent_processor_instance: AgentProcessor, mock_workflow_coordinator, mock_action_dispatcher):
     pytest.skip("Wakeup sequence logic updated; skipping outdated test.")
     mock_persistence.task_exists.return_value = False
@@ -54,7 +54,7 @@ async def test_wakeup_sequence_success(mock_persistence, agent_processor_instanc
 
 
 @pytest.mark.asyncio
-@patch("ciris_engine.core.agent_processor.persistence")
+@patch("ciris_engine.core.processor.main_processor.persistence")
 async def test_wakeup_sequence_failure(mock_persistence, agent_processor_instance: AgentProcessor, mock_workflow_coordinator, mock_action_dispatcher):
     pytest.skip("Wakeup sequence logic updated; skipping outdated test.")
     mock_persistence.task_exists.return_value = False
@@ -87,7 +87,7 @@ async def test_wakeup_sequence_failure(mock_persistence, agent_processor_instanc
 
 
 @pytest.mark.asyncio
-@patch("ciris_engine.core.agent_processor.persistence")
+@patch("ciris_engine.core.processor.main_processor.persistence")
 async def test_wakeup_sequence_allows_ponder(mock_persistence, agent_processor_instance: AgentProcessor, mock_workflow_coordinator, mock_action_dispatcher):
     pytest.skip("Wakeup sequence logic updated; skipping outdated test.")
     mock_persistence.task_exists.return_value = False

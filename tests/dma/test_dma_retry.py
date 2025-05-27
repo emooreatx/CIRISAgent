@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 import pytest
 
-from ciris_engine.core.agent_core_schemas import Thought, ThoughtStatus
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
 from ciris_engine.dma.dma_executor import run_dma_with_retries
 
 

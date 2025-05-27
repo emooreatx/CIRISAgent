@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 # Modules to test
-from ciris_engine.core.config_schemas import (
+from ciris_engine.schemas.config_schemas_v1 import (
     AppConfig,
     DatabaseConfig,
     OpenAIConfig,

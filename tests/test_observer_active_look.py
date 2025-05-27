@@ -4,9 +4,9 @@ from types import SimpleNamespace
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
-from ciris_engine.core.action_params import ObserveParams, SpeakParams
-from ciris_engine.core.agent_core_schemas import Thought, ActionSelectionPDMAResult, HandlerActionType
-from ciris_engine.core.foundational_schemas import ThoughtStatus
+from ciris_engine.schemas.action_params_v1 import ObserveParams, SpeakParams
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ActionSelectionPDMAResult, HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 from ciris_engine.core.action_handlers.speak_handler import SpeakHandler
 from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.core import persistence

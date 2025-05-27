@@ -5,14 +5,14 @@ import asyncio
 
 # Module to test
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator, DEFAULT_OPENAI_MODEL_NAME
-from ciris_engine.core.agent_core_schemas import EthicalPDMAResult
+from ciris_engine.schemas.agent_core_schemas_v1 import EthicalPDMAResult
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 import instructor # For type hinting the mock
 from openai import AsyncOpenAI # For mock_openai_client fixture
 # Added imports for mocking OpenAI response structure
 import openai.types.chat
 from openai.types.chat.chat_completion import ChatCompletion, ChatCompletionMessage, Choice # Corrected import path
-from ciris_engine.core.config_schemas import AppConfig, OpenAIConfig, LLMServicesConfig # Added imports
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, OpenAIConfig, LLMServicesConfig # Added imports
 
 # --- Fixtures ---
 

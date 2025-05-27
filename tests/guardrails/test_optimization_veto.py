@@ -2,9 +2,9 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from ciris_engine.guardrails import EthicalGuardrails, OptimizationVetoResult
-from ciris_engine.core.config_schemas import GuardrailsConfig
-from ciris_engine.core.dma_results import ActionSelectionPDMAResult
-from ciris_engine.core.foundational_schemas import HandlerActionType
+from ciris_engine.schemas.config_schemas_v1 import GuardrailsConfig
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionPDMAResult
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 @pytest.mark.asyncio
 async def test_optimization_veto_triggers_abort(monkeypatch):

@@ -9,7 +9,7 @@ from ciris_engine.faculties.epistemic import (
     calculate_epistemic_values,
     DEFAULT_OPENAI_MODEL_NAME
 )
-from ciris_engine.core.agent_core_schemas import EntropyResult, CoherenceResult
+from ciris_engine.schemas.agent_core_schemas_v1 import EntropyResult, CoherenceResult
 import instructor # For type hinting the mock
 
 # --- Fixtures ---
