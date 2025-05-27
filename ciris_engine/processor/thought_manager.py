@@ -194,7 +194,7 @@ class ThoughtManager:
             updated_at=now_iso,
             round_number=round_number,
             content=content,
-            context=context,
+            context=context,  # v1 uses 'context'
             ponder_count=0,
             parent_thought_id=parent_thought.thought_id,  # v1 uses parent_thought_id
         )

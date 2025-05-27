@@ -24,12 +24,14 @@ class ActionHandlerDependencies:
         # For Discord-specific active look, we might need the DiscordAdapter or its client
         # Let's pass the io_adapter (which could be DiscordAdapter)
         io_adapter: Optional[Any] = None,  # General type, can be cast in handler
+        audit_service: Optional[Any] = None,  # Add audit_service
     ):
         self.action_sink = action_sink
         self.memory_service = memory_service
         self.observer_service = observer_service  # Still useful for its config like monitored_channel_id
         self.deferral_sink = deferral_sink
         self.io_adapter = io_adapter
+        self.audit_service = audit_service
 
 
 class BaseActionHandler(ABC):
@@ -37,6 +39,10 @@ class BaseActionHandler(ABC):
     def __init__(self, dependencies: ActionHandlerDependencies):
         self.dependencies = dependencies
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    async def _audit_log(self, handler_action, context, outcome=None):
+        if self.dependencies and getattr(self.dependencies, 'audit_service', None):
+            await self.dependencies.audit_service.log_action(handler_action, context, outcome)
 
     @abstractmethod
     async def handle(

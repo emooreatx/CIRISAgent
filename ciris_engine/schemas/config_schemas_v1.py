@@ -60,11 +60,6 @@ class AgentProfile(BaseModel):
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
 
-# Legacy alias retained for backward compatibility with older tests
-class SerializableAgentProfile(AgentProfile):
-    """Serializable agent profile used in tests."""
-    pass
-
 class AppConfig(BaseModel):
     """Minimal v1 application configuration."""
     version: Optional[str] = None

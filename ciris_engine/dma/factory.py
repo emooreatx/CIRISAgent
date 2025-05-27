@@ -5,7 +5,7 @@ from typing import Dict, Optional, Type
 from openai import AsyncOpenAI
 
 from .dsdma_base import BaseDSDMA
-from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AgentProfile
 from ..utils.profile_loader import load_profile
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ DSDMA_CLASS_REGISTRY: Dict[str, Type[BaseDSDMA]] = {
 DEFAULT_PROFILE_PATH = Path("ciris_profiles/default.yaml")
 
 async def create_dsdma_from_profile(
-    profile: Optional[SerializableAgentProfile],
+    profile: Optional[AgentProfile],
     aclient: AsyncOpenAI,
     *,
     model_name: Optional[str] = None,

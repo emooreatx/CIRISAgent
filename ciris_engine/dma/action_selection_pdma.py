@@ -69,13 +69,13 @@ class ActionSelectionPDMAEvaluator:
         ),
         "action_parameter_schemas": (
             "Schemas for 'action_parameters' based on the selected_handler_action:\n"
-            "SPEAK: {\"content\": string, \"target_channel\"?: string, \"target_agent_did\"?: string, \"modality\"?: string, \"correlation_id\"?: string}\n"
-            "PONDER: {\"key_questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
+            "SPEAK: {\"content\": string, \"channel_id\"?: string, \"target_agent_did\"?: string, \"modality\"?: string, \"correlation_id\"?: string}\n"
+            "PONDER: {\"questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
             "MEMORIZE: {\"knowledge_unit_description\": string, \"knowledge_data\": object|string, \"knowledge_type\": string, \"source\": string, \"confidence\": float, \"publish_to_dkg\"?: bool, \"target_ka_ual\"?: string, \"channel_metadata\"?: object}\n"
-            "DEFER: {\"reason\": string, \"target_wa_ual\": string, \"deferral_package_content\": object}\n"
+            "DEFER: {\"reason\": string, \"target_wa_ual\": string, \"context\"?: object}\n"
             "REJECT: {\"reason\": string, \"rejection_code\"?: string}\n"
-            "ACT: {\"tool_name\": string, \"arguments\": object}\n"
-            "OBSERVE: {\"sources\": [string], \"filters\"?: object, \"max_duration_ms\"?: int, \"reason\"?: string, \"perform_active_look\"?: boolean}"
+            "TOOL: {\"name\": string, \"args\": object}\n"
+            "OBSERVE: {\"sources\": [string], \"filters\"?: object, \"max_duration_ms\"?: int, \"reason\"?: string, \"active\"?: boolean}"
         ),
         "normal_mode_csdma_ambiguity_guidance": (
             "If CSDMA highlighted critical ambiguity, highly align 'Speak' (for user clarification) "

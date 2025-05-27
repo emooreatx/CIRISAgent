@@ -25,6 +25,7 @@ class RejectHandler(BaseActionHandler):
     ) -> None:
         params = result.action_parameters
         thought_id = thought.thought_id
+        await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         original_event_channel_id = dispatch_context.get("channel_id")
 
         # REJECT actions usually mean the thought processing has failed for a stated reason.
@@ -49,7 +50,7 @@ class RejectHandler(BaseActionHandler):
         persistence.update_thought_status(
             thought_id=thought_id,
             new_status=final_thought_status,  # FAILED
-            final_action=result.model_dump(),  # Changed from final_action_result
+            final_action=result.model_dump(),  # v1 field
         )
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for REJECT action. Info: {follow_up_content_key_info}")
 
@@ -78,9 +79,11 @@ class RejectHandler(BaseActionHandler):
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after REJECT action."
             )
+            await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="success")
         except Exception as e:
             self.logger.critical(
                 f"Failed to create follow-up thought for {thought_id}: {e}",
                 exc_info=e,
             )
+            await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="failed_followup")
             raise FollowUpCreationError from e

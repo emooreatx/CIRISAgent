@@ -68,8 +68,8 @@ class BaseDSDMA(ABC):
         system_snapshot_context_str = ""
         user_profile_context_str = ""
 
-        if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
-            system_snapshot = thought_item.processing_context.get("system_snapshot")
+        if hasattr(thought_item, 'context') and thought_item.context:
+            system_snapshot = thought_item.context.get("system_snapshot")
             if system_snapshot:
                 user_profiles_data = system_snapshot.get("user_profiles")
                 user_profile_context_str = format_user_profiles(user_profiles_data)
@@ -162,3 +162,4 @@ class BaseDSDMA(ABC):
 
     def __repr__(self) -> str:
         return f"<BaseDSDMA domain='{self.domain_name}'>"
+        # No legacy field names present; v1 field names are already used throughout.

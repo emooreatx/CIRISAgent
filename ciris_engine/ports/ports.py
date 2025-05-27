@@ -41,7 +41,7 @@ class ActionSink(ABC):
     async def send_message(self, channel_id: str, content: str) -> None:
         raise NotImplementedError
     @abstractmethod
-    async def run_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    async def run_tool(self, name: str, args: Dict[str, Any]) -> Any:
         raise NotImplementedError
 
 class DeferralSink(ABC):

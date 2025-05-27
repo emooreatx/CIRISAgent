@@ -29,6 +29,7 @@ class SpeakHandler(BaseActionHandler):
     ) -> None:
         params = result.action_parameters
         thought_id = thought.thought_id
+        await self._audit_log(HandlerActionType.SPEAK, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         # channel_id from the original event context, if available
         original_event_channel_id = dispatch_context.get("channel_id")
 
@@ -37,14 +38,14 @@ class SpeakHandler(BaseActionHandler):
         follow_up_content_key_info = f"Failed SPEAK for thought {thought_id}"  # Default for errors
 
         speak_content: str = None
-        target_channel_id_from_params: str = None
+        channel_id_from_params: str = None
 
         if isinstance(params, SpeakParams):
             speak_content = params.content
-            target_channel_id_from_params = params.channel_id  # v1 uses 'channel_id' instead of 'target_channel'
+            channel_id_from_params = params.channel_id  # v1 uses 'channel_id' instead of 'target_channel'
         elif isinstance(params, dict):  # Fallback for raw dict
             speak_content = params.get("content")
-            target_channel_id_from_params = params.get("channel_id") or params.get("target_channel")  # Support both
+            channel_id_from_params = params.get("channel_id")  # Only use 'channel_id' for v1
             self.logger.warning(f"SPEAK params were dict, not SpeakParams model for thought {thought_id}")
         else:
             self.logger.error(f"SPEAK action params are neither SpeakParams nor dict. Type: {type(params)}. Thought ID: {thought_id}")
@@ -53,10 +54,10 @@ class SpeakHandler(BaseActionHandler):
             # No action_performed_successfully update here, it's already False
 
         if final_thought_status != ThoughtStatus.FAILED:
-            final_channel_id_to_speak = target_channel_id_from_params or original_event_channel_id
+            final_channel_id_to_speak = channel_id_from_params or original_event_channel_id
             
             if not final_channel_id_to_speak and self.snore_channel_id:
-                self.logger.info(f"No target_channel in params or event_channel_id. Using SNORE_CHANNEL_ID: {self.snore_channel_id}. Thought ID: {thought_id}")
+                self.logger.info(f"No channel_id in params or event_channel_id. Using SNORE_CHANNEL_ID: {self.snore_channel_id}. Thought ID: {thought_id}")
                 final_channel_id_to_speak = self.snore_channel_id
 
             if speak_content and final_channel_id_to_speak:
@@ -87,7 +88,7 @@ class SpeakHandler(BaseActionHandler):
         persistence.update_thought_status(
             thought_id=thought_id,
             new_status=final_thought_status,
-            final_action=result.model_dump(),  # Changed from final_action_result
+            final_action=result.model_dump(),  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after SPEAK attempt.")
 
@@ -120,9 +121,11 @@ class SpeakHandler(BaseActionHandler):
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after SPEAK action."
             )
+            await self._audit_log(HandlerActionType.SPEAK, {**dispatch_context, "thought_id": thought_id}, outcome="success" if action_performed_successfully else "failed")
         except Exception as e:
             self.logger.critical(
                 f"Failed to create follow-up thought for {thought_id}: {e}",
                 exc_info=e,
             )
+            await self._audit_log(HandlerActionType.SPEAK, {**dispatch_context, "thought_id": thought_id}, outcome="failed_followup")
             raise FollowUpCreationError from e

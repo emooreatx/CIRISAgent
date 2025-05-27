@@ -4,14 +4,14 @@ import asyncio
 from pathlib import Path
 from typing import Optional
 
-from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AgentProfile
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROFILE_PATH = Path("ciris_profiles/default.yaml")
 
 
-async def load_profile(profile_path: Optional[Path]) -> Optional[SerializableAgentProfile]:
+async def load_profile(profile_path: Optional[Path]) -> Optional[AgentProfile]:
     """Asynchronously load an agent profile from a YAML file.
 
     This coroutine should be awaited so file I/O does not block the event loop.
@@ -67,7 +67,7 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[SerializableAge
             ]
 
         # The profile_data should directly map to SerializableAgentProfile fields
-        profile = SerializableAgentProfile(**profile_data)
+        profile = AgentProfile(**profile_data)
         logger.info(f"Successfully loaded profile '{profile.name}' from {profile_path}")
         return profile
         

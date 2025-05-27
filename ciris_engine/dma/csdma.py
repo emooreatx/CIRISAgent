@@ -139,16 +139,16 @@ class CSDMAEvaluator:
         system_snapshot_block = ""
         user_profiles_block = ""
 
-        if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
-            system_snapshot = thought_item.processing_context.get("system_snapshot")
+        if hasattr(thought_item, 'context') and thought_item.context:
+            system_snapshot = thought_item.context.get("system_snapshot")
             if system_snapshot:
                 user_profiles_data = system_snapshot.get("user_profiles")
                 user_profiles_block = format_user_profiles(user_profiles_data)
                 system_snapshot_block = format_system_snapshot(system_snapshot)
         
         identity_block = ""
-        if hasattr(thought_item, "processing_context") and thought_item.processing_context:
-            identity_block = thought_item.processing_context.get("identity_context", "")
+        if hasattr(thought_item, "context") and thought_item.context:
+            identity_block = thought_item.context.get("identity_context", "")
 
         messages = self._create_csdma_messages_for_instructor(
             thought_content_str,

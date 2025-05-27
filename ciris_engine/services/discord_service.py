@@ -23,6 +23,9 @@ from ciris_engine import persistence  # For creating tasks and updating status
 from .discord_event_queue import DiscordEventQueue
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.utils import extract_user_nick
+from ciris_engine.services.tool_registry import ToolRegistry
+from ciris_engine.services.discord_tools import register_discord_tools
+from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +95,9 @@ class DiscordService(Service):
         intents.message_content = True
         intents.guilds = True # Needed for fetching guild, channels, members
         self.bot = discord.Client(intents=intents)
-
+        # Register Discord tools in the global ToolRegistry
+        self.tool_registry = ToolRegistry()
+        register_discord_tools(self.tool_registry, self.bot)
         self._register_discord_events()
         logger.info("DiscordService initialized.")
 
@@ -261,25 +266,25 @@ class DiscordService(Service):
         thought_id = dispatch_context.get("thought_id")
         
         # Get target channel/message from the dispatch_context (which comes from the task)
-        target_channel_id_str = dispatch_context.get("channel_id")
-        target_message_id_str = dispatch_context.get("message_id") # This is the ID of the message that created the task
+        channel_id_str = dispatch_context.get("channel_id")
+        message_id_str = dispatch_context.get("message_id") # This is the ID of the message that created the task
 
-        if not target_channel_id_str:
+        if not channel_id_str:
             logger.error("DiscordService: Target 'channel_id' not found in dispatch_context. Cannot execute action.")
             return
 
         # Fetch the target channel
         try:
-            target_channel_id = int(target_channel_id_str)
-            target_channel = self.bot.get_channel(target_channel_id) or await self.bot.fetch_channel(target_channel_id)
-            if not isinstance(target_channel, (discord.TextChannel, discord.DMChannel, discord.Thread)):
-                logger.error(f"DiscordService: Target channel {target_channel_id} is not a valid text-based channel. Type: {type(target_channel)}")
+            channel_id = int(channel_id_str)
+            channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
+            if not isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread)):
+                logger.error(f"DiscordService: Target channel {channel_id} is not a valid text-based channel. Type: {type(channel)}")
                 return
         except (ValueError, discord.NotFound, discord.Forbidden) as e:
-            logger.error(f"DiscordService: Error fetching target channel {target_channel_id_str}: {e}")
+            logger.error(f"DiscordService: Error fetching target channel {channel_id_str}: {e}")
             return
         except Exception as e:
-             logger.exception(f"DiscordService: Unexpected error fetching target channel {target_channel_id_str}: {e}")
+             logger.exception(f"DiscordService: Unexpected error fetching target channel {channel_id_str}: {e}")
              return
 
         action_type = result.selected_handler_action
@@ -291,23 +296,23 @@ class DiscordService(Service):
                     content_to_send = _truncate_discord_message(params.content)
                     sent_message: Optional[discord.Message] = None # To store the message object the bot sends
 
-                    if target_message_id_str:
+                    if message_id_str:
                         try:
-                            target_message_id = int(target_message_id_str)
+                            message_id = int(message_id_str)
                             # Fetch the message we intend to reply to (original user's message)
-                            message_to_reply_to = await target_channel.fetch_message(target_message_id)
+                            message_to_reply_to = await channel.fetch_message(message_id)
                             sent_message = await message_to_reply_to.reply(content_to_send) # Capture sent message
-                            logger.info(f"DiscordService: Replied to message {target_message_id} in channel {target_channel_id}.")
+                            logger.info(f"DiscordService: Replied to message {message_id} in channel {channel_id}.")
                         except (ValueError, discord.NotFound, discord.Forbidden) as e:
-                            logger.error(f"DiscordService: Error fetching message {target_message_id_str} in channel {target_channel_id} to reply: {e}. Sending to channel instead.")
-                            sent_message = await target_channel.send(content_to_send) # Capture sent message (Fallback)
+                            logger.error(f"DiscordService: Error fetching message {message_id_str} in channel {channel_id} to reply: {e}. Sending to channel instead.")
+                            sent_message = await channel.send(content_to_send) # Capture sent message (Fallback)
                         except Exception as e:
-                            logger.exception(f"DiscordService: Unexpected error replying to message {target_message_id_str} in channel {target_channel_id}: {e}. Sending to channel instead.")
-                            sent_message = await target_channel.send(content_to_send) # Capture sent message (Fallback)
+                            logger.exception(f"DiscordService: Unexpected error replying to message {message_id_str} in channel {channel_id}: {e}. Sending to channel instead.")
+                            sent_message = await channel.send(content_to_send) # Capture sent message (Fallback)
                     else:
                         # If there's no target message ID (e.g., task initiated differently), just send to the channel
-                        logger.warning(f"DiscordService: Target 'message_id' not found in dispatch_context. Sending SPEAK to channel {target_channel_id} instead of replying.")
-                        sent_message = await target_channel.send(content_to_send) # Capture sent message
+                        logger.warning(f"DiscordService: Target 'message_id' not found in dispatch_context. Sending SPEAK to channel {channel_id} instead of replying.")
+                        sent_message = await channel.send(content_to_send) # Capture sent message
                 else:
                     logger.error(f"DiscordService: Invalid params type for SPEAK: {type(params)}")
 
@@ -315,18 +320,18 @@ class DiscordService(Service):
                 if isinstance(params, DeferParams):
                     user_message_content = _truncate_discord_message(f"This requires further review (Reason: {params.reason}). It has been logged for wisdom-based deferral.")
                     # DEFER notification should always go back to the message that triggered the deferral
-                    if target_message_id_str:
+                    if message_id_str:
                         try:
-                            target_message_id = int(target_message_id_str)
-                            message_to_reply_to = await target_channel.fetch_message(target_message_id)
+                            message_id = int(message_id_str)
+                            message_to_reply_to = await channel.fetch_message(message_id)
                             await message_to_reply_to.reply(user_message_content)
-                            logger.info(f"DiscordService: Replied DEFER notification to message {target_message_id} in channel {target_channel_id}.")
+                            logger.info(f"DiscordService: Replied DEFER notification to message {message_id} in channel {channel_id}.")
                         except Exception as e:
-                            logger.error(f"DiscordService: Error replying DEFER notification to message {target_message_id_str}: {e}. Sending to channel instead.")
-                            await target_channel.send(user_message_content) # Fallback
+                            logger.error(f"DiscordService: Error replying DEFER notification to message {message_id_str}: {e}. Sending to channel instead.")
+                            await channel.send(user_message_content) # Fallback
                     else:
-                        logger.warning(f"DiscordService: Target 'message_id' not found in dispatch_context for DEFER. Sending notification to channel {target_channel_id} instead of replying.")
-                        await target_channel.send(user_message_content)
+                        logger.warning(f"DiscordService: Target 'message_id' not found in dispatch_context for DEFER. Sending notification to channel {channel_id} instead of replying.")
+                        await channel.send(user_message_content)
                     
                     if self.config.deferral_channel_id:
                         logger.debug(f"DiscordService: deferral_channel_id={self.config.deferral_channel_id}")
@@ -379,7 +384,7 @@ class DiscordService(Service):
                             thought_id=thought_id,
                             new_status=ThoughtStatus.DEFERRED, # Mark thought as deferred
                             # final_action_result could store deferral details if needed
-                            final_action_result=result.model_dump() 
+                            final_action=result.model_dump() 
                         )
                         logger.info(f"DiscordService: Marked thought {thought_id} as DEFERRED.")
                     # Task status (e.g., PAUSED) might be handled by AgentProcessor or a dedicated task manager
@@ -390,66 +395,65 @@ class DiscordService(Service):
                 if isinstance(params, RejectParams):
                     rejection_message = _truncate_discord_message(f"Unable to proceed with this request. Reason: {params.reason}")
                     # Send rejection to the target channel, potentially as a reply if target_message_id_str exists
-                    if target_message_id_str:
+                    if message_id_str:
                          try:
-                             target_message_id = int(target_message_id_str)
-                             message_to_reply_to = await target_channel.fetch_message(target_message_id)
+                             message_id = int(message_id_str)
+                             message_to_reply_to = await channel.fetch_message(message_id)
                              await message_to_reply_to.reply(rejection_message)
                          except Exception: # Fallback if reply fails
-                             await target_channel.send(rejection_message)
+                             await channel.send(rejection_message)
                     else:
-                         await target_channel.send(rejection_message)
-                    logger.info(f"DiscordService: Sent REJECT message to channel {target_channel_id}.")
+                         await channel.send(rejection_message)
+                    logger.info(f"DiscordService: Sent REJECT message to channel {channel_id}.")
                     if thought_id:
-                        persistence.update_thought_status(thought_id, ThoughtStatus.COMPLETED, final_action_result=result.model_dump()) # Or FAILED
+                        persistence.update_thought_status(thought_id, ThoughtStatus.COMPLETED, final_action=result.model_dump()) # Or FAILED
                 else:
                     logger.error(f"DiscordService: Invalid params type for REJECT: {type(params)}") # Corrected log
             
             elif action_type == HandlerActionType.TOOL:
                 if isinstance(params, ToolParams):
-                    tool_name = params.tool_name
-                    tool_args = params.arguments
-                    logger.info(f"DiscordService: Received USE_TOOL action: {tool_name} with args {tool_args}.")
-                    # Implement Discord-specific moderation tools here
-                    if tool_name == "discord_delete_message":
-                        # Use the target_message_id_str from the task context by default
-                        msg_id_to_delete_str = tool_args.get("message_id", target_message_id_str)
-                        if msg_id_to_delete_str:
-                            try:
-                                msg_id_to_delete = int(msg_id_to_delete_str)
-                                msg_to_delete = await target_channel.fetch_message(msg_id_to_delete)
-                                await msg_to_delete.delete()
-                                logger.info(f"DiscordService: Deleted message {msg_id_to_delete} in channel {target_channel_id}.")
-                                await target_channel.send(f"Moderation: Message {msg_id_to_delete} deleted.", delete_after=10)
-                            except Exception as e_mod:
-                                logger.error(f"DiscordService: Error deleting message {msg_id_to_delete_str}: {e_mod}")
-                                await target_channel.send(f"Moderation: Failed to delete message {msg_id_to_delete_str}.", delete_after=10)
-                        else:
-                            logger.warning(f"DiscordService: USE_TOOL 'discord_delete_message' called without 'message_id' in arguments or task context.")
-                    # Add other moderation tools like ban_user, kick_user, etc.
-                    else:
-                        await target_channel.send(f"Action '{tool_name}' acknowledged (Discord implementation pending).")
-                    if thought_id:
-                        persistence.update_thought_status(thought_id, ThoughtStatus.COMPLETED, final_action_result=result.model_dump())
+                    logger.info(f"DiscordService: Received TOOL action '{params.name}' with args {params.args}.")
+                    tool_handler = self.tool_registry.get_handler(params.name)
+                    if not tool_handler:
+                        logger.error(f"DiscordService: Tool '{params.name}' not registered.")
+                        if thought_id:
+                            persistence.update_thought_status(thought_id, ThoughtStatus.FAILED, final_action={"error": f"Tool '{params.name}' not registered."})
+                        return
+                    # Run tool async and report result
+                    try:
+                        tool_result: ToolResult = await tool_handler(params.args)
+                        # Report result back to ToolHandler if correlation_id is present
+                        correlation_id = params.args.get("correlation_id")
+                        if correlation_id:
+                            from ciris_engine.action_handlers.tool_handler import ToolHandler
+                            await ToolHandler().register_tool_result(correlation_id, tool_result)
+                        # Also update thought status if needed
+                        if thought_id:
+                            status = ThoughtStatus.COMPLETED if tool_result.execution_status == ToolExecutionStatus.SUCCESS else ThoughtStatus.FAILED
+                            persistence.update_thought_status(thought_id, status, final_action=tool_result.model_dump())
+                    except Exception as e:
+                        logger.exception(f"DiscordService: Exception running tool '{params.name}': {e}")
+                        if thought_id:
+                            persistence.update_thought_status(thought_id, ThoughtStatus.FAILED, final_action={"error": str(e)})
                 else:
-                    logger.error(f"DiscordService: Invalid params type for USE_TOOL: {type(params)}")
+                    logger.error(f"DiscordService: Invalid params type for TOOL: {type(params)}")
 
             else:
                 logger.debug(f"DiscordService: No specific Discord handler for action type {action_type.value}")
                 # For actions not handled by DiscordService (e.g., MEMORIZE, REMEMBER, OBSERVE),
                 # ensure their status is appropriately updated if they are terminal for the thought.
                 if thought_id and action_type not in [HandlerActionType.PONDER]: # PONDER is handled by WC
-                    persistence.update_thought_status(thought_id, ThoughtStatus.COMPLETED, final_action_result=result.model_dump())
+                    persistence.update_thought_status(thought_id, ThoughtStatus.COMPLETED, final_action=result.model_dump())
 
 
         except discord.HTTPException as e:
             logger.error(f"DiscordService: Discord API error during action '{action_type.value}': {e.status} {e.text}")
             if thought_id:
-                persistence.update_thought_status(thought_id, ThoughtStatus.FAILED, final_action_result={"error": f"Discord API Error: {e.text}"})
+                persistence.update_thought_status(thought_id, ThoughtStatus.FAILED, final_action={"error": f"Discord API Error: {e.text}"})
         except Exception as e:
             logger.exception(f"DiscordService: Unexpected error handling action '{action_type.value}': {e}")
             if thought_id:
-                persistence.update_thought_status(thought_id, ThoughtStatus.FAILED, final_action_result={"error": f"Handler Exception: {str(e)}"})
+                persistence.update_thought_status(thought_id, ThoughtStatus.FAILED, final_action={"error": f"Handler Exception: {str(e)}"})
 
 
     async def start(self):

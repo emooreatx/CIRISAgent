@@ -6,7 +6,7 @@ from pydantic import BaseModel
 # Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import DeferParams
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
@@ -29,6 +29,8 @@ class DeferHandler(BaseActionHandler):
     ) -> None:
         params = result.action_parameters
         thought_id = thought.thought_id
+        await self._audit_log(HandlerActionType.DEFER, {**dispatch_context, "thought_id": thought_id}, outcome="start")
+
         original_event_channel_id = dispatch_context.get("channel_id")
 
         final_thought_status = ThoughtStatus.DEFERRED  # Default for DEFER action
@@ -70,9 +72,10 @@ class DeferHandler(BaseActionHandler):
         persistence.update_thought_status(
             thought_id=thought_id,
             new_status=final_thought_status,  # Should be DEFERRED
-            final_action=result.model_dump(),  # Changed from final_action_result
+            final_action=result.model_dump(),  # v1 field
         )
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for DEFER action. Info: {follow_up_content_key_info}")
+        await self._audit_log(HandlerActionType.DEFER, {**dispatch_context, "thought_id": thought_id}, outcome="success")
 
         # If this is an observation (not a root/system task), defer the parent task as well
         # Fixed: Use TaskStatus.DEFERRED not ThoughtStatus.DEFERRED for tasks

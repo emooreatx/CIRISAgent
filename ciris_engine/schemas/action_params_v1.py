@@ -3,26 +3,27 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 
 class ObserveParams(BaseModel):
-    sources: List[str]
-    active: bool = False  # Renamed from perform_active_look
+    channel_id: Optional[str] = None
+    active: bool = False
+    context: Dict[str, Any] = Field(default_factory=dict)
 
 class SpeakParams(BaseModel):
-    content: str
     channel_id: Optional[str] = None
+    content: str
 
 class ToolParams(BaseModel):  # Renamed from ActParams
     name: str
-    args: Dict[str, Any] = {}
+    args: Dict[str, Any] = Field(default_factory=dict)
 
 class PonderParams(BaseModel):
-    questions: List[str]  # Renamed from key_questions
+    questions: List[str]
 
 class RejectParams(BaseModel):
     reason: str
 
 class DeferParams(BaseModel):
     reason: str
-    context: Dict[str, Any] = Field(default_factory=dict)  # Simplified from deferral_package_content
+    context: Dict[str, Any] = Field(default_factory=dict)
 
 class MemorizeParams(BaseModel):
     key: str  # What to remember

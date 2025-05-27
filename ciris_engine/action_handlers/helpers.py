@@ -47,11 +47,10 @@ def create_follow_up_thought(
         status=ThoughtStatus.PENDING,
         created_at=now,
         updated_at=now,
-        round_number=parent_round,  # v1 uses single round_number instead of round_created
+        round_number=parent_round,
         content=content,
-        parent_thought_id=parent.thought_id,  # v1 uses parent_thought_id instead of related_thought_id
-        # v1 schema has these fields with defaults:
-        context={},  # v1 uses 'context' instead of 'processing_context'
+        parent_thought_id=parent.thought_id,
+        context={},  # v1 uses 'context'
         ponder_count=0,
         ponder_notes=None,
         final_action={},
