@@ -14,12 +14,12 @@ from ciris_engine.utils import DEFAULT_WA
 from pydantic import BaseModel, Field
 
 from .base import Service
-from ciris_engine.core.action_dispatcher import ActionDispatcher
+from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.action_params_v1 import DeferParams, RejectParams, SpeakParams, ToolParams
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.core import persistence  # For creating tasks and updating status
+from ciris_engine import persistence  # For creating tasks and updating status
 from .discord_event_queue import DiscordEventQueue
 
 logger = logging.getLogger(__name__)

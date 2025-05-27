@@ -1,6 +1,6 @@
 import asyncio
 import pytest
-from ciris_engine.core.ports import EventSource, ActionSink
+from ciris_engine.ports import EventSource, ActionSink
 
 class FakeEventSource(EventSource):
     def __init__(self, events):

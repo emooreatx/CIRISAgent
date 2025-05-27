@@ -7,7 +7,7 @@ from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
-from ciris_engine.core import persistence
+from ciris_engine import persistence
 
 
 @pytest.fixture

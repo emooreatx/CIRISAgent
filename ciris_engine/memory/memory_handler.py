@@ -6,7 +6,7 @@ from .ciris_local_graph import CIRISLocalGraph
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
-from ..core import persistence
+from ciris_engine import persistence
 from .utils import is_wa_feedback
 # Use the legacy graph schemas for now because CIRISLocalGraph expects
 # those classes. The v1 schemas are being adopted incrementally and

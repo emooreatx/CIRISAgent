@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock
 
-from ciris_engine.core.action_dispatcher import ActionDispatcher
+from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ActionSelectionPDMAResult
 

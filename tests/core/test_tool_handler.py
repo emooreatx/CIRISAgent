@@ -8,9 +8,9 @@ from ciris_engine.schemas.agent_core_schemas_v1 import (
     ActParams,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.core.action_handlers.tool_handler import ToolHandler
-from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.core import persistence
+from ciris_engine.action_handlers.tool_handler import ToolHandler
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine import persistence
 
 class DummyTool:
     def __init__(self):

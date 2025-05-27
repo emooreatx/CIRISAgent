@@ -3,10 +3,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from collections import deque
 
-from ciris_engine.core.processor.main_processor import AgentProcessor
+from ciris_engine.processor.main_processor import AgentProcessor
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.agent_processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def processor(simple_app_config):
     dispatcher.dispatch = AsyncMock()
     return AgentProcessor(app_config=simple_app_config, workflow_coordinator=mock_wc, action_dispatcher=dispatcher, services={})
 
-@patch('ciris_engine.core.processor.main_processor.persistence')
+@patch('ciris_engine.processor.main_processor.persistence')
 @pytest.mark.asyncio
 async def test_memory_meta_round_isolated(mock_persistence, processor: AgentProcessor):
     memory_thought = Thought(

@@ -5,7 +5,7 @@ import pytest
 
 from ciris_engine.services.cirisnode_client import CIRISNodeClient
 from ciris_engine.services.audit_service import AuditService
-from ciris_engine.core.audit_schemas import AuditLogEntry
+from ciris_engine.audit_schemas import AuditLogEntry
 
 
 @pytest.fixture

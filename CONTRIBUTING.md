@@ -71,7 +71,7 @@ Adhering to these guidelines ensures consistency in how new work enters the CIRI
 
 ### Agent Profiles
 
-The CIRIS Engine uses agent profiles (defined in `ciris_engine.core.config_schemas.SerializableAgentProfile`) to define the "personality" and specific configurations for different agent behaviors. This includes specifying the Domain-Specific Decision-Making Algorithm (DSDMA), permitted actions, and prompt overrides for various DMAs.
+The CIRIS Engine uses agent profiles (defined in `ciris_engine.config_schemas.SerializableAgentProfile`) to define the "personality" and specific configurations for different agent behaviors. This includes specifying the Domain-Specific Decision-Making Algorithm (DSDMA), permitted actions, and prompt overrides for various DMAs.
 
 **Creating a New Profile:**
 

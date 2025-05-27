@@ -4,7 +4,7 @@ import asyncio
 from typing import Callable, Awaitable, Dict, Any, Optional
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.core.ports import DeferralSink
+from ciris_engine.ports import DeferralSink
 from .base import Service
 from .discord_event_queue import DiscordEventQueue
 

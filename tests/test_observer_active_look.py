@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock
 from ciris_engine.schemas.action_params_v1 import ObserveParams, SpeakParams
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ActionSelectionPDMAResult, HandlerActionType
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
-from ciris_engine.core.action_handlers.speak_handler import SpeakHandler
-from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.core import persistence
+from ciris_engine.action_handlers.speak_handler import SpeakHandler
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine import persistence
 
 # The actual observer handler is defined inside run_discord_teacher.main.
 # For unit testing we replicate the essential logic here.

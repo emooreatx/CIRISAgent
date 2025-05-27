@@ -5,7 +5,7 @@ from ciris_engine.services.discord_observer import DiscordObserver
 from ciris_engine.services.discord_event_queue import DiscordEventQueue
 from ciris_engine.runtime.base_runtime import IncomingMessage
 from ciris_engine.services.discord_service import DiscordService
-from ciris_engine.core.action_dispatcher import ActionDispatcher
+from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 from datetime import datetime, timezone
 import logging
 import asyncio

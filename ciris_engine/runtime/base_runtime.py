@@ -6,9 +6,9 @@ from typing import List, Optional, Any, Callable
 from datetime import datetime, timezone
 
 from ciris_engine.config.config_manager import get_config_async
-from ciris_engine.core.action_dispatcher import ActionDispatcher
+from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 from ciris_engine.services.audit_service import AuditService
-from ciris_engine.core import persistence
+from ciris_engine import persistence
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, ActionSelectionResult
 from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile as AgentProfile
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, HandlerActionType

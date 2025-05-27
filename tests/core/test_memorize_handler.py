@@ -7,10 +7,10 @@ from ciris_engine.schemas.agent_core_schemas_v1 import (
     MemorizeParams,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.core.action_handlers.memorize_handler import MemorizeHandler
-from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.action_handlers.memorize_handler import MemorizeHandler
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.memory.ciris_local_graph import MemoryOpStatus
-from ciris_engine.core import persistence
+from ciris_engine import persistence
 
 class DummyMemory:
     def __init__(self):

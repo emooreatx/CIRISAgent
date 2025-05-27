@@ -3,7 +3,6 @@ from typing import Any
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
-from ..core import persistence
 from .ciris_local_graph import CIRISLocalGraph, MemoryOpResult, MemoryOpStatus
 
 logger = logging.getLogger(__name__)

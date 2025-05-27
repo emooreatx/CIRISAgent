@@ -6,16 +6,16 @@ from unittest.mock import patch
 import pytest
 
 from ciris_engine.runtime.base_runtime import BaseRuntime, BaseIOAdapter, IncomingMessage
-from ciris_engine.core import persistence
+from ciris_engine import persistence
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.core.action_dispatcher import ActionDispatcher
+from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
     ActionSelectionPDMAResult,
     SpeakParams,
 )
-from ciris_engine.core.action_handlers.speak_handler import SpeakHandler
-from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.action_handlers.speak_handler import SpeakHandler
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from types import SimpleNamespace
 
 class DummyAdapter(BaseIOAdapter):
