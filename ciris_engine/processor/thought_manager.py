@@ -181,10 +181,7 @@ class ThoughtManager:
     ) -> Optional[Thought]:
         """Create a follow-up thought from a parent thought."""
         now_iso = datetime.now(timezone.utc).isoformat()
-        
-        # Inherit context from parent
         context = parent_thought.context.copy() if parent_thought.context else {}
-        
         thought = Thought(
             thought_id=f"th_followup_{parent_thought.thought_id[:8]}_{str(uuid.uuid4())[:4]}",
             source_task_id=parent_thought.source_task_id,
@@ -194,11 +191,12 @@ class ThoughtManager:
             updated_at=now_iso,
             round_number=round_number,
             content=content,
+            parent_thought_id=parent_thought.thought_id,
             context=context,  # v1 uses 'context'
             ponder_count=0,
-            parent_thought_id=parent_thought.thought_id,  # v1 uses parent_thought_id
+            ponder_notes=None,
+            final_action={},
         )
-        
         try:
             persistence.add_thought(thought)
             logger.info(f"Created follow-up thought {thought.thought_id}")

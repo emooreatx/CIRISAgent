@@ -31,8 +31,8 @@ from ciris_engine.schemas.agent_core_schemas_v1 import (
     DeferParams,
     RejectParams,
     MemorizeParams,
-    RememberParams,
-    ForgetParams,
+    RememberParams,  # Add this
+    ForgetParams,    # Add this
     ToolParams,
     ObserveParams,
     Thought,
@@ -58,6 +58,7 @@ from ciris_engine.ponder.manager import PonderManager
 
 from ciris_engine.dma.factory import create_dsdma_from_profile
 from ciris_engine.harnesses.reflection_scheduler import schedule_reflection_modes
+from ciris_engine.utils import GraphQLContextProvider, GraphQLClient
 
 
 logger = logging.getLogger(__name__)
@@ -111,6 +112,14 @@ async def main() -> None:
     from ciris_engine.services.discord_event_queue import DiscordEventQueue
     discord_message_queue = DiscordEventQueue[IncomingMessage]()
     discord_adapter = DiscordAdapter(TOKEN, message_queue=discord_message_queue) # Create adapter first
+    # --- Tool Registry and Discord Tools ---
+    from ciris_engine.services.tool_registry import ToolRegistry
+    from ciris_engine.services.discord_tools import register_discord_tools
+    from ciris_engine.action_handlers.tool_handler import ToolHandler
+    tool_registry = ToolRegistry()
+    register_discord_tools(tool_registry, discord_adapter.client)
+    ToolHandler.set_tool_registry(tool_registry)
+    # --- End Tool Registry setup ---
     discord_sink = DiscordActionSink(None) # Placeholder, will be set after runtime init
     from ciris_engine.services.discord_deferral_sink import DiscordDeferralSink
     deferral_sink = DiscordDeferralSink(discord_adapter, os.getenv("DISCORD_DEFERRAL_CHANNEL_ID"))
@@ -125,7 +134,19 @@ async def main() -> None:
     
     llm_service = LLMService(app_config.llm_services)
     memory_service = CIRISLocalGraph()
-    
+
+    # --- GraphQL Context Provider Integration ---
+    graphql_provider = GraphQLContextProvider(
+        graphql_client=GraphQLClient() if app_config.guardrails.enable_remote_graphql else None,
+        memory_service=memory_service,
+        enable_remote_graphql=app_config.guardrails.enable_remote_graphql
+    )
+
+    context_builder = ContextBuilder(
+        memory_service=memory_service,
+        graphql_provider=graphql_provider
+    )
+
     from ciris_engine.services.discord_observer import DiscordObserver
     discord_observer = DiscordObserver(
         on_observe=handle_discord_observe_event,
@@ -163,6 +184,12 @@ async def main() -> None:
     discord_sink.runtime = runtime # Now set the runtime for the sink
     action_handler_deps.action_sink = discord_sink # Update dependency with real sink
     action_handler_deps.deferral_sink = deferral_sink
+
+    # --- Audit Service Integration ---
+    from ciris_engine.services.audit_service import AuditService
+    audit_service = AuditService()
+    await audit_service.start()
+    # --- End Audit Service Integration ---
 
     # The old runtime.dispatcher.register_service_handler for "discord" and "memory" is no longer needed here
     # as these are handled by the new ActionDispatcher and its centralized handlers.
