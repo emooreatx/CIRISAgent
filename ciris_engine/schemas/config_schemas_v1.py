@@ -1,13 +1,19 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 
+# Default values used across tests and services
+DEFAULT_SQLITE_DB_FILENAME = "ciris_engine.db"
+DEFAULT_DATA_DIR = "data"
+DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
+
 class DatabaseConfig(BaseModel):
     """Minimal v1 database configuration."""
-    path: str = "ciris_engine.db"
+    db_filename: str = Field(default=DEFAULT_SQLITE_DB_FILENAME, alias="path")
+    data_directory: str = DEFAULT_DATA_DIR
 
 class LLMConfig(BaseModel):
     """Minimal v1 LLM configuration."""
-    model: str = "gpt-4o-mini"
+    model: str = DEFAULT_OPENAI_MODEL_NAME
     temperature: float = 0.7
     max_retries: int = 2
     api_base: str = "https://api.openai.com/v1"

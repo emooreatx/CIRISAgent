@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.states import AgentState
 
-from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
+from ciris_engine.core.thought_processor import ThoughtProcessor
 from ciris_engine.core.action_dispatcher import ActionDispatcher
 
 from .state_manager import StateManager
@@ -32,14 +32,14 @@ class AgentProcessor:
     def __init__(
         self,
         app_config: AppConfig,
-        workflow_coordinator: WorkflowCoordinator,
+        thought_processor: ThoughtProcessor,
         action_dispatcher: ActionDispatcher,
         services: Dict[str, Any],
         startup_channel_id: Optional[str] = None,
     ):
         """Initialize the agent processor with v1 configuration."""
         self.app_config = app_config
-        self.workflow_coordinator = workflow_coordinator
+        self.thought_processor = thought_processor
         self.action_dispatcher = action_dispatcher
         self.services = services
         self.startup_channel_id = startup_channel_id
@@ -50,7 +50,7 @@ class AgentProcessor:
         # Initialize specialized processors
         self.wakeup_processor = WakeupProcessor(
             app_config=app_config,
-            workflow_coordinator=workflow_coordinator,
+            thought_processor=thought_processor,
             action_dispatcher=action_dispatcher,
             services=services,
             startup_channel_id=startup_channel_id
@@ -58,21 +58,21 @@ class AgentProcessor:
         
         self.work_processor = WorkProcessor(
             app_config=app_config,
-            workflow_coordinator=workflow_coordinator,
+            thought_processor=thought_processor,
             action_dispatcher=action_dispatcher,
             services=services
         )
         
         self.play_processor = PlayProcessor(
             app_config=app_config,
-            workflow_coordinator=workflow_coordinator,
+            thought_processor=thought_processor,
             action_dispatcher=action_dispatcher,
             services=services
         )
         
         self.solitude_processor = SolitudeProcessor(
             app_config=app_config,
-            workflow_coordinator=workflow_coordinator,
+            thought_processor=thought_processor,
             action_dispatcher=action_dispatcher,
             services=services
         )
@@ -190,8 +190,8 @@ class AgentProcessor:
                 break
             
             # Update round number
-            self.workflow_coordinator.advance_round()
-            self.current_round_number = self.workflow_coordinator.current_round_number
+            self.thought_processor.advance_round()
+            self.current_round_number = getattr(self.thought_processor, "current_round_number", self.current_round_number + 1)
             
             # Check for automatic state transitions
             next_state = self.state_manager.should_auto_transition()

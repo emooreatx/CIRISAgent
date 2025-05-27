@@ -1,9 +1,9 @@
 import pytest
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
-    ActionSelectionPDMAResult,
     DeferParams,
 )
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 from ciris_engine.core.action_handlers.defer_handler import DeferHandler
 from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
@@ -23,7 +23,7 @@ async def test_handle_defer(monkeypatch):
     def record_status(**kwargs):
         called.update(kwargs)
     monkeypatch.setattr(persistence, "update_thought_status", record_status)
-    result = ActionSelectionPDMAResult(
+    result = ActionSelectionResult(
         context_summary_for_action_selection="c",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.DEFER,

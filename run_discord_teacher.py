@@ -27,7 +27,7 @@ import instructor # Added import for instructor.Mode
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.services.llm_service import LLMService
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph, MemoryOpStatus
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     HandlerActionType,
     SpeakParams,
     DeferParams,
@@ -36,12 +36,11 @@ from ciris_engine.core.agent_core_schemas import (
     RememberParams,
     ForgetParams,
     ActParams,
-    ObserveParams, # ObserveParams is used by ObserveHandler
+    ObserveParams,
     Thought,
-    # ActParams, DeferParams, MemorizeParams, RejectParams, SpeakParams are used by their respective handlers
 )
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.core.foundational_schemas import ThoughtStatus, TaskStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
 from pydantic import BaseModel # Used by handlers for params
 import uuid # Used by handlers
 from ciris_engine.utils.constants import DEFAULT_WA, WA_USER_ID # Potentially used by handlers or context
