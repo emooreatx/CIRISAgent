@@ -8,8 +8,9 @@ DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
 
 class DatabaseConfig(BaseModel):
     """Minimal v1 database configuration."""
-    db_filename: str = Field(default=DEFAULT_SQLITE_DB_FILENAME, alias="path")
+    db_filename: str = Field(default=DEFAULT_SQLITE_DB_FILENAME, alias="db_filename")
     data_directory: str = DEFAULT_DATA_DIR
+    graph_memory_filename: str = Field(default="graph_memory.pkl", alias="graph_memory_filename")
 
 class LLMConfig(BaseModel):
     """Minimal v1 LLM configuration."""

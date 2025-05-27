@@ -50,6 +50,11 @@ from ciris_engine.utils.profile_loader import load_profile # Added import
 from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.processor.thought_processor import ThoughtProcessor
+from ciris_engine.processor.dma_orchestrator import DMAOrchestrator
+from ciris_engine.context.builder import ContextBuilder
+from ciris_engine.guardrails.orchestrator import GuardrailOrchestrator
+from ciris_engine.ponder.manager import PonderManager
 
 from ciris_engine.dma.factory import create_dsdma_from_profile
 from ciris_engine.harnesses.reflection_scheduler import schedule_reflection_modes
@@ -204,9 +209,21 @@ async def main() -> None:
         # Add any other services needed by AgentProcessor
     }
     
+    dma_orchestrator = DMAOrchestrator(app_config=app_config, llm_service=llm_service, memory_service=memory_service)
+    context_builder = ContextBuilder(app_config=app_config, memory_service=memory_service)
+    guardrail_orchestrator = GuardrailOrchestrator(app_config=app_config, guardrails=guardrails)
+    ponder_manager = PonderManager(app_config=app_config, memory_service=memory_service)
+
+    thought_processor = ThoughtProcessor(
+        dma_orchestrator,
+        context_builder,
+        guardrail_orchestrator,
+        ponder_manager,
+        app_config
+    )
     processor = AgentProcessor(
         app_config=app_config,
-        # workflow_coordinator=workflow_coordinator,  # Remove this argument if not required
+        thought_processor=thought_processor,
         action_dispatcher=new_action_dispatcher, # Pass the new dispatcher
         services=services_dict, # services_dict is still passed for general context
         startup_channel_id=SNORE_CHANNEL_ID,

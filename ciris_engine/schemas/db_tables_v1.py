@@ -1,7 +1,7 @@
 # v1 minimal table schemas for CIRISAgent
 
 tasks_table_v1 = '''
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
     task_id TEXT PRIMARY KEY,
     description TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE tasks (
 '''
 
 thoughts_table_v1 = '''
-CREATE TABLE thoughts (
+CREATE TABLE IF NOT EXISTS thoughts (
     thought_id TEXT PRIMARY KEY,
     source_task_id TEXT NOT NULL,
     thought_type TEXT DEFAULT 'standard',
@@ -34,7 +34,7 @@ CREATE TABLE thoughts (
 '''
 
 feedback_mappings_table_v1 = '''
-CREATE TABLE feedback_mappings (
+CREATE TABLE IF NOT EXISTS feedback_mappings (
     feedback_id TEXT PRIMARY KEY,
     source_message_id TEXT,
     target_thought_id TEXT,

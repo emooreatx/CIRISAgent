@@ -34,3 +34,43 @@ def initialize_database():
     except sqlite3.Error as e:
         logger.exception(f"Database error during table creation: {e}")
         raise
+
+def get_all_tasks():
+    """Returns all tasks from the tasks table as a list of dicts."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM tasks")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+def get_tasks_by_status(status: str):
+    """Returns all tasks with the given status from the tasks table as a list of dicts."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM tasks WHERE status = ?", (status,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+def get_thoughts_by_status(status: str):
+    """Returns all thoughts with the given status from the thoughts table as a list of dicts."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM thoughts WHERE status = ?", (status,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+def get_tasks_older_than(older_than_timestamp: str):
+    """Returns all tasks with created_at older than the given ISO timestamp."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM tasks WHERE created_at < ?", (older_than_timestamp,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+def get_thoughts_older_than(older_than_timestamp: str):
+    """Returns all thoughts with created_at older than the given ISO timestamp."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM thoughts WHERE created_at < ?", (older_than_timestamp,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
