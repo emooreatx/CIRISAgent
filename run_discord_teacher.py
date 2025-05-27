@@ -74,11 +74,11 @@ class DiscordActionSink(ActionSink):
     async def stop(self) -> None: pass
     async def send_message(self, channel_id: str, content: str) -> None:
         await self.runtime.io_adapter.send_output(channel_id, content)
-    async def run_tool(self, tool_name: str, arguments: dict) -> None: 
+    async def run_tool(self, name: str, args: dict) -> None:
         # This is a basic sink; tool execution results would typically be handled
         # by the agent observing the effects of the tool, or the tool directly
         # creating new observations/events. For now, this is a placeholder.
-        logger.info(f"DiscordActionSink: Request to run tool '{tool_name}' with args: {arguments}. (Placeholder implementation)")
+        logger.info(f"DiscordActionSink: Request to run tool '{name}' with args: {args}. (Placeholder implementation)")
         return None
 
 # _discord_handler is removed as its logic is now in centralized handlers.

@@ -49,7 +49,7 @@ class MemoryHandler:
 
         if target == "CHANNEL":
             if is_wa_feedback(thought):
-                corrected_id = thought.processing_context.get("corrected_thought_id")
+                corrected_id = thought.context.get("corrected_thought_id")
                 valid_correction = False
                 if corrected_id:
                     # Only treat as valid if corrected_id is not 'nonexistent' (for test)

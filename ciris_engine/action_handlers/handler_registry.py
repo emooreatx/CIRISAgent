@@ -11,6 +11,8 @@ from .defer_handler import DeferHandler
 from .reject_handler import RejectHandler
 from .task_complete_handler import TaskCompleteHandler
 from .tool_handler import ToolHandler
+from .remember_handler import RememberHandler
+from .forget_handler import ForgetHandler
 from .action_dispatcher import ActionDispatcher
 from .base_handler import ActionHandlerDependencies
 
@@ -29,6 +31,8 @@ def build_action_dispatcher(audit_service=None, **handler_dependencies):
         HandlerActionType.REJECT: RejectHandler(deps),
         HandlerActionType.TASK_COMPLETE: TaskCompleteHandler(deps),
         HandlerActionType.TOOL: ToolHandler(deps),
+        HandlerActionType.REMEMBER: RememberHandler(deps),
+        HandlerActionType.FORGET: ForgetHandler(deps),
         # HandlerActionType.OBSERVATION_EVENT: handle_discord_observe_event,  # Now uses Discord-specific handler
         # Remove or comment out the OBSERVATION_EVENT line, as it is not in the enum
     }

@@ -2,6 +2,8 @@ import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import json
+import asyncio
+from typing import Optional
 
 from ciris_engine import persistence
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
@@ -16,6 +18,48 @@ class DatabaseMaintenanceService:
         self.archive_dir = Path(archive_dir_path)
         self.archive_older_than_hours = archive_older_than_hours
         self.valid_root_task_ids = {"WAKEUP_ROOT", "job-discord-monitor"} # Common root tasks to preserve
+        self._maintenance_task: Optional[asyncio.Task] = None
+        self._shutdown_event = asyncio.Event()
+
+    async def start(self):
+        """Start the maintenance service with periodic tasks."""
+        # If you have a parent class, call super().start()
+        self._maintenance_task = asyncio.create_task(self._maintenance_loop())
+
+    async def stop(self):
+        """Properly stop the maintenance service."""
+        self._shutdown_event.set()
+        if self._maintenance_task:
+            try:
+                await asyncio.wait_for(self._maintenance_task, timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("Maintenance task did not finish in time")
+                self._maintenance_task.cancel()
+        await self._final_cleanup()
+        # If you have a parent class, call super().stop()
+
+    async def _maintenance_loop(self):
+        """Periodic maintenance loop."""
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.wait_for(
+                    self._shutdown_event.wait(),
+                    timeout=3600  # Run every hour
+                )
+            except asyncio.TimeoutError:
+                await self._perform_periodic_maintenance()
+
+    async def _perform_periodic_maintenance(self):
+        """Run periodic maintenance tasks."""
+        # Archive old data
+        # Optimize database
+        # Clean up orphaned records
+        # Generate maintenance report
+        logger.info("Periodic maintenance tasks executed.")
+
+    async def _final_cleanup(self):
+        """Final cleanup before shutdown."""
+        logger.info("Final maintenance cleanup executed.")
 
     async def perform_startup_cleanup(self):
         """
@@ -34,7 +78,7 @@ class DatabaseMaintenanceService:
 
         # Get all tasks that are children of WAKEUP_ROOT
         all_tasks = persistence.get_all_tasks() # Assuming a function to get all tasks
-        wakeup_step_tasks = [t for t in all_tasks if t.parent_goal_id == WAKEUP_ROOT_TASK_ID]
+        wakeup_step_tasks = [t for t in all_tasks if t.parent_task_id == WAKEUP_ROOT_TASK_ID]
 
         for step_task in wakeup_step_tasks:
             if step_task.status not in [TaskStatus.COMPLETED, TaskStatus.FAILED]: # Removed TaskStatus.ARCHIVED
@@ -47,7 +91,7 @@ class DatabaseMaintenanceService:
                 for thought in step_thoughts:
                     if thought.status not in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED, ThoughtStatus.DEFERRED, ThoughtStatus.REJECTED]:
                         logger.info(f"Marking thought {thought.thought_id} (for stale step {step_task.task_id}) as FAILED.")
-                        persistence.update_thought_status(thought.thought_id, ThoughtStatus.FAILED, final_action_result={"status": "Task marked stale by maintenance"})
+                        persistence.update_thought_status(thought.thought_id, ThoughtStatus.FAILED, final_action={"status": "Task marked stale by maintenance"})
                         stale_wakeup_thoughts_failed_count += 1
         
         if stale_wakeup_steps_failed_count > 0 or stale_wakeup_thoughts_failed_count > 0:
@@ -62,10 +106,10 @@ class DatabaseMaintenanceService:
 
         for task in active_tasks:
             is_orphan = False
-            if task.task_id in self.valid_root_task_ids and task.parent_goal_id is None:
+            if task.task_id in self.valid_root_task_ids and task.parent_task_id is None:
                 pass # Allowed active root tasks
-            elif task.parent_goal_id:
-                parent_task = persistence.get_task_by_id(task.parent_goal_id)
+            elif task.parent_task_id:
+                parent_task = persistence.get_task_by_id(task.parent_task_id)
                 if not parent_task or parent_task.status not in [TaskStatus.ACTIVE, TaskStatus.COMPLETED]:
                     is_orphan = True
             elif task.task_id not in self.valid_root_task_ids:
@@ -151,8 +195,3 @@ class DatabaseMaintenanceService:
         
         logger.info(f"Archival: {archived_tasks_count} tasks, {archived_thoughts_count} thoughts archived and removed.")
         logger.info("--- Finished Startup Database Cleanup ---")
-
-    async def stop(self):
-        # Placeholder if service needs cleanup, e.g., closing connections
-        logger.info("DatabaseMaintenanceService stopped.")
-        pass

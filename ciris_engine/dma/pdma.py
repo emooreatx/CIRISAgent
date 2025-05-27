@@ -94,8 +94,8 @@ The PDMA steps and their corresponding JSON fields (which you MUST generate) are
         system_snapshot_context_str = ""
         user_profile_context_str = ""
 
-        if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
-            system_snapshot = thought_item.processing_context.get("system_snapshot")
+        if hasattr(thought_item, 'context') and thought_item.context:
+            system_snapshot = thought_item.context.get("system_snapshot")
             if system_snapshot:
                 # Format user profiles using the shared formatter
                 user_profiles_data = system_snapshot.get("user_profiles")

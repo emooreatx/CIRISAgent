@@ -43,7 +43,7 @@ class CLIActionSink(ActionSink):
     async def send_message(self, channel_id: Optional[str], content: str) -> None:
         await self.runtime.io_adapter.send_output(channel_id, content)
 
-    async def run_tool(self, tool_name: str, arguments: dict) -> None:
+    async def run_tool(self, name: str, args: dict) -> None:
         return None
 
 
@@ -62,8 +62,8 @@ async def _cli_handler(runtime: BaseRuntime, sink: ActionSink, result: ActionSel
             final_status = ThoughtStatus.DEFERRED
         elif action == HandlerActionType.REJECT and isinstance(params, RejectParams):
             await sink.send_message(None, f"Unable to proceed. Reason: {params.reason}")
-        elif action == HandlerActionType.TOOL and isinstance(params, ActParams):
-            await sink.run_tool(params.tool_name, params.arguments)
+        elif action == HandlerActionType.TOOL and isinstance(params, ToolParams):
+            await sink.run_tool(params.name, params.args)
         else:
             logger.error("CLIHandler: Unhandled action %s", action.value)
             final_status = ThoughtStatus.FAILED
@@ -73,7 +73,7 @@ async def _cli_handler(runtime: BaseRuntime, sink: ActionSink, result: ActionSel
 
     if thought_id:
         try:
-            persistence.update_thought_status(thought_id=thought_id, new_status=final_status, final_action_result=result.model_dump())
+            persistence.update_thought_status(thought_id=thought_id, new_status=final_status, final_action=result.model_dump())
         except Exception as db_error:
             logger.error("CLIHandler: Failed to update thought %s status to %s in DB: %s", thought_id, final_status.value, db_error)
 

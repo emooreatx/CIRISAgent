@@ -28,7 +28,7 @@ class MemorizeHandler(BaseActionHandler):
     ) -> None:
         params = result.action_parameters
         thought_id = thought.thought_id
-
+        await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         final_thought_status = ThoughtStatus.COMPLETED
         action_performed_successfully = False
         follow_up_content_key_info = f"MEMORIZE action for thought {thought_id}"
@@ -37,10 +37,12 @@ class MemorizeHandler(BaseActionHandler):
             self.logger.error(f"MEMORIZE action params are not MemorizeParams model. Type: {type(params)}. Thought ID: {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
             follow_up_content_key_info = f"MEMORIZE action failed: Invalid parameters type ({type(params)}) for thought {thought_id}."
+            await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="failed_invalid_params")
         elif not self.dependencies.memory_service:
             self.logger.error(f"MemoryService not available. Cannot perform MEMORIZE for thought {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
             follow_up_content_key_info = f"MEMORIZE action failed: MemoryService unavailable for thought {thought_id}."
+            await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="failed_no_memory_service")
         else:
             user_nick = await extract_user_nick(
                 params=params,
@@ -87,7 +89,7 @@ class MemorizeHandler(BaseActionHandler):
         persistence.update_thought_status(
             thought_id=thought_id,
             new_status=final_thought_status,
-            final_action=result.model_dump(),  # Changed from final_action_result
+            final_action=result.model_dump(),  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after MEMORIZE attempt.")
 
@@ -126,6 +128,7 @@ class MemorizeHandler(BaseActionHandler):
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after MEMORIZE action."
             )
+            await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="success")
         except Exception as e:
             self.logger.critical(
                 f"Failed to create follow-up thought for {thought_id}: {e}",

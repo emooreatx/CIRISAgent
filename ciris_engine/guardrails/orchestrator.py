@@ -62,7 +62,7 @@ class GuardrailOrchestrator:
             guardrail_defer_params = DeferParams(
                 reason=f"Guardrail failure: {reason}",
                 target_wa_ual=DEFAULT_WA,
-                deferral_package_content=deferral_package_for_guardrail
+                context=deferral_package_for_guardrail
             )
             escalate_due_to_guardrail(
                 thought,

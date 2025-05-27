@@ -70,7 +70,7 @@ class ActionDispatcher:
                 persistence.update_thought_status(
                     thought_id=thought.thought_id,
                     new_status=ThoughtStatus.FAILED,
-                    final_action_result={
+                    final_action={
                         "error": f"No handler for action {action_type.value}",
                         "original_result": action_selection_result.model_dump()
                     }
@@ -94,7 +94,7 @@ class ActionDispatcher:
                 persistence.update_thought_status(
                     thought_id=thought.thought_id,
                     new_status=ThoughtStatus.FAILED,
-                    final_action_result={
+                    final_action={
                         "error": f"Handler {handler_instance.__class__.__name__} failed: {str(e)}",
                         "original_result": action_selection_result.model_dump(),
                     },

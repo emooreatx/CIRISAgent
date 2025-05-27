@@ -44,10 +44,9 @@ class PonderManager:
             persistence.update_thought_status(
                 thought_id=thought.thought_id,
                 new_status=ThoughtStatus.DEFERRED,
-                round_processed=None,
-                final_action_result=None,
                 ponder_notes=key_questions_list,
-                ponder_count=current_ponder_count
+                ponder_count=current_ponder_count,
+                final_action=None,
             )
             return None
         else:
@@ -56,10 +55,9 @@ class PonderManager:
             success = persistence.update_thought_status(
                 thought_id=thought.thought_id,
                 new_status=ThoughtStatus.PENDING,
-                round_processed=None,
-                final_action_result=None,
                 ponder_notes=key_questions_list,
-                ponder_count=new_ponder_count
+                ponder_count=new_ponder_count,
+                final_action=None,
             )
             if success:
                 logger.info(f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for re-processing.")

@@ -79,6 +79,6 @@ class CLIService(Service):
             persistence.update_thought_status(
                 thought_id=thought_id,
                 new_status=ThoughtStatus.COMPLETED,
-                final_action_result=result.model_dump(),
+                final_action=result.model_dump(),
             )
 

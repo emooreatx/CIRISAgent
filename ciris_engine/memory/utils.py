@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def is_wa_feedback(thought: Thought) -> bool:
     """Check if thought represents WA feedback for identity/environment updates."""
-    ctx = thought.processing_context or {}
+    ctx = thought.context or {}
     return (
         ctx.get("is_wa_feedback", False) and 
         ctx.get("feedback_target") in ["identity", "environment"]
@@ -19,7 +19,7 @@ def is_wa_feedback(thought: Thought) -> bool:
 
 def process_feedback(thought: Thought, memory_service: CIRISLocalGraph) -> MemoryOpResult:
     """Process WA feedback for graph updates."""
-    ctx = thought.processing_context
+    ctx = thought.context
     target = ctx.get("feedback_target")
     
     if target == "identity":

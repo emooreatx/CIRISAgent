@@ -41,7 +41,7 @@ class GraphQLContextProvider:
             name = task.context.get("author_name")
             if name:
                 authors.add(name)
-        history: List[Dict[str, Any]] = thought.processing_context.get("history", []) if getattr(thought, "processing_context", None) else []
+        history: List[Dict[str, Any]] = []  # Remove legacy processing_context usage, use only v1 fields.
         for item in history:
             name = item.get("author_name")
             if name:

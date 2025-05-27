@@ -114,12 +114,12 @@ class DiscordDeferralSink(Service, DeferralSink):
             Thought(
                 thought_id=thought_id,
                 source_task_id=original_task_id,
-                related_thought_id=corrected_thought_id,
+                parent_thought_id=corrected_thought_id,
                 thought_type="correction",
                 status=ThoughtStatus.PENDING,
                 created_at=now_iso,
                 updated_at=now_iso,
-                round_created=0,
+                round_number=0,
                 content=f"This message was received in response a deferral or prior task, which should be in your context. WA Correction by {message.author.name}: {message.content}",
                 priority=priority,
                 processing_context={
@@ -128,7 +128,7 @@ class DiscordDeferralSink(Service, DeferralSink):
                     "wa_author_name": message.author.name,
                     "wa_message_id": str(message.id),
                     "wa_timestamp": message.created_at.isoformat(),
-                    "deferral_package_content": deferral_data,
+                    "context": deferral_data,
                 },
             )
         )

@@ -1,12 +1,6 @@
 import logging
 import os
-import uuid
 from typing import Dict, Any
-from datetime import datetime, timezone
-
-from pydantic import BaseModel
-
-# Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import ObserveParams
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
@@ -16,6 +10,7 @@ from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
 from .discord_observe_handler import handle_discord_observe_event
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +24,7 @@ class ObserveHandler(BaseActionHandler):
     ) -> None:
         params = result.action_parameters
         thought_id = thought.thought_id
+        await self._audit_log(HandlerActionType.OBSERVE, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         final_thought_status = ThoughtStatus.COMPLETED
         action_performed_successfully = False
         follow_up_content_key_info = f"OBSERVE action for thought {thought_id}"
@@ -37,7 +33,7 @@ class ObserveHandler(BaseActionHandler):
             self.logger.error(f"OBSERVE action params are not ObserveParams model. Type: {type(params)}. Thought ID: {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
             follow_up_content_key_info = f"OBSERVE action failed: Invalid parameters type ({type(params)}) for thought {thought_id}."
-        elif params.active:  # v1 uses 'active' instead of 'perform_active_look'
+        elif params.active:  # v1 uses 'active'
             # Use the Discord observe handler in active mode
             try:
                 await handle_discord_observe_event(
@@ -83,7 +79,7 @@ class ObserveHandler(BaseActionHandler):
         persistence.update_thought_status(
             thought_id=thought_id,
             new_status=final_thought_status,
-            final_action=result.model_dump(),  # Changed from final_action_result
+            final_action=result.model_dump(),  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after OBSERVE attempt.")
 
@@ -128,9 +124,11 @@ class ObserveHandler(BaseActionHandler):
                 self.logger.info(
                     f"Created standard follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after OBSERVE action."
                 )
+                await self._audit_log(HandlerActionType.OBSERVE, {**dispatch_context, "thought_id": thought_id}, outcome="success" if action_performed_successfully else "failed")
             except Exception as e:
                 self.logger.critical(
                     f"Failed to create follow-up thought for {thought_id}: {e}",
                     exc_info=e,
                 )
+                await self._audit_log(HandlerActionType.OBSERVE, {**dispatch_context, "thought_id": thought_id}, outcome="failed_followup")
                 raise FollowUpCreationError from e

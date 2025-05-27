@@ -26,6 +26,8 @@ class TaskCompleteHandler(BaseActionHandler):
         thought_id = thought.thought_id
         parent_task_id = thought.source_task_id
 
+        await self._audit_log(HandlerActionType.TASK_COMPLETE, {**dispatch_context, "thought_id": thought_id}, outcome="start")
+
         final_thought_status = ThoughtStatus.COMPLETED
         # action_performed_successfully = True # The decision to complete the task is the action.
         
@@ -36,9 +38,10 @@ class TaskCompleteHandler(BaseActionHandler):
         persistence.update_thought_status(
             thought_id=thought_id,
             new_status=final_thought_status,
-            final_action=result.model_dump(),  # Changed from final_action_result to final_action
+            final_action=result.model_dump(),  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} for TASK_COMPLETE.")
+        await self._audit_log(HandlerActionType.TASK_COMPLETE, {**dispatch_context, "thought_id": thought_id}, outcome="success")
 
         # Update the parent task status to COMPLETED, unless it's a persistent task
         if parent_task_id:
