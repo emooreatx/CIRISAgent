@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 # Schemas to test
-from ciris_engine.core.foundational_schemas import (
+from ciris_engine.schemas.foundational_schemas_v1 import (
     CIRISSchemaVersion,
     HandlerActionType,
     TaskStatus,
@@ -13,7 +13,7 @@ from ciris_engine.core.foundational_schemas import (
     DKGAssetType,
     CIRISAgentUAL, CIRISTaskUAL, CIRISKnowledgeAssetUAL, VeilidDID, VeilidRouteID
 )
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams,
     MemorizeParams, RememberParams, ForgetParams,
     ActionSelectionPDMAResult,

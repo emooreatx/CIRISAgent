@@ -1,10 +1,10 @@
 import pytest
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
     ActionSelectionPDMAResult,
     DeferParams,
 )
-from ciris_engine.core.foundational_schemas import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 from ciris_engine.core.action_handlers.defer_handler import DeferHandler
 from ciris_engine.core.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.core import persistence

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from ciris_engine.services.audit_service import AuditService
-from ciris_engine.core.foundational_schemas import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 @pytest.mark.asyncio
 async def test_log_action_writes_line(tmp_path):

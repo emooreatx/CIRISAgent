@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from ciris_engine.core.graph_schemas import (
+from ciris_engine.schemas.graph_schemas_v1 import (
     GraphNode,
     GraphEdge,
     NodeType,
