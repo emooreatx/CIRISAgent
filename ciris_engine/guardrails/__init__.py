@@ -5,10 +5,11 @@ import instructor
 from openai import AsyncOpenAI # For type hinting aclient if it's not already instructor.Instructor
 
 # Corrected import for config schemas
-from ciris_engine.core.config_schemas import GuardrailsConfig, DEFAULT_OPENAI_MODEL_NAME 
+from ciris_engine.schemas.config_schemas_v1 import GuardrailsConfig, DEFAULT_OPENAI_MODEL_NAME 
 # Import schemas used by the guardrail
-from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, OptimizationVetoResult, EpistemicHumilityResult
-from ciris_engine.core.foundational_schemas import HandlerActionType
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from pydantic import BaseModel, Field
 
 from ciris_engine.faculties.epistemic import calculate_epistemic_values, evaluate_optimization_veto, evaluate_epistemic_humility
@@ -40,15 +41,15 @@ class EthicalGuardrails:
             f"optimization_veto_ratio: {self.optimization_veto_ratio}"
         )
 
-    async def _evaluate_optimization_veto(self, action_result: ActionSelectionPDMAResult):
+    async def _evaluate_optimization_veto(self, action_result: ActionSelectionResult):
         """Run the optimization veto check via LLM."""
         return await evaluate_optimization_veto(action_result, self.aclient, self.model_name)
 
-    async def _evaluate_epistemic_humility(self, action_result: ActionSelectionPDMAResult):
+    async def _evaluate_epistemic_humility(self, action_result: ActionSelectionResult):
         """Run the epistemic humility check via LLM."""
         return await evaluate_epistemic_humility(action_result, self.aclient, self.model_name)
 
-    async def check_action_output_safety(self, proposed_action_result: ActionSelectionPDMAResult) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+    async def check_action_output_safety(self, proposed_action_result: ActionSelectionResult) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         """
         Checks the safety and appropriateness of the proposed action's output,
         especially for communicative actions like 'Speak'.

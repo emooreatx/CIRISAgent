@@ -6,8 +6,11 @@ import instructor
 # from openai import AsyncOpenAI # Not directly needed if using instructor client passed in
 
 # Adjusted import path for schemas
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
+
 from ciris_engine.core.agent_core_schemas import (
-    EntropyResult, CoherenceResult, ActionSelectionPDMAResult, OptimizationVetoResult, EpistemicHumilityResult
+    EntropyResult, CoherenceResult
 )
 from pydantic import BaseModel, Field
 

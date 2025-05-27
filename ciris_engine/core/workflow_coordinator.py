@@ -7,10 +7,10 @@ from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING # Added TYPE_
 from pydantic import BaseModel # Added import
 
 from ..schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType
-from ..schemas.dma_results_v1 import EthicalDMAResult, CSDMAResult, DSDMAResult, ActionSelectionResult
+from ..schemas.dma_results_v1 import EthicalDMAResult, CSDMAResult, DSDMAResult
 from ..schemas.agent_core_schemas_v1 import Thought, Task
 from .agent_processing_queue import ProcessingQueueItem
-from ..schemas.config_schemas_v1 import AppConfig, WorkflowConfig # Import AppConfig and WorkflowConfig # ERIC HELP
+from ..schemas.config_schemas_v1 import AppConfig, WorkflowConfig 
 from . import persistence # Import persistence module
 from ciris_engine.services.llm_client import CIRISLLMClient # Assume this will have an async call_llm
 from ciris_engine.core.dma_executor import (
@@ -19,13 +19,17 @@ from ciris_engine.core.dma_executor import (
     run_dsdma,
     run_action_selection_pdma,
 )
-from ciris_engine.core.config_schemas import DMA_RETRY_LIMIT # ERIC HELP
+
 from ciris_engine.core.action_tracker import track_action
 from ciris_engine.guardrails import EthicalGuardrails
 from ciris_engine.utils import DEFAULT_WA
 from ciris_engine.utils import GraphQLContextProvider
 from ciris_engine.utils.deferral_package_builder import build_deferral_package
 from .thought_escalation import escalate_due_to_guardrail
+from ciris_engine.schemas.action_params_v1 import (
+    SpeakParams, PonderParams, RejectParams, DeferParams
+)
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 
 if TYPE_CHECKING:
     from ciris_engine.dma.dsdma_base import BaseDSDMA # Import only for type checking
@@ -90,16 +94,19 @@ class WorkflowCoordinator:
         Processes a single thought item through the full DMA and guardrail pipeline.
         The initial Ethical PDMA, CSDMA, and DSDMA calls are made concurrently.
         """
+        # Define DMA_RETRY_LIMIT at the start of process_thought
+        DMA_RETRY_LIMIT = getattr(self.workflow_config, 'dma_retry_limit', 3) if hasattr(self, 'workflow_config') else 3
+
         logging.info(f"WorkflowCoordinator: Async processing thought ID {thought_item.thought_id} - '{str(thought_item.content)[:50]}...'")
         
         # Fetch the full Thought object using the thought_id from ProcessingQueueItem
         thought_object: Optional[Thought] = persistence.get_thought_by_id(thought_item.thought_id)
         if not thought_object:
             logging.error(f"Critical: Could not retrieve Thought object for thought_id {thought_item.thought_id}. Aborting processing.")
-            from .agent_core_schemas import DeferParams
+            from ciris_engine.schemas.deferral_schemas_v1 import DeferralPackage
             defer_reason = f"Failed to retrieve thought object for ID {thought_item.thought_id}"
             parent_task_obj = persistence.get_task_by_id(thought_item.source_task_id)
-            deferral_package = build_deferral_package(
+            deferral_package = DeferralPackage(
                 thought=None,
                 parent_task=parent_task_obj,
                 ethical_pdma_result=None,
@@ -108,16 +115,11 @@ class WorkflowCoordinator:
                 trigger_reason="THOUGHT_NOT_FOUND",
                 extra={"error_details": defer_reason}
             )
-            defer_params = DeferParams(
-                reason=defer_reason,
-                target_wa_ual=DEFAULT_WA,
-                deferral_package_content=deferral_package
-            )
             return ActionSelectionResult(
                 context_summary_for_action_selection="Critical error: Thought object not found.",
                 action_alignment_check={"Error": "Thought object retrieval failed"},
                 selected_handler_action=HandlerActionType.DEFER,
-                action_parameters=defer_params,
+                action_parameters=deferral_package,
                 action_selection_rationale="System error: Cannot process thought without its core object.",
                 monitoring_for_selected_action={"status": "Error: Thought object not found"},
             )
@@ -199,7 +201,6 @@ class WorkflowCoordinator:
                 selected_dsdma_instance = active_dsdma
             else:
                 logging.critical(f"DSDMA evaluators present, but no DSDMA instance for active profile '{active_profile_name_for_dsdma}' for thought {thought_object.thought_id}. This is a critical error.")
-                from .agent_core_schemas import DeferParams
                 parent_task_obj = persistence.get_task_by_id(thought_object.source_task_id)
                 deferral_package = build_deferral_package(
                     thought=thought_object,
@@ -245,7 +246,6 @@ class WorkflowCoordinator:
                     round_processed=self.current_round_number,
                     final_action_result={"status": "DMA failure"},
                 )
-                from .agent_core_schemas import DeferParams
 
                 last_event = res.escalations[-1]
                 defer_params = DeferParams(
@@ -302,7 +302,6 @@ class WorkflowCoordinator:
             else:
                 # If DSDMA is required but failed or missing, this is a critical error
                 logging.critical(f"DSDMA ({selected_dsdma_instance.domain_name}) failed or did not return a result for thought {thought_item.thought_id}. This is a critical failure.")
-                from .agent_core_schemas import DeferParams
                 parent_task_obj = persistence.get_task_by_id(thought_object.source_task_id)
                 deferral_package = build_deferral_package(
                     thought=thought_object,
@@ -363,7 +362,6 @@ class WorkflowCoordinator:
         # CRITICAL: If profile_key_for_as is still None, treat as fatal error
         if not profile_key_for_as:
             logging.critical(f"No agent profile context available for ActionSelection for thought {thought_object.thought_id}. This is a critical error.")
-            from .agent_core_schemas import DeferParams
             parent_task_obj = persistence.get_task_by_id(thought_object.source_task_id)
             deferral_package = build_deferral_package(
                 thought=thought_object,
@@ -429,7 +427,7 @@ class WorkflowCoordinator:
         final_action_result = action_selection_result
         
         # Import Pydantic models for type checking action_parameters
-        from .agent_core_schemas import SpeakParams, PonderParams, DeferParams, RejectParams 
+        from ciris_engine.schemas.deferral_schemas_v1 import DeferralPackage
 
         if not passes_guardrail:
             logging.warning(f"Guardrail failed for thought ID {thought_object.thought_id}: {reason}. Overriding action to DEFER.")
@@ -578,7 +576,7 @@ class WorkflowCoordinator:
                 return defer_action_selection_result # Return the constructed result
             else: # Re-queue for PONDER
                 new_ponder_count = current_ponder_count + 1
-                logging.info(f"Thought ID {thought_object.thought_id} resulted in PONDER action (count: {new_ponder_count}). Questions: {key_questions_list}. Re-queueing.")
+                logging.info(f"Thought ID {thought_object.ththought_id} resulted in PONDER action (count: {new_ponder_count}). Questions: {key_questions_list}. Re-queueing.")
                 
                 success = persistence.update_thought_status(
                     thought_id=thought_object.thought_id,
@@ -589,10 +587,10 @@ class WorkflowCoordinator:
                     ponder_count=new_ponder_count
                 )
                 if success:
-                    logging.info(f"Thought ID {thought_object.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for re-processing.")
+                    logging.info(f"Thought ID {thought_object.ththought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for re-processing.")
                     return None # Indicates internal re-processing
                 else: # Re-queueing failed
-                    logging.error(f"Failed to update thought ID {thought_object.thought_id} for re-processing Ponder. Returning Ponder action as terminal.")
+                    logging.error(f"Failed to update thought ID {thought_object.ththought_id} for re-processing Ponder. Returning Ponder action as terminal.")
                     # If action_parameters was a dict, ensure it's converted to PonderParams or handled
                     if isinstance(final_action_result.action_parameters, dict):
                         # Attempt to create PonderParams if it was a dict, or handle error

@@ -3,7 +3,7 @@ from typing import Optional
 
 from .base import Service
 from ciris_engine.services.llm_client import CIRISLLMClient
-from ciris_engine.schemas.config_schemas_v1 import OpenAIConfig, LLMServicesConfig # ERIC
+from ciris_engine.schemas.config_schemas_v1 import OpenAIConfig, LLMServicesConfig
 
 logger = logging.getLogger(__name__)
 
