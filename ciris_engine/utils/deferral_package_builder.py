@@ -1,4 +1,4 @@
-from ciris_engine.utils.context_formatters import format_system_snapshot_for_prompt, format_user_profiles_for_prompt
+from ciris_engine.formatters import format_system_snapshot, format_user_profiles
 from ciris_engine.utils.task_formatters import format_task_context
 
 def build_deferral_package(thought, parent_task, ethical_pdma_result=None, csdma_result=None, dsdma_result=None, trigger_reason=None, extra=None):
@@ -28,8 +28,8 @@ def build_deferral_package(thought, parent_task, ethical_pdma_result=None, csdma
         user_profiles = system_snapshot.get('user_profiles')
         package["user_profiles"] = user_profiles
         package["system_snapshot"] = system_snapshot
-        package["formatted_user_profiles"] = format_user_profiles_for_prompt(user_profiles)
-        package["formatted_system_snapshot"] = format_system_snapshot_for_prompt(system_snapshot, processing_context)
+        package["formatted_user_profiles"] = format_user_profiles(user_profiles)
+        package["formatted_system_snapshot"] = format_system_snapshot(system_snapshot)
     # Add formatted task context
     if parent_task:
         recent_actions = getattr(parent_task, 'recent_actions', [])

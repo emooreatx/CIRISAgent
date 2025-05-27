@@ -21,6 +21,8 @@ from ciris_engine.schemas.action_params_v1 import DeferParams, RejectParams, Spe
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine import persistence  # For creating tasks and updating status
 from .discord_event_queue import DiscordEventQueue
+from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+from ciris_engine.utils import extract_user_nick
 
 logger = logging.getLogger(__name__)
 
@@ -77,13 +79,13 @@ def _truncate_discord_message(message: str, limit: int = DISCORD_MESSAGE_LIMIT) 
 
 class DiscordService(Service):
     def __init__(self, action_dispatcher: ActionDispatcher, config: Optional[DiscordConfig] = None,
-                 event_queue: Optional[DiscordEventQueue] = None):
+                 event_queue: Optional[DiscordEventQueue[IncomingMessage]] = None):
         super().__init__(config.model_dump() if config else None)  # Pass config dict to parent
         self.action_dispatcher = action_dispatcher
         self.config = config or DiscordConfig()
         self.config.load_env_vars()  # Load token and IDs from environment
         logger.info(f"Loaded monitored_channel_id: {self.config.monitored_channel_id} (from env: {os.getenv('DISCORD_CHANNEL_ID')})")
-        self.event_queue = event_queue or DiscordEventQueue()
+        self.event_queue = event_queue or DiscordEventQueue[IncomingMessage]()
 
         intents = discord.Intents.default()
         intents.messages = True
@@ -142,7 +144,7 @@ class DiscordService(Service):
                 "channel_id": str(message.channel.id),
                 "guild_id": str(message.guild.id) if message.guild else None,
                 "author_id": str(message.author.id),
-                "author_name": message.author.name,
+                "author_name": await extract_user_nick(message=message) or message.author.name,
                 "content": message.content, # The raw message content
                 "timestamp": message.created_at.isoformat(),
                 "origin_service": "discord", # Crucial for ActionDispatcher routing
@@ -219,13 +221,20 @@ class DiscordService(Service):
 
             # --- Regular Message Handling (Enqueue Event) ---
             logger.info(f"Enqueuing message {message.id} from {message.author.name} for observer.")
-            event = {
-                "user_nick": message.author.name,
-                "channel": str(message.channel.id),
-                "message_content": message.content,
-            }
+            incoming = IncomingMessage(
+                message_id=str(message.id),
+                author_id=str(message.author.id),
+                author_name=await extract_user_nick(message=message) or message.author.name,
+                content=message.content,
+                channel_id=str(message.channel.id),
+                reference_message_id=str(message.reference.message_id) if message.reference and message.reference.message_id else None,
+                timestamp=message.created_at.isoformat() if message.created_at else None,
+                is_bot=message.author.bot,
+                is_dm=isinstance(message.channel, discord.DMChannel),
+            )
+            setattr(incoming, "_raw_message", message)
             try:
-                self.event_queue.enqueue_nowait(event)
+                self.event_queue.enqueue_nowait(incoming)
                 logger.debug(
                     "DiscordService: Enqueued message %s for observer queue.",
                     message.id,

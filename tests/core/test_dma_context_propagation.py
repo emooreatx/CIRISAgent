@@ -26,7 +26,7 @@ from ciris_engine.schemas.dma_results_v1 import (
 )
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType
 from ciris_engine.schemas.action_params_v1 import SpeakParams
-from ciris_engine.utils.context_formatters import format_system_snapshot_for_prompt # For assertion
+from ciris_engine.formatters import format_system_snapshot # For assertion
 
 # Ensure database is initialized for tests that might use it
 @pytest.fixture(scope="module", autouse=True) # Changed to synchronous fixture
@@ -258,7 +258,7 @@ async def test_recently_completed_tasks_in_dma_prompts(
     assert thought_arg_pdma.processing_context is not None
     system_snapshot_pdma = thought_arg_pdma.processing_context.get("system_snapshot", {})
     # Format the snapshot as it would be for the prompt
-    prompt_context_pdma = format_system_snapshot_for_prompt(system_snapshot_pdma, thought_arg_pdma.processing_context)
+    prompt_context_pdma = format_system_snapshot(system_snapshot_pdma)
     assert expected_recent_task_text in prompt_context_pdma, "Ethical PDMA context missing recent tasks header"
     assert completed_task_desc in prompt_context_pdma, "Ethical PDMA context missing completed task description"
 
@@ -267,7 +267,7 @@ async def test_recently_completed_tasks_in_dma_prompts(
     thought_arg_csdma = mock_run_csdma.call_args[0][1]
     assert thought_arg_csdma.processing_context is not None
     system_snapshot_csdma = thought_arg_csdma.processing_context.get("system_snapshot", {})
-    prompt_context_csdma = format_system_snapshot_for_prompt(system_snapshot_csdma, thought_arg_csdma.processing_context)
+    prompt_context_csdma = format_system_snapshot(system_snapshot_csdma)
     assert expected_recent_task_text in prompt_context_csdma, "CSDMA context missing recent tasks header"
     assert completed_task_desc in prompt_context_csdma, "CSDMA context missing completed task description"
 
@@ -278,7 +278,7 @@ async def test_recently_completed_tasks_in_dma_prompts(
     thought_arg_as = triaged_inputs_as['original_thought']
     assert thought_arg_as.processing_context is not None
     system_snapshot_as = thought_arg_as.processing_context.get("system_snapshot", {})
-    prompt_context_as = format_system_snapshot_for_prompt(system_snapshot_as, thought_arg_as.processing_context)
+    prompt_context_as = format_system_snapshot(system_snapshot_as)
     assert expected_recent_task_text in prompt_context_as, "ActionSelection PDMA context missing recent tasks header"
     assert completed_task_desc in prompt_context_as, "ActionSelection PDMA context missing completed task description"
 
@@ -289,7 +289,7 @@ async def test_recently_completed_tasks_in_dma_prompts(
 
 @pytest.mark.asyncio
 def test_format_system_snapshot_for_prompt_full_context():
-    from ciris_engine.utils.context_formatters import format_system_snapshot_for_prompt, format_user_profiles_for_prompt
+    from ciris_engine.formatters import format_system_snapshot, format_user_profiles
     # Mock a full system snapshot and processing context
     system_snapshot = {
         "current_task_details": {"task_id": "t1", "description": "Current Task Desc"},
@@ -306,9 +306,9 @@ def test_format_system_snapshot_for_prompt_full_context():
         "initial_task_context": {"irrelevant": True},
     }
     # Format user profiles
-    user_profile_str = format_user_profiles_for_prompt(system_snapshot["user_profiles"])
+    user_profile_str = format_user_profiles(system_snapshot["user_profiles"])
     # Format system snapshot
-    snapshot_str = format_system_snapshot_for_prompt(system_snapshot, processing_context)
+    snapshot_str = format_system_snapshot(system_snapshot)
     # Check user node
     assert "Alice" in user_profile_str
     assert "general" in user_profile_str
