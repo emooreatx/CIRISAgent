@@ -7,14 +7,13 @@ import asyncio
 
 import networkx as nx
 
-from ..core.graph_schemas import (
+from ciris_engine.schemas.graph_schemas_v1 import (
     GraphScope,
     GraphNode,
     NodeType,
     GraphEdge,
-    GraphUpdateEvent,
 )
-from ..core.foundational_schemas import CaseInsensitiveEnum
+from ciris_engine.schemas.foundational_schemas_v1 import CaseInsensitiveEnum
 from ..services.base import Service
 from pydantic import BaseModel
 

@@ -16,7 +16,7 @@ async def test_dispatch_invokes_correct_handler():
         source_task_id="task",
         created_at="",
         updated_at="",
-        round_created=0,
+        round_number=0,
         content="",
     )
     handler = DummyHandler()
@@ -41,7 +41,7 @@ async def test_action_dispatcher_wrapper():
         source_task_id="task",
         created_at="",
         updated_at="",
-        round_created=0,
+        round_number=0,
         content="",
     )
     result = ActionSelectionPDMAResult(

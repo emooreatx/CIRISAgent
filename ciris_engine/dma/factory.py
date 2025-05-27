@@ -5,7 +5,7 @@ from typing import Dict, Optional, Type
 from openai import AsyncOpenAI
 
 from .dsdma_base import BaseDSDMA
-from ..core.config_schemas import SerializableAgentProfile
+from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile
 from ..utils.profile_loader import load_profile
 
 logger = logging.getLogger(__name__)

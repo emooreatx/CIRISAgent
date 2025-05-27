@@ -5,7 +5,7 @@ import httpx
 
 from ciris_engine.services.audit_service import AuditService
 from ciris_engine.core.config_manager import get_config
-from ciris_engine.core.config_schemas import CIRISNodeConfig # ERIC
+from ciris_engine.schemas.config_schemas_v1 import CIRISNodeConfig
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 logger = logging.getLogger(__name__)

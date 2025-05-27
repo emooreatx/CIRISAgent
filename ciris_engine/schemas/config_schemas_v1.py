@@ -1,13 +1,19 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 
+# Default values used across tests and services
+DEFAULT_SQLITE_DB_FILENAME = "ciris_engine.db"
+DEFAULT_DATA_DIR = "data"
+DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
+
 class DatabaseConfig(BaseModel):
     """Minimal v1 database configuration."""
-    path: str = "ciris_engine.db"
+    db_filename: str = Field(default=DEFAULT_SQLITE_DB_FILENAME, alias="path")
+    data_directory: str = DEFAULT_DATA_DIR
 
 class LLMConfig(BaseModel):
     """Minimal v1 LLM configuration."""
-    model: str = "gpt-4o-mini"
+    model: str = DEFAULT_OPENAI_MODEL_NAME
     temperature: float = 0.7
     max_retries: int = 2
     api_base: str = "https://api.openai.com/v1"
@@ -50,8 +56,13 @@ class AgentProfile(BaseModel):
     dsdma_identifier: Optional[str] = None
     dsdma_kwargs: Optional[Dict[str, Any]] = None
     permitted_actions: List[str] = Field(default_factory=list)
-    csdma_overrides: Dict[str, Any] = Field(default_factory=dict) 
+    csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
+
+# Legacy alias retained for backward compatibility with older tests
+class SerializableAgentProfile(AgentProfile):
+    """Serializable agent profile used in tests."""
+    pass
 
 class AppConfig(BaseModel):
     """Minimal v1 application configuration."""
@@ -63,3 +74,25 @@ class AppConfig(BaseModel):
     workflow: WorkflowConfig = WorkflowConfig()
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
+
+# Expose commonly used constants at module level for convenience
+DMA_RETRY_LIMIT = 3
+GUARDRAIL_RETRY_LIMIT = 2
+
+
+class CIRISNodeConfig(BaseModel):
+    """Configuration for communicating with CIRISNode service."""
+
+    base_url: str = Field(default="http://localhost:8001")
+    timeout_seconds: float = Field(default=30.0)
+    max_retries: int = Field(default=2)
+    agent_secret_jwt: Optional[str] = None
+
+    def load_env_vars(self) -> None:
+        """Load configuration from environment variables if present."""
+        import os
+
+        env_url = os.getenv("CIRISNODE_BASE_URL")
+        if env_url:
+            self.base_url = env_url
+        self.agent_secret_jwt = os.getenv("CIRISNODE_AGENT_SECRET_JWT")

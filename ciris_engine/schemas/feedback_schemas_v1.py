@@ -73,3 +73,22 @@ class FeedbackMapping(BaseModel):
     transport_data: Dict[str, Any] = Field(default_factory=dict)
     
     created_at: str
+
+
+class OptimizationVetoResult(BaseModel):
+    """Result of the optimization veto guardrail."""
+
+    decision: str
+    justification: str
+    entropy_reduction_ratio: float
+    affected_values: List[str] = Field(default_factory=list)
+    confidence: float = 1.0
+
+
+class EpistemicHumilityResult(BaseModel):
+    """Result of the epistemic humility check."""
+
+    epistemic_certainty: str
+    identified_uncertainties: List[str] = Field(default_factory=list)
+    reflective_justification: str
+    recommended_action: str

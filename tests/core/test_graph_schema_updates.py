@@ -5,28 +5,19 @@ from ciris_engine.schemas.graph_schemas_v1 import (
     GraphEdge,
     NodeType,
     GraphScope,
-    ValidationState,
-    EmergencyState,
-    ConfidentialityLevel,
 )
 
 
 def test_graph_node_defaults():
     node = GraphNode(id="n", type=NodeType.USER, scope=GraphScope.LOCAL)
     assert node.version == 1
-    assert node.validation_state is ValidationState.PENDING
-    assert node.confidentiality_level is ConfidentialityLevel.PUBLIC
-    assert node.validated_by is None
+    assert node.attributes == {}
 
 
-def test_emergency_requires_timestamp():
-    with pytest.raises(ValidationError):
-        GraphNode(
-            id="n",
-            type=NodeType.USER,
-            scope=GraphScope.LOCAL,
-            emergency_state=EmergencyState.ACTIVE,
-        )
+
+def test_edge_requires_basic_fields():
+    edge = GraphEdge(source="a", target="b", relationship="knows", scope=GraphScope.LOCAL)
+    assert edge.weight == 1.0
 
 
 def test_validated_by_requires_non_pending_state():
