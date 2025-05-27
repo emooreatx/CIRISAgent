@@ -3,11 +3,14 @@ from typing import Dict, Any
 
 from pydantic import BaseModel
 
-from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, DeferParams, Thought
-from ciris_engine.core.foundational_schemas import ThoughtStatus
+# Updated imports for v1 schemas
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.action_params_v1 import DeferParams
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.core import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
-from .helpers import create_follow_up_thought # Though DEFER might not always create a standard follow-up
+from .helpers import create_follow_up_thought  # Though DEFER might not always create a standard follow-up
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +23,7 @@ logger = logging.getLogger(__name__)
 class DeferHandler(BaseActionHandler):
     async def handle(
         self,
-        result: ActionSelectionPDMAResult,
+        result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
@@ -28,8 +31,8 @@ class DeferHandler(BaseActionHandler):
         thought_id = thought.thought_id
         original_event_channel_id = dispatch_context.get("channel_id")
 
-        final_thought_status = ThoughtStatus.DEFERRED # Default for DEFER action
-        action_performed_successfully = False # Until confirmed
+        final_thought_status = ThoughtStatus.DEFERRED  # Default for DEFER action
+        action_performed_successfully = False  # Until confirmed
         follow_up_content_key_info = f"DEFER action for thought {thought_id}"
 
         if not isinstance(params, DeferParams):
@@ -44,7 +47,7 @@ class DeferHandler(BaseActionHandler):
             if self.dependencies.action_sink and original_event_channel_id and params.reason:
                 try:
                     await self.dependencies.action_sink.send_message(original_event_channel_id, f"Action Deferred: {params.reason}")
-                    action_performed_successfully = True # Informing user is part of the action
+                    action_performed_successfully = True  # Informing user is part of the action
                 except Exception as e:
                     self.logger.error(f"Failed to send DEFER notification to channel {original_event_channel_id} for thought {thought_id}: {e}")
                     # Don't mark action as failed for this, just log. The core deferral is DB update.
@@ -55,24 +58,26 @@ class DeferHandler(BaseActionHandler):
                         source_task_id,
                         thought_id,
                         params.reason,
-                        params.deferral_package_content or {},
+                        params.context or {},  # v1 uses 'context' instead of 'deferral_package_content'
                     )
                 except Exception as e:
                     self.logger.error(f"DeferralSink failed for thought {thought_id}: {e}")
             else:
                 # If no sink or channel, the deferral is silent, which is acceptable.
-                action_performed_successfully = True # Deferral itself is successful by updating status
+                action_performed_successfully = True  # Deferral itself is successful by updating status
 
+        # v1 uses 'final_action' instead of 'final_action_result'
         persistence.update_thought_status(
             thought_id=thought_id,
-            new_status=final_thought_status, # Should be DEFERRED
-            final_action_result=result.model_dump(),
+            new_status=final_thought_status,  # Should be DEFERRED
+            final_action=result.model_dump(),  # Changed from final_action_result
         )
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for DEFER action. Info: {follow_up_content_key_info}")
 
         # If this is an observation (not a root/system task), defer the parent task as well
-        if thought.source_task_id != "WAKEUP_ROOT" and thought.source_task_id != "SYSTEM_TASK" and thought.source_task_id != "DREAM_TASK":
-            persistence.update_task_status(thought.source_task_id, ThoughtStatus.DEFERRED)
+        # Fixed: Use TaskStatus.DEFERRED not ThoughtStatus.DEFERRED for tasks
+        if thought.source_task_id not in ["WAKEUP_ROOT", "SYSTEM_TASK", "job-discord-monitor", "DREAM_TASK"]:
+            persistence.update_task_status(thought.source_task_id, TaskStatus.DEFERRED)
             self.logger.info(f"Marked parent task {thought.source_task_id} as DEFERRED due to child thought deferral.")
 
         # DEFER actions typically don't create a standard "next step" follow-up thought

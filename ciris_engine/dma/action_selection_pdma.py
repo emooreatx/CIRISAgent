@@ -5,21 +5,21 @@ import instructor
 from openai import AsyncOpenAI
 
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
     HandlerActionType,
     CIRISSchemaVersion,
 )
-from ciris_engine.core.dma_results import (
-    ActionSelectionPDMAResult,
-    EthicalPDMAResult,
+from ciris_engine.schemas.dma_results_v1 import (
+    ActionSelectionResult,
+    EthicalDMAResult,
     CSDMAResult,
     DSDMAResult,
 )
-from ciris_engine.core.action_params import (
+from ciris_engine.schemas.action_params_v1 import (
     ObserveParams,
     SpeakParams,
-    ActParams,
+    ActParams, # ERIC?
     PonderParams,
     RejectParams,
     DeferParams,
@@ -64,7 +64,7 @@ class ActionSelectionPDMAEvaluator:
             "Return JSON with keys: context_summary_for_action_selection, action_alignment_check, "
             "action_conflicts, action_resolution, selected_handler_action, action_parameters, "
             "action_selection_rationale, monitoring_for_selected_action."
-            # Confidence score is not requested from LLM here, but is part of ActionSelectionPDMAResult
+            # Confidence score is not requested from LLM here, but is part of ActionSelectionResult
         ),
         "closing_reminder": (
             "Remember CIRIS principles override personal preference."
@@ -182,7 +182,7 @@ class ActionSelectionPDMAEvaluator:
         triaged_inputs: Dict[str, Any]
     ) -> str:
         original_thought: Thought = triaged_inputs['original_thought'] # Assuming Thought model
-        ethical_pdma_result: EthicalPDMAResult = triaged_inputs['ethical_pdma_result']
+        ethical_pdma_result: EthicalDMAResult = triaged_inputs['ethical_pdma_result']
         csdma_result: CSDMAResult = triaged_inputs['csdma_result']
         dsdma_result: Optional[DSDMAResult] = triaged_inputs.get('dsdma_result')
         current_ponder_count: int = triaged_inputs['current_ponder_count']
@@ -353,7 +353,7 @@ Adhere strictly to the schema for your JSON output.
     async def evaluate(
         self,
         triaged_inputs: Dict[str, Any]
-    ) -> ActionSelectionPDMAResult:
+    ) -> ActionSelectionResult:
         original_thought: Thought = triaged_inputs['original_thought'] # For logging & post-processing
 
         # --- Special case for forcing PONDER ---
@@ -366,7 +366,7 @@ Adhere strictly to the schema for your JSON output.
         if original_message_content and original_message_content.strip().lower() == "ponder":
             logger.info(f"ActionSelectionPDMA: Detected 'ponder' keyword in original message for thought ID {original_thought.thought_id}. Forcing PONDER action.")
             ponder_params = PonderParams(key_questions=["Forced ponder: What are the key ambiguities?", "Forced ponder: How can this be clarified?"])
-            return ActionSelectionPDMAResult(
+            return ActionSelectionResult(
                 context_summary_for_action_selection="Forced PONDER action due to 'ponder' keyword.",
                 action_alignment_check={"PONDER": "Forced by test condition"},
                 selected_handler_action=HandlerActionType.PONDER,
@@ -434,7 +434,7 @@ Adhere strictly to the schema for your JSON output.
                 max_retries=self.max_retries # Pass configured max_retries here
             )
 
-            # Manually construct the final ActionSelectionPDMAResult
+            # Manually construct the final ActionSelectionResult
             # and parse action_parameters
             parsed_action_params: Union[ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]] = llm_response_internal.action_parameters
             if isinstance(llm_response_internal.action_parameters, dict):  # If LLM returns a dict, try to parse to specific type
@@ -472,7 +472,7 @@ Adhere strictly to the schema for your JSON output.
             if hasattr(llm_response_internal, '_raw_response'):
                 raw_llm_response_str = str(llm_response_internal._raw_response)
 
-            final_action_eval = ActionSelectionPDMAResult(
+            final_action_eval = ActionSelectionResult(
                 schema_version=llm_response_internal.schema_version,
                 context_summary_for_action_selection=llm_response_internal.context_summary_for_action_selection,
                 action_alignment_check=llm_response_internal.action_alignment_check,
@@ -531,7 +531,7 @@ Adhere strictly to the schema for your JSON output.
             else:
                 input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
 
-            return ActionSelectionPDMAResult(
+            return ActionSelectionResult(
                 context_summary_for_action_selection="Error: LLM/Instructor validation error during action selection.",
                 action_alignment_check={"error": f"InstructorRetryException: {error_detail}"},
                 decision_input_context_snapshot=input_snapshot_for_decision,
@@ -561,7 +561,7 @@ Adhere strictly to the schema for your JSON output.
             else:
                 input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
 
-            return ActionSelectionPDMAResult(
+            return ActionSelectionResult(
                 context_summary_for_action_selection=f"Error: General exception - {str(e)}",
                 action_alignment_check={"error": f"General Exception: {str(e)}"},
                 decision_input_context_snapshot=input_snapshot_for_decision,
@@ -577,7 +577,7 @@ Adhere strictly to the schema for your JSON output.
 
 
 # --- Internal Model for Instructor Parsing (Workaround for Grammar Issues) ---
-# Mirrors ActionSelectionPDMAResult but simplifies action_parameters to Dict
+# Mirrors ActionSelectionResult but simplifies action_parameters to Dict
 class _ActionSelectionLLMResponse(BaseModel):
     schema_version: CIRISSchemaVersion = Field(default=CIRISSchemaVersion.V1_0_BETA)
     context_summary_for_action_selection: str

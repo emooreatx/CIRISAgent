@@ -8,8 +8,8 @@ from .dma_results import (
     EthicalPDMAResult,
     CSDMAResult,
     DSDMAResult,
-    ActionSelectionPDMAResult,
 )
+from ..schemas.dma_results_v1 import ActionSelectionResult
 from .config_schemas import DMA_RETRY_LIMIT
 
 from ..dma.pdma import EthicalPDMAEvaluator
@@ -96,7 +96,7 @@ async def run_action_selection_pdma(
     triaged_inputs: Dict[str, Any],
     *,
     retry_limit: int = DMA_RETRY_LIMIT,
-) -> ActionSelectionPDMAResult:
+) -> ActionSelectionResult:
     """Select the next handler action using the triaged DMA results."""
     return await run_dma_with_retries(
         evaluator.evaluate, triaged_inputs=triaged_inputs, retry_limit=retry_limit

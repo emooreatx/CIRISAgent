@@ -3,8 +3,11 @@ from typing import Dict, Any
 
 from pydantic import BaseModel
 
-from ciris_engine.core.agent_core_schemas import ActionSelectionPDMAResult, RejectParams, Thought, HandlerActionType
-from ciris_engine.core.foundational_schemas import ThoughtStatus # REJECT should probably lead to FAILED status
+# Updated imports for v1 schemas
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.action_params_v1 import RejectParams
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.core import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
@@ -12,10 +15,11 @@ from ..exceptions import FollowUpCreationError
 
 logger = logging.getLogger(__name__)
 
+
 class RejectHandler(BaseActionHandler):
     async def handle(
         self,
-        result: ActionSelectionPDMAResult,
+        result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
@@ -25,7 +29,7 @@ class RejectHandler(BaseActionHandler):
 
         # REJECT actions usually mean the thought processing has failed for a stated reason.
         final_thought_status = ThoughtStatus.FAILED 
-        action_performed_successfully = False # The agent couldn't proceed.
+        action_performed_successfully = False  # The agent couldn't proceed.
         follow_up_content_key_info = f"REJECT action for thought {thought_id}"
 
         if not isinstance(params, RejectParams):
@@ -41,10 +45,11 @@ class RejectHandler(BaseActionHandler):
                 except Exception as e:
                     self.logger.error(f"Failed to send REJECT notification to channel {original_event_channel_id} for thought {thought_id}: {e}")
         
+        # v1 uses 'final_action' instead of 'final_action_result'
         persistence.update_thought_status(
             thought_id=thought_id,
-            new_status=final_thought_status, # FAILED
-            final_action_result=result.model_dump(),
+            new_status=final_thought_status,  # FAILED
+            final_action=result.model_dump(),  # Changed from final_action_result
         )
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for REJECT action. Info: {follow_up_content_key_info}")
 
@@ -58,15 +63,16 @@ class RejectHandler(BaseActionHandler):
                 priority_offset=1,
             )
 
-            processing_ctx_for_follow_up = {"action_performed": HandlerActionType.REJECT.value}
-            processing_ctx_for_follow_up["error_details"] = follow_up_content_key_info
+            # v1 uses 'context' instead of 'processing_context'
+            context_for_follow_up = {"action_performed": HandlerActionType.REJECT.value}
+            context_for_follow_up["error_details"] = follow_up_content_key_info
 
             action_params_dump = result.action_parameters
             if isinstance(action_params_dump, BaseModel):
                 action_params_dump = action_params_dump.model_dump(mode="json")
-            processing_ctx_for_follow_up["action_params"] = action_params_dump
+            context_for_follow_up["action_params"] = action_params_dump
 
-            new_follow_up.processing_context = processing_ctx_for_follow_up
+            new_follow_up.context = context_for_follow_up  # v1 uses 'context'
 
             persistence.add_thought(new_follow_up)
             self.logger.info(

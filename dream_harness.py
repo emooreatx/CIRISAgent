@@ -19,7 +19,7 @@ from ciris_engine.core.action_handlers import (
     ActionHandlerDependencies, SpeakHandler, DeferHandler, RejectHandler, ObserveHandler, MemorizeHandler, ToolHandler, TaskCompleteHandler
 )
 from ciris_engine.core.agent_core_schemas import HandlerActionType
-from ciris_engine.core.agent_processor import AgentProcessor
+from ciris_engine.core.processor import AgentProcessor
 from ciris_engine.runtime.base_runtime import BaseRuntime, CLIAdapter
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.dma.csdma import CSDMAEvaluator

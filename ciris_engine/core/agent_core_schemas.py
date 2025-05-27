@@ -31,11 +31,11 @@ from .action_params import (
 )
 
 from .dma_results import (
-    ActionSelectionPDMAResult,
     EthicalPDMAResult,
     CSDMAResult,
     DSDMAResult,
 )
+from ..schemas.dma_results_v1 import ActionSelectionResult
 
 # --- Core Task and Thought Objects ---
 
@@ -74,7 +74,7 @@ class Thought(BaseModel):
     ponder_count: int = 0
     ponder_notes: Optional[List[str]] = None # Stores key_questions from Ponder action
     related_thought_id: Optional[str] = None # Link to parent thought if spawned (metathoughts)
-    final_action_result: Optional[ActionSelectionPDMAResult] = None # Stores the outcome
+    final_action_result: Optional[ActionSelectionResult] = None # Stores the outcome
 
     action_count: int = 0
     history: List[Dict[str, Any]] = Field(default_factory=list)

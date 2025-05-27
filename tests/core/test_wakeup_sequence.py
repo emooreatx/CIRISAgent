@@ -8,7 +8,7 @@ import pytest
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
-from ciris_engine.core.agent_processor import AgentProcessor, WAKEUP_SEQUENCE
+from ciris_engine.core.processor import AgentProcessor, WAKEUP_SEQUENCE
 from ciris_engine.core.agent_core_schemas import (
     ActionSelectionPDMAResult,
     SpeakParams,
