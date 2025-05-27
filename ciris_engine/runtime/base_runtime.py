@@ -13,6 +13,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Task, ActionSelectionResu
 from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile as AgentProfile
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, HandlerActionType
 from ciris_engine.utils.profile_loader import load_profile
+from ciris_engine.utils import extract_user_nick
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class DiscordAdapter(BaseIOAdapter):
             incoming = IncomingMessage(
                 message_id=str(message.id),
                 author_id=str(message.author.id),
-                author_name=message.author.name,
+                author_name=(await extract_user_nick(message=message)) or message.author.name,
                 content=message.content,
                 channel_id=str(message.channel.id),
                 reference_message_id=str(message.reference.message_id) if message.reference and message.reference.message_id else None,
