@@ -38,7 +38,7 @@ async def test_memory_meta_round_isolated(mock_persistence, processor: AgentProc
         status=ThoughtStatus.PENDING,
         created_at="",
         updated_at="",
-        round_created=0,
+        round_number=0,
         content="",
     )
     normal_thought = Thought(
@@ -48,7 +48,7 @@ async def test_memory_meta_round_isolated(mock_persistence, processor: AgentProc
         status=ThoughtStatus.PENDING,
         created_at="",
         updated_at="",
-        round_created=0,
+        round_number=0,
         content="",
     )
     mock_persistence.get_pending_thoughts_for_active_tasks.return_value = [memory_thought, normal_thought]

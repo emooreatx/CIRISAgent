@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.states import AgentState
-from ciris_engine.core.workflow_coordinator import WorkflowCoordinator
+from ciris_engine.core.thought_processor import ThoughtProcessor
 from ciris_engine.core.action_dispatcher import ActionDispatcher
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
 
@@ -21,13 +21,13 @@ class BaseProcessor(ABC):
     def __init__(
         self,
         app_config: AppConfig,
-        workflow_coordinator: WorkflowCoordinator,
+        thought_processor: ThoughtProcessor,
         action_dispatcher: ActionDispatcher,
         services: Dict[str, Any]
     ):
         """Initialize base processor with common dependencies."""
         self.app_config = app_config
-        self.workflow_coordinator = workflow_coordinator
+        self.thought_processor = thought_processor
         self.action_dispatcher = action_dispatcher
         self.services = services
         self.metrics: Dict[str, Any] = {
@@ -108,11 +108,11 @@ class BaseProcessor(ABC):
         context: Optional[Dict[str, Any]] = None
     ) -> Any:
         """
-        Process a single thought item through workflow coordinator.
+        Process a single thought item through the thought processor.
         Returns the processing result.
         """
         try:
-            result = await self.workflow_coordinator.process_thought(item, context)
+            result = await self.thought_processor.process_thought(item, context)
             self.metrics["items_processed"] += 1
             return result
         except Exception as e:

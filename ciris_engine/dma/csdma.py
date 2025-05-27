@@ -4,7 +4,7 @@ import logging
 import instructor
 from openai import AsyncOpenAI
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
-from ciris_engine.core.dma_results import CSDMAResult
+from ciris_engine.schemas.dma_results_v1 import CSDMAResult
 from ciris_engine.core.config_manager import get_config
 from ciris_engine.formatters import (
     format_system_snapshot,

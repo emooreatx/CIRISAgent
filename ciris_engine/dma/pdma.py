@@ -5,7 +5,7 @@ import instructor
 from openai import AsyncOpenAI
 
 from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
-from ciris_engine.core.dma_results import EthicalPDMAResult
+from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult
 from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class EthicalPDMAEvaluator:
     """
     Evaluates a thought against core ethical principles using an LLM
-    and returns a structured EthicalPDMAResult using the 'instructor' library.
+    and returns a structured EthicalDMAResult using the 'instructor' library.
     """
 
     def __init__(self,
@@ -78,7 +78,7 @@ The PDMA steps and their corresponding JSON fields (which you MUST generate) are
         # The instructor_mode is inherent in the passed aclient
         logger.info(f"EthicalPDMAEvaluator initialized with model: {self.model_name} (using provided instructor client)")
 
-    async def evaluate(self, thought_item: ProcessingQueueItem) -> EthicalPDMAResult:
+    async def evaluate(self, thought_item: ProcessingQueueItem) -> EthicalDMAResult:
         """
         Performs the ethical evaluation using the PDMA prompt and instructor.
 
@@ -86,7 +86,7 @@ The PDMA steps and their corresponding JSON fields (which you MUST generate) are
             thought_item: The processing queue item containing the content to evaluate.
 
         Returns:
-            An EthicalPDMAResult object containing the structured evaluation or error details.
+            An EthicalDMAResult object containing the structured evaluation or error details.
         """
         original_thought_content = str(thought_item.content)
         logger.debug(f"Starting EthicalPDMA evaluation for thought ID {thought_item.thought_id}")
@@ -161,9 +161,9 @@ Adhere strictly to this structure for the JSON output. Every field mentioned abo
 
         try:
             # Use the instructor-patched client to get a structured response
-            response_obj: EthicalPDMAResult = await self.aclient.chat.completions.create(
+            response_obj: EthicalDMAResult = await self.aclient.chat.completions.create(
                 model=self.model_name,
-                response_model=EthicalPDMAResult,
+                response_model=EthicalDMAResult,
                 # mode= is set when patching the client, not per call
                 messages=[
                     {"role": "system", "content": pdma_system_guidance},
@@ -194,7 +194,7 @@ Adhere strictly to this structure for the JSON output. Every field mentioned abo
 
         except Exception as e:
             logger.error(f"EthicalPDMA (instructor) evaluation failed for thought ID {thought_item.thought_id}: {e}", exc_info=True)
-            # Return a fallback/error EthicalPDMAResult instance
+            # Return a fallback/error EthicalDMAResult instance
             # Ensure all aliased fields are present or Pydantic will complain here too if they are required.
             # Use the alias directly for instantiation when populate_by_name=True
             fallback_data = {
@@ -206,7 +206,7 @@ Adhere strictly to this structure for the JSON output. Every field mentioned abo
                 "raw_llm_response": f"Exception during evaluation: {e}"
             }
             # Use model_validate to handle potential validation issues with fallback
-            return EthicalPDMAResult.model_validate(fallback_data)
+            return EthicalDMAResult.model_validate(fallback_data)
 
 
     def __repr__(self) -> str:

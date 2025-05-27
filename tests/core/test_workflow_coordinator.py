@@ -140,9 +140,9 @@ async def test_memory_meta_thought(
         status=ThoughtStatus.PENDING,
         created_at=now,
         updated_at=now,
-        round_created=0,
+        round_number=0,
         content="meta",
-        processing_context={"user_nick": "alice", "channel": "general", "metadata": {"kind": "friend"}},
+        context={"user_nick": "alice", "channel": "general", "metadata": {"kind": "friend"}},
         priority=0,
     )
     item = ProcessingQueueItem.from_thought(thought)
@@ -181,7 +181,7 @@ def sample_thought():
         status=ThoughtStatus.PENDING,
         created_at=now_iso,
         updated_at=now_iso,
-        round_created=0,
+        round_number=0,
         content="This is a test thought.",
         priority=1
     )

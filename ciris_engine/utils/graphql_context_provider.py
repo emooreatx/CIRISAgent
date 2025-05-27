@@ -4,7 +4,7 @@ import asyncio
 from typing import Dict, Any, List, Optional
 import httpx
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
-from ciris_engine.core.graph_schemas import GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 
 logger = logging.getLogger(__name__)
 

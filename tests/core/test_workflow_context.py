@@ -54,7 +54,7 @@ def sample_thought():
         status=ThoughtStatus.PENDING,
         created_at=now_iso,
         updated_at=now_iso,
-        round_created=0,
+        round_number=0,
         content="ctx",
     )
 

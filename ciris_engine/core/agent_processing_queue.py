@@ -41,7 +41,7 @@ class ProcessingQueueItem(BaseModel):
         """
         Creates a ProcessingQueueItem from a Thought instance.
         """
-        final_initial_ctx = initial_ctx if initial_ctx is not None else thought_instance.processing_context
+        final_initial_ctx = initial_ctx if initial_ctx is not None else thought_instance.context
 
         # Use provided queue_item_content if available, otherwise default to thought_instance.content
         resolved_content = queue_item_content if queue_item_content is not None else thought_instance.content

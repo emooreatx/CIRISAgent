@@ -9,9 +9,9 @@ from ciris_engine.core.config_manager import get_config_async
 from ciris_engine.core.action_dispatcher import ActionDispatcher
 from ciris_engine.services.audit_service import AuditService
 from ciris_engine.core import persistence
-from ciris_engine.core.agent_core_schemas import Task, ActionSelectionPDMAResult
-from ciris_engine.core.config_schemas import SerializableAgentProfile as AgentProfile
-from ciris_engine.core.foundational_schemas import TaskStatus, HandlerActionType
+from ciris_engine.schemas.agent_core_schemas_v1 import Task, ActionSelectionResult
+from ciris_engine.schemas.config_schemas_v1 import SerializableAgentProfile as AgentProfile
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, HandlerActionType
 from ciris_engine.utils.profile_loader import load_profile
 
 logger = logging.getLogger(__name__)
@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 def datetime_from_seconds(sec: float) -> str:
     return datetime.fromtimestamp(sec, tz=timezone.utc).isoformat()
 
-# IncomingMessage is now in ciris_engine.core.foundational_schemas
-from ciris_engine.core.foundational_schemas import IncomingMessage
+# IncomingMessage is now defined in the schemas module
+from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 
 class BaseIOAdapter:
     """Abstract interface for runtime I/O."""
@@ -186,7 +186,7 @@ class BaseRuntime:
         finally:
             await self.stop()
 
-    async def _dream_action_filter(self, result: ActionSelectionPDMAResult, ctx: dict) -> bool:
+    async def _dream_action_filter(self, result: ActionSelectionResult, ctx: dict) -> bool:
         allowed = result.selected_handler_action in self.DREAM_ALLOWED
         if not allowed and self.audit_service:
             await self.audit_service.log_action(
