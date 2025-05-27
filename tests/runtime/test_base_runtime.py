@@ -11,9 +11,9 @@ from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
-    ActionSelectionPDMAResult,
     SpeakParams,
 )
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.action_handlers.speak_handler import SpeakHandler
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from types import SimpleNamespace
@@ -52,7 +52,7 @@ async def test_dream_action_filter_blocks(mocker):
     runtime = BaseRuntime(DummyAdapter(), "ciris_profiles/student.yaml", dispatcher)
 
     with patch.object(persistence, "add_thought", lambda t: t), patch.object(persistence, "update_thought_status", lambda **k: None):
-        result = ActionSelectionPDMAResult(
+        result = ActionSelectionResult(
             context_summary_for_action_selection="c",
             action_alignment_check={},
             selected_handler_action=HandlerActionType.SPEAK,
@@ -67,7 +67,7 @@ async def test_dream_action_filter_blocks(mocker):
     runtime.dreaming = True
     runtime.dispatcher.action_filter = runtime._dream_action_filter
     with patch.object(persistence, "add_thought", lambda t: t), patch.object(persistence, "update_thought_status", lambda **k: None):
-        result2 = ActionSelectionPDMAResult(
+        result2 = ActionSelectionResult(
             context_summary_for_action_selection="c",
             action_alignment_check={},
             selected_handler_action=HandlerActionType.SPEAK,

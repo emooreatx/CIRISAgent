@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from openai import AsyncOpenAI
 
-from ciris_engine.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import CSDMAResult
 from ciris_engine.schemas.agent_core_schemas_v1 import ThoughtStatus
 from ciris_engine.dma.csdma import CSDMAEvaluator

@@ -6,7 +6,7 @@ from ciris_engine.guardrails import (
     EpistemicHumilityResult,
 )
 from ciris_engine.schemas.config_schemas_v1 import GuardrailsConfig
-from ciris_engine.schemas.dma_results_v1 import ActionSelectionPDMAResult
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 
@@ -25,7 +25,7 @@ async def test_humility_defer(monkeypatch):
     )
 
     guardrails = EthicalGuardrails(mock_client, GuardrailsConfig())
-    asp_result = ActionSelectionPDMAResult(
+    asp_result = ActionSelectionResult(
         context_summary_for_action_selection="",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.MEMORIZE,
@@ -72,7 +72,7 @@ async def test_humility_proceed(monkeypatch):
     )
 
     guardrails = EthicalGuardrails(mock_client, GuardrailsConfig())
-    asp_result = ActionSelectionPDMAResult(
+    asp_result = ActionSelectionResult(
         context_summary_for_action_selection="",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,

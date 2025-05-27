@@ -12,10 +12,11 @@ from datetime import datetime, timezone
 import collections
 
 from ciris_engine.processor.main_processor import AgentProcessor
+from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, DatabaseConfig, GuardrailsConfig
-from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought, ActionSelectionPDMAResult
+from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought, ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType # <-- Import HandlerActionType
-from ciris_engine.agent_processing_queue import ProcessingQueueItem
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 
 # --- Fixtures ---
 
@@ -36,19 +37,18 @@ def mock_app_config_for_processor():
     )
 
 @pytest.fixture
-def mock_workflow_coordinator():
-    """Mocks the WorkflowCoordinator."""
-    mock_wc = AsyncMock()
-    mock_wc.process_thought = AsyncMock()
-    mock_wc.advance_round = MagicMock() # Synchronous method
-    mock_wc.current_round_number = 0 # Initialize
-    
-    # Simulate advance_round incrementing current_round_number
+def mock_thought_processor():
+    """Mocks the ThoughtProcessor."""
+    mock_tp = AsyncMock()
+    mock_tp.process_thought = AsyncMock()
+    mock_tp.advance_round = MagicMock()
+    mock_tp.current_round_number = 0
+
     def _advance_round_side_effect():
-        mock_wc.current_round_number += 1
-    mock_wc.advance_round.side_effect = _advance_round_side_effect
-    
-    return mock_wc
+        mock_tp.current_round_number += 1
+
+    mock_tp.advance_round.side_effect = _advance_round_side_effect
+    return mock_tp
 
 @pytest.fixture
 def mock_action_dispatcher():
@@ -58,11 +58,11 @@ def mock_action_dispatcher():
     return mock_ad
 
 @pytest.fixture
-def agent_processor_instance(mock_app_config_for_processor, mock_workflow_coordinator, mock_action_dispatcher):
+def agent_processor_instance(mock_app_config_for_processor, mock_thought_processor, mock_action_dispatcher):
     """Provides an AgentProcessor instance with mocked dependencies."""
     return AgentProcessor(
         app_config=mock_app_config_for_processor,
-        workflow_coordinator=mock_workflow_coordinator,
+        thought_processor=mock_thought_processor,
         action_dispatcher=mock_action_dispatcher,
         services={},
     )
@@ -176,15 +176,15 @@ async def test_populate_round_queue(mock_persistence, agent_processor_instance: 
 
 @pytest.mark.asyncio
 @patch('ciris_engine.processor.main_processor.persistence')
-async def test_process_batch(mock_persistence, agent_processor_instance: AgentProcessor, mock_workflow_coordinator):
+async def test_process_batch(mock_persistence, agent_processor_instance: AgentProcessor, mock_thought_processor):
     """Test processing a batch of thoughts."""
     thought1 = create_mock_thought("th_batch1", "task_b1", ThoughtStatus.PENDING)
     thought2 = create_mock_thought("th_batch2", "task_b2", ThoughtStatus.PENDING)
     batch_items = [ProcessingQueueItem.from_thought(thought1), ProcessingQueueItem.from_thought(thought2)]
 
     mock_persistence.update_thought_status = MagicMock(return_value=True) # For marking as PROCESSING
-    # Mock WorkflowCoordinator's process_thought to return a mock ActionSelectionPDMAResult
-    mock_action_result = MagicMock(spec=ActionSelectionPDMAResult)
+    # Mock ThoughtProcessor's process_thought to return a mock ActionSelectionResult
+    mock_action_result = MagicMock(spec=ActionSelectionResult)
     # Set selected_handler_action to an actual enum member
     mock_action_result.selected_handler_action = HandlerActionType.SPEAK 
     # To simulate the .value access in the SUT's logging:
@@ -197,7 +197,7 @@ async def test_process_batch(mock_persistence, agent_processor_instance: AgentPr
     mock_sh_action.value = "speak" # This is what the SUT's log will access
     mock_action_result.selected_handler_action = mock_sh_action
 
-    mock_workflow_coordinator.process_thought = AsyncMock(return_value=mock_action_result)
+    mock_thought_processor.process_thought = AsyncMock(return_value=mock_action_result)
     
     # Mock _check_and_complete_task for this unit test
     agent_processor_instance._check_and_complete_task = AsyncMock()
@@ -214,9 +214,9 @@ async def test_process_batch(mock_persistence, agent_processor_instance: AgentPr
     mock_persistence.update_thought_status.assert_has_calls(expected_status_update_calls, any_order=True)
     
     # Check process_thought called for each item
-    assert mock_workflow_coordinator.process_thought.call_count == len(batch_items)
-    mock_workflow_coordinator.process_thought.assert_any_call(batch_items[0])
-    mock_workflow_coordinator.process_thought.assert_any_call(batch_items[1])
+    assert mock_thought_processor.process_thought.call_count == len(batch_items)
+    mock_thought_processor.process_thought.assert_any_call(batch_items[0])
+    mock_thought_processor.process_thought.assert_any_call(batch_items[1])
 
     # Check _check_and_complete_task called for each processed thought's task
     assert agent_processor_instance._check_and_complete_task.call_count == len(batch_items)
@@ -226,7 +226,7 @@ async def test_process_batch(mock_persistence, agent_processor_instance: AgentPr
 
 @pytest.mark.asyncio
 @patch('ciris_engine.processor.main_processor.persistence')
-async def test_dispatch_context_filled_from_task(mock_persistence, agent_processor_instance: AgentProcessor, mock_workflow_coordinator):
+async def test_dispatch_context_filled_from_task(mock_persistence, agent_processor_instance: AgentProcessor, mock_thought_processor):
     """Ensure missing metadata in dispatch context is sourced from the parent task."""
 
     task = create_mock_task("task_meta", TaskStatus.ACTIVE)
@@ -238,10 +238,10 @@ async def test_dispatch_context_filled_from_task(mock_persistence, agent_process
     mock_persistence.update_thought_status = MagicMock(return_value=True)
     mock_persistence.get_task_by_id = MagicMock(return_value=task)
 
-    action_result = MagicMock(spec=ActionSelectionPDMAResult)
+    action_result = MagicMock(spec=ActionSelectionResult)
     action_result.selected_handler_action = HandlerActionType.SPEAK
     action_result.action_parameters = {"content": "hi"}
-    mock_workflow_coordinator.process_thought = AsyncMock(return_value=action_result)
+    mock_thought_processor.process_thought = AsyncMock(return_value=action_result)
 
     agent_processor_instance._check_and_complete_task = AsyncMock()
 
@@ -304,7 +304,7 @@ async def test_check_and_complete_task_has_pending(mock_persistence, agent_proce
 
 
 @pytest.mark.asyncio
-async def test_run_simulation_round(agent_processor_instance: AgentProcessor, mock_workflow_coordinator):
+async def test_run_simulation_round(agent_processor_instance: AgentProcessor, mock_thought_processor):
     """Test a single simulation round."""
     agent_processor_instance._populate_round_queue = AsyncMock()
     agent_processor_instance._process_batch = AsyncMock()
@@ -312,11 +312,11 @@ async def test_run_simulation_round(agent_processor_instance: AgentProcessor, mo
     # Simulate queue having items to ensure _process_batch is called
     agent_processor_instance.processing_queue = collections.deque([MagicMock(spec=ProcessingQueueItem)])
 
-    initial_round_number = mock_workflow_coordinator.current_round_number
+    initial_round_number = mock_thought_processor.current_round_number
 
     await agent_processor_instance.run_simulation_round()
 
-    mock_workflow_coordinator.advance_round.assert_called_once()
+    mock_thought_processor.advance_round.assert_called_once()
     assert agent_processor_instance.current_round_number == initial_round_number + 1
     agent_processor_instance._populate_round_queue.assert_called_once()
     agent_processor_instance._process_batch.assert_called_once_with(list(agent_processor_instance.processing_queue))

@@ -1,12 +1,12 @@
 import pytest
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
-    ActionSelectionPDMAResult,
+    ActionSelectionResult,
     SpeakParams,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 from ciris_engine.action_handlers.speak_handler import SpeakHandler
-from ciris_engine.exceptions import FollowUpCreationError
+from ciris_engine.action_handlers.exceptions import FollowUpCreationError
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine import persistence
 
@@ -25,7 +25,7 @@ async def test_handle_speak(monkeypatch):
     added = []
     monkeypatch.setattr(persistence, "add_thought", lambda th: added.append(th))
     monkeypatch.setattr(persistence, "update_thought_status", lambda **k: None)
-    result = ActionSelectionPDMAResult(
+    result = ActionSelectionResult(
         context_summary_for_action_selection="c",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,
@@ -51,7 +51,7 @@ async def test_speak_follow_up_failure(monkeypatch):
 
     monkeypatch.setattr(persistence, "add_thought", fail_add)
 
-    result = ActionSelectionPDMAResult(
+    result = ActionSelectionResult(
         context_summary_for_action_selection="c",
         action_alignment_check={},
         selected_handler_action=HandlerActionType.SPEAK,
