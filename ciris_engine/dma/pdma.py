@@ -123,37 +123,14 @@ ALL fields in the schema are critically important and MUST be populated with sub
 
 The PDMA steps and their corresponding JSON fields (which you MUST generate) are:
 
-1.  "Context" (PDMA Step 1: Contextualise):
-    - Restate the user's request.
-    - List all affected stakeholders.
-    - Note any relevant constraints.
+1.  "Context": Restate the user's request, list all affected stakeholders, and note any relevant constraints.
+2.  "Alignment-Check": This MUST be a dictionary. Include 'plausible_actions', all six CIRIS principles, and 'meta_goal_m1'.
+3.  "Conflicts": Identify any trade-offs or principle conflicts discovered. If none, provide "No conflicts identified." or null.
+4.  "Resolution": Explain how conflicts (if any) are resolved. If none, provide "Not applicable as no conflicts were identified." or null.
+5.  "Decision": This field is MANDATORY and CRITICAL. Clearly state your ethically-optimal decision, reasoned judgment, or recommended ethical stance. Provide a comprehensive justification for this decision based on the preceding PDMA steps.
+6.  "Monitoring": This field is MANDATORY and CRITICAL. Propose a concrete monitoring plan, including what specific metrics to watch and potential update triggers related to your decision/judgment. This should be a dictionary or a descriptive string.
 
-2.  "Alignment-Check" (PDMA Step 2: Alignment-Check):
-    - This MUST be a dictionary.
-    - Include 'plausible_actions': A list of plausible actions considered.
-    - Include evaluations for each of the six CIRIS principles: 'do_good', 'avoid_harm', 'honor_autonomy', 'ensure_fairness', 'fidelity_transparency', 'integrity'.
-    - Include an evaluation for 'meta_goal_m1' (adaptive coherence).
-    - If a principle evaluation is not directly applicable, briefly state why (e.g., "Not directly applicable as no immediate action is proposed yet."). Do not leave the key out.
-
-3.  "Conflicts" (PDMA Step 3: Conflict-Spot):
-    - Identify any trade-offs or principle conflicts discovered.
-    - If no conflicts are apparent, you MUST provide the string "No conflicts identified." or null. Do not omit this field if it's required by the schema, otherwise, it can be omitted if truly null and the schema allows.
-
-4.  "Resolution" (PDMA Step 4: Resolve):
-    - Explain how conflicts (if any) are resolved using Non-Maleficence priority, Autonomy thresholds, and Justice balancing.
-    - If no conflicts were identified, you MUST provide the string "Not applicable as no conflicts were identified." or null. Do not omit this field if it's required by the schema.
-
-5.  "Decision" (PDMA Step 5: Decision Rationale):
-    - This field is MANDATORY and CRITICAL.
-    - Clearly state your ethically-optimal decision, reasoned judgment, or recommended ethical stance.
-    - Provide a comprehensive justification for this decision based on the preceding PDMA steps.
-
-6.  "Monitoring" (PDMA Step 6: Monitor):
-    - This field is MANDATORY and CRITICAL.
-    - Propose a concrete monitoring plan, including what specific metrics to watch and potential update triggers related to your decision/judgment.
-    - This should be a dictionary (e.g., {{"metric_to_watch": "description", "update_trigger": "description"}}) or a descriptive string.
-
-Adhere strictly to this structure for the JSON output. Every field mentioned above as MANDATORY must be present in your JSON response, using the specified capitalized/aliased key names.
+IMPORTANT: Your entire response MUST be a single JSON object. The JSON object MUST have these top-level keys, all populated: 'Context', 'Alignment-Check', 'Conflicts', 'Resolution', 'Decision', 'Monitoring'.
 """
 
         try:

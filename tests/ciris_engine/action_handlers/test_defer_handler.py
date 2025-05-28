@@ -50,5 +50,5 @@ async def test_defer_handler_schema_driven(monkeypatch):
     action_sink.send_message.assert_awaited_with("chan1", "Action Deferred: Need WA")
     deferral_sink.send_deferral.assert_awaited()
     update_thought.assert_called_once()
-    assert update_thought.call_args.kwargs["new_status"] == ThoughtStatus.DEFERRED
+    assert update_thought.call_args.kwargs["status"] == ThoughtStatus.DEFERRED
     update_task.assert_called_once()

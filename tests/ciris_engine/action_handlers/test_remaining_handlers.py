@@ -136,7 +136,7 @@ async def test_reject_handler_schema_driven(monkeypatch):
     action_sink.send_message.assert_awaited_with("chan", "Unable to proceed: bad")
     update_status.assert_called_once()
     add_thought.assert_called_once()
-    assert update_status.call_args.kwargs["new_status"] == ThoughtStatus.FAILED
+    assert update_status.call_args.kwargs["status"] == ThoughtStatus.FAILED
 
 
 @pytest.mark.asyncio

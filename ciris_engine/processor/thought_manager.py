@@ -160,7 +160,7 @@ class ThoughtManager:
                 # We'll need to update persistence layer or handle differently
                 success = persistence.update_thought_status(
                     thought_id=item.thought_id,
-                    new_status=ThoughtStatus.PROCESSING,
+                    status=ThoughtStatus.PROCESSING,
                     round_processed=round_number,  # This might need adaptation
                 )
                 if success:

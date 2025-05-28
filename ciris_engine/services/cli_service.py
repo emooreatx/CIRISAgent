@@ -63,7 +63,7 @@ class CLIService(Service):
         logger.info(f"CLIService: Added task {new_task_id}")
 
     async def _handle_cli_action(self, result: ActionSelectionResult, dispatch_context: Dict[str, Any]):
-        action_type = result.selected_handler_action
+        action_type = result.selected_action
         params = result.action_parameters
         if action_type == HandlerActionType.SPEAK and isinstance(params, SpeakParams):
             print(params.content)
@@ -78,7 +78,7 @@ class CLIService(Service):
         if thought_id:
             persistence.update_thought_status(
                 thought_id=thought_id,
-                new_status=ThoughtStatus.COMPLETED,
+                status=ThoughtStatus.COMPLETED,
                 final_action=result.model_dump(),
             )
 

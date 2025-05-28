@@ -6,8 +6,7 @@ from .observe_handler import ObserveHandler
 from .task_complete_handler import TaskCompleteHandler
 from .memorize_handler import MemorizeHandler
 from .tool_handler import ToolHandler
-# PonderHandler might also be needed if PONDER actions are dispatched for explicit handling
-# For now, PONDER is handled within WorkflowCoordinator to re-queue the thought.
+from .ponder_handler import PonderHandler
 
 __all__ = [
     "BaseActionHandler",
@@ -19,4 +18,5 @@ __all__ = [
     "TaskCompleteHandler",
     "MemorizeHandler",
     "ToolHandler",
+    "PonderHandler",
 ]

@@ -180,6 +180,8 @@ async def main() -> None:
     # Set the action_sink before building the dispatcher so all handlers get the correct sink
     action_handler_deps.action_sink = discord_sink
 
+    ponder_manager = PonderManager()
+
     # Use the handler registry to build the dispatcher
     new_action_dispatcher = build_action_dispatcher(
         audit_service=None,  # Add your audit service if needed
@@ -188,6 +190,7 @@ async def main() -> None:
         observer_service=discord_observer,
         io_adapter=discord_adapter,
         deferral_sink=deferral_sink,
+        ponder_manager=ponder_manager,  # Pass ponder_manager to handler deps
     )
 
     # --- Audit Service Integration ---
@@ -286,7 +289,7 @@ async def main() -> None:
         channel = SNORE_CHANNEL_ID or os.getenv("DISCORD_CHANNEL_ID")
         await runtime.io_adapter.send_output(channel, message)
 
-    async def main_loop():
+    async def main_loop(max_rounds=None):
         await event_source.start()
         await discord_sink.start()
         await deferral_sink.start()
@@ -297,7 +300,7 @@ async def main() -> None:
         
         try:
             # The processor handles all the actual work
-            await processor.start_processing()
+            await processor.start_processing(num_rounds=max_rounds)
         finally:
             scheduler_task.cancel()
             runtime_task.cancel()
@@ -308,9 +311,11 @@ async def main() -> None:
             await discord_sink.stop()
             await deferral_sink.stop()
             await event_source.stop()
-            
+    
+    # Get max rounds from env or default
+    max_rounds = int(os.getenv("CIRIS_MAX_ROUNDS", "0")) or None
     try:
-        await main_loop()
+        await main_loop(max_rounds=max_rounds)
     finally:
         await asyncio.gather(
             llm_service.stop(), 

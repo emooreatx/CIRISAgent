@@ -139,6 +139,9 @@ class AgentProcessor:
 
         round_count = 0
         while not await all_wakeup_tasks_completed() and not self._stop_event.is_set():
+            if num_rounds is not None and round_count >= num_rounds:
+                logger.info(f"Reached max wakeup rounds ({num_rounds})")
+                break
             logger.info(f"Starting WAKEUP round {round_count+1} after delay 1s")
             round_start = datetime.now(timezone.utc)
             # Only trigger processing for new or active tasks, do not block for completion
@@ -163,26 +166,11 @@ class AgentProcessor:
                 logger.info("No WAKEUP step tasks to report.")
             # --- End enhanced logging ---
             # --- Process thoughts for wakeup step tasks (to allow them to complete) ---
-            if hasattr(self.work_processor, 'thought_manager'):
-                wakeup_task_ids = [t.task_id for t in self.wakeup_processor.wakeup_tasks[1:]] if self.wakeup_processor.wakeup_tasks else []
-                # For each active wakeup step task, if it has no thought, generate one
-                tasks_needing_seed = []
-                for t in self.wakeup_processor.wakeup_tasks[1:] if self.wakeup_processor.wakeup_tasks else []:
-                    task_obj = persistence.get_task_by_id(t.task_id)
-                    if task_obj and task_obj.status == TaskStatus.ACTIVE:
-                        # Check if a thought exists for this task
-                        if not getattr(persistence, 'thought_exists_for', None) or not persistence.thought_exists_for(t.task_id):
-                            tasks_needing_seed.append(task_obj)
-                if tasks_needing_seed:
-                    self.work_processor.thought_manager.generate_seed_thoughts(tasks_needing_seed, self.current_round_number)
-                # Process thoughts for wakeup step tasks
-                queue_size = self.work_processor.thought_manager.populate_queue(self.current_round_number)
-                if queue_size > 0:
-                    batch = self.work_processor.thought_manager.get_queue_batch()
-                    await self.work_processor._process_batch(batch, self.current_round_number)
-            # --- End process wakeup thoughts ---
+            # (Removed blocking batch processing here to avoid blocking the async loop)
             round_count += 1
+            self.current_round_number += 1
             await asyncio.sleep(1)
+            logger.info(f"--- Ready for next WAKEUP round (current_round_number={self.current_round_number}) ---")
         
         # Transition to WORK state
         if not self.state_manager.transition_to(AgentState.WORK):
@@ -251,8 +239,8 @@ class AgentProcessor:
                 break
             
             # Update round number
-            self.thought_processor.advance_round()
-            self.current_round_number = getattr(self.thought_processor, "current_round_number", self.current_round_number + 1)
+            # self.thought_processor.advance_round()  # Removed nonexistent method
+            self.current_round_number += 1
             
             # Check for automatic state transitions
             next_state = self.state_manager.should_auto_transition()

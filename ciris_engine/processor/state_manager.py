@@ -30,30 +30,28 @@ class StateManager:
     
     # Valid state transitions
     VALID_TRANSITIONS = [
-        # From SHUTDOWN, only WAKEUP is allowed
+        # Allow SHUTDOWN <-> any state
         StateTransition(AgentState.SHUTDOWN, AgentState.WAKEUP),
-        
-        # From WAKEUP, can go to WORK or DREAM
+        StateTransition(AgentState.SHUTDOWN, AgentState.WORK),
+        StateTransition(AgentState.SHUTDOWN, AgentState.DREAM),
+        StateTransition(AgentState.SHUTDOWN, AgentState.PLAY),
+        StateTransition(AgentState.SHUTDOWN, AgentState.SOLITUDE),
+        # Allow any state to SHUTDOWN
+        StateTransition(AgentState.WAKEUP, AgentState.SHUTDOWN),
+        StateTransition(AgentState.WORK, AgentState.SHUTDOWN),
+        StateTransition(AgentState.DREAM, AgentState.SHUTDOWN),
+        StateTransition(AgentState.PLAY, AgentState.SHUTDOWN),
+        StateTransition(AgentState.SOLITUDE, AgentState.SHUTDOWN),
+        # Original transitions
         StateTransition(AgentState.WAKEUP, AgentState.WORK),
         StateTransition(AgentState.WAKEUP, AgentState.DREAM),
-        
-        # From WORK, can go to DREAM, PLAY, SOLITUDE, or SHUTDOWN
         StateTransition(AgentState.WORK, AgentState.DREAM),
         StateTransition(AgentState.WORK, AgentState.PLAY),
         StateTransition(AgentState.WORK, AgentState.SOLITUDE),
-        StateTransition(AgentState.WORK, AgentState.SHUTDOWN),
-        
-        # From DREAM, can go to WORK or SHUTDOWN
         StateTransition(AgentState.DREAM, AgentState.WORK),
-        StateTransition(AgentState.DREAM, AgentState.SHUTDOWN),
-        
-        # From PLAY, can go to WORK or SOLITUDE
         StateTransition(AgentState.PLAY, AgentState.WORK),
         StateTransition(AgentState.PLAY, AgentState.SOLITUDE),
-        
-        # From SOLITUDE, can go to WORK or SHUTDOWN
         StateTransition(AgentState.SOLITUDE, AgentState.WORK),
-        StateTransition(AgentState.SOLITUDE, AgentState.SHUTDOWN),
     ]
     
     def __init__(self, initial_state: AgentState = AgentState.SHUTDOWN):

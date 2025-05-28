@@ -55,7 +55,7 @@ class WakeupProcessor(BaseProcessor):
             # Ensure monitoring task exists
             self._ensure_monitoring_task()
             if non_blocking:
-                # Just check status and return
+                await self._process_wakeup_steps_non_blocking(round_number)
                 all_complete = await self._check_all_steps_complete()
                 if all_complete:
                     self.wakeup_complete = True
@@ -66,8 +66,8 @@ class WakeupProcessor(BaseProcessor):
                     "steps_completed": self._count_completed_steps()
                 }
             else:
-                # Original blocking behavior
-                success = await self._process_wakeup_steps(round_number)
+                # Blocking mode: process and wait for completion
+                success = await self._process_wakeup_steps(round_number, non_blocking=False)
                 if success:
                     self.wakeup_complete = True
                     self._mark_root_task_complete()
@@ -180,33 +180,37 @@ class WakeupProcessor(BaseProcessor):
             persistence.add_task(monitor_task)
             logger.info(f"Created monitoring task '{task_id}'")
     
-    async def _process_wakeup_steps(self, round_number: int) -> bool:
-        """Process each wakeup step sequentially."""
+    async def _process_wakeup_steps(self, round_number: int, non_blocking: bool = False) -> bool:
+        """Process each wakeup step sequentially. If non_blocking, only queue thoughts and return immediately."""
         root_task = self.wakeup_tasks[0]
         step_tasks = self.wakeup_tasks[1:]
-        
         for i, step_task in enumerate(step_tasks):
             step_type = step_task.context.get("step_type", "UNKNOWN")
             logger.info(f"Processing wakeup step {i+1}/{len(step_tasks)}: {step_type}")
-            
-            # Create and process thought for this step
+            # Only process ACTIVE tasks
+            current_task = persistence.get_task_by_id(step_task.task_id)
+            if not current_task or current_task.status != TaskStatus.ACTIVE:
+                continue
+            # Create and queue a thought for this step
             thought = await self._create_step_thought(step_task, round_number)
+            if non_blocking:
+                # In non-blocking mode, do not wait for completion or LLM, just queue and return
+                continue
+            # Blocking mode: process and wait for completion
             result = await self._process_step_thought(thought)
-            
             if not result:
                 logger.error(f"Wakeup step {step_type} failed: no result")
                 self._mark_task_failed(step_task.task_id, "No result from processing")
                 return False
-
-            # Robustly extract the selected action for both ActionSelectionResult and GuardrailResult
+            # Extract selected_action robustly
             selected_action = None
             if hasattr(result, "selected_action"):
                 selected_action = result.selected_action
             elif hasattr(result, "final_action") and hasattr(result.final_action, "selected_action"):
                 selected_action = result.final_action.selected_action
-                result = result.final_action  # Use the final_action for downstream logic
+                result = result.final_action
             else:
-                logger.error(f"Wakeup step {step_type} failed: result object missing selected action attribute")
+                logger.error(f"Wakeup step {step_type} failed: result object missing selected action attribute (result={result})")
                 self._mark_task_failed(step_task.task_id, "Result object missing selected action attribute")
                 return False
 
@@ -214,13 +218,13 @@ class WakeupProcessor(BaseProcessor):
                 if selected_action == HandlerActionType.PONDER:
                     logger.info(f"Wakeup step {step_type} resulted in PONDER; waiting for task completion before continuing.")
                 else:
-                    # Dispatch the SPEAK action
                     dispatch_success = await self._dispatch_step_action(result, thought, step_task)
                     if not dispatch_success:
+                        logger.error(f"Dispatch failed for step {step_type} (task_id={step_task.task_id})")
                         return False
-                # Wait for task completion (for both SPEAK and PONDER)
                 completed = await self._wait_for_task_completion(step_task, step_type)
                 if not completed:
+                    logger.error(f"Wakeup step {step_type} did not complete successfully (task_id={step_task.task_id})")
                     return False
                 logger.info(f"Wakeup step {step_type} completed successfully")
                 self.metrics["items_processed"] += 1
@@ -228,13 +232,37 @@ class WakeupProcessor(BaseProcessor):
                 logger.error(f"Wakeup step {step_type} failed: expected SPEAK or PONDER, got {selected_action}")
                 self._mark_task_failed(step_task.task_id, f"Expected SPEAK or PONDER action, got {selected_action}")
                 return False
-        
         return True
     
+    async def _process_wakeup_steps_non_blocking(self, round_number: int) -> None:
+        """In non-blocking mode, process all active step tasks and all PROCESSING/PENDING thoughts (including follow-ups)."""
+        if not self.wakeup_tasks or len(self.wakeup_tasks) < 2:
+            return
+        # 1. For each ACTIVE step task, if no thought for this round, create/process/dispatch
+        for i, step_task in enumerate(self.wakeup_tasks[1:]):  # Skip root
+            current_task = persistence.get_task_by_id(step_task.task_id)
+            if current_task and current_task.status == TaskStatus.ACTIVE:
+                existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
+                if not any(t.round_number == round_number for t in existing_thoughts):
+                    thought = await self._create_step_thought(step_task, round_number)
+                    result = await self._process_step_thought(thought)
+                    if result:
+                        await self._dispatch_step_action(result, thought, step_task)
+                    logger.info(f"Queued and dispatched non-blocking wakeup step {i+1}: {step_task.context.get('step_type', 'UNKNOWN')}")
+        # 2. For all step tasks, process any PROCESSING or PENDING thoughts (e.g., follow-ups)
+        for i, step_task in enumerate(self.wakeup_tasks[1:]):
+            all_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
+            for t in all_thoughts:
+                if getattr(t, 'status', None) in [ThoughtStatus.PROCESSING, ThoughtStatus.PENDING]:
+                    logger.info(f"Processing follow-up or pending thought {t.thought_id} for step {step_task.context.get('step_type', 'UNKNOWN')}")
+                    result = await self._process_step_thought(t)
+                    if result:
+                        await self._dispatch_step_action(result, t, step_task)
+    
     async def _create_step_thought(self, step_task: Task, round_number: int) -> Thought:
-        """Create a thought for a wakeup step."""
+        """Create a thought for a wakeup step, ensuring channel_id is present in context."""
         step_type = step_task.context.get("step_type", "unknown").lower()
-        
+        channel_id = step_task.context.get("channel_id") or self.startup_channel_id
         thought = Thought(
             thought_id=str(uuid.uuid4()),
             source_task_id=step_task.task_id,
@@ -244,6 +272,7 @@ class WakeupProcessor(BaseProcessor):
             updated_at=datetime.now(timezone.utc).isoformat(),
             round_number=round_number,
             content=step_task.description,
+            context={"channel_id": channel_id} if channel_id else {},
         )
         persistence.add_thought(thought)
         return thought

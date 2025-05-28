@@ -45,12 +45,12 @@ async def test_dream_action_filter(monkeypatch):
     rt = BaseRuntime(DummyAdapter(), "profile", ActionDispatcher({}))
     rt.audit_service = AsyncMock()
 
-    result = types.SimpleNamespace(selected_handler_action=HandlerActionType.SPEAK)
+    result = types.SimpleNamespace(selected_action=HandlerActionType.SPEAK)
     skip = await rt._dream_action_filter(result, {"a": 1})
     assert skip
     rt.audit_service.log_action.assert_awaited()
 
-    result2 = types.SimpleNamespace(selected_handler_action=HandlerActionType.PONDER)
+    result2 = types.SimpleNamespace(selected_action=HandlerActionType.PONDER)
     rt.audit_service.log_action.reset_mock()
     skip = await rt._dream_action_filter(result2, {})
     assert not skip

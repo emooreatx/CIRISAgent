@@ -201,10 +201,10 @@ class BaseRuntime:
             await self.stop()
 
     async def _dream_action_filter(self, result: ActionSelectionResult, ctx: dict) -> bool:
-        allowed = result.selected_handler_action in self.DREAM_ALLOWED
+        allowed = result.selected_action in self.DREAM_ALLOWED
         if not allowed and self.audit_service:
             await self.audit_service.log_action(
-                result.selected_handler_action,
+                result.selected_action,
                 {"dream": True, **ctx},
             )
         # Return True when the action should be skipped (i.e., not allowed)
@@ -232,4 +232,3 @@ class BaseRuntime:
     def run(self):
         """For CLI-based runtimes"""
         asyncio.run(self._main_loop())
-        
