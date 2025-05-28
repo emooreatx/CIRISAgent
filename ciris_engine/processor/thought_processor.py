@@ -126,39 +126,47 @@ class ThoughtProcessor:
             # Confidence and raw_llm_response can be None/omitted for system-generated deferrals
         )
 
-    async def _handle_special_cases(self, result: ActionSelectionResult, thought: Thought, context: Dict[str, Any]) -> ActionSelectionResult:
+    async def _handle_special_cases(self, result, thought, context):
         # HandlerActionType is now imported at the top level
         # Example: handle PONDER, DEFER, or other overrides
-        if result.selected_action == HandlerActionType.PONDER: # Corrected to use result.selected_action
+        # Support GuardrailResult as well as ActionSelectionResult
+        selected_action = None
+        if hasattr(result, 'selected_action'):
+            selected_action = result.selected_action
+        elif hasattr(result, 'final_action') and hasattr(result.final_action, 'selected_action'):
+            selected_action = result.final_action.selected_action
+        if selected_action == HandlerActionType.PONDER:
             await self.ponder_manager.ponder(thought, context)
         return result
 
-    async def _update_thought_status(self, thought: Thought, result: ActionSelectionResult):
+    async def _update_thought_status(self, thought, result):
         from ciris_engine import persistence
         # Update the thought status in persistence
-        # ActionSelectionResult.selected_action is HandlerActionType enum
-        # update_thought_status expects ThoughtStatus enum or its string value.
-        # This needs careful mapping if selected_action isn't directly a ThoughtStatus.
-        # For DEFER, the thought status should become ThoughtStatus.DEFERRED.
-        
+        # Support GuardrailResult as well as ActionSelectionResult
+        selected_action = None
+        action_parameters = None
+        rationale = None
+        if hasattr(result, 'selected_action'):
+            selected_action = result.selected_action
+            action_parameters = getattr(result, 'action_parameters', None)
+            rationale = getattr(result, 'rationale', None)
+        elif hasattr(result, 'final_action') and hasattr(result.final_action, 'selected_action'):
+            selected_action = result.final_action.selected_action
+            action_parameters = getattr(result.final_action, 'action_parameters', None)
+            rationale = getattr(result.final_action, 'rationale', None)
         new_status_val = ThoughtStatus.COMPLETED # Default, will be overridden by specific actions
-        if result.selected_action == HandlerActionType.DEFER:
+        if selected_action == HandlerActionType.DEFER:
             new_status_val = ThoughtStatus.DEFERRED
-        elif result.selected_action == HandlerActionType.PONDER:
+        elif selected_action == HandlerActionType.PONDER:
             new_status_val = ThoughtStatus.PENDING # Ponder implies it goes back to pending for re-evaluation
-        elif result.selected_action == HandlerActionType.REJECT:
+        elif selected_action == HandlerActionType.REJECT:
             new_status_val = ThoughtStatus.FAILED # Reject implies failure of this thought path
         # Other actions might imply ThoughtStatus.COMPLETED if they are terminal for the thought.
-
-        # The 'details' field in ActionSelectionResult is not standard.
-        # ActionSelectionResult has 'action_parameters' (dict) and 'rationale' (str).
-        # We should store a summary or relevant parts of these.
         final_action_details = {
-            "action_type": result.selected_action.value,
-            "parameters": result.action_parameters,
-            "rationale": result.rationale
+            "action_type": selected_action.value if selected_action else None,
+            "parameters": action_parameters,
+            "rationale": rationale
         }
-
         persistence.update_thought_status(
             thought_id=thought.thought_id,
             status=new_status_val, # Pass ThoughtStatus enum member
