@@ -90,21 +90,12 @@ class GuardrailOrchestrator:
                 # confidence and raw_llm_response can be omitted or set to None for system-generated overrides
                 raw_llm_response=action_result.raw_llm_response # Keep original raw response if relevant
             )
-        return GuardrailResult(
-            passes_guardrail=passes_guardrail, # This should be 'passed' to match GuardrailResult schema
-            reason=reason, # This should be 'override_reason' if not passes_guardrail
-            epistemic_data=epistemic_data,
-            original_action=action_result, # Store original action
-            final_action=override_action_result if override_action_result else action_result,
-            overridden=not passes_guardrail
-        )
+        final_action = override_action_result if override_action_result else action_result
 
-        final_action_to_return = override_action_result if not passes_guardrail else action_result
-        
         return GuardrailResult(
             original_action=action_result,
-            final_action=final_action_to_return,
+            final_action=final_action,
             overridden=not passes_guardrail,
             override_reason=reason if not passes_guardrail else None,
-            epistemic_data=epistemic_data
+            epistemic_data=epistemic_data,
         )
