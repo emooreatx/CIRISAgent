@@ -164,10 +164,11 @@ class WakeupProcessor(BaseProcessor):
 
             # Robustly extract the selected action for both ActionSelectionResult and GuardrailResult
             selected_action = None
-            if hasattr(result, "selected_handler_action"):
-                selected_action = result.selected_handler_action
+            if hasattr(result, "selected_action"):
+                selected_action = result.selected_action
             elif hasattr(result, "final_action") and hasattr(result.final_action, "selected_action"):
                 selected_action = result.final_action.selected_action
+                result = result.final_action  # Use the final_action for downstream logic
             else:
                 logger.error(f"Wakeup step {step_type} failed: result object missing selected action attribute")
                 self._mark_task_failed(step_task.task_id, "Result object missing selected action attribute")

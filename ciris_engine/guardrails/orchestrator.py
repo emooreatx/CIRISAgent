@@ -23,7 +23,7 @@ class GuardrailOrchestrator:
         thought: Thought,
         dma_results_dict: Dict[str, Any] # Changed type hint, was DMAResults
     ) -> GuardrailResult:
-        """Apply guardrails and handle overrides."""
+        """Apply guardrails and handle overrides. Retries up to 3 times if guardrail fails."""
         # Parse the incoming dict into DMAResults model
         try:
             dma_results = DMAResults(**dma_results_dict)
@@ -31,7 +31,17 @@ class GuardrailOrchestrator:
             logger.error(f"Failed to parse dma_results_dict into DMAResults model: {e}. dma_results_dict: {dma_results_dict}", exc_info=True)
             dma_results = DMAResults()
 
-        passes_guardrail, reason, epistemic_data = await self.ethical_guardrails.check_action_output_safety(action_result)
+        # Retry guardrail check up to 3 times if it fails
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            passes_guardrail, reason, epistemic_data = await self.ethical_guardrails.check_action_output_safety(action_result)
+            if passes_guardrail:
+                break
+            logger.warning(f"Guardrail failed attempt {attempt} for thought ID {thought.thought_id}: {reason}")
+            if attempt < max_retries:
+                continue
+            # Only proceed to override after final failed attempt
+
         override_action_result = None
         if not passes_guardrail:
             logger.warning(f"Guardrail failed for thought ID {thought.thought_id}: {reason}. Overriding action to PONDER.")
@@ -71,6 +81,20 @@ class GuardrailOrchestrator:
             logger.info(f"Guardrail triggered PONDER for thought {thought.thought_id}: {reason}")
 
         final_action = override_action_result if override_action_result else action_result
+
+        # Normalize action_parameters for all main action types before dispatch
+        if final_action.selected_action == HandlerActionType.SPEAK:
+            params = final_action.action_parameters
+            if isinstance(params, dict):
+                final_action.action_parameters = SpeakParams(**params)
+        elif final_action.selected_action == HandlerActionType.DEFER:
+            params = final_action.action_parameters
+            if isinstance(params, dict):
+                final_action.action_parameters = DeferParams(**params)
+        elif final_action.selected_action == HandlerActionType.PONDER:
+            params = final_action.action_parameters
+            if isinstance(params, dict):
+                final_action.action_parameters = PonderParams(**params)
 
         return GuardrailResult(
             original_action=action_result,

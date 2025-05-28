@@ -178,10 +178,17 @@ async def main() -> None:
         deferral_sink=deferral_sink,
     )
 
+    # Set the action_sink before building the dispatcher so all handlers get the correct sink
+    action_handler_deps.action_sink = discord_sink
+
     # Use the handler registry to build the dispatcher
     new_action_dispatcher = build_action_dispatcher(
         audit_service=None,  # Add your audit service if needed
-        **{"action_sink": None, "memory_service": memory_service, "observer_service": discord_observer, "io_adapter": discord_adapter, "deferral_sink": deferral_sink}
+        action_sink=discord_sink,
+        memory_service=memory_service,
+        observer_service=discord_observer,
+        io_adapter=discord_adapter,
+        deferral_sink=deferral_sink,
     )
 
     runtime = BaseRuntime(

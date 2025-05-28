@@ -4,6 +4,7 @@ from ciris_engine.schemas.processing_schemas_v1 import ThoughtContext
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.utils import GraphQLContextProvider
 from pydantic import BaseModel
+from os import getenv
 
 class ContextBuilder:
     def __init__(
@@ -35,11 +36,25 @@ class ContextBuilder:
         task_history_data = system_snapshot_data.get("recently_completed_tasks_summary", [])
 
         identity_context_str = self.memory_service.export_identity_context() if self.memory_service else None
-        
-        # Note: The original instantiation had thought_id, task_id, and thought_summary.
-        # These are not direct fields of ThoughtContext schema.
-        # current_thought_summary and current_task_details are already part of system_snapshot_data.
-        
+
+        # --- Add Discord channel context ---
+        # Try to get from environment, then from app_config if available
+        discord_channel_id = getenv("DISCORD_CHANNEL_ID")
+        if not discord_channel_id:
+            # Try to get from app_config if available on self
+            app_config = getattr(self, 'app_config', None)
+            if app_config and hasattr(app_config, 'discord_channel_id'):
+                discord_channel_id = app_config.discord_channel_id
+        channel_context_str = None
+        if discord_channel_id:
+            channel_context_str = f"Our assigned channel is {discord_channel_id}"
+        # Optionally, append to identity_context_str or add as a new field
+        if identity_context_str and channel_context_str:
+            identity_context_str = f"{identity_context_str}\n{channel_context_str}"
+        elif channel_context_str:
+            identity_context_str = channel_context_str
+        # --- End Discord channel context ---
+
         return ThoughtContext(
             system_snapshot=system_snapshot_data,
             user_profiles=user_profiles_data,

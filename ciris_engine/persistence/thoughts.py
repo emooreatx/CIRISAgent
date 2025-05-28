@@ -116,7 +116,7 @@ def update_thought_status(thought_id: str, status: ThoughtStatus, final_action: 
             final_action_json = ?
         WHERE thought_id = ?
     """
-    final_action_json = json.dumps(final_action) if final_action is not None else None
+    final_action_json = json.dumps(pydantic_to_dict(final_action)) if final_action is not None else None
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -131,3 +131,13 @@ def update_thought_status(thought_id: str, status: ThoughtStatus, final_action: 
     except Exception as e:
         logger.exception(f"Failed to update status for thought {thought_id}: {e}")
         return False
+
+def pydantic_to_dict(obj):
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump(mode="json")
+    elif isinstance(obj, dict):
+        return {k: pydantic_to_dict(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [pydantic_to_dict(v) for v in obj]
+    else:
+        return obj
