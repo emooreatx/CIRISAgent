@@ -238,8 +238,8 @@ class ThoughtManager:
         return False
     
     def get_pending_thought_count(self) -> int:
-        """Get count of pending thoughts."""
-        return persistence.count_pending_thoughts()
+        """Get count of pending thoughts for active tasks (strict gating)."""
+        return persistence.count_pending_thoughts_for_active_tasks()
     
     def get_processing_thought_count(self) -> int:
         """Get count of thoughts currently processing."""

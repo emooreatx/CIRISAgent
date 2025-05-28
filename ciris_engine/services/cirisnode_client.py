@@ -25,17 +25,17 @@ class CIRISNodeClient:
     async def _post(self, endpoint: str, payload: Dict[str, Any]) -> Any:
         resp = await self._client.post(endpoint, json=payload)
         resp.raise_for_status()
-        return resp.json()
+        return await resp.json()
 
     async def _get(self, endpoint: str, params: Dict[str, Any]) -> Any:
         resp = await self._client.get(endpoint, params=params)
         resp.raise_for_status()
-        return resp.json()
+        return await resp.json()
 
     async def _put(self, endpoint: str, payload: Dict[str, Any]) -> Any:
         resp = await self._client.put(endpoint, json=payload)
         resp.raise_for_status()
-        return resp.json()
+        return await resp.json()
 
     async def run_simplebench(self, model_id: str, agent_id: str) -> Dict[str, Any]:
         """Run the simple bench benchmark for the given model."""

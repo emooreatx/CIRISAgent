@@ -87,10 +87,10 @@ class CIRISLocalGraph(Service):
             channel = args[0] if len(args) > 0 else None
             metadata = args[1] if len(args) > 1 else {}
             scope = GraphScope.LOCAL
-            attrs = metadata or {}
-            node = GraphNode(id=str(user_nick), type=NodeType.USER, scope=scope, attrs=attrs)
+            attributes = metadata or {}
+            node = GraphNode(id=str(user_nick), type=NodeType.USER, scope=scope, attributes=attributes)
         g = self._graphs[node.scope]
-        g.add_node(node.id, **node.attrs)
+        g.add_node(node.id, **node.attributes)
         await asyncio.to_thread(self._persist)
         return MemoryOpResult(status=MemoryOpStatus.OK)
 

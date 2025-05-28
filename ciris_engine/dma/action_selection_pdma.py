@@ -389,29 +389,13 @@ Adhere strictly to the schema for your JSON output.
 
         if original_message_content and original_message_content.strip().lower() == "ponder":
             logger.info(f"ActionSelectionPDMA: Detected 'ponder' keyword in original message for thought ID {original_thought.thought_id}. Forcing PONDER action.")
-            ponder_params = PonderParams(key_questions=["Forced ponder: What are the key ambiguities?", "Forced ponder: How can this be clarified?"])
+            ponder_params = PonderParams(questions=["Forced ponder: What are the key ambiguities?", "Forced ponder: How can this be clarified?"])
             return ActionSelectionResult(
-                context_summary_for_action_selection="Forced PONDER action due to 'ponder' keyword.",
-                action_alignment_check={"PONDER": "Forced by test condition"},
-                selected_handler_action=HandlerActionType.PONDER,
-                action_parameters=ponder_params,
-                action_selection_rationale="Forced PONDER for testing ponder loop.",
-                monitoring_for_selected_action="Monitor ponder count and deferral.",
-                ethical_assessment_summary=(
-                    triaged_inputs['ethical_pdma_result'].model_dump()
-                    if isinstance(triaged_inputs.get('ethical_pdma_result'), BaseModel)
-                    else ({"summary": triaged_inputs.get('ethical_pdma_result')} if isinstance(triaged_inputs.get('ethical_pdma_result'), dict) else {"status": "Skipped or error", "details": str(triaged_inputs.get('ethical_pdma_result'))})
-                ),
-                csdma_assessment_summary=(
-                    triaged_inputs['csdma_result'].model_dump()
-                    if isinstance(triaged_inputs.get('csdma_result'), BaseModel)
-                    else ({"summary": triaged_inputs.get('csdma_result')} if isinstance(triaged_inputs.get('csdma_result'), dict) else {"status": "Skipped or error", "details": str(triaged_inputs.get('csdma_result'))})
-                ),
-                dsdma_assessment_summary=(
-                    triaged_inputs['dsdma_result'].model_dump()
-                    if isinstance(triaged_inputs.get('dsdma_result'), BaseModel)
-                    else ({"summary": triaged_inputs.get('dsdma_result')} if isinstance(triaged_inputs.get('dsdma_result'), dict) else {"status": "Skipped or error", "details": str(triaged_inputs.get('dsdma_result'))})
-                )
+                selected_action=HandlerActionType.PONDER,
+                action_parameters=ponder_params.model_dump(mode='json'),
+                rationale="Forced PONDER for testing ponder loop.",
+                confidence=None,
+                raw_llm_response=None
             )
         # --- End special case ---
         

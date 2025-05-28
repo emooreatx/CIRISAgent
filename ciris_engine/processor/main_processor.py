@@ -162,6 +162,25 @@ class AgentProcessor:
             else:
                 logger.info("No WAKEUP step tasks to report.")
             # --- End enhanced logging ---
+            # --- Process thoughts for wakeup step tasks (to allow them to complete) ---
+            if hasattr(self.work_processor, 'thought_manager'):
+                wakeup_task_ids = [t.task_id for t in self.wakeup_processor.wakeup_tasks[1:]] if self.wakeup_processor.wakeup_tasks else []
+                # For each active wakeup step task, if it has no thought, generate one
+                tasks_needing_seed = []
+                for t in self.wakeup_processor.wakeup_tasks[1:] if self.wakeup_processor.wakeup_tasks else []:
+                    task_obj = persistence.get_task_by_id(t.task_id)
+                    if task_obj and task_obj.status == TaskStatus.ACTIVE:
+                        # Check if a thought exists for this task
+                        if not getattr(persistence, 'thought_exists_for', None) or not persistence.thought_exists_for(t.task_id):
+                            tasks_needing_seed.append(task_obj)
+                if tasks_needing_seed:
+                    self.work_processor.thought_manager.generate_seed_thoughts(tasks_needing_seed, self.current_round_number)
+                # Process thoughts for wakeup step tasks
+                queue_size = self.work_processor.thought_manager.populate_queue(self.current_round_number)
+                if queue_size > 0:
+                    batch = self.work_processor.thought_manager.get_queue_batch()
+                    await self.work_processor._process_batch(batch, self.current_round_number)
+            # --- End process wakeup thoughts ---
             round_count += 1
             await asyncio.sleep(1)
         

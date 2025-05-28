@@ -68,12 +68,6 @@ class CIRISSchemaVersion(str, Enum):
     V1_0_BETA = "1.0-beta"
 
 
-class DKGAssetType(str, Enum):
-    """Simplified asset type identifiers for tests."""
-    AGENT_PROFILE = "AgentProfile"
-    KNOWLEDGE_ASSET = "KnowledgeAsset"
-
-
 __all__ = [
     "CaseInsensitiveEnum",
     "HandlerActionType",
@@ -82,5 +76,4 @@ __all__ = [
     "ObservationSourceType",
     "IncomingMessage",
     "CIRISSchemaVersion",
-    "DKGAssetType",
 ]
