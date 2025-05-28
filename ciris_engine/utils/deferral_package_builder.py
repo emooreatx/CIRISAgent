@@ -21,7 +21,7 @@ def build_deferral_package(thought, parent_task, ethical_pdma_result=None, csdma
         "formatted_task_context": None,
     }
     # Add user profiles and system snapshot if present
-    system_snapshot = thought.system_snapshot
+    system_snapshot = getattr(thought, 'system_snapshot', None)
     user_profiles = None
     if system_snapshot:
         user_profiles = system_snapshot.get('user_profiles')

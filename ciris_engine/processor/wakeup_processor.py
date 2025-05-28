@@ -161,24 +161,36 @@ class WakeupProcessor(BaseProcessor):
                 logger.error(f"Wakeup step {step_type} failed: no result")
                 self._mark_task_failed(step_task.task_id, "No result from processing")
                 return False
-            
-            if result.selected_handler_action != HandlerActionType.SPEAK:
-                logger.error(f"Wakeup step {step_type} failed: expected SPEAK, got {result.selected_handler_action}")
-                self._mark_task_failed(step_task.task_id, f"Expected SPEAK action, got {result.selected_handler_action}")
+
+            # Robustly extract the selected action for both ActionSelectionResult and GuardrailResult
+            selected_action = None
+            if hasattr(result, "selected_handler_action"):
+                selected_action = result.selected_handler_action
+            elif hasattr(result, "final_action") and hasattr(result.final_action, "selected_action"):
+                selected_action = result.final_action.selected_action
+            else:
+                logger.error(f"Wakeup step {step_type} failed: result object missing selected action attribute")
+                self._mark_task_failed(step_task.task_id, "Result object missing selected action attribute")
                 return False
-            
-            # Dispatch the SPEAK action
-            dispatch_success = await self._dispatch_step_action(result, thought, step_task)
-            if not dispatch_success:
+
+            if selected_action in [HandlerActionType.SPEAK, HandlerActionType.PONDER]:
+                if selected_action == HandlerActionType.PONDER:
+                    logger.info(f"Wakeup step {step_type} resulted in PONDER; waiting for task completion before continuing.")
+                else:
+                    # Dispatch the SPEAK action
+                    dispatch_success = await self._dispatch_step_action(result, thought, step_task)
+                    if not dispatch_success:
+                        return False
+                # Wait for task completion (for both SPEAK and PONDER)
+                completed = await self._wait_for_task_completion(step_task, step_type)
+                if not completed:
+                    return False
+                logger.info(f"Wakeup step {step_type} completed successfully")
+                self.metrics["items_processed"] += 1
+            else:
+                logger.error(f"Wakeup step {step_type} failed: expected SPEAK or PONDER, got {selected_action}")
+                self._mark_task_failed(step_task.task_id, f"Expected SPEAK or PONDER action, got {selected_action}")
                 return False
-            
-            # Wait for task completion
-            completed = await self._wait_for_task_completion(step_task, step_type)
-            if not completed:
-                return False
-            
-            logger.info(f"Wakeup step {step_type} completed successfully")
-            self.metrics["items_processed"] += 1
         
         return True
     
