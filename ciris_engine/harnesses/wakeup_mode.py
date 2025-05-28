@@ -3,6 +3,7 @@ from ciris_engine.processor import AgentProcessor
 from typing import Callable, Any
 import logging
 from ciris_engine.utils.logging_config import setup_basic_logging
+from ciris_engine.runtime.base_runtime import BaseRuntime, CLIAdapter
 
 setup_basic_logging(level=logging.INFO)
 
@@ -27,6 +28,48 @@ async def run_wakeup(
     return result
 
 
+class CLIActionSink:
+    """Routes all agent outputs to CLI (stdout or stub)."""
+
+    def __init__(self, cli_adapter):
+        self.cli_adapter = cli_adapter
+
+    async def send_message(self, channel_id, content):
+        await self.cli_adapter.send_output(channel_id, content)
+
+    async def run_tool(self, name, args):
+        print(f"[CLIActionSink] Would run tool {name} with args {args}")
+
+    async def send_embed(self, channel_id, embed):
+        print(f"[CLIActionSink] Would send embed to {channel_id}: {embed}")
+
+    async def send_file(self, channel_id, file_path, description=None):
+        print(f"[CLIActionSink] Would send file {file_path} to {channel_id} ({description})")
+
+    async def send_reaction(self, channel_id, message_id, emoji):
+        print(f"[CLIActionSink] Would react to {message_id} in {channel_id} with {emoji}")
+
+
+class NonBlockingCLIAdapter(CLIAdapter):
+    """Non-blocking CLIAdapter with an async queue for test/event injection."""
+
+    def __init__(self):
+        super().__init__()
+        import asyncio
+
+        self._input_queue = asyncio.Queue()
+
+    async def fetch_inputs(self):
+        # Non-blocking: return all currently available messages
+        messages = []
+        while not self._input_queue.empty():
+            messages.append(await self._input_queue.get())
+        return messages
+
+    async def inject_input(self, message):
+        await self._input_queue.put(message)
+
+
 if __name__ == "__main__":
     import asyncio
 
@@ -47,23 +90,9 @@ if __name__ == "__main__":
         from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
         from ciris_engine.context.builder import ContextBuilder
         import instructor
-        from ciris_engine.runtime import CLIAdapter
-        from ciris_engine.ports import ActionSink
 
-        class CLIHarnessActionSink(ActionSink):
-            def __init__(self):
-                self.cli_adapter = CLIAdapter()
-            async def start(self): pass
-            async def stop(self): pass
-            async def send_message(self, channel_id, content):
-                await self.cli_adapter.send_output(channel_id, content)
-            async def run_tool(self, name, args):
-                print(f"[CLIHarnessActionSink] Would run tool {name} with args {args}")
-
-        # Load config (could be extended to load from file/env)
         app_config = AppConfig()
         ponder_manager = PonderManager()
-        # Minimal LLM/memory/graph setup for harness
         llm_service = LLMService(app_config.llm_services)
         memory_service = CIRISLocalGraph()
         await llm_service.start()
@@ -83,7 +112,6 @@ if __name__ == "__main__":
             prompt_overrides=None,
             instructor_mode=instructor.Mode[app_config.llm_services.openai.instructor_mode.upper()]
         )
-        # For harness, skip DSDMA/profile loading
         dsdma_instance = None
         dma_orchestrator = DMAOrchestrator(
             ethical_pdma,
@@ -103,10 +131,9 @@ if __name__ == "__main__":
             llm_client.instruct_client, app_config.guardrails, model_name=llm_client.model_name
         )
         guardrail_orchestrator = GuardrailOrchestrator(guardrails)
-        action_sink = CLIHarnessActionSink()
         action_dispatcher = build_action_dispatcher(
             ponder_manager=ponder_manager,
-            action_sink=action_sink,
+            action_sink=None,
         )
         thought_processor = ThoughtProcessor(
             dma_orchestrator=dma_orchestrator,
@@ -115,41 +142,13 @@ if __name__ == "__main__":
             ponder_manager=ponder_manager,
             app_config=app_config
         )
-        # Pass startup_channel_id to AgentProcessor so WakeupProcessor gets it
         agent_processor = AgentProcessor(app_config, thought_processor, action_dispatcher, {}, startup_channel_id="cli")
 
-        # Ensure the agent is in WAKEUP state before running the wakeup rounds
-        from ciris_engine.schemas.states import AgentState
-        agent_processor.state_manager.transition_to(AgentState.WAKEUP)
-
+        # Run the wakeup sequence and stream outputs to stdout
         await agent_processor.wakeup_processor.initialize()
+        result = await agent_processor.wakeup_processor.process(0, non_blocking=False)
+        print(f"Wakeup sequence result: {result}")
 
-        from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
-        from ciris_engine import persistence
-        import asyncio
-
-        async def all_wakeup_tasks_completed(wakeup_processor):
-            # Exclude the root task (first in list)
-            # Corrected: Should return False if not enough tasks are present (e.g., before they are created)
-            if not wakeup_processor.wakeup_tasks or len(wakeup_processor.wakeup_tasks) < 2:
-                return False
-            for task in wakeup_processor.wakeup_tasks[1:]:
-                t = persistence.get_task_by_id(task.task_id)
-                if not t or t.status != TaskStatus.COMPLETED:
-                    return False
-            return True
-
-        round_number = 0
-        while not await all_wakeup_tasks_completed(agent_processor.wakeup_processor):
-            # Corrected: Use non_blocking=True to allow other handlers to complete tasks
-            await agent_processor.wakeup_processor.process(round_number, non_blocking=True)
-            round_number += 1
-            print(f"[HARNESS] Sleeping 1s after round {round_number}")
-            await asyncio.sleep(1)  # Use asyncio sleep for async context
-
-        # Explicitly transition to SHUTDOWN after wakeup
-        if agent_processor.state_manager.get_state() != AgentState.SHUTDOWN:
-            agent_processor.state_manager.transition_to(AgentState.SHUTDOWN)
         await llm_service.stop()
         await memory_service.stop()
 

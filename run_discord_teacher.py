@@ -2,6 +2,21 @@ import logging
 from ciris_engine.utils.logging_config import setup_basic_logging
 setup_basic_logging(level=logging.INFO)
 
+# Set up logging to file for all CIRIS loggers, and only WARNING+ to console
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+file_handler = logging.FileHandler('discord_teacher.log', mode='a')
+file_handler.setFormatter(log_formatter)
+file_handler.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+console_handler.setLevel(logging.WARNING)
+
+root_logger = logging.getLogger()
+root_logger.handlers = []  # Remove any default handlers
+root_logger.addHandler(file_handler)
+root_logger.addHandler(console_handler)
+
 # Holistic logging fix: ensure all CIRIS loggers and submodules always log at INFO or lower
 for name in logging.root.manager.loggerDict:
     if name.startswith("ciris_engine"):  # Apply to all CIRIS modules
@@ -294,10 +309,10 @@ async def main() -> None:
         await discord_sink.start()
         await deferral_sink.start()
         scheduler_task = asyncio.create_task(schedule_reflection_modes(send_to_snore))
-        
+
         # Start the runtime's main loop (for Discord, this just keeps the adapter alive)
-        runtime_task = asyncio.create_task(runtime._main_loop())
-        
+        runtime_task = asyncio.create_task(runtime.run_async())
+
         try:
             # The processor handles all the actual work
             await processor.start_processing(num_rounds=max_rounds)

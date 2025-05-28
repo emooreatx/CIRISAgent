@@ -159,3 +159,10 @@ class SpeakHandler(BaseActionHandler):
                 outcome="failed_followup"
             )
             raise FollowUpCreationError from e
+
+        # Ensure channel_id is set in the thought context for downstream consumers (e.g., guardrails)
+        if hasattr(thought, "context"):
+            if not thought.context:
+                thought.context = {}
+            if "channel_id" not in thought.context or not thought.context["channel_id"]:
+                thought.context["channel_id"] = channel_id_from_params or original_event_channel_id or self.snore_channel_id

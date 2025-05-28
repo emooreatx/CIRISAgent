@@ -229,6 +229,10 @@ class BaseRuntime:
         self.dispatcher.action_filter = None
         self.dreaming = False
 
+    async def run_async(self):
+        """For CLI-based runtimes (async version)"""
+        await self._main_loop()
+
     def run(self):
-        """For CLI-based runtimes"""
+        """For CLI-based runtimes (sync version)"""
         asyncio.run(self._main_loop())

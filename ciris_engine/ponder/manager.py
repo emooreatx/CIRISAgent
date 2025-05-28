@@ -123,3 +123,19 @@ class PonderManager:
                     }
                 )
                 return None
+        
+        # Special handling: If this is a wakeup step thought, do not re-queue for further pondering
+        if getattr(thought, 'thought_type', '').lower() in [
+            'verify_identity', 'validate_integrity', 'evaluate_resilience', 'accept_incompleteness', 'express_gratitude', 'signalling_gratitude']:
+            logger.info(f"Thought ID {thought.thought_id} is a wakeup step ({thought.thought_type}); not re-queuing for further pondering.")
+            persistence.update_thought_status(
+                thought_id=thought.thought_id,
+                status=ThoughtStatus.COMPLETED,
+                final_action={
+                    "action": "PONDER",
+                    "ponder_count": current_ponder_count + 1,
+                    "ponder_notes": key_questions_list,
+                    "wakeup_step": True
+                }
+            )
+            return None

@@ -191,6 +191,11 @@ class WakeupProcessor(BaseProcessor):
             current_task = persistence.get_task_by_id(step_task.task_id)
             if not current_task or current_task.status != TaskStatus.ACTIVE:
                 continue
+            # Prevent duplicate thoughts: only create a new thought if there is no PROCESSING or PENDING thought for this step task
+            existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
+            if any(t.status in [ThoughtStatus.PROCESSING, ThoughtStatus.PENDING] for t in existing_thoughts):
+                logger.info(f"Skipping creation of new thought for step {step_type} (task_id={step_task.task_id}) because an active thought already exists.")
+                continue
             # Create and queue a thought for this step
             thought = await self._create_step_thought(step_task, round_number)
             if non_blocking:
