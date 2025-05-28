@@ -116,13 +116,54 @@ class AgentProcessor:
         # Initialize wakeup processor
         await self.wakeup_processor.initialize()
         
-        # Run wakeup sequence
-        wakeup_result = await self.wakeup_processor.process(self.current_round_number)
-        
-        if wakeup_result.get("status") != "success":
-            logger.error(f"Wakeup sequence failed: {wakeup_result.get('error')}")
-            await self.stop_processing()
-            return
+        # --- Modified: Loop WAKEUP rounds until all wakeup tasks are COMPLETED ---
+        from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
+        from ciris_engine import persistence
+
+        async def get_all_wakeup_step_tasks():
+            # Always fetch the latest list of wakeup step tasks (excluding root)
+            if not self.wakeup_processor.wakeup_tasks or len(self.wakeup_processor.wakeup_tasks) < 2:
+                return []
+            # Re-fetch each task from persistence to get up-to-date status
+            return [persistence.get_task_by_id(task.task_id) for task in self.wakeup_processor.wakeup_tasks[1:]]
+
+        async def all_wakeup_tasks_completed():
+            tasks = await get_all_wakeup_step_tasks()
+            if not tasks:
+                return False
+            for t in tasks:
+                # Only COMPLETED counts as done; any other status (including failed/active) means not done
+                if not t or t.status != TaskStatus.COMPLETED:
+                    return False
+            return True
+
+        round_count = 0
+        while not await all_wakeup_tasks_completed() and not self._stop_event.is_set():
+            logger.info(f"Starting WAKEUP round {round_count+1} after delay 1s")
+            round_start = datetime.now(timezone.utc)
+            # Only trigger processing for new or active tasks, do not block for completion
+            try:
+                await self.wakeup_processor.process(self.current_round_number, non_blocking=True)
+            except TypeError:
+                # For backward compatibility if process() does not accept non_blocking
+                await self.wakeup_processor.process(self.current_round_number)
+            round_end = datetime.now(timezone.utc)
+            round_duration = (round_end - round_start).total_seconds()
+            logger.info(f"Ending WAKEUP round {round_count+1} (Duration: {round_duration:.2f}s)")
+            # --- Enhanced logging: show status of all wakeup step tasks ---
+            if self.wakeup_processor.wakeup_tasks and len(self.wakeup_processor.wakeup_tasks) > 1:
+                logger.info("Current WAKEUP step task statuses:")
+                for task in self.wakeup_processor.wakeup_tasks[1:]:
+                    t = persistence.get_task_by_id(task.task_id)
+                    if t:
+                        logger.info(f"  [Task] id={t.task_id} name={getattr(t, 'name', None)} status={t.status.value if hasattr(t.status, 'value') else t.status}")
+                    else:
+                        logger.warning(f"  [Task] id={task.task_id} (not found in persistence)")
+            else:
+                logger.info("No WAKEUP step tasks to report.")
+            # --- End enhanced logging ---
+            round_count += 1
+            await asyncio.sleep(1)
         
         # Transition to WORK state
         if not self.state_manager.transition_to(AgentState.WORK):
