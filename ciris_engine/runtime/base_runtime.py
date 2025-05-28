@@ -128,12 +128,14 @@ class BaseRuntime:
                  io_adapter: BaseIOAdapter, 
                  profile_path: str, 
                  action_dispatcher: ActionDispatcher, # Expect a pre-configured dispatcher
-                 snore_channel_id: Optional[str] = None):
+                 snore_channel_id: Optional[str] = None,
+                 processor: Optional[Any] = None):  # Add processor parameter
         self.io_adapter = io_adapter
         self.profile_path = profile_path
         self.snore_channel_id = snore_channel_id
         self.audit_service = AuditService() # AuditService could also be passed in if needed elsewhere
         self.dispatcher = action_dispatcher # Use the passed, configured dispatcher
+        self.processor = processor  # Store the processor
         self.dreaming = False
         self._dream_task: Optional[asyncio.Task] = None
 
@@ -168,11 +170,22 @@ class BaseRuntime:
         await self.io_adapter.stop()
 
     async def _main_loop(self):
-        """Fetches messages from the adapter and creates tasks."""
+        """
+        For CLI adapter: fetches messages and creates tasks.
+        For Discord adapter: returns immediately as Discord uses event-based processing.
+        """
         await self.start()
         try:
+            # For Discord, this will return immediately as fetch_inputs returns []
+            # For CLI, this will loop and create tasks
             while True:
                 messages = await self.io_adapter.fetch_inputs()
+                if not messages and isinstance(self.io_adapter, DiscordAdapter):
+                    # Discord uses event-based processing through DiscordObserver
+                    # Just keep the loop alive
+                    await asyncio.sleep(60)
+                    continue
+                    
                 for msg in messages:
                     context = {
                         "origin_service": self.io_adapter.__class__.__name__.replace("Adapter", "").lower(),
@@ -217,4 +230,6 @@ class BaseRuntime:
         self.dreaming = False
 
     def run(self):
+        """For CLI-based runtimes"""
         asyncio.run(self._main_loop())
+        

@@ -82,11 +82,6 @@ class DiscordActionSink(ActionSink):
         logger.info(f"DiscordActionSink: Request to run tool '{name}' with args: {args}. (Placeholder implementation)")
         return None
 
-# _discord_handler is removed as its logic is now in centralized handlers.
-# _memory_handler is removed as its logic is now in MemorizeHandler.
-# _get_user_nick_for_memory is removed as its logic is now in MemorizeHandler.
-# _observer_service_handler is removed as its logic is now in ObserveHandler (for active look)
-# or handled by the core event router for passive observations.
 
 async def main() -> None:
     if not TOKEN:
@@ -112,6 +107,7 @@ async def main() -> None:
     from ciris_engine.services.discord_event_queue import DiscordEventQueue
     discord_message_queue = DiscordEventQueue[IncomingMessage]()
     discord_adapter = DiscordAdapter(TOKEN, message_queue=discord_message_queue) # Create adapter first
+    
     # --- Tool Registry and Discord Tools ---
     from ciris_engine.services.tool_registry import ToolRegistry
     from ciris_engine.services.discord_tools import register_discord_tools
@@ -120,6 +116,8 @@ async def main() -> None:
     register_discord_tools(tool_registry, discord_adapter.client)
     ToolHandler.set_tool_registry(tool_registry)
     # --- End Tool Registry setup ---
+    
+    # Create a placeholder runtime for the sink (will be updated later)
     discord_sink = DiscordActionSink(None) # Placeholder, will be set after runtime init
     from ciris_engine.services.discord_deferral_sink import DiscordDeferralSink
     deferral_sink = DiscordDeferralSink(discord_adapter, os.getenv("DISCORD_DEFERRAL_CHANNEL_ID"))
@@ -192,29 +190,11 @@ async def main() -> None:
         deferral_sink=deferral_sink,
     )
 
-    runtime = BaseRuntime(
-        io_adapter=discord_adapter,
-        profile_path=PROFILE_PATH, # Profile object could be passed instead if already loaded
-        action_dispatcher=new_action_dispatcher, # Pass the configured dispatcher
-        snore_channel_id=SNORE_CHANNEL_ID,
-    )
-    discord_sink.runtime = runtime # Now set the runtime for the sink
-    action_handler_deps.action_sink = discord_sink # Update dependency with real sink
-    action_handler_deps.deferral_sink = deferral_sink
-
     # --- Audit Service Integration ---
     from ciris_engine.services.audit_service import AuditService
     audit_service = AuditService()
     await audit_service.start()
     # --- End Audit Service Integration ---
-
-    # The old runtime.dispatcher.register_service_handler for "discord" and "memory" is no longer needed here
-    # as these are handled by the new ActionDispatcher and its centralized handlers.
-
-    # profile is already loaded and added to app_config.agent_profiles
-    # llm_service, memory_service, discord_observer are already initialized.
-    # llm_client is already initialized.
-    # action_handler_deps, handlers_map, and new_action_dispatcher are already initialized.
 
     ethical_pdma = EthicalPDMAEvaluator(
         aclient=llm_client.instruct_client, model_name=llm_client.model_name,
@@ -248,7 +228,7 @@ async def main() -> None:
         "app_config": app_config,
         "dsdma_evaluators": dsdma_evaluators,
         "memory_service": memory_service,
-        "discord_service": runtime.io_adapter,
+        "discord_service": discord_adapter,
         "observer_service": discord_observer,
         # Add any other services needed by AgentProcessor
     }
@@ -264,7 +244,8 @@ async def main() -> None:
     )
     context_builder = ContextBuilder(
         memory_service=memory_service,
-        graphql_provider=graphql_provider
+        graphql_provider=graphql_provider,
+        app_config=app_config
     )
     guardrail_orchestrator = GuardrailOrchestrator(guardrails)
     ponder_manager = PonderManager()
@@ -276,6 +257,7 @@ async def main() -> None:
         ponder_manager,
         app_config
     )
+    
     processor = AgentProcessor(
         app_config=app_config,
         thought_processor=thought_processor,
@@ -283,6 +265,21 @@ async def main() -> None:
         services=services_dict, # services_dict is still passed for general context
         startup_channel_id=SNORE_CHANNEL_ID,
     )
+    
+    # Create runtime with processor
+    runtime = BaseRuntime(
+        io_adapter=discord_adapter,
+        profile_path=PROFILE_PATH,
+        action_dispatcher=new_action_dispatcher,
+        snore_channel_id=SNORE_CHANNEL_ID,
+        processor=processor  # Pass the processor
+    )
+    
+    # Update the sink with the actual runtime
+    discord_sink.runtime = runtime
+    action_handler_deps.action_sink = discord_sink
+    action_handler_deps.deferral_sink = deferral_sink
+    
     event_source = DiscordEventSource(discord_observer) # DiscordObserver is the event generator
 
     async def send_to_snore(message: str) -> None:
@@ -294,24 +291,32 @@ async def main() -> None:
         await discord_sink.start()
         await deferral_sink.start()
         scheduler_task = asyncio.create_task(schedule_reflection_modes(send_to_snore))
+        
+        # Start the runtime's main loop (for Discord, this just keeps the adapter alive)
+        runtime_task = asyncio.create_task(runtime._main_loop())
+        
         try:
-            await asyncio.gather(
-                runtime._main_loop(),
-                processor.start_processing(),
-                scheduler_task,
-            )
+            # The processor handles all the actual work
+            await processor.start_processing()
         finally:
             scheduler_task.cancel()
+            runtime_task.cancel()
+            try:
+                await runtime_task
+            except asyncio.CancelledError:
+                pass
             await discord_sink.stop()
             await deferral_sink.stop()
             await event_source.stop()
+            
     try:
         await main_loop()
     finally:
         await asyncio.gather(
             llm_service.stop(), 
             memory_service.stop(),
-            db_maintenance_service.stop() # Add maintenance service to shutdown
+            db_maintenance_service.stop(), # Add maintenance service to shutdown
+            audit_service.stop()
         )
 
 if __name__ == "__main__":
