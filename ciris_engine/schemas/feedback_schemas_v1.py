@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, Union, List
 from enum import Enum
+from datetime import datetime, timezone
 
 class FeedbackType(str, Enum):
     """Types of WA feedback."""
@@ -40,7 +41,7 @@ class WiseAuthorityFeedback(BaseModel):
     directives: List[FeedbackDirective] = Field(default_factory=list)
     
     # Context and reasoning
-    summary: str
+    summary: str = ""
     detailed_reasoning: Optional[str] = None
     authority_confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     
@@ -49,8 +50,8 @@ class WiseAuthorityFeedback(BaseModel):
     implementation_notes: Optional[str] = None
     
     # Metadata
-    created_at: str
-    created_by: str  # WA identifier
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_by: str = "wise_authority"
     expires_at: Optional[str] = None
     
     # Processing status

@@ -5,14 +5,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str, package: Optional[Dict[str, Any]] = None) -> None:
+def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str, package: Optional[Dict[str, Any]] = None, db_path=None) -> None:
     sql = """
         INSERT OR REPLACE INTO deferral_reports (message_id, task_id, thought_id, package_json)
         VALUES (?, ?, ?, ?)
     """
     package_json = json.dumps(package) if package is not None else None
     try:
-        with get_db_connection() as conn:
+        with get_db_connection(db_path=db_path) as conn:
             conn.execute(sql, (message_id, task_id, thought_id, package_json))
             conn.commit()
         logger.debug(
@@ -28,10 +28,10 @@ def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str,
             e,
         )
 
-def get_deferral_report_context(message_id: str) -> Optional[tuple[str, str, Optional[Dict[str, Any]]]]:
+def get_deferral_report_context(message_id: str, db_path=None) -> Optional[tuple[str, str, Optional[Dict[str, Any]]]]:
     sql = "SELECT task_id, thought_id, package_json FROM deferral_reports WHERE message_id = ?"
     try:
-        with get_db_connection() as conn:
+        with get_db_connection(db_path=db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(sql, (message_id,))
             row = cursor.fetchone()

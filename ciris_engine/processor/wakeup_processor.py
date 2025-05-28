@@ -45,38 +45,46 @@ class WakeupProcessor(BaseProcessor):
         """Check if we can process the given state."""
         return state == AgentState.WAKEUP and not self.wakeup_complete
     
-    async def process(self, round_number: int) -> Dict[str, Any]:
+    async def process(self, round_number: int, non_blocking: bool = False) -> Dict[str, Any]:
         """Execute the wakeup sequence."""
         logger.info("Starting wakeup sequence")
-        
         try:
-            # Create wakeup tasks
-            self._create_wakeup_tasks()
-            
+            # Create wakeup tasks if they don't exist
+            if not self.wakeup_tasks:
+                self._create_wakeup_tasks()
             # Ensure monitoring task exists
             self._ensure_monitoring_task()
-            
-            # Process each wakeup step
-            success = await self._process_wakeup_steps(round_number)
-            
-            if success:
-                self.wakeup_complete = True
-                self._mark_root_task_complete()
-                logger.info("Wakeup sequence completed successfully")
+            if non_blocking:
+                # Just check status and return
+                all_complete = await self._check_all_steps_complete()
+                if all_complete:
+                    self.wakeup_complete = True
+                    self._mark_root_task_complete()
                 return {
-                    "status": "success",
-                    "wakeup_complete": True,
-                    "steps_completed": len(self.WAKEUP_SEQUENCE)
+                    "status": "in_progress" if not all_complete else "success",
+                    "wakeup_complete": all_complete,
+                    "steps_completed": self._count_completed_steps()
                 }
             else:
-                self._mark_root_task_failed()
-                logger.error("Wakeup sequence failed")
-                return {
-                    "status": "failed",
-                    "wakeup_complete": False,
-                    "error": "One or more wakeup steps failed"
-                }
-                
+                # Original blocking behavior
+                success = await self._process_wakeup_steps(round_number)
+                if success:
+                    self.wakeup_complete = True
+                    self._mark_root_task_complete()
+                    logger.info("Wakeup sequence completed successfully")
+                    return {
+                        "status": "success",
+                        "wakeup_complete": True,
+                        "steps_completed": len(self.WAKEUP_SEQUENCE)
+                    }
+                else:
+                    self._mark_root_task_failed()
+                    logger.error("Wakeup sequence failed")
+                    return {
+                        "status": "failed",
+                        "wakeup_complete": False,
+                        "error": "One or more wakeup steps failed"
+                    }
         except Exception as e:
             logger.error(f"Error in wakeup sequence: {e}", exc_info=True)
             self._mark_root_task_failed()
@@ -85,6 +93,27 @@ class WakeupProcessor(BaseProcessor):
                 "wakeup_complete": False,
                 "error": str(e)
             }
+
+    async def _check_all_steps_complete(self) -> bool:
+        """Check if all wakeup steps are complete."""
+        if not self.wakeup_tasks or len(self.wakeup_tasks) < 2:
+            return False
+        for step_task in self.wakeup_tasks[1:]:  # Skip root task
+            current_task = persistence.get_task_by_id(step_task.task_id)
+            if not current_task or current_task.status != TaskStatus.COMPLETED:
+                return False
+        return True
+
+    def _count_completed_steps(self) -> int:
+        """Count completed wakeup steps."""
+        if not self.wakeup_tasks:
+            return 0
+        completed = 0
+        for step_task in self.wakeup_tasks[1:]:
+            current_task = persistence.get_task_by_id(step_task.task_id)
+            if current_task and current_task.status == TaskStatus.COMPLETED:
+                completed += 1
+        return completed
     
     def _create_wakeup_tasks(self):
         """Create all wakeup sequence tasks."""

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List
-from datetime import datetime
+from typing import Dict, Any, Optional, List, Union
+from datetime import datetime, timezone
 from enum import Enum
 
 class DeferralReason(str, Enum):
@@ -39,11 +39,7 @@ class DeferralPackage(BaseModel):
     # Processing history
     ponder_history: List[str] = Field(default_factory=list)
     action_history: List[Dict[str, Any]] = Field(default_factory=list)
-    
-    # Metadata
-    created_at: str
-    agent_profile: Optional[str] = None
-    confidence_scores: Optional[Dict[str, float]] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class DeferralReport(BaseModel):
     """Deferral report for transmission to WA."""
@@ -61,3 +57,43 @@ class DeferralReport(BaseModel):
     delivered_at: Optional[str] = None
     response_received: bool = False
     response_at: Optional[str] = None
+
+class FeedbackType(str, Enum):
+    """Types of WA feedback."""
+    IDENTITY_UPDATE = "identity_update"
+    ENVIRONMENT_UPDATE = "environment_update" 
+    MEMORY_CORRECTION = "memory_correction"
+    DECISION_OVERRIDE = "decision_override"
+    POLICY_CLARIFICATION = "policy_clarification"
+    SYSTEM_DIRECTIVE = "system_directive"
+
+class FeedbackSource(str, Enum):
+    """Source of the feedback."""
+    WISE_AUTHORITY = "wise_authority"
+    HUMAN_OPERATOR = "human_operator"
+    SYSTEM_MONITOR = "system_monitor"
+    PEER_AGENT = "peer_agent"
+
+class FeedbackDirective(BaseModel):
+    """Specific directive within feedback."""
+    action: str  # "update", "delete", "add", "override", etc.
+    target: str  # What to act on
+    data: Union[Dict[str, Any], str, List[Any]]
+    reasoning: Optional[str] = None
+
+class WiseAuthorityFeedback(BaseModel):
+    """Structured feedback from WA on deferred decisions."""
+    feedback_id: str
+    
+    # Reference to original deferral
+    original_report_id: Optional[str] = None
+    original_thought_id: Optional[str] = None
+    original_task_id: Optional[str] = None
+    
+    # Feedback content  
+    feedback_type: FeedbackType
+    feedback_source: FeedbackSource
+    directives: List[FeedbackDirective] = Field(default_factory=list)
+    summary: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_by: str = "wise_authority"

@@ -74,9 +74,9 @@ class MemoryHandler:
                     return ActionSelectionResult(
                         context_summary_for_action_selection="Invalid WA feedback: missing or invalid corrected_thought_id; deferring to WA",
                         action_alignment_check={"DEFER": "Correction target not found"},
-                        selected_handler_action=HandlerActionType.DEFER,
+                        selected_action=HandlerActionType.DEFER,
                         action_parameters={"reason": "INVALID_CORRECTION_TARGET"},
-                        action_selection_rationale="Correction target not found; WA must review",
+                        rationale="Correction target not found; WA must review",
                         monitoring_for_selected_action="none",
                     )
             else:
@@ -89,9 +89,9 @@ class MemoryHandler:
                 return ActionSelectionResult(
                     context_summary_for_action_selection="Channel metadata update requires WA approval",
                     action_alignment_check={"DEFER": "Policy mandates WA sign-off"},
-                    selected_handler_action=HandlerActionType.DEFER,
+                    selected_action=HandlerActionType.DEFER,
                     action_parameters={"reason": "CHANNEL_POLICY_UPDATE"},
-                    action_selection_rationale="WA approval required",
+                    rationale="WA approval required",
                     monitoring_for_selected_action="none",
                 )
         else:

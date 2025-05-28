@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
-from ciris_engine.schemas.processing_schemas_v1 import ThoughtContext
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.utils import GraphQLContextProvider
 from pydantic import BaseModel
