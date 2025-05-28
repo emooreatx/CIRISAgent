@@ -31,6 +31,42 @@ class GuardrailOrchestrator:
             logger.error(f"Failed to parse dma_results_dict into DMAResults model: {e}. dma_results_dict: {dma_results_dict}", exc_info=True)
             dma_results = DMAResults()
 
+        # Inject channel_id for SPEAK actions before guardrail check
+        if action_result.selected_action == HandlerActionType.SPEAK:
+            params = action_result.action_parameters
+            # Debug: log available context sources
+            logger.debug(f"[GuardrailOrchestrator] SPEAK injection: thought.context={getattr(thought, 'context', None)}, dma_results_dict={dma_results_dict}")
+            # Try to get channel_id from thought, dma_results_dict, or context
+            channel_id = None
+            # Try DMA results dict (may have context info)
+            if isinstance(dma_results_dict, dict):
+                channel_id = (
+                    dma_results_dict.get('identity_context', {}).get('channel_id')
+                    if isinstance(dma_results_dict.get('identity_context', {}), dict) else None
+                )
+                if not channel_id:
+                    channel_id = dma_results_dict.get('channel_id')
+            # Fallback to thought (if it has context)
+            if not channel_id and hasattr(thought, 'context'):
+                if isinstance(thought.context, dict):
+                    channel_id = thought.context.get('channel_id')
+            # Inject if missing
+            injected = False
+            if isinstance(params, dict):
+                if not params.get('channel_id') and channel_id:
+                    params['channel_id'] = channel_id
+                    injected = True
+            elif isinstance(params, SpeakParams):
+                if not params.channel_id and channel_id:
+                    params.channel_id = channel_id
+                    injected = True
+            action_result.action_parameters = params
+            logger.debug(f"[GuardrailOrchestrator] SPEAK channel_id injection: action_parameters now {action_result.action_parameters}, injected channel_id={channel_id}")
+            if not channel_id:
+                logger.warning(f"[GuardrailOrchestrator] SPEAK channel_id injection: channel_id is STILL None after attempted injection! This will cause epistemic humility to flag it.")
+            elif not injected:
+                logger.warning(f"[GuardrailOrchestrator] SPEAK channel_id injection: channel_id was found ({channel_id}) but not injected (already present or params type mismatch).")
+
         # Retry guardrail check up to 3 times if it fails
         max_retries = 3
         for attempt in range(1, max_retries + 1):

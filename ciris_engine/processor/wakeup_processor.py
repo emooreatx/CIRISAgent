@@ -108,8 +108,15 @@ class WakeupProcessor(BaseProcessor):
         
         self.wakeup_tasks = [root_task]
         
+        # Get channel_id from root_task context if present
+        channel_id = root_task.context.get("channel_id")
+        
         # Create step tasks
         for step_type, content in self.WAKEUP_SEQUENCE:
+            # Inherit channel_id in context if present
+            step_context = {"step_type": step_type}
+            if channel_id:
+                step_context["channel_id"] = channel_id
             step_task = Task(
                 task_id=str(uuid.uuid4()),
                 description=content,
@@ -118,7 +125,7 @@ class WakeupProcessor(BaseProcessor):
                 created_at=now_iso,
                 updated_at=now_iso,
                 parent_task_id=root_task.task_id,
-                context={"step_type": step_type},
+                context=step_context,
             )
             persistence.add_task(step_task)
             self.wakeup_tasks.append(step_task)

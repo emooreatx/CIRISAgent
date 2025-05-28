@@ -34,7 +34,6 @@ class ForgetHandler(BaseActionHandler):
         follow_up = create_follow_up_thought(
             parent=thought,
             content=follow_up_content,
-            priority_offset=1
         )
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="success" if forget_result.status == MemoryOpStatus.OK else "failed")

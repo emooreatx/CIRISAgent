@@ -146,7 +146,13 @@ class TaskManager:
         
         tasks = [root_task]
         
+        # Propagate channel_id to step tasks if present in root_task context
+        channel_id = root_task.context.get("channel_id")
+        
         for step_type, content in wakeup_steps:
+            step_context = {"step_type": step_type}
+            if channel_id:
+                step_context["channel_id"] = channel_id
             step_task = Task(
                 task_id=str(uuid.uuid4()),
                 description=content,
@@ -155,7 +161,7 @@ class TaskManager:
                 created_at=now_iso,
                 updated_at=now_iso,
                 parent_task_id=root_task.task_id,
-                context={"step_type": step_type},
+                context=step_context,
             )
             persistence.add_task(step_task)
             tasks.append(step_task)

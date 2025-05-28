@@ -10,10 +10,12 @@ class ContextBuilder:
     def __init__(
         self,
         memory_service: Optional[CIRISLocalGraph] = None,
-        graphql_provider: Optional[GraphQLContextProvider] = None
+        graphql_provider: Optional[GraphQLContextProvider] = None,
+        app_config: Optional[Any] = None,
     ):
         self.memory_service = memory_service
         self.graphql_provider = graphql_provider
+        self.app_config = app_config
 
     async def build_thought_context(
         self,
@@ -40,11 +42,8 @@ class ContextBuilder:
         # --- Add Discord channel context ---
         # Try to get from environment, then from app_config if available
         discord_channel_id = getenv("DISCORD_CHANNEL_ID")
-        if not discord_channel_id:
-            # Try to get from app_config if available on self
-            app_config = getattr(self, 'app_config', None)
-            if app_config and hasattr(app_config, 'discord_channel_id'):
-                discord_channel_id = app_config.discord_channel_id
+        if not discord_channel_id and self.app_config and hasattr(self.app_config, 'discord_channel_id'):
+            discord_channel_id = self.app_config.discord_channel_id
         channel_context_str = None
         if discord_channel_id:
             channel_context_str = f"Our assigned channel is {discord_channel_id}"

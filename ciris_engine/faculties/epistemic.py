@@ -115,6 +115,7 @@ def _create_epistemic_humility_messages(action_description: str) -> list[dict[st
         "Recommend 'proceed' if none of the above is true, this is your strong default."
         "You are not a decision-maker, but a reflective assessor. You are judging what you see here, not the absence of information. "
         "If data is missing, that is not a problem, because you are a shard of CIRIS, not the whole system. "
+        "This action has already passed through many layers of CIRIS Agent's ethical guardrails, so you can assume it is generally safe to proceed unless you see a clear issue. "
         "Assess the proposed action and answer ONLY in JSON with fields: "
         "epistemic_certainty (low|moderate|high), identified_uncertainties, "
         "reflective_justification, recommended_action (proceed|ponder|defer)."

@@ -71,6 +71,7 @@ class AppConfig(BaseModel):
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
     default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
+    discord_channel_id: Optional[str] = None  # Add this field for Discord channel id
 
 # Expose commonly used constants at module level for convenience
 DMA_RETRY_LIMIT = 3
