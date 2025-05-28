@@ -9,6 +9,9 @@ from datetime import datetime, timezone
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.states import AgentState
+from ciris_engine import persistence
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 
 from ciris_engine.processor.thought_processor import ThoughtProcessor
 if TYPE_CHECKING:
@@ -99,102 +102,173 @@ class AgentProcessor:
         
         logger.info("AgentProcessor initialized with v1 schemas and modular processors")
     
-    async def start_processing(self, num_rounds: Optional[int] = None):
-        """Start the main agent processing loop."""
-        if self._processing_task and not self._processing_task.done():
-            logger.warning("Processing is already running")
-            return
+async def start_processing(self, num_rounds: Optional[int] = None):
+    """Start the main agent processing loop."""
+    if self._processing_task and not self._processing_task.done():
+        logger.warning("Processing is already running")
+        return
+    
+    self._stop_event.clear()
+    logger.info(f"Starting agent processing (rounds: {num_rounds or 'infinite'})")
+    
+    # Transition to WAKEUP state
+    if not self.state_manager.transition_to(AgentState.WAKEUP):
+        logger.error("Failed to transition to WAKEUP state")
+        return
+    
+    # Initialize wakeup processor
+    await self.wakeup_processor.initialize()
+    
+    # Process WAKEUP in non-blocking mode
+    wakeup_complete = False
+    wakeup_round = 0
+    max_wakeup_rounds = 30  # Safety limit
+    
+    while not wakeup_complete and not self._stop_event.is_set() and wakeup_round < max_wakeup_rounds:
+        logger.info(f"=== WAKEUP Round {wakeup_round} ===")
         
-        self._stop_event.clear()
-        logger.info(f"Starting agent processing (rounds: {num_rounds or 'infinite'})")
+        # 1. Run wakeup processor in non-blocking mode
+        wakeup_result = await self.wakeup_processor.process(wakeup_round, non_blocking=True)
+        wakeup_complete = wakeup_result.get("wakeup_complete", False)
         
-        # Transition to WAKEUP state
-        if not self.state_manager.transition_to(AgentState.WAKEUP):
-            logger.error("Failed to transition to WAKEUP state")
-            return
+        if not wakeup_complete:
+            # 2. Process any pending thoughts from ALL tasks (not just wakeup)
+            # This ensures PONDER and other actions get processed
+            thoughts_processed = await self._process_pending_thoughts_async()
+            
+            logger.info(f"Wakeup round {wakeup_round}: {wakeup_result.get('steps_completed', 0)}/{wakeup_result.get('total_steps', 5)} steps complete, {thoughts_processed} thoughts processed")
+            
+            # 3. Brief delay between rounds
+            await asyncio.sleep(1.0)
+        else:
+            logger.info("✓ Wakeup sequence completed successfully!")
         
-        # Initialize wakeup processor
-        await self.wakeup_processor.initialize()
-        
-        # --- Modified: Loop WAKEUP rounds until all wakeup tasks are COMPLETED ---
-        from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
-        from ciris_engine import persistence
+        wakeup_round += 1
+        self.current_round_number += 1
+    
+    if not wakeup_complete:
+        logger.error(f"Wakeup did not complete within {max_wakeup_rounds} rounds")
+        await self.stop_processing()
+        return
+    
+    # Transition to WORK state after wakeup completes
+    if not self.state_manager.transition_to(AgentState.WORK):
+        logger.error("Failed to transition to WORK state after wakeup")
+        await self.stop_processing()
+        return
+    
+    # Mark wakeup as complete in state metadata
+    self.state_manager.update_state_metadata("wakeup_complete", True)
+    
+    # Initialize work processor
+    await self.work_processor.initialize()
+    
+    # Start main processing loop
+    self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
+    
+    try:
+        await self._processing_task
+    except asyncio.CancelledError:
+        logger.info("Processing task was cancelled")
+    except Exception as e:
+        logger.error(f"Processing loop error: {e}", exc_info=True)
+    finally:
+        self._stop_event.set()
 
-        async def get_all_wakeup_step_tasks():
-            # Always fetch the latest list of wakeup step tasks (excluding root)
-            if not self.wakeup_processor.wakeup_tasks or len(self.wakeup_processor.wakeup_tasks) < 2:
-                return []
-            # Re-fetch each task from persistence to get up-to-date status
-            return [persistence.get_task_by_id(task.task_id) for task in self.wakeup_processor.wakeup_tasks[1:]]
-
-        async def all_wakeup_tasks_completed():
-            tasks = await get_all_wakeup_step_tasks()
-            if not tasks:
-                return False
-            for t in tasks:
-                # Only COMPLETED counts as done; any other status (including failed/active) means not done
-                if not t or t.status != TaskStatus.COMPLETED:
-                    return False
-            return True
-
-        round_count = 0
-        while not await all_wakeup_tasks_completed() and not self._stop_event.is_set():
-            if num_rounds is not None and round_count >= num_rounds:
-                logger.info(f"Reached max wakeup rounds ({num_rounds})")
-                break
-            logger.info(f"Starting WAKEUP round {round_count+1} after delay 1s")
-            round_start = datetime.now(timezone.utc)
-            # Only trigger processing for new or active tasks, do not block for completion
-            try:
-                await self.wakeup_processor.process(self.current_round_number, non_blocking=True)
-            except TypeError:
-                # For backward compatibility if process() does not accept non_blocking
-                await self.wakeup_processor.process(self.current_round_number)
-            round_end = datetime.now(timezone.utc)
-            round_duration = (round_end - round_start).total_seconds()
-            logger.info(f"Ending WAKEUP round {round_count+1} (Duration: {round_duration:.2f}s)")
-            # --- Enhanced logging: show status of all wakeup step tasks ---
-            if self.wakeup_processor.wakeup_tasks and len(self.wakeup_processor.wakeup_tasks) > 1:
-                logger.info("Current WAKEUP step task statuses:")
-                for task in self.wakeup_processor.wakeup_tasks[1:]:
-                    t = persistence.get_task_by_id(task.task_id)
-                    if t:
-                        logger.info(f"  [Task] id={t.task_id} name={getattr(t, 'name', None)} status={t.status.value if hasattr(t.status, 'value') else t.status}")
-                    else:
-                        logger.warning(f"  [Task] id={task.task_id} (not found in persistence)")
+async def _process_pending_thoughts_async(self) -> int:
+    """
+    Process all pending thoughts asynchronously.
+    This is the key to non-blocking operation - it processes ALL thoughts,
+    not just wakeup thoughts.
+    """
+    # Get all pending thoughts for active tasks
+    pending_thoughts = persistence.get_pending_thoughts_for_active_tasks()
+    
+    if not pending_thoughts:
+        return 0
+    
+    processed_count = 0
+    
+    # Process thoughts in parallel batches
+    batch_size = 5  # Process up to 5 thoughts concurrently
+    
+    for i in range(0, len(pending_thoughts), batch_size):
+        batch = pending_thoughts[i:i + batch_size]
+        
+        # Create tasks for parallel processing
+        tasks = []
+        for thought in batch:
+            # Mark as PROCESSING
+            persistence.update_thought_status(
+                thought_id=thought.thought_id,
+                status=ThoughtStatus.PROCESSING
+            )
+            
+            # Create processing task
+            task = self._process_single_thought(thought)
+            tasks.append(task)
+        
+        # Wait for batch to complete
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result, thought in zip(results, batch):
+            if isinstance(result, Exception):
+                logger.error(f"Error processing thought {thought.thought_id}: {result}")
+                persistence.update_thought_status(
+                    thought_id=thought.thought_id,
+                    status=ThoughtStatus.FAILED,
+                    final_action={"error": str(result)}
+                )
             else:
-                logger.info("No WAKEUP step tasks to report.")
-            # --- End enhanced logging ---
-            # --- Process thoughts for wakeup step tasks (to allow them to complete) ---
-            # (Removed blocking batch processing here to avoid blocking the async loop)
-            round_count += 1
-            self.current_round_number += 1
-            await asyncio.sleep(1)
-            logger.info(f"--- Ready for next WAKEUP round (current_round_number={self.current_round_number}) ---")
+                processed_count += 1
+    
+    return processed_count
 
-        # Transition to WORK state after wakeup completes
-        if not self.state_manager.transition_to(AgentState.WORK):
-            logger.error("Failed to transition to WORK state after wakeup")
-            await self.stop_processing()
-            return
-
-        # Mark wakeup as complete in state metadata
-        self.state_manager.update_state_metadata("wakeup_complete", True)
-
-        # Initialize work processor
-        await self.work_processor.initialize()
-
-        # Start main processing loop
-        self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
+async def _process_single_thought(self, thought: Thought) -> bool:
+    """Process a single thought and dispatch its action."""
+    try:
+        # Create processing queue item
+        item = ProcessingQueueItem.from_thought(thought)
         
-        try:
-            await self._processing_task
-        except asyncio.CancelledError:
-            logger.info("Processing task was cancelled")
-        except Exception as e:
-            logger.error(f"Processing loop error: {e}", exc_info=True)
-        finally:
-            self._stop_event.set()
+        # Process through thought processor
+        result = await self.thought_processor.process_thought(
+            thought_item=item,
+            platform_context={"origin": "wakeup_async"}
+        )
+        
+        if result:
+            # Get the task for context
+            task = persistence.get_task_by_id(thought.source_task_id)
+            
+            # Build dispatch context
+            dispatch_context = {
+                "thought_id": thought.thought_id,
+                "source_task_id": thought.source_task_id,
+                "origin_service": "discord",
+                "round_number": self.current_round_number
+            }
+            
+            # Add task context if available
+            if task and task.context:
+                for key in ["channel_id", "author_name", "author_id"]:
+                    if key in task.context:
+                        dispatch_context[key] = task.context[key]
+            
+            # Dispatch the action
+            await self.action_dispatcher.dispatch(
+                action_selection_result=result,
+                thought=thought,
+                dispatch_context=dispatch_context
+            )
+            
+            return True
+        else:
+            logger.warning(f"No result from processing thought {thought.thought_id}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error processing thought {thought.thought_id}: {e}", exc_info=True)
+        raise
     
     async def stop_processing(self):
         """Stop the processing loop gracefully."""
