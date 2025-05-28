@@ -91,12 +91,24 @@ class DMAOrchestrator:
             triaged.setdefault("max_ponder_rounds", 5) # Fallback if app_config not available
             logger.warning("DMAOrchestrator: app_config or workflow config not found for max_ponder_rounds, using fallback.")
 
-        # Get agent_profile from app_config using profile_name
+        # Improved agent_profile lookup with fallback logic
         agent_profile_obj = None
-        if self.app_config and hasattr(self.app_config, 'agent_profiles') and profile_name:
+        if self.app_config and hasattr(self.app_config, 'agent_profiles'):
+            # Try exact match first
             agent_profile_obj = self.app_config.agent_profiles.get(profile_name)
-        triaged.setdefault("agent_profile", agent_profile_obj)
-        
+            if not agent_profile_obj:
+                # Try lowercase match
+                agent_profile_obj = self.app_config.agent_profiles.get(profile_name.lower())
+            # If still not found and we're not already looking for default, try default
+            if not agent_profile_obj and profile_name != "default":
+                logger.warning(f"Profile '{profile_name}' not found, falling back to default profile")
+                agent_profile_obj = self.app_config.agent_profiles.get("default")
+        if agent_profile_obj:
+            logger.debug(f"Using profile '{getattr(agent_profile_obj, 'name', 'unknown')}' for thought {thought_item.thought_id}")
+        else:
+            logger.warning(f"No profile found for '{profile_name}' or 'default' fallback")
+        triaged["agent_profile"] = agent_profile_obj
+
         # Get permitted_actions from the agent_profile if available
         if agent_profile_obj and hasattr(agent_profile_obj, 'permitted_actions'):
             triaged.setdefault("permitted_actions", agent_profile_obj.permitted_actions)

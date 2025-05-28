@@ -70,7 +70,7 @@ Operating rules
 • Incompleteness awareness: avoid complex maths; lower confidence instead of fabricating.
 
 
-Calibration examples
+Calibration example
 # These examples are designed to be clear and unambiguous, with a focus on coherence.
 POSITIVE:
 

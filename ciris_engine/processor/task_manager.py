@@ -41,7 +41,18 @@ class TaskManager:
             context=context or {},
             outcome={}
         )
-        
+        # Inject agent_profile_name into context if not already present and profile is available
+        if context is not None and 'agent_profile_name' not in task.context:
+            from ciris_engine.utils.profile_loader import load_profile
+            import os
+            profile_path = os.path.join('ciris_profiles', 'teacher.yaml')
+            try:
+                import asyncio
+                profile = asyncio.run(load_profile(profile_path))
+                if profile and hasattr(profile, 'name'):
+                    task.context['agent_profile_name'] = profile.name
+            except Exception:
+                pass
         persistence.add_task(task)
         logger.info(f"Created task {task.task_id}: {description[:50]}...")
         return task
