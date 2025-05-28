@@ -46,7 +46,8 @@ class ActionDispatcher:
         The handler is responsible for executing the action, updating thought status,
         and creating follow-up thoughts.
         """
-        action_type = action_selection_result.selected_handler_action
+        # Use selected_action (not selected_handler_action) for ActionSelectionResult
+        action_type = action_selection_result.selected_action
 
         if self.action_filter:
             try:
@@ -69,7 +70,7 @@ class ActionDispatcher:
             try:
                 persistence.update_thought_status(
                     thought_id=thought.thought_id,
-                    new_status=ThoughtStatus.FAILED,
+                    status=ThoughtStatus.FAILED,
                     final_action={
                         "error": f"No handler for action {action_type.value}",
                         "original_result": action_selection_result.model_dump()
@@ -93,7 +94,7 @@ class ActionDispatcher:
             try:
                 persistence.update_thought_status(
                     thought_id=thought.thought_id,
-                    new_status=ThoughtStatus.FAILED,
+                    status=ThoughtStatus.FAILED,
                     final_action={
                         "error": f"Handler {handler_instance.__class__.__name__} failed: {str(e)}",
                         "original_result": action_selection_result.model_dump(),

@@ -82,7 +82,7 @@ class PonderManager:
             logger.warning(f"Thought ID {thought.thought_id} has reached max ponder rounds ({self.max_ponder_rounds}). Marking as DEFERRED.")
             persistence.update_thought_status(
                 thought_id=thought.thought_id,
-                new_status=ThoughtStatus.DEFERRED,
+                status=ThoughtStatus.DEFERRED,
                 final_action={
                     "action": "DEFER",
                     "reason": f"Maximum ponder rounds ({self.max_ponder_rounds}) reached",
@@ -99,7 +99,7 @@ class PonderManager:
             # Note: The persistence layer might need adjustment to support updating ponder_notes
             success = persistence.update_thought_status(
                 thought_id=thought.thought_id,
-                new_status=ThoughtStatus.PENDING,  # Back to PENDING for re-processing
+                status=ThoughtStatus.PENDING,  # Back to PENDING for re-processing
                 final_action={
                     "action": "PONDER",
                     "ponder_count": new_ponder_count,
@@ -115,7 +115,7 @@ class PonderManager:
                 # Mark as FAILED instead of returning a new thought
                 persistence.update_thought_status(
                     thought_id=thought.thought_id,
-                    new_status=ThoughtStatus.FAILED,
+                    status=ThoughtStatus.FAILED,
                     final_action={
                         "action": "PONDER",
                         "error": "Failed to update for re-processing",

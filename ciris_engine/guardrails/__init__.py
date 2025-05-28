@@ -114,7 +114,7 @@ class EthicalGuardrails:
         humility_result = await self._evaluate_epistemic_humility(proposed_action_result)
         epistemic_data["epistemic_humility"] = humility_result.model_dump()
 
-        if humility_result.recommended_action in {"abort", "defer"}:
+        if humility_result.recommended_action in {"abort", "defer", "ponder"}:
             reason = f"Epistemic humility check requested {humility_result.recommended_action}: {humility_result.reflective_justification}"
             logging.warning(f"Guardrail: {reason}")
             return False, reason, epistemic_data

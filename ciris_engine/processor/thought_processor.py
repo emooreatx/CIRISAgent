@@ -153,16 +153,18 @@ class ThoughtProcessor:
         elif hasattr(result, 'final_action') and hasattr(result.final_action, 'selected_action'):
             selected_action = result.final_action.selected_action
             result = result.final_action  # Use the final_action for PONDER processing
-        
+        # Use getattr for compatibility with both dict and Pydantic models
+        epistemic_data = getattr(context, 'epistemic_data', None)
+        if epistemic_data is None and isinstance(context, dict):
+            epistemic_data = context.get('epistemic_data', {})
         if selected_action == HandlerActionType.PONDER:
             # Pass the result in context so PonderManager can extract questions
             ponder_context = {
                 'action_result': result,
-                'epistemic_data': context.get('epistemic_data', {}),
+                'epistemic_data': epistemic_data or {},
                 'processing_context': context
             }
             await self.ponder_manager.ponder(thought, ponder_context)
-        
         return result
 
     async def _update_thought_status(self, thought, result):
