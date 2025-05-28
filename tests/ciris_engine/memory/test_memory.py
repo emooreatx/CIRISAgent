@@ -35,9 +35,10 @@ def test_export_identity_context():
     assert "id1" in out and "admin" in out
 
 @pytest.mark.asyncio
-async def test_memory_handler_process_memorize_user():
+async def test_memory_handler_process_memorize_user(monkeypatch):
     g = CIRISLocalGraph(storage_path=None)
     handler = MemoryHandler(g)
+    monkeypatch.setattr("ciris_engine.persistence.update_thought_status", lambda *a, **k: None)
     thought = Thought(
         thought_id="th1", source_task_id="t1", thought_type="test", status=ThoughtStatus.PENDING,
         created_at="now", updated_at="now", round_number=1, content="test", context={},
@@ -50,9 +51,10 @@ async def test_memory_handler_process_memorize_user():
     assert remembered.data is not None
 
 @pytest.mark.asyncio
-async def test_memory_handler_process_memorize_channel_wa_feedback():
+async def test_memory_handler_process_memorize_channel_wa_feedback(monkeypatch):
     g = CIRISLocalGraph(storage_path=None)
     handler = MemoryHandler(g)
+    monkeypatch.setattr("ciris_engine.persistence.update_thought_status", lambda *a, **k: None)
     thought = Thought(
         thought_id="th2", source_task_id="t1", thought_type="test", status=ThoughtStatus.PENDING,
         created_at="now", updated_at="now", round_number=1, content="test",
@@ -66,9 +68,10 @@ async def test_memory_handler_process_memorize_channel_wa_feedback():
     assert remembered.data is not None
 
 @pytest.mark.asyncio
-async def test_memory_handler_process_memorize_channel_wa_feedback_invalid():
+async def test_memory_handler_process_memorize_channel_wa_feedback_invalid(monkeypatch):
     g = CIRISLocalGraph(storage_path=None)
     handler = MemoryHandler(g)
+    monkeypatch.setattr("ciris_engine.persistence.update_thought_status", lambda *a, **k: None)
     thought = Thought(
         thought_id="th3", source_task_id="t1", thought_type="test", status=ThoughtStatus.PENDING,
         created_at="now", updated_at="now", round_number=1, content="test",
@@ -81,9 +84,10 @@ async def test_memory_handler_process_memorize_channel_wa_feedback_invalid():
     assert result.selected_action.value == "defer"
 
 @pytest.mark.asyncio
-async def test_memory_handler_process_memorize_channel_wa_required():
+async def test_memory_handler_process_memorize_channel_wa_required(monkeypatch):
     g = CIRISLocalGraph(storage_path=None)
     handler = MemoryHandler(g)
+    monkeypatch.setattr("ciris_engine.persistence.update_thought_status", lambda *a, **k: None)
     thought = Thought(
         thought_id="th4", source_task_id="t1", thought_type="test", status=ThoughtStatus.PENDING,
         created_at="now", updated_at="now", round_number=1, content="test",
