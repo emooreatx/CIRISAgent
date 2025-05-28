@@ -66,7 +66,7 @@ def test_init_config_fallback(mock_get_config, mock_patch, mock_async_openai):
     mock_get_config.return_value = DummyAppConfig()
     mock_patch.return_value = MagicMock()
     mock_async_openai.return_value = MagicMock()
-    make_env(api_key=None, base_url=None, model_name=None)
+    make_env(api_key=None, base_url="https://api.test.com", model_name=None)  # Ensure base_url matches assertion
     client = CIRISLLMClient()
     assert client.model_name == "gpt-test"
     mock_async_openai.assert_called_with(
@@ -80,6 +80,7 @@ def test_init_with_config_obj(mock_patch, mock_async_openai):
     mock_patch.return_value = MagicMock()
     mock_async_openai.return_value = MagicMock()
     config = DummyConfig()
+    make_env(api_key=None, base_url="https://api.test.com", model_name=None)  # Ensure base_url matches assertion
     client = CIRISLLMClient(config)
     assert client.model_name == "gpt-test"
     mock_async_openai.assert_called_with(

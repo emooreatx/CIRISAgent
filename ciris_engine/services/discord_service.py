@@ -257,7 +257,7 @@ class DiscordService(Service):
 
 
     async def _handle_discord_action(self, result: ActionSelectionResult, dispatch_context: Dict[str, Any]):
-        logger.debug(f"DiscordService handling action: {result.selected_handler_action.value} with context: {dispatch_context}")
+        logger.debug(f"DiscordService handling action: {result.selected_action.value} with context: {dispatch_context}")
         
         # dispatch_context contains 'thought_id', 'source_task_id', 'origin_service',
         # and the context associated with the *source task* (retrieved by AgentProcessor).
@@ -287,7 +287,7 @@ class DiscordService(Service):
              logger.exception(f"DiscordService: Unexpected error fetching target channel {channel_id_str}: {e}")
              return
 
-        action_type = result.selected_handler_action
+        action_type = result.selected_action
         params = result.action_parameters
 
         try:
@@ -382,7 +382,7 @@ class DiscordService(Service):
                     if thought_id:
                         persistence.update_thought_status(
                             thought_id=thought_id,
-                            new_status=ThoughtStatus.DEFERRED, # Mark thought as deferred
+                            status=ThoughtStatus.DEFERRED, # Mark thought as deferred
                             # final_action_result could store deferral details if needed
                             final_action=result.model_dump() 
                         )

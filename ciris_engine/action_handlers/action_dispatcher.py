@@ -46,7 +46,7 @@ class ActionDispatcher:
         The handler is responsible for executing the action, updating thought status,
         and creating follow-up thoughts.
         """
-        # Use selected_action (not selected_handler_action) for ActionSelectionResult
+
         action_type = action_selection_result.selected_action
 
         if self.action_filter:
@@ -82,11 +82,13 @@ class ActionDispatcher:
             return
 
         logger.info(f"Dispatching action {action_type.value} for thought {thought.thought_id} to handler {handler_instance.__class__.__name__}")
+        print(f"[DISPATCHER] Dispatching action {action_type.value} for thought {thought.thought_id} to handler {handler_instance.__class__.__name__}")
         
         try:
             # The handler's `handle` method will take care of everything.
             # It has access to dependencies (like action_sink, memory_service) via its constructor.
             await handler_instance.handle(action_selection_result, thought, dispatch_context)
+            print(f"[DISPATCHER] Handler {handler_instance.__class__.__name__} completed for action {action_type.value} on thought {thought.thought_id}")
         except Exception as e:
             logger.exception(
                 f"Error executing handler {handler_instance.__class__.__name__} for action {action_type.value} on thought {thought.thought_id}: {e}"

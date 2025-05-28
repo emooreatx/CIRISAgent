@@ -15,10 +15,11 @@ from .remember_handler import RememberHandler
 from .forget_handler import ForgetHandler
 from .action_dispatcher import ActionDispatcher
 from .base_handler import ActionHandlerDependencies
+from .ponder_handler import PonderHandler
 import os
 
 # Add any required dependencies for handlers here, e.g., services, sinks, etc.
-def build_action_dispatcher(audit_service=None, **handler_dependencies):
+def build_action_dispatcher(audit_service=None, ponder_manager=None, **handler_dependencies):
     """
     Instantiates all handlers and returns a ready-to-use ActionDispatcher.
     Passes handler_dependencies to each handler as needed.
@@ -34,7 +35,6 @@ def build_action_dispatcher(audit_service=None, **handler_dependencies):
         HandlerActionType.TOOL: ToolHandler(deps),
         HandlerActionType.REMEMBER: RememberHandler(deps),
         HandlerActionType.FORGET: ForgetHandler(deps),
-        # HandlerActionType.OBSERVATION_EVENT: handle_discord_observe_event,  # Now uses Discord-specific handler
-        # Remove or comment out the OBSERVATION_EVENT line, as it is not in the enum
+        HandlerActionType.PONDER: PonderHandler(deps, ponder_manager=ponder_manager),
     }
     return ActionDispatcher(handlers, audit_service=audit_service)

@@ -92,7 +92,7 @@ class DeferHandler(BaseActionHandler):
         # v1 uses 'final_action' instead of 'final_action_result'
         persistence.update_thought_status(
             thought_id=thought_id,
-            new_status=final_thought_status,  # Should be DEFERRED
+            status=final_thought_status,  # Should be DEFERRED
             final_action=result.model_dump(),  # v1 field
         )
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for DEFER action. Info: {follow_up_content_key_info}")

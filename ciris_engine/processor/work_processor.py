@@ -154,7 +154,7 @@ class WorkProcessor(BaseProcessor):
         thought_id = item.thought_id
         
         logger.info(
-            f"Dispatching action {result.selected_handler_action} "
+            f"Dispatching action {result.selected_action} "
             f"for thought {thought_id}"
         )
         
@@ -188,6 +188,11 @@ class WorkProcessor(BaseProcessor):
             for key in ["origin_service", "author_name", "author_id", "channel_id"]:
                 if key not in context and key in task.context:
                     context[key] = task.context[key]
+            # Ensure channel_id is also present in the thought context for downstream consumers (e.g., guardrails)
+            if "channel_id" in task.context and (not hasattr(thought, 'context') or not thought.context or "channel_id" not in thought.context):
+                if not hasattr(thought, 'context') or thought.context is None:
+                    thought.context = {}
+                thought.context["channel_id"] = task.context["channel_id"]
         
         return context
     
@@ -207,7 +212,7 @@ class WorkProcessor(BaseProcessor):
         """Mark a thought as failed."""
         persistence.update_thought_status(
             thought_id=thought_id,
-            new_status=ThoughtStatus.FAILED,
+            status=ThoughtStatus.FAILED,
             final_action={"error": error}
         )
     

@@ -46,7 +46,7 @@ async def test_llm_success(monkeypatch):
         action_alignment_check={"SPEAK": "ok"},
         action_conflicts=None,
         action_resolution=None,
-        selected_handler_action=HandlerActionType.SPEAK,
+        selected_action=HandlerActionType.SPEAK,
         action_parameters={"content": "hi"},
         action_selection_rationale="rationale",
         monitoring_for_selected_action="monitor",

@@ -88,7 +88,7 @@ class MemorizeHandler(BaseActionHandler):
         # v1 uses 'final_action' instead of 'final_action_result'
         persistence.update_thought_status(
             thought_id=thought_id,
-            new_status=final_thought_status,
+            status=final_thought_status,
             final_action=result.model_dump(),  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after MEMORIZE attempt.")

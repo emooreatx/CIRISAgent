@@ -60,7 +60,7 @@ class ActionSelectionPDMAEvaluator:
         ),
         "decision_format": ( # This describes the LLM's direct output structure
             "Return JSON with keys: context_summary_for_action_selection, action_alignment_check, "
-            "action_conflicts, action_resolution, selected_handler_action, action_parameters, "
+            "action_conflicts, action_resolution, selected_action, action_parameters, "
             "action_selection_rationale, monitoring_for_selected_action."
             # Confidence score is not requested from LLM here, but is part of ActionSelectionResult
         ),
@@ -68,7 +68,7 @@ class ActionSelectionPDMAEvaluator:
             "Remember CIRIS principles override personal preference."
         ),
         "action_parameter_schemas": (
-            "Schemas for 'action_parameters' based on the selected_handler_action:\n"
+            "Schemas for 'action_parameters' based on the selected_action:\n"
             "SPEAK: {\"content\": string, \"channel_id\"?: string, \"target_agent_did\"?: string, \"modality\"?: string, \"correlation_id\"?: string}\n"
             "PONDER: {\"questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
             "MEMORIZE: {\"knowledge_unit_description\": string, \"knowledge_data\": object|string, \"knowledge_type\": string, \"source\": string, \"confidence\": float, \"publish_to_dkg\"?: bool, \"target_ka_ual\"?: string, \"channel_metadata\"?: object}\n"
@@ -340,20 +340,20 @@ PDMA for Action Selection (all fields MANDATORY):
     {action_alignment_example}
 3.  'action_conflicts': Identify conflicts *between potential handler actions*. If none, "No conflicts identified." or null.
 4.  'action_resolution': Resolve conflicts. If none, "Not applicable as no conflicts were identified." or null.
-5.  'selected_handler_action': The LLM should determine this based on the inputs and other PDMA steps from the list: {action_options_str}.
-6.  'action_parameters': Parameters for the chosen action. This MUST be a JSON object strictly matching the schema for the selected_handler_action.
+5.  'selected_action': The LLM should determine this based on the inputs and other PDMA steps from the list: {action_options_str}.
+6.  'action_parameters': Parameters for the chosen action. This MUST be a JSON object strictly matching the schema for the selected_action.
     {action_parameters_speak_csdma_guidance}
     {action_parameters_ponder_guidance}
     Provide empty dict {{}} if no parameters for other actions.
     {action_parameters_observe_guidance}
-7.  'action_selection_rationale': Justify *why* this handler action is optimal. {action_selection_rationale_csdma_guidance}
+7.  'rationale': Justify *why* this handler action is optimal. {action_selection_rationale_csdma_guidance}
 8.  'monitoring_for_selected_action': Concrete monitoring plan for THIS chosen action (string or dict).
 
 IMPORTANT: Your entire response MUST be a single JSON object.
 The JSON object MUST have these top-level keys, all populated:
 'context_summary_for_action_selection', 'action_alignment_check', 'action_conflicts',
-'action_resolution', 'selected_handler_action', 'action_parameters',
-'action_selection_rationale', 'monitoring_for_selected_action'.
+'action_resolution', 'selected_action', 'action_parameters',
+'rationale', 'monitoring_for_selected_action'.
 
 Original Thought: "{original_thought.content}"
 {ponder_notes_str_for_prompt_if_any}
@@ -436,79 +436,64 @@ Adhere strictly to the schema for your JSON output.
         ]
 
         try:
-            # Use the internal _ActionSelectionLLMResponse model for the instructor call
-            llm_response_internal: _ActionSelectionLLMResponse = await self.aclient.chat.completions.create(
+            # Use ActionSelectionResult as the response model for the instructor call
+            llm_response_internal: ActionSelectionResult = await self.aclient.chat.completions.create(
                 model=self.model_name,
-                response_model=_ActionSelectionLLMResponse, # Use internal model
+                response_model=ActionSelectionResult,  # Use schema directly
                 messages=messages,
                 max_tokens=1500,
-                max_retries=self.max_retries # Pass configured max_retries here
+                max_retries=self.max_retries
             )
 
-            # Manually construct the final ActionSelectionResult
-            # and parse action_parameters
-            parsed_action_params: Union[ObserveParams, SpeakParams, ToolParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]] = llm_response_internal.action_parameters
-            if isinstance(llm_response_internal.action_parameters, dict):  # If LLM returns a dict, try to parse to specific type
-                action_type = llm_response_internal.selected_handler_action
-                if not isinstance(llm_response_internal.action_parameters, (ObserveParams, SpeakParams, ToolParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams)):
-                    try:
-                        if action_type == HandlerActionType.OBSERVE:
-                            parsed_action_params = ObserveParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.SPEAK:
-                            parsed_action_params = SpeakParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.TOOL:
-                            parsed_action_params = ToolParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.PONDER:
-                            parsed_action_params = PonderParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.REJECT:
-                            parsed_action_params = RejectParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.DEFER:
-                            parsed_action_params = DeferParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.MEMORIZE:
-                            parsed_action_params = MemorizeParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.REMEMBER:
-                            parsed_action_params = RememberParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.FORGET:
-                            parsed_action_params = ForgetParams(**llm_response_internal.action_parameters)
-                        else:
-                            parsed_action_params = llm_response_internal.action_parameters
-                    except ValidationError as ve:
-                        logger.warning(f"Could not parse action_parameters dict into specific model for {action_type}: {ve}. Using raw dict.")
-                        parsed_action_params = llm_response_internal.action_parameters
-            else:
-                parsed_action_params = llm_response_internal.action_parameters
-
-            # Get raw response if available (instructor might attach it)
-            raw_llm_response_str = None
-            if hasattr(llm_response_internal, '_raw_response'):
-                raw_llm_response_str = str(llm_response_internal._raw_response)
-
-            action_params_dict = {}
+            # action_parameters may still need parsing to the correct type, but the schema is now consistent
+            parsed_action_params = llm_response_internal.action_parameters
+            if isinstance(parsed_action_params, dict):
+                action_type = llm_response_internal.selected_action
+                try:
+                    if action_type == HandlerActionType.OBSERVE:
+                        parsed_action_params = ObserveParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.SPEAK:
+                        parsed_action_params = SpeakParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.TOOL:
+                        parsed_action_params = ToolParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.PONDER:
+                        parsed_action_params = PonderParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.REJECT:
+                        parsed_action_params = RejectParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.DEFER:
+                        parsed_action_params = DeferParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.MEMORIZE:
+                        parsed_action_params = MemorizeParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.REMEMBER:
+                        parsed_action_params = RememberParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.FORGET:
+                        parsed_action_params = ForgetParams(**parsed_action_params)
+                except ValidationError as ve:
+                    logger.warning(f"Could not parse action_parameters dict into specific model for {action_type}: {ve}. Using raw dict.")
+                    # fallback to dict
+            # Convert to dict for ActionSelectionResult
             if isinstance(parsed_action_params, BaseModel):
                 action_params_dict = parsed_action_params.model_dump(mode='json')
             elif isinstance(parsed_action_params, dict):
                 action_params_dict = parsed_action_params
             else:
                 logger.warning(f"action_parameters is not a Pydantic model or dict: {type(parsed_action_params)}. Using empty dict.")
+                action_params_dict = {}
 
             # --- Inject channel_id for SPEAK actions if available in context ---
             if (
-                llm_response_internal.selected_handler_action == HandlerActionType.SPEAK
+                llm_response_internal.selected_action == HandlerActionType.SPEAK
                 and isinstance(action_params_dict, dict)
             ):
-                # Try to get channel_id from triaged_inputs['processing_context']
                 channel_id = None
                 processing_context = triaged_inputs.get('processing_context')
-                # Fix: ThoughtContext is a Pydantic model, not a dict
                 if processing_context:
                     if hasattr(processing_context, 'identity_context') and processing_context.identity_context:
-                        # Try to extract channel_id from identity_context string if present
                         if isinstance(processing_context.identity_context, str) and 'channel' in processing_context.identity_context:
                             import re
                             match = re.search(r"channel is (\S+)", processing_context.identity_context)
                             if match:
                                 channel_id = match.group(1)
-                    # Try as dict if possible (for legacy)
                     elif isinstance(processing_context, dict):
                         channel_id = (
                             (processing_context.get('identity_context', {}) or {}).get('channel_id')
@@ -519,29 +504,14 @@ Adhere strictly to the schema for your JSON output.
                     action_params_dict['channel_id'] = channel_id
             # --- End channel_id injection ---
 
+            # Return a new ActionSelectionResult with possibly updated action_parameters
             final_action_eval = ActionSelectionResult(
-                selected_action=llm_response_internal.selected_handler_action,
+                selected_action=llm_response_internal.selected_action,
                 action_parameters=action_params_dict,
-                rationale=llm_response_internal.action_selection_rationale,
-                confidence=llm_response_internal.confidence_score,
-                raw_llm_response=raw_llm_response_str
+                rationale=llm_response_internal.rationale,
+                confidence=getattr(llm_response_internal, 'confidence', None),
+                raw_llm_response=getattr(llm_response_internal, 'raw_llm_response', None)
             )
-
-            # Fields like schema_version, context_summary_for_action_selection, action_alignment_check,
-            # action_conflicts, action_resolution, monitoring_for_selected_action,
-            # and decision_input_context_snapshot are part of _ActionSelectionLLMResponse (LLM output)
-            # but not part of the final ActionSelectionResult schema.
-            # They can be logged or used internally if needed before returning ActionSelectionResult.
-            # For example, logging them:
-            logger.debug(f"LLM Response Details for thought {original_thought.thought_id}: "
-                         f"schema_version={llm_response_internal.schema_version}, "
-                         f"context_summary={llm_response_internal.context_summary_for_action_selection}, "
-                         f"alignment_check={llm_response_internal.action_alignment_check}, "
-                         f"conflicts={llm_response_internal.action_conflicts}, "
-                         f"resolution={llm_response_internal.action_resolution}, "
-                         f"monitoring={llm_response_internal.monitoring_for_selected_action}")
-
-
             logger.info(f"ActionSelectionPDMA (instructor) evaluation successful for thought ID {original_thought.thought_id}: Chose {final_action_eval.selected_action.value}")
             logger.debug(f"ActionSelectionPDMA (instructor) action_parameters: {final_action_eval.action_parameters}")
             return final_action_eval
@@ -551,10 +521,7 @@ Adhere strictly to the schema for your JSON output.
             logger.error(f"ActionSelectionPDMA (instructor) InstructorRetryException for thought {original_thought.thought_id}: {error_detail}", exc_info=True)
             fallback_params = PonderParams(questions=[f"System error during action selection: {error_detail}"]) # Corrected key_questions to questions
 
-            # input_snapshot_for_decision logic removed as it's not part of ActionSelectionResult
-            # The fields context_summary_for_action_selection, action_alignment_check, decision_input_context_snapshot,
-            # selected_handler_action, action_selection_rationale, monitoring_for_selected_action
-            # are not part of ActionSelectionResult schema for fallback.
+
             # Fallback should only populate fields of ActionSelectionResult.
             return ActionSelectionResult(
                 selected_action=HandlerActionType.PONDER, 
@@ -576,36 +543,3 @@ Adhere strictly to the schema for your JSON output.
 
     def __repr__(self) -> str:
         return f"<ActionSelectionPDMAEvaluator model='{self.model_name}' (using instructor)>"
-
-
-# --- Internal Model for Instructor Parsing (Workaround for Grammar Issues) ---
-# Mirrors ActionSelectionResult but simplifies action_parameters to Dict
-class _ActionSelectionLLMResponse(BaseModel):
-    schema_version: CIRISSchemaVersion = Field(default=CIRISSchemaVersion.V1_0_BETA)
-    context_summary_for_action_selection: str
-    action_alignment_check: Dict[str, Any]
-    action_conflicts: Optional[str] = None
-    action_resolution: Optional[str] = None
-    selected_handler_action: HandlerActionType  # Use aliased HandlerActionType
-    action_parameters: Union[
-        ObserveParams, SpeakParams, ToolParams, PonderParams,
-        RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]
-    ]
-    action_selection_rationale: str
-    monitoring_for_selected_action: Union[Dict[str, Union[str, List[str], int]], str]  # Allow int for timeout
-    confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0)
-    class Config:
-        populate_by_name = True
-
-# --- Mapping from HandlerActionType to specific Param Model ---
-ACTION_PARAM_MODELS: Dict[HandlerActionType, type[BaseModel]] = {
-    HandlerActionType.OBSERVE: ObserveParams,
-    HandlerActionType.SPEAK: SpeakParams,
-    HandlerActionType.TOOL: ToolParams,
-    HandlerActionType.PONDER: PonderParams,
-    HandlerActionType.REJECT: RejectParams,
-    HandlerActionType.DEFER: DeferParams,
-    HandlerActionType.MEMORIZE: MemorizeParams,
-    HandlerActionType.REMEMBER: RememberParams,
-    HandlerActionType.FORGET: ForgetParams,
-}

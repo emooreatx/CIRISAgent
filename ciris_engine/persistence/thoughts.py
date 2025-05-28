@@ -111,13 +111,21 @@ def count_thoughts(db_path=None) -> int:
     return count
 
 def update_thought_status(thought_id, status, db_path=None, **kwargs):
-    """Update the status of a thought by ID. Ignores extra kwargs for compatibility."""
+    """Update the status of a thought by ID. Returns True if updated, False otherwise. Ignores extra kwargs for compatibility."""
     from .db import get_db_connection
     status_val = getattr(status, "value", status)
-    with get_db_connection(db_path=db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE thoughts SET status = ? WHERE thought_id = ?", (status_val, thought_id))
-        conn.commit()
+    try:
+        with get_db_connection(db_path=db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE thoughts SET status = ? WHERE thought_id = ?", (status_val, thought_id))
+            conn.commit()
+            updated = cursor.rowcount > 0
+            if not updated:
+                logger.warning(f"No thought found with id {thought_id} to update status.")
+            return updated
+    except Exception as e:
+        logger.exception(f"Failed to update status for thought {thought_id}: {e}")
+        return False
 
 def pydantic_to_dict(obj):
     if hasattr(obj, "model_dump"):

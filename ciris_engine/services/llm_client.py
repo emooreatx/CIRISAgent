@@ -75,6 +75,10 @@ class CIRISLLMClient:
         # Patch with instructor
         try:
             instructor_mode_str = self.config.instructor_mode.upper()
+            if instructor_mode_str not in ("JSON", "TOOLS"):
+                logger.error(f"FATAL: CIRIS requires instructor_mode to be 'JSON' or 'TOOLS', but got '{self.config.instructor_mode}'. Exiting.")
+                import sys
+                sys.exit(1)
             # Ensure instructor_mode_str is one of the valid string representations of instructor.Mode
             # Valid modes as of instructor 0.5.2: 'TOOLS', 'JSON', 'MD_JSON', 'OPENAI_TOOLS', 'ANTHROPIC_TOOLS', 'GOOGLE_TOOLS'
             # instructor.Mode itself is an enum. getattr(instructor.Mode, "TOOLS") works.

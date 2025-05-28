@@ -29,7 +29,6 @@ class SpeakHandler(BaseActionHandler):
     ) -> None:
         params = result.action_parameters
         thought_id = thought.thought_id
-        await self._audit_log(HandlerActionType.SPEAK, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         # channel_id from the original event context, if available
         original_event_channel_id = dispatch_context.get("channel_id")
 
@@ -47,6 +46,18 @@ class SpeakHandler(BaseActionHandler):
         elif isinstance(params, dict):
             if not params.get("channel_id"):
                 params["channel_id"] = original_event_channel_id
+        # --- Ensure event_summary is set for audit log ---
+        event_summary = None
+        if isinstance(params, SpeakParams):
+            event_summary = params.content
+        elif isinstance(params, dict):
+            event_summary = params.get("content")
+
+        await self._audit_log(
+            HandlerActionType.SPEAK,
+            {**dispatch_context, "thought_id": thought_id, "event_summary": event_summary},
+            outcome="start"
+        )
 
         if isinstance(params, SpeakParams):
             speak_content = params.content
@@ -100,7 +111,8 @@ class SpeakHandler(BaseActionHandler):
             status=final_thought_status,
             final_action=final_action_dump,  # v1 field
         )
-        self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after SPEAK attempt.")
+        logger.info(f"[SPEAK_HANDLER] Updated thought {thought_id} to status {final_thought_status.value} after SPEAK attempt.")
+        print(f"[SPEAK_HANDLER] Updated thought {thought_id} to status {final_thought_status.value} after SPEAK attempt.")
 
         # Create follow-up thought
         follow_up_text = ""
@@ -130,11 +142,20 @@ class SpeakHandler(BaseActionHandler):
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after SPEAK action."
             )
-            await self._audit_log(HandlerActionType.SPEAK, {**dispatch_context, "thought_id": thought_id}, outcome="success" if action_performed_successfully else "failed")
+            print(f"[SPEAK_HANDLER] Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after SPEAK action.")
+            await self._audit_log(
+                HandlerActionType.SPEAK,
+                {**dispatch_context, "thought_id": thought_id, "event_summary": event_summary},
+                outcome="success" if action_performed_successfully else "failed"
+            )
         except Exception as e:
             self.logger.critical(
                 f"Failed to create follow-up thought for {thought_id}: {e}",
                 exc_info=e,
             )
-            await self._audit_log(HandlerActionType.SPEAK, {**dispatch_context, "thought_id": thought_id}, outcome="failed_followup")
+            await self._audit_log(
+                HandlerActionType.SPEAK,
+                {**dispatch_context, "thought_id": thought_id, "event_summary": event_summary},
+                outcome="failed_followup"
+            )
             raise FollowUpCreationError from e
