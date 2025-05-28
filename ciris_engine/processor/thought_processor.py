@@ -88,8 +88,26 @@ class ThoughtProcessor:
         return persistence.get_thought_by_id(thought_id)
 
     def _get_profile_name(self, thought: Thought) -> str:
-        # Example: extract from thought context or app_config
-        return getattr(thought, 'profile_name', self.app_config.default_profile)
+        """Extract profile name from thought context or use default."""
+        profile_name = None
+        # Method 1: From thought context (if it was set during task creation)
+        if hasattr(thought, 'context') and isinstance(thought.context, dict):
+            profile_name = thought.context.get('agent_profile_name')
+        # Method 2: Check if we have a primary profile loaded
+        # Look for non-default profiles first
+        if not profile_name and hasattr(self.app_config, 'agent_profiles'):
+            for name, profile in self.app_config.agent_profiles.items():
+                if name != "default" and profile:
+                    profile_name = name
+                    break
+        # Method 3: Use configured default profile
+        if not profile_name and hasattr(self.app_config, 'default_profile'):
+            profile_name = self.app_config.default_profile
+        # Final fallback
+        if not profile_name:
+            profile_name = "default"
+        logger.debug(f"Determined profile name '{profile_name}' for thought {thought.thought_id}")
+        return profile_name
 
     def _get_permitted_actions(self, thought: Thought) -> Any:
         # Example: extract permitted actions from context or config
@@ -127,16 +145,24 @@ class ThoughtProcessor:
         )
 
     async def _handle_special_cases(self, result, thought, context):
-        # HandlerActionType is now imported at the top level
-        # Example: handle PONDER, DEFER, or other overrides
-        # Support GuardrailResult as well as ActionSelectionResult
+        """Handle special cases like PONDER and DEFER overrides."""
+        # Handle both GuardrailResult and ActionSelectionResult
         selected_action = None
         if hasattr(result, 'selected_action'):
             selected_action = result.selected_action
         elif hasattr(result, 'final_action') and hasattr(result.final_action, 'selected_action'):
             selected_action = result.final_action.selected_action
+            result = result.final_action  # Use the final_action for PONDER processing
+        
         if selected_action == HandlerActionType.PONDER:
-            await self.ponder_manager.ponder(thought, context)
+            # Pass the result in context so PonderManager can extract questions
+            ponder_context = {
+                'action_result': result,
+                'epistemic_data': context.get('epistemic_data', {}),
+                'processing_context': context
+            }
+            await self.ponder_manager.ponder(thought, ponder_context)
+        
         return result
 
     async def _update_thought_status(self, thought, result):

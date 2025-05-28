@@ -132,6 +132,14 @@ async def main() -> None:
     if profile.name.lower() not in app_config.agent_profiles:
         app_config.agent_profiles[profile.name.lower()] = profile
     
+    # ALSO load the default profile as a fallback (for when code looks for "default")
+    from pathlib import Path
+    default_profile_path = Path(app_config.profile_directory) / "default.yaml"
+    default_profile = await load_profile(default_profile_path)
+    if default_profile:
+        app_config.agent_profiles["default"] = default_profile
+        logger.info("Loaded default profile as fallback")
+
     llm_service = LLMService(app_config.llm_services)
     memory_service = CIRISLocalGraph()
 

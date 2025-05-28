@@ -231,7 +231,10 @@ class ActionSelectionPDMAEvaluator:
              logger.warning(f"ActionSelectionPDMA: 'permitted_actions' in triaged_inputs is empty for thought {original_thought.thought_id}. Falling back to default.")
              permitted_actions = default_permitted_actions
 
-        action_options_str = ", ".join([action.value.upper() for action in permitted_actions])
+        action_options_str = ", ".join([
+            action.value.upper() if hasattr(action, 'value') else str(action).upper()
+            for action in permitted_actions
+        ])
         # --- End dynamic permitted actions ---
 
         # Construct ethical_summary carefully, accessing potential nested fields in alignment_check
