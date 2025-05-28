@@ -22,6 +22,13 @@ class PonderHandler(BaseActionHandler):
             else:
                 logger.error(f"PonderHandler: Invalid params type: {type(params)}")
                 return
+        # Ensure channel_id is set in the thought context for downstream consumers (e.g., guardrails)
+        channel_id = dispatch_context.get("channel_id")
+        if hasattr(thought, "context"):
+            if not thought.context:
+                thought.context = {}
+            if "channel_id" not in thought.context or not thought.context["channel_id"]:
+                thought.context["channel_id"] = channel_id
         await self._audit_log(HandlerActionType.PONDER, {**dispatch_context, "thought_id": thought.thought_id}, outcome="start")
         await self.ponder_manager.handle_ponder_action(thought, params)
         await self._audit_log(HandlerActionType.PONDER, {**dispatch_context, "thought_id": thought.thought_id}, outcome="complete")

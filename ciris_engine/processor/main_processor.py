@@ -171,16 +171,19 @@ class AgentProcessor:
             self.current_round_number += 1
             await asyncio.sleep(1)
             logger.info(f"--- Ready for next WAKEUP round (current_round_number={self.current_round_number}) ---")
-        
-        # Transition to WORK state
+
+        # Transition to WORK state after wakeup completes
         if not self.state_manager.transition_to(AgentState.WORK):
             logger.error("Failed to transition to WORK state after wakeup")
             await self.stop_processing()
             return
-        
+
+        # Mark wakeup as complete in state metadata
+        self.state_manager.update_state_metadata("wakeup_complete", True)
+
         # Initialize work processor
         await self.work_processor.initialize()
-        
+
         # Start main processing loop
         self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
         
