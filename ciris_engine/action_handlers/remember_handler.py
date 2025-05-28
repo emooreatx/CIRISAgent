@@ -30,7 +30,6 @@ class RememberHandler(BaseActionHandler):
         follow_up = create_follow_up_thought(
             parent=thought,
             content=follow_up_content,
-            priority_offset=1
         )
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(HandlerActionType.REMEMBER, {**dispatch_context, "thought_id": thought_id}, outcome="success" if memory_result.status == MemoryOpStatus.OK and memory_result.data else "failed")

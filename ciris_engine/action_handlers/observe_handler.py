@@ -103,7 +103,6 @@ class ObserveHandler(BaseActionHandler):
                 new_follow_up = create_follow_up_thought(
                     parent=thought,
                     content=follow_up_text,
-                    priority_offset=1 if action_performed_successfully else 0,
                 )
 
                 # v1 uses 'context' instead of 'processing_context'

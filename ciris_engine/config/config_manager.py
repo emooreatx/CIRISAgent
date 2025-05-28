@@ -52,6 +52,10 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
         try:
             with open(actual_path, 'r') as f:
                 config_data = json.load(f)
+            # Inject discord_channel_id from env if present
+            discord_channel_id_env = os.getenv("DISCORD_CHANNEL_ID")
+            if discord_channel_id_env:
+                config_data["discord_channel_id"] = discord_channel_id_env
             _app_config = AppConfig(**config_data)
             # print(f"Configuration loaded from {actual_path}") # For debugging
             return _app_config
@@ -60,7 +64,11 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
             _app_config = AppConfig() # Instantiate with defaults
             return _app_config
     else:
-        _app_config = AppConfig() # Instantiate with defaults
+        _app_config = AppConfig()
+        # Inject discord_channel_id from env if present
+        discord_channel_id_env = os.getenv("DISCORD_CHANNEL_ID")
+        if discord_channel_id_env:
+            _app_config.discord_channel_id = discord_channel_id_env
         if create_if_not_exists:
             # print(f"Configuration file not found at {actual_path}. Creating with default values.") # For debugging
             try:

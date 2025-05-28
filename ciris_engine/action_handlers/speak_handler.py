@@ -40,6 +40,14 @@ class SpeakHandler(BaseActionHandler):
         speak_content: str = None
         channel_id_from_params: str = None
 
+        # Ensure channel_id is set in params, using dispatch_context if missing
+        if isinstance(params, SpeakParams):
+            if not params.channel_id:
+                params.channel_id = original_event_channel_id
+        elif isinstance(params, dict):
+            if not params.get("channel_id"):
+                params["channel_id"] = original_event_channel_id
+
         if isinstance(params, SpeakParams):
             speak_content = params.content
             channel_id_from_params = params.channel_id  # v1 uses 'channel_id' instead of 'target_channel'
@@ -84,11 +92,13 @@ class SpeakHandler(BaseActionHandler):
                 follow_up_content_key_info = err_msg.strip()
 
         # Update original thought status
-        # v1 uses 'final_action' instead of 'final_action_result'
+        # v1 uses 'status' instead of 'new_status'
+        # Ensure final_action is always a dict for persistence (avoid Pydantic serialization warning)
+        final_action_dump = result.model_dump(mode="json") if isinstance(result, BaseModel) else result
         persistence.update_thought_status(
             thought_id=thought_id,
-            new_status=final_thought_status,
-            final_action=result.model_dump(),  # v1 field
+            status=final_thought_status,
+            final_action=final_action_dump,  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after SPEAK attempt.")
 
@@ -103,7 +113,6 @@ class SpeakHandler(BaseActionHandler):
             new_follow_up = create_follow_up_thought(
                 parent=thought,
                 content=follow_up_text,
-                priority_offset=1 if action_performed_successfully else 0,
             )
             
             # v1 uses 'context' instead of 'processing_context'

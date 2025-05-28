@@ -153,7 +153,8 @@ async def main() -> None:
     # Remove incorrect app_config kwarg, pass only supported args
     context_builder = ContextBuilder(
         memory_service=memory_service,
-        graphql_provider=graphql_provider
+        graphql_provider=graphql_provider,
+        app_config=app_config
     )
 
     from ciris_engine.services.discord_observer import DiscordObserver

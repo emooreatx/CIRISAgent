@@ -61,7 +61,6 @@ class RejectHandler(BaseActionHandler):
             new_follow_up = create_follow_up_thought(
                 parent=thought,
                 content=follow_up_text,
-                priority_offset=1,
             )
 
             # v1 uses 'context' instead of 'processing_context'

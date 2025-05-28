@@ -109,7 +109,6 @@ class ToolHandler(BaseActionHandler):
             new_follow_up = create_follow_up_thought(
                 parent=thought,
                 content=follow_up_text,
-                priority_offset=1 if action_performed_successfully else 0,
             )
             context_for_follow_up = {"action_performed": HandlerActionType.TOOL.value}
             if final_thought_status == ThoughtStatus.FAILED:

@@ -507,6 +507,34 @@ Adhere strictly to the schema for your JSON output.
             else:
                 logger.warning(f"action_parameters is not a Pydantic model or dict: {type(parsed_action_params)}. Using empty dict.")
 
+            # --- Inject channel_id for SPEAK actions if available in context ---
+            if (
+                llm_response_internal.selected_handler_action == HandlerActionType.SPEAK
+                and isinstance(action_params_dict, dict)
+            ):
+                # Try to get channel_id from triaged_inputs['processing_context']
+                channel_id = None
+                processing_context = triaged_inputs.get('processing_context')
+                # Fix: ThoughtContext is a Pydantic model, not a dict
+                if processing_context:
+                    if hasattr(processing_context, 'identity_context') and processing_context.identity_context:
+                        # Try to extract channel_id from identity_context string if present
+                        if isinstance(processing_context.identity_context, str) and 'channel' in processing_context.identity_context:
+                            import re
+                            match = re.search(r"channel is (\S+)", processing_context.identity_context)
+                            if match:
+                                channel_id = match.group(1)
+                    # Try as dict if possible (for legacy)
+                    elif isinstance(processing_context, dict):
+                        channel_id = (
+                            (processing_context.get('identity_context', {}) or {}).get('channel_id')
+                            or (processing_context.get('initial_task_context', {}) or {}).get('channel_id')
+                            or processing_context.get('channel_id')
+                        )
+                if channel_id:
+                    action_params_dict['channel_id'] = channel_id
+            # --- End channel_id injection ---
+
             final_action_eval = ActionSelectionResult(
                 selected_action=llm_response_internal.selected_handler_action,
                 action_parameters=action_params_dict,
