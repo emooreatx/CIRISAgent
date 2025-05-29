@@ -1,5 +1,6 @@
 """
 Work processor handling normal task and thought processing.
+Enhanced with proper context building and service passing.
 """
 import logging
 from typing import Dict, Any, List, Optional
@@ -12,8 +13,6 @@ from ciris_engine.processor.base_processor import BaseProcessor
 from ciris_engine.processor.task_manager import TaskManager
 from ciris_engine.processor.thought_manager import ThoughtManager
 from ciris_engine.processor.thought_processor import ThoughtProcessor
-# Build dispatch context
-from ciris_engine.utils.context_utils import build_dispatch_context
 
 logger = logging.getLogger(__name__)
 
@@ -169,14 +168,10 @@ class WorkProcessor(BaseProcessor):
         if not thought_obj:
             logger.error(f"Could not retrieve thought {thought_id} for dispatch")
             return
-        
-
 
         # Get the task object for context
         task = persistence.get_task_by_id(item.source_task_id)
-        dispatch_context = build_dispatch_context(item, thought_obj, task)
-        if hasattr(self, "discord_service"):
-            dispatch_context["discord_service"] = self.discord_service
+        dispatch_context = self._build_enhanced_dispatch_context(item, thought_obj, task)
         
         try:
             await self.dispatch_action(result, thought_obj, dispatch_context)
@@ -187,23 +182,42 @@ class WorkProcessor(BaseProcessor):
                 f"Dispatch failed: {str(e)}"
             )
     
-    def _build_dispatch_context(self, item: Any, thought: Any) -> Dict[str, Any]:
-        """Build context for action dispatch."""
-        context = item.initial_context.copy() if item.initial_context else {}
+    def _build_enhanced_dispatch_context(self, item: Any, thought: Any, task: Any) -> Dict[str, Any]:
+        """Build enhanced context for action dispatch with all services."""
+        context = item.initial_context.copy() if getattr(item, "initial_context", None) else {}
         context["thought_id"] = item.thought_id
         context["source_task_id"] = item.source_task_id
         
         # Get task context
-        task = persistence.get_task_by_id(item.source_task_id)
-        if task and task.context:
+        if task and getattr(task, "context", None):
             for key in ["origin_service", "author_name", "author_id", "channel_id"]:
                 if key not in context and key in task.context:
                     context[key] = task.context[key]
+            
             # Ensure channel_id is also present in the thought context for downstream consumers (e.g., guardrails)
             if "channel_id" in task.context and (not hasattr(thought, 'context') or not thought.context or "channel_id" not in thought.context):
                 if not hasattr(thought, 'context') or thought.context is None:
                     thought.context = {}
                 thought.context["channel_id"] = task.context["channel_id"]
+        
+        # Add services from processor
+        if hasattr(self, 'services') and self.services:
+            context["services"] = self.services
+            
+            # Add specific service references for convenience
+            if "discord_service" in self.services:
+                context["discord_service"] = self.services["discord_service"]
+            if "discord_client" in self.services:
+                context["discord_service"] = self.services["discord_client"]  # Alternative key
+        
+        # Add discord_service directly if available
+        if hasattr(self, 'discord_service'):
+            context["discord_service"] = self.discord_service
+        
+        # Add startup channel as fallback
+        if "channel_id" not in context and self.startup_channel_id:
+            context["channel_id"] = self.startup_channel_id
+            logger.debug(f"Using startup_channel_id as fallback channel_id: {self.startup_channel_id}")
         
         return context
     

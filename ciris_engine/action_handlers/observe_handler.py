@@ -63,6 +63,40 @@ class ObserveHandler(BaseActionHandler):
                 if not target_channel_id:
                     target_channel_id = os.getenv("DISCORD_CHANNEL_ID")
 
+                # Build comprehensive context for active observation
+                observe_context = {
+                    "default_channel_id": target_channel_id or os.getenv("DISCORD_CHANNEL_ID"),
+                    "agent_id": dispatch_context.get("agent_id")
+                }
+                
+                # Try multiple sources for discord_service
+                discord_service = None
+                
+                # 1. From dependencies
+                if hasattr(self.dependencies, 'io_adapter') and hasattr(self.dependencies.io_adapter, 'client'):
+                    discord_service = self.dependencies.io_adapter.client
+                    logger.debug("Got discord_service from dependencies.io_adapter.client")
+                
+                # 2. From dispatch_context
+                if not discord_service:
+                    discord_service = dispatch_context.get("discord_service")
+                    if discord_service:
+                        logger.debug("Got discord_service from dispatch_context")
+                
+                # 3. From services dict in dispatch_context
+                if not discord_service and "services" in dispatch_context:
+                    services = dispatch_context["services"]
+                    discord_service = services.get("discord_service") or services.get("discord_client")
+                    if discord_service:
+                        logger.debug("Got discord_service from dispatch_context.services")
+                
+                # 4. Try to get from global runtime state (last resort)
+                if not discord_service:
+                    # This is a fallback - ideally context should provide it
+                    logger.warning("discord_service not found in expected locations, active observation may fail")
+                
+                observe_context["discord_service"] = discord_service
+
                 await handle_discord_observe_event(
                     payload={
                         "channel_id": target_channel_id,
@@ -71,11 +105,7 @@ class ObserveHandler(BaseActionHandler):
                         "include_agent": True
                     },
                     mode="active",
-                    context={
-                        "discord_service": getattr(self.dependencies, "discord_service", None),
-                        "default_channel_id": os.getenv("DISCORD_CHANNEL_ID"),
-                        "agent_id": getattr(self.dependencies, "agent_id", None)
-                    }
+                    context=observe_context
                 )
                 action_performed_successfully = True
                 follow_up_content_key_info = f"Active Discord observe handler invoked for channel: {target_channel_id}"
