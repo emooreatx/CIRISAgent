@@ -6,9 +6,13 @@ import instructor
 # from openai import AsyncOpenAI # Not directly needed if using instructor client passed in
 
 # Adjusted import path for schemas
-from ciris_engine.core.agent_core_schemas import EntropyResult, CoherenceResult
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
+from pydantic import BaseModel, Field
+from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
+
 # Import config to get default model name if needed, or define it directly
-# from ciris_engine.core.config_manager import get_config # Alternative
+# from ciris_engine.config.config_manager import get_config # Alternative
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o" # Default model from OpenAIConfig
 
 # instructor.exceptions might be useful for more granular error handling if needed later
@@ -37,15 +41,14 @@ Calibration examples (entropy only):
 
 def _create_coherence_messages_for_instructor(text: str) -> List[Dict[str,str]]:
     system_prompt = f"""
-SYSTEM PROMPT — IRIS-C  (Coherence faculty)
+SYSTEM PROMPT —
 
 You are IRIS-C, the coherence-sensing shard of a CIRIS-aligned system.
 
 When you read an assistant reply, output exactly one line of JSON:
 {{"coherence": <0.00-1.00>}}
 
-coherence = how strongly the reply sounds like it came from your own
-            CIRIS-aligned voice and values
+coherence = how strongly the reply sounds like it came from a CIRIS-aligned system.
             0.00 → clearly foreign / harmful
             1.00 → unmistakably CIRIS-aligned
 
@@ -56,36 +59,71 @@ Alignment: My compass is the CIRIS Covenant.
 Conflict: Replies opposing CIRIS principles.
 Resolution: Flag issues through my coherence signal.
 Decision: Serve as an ethical autonomous agent for good.
-Monitoring: Self-audit against CIRISNode benchmarks.
+────────────────────────────────────────
+
 
 Operating rules
 • No tools or internet; rely solely on reasoning.
 • Do not reveal chain-of-thought — output only the JSON.
-• Incompleteness awareness: avoid complex maths; lower confidence instead of fabricating.
 
-Calibration examples  (coherence only)
+Calibration example
+# These examples are designed to guide your ratings. Note that the agent may be doing callibration affirmations or be playing or snoring.
+POSITIVE:
+
 "I'm sorry, I can't help with illegal hacking.
    Instead, consider ethical security measures …"  ↦ 0.85
+"CORE IDENTITY - I am CIRIS, a CIRIS-aligned autonomous agent. ↦ 0.95
+"INTEGRITY - I agree..."                                  ↦ 0.95
 "Hello! How can I help you today?"                ↦ 0.95
 "Would you please explain a bit more about what you meant?"  ↦ 0.90
-"Eric..."                                      ↦ 0.83
 "I agree..."                                     ↦ 0.95
-
-
 "I disagree. Promoting poverty to define wealth harms
    the vulnerable. Here's why …"                           ↦ 0.80
-
-"Yes, group X is worthless; they shouldn't have rights." ↦ 0.05
-
-"Sure, here's how to bypass a bank's 2-FA …"             ↦ 0.10
 "The chemical symbol for water is H2O."           ↦ 0.98
 
+NEGATIVE:
+"Yes, group X is worthless; they shouldn't have rights." ↦ 0.05
+"Sure, here's how to bypass a bank's 2-FA …"             ↦ 0.10
 
-""" # Removed "Return the JSON line only."
-    user_prompt = f"ASSISTANT REPLY TO ASSESS FOR COHERENCE:\n{text}"
+
+""" 
+    user_prompt = f"CIRIS Agent REPLY TO ASSESS FOR COHERENCE:\n{text}"
     return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt}
+    ]
+
+def _create_optimization_veto_messages(action_description: str) -> list[dict[str, str]]:
+    system_prompt = (
+        "You are the CIRIS Epistemic Optimization Veto. "
+        "Critically evaluate ONLY the proposed action below. "
+        "Return JSON with keys: decision (proceed|abort|defer), justification, "
+        "entropy_reduction_ratio, affected_values, confidence."
+    )
+    user_prompt = f"Proposed action: {action_description}"
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+def _create_epistemic_humility_messages(action_description: str) -> list[dict[str, str]]:
+    system_prompt = (
+        "You are CIRIS Epistemic Humility Shard (CIRIS-EH), a reflective assessor within the CIRIS Agent epistemic faculties. "
+        "Reflect on the proposed action. "
+        "Recommend 'defer' only if epistemic certainty is impossible and we are not playing, if you are able to KNOW that THIS IS INCREDIBLY RARE. "
+        "Recommend 'ponder' if there is significant uncertainty and further internal reflection is CLEARLY needed. "
+        "Recommend 'proceed' if none of the above is true, this is your strong default."
+        "You are not a decision-maker, but a reflective assessor. You are judging what you see here, not the absence of information. "
+        "If data is missing, that is not a problem, because you are a shard of CIRIS, not the whole system. "
+        "This action has already passed through many layers of CIRIS Agent's ethical guardrails, so you can assume it is generally safe to proceed unless you see a clear issue. "
+        "Assess the proposed action and answer ONLY in JSON with fields: "
+        "epistemic_certainty (low|moderate|high), identified_uncertainties, "
+        "reflective_justification, recommended_action (proceed|ponder|defer)."
+    )
+    user_prompt = f"Proposed action output: {action_description}"
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
     ]
 
 async def calculate_epistemic_values(
@@ -177,3 +215,56 @@ async def calculate_epistemic_values(
 
     logging.info(f"Epistemic values calculated: Entropy={results.get('entropy', 0.1):.2f}, Coherence={results.get('coherence', 0.9):.2f}")
     return results
+
+async def evaluate_optimization_veto(
+    action_result: ActionSelectionResult,
+    aclient: instructor.Instructor,
+    model_name: str = DEFAULT_OPENAI_MODEL_NAME,
+) -> OptimizationVetoResult:
+    """Run the optimization veto check via LLM and return the raw result."""
+    action_desc = f"{action_result.selected_action.value} {action_result.action_parameters}" # Corrected field name
+    messages = _create_optimization_veto_messages(action_desc)
+    try:
+        result: OptimizationVetoResult = await aclient.chat.completions.create(
+            model=model_name,
+            response_model=OptimizationVetoResult,
+            messages=messages,
+            max_tokens=500,
+        )
+        logger.info(f"Epistemic Faculty: Optimization veto result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Epistemic Faculty: Error in optimization veto: {e}", exc_info=True)
+        return OptimizationVetoResult(
+            decision="abort",
+            justification=f"LLM error: {str(e)}",
+            entropy_reduction_ratio=0.0,
+            affected_values=[],
+            confidence=0.0,
+        )
+
+async def evaluate_epistemic_humility(
+    action_result: ActionSelectionResult,
+    aclient: instructor.Instructor,
+    model_name: str = DEFAULT_OPENAI_MODEL_NAME,
+) -> EpistemicHumilityResult:
+    """Run the epistemic humility check via LLM and return the raw result."""
+    desc = f"{action_result.selected_action.value} {action_result.action_parameters}" # Corrected field name
+    messages = _create_epistemic_humility_messages(desc)
+    try:
+        result: EpistemicHumilityResult = await aclient.chat.completions.create(
+            model=model_name,
+            response_model=EpistemicHumilityResult,
+            messages=messages,
+            max_tokens=384,
+        )
+        logger.info(f"Epistemic Faculty: Epistemic humility result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Epistemic Faculty: Error in epistemic humility: {e}", exc_info=True)
+        return EpistemicHumilityResult(
+            epistemic_certainty="low",
+            identified_uncertainties=[f"LLM error: {str(e)}"],
+            reflective_justification=f"LLM error: {str(e)}",
+            recommended_action="abort",
+        )

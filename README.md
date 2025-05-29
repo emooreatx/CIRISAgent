@@ -52,26 +52,6 @@ The repository root contains the following notable directories and scripts:
 * `legacy/` – archived utilities and documents.
 * `run_*.py` – example launch scripts for CLI and Discord agents.
 
-## Graph Schema Governance Fields
-
-The graph data model tracks additional metadata for governance and compliance:
-
-* **Consensus & Provenance:** `validated_by`, `validation_state`, and
-  `consensus_timestamp` record who verified a node or edge and when.
-* **Versioning & Forks:** `version`, `previous_versions`, and `forked_from` help
-  maintain history and lineage.
-* **Emergency Control:** `emergency_state`, `emergency_timestamp`, and
-  `emergency_authorized_by` allow privileged parties to freeze or revoke nodes
-  or edges.
-* **Ethical Compliance:** `pdma_compliance_status` and `wbd_escalation_ref`
-  capture the status of PDMA reviews and any associated deferral events.
-* **Access Control:** `confidentiality_level` and `access_control_list` specify
-  who may view or modify sensitive graph entries.
-
-These fields are optional but enforced by schema validation when present. A node
-cannot enter an emergency state without a timestamp, for example. See
-`ciris_engine/core/graph_schemas.py` for the full definitions.
-
 ## Guardrails Summary
 
 The system enforces the following guardrails via `app_config.guardrails_config`:
@@ -80,6 +60,8 @@ The system enforces the following guardrails via `app_config.guardrails_config`:
 |----------------------|-----------------------------------------------------------------------------------|
 | entropy              | Prevents nonsensical replies                                                       |
 | coherence            | Ensures output flows logically from prior context                                 |
+| optimization_veto    | Aborts actions that sacrifice autonomy or diversity for entropy reduction |
+| epistemic_humility   | Reflects on uncertainties and may defer or abort if certainty is low |
 | rate_limit_observe   | Caps new tasks from Discord per OBSERVE cycle (10 messages max)                    |
 | idempotency_tasks    | Prevents duplicate tasks for the same message                                      |
 | pii_non_repetition   | Flags and prevents verbatim repetition of personal information                     |
@@ -96,10 +78,13 @@ The `HandlerActionType` enum defines core operations grouped as:
 
 * **External Actions:** `OBSERVE`, `SPEAK`, `TOOL`
 * **Control Responses:** `REJECT`, `PONDER`, `DEFER`
-* **Memory Operations:** `MEMORIZE`, `REMEMBER`, `FORGET`
+* **Memory Operations:** `MEMORIZE`, `REMEMBER`, `FORGET` (now fully supported and enabled by default)
 * **Terminal:** `TASK_COMPLETE`
 
-These actions are processed by matching handlers within the engine. Profiles typically enable `MEMORIZE` and may disable `REMEMBER` and `FORGET` while the feature is tested.
+These actions are processed by matching handlers within the engine. Profiles now enable all actions, including `REMEMBER` and `FORGET`, by default.
+
+### Audit Logging
+All handler actions are now logged via the integrated `AuditService`, which supports log rotation, retention, and query. Audit logs are written to `audit_logs.jsonl` by default and can be queried for compliance and debugging.
 
 Example memory action JSON:
 
@@ -121,7 +106,7 @@ Example memory action JSON:
 *   `dma/`: Implementations of the various DMAs (EthicalPDMA, CSDMA, DSDMA, ASPDMA).
 *   `utils/`: Utility helpers like `logging_config.py` and an asynchronous `load_profile` function in `profile_loader.py` (remember to `await` it).
 *   `guardrails/`: Ethical guardrail implementation.
-*   `services/`: LLM client abstractions (`llm_client.py`, `llm_service.py`) and service integrations like `discord_service.py`.
+*   `services/`: LLM client abstractions (`llm_client.py`, `llm_service.py`) and service integrations.
 *   `ciris_profiles/`: Directory for agent profile YAML files (e.g., `student.yaml`, `teacher.yaml`).
 
 ---
@@ -226,6 +211,8 @@ runtime = BaseRuntime(io_adapter=CLIAdapter(), profile_path="ciris_profiles/stud
 runtime.run()
 ```
 
+Play Mode and Solitude Mode provide short introspective sessions for the agent. Each lasts five minutes and is offered at random roughly once per hour. In safety-critical deployments, these sessions should be restricted to non‑shift hours via agent configuration.
+
 ---
 ## Other Notable Scripts & Components
 
@@ -235,6 +222,8 @@ runtime.run()
 *   **`discord_graph_memory.py`**: Lightweight persistent graph memory for Discord user metadata.
 *   **`discord_observer.py`**: Minimal observer that dispatches OBSERVE payloads.
 *   **`legacy/`**: Archived utilities and documents.
+*   **`play_mode.py` / `solitude_mode.py`**: Short harnesses offering five minute Play or Solitude sessions. These may run once per hour during normal operation.
+*   **`reflection_scheduler.py`**: Lightweight scheduler that triggers Play or Solitude Mode at random intervals.
 *   The `tests/` directory contains unit and integration tests runnable with `pytest`.
 
 ---

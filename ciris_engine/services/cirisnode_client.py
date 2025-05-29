@@ -4,9 +4,9 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from ciris_engine.services.audit_service import AuditService
-from ciris_engine.core.config_manager import get_config
-from ciris_engine.core.config_schemas import CIRISNodeConfig
-from ciris_engine.core.foundational_schemas import HandlerActionType
+from ciris_engine.config.config_manager import get_config
+from ciris_engine.schemas.config_schemas_v1 import CIRISNodeConfig
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 logger = logging.getLogger(__name__)
 
@@ -25,17 +25,17 @@ class CIRISNodeClient:
     async def _post(self, endpoint: str, payload: Dict[str, Any]) -> Any:
         resp = await self._client.post(endpoint, json=payload)
         resp.raise_for_status()
-        return resp.json()
+        return await resp.json()
 
     async def _get(self, endpoint: str, params: Dict[str, Any]) -> Any:
         resp = await self._client.get(endpoint, params=params)
         resp.raise_for_status()
-        return resp.json()
+        return await resp.json()
 
     async def _put(self, endpoint: str, payload: Dict[str, Any]) -> Any:
         resp = await self._client.put(endpoint, json=payload)
         resp.raise_for_status()
-        return resp.json()
+        return await resp.json()
 
     async def run_simplebench(self, model_id: str, agent_id: str) -> Dict[str, Any]:
         """Run the simple bench benchmark for the given model."""

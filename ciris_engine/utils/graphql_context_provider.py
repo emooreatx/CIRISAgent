@@ -4,7 +4,7 @@ import asyncio
 from typing import Dict, Any, List, Optional
 import httpx
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
-from ciris_engine.core.graph_schemas import GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class GraphQLContextProvider:
             name = task.context.get("author_name")
             if name:
                 authors.add(name)
-        history: List[Dict[str, Any]] = thought.processing_context.get("history", []) if getattr(thought, "processing_context", None) else []
+        history: List[Dict[str, Any]] = []  # Remove legacy processing_context usage, use only v1 fields.
         for item in history:
             name = item.get("author_name")
             if name:
