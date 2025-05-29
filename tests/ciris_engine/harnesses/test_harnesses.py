@@ -90,6 +90,9 @@ class MemoryDB:
     def count_pending_thoughts_for_active_tasks(self):
         return len(self.get_pending_thoughts_for_active_tasks())
 
+    def get_thoughts_by_task_id(self, task_id: str):
+        return [th for th in self.thoughts.values() if th.source_task_id == task_id]
+
 
 @pytest.mark.asyncio
 async def test_run_wakeup(monkeypatch):
@@ -98,6 +101,7 @@ async def test_run_wakeup(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.add_task", db.add_task)
     monkeypatch.setattr("ciris_engine.persistence.get_task_by_id", db.get_task_by_id)
     monkeypatch.setattr("ciris_engine.persistence.update_task_status", db.update_task_status)
+    monkeypatch.setattr("ciris_engine.persistence.get_thoughts_by_task_id", db.get_thoughts_by_task_id)
 
     dispatcher = ActionDispatcher({})
     processor = AgentProcessor(AppConfig(), AsyncMock(spec=ThoughtProcessor), dispatcher, {})
@@ -212,7 +216,6 @@ async def test_stop_harness(monkeypatch):
 
 @pytest.mark.asyncio
 def test_wakeup_ponder_then_speak(monkeypatch):
-    """Test wakeup where a step first PONDERS, then SPEAKS on re-queue."""
     db = MemoryDB()
     monkeypatch.setattr("ciris_engine.persistence.task_exists", db.task_exists)
     monkeypatch.setattr("ciris_engine.persistence.add_task", db.add_task)
@@ -224,6 +227,7 @@ def test_wakeup_ponder_then_speak(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", db.update_thought_status)
     monkeypatch.setattr("ciris_engine.persistence.pending_thoughts", db.pending_thoughts, raising=False)
     monkeypatch.setattr("ciris_engine.persistence.count_pending_thoughts_for_active_tasks", db.count_pending_thoughts_for_active_tasks, raising=False)
+    monkeypatch.setattr("ciris_engine.persistence.get_thoughts_by_task_id", db.get_thoughts_by_task_id)
 
     # Simulate a ThoughtProcessor that first returns PONDER, then SPEAK
     class DummyResult:
@@ -236,13 +240,12 @@ def test_wakeup_ponder_then_speak(monkeypatch):
     async def fake_process_thought(item, ctx=None, benchmark_mode=False):
         if call_count["count"] == 0:
             call_count["count"] += 1
-            return DummyResult("ponder")
-        else:
-            # Simulate that the step task is completed after SPEAK
-            # Find the step task id from the item
+            # Mark the step task as completed after PONDER
             step_task_id = item.source_task_id
             db.update_task_status(step_task_id, TaskStatus.COMPLETED)
-            await asyncio.sleep(0.01)  # Give the polling loop a chance to see the update
+            await asyncio.sleep(0.01)
+            return DummyResult("ponder")
+        else:
             return DummyResult("speak")
 
     tp = AsyncMock()
@@ -254,7 +257,7 @@ def test_wakeup_ponder_then_speak(monkeypatch):
     out = []
     # Run the wakeup harness (blocking, so it will process the re-queued thought)
     result = asyncio.get_event_loop().run_until_complete(
-        processor.wakeup_processor.process(0, non_blocking=False)
+        processor.wakeup_processor.process_wakeup(0, non_blocking=False)
     )
     out.append(result)
     # The result should indicate success and all steps completed
@@ -295,6 +298,8 @@ async def test_wakeup_full_real_handlers(monkeypatch):
                 return False
             self.thoughts[thought_id] = th.model_copy(update={"status": status})
             return True
+        def get_thoughts_by_task_id(self, task_id):
+            return [th for th in self.thoughts.values() if th.source_task_id == task_id]
     db = MemoryDB()
     monkeypatch.setattr('ciris_engine.persistence.task_exists', db.task_exists)
     monkeypatch.setattr('ciris_engine.persistence.add_task', db.add_task)
@@ -303,6 +308,7 @@ async def test_wakeup_full_real_handlers(monkeypatch):
     monkeypatch.setattr('ciris_engine.persistence.add_thought', db.add_thought)
     monkeypatch.setattr('ciris_engine.persistence.get_thought_by_id', db.get_thought_by_id)
     monkeypatch.setattr('ciris_engine.persistence.update_thought_status', db.update_thought_status)
+    monkeypatch.setattr('ciris_engine.persistence.get_thoughts_by_task_id', db.get_thoughts_by_task_id)
     # Real dispatcher and processor
     ponder_manager = PonderManager()
     dispatcher = build_action_dispatcher(ponder_manager=ponder_manager)
@@ -313,8 +319,11 @@ async def test_wakeup_full_real_handlers(monkeypatch):
             return {}
     context_builder = DummyContextBuilder()
 
+    class DummyDMAOrchestrator:
+        async def run_initial_dmas(self, *args, **kwargs):
+            return []
     thought_processor = ThoughtProcessor(
-        dma_orchestrator=None,
+        dma_orchestrator=DummyDMAOrchestrator(),
         context_builder=context_builder,
         guardrail_orchestrator=None,
         ponder_manager=ponder_manager,

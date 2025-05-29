@@ -64,6 +64,9 @@ class MemoryDB:
     def count_pending_thoughts_for_active_tasks(self):
         return len(self.get_pending_thoughts_for_active_tasks())
 
+    def get_thoughts_by_task_id(self, task_id):
+        return [th for th in self.thoughts.values() if th.source_task_id == task_id]
+
 
 @pytest.mark.asyncio
 async def test_wakeup_processor_completion(monkeypatch):
@@ -73,11 +76,13 @@ async def test_wakeup_processor_completion(monkeypatch):
     monkeypatch.setattr('ciris_engine.persistence.add_task', db.add_task)
     monkeypatch.setattr('ciris_engine.persistence.get_task_by_id', db.get_task_by_id)
     monkeypatch.setattr('ciris_engine.persistence.update_task_status', db.update_task_status)
+    monkeypatch.setattr('ciris_engine.persistence.get_thoughts_by_task_id', db.get_thoughts_by_task_id)
+    monkeypatch.setattr('ciris_engine.persistence.add_thought', db.add_thought)
 
     proc = WakeupProcessor(AppConfig(), AsyncMock(), AsyncMock(), {}, startup_channel_id='chan')
 
     # Initial call creates tasks
-    result = await proc.process(0, non_blocking=True)
+    result = await proc.process_wakeup(0, non_blocking=True)
     assert result['status'] == 'in_progress'
     assert len(proc.wakeup_tasks) == len(WakeupProcessor.WAKEUP_SEQUENCE) + 1
 
@@ -85,7 +90,7 @@ async def test_wakeup_processor_completion(monkeypatch):
     for t in proc.wakeup_tasks:
         db.update_task_status(t.task_id, TaskStatus.COMPLETED)
 
-    result = await proc.process(1, non_blocking=True)
+    result = await proc.process_wakeup(1, non_blocking=True)
     assert result['wakeup_complete'] is True
     root_task = db.get_task_by_id('WAKEUP_ROOT')
     assert root_task.status == TaskStatus.COMPLETED

@@ -22,8 +22,8 @@ async def run_wakeup(
 ) -> dict:
     """Execute the wakeup ritual using the processor's WakeupProcessor with real handler logic."""
     await agent_processor.wakeup_processor.initialize()
-    # Use the real process method, which will invoke the registered handlers (including PonderHandler)
-    result = await agent_processor.wakeup_processor.process(0, non_blocking=non_blocking)
+    # Use the real process_wakeup method, which accepts non_blocking
+    result = await agent_processor.wakeup_processor.process_wakeup(0, non_blocking=non_blocking)
     output_func(f"Wakeup sequence result: {result}")
     return result
 
@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
         # Run the wakeup sequence and stream outputs to stdout
         await agent_processor.wakeup_processor.initialize()
-        result = await agent_processor.wakeup_processor.process(0, non_blocking=False)
+        result = await agent_processor.wakeup_processor.process_wakeup(0, non_blocking=False)
         print(f"Wakeup sequence result: {result}")
 
         await llm_service.stop()
