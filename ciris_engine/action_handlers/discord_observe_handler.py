@@ -70,6 +70,9 @@ async def handle_discord_observe_event(
             logger.error("Active observation mode requires 'discord_service' in context.")
             return
         channel_id = payload.get("channel_id") or context.get("default_channel_id")
+        if not channel_id:
+            logger.error("Active observation mode requires a channel_id")
+            return
         offset = payload.get("offset", 0)
         limit = payload.get("limit", 20)
         include_agent = payload.get("include_agent", True)
