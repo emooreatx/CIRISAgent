@@ -4,6 +4,7 @@ import logging
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import PonderParams
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
 from ciris_engine.action_handlers.base_handler import BaseActionHandler, ActionHandlerDependencies
 
@@ -24,14 +25,18 @@ class PonderHandler(BaseActionHandler):
 
     async def handle(
         self,
+        result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,
-        ponder_params: PonderParams,
-        context: Dict[str, Any] 
-    ) -> Optional[Thought]:
+        dispatch_context: Dict[str, Any]
+    ) -> None:
         """Process ponder action and update thought."""
+        # Extract ponder parameters from the result
+        params = result.action_parameters
+        ponder_params = PonderParams(**params) if isinstance(params, dict) else params
+        
         key_questions_list = ponder_params.questions if hasattr(ponder_params, 'questions') else []
         
-        epistemic_data = context.get('epistemic_data')
+        epistemic_data = dispatch_context.get('epistemic_data')
         # Add epistemic notes if present
         if epistemic_data:
             if 'optimization_veto' in epistemic_data:
@@ -60,7 +65,7 @@ class PonderHandler(BaseActionHandler):
                 }
             )
             # Log audit for wakeup step ponder
-            await self._audit_log("PONDER_WAKEUP_STEP", context, {"thought_id": thought.thought_id, "status": "COMPLETED"})
+            await self._audit_log("PONDER_WAKEUP_STEP", dispatch_context, {"thought_id": thought.thought_id, "status": "COMPLETED"})
             return None
         
         # Normal ponder logic
@@ -77,7 +82,7 @@ class PonderHandler(BaseActionHandler):
                 }
             )
             # Log audit for max ponder deferral
-            await self._audit_log("PONDER_MAX_ROUNDS_DEFER", context, {"thought_id": thought.thought_id, "status": "DEFERRED"})
+            await self._audit_log("PONDER_MAX_ROUNDS_DEFER", dispatch_context, {"thought_id": thought.thought_id, "status": "DEFERRED"})
             return None
         else:
             new_ponder_count = current_ponder_count + 1
@@ -97,7 +102,7 @@ class PonderHandler(BaseActionHandler):
                 thought.ponder_count = new_ponder_count
                 logger.info(f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for re-processing.")
                 # Log audit for successful ponder
-                await self._audit_log("PONDER_REPROCESS", context, {"thought_id": thought.thought_id, "status": "PENDING", "new_ponder_count": new_ponder_count})
+                await self._audit_log("PONDER_REPROCESS", dispatch_context, {"thought_id": thought.thought_id, "status": "PENDING", "new_ponder_count": new_ponder_count})
                 return None
             else:
                 logger.error(f"Failed to update thought ID {thought.thought_id} for re-processing Ponder.")
@@ -111,5 +116,5 @@ class PonderHandler(BaseActionHandler):
                     }
                 )
                 # Log audit for failed ponder update
-                await self._audit_log("PONDER_UPDATE_FAILED", context, {"thought_id": thought.thought_id, "status": "FAILED"})
+                await self._audit_log("PONDER_UPDATE_FAILED", dispatch_context, {"thought_id": thought.thought_id, "status": "FAILED"})
                 return None

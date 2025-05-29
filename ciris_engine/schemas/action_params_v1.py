@@ -6,7 +6,12 @@ from .graph_schemas_v1 import GraphScope
 class ObserveParams(BaseModel):
     channel_id: Optional[str] = None
     active: bool = False
-    context: Dict[str, Any] = Field(default_factory=dict)
+    context: dict = Field(default_factory=dict)
+
+    def __init__(self, **data):
+        if 'context' not in data or data['context'] is None:
+            data['context'] = {}
+        super().__init__(**data)
 
 class SpeakParams(BaseModel):
     channel_id: Optional[str] = None

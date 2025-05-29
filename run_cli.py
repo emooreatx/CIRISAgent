@@ -39,20 +39,28 @@ logger = logging.getLogger(__name__)
 
 async def main():
     """Main entry point."""
-    # Get profile name from command line or environment
-    profile_name = "default"
-    if len(sys.argv) > 1:
-        profile_name = sys.argv[1]
-    elif os.getenv("CIRIS_PROFILE"):
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Run CIRIS CLI agent')
+    parser.add_argument('profile', nargs='?', default='default', help='Agent profile name')
+    parser.add_argument('--non-interactive', action='store_true', help='Run in non-interactive mode')
+    parser.add_argument('--max-rounds', type=int, help='Maximum processing rounds')
+    
+    args = parser.parse_args()
+    
+    # Get profile name from args or environment
+    profile_name = args.profile
+    if os.getenv("CIRIS_PROFILE"):
         profile_name = os.getenv("CIRIS_PROFILE")
 
     logger.info(f"Starting CIRIS CLI agent with profile: {profile_name}")
 
-    max_rounds = int(os.getenv("CIRIS_MAX_ROUNDS", "0")) or None
+    max_rounds = args.max_rounds or int(os.getenv("CIRIS_MAX_ROUNDS", "0")) or None
+    interactive = not args.non_interactive
 
     runtime = CLIRuntime(
         profile_name=profile_name,
-        interactive=True,
+        interactive=interactive,
     )
     try:
         await runtime.initialize()

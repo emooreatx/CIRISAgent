@@ -22,17 +22,17 @@ class ObserveHandler(BaseActionHandler):
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
-        raw_params = result.action_parameters
+        params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.OBSERVE, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         final_thought_status = ThoughtStatus.COMPLETED
         action_performed_successfully = False
         follow_up_content_key_info = f"OBSERVE action for thought {thought_id}"
 
-        params = None
-        if isinstance(raw_params, dict):
+        # Always use schema internally
+        if isinstance(params, dict):
             try:
-                params = ObserveParams(**raw_params)
+                params = ObserveParams(**params)
             except ValidationError as e:
                 self.logger.error(f"OBSERVE action params dict could not be parsed: {e}. Thought ID: {thought_id}")
                 final_thought_status = ThoughtStatus.FAILED
@@ -40,15 +40,13 @@ class ObserveHandler(BaseActionHandler):
                 persistence.update_thought_status(
                     thought_id=thought_id,
                     status=final_thought_status,
-                    final_action=result.model_dump() if hasattr(result, 'model_dump') else result,
+                    final_action=None
                 )
                 return
-        elif isinstance(raw_params, ObserveParams):
-            params = raw_params
-        else:
-            self.logger.error(f"OBSERVE action params are not ObserveParams model or dict. Type: {type(raw_params)}. Thought ID: {thought_id}")
+        elif not isinstance(params, ObserveParams):
+            self.logger.error(f"OBSERVE action params are not ObserveParams model or dict. Type: {type(params)}. Thought ID: {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
-            follow_up_content_key_info = f"OBSERVE action failed: Invalid parameters type ({type(raw_params)}) for thought {thought_id}."
+            follow_up_content_key_info = f"OBSERVE action failed: Invalid parameters type ({type(params)}) for thought {thought_id}."
             persistence.update_thought_status(
                 thought_id=thought_id,
                 status=final_thought_status,
@@ -170,9 +168,8 @@ class ObserveHandler(BaseActionHandler):
                 if final_thought_status == ThoughtStatus.FAILED:
                     context_for_follow_up["error_details"] = follow_up_content_key_info
 
-                action_params_dump = result.action_parameters
-                if isinstance(action_params_dump, BaseModel):
-                    action_params_dump = action_params_dump.model_dump(mode="json")
+                # When serializing for follow-up, convert to dict
+                action_params_dump = params.model_dump(mode="json") if hasattr(params, "model_dump") else params
                 context_for_follow_up["action_params"] = action_params_dump
 
                 new_follow_up.context = context_for_follow_up  # v1 uses 'context'

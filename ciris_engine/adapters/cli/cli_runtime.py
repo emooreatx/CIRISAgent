@@ -28,6 +28,15 @@ class InteractiveCLIAdapter(CLIAdapter):
     def __init__(self):
         super().__init__()
         self._should_stop = False
+
+    async def start(self):
+        """Start the interactive CLI adapter."""
+        pass
+
+    async def stop(self):
+        """Stop the interactive CLI adapter."""
+        self._should_stop = True
+
     async def fetch_inputs(self) -> List[Any]:
         if self._should_stop:
             return []

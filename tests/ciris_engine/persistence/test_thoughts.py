@@ -9,7 +9,7 @@ from ciris_engine.persistence.thoughts import (
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
 from ciris_engine.persistence.tasks import add_task
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 
 def temp_db_file():
     f = tempfile.NamedTemporaryFile(delete=False)
@@ -17,7 +17,7 @@ def temp_db_file():
     return f.name
 
 def make_thought(thought_id, source_task_id="task1", status=ThoughtStatus.PENDING, created_at=None, updated_at=None):
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     return Thought(
         thought_id=thought_id,
         source_task_id=source_task_id,
@@ -35,7 +35,7 @@ def make_thought(thought_id, source_task_id="task1", status=ThoughtStatus.PENDIN
     )
 
 def make_task(task_id):
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     return Task(
         task_id=task_id,
         description="desc",
