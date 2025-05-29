@@ -42,7 +42,7 @@ class ObserveHandler(BaseActionHandler):
                     status=final_thought_status,
                     final_action=None
                 )
-                return
+                raise FollowUpCreationError(f"OBSERVE action failed: Invalid parameters dict for thought {thought_id}. Error: {e}")
         elif not isinstance(params, ObserveParams):
             self.logger.error(f"OBSERVE action params are not ObserveParams model or dict. Type: {type(params)}. Thought ID: {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
@@ -52,8 +52,7 @@ class ObserveHandler(BaseActionHandler):
                 status=final_thought_status,
                 final_action=result.model_dump() if hasattr(result, 'model_dump') else result,
             )
-            return
-
+            raise FollowUpCreationError(f"OBSERVE action failed: Invalid parameters type ({type(params)}) for thought {thought_id}.")
         if params.active:  # v1 uses 'active'
             # Use the Discord observe handler in active mode
             try:
@@ -186,3 +185,4 @@ class ObserveHandler(BaseActionHandler):
                 )
                 await self._audit_log(HandlerActionType.OBSERVE, {**dispatch_context, "thought_id": thought_id}, outcome="failed_followup")
                 raise FollowUpCreationError from e
+        return result
