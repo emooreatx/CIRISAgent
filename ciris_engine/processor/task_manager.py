@@ -168,7 +168,7 @@ class TaskManager:
         
         return tasks
     
-    def ensure_monitoring_task(self) -> Task:
+    def ensure_monitoring_task(self, channel_id: Optional[str] = None) -> Task:
         """Ensure the Discord monitoring task exists."""
         task_id = "job-discord-monitor"
         
@@ -183,7 +183,8 @@ class TaskManager:
                 updated_at=now_iso,
                 context={
                     "meta_goal": "continuous_monitoring",
-                    "origin_service": "discord_runtime_startup"
+                    "origin_service": "discord_runtime_startup",
+                    **({"channel_id": channel_id} if channel_id else {})
                 },
             )
             persistence.add_task(monitor_task)

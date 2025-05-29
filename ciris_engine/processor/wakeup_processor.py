@@ -245,7 +245,8 @@ class WakeupProcessor(BaseProcessor):
                 updated_at=now_iso,
                 context={
                     "meta_goal": "continuous_monitoring",
-                    "origin_service": "wakeup_processor"
+                    "origin_service": "wakeup_processor",
+                    **({"channel_id": self.startup_channel_id} if self.startup_channel_id else {})
                 },
             )
             persistence.add_task(monitor_task)
