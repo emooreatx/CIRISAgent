@@ -80,15 +80,7 @@ class CIRISLocalGraph(Service):
         await super().stop()
 
     async def memorize(self, node: GraphNode, *args, **kwargs) -> MemoryOpResult:
-        """Store a node. Older call signatures are supported for compatibility."""
-        if not isinstance(node, GraphNode):
-            # Legacy: memorize(user_nick, channel, metadata, channel_metadata=None, is_correction=False)
-            user_nick = node
-            channel = args[0] if len(args) > 0 else None
-            metadata = args[1] if len(args) > 1 else {}
-            scope = GraphScope.LOCAL
-            attributes = metadata or {}
-            node = GraphNode(id=str(user_nick), type=NodeType.USER, scope=scope, attributes=attributes)
+        """Store a node. Only accepts GraphNode as input."""
         g = self._graphs[node.scope]
         g.add_node(node.id, **node.attributes)
         await asyncio.to_thread(self._persist)

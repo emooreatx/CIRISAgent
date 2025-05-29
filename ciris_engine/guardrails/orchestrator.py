@@ -4,8 +4,10 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.processing_schemas_v1 import DMAResults, GuardrailResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.action_params_v1 import DeferParams, SpeakParams, PonderParams
-from ciris_engine.utils import DEFAULT_WA
-from ciris_engine.utils.deferral_package_builder import build_deferral_package
+from ciris_engine.utils import DEFAULT_W
+from ciris_engine.formatters.system_snapshot import format_system_snapshot
+from ciris_engine.formatters.user_profiles import format_user_profiles
+from ciris_engine.utils.task_formatters import format_task_context
 from ciris_engine.processor.thought_escalation import escalate_due_to_guardrail
 from pydantic import BaseModel
 import logging

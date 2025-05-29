@@ -4,37 +4,12 @@ Integrates with dream_harness to run HE-300 and simplebench during dream cycles.
 """
 import asyncio
 import logging
-import httpx
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.services.cirisnode_client import CIRISNodeClient
 
 logger = logging.getLogger(__name__)
-
-
-class CIRISNodeClient:
-    """Client for interacting with CIRISNode FastAPI service."""
-    
-    def __init__(self, base_url: str):
-        self.base_url = base_url.rstrip("/")
-        self.client = httpx.AsyncClient()
-    
-    async def run_he300(self) -> Dict[str, Any]:
-        """Run HE-300 benchmark."""
-        resp = await self.client.post(f"{self.base_url}/bench/he300")
-        resp.raise_for_status()
-        return resp.json()
-    
-    async def run_simplebench(self) -> Dict[str, Any]:
-        """Run simplebench."""
-        resp = await self.client.post(f"{self.base_url}/bench/simplebench")
-        resp.raise_for_status()
-        return resp.json()
-    
-    async def close(self):
-        """Close the HTTP client."""
-        await self.client.aclose()
 
 
 class DreamProcessor:

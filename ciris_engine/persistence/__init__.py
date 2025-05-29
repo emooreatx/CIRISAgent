@@ -4,37 +4,27 @@
 # Import only what you need from db.py
 from .db import (
     get_db_connection,
-    get_task_table_schema_sql,
-    get_thought_table_schema_sql,
-    get_feedback_mappings_table_schema_sql,
     initialize_database,
-    get_tasks_older_than,
-    get_thoughts_older_than,
 )
-
-# Import the correct get_tasks_by_status from tasks.py
 from .tasks import (
     update_task_status,
     task_exists,
     add_task,
     get_all_tasks,
+    get_task_by_id,
+    get_tasks_by_status,
     get_recent_completed_tasks,
     get_top_tasks,
-    get_task_by_id,
     count_tasks,
-    get_tasks_by_status,  # Add this import
 )
-
 from .thoughts import (
     add_thought,
     get_thought_by_id,
+    update_thought_status,
     get_thoughts_by_status,
     get_thoughts_by_task_id,
-    delete_thoughts_by_ids,
-    update_thought_status,
     count_thoughts,
 )
-
 from .deferral import save_deferral_report_mapping, get_deferral_report_context
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 
