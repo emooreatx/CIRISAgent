@@ -1,0 +1,52 @@
+from typing import Optional, Any, Dict
+
+from ciris_engine import persistence
+
+async def extract_user_nick(
+    *,
+    message: Optional[Any] = None,
+    params: Optional[Any] = None,
+    dispatch_context: Optional[Dict[str, Any]] = None,
+    thought_id: Optional[str] = None,
+) -> Optional[str]:
+    """Attempt to determine a user nickname from various sources."""
+    # 1. Directly from a Discord message object
+    if message is not None:
+        author = getattr(message, "author", None)
+        if author is not None:
+            nick = getattr(author, "display_name", None)
+            if nick:
+                return str(nick)
+            name = getattr(author, "name", None)
+            if name:
+                return str(name)
+
+    # 2. From MemorizeParams or similar params object
+    if params is not None:
+        value = getattr(params, "value", None)
+        if isinstance(value, dict):
+            nick = value.get("nick") or value.get("user_id")
+            if nick:
+                return str(nick)
+
+    # 3. From dispatch context
+    if dispatch_context:
+        nick = dispatch_context.get("author_name") or dispatch_context.get("user_id")
+        if nick:
+            return str(nick)
+
+    # 4. Fallback to parent task via thought_id
+    if thought_id:
+        try:
+            current_thought = persistence.get_thought_by_id(thought_id)
+            if current_thought and current_thought.source_task_id:
+                parent_task = persistence.get_task_by_id(current_thought.source_task_id)
+                if parent_task and isinstance(parent_task.context, dict):
+                    nick = parent_task.context.get("author_name") or parent_task.context.get("user_id")
+                    if nick:
+                        return str(nick)
+        except Exception:
+            # Ignore lookup errors silently
+            pass
+
+    return None

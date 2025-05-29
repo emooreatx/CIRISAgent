@@ -1,29 +1,30 @@
 import logging
 from typing import Any
 
-from ..core.agent_core_schemas import Thought
-from ..core.foundational_schemas import ThoughtStatus
-from ..core import persistence
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
+from .ciris_local_graph import CIRISLocalGraph, MemoryOpResult, MemoryOpStatus
 
 logger = logging.getLogger(__name__)
 
-class MemoryWriteKey:
-    CHANNEL_PREFIX = "channel/"
+
+def is_wa_feedback(thought: Thought) -> bool:
+    """Check if thought represents WA feedback for identity/environment updates."""
+    ctx = thought.context or {}
+    return (
+        ctx.get("is_wa_feedback", False) and 
+        ctx.get("feedback_target") in ["identity", "environment"]
+    )
 
 
-def classify_target(mem_write: "MemoryWrite") -> str:
-    """Return 'CHANNEL' if the key path targets a channel node else 'USER'."""
-    key = mem_write.key_path
-    return "CHANNEL" if key.startswith(MemoryWriteKey.CHANNEL_PREFIX) else "USER"
-
-
-def is_wa_correction(thought: Thought) -> bool:
-    """Return True if the thought represents a WA correction for a deferred write."""
-    ctx = thought.processing_context or {}
-    if not ctx.get("is_wa_correction"):
-        return False
-    corrected_id = ctx.get("corrected_thought_id")
-    if not corrected_id:
-        return False
-    parent = persistence.get_thought_by_id(corrected_id)
-    return parent is not None and parent.status == ThoughtStatus.DEFERRED
+def process_feedback(thought: Thought, memory_service: CIRISLocalGraph) -> MemoryOpResult:
+    """Process WA feedback for graph updates."""
+    ctx = thought.context
+    target = ctx.get("feedback_target")
+    
+    if target == "identity":
+        return memory_service.update_identity_graph(ctx.get("feedback_data"))
+    elif target == "environment":
+        return memory_service.update_environment_graph(ctx.get("feedback_data"))
+    else:
+        return MemoryOpResult(status=MemoryOpStatus.DENIED, reason="Invalid feedback target")

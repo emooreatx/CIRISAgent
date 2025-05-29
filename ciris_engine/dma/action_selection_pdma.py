@@ -4,22 +4,19 @@ import logging
 import instructor
 from openai import AsyncOpenAI
 
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
-from ciris_engine.core.agent_core_schemas import (
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
+from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
-    HandlerActionType,
-    CIRISSchemaVersion,
 )
-from ciris_engine.core.dma_results import (
-    ActionSelectionPDMAResult,
-    EthicalPDMAResult,
+from ciris_engine.schemas.dma_results_v1 import (
+    ActionSelectionResult,
+    EthicalDMAResult,
     CSDMAResult,
     DSDMAResult,
 )
-from ciris_engine.core.action_params import (
+from ciris_engine.schemas.action_params_v1 import (
     ObserveParams,
     SpeakParams,
-    ActParams,
     PonderParams,
     RejectParams,
     DeferParams,
@@ -27,8 +24,9 @@ from ciris_engine.core.action_params import (
     RememberParams,
     ForgetParams,
 )
-from ciris_engine.core.foundational_schemas import HandlerActionType as CoreHandlerActionType
-from ciris_engine.core.config_schemas import DEFAULT_OPENAI_MODEL_NAME
+from ciris_engine.schemas.action_params_v1 import ToolParams
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, CIRISSchemaVersion
+from ciris_engine.schemas.config_schemas_v1 import DEFAULT_OPENAI_MODEL_NAME
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
 from ciris_engine.formatters import (
@@ -60,25 +58,53 @@ class ActionSelectionPDMAEvaluator:
             "REMEMBER and FORGET exist but may be disabled. "
             "If ponder rounds exceed the limit the system auto‑defers."
         ),
-        "decision_format": ( # This describes the LLM's direct output structure
+        "decision_format": (
             "Return JSON with keys: context_summary_for_action_selection, action_alignment_check, "
-            "action_conflicts, action_resolution, selected_handler_action, action_parameters, "
+            "action_conflicts, action_resolution, selected_action, action_parameters, "
             "action_selection_rationale, monitoring_for_selected_action."
-            # Confidence score is not requested from LLM here, but is part of ActionSelectionPDMAResult
         ),
         "closing_reminder": (
             "Remember CIRIS principles override personal preference."
         ),
         "action_parameter_schemas": (
-            "Schemas for 'action_parameters' based on the selected_handler_action:\n"
-            "SPEAK: {\"content\": string, \"target_channel\"?: string, \"target_agent_did\"?: string, \"modality\"?: string, \"correlation_id\"?: string}\n"
-            "PONDER: {\"key_questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
-            "MEMORIZE: {\"knowledge_unit_description\": string, \"knowledge_data\": object|string, \"knowledge_type\": string, \"source\": string, \"confidence\": float, \"publish_to_dkg\"?: bool, \"target_ka_ual\"?: string, \"channel_metadata\"?: object}\n"
-            "DEFER: {\"reason\": string, \"target_wa_ual\": string, \"deferral_package_content\": object}\n"
+            "Schemas for 'action_parameters' based on the selected_action:\n"
+            "SPEAK: {\"content\": string, \"channel_id\"?: string}\n"
+            "PONDER: {\"questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
+            "MEMORIZE: {\"key\": string, \"value\": any, \"scope\": string}\n"
+            "REMEMBER: {\"query\": string, \"scope\": string}\n"
+            "FORGET: {\"key\": string, \"scope\": string, \"reason\": string}\n"
+            "DEFER: {\"reason\": string, \"context\"?: object}\n"
             "REJECT: {\"reason\": string, \"rejection_code\"?: string}\n"
-            "ACT: {\"tool_name\": string, \"arguments\": object}\n"
-            "OBSERVE: {\"sources\": [string], \"filters\"?: object, \"max_duration_ms\"?: int, \"reason\"?: string, \"perform_active_look\"?: boolean}"
+            "TOOL: {\"name\": string, \"args\": object} - Available tools and their argument schemas:\n"
+            "  - discord_delete_message: Delete a message\n"
+            "    args: {\"channel_id\": integer, \"message_id\": integer}\n"
+            "    Use when: Message violates rules, contains harmful content, or needs removal\n"
+            "  - discord_timeout_user: Temporarily mute a user\n"
+            "    args: {\"guild_id\": integer, \"user_id\": integer, \"duration_seconds\": integer, \"reason\"?: string}\n"
+            "    Use when: User needs a cooling-off period (max 28 days = 2419200 seconds)\n"
+            "  - discord_ban_user: Permanently ban a user from the server\n"
+            "    args: {\"guild_id\": integer, \"user_id\": integer, \"reason\"?: string, \"delete_message_days\"?: integer (0-7)}\n"
+            "    Use when: Severe or repeated violations requiring permanent removal\n"
+            "  - discord_kick_user: Remove user from server (they can rejoin)\n"
+            "    args: {\"guild_id\": integer, \"user_id\": integer, \"reason\"?: string}\n"
+            "    Use when: User needs removal but may be allowed back later\n"
+            "OBSERVE: {\"channel_id\"?: string, \"active\"?: boolean, \"context\"?: object}\n"
+            "TASK_COMPLETE: {} (no parameters needed)"
         ),
+        "tool_usage_guidance": (
+            "\nTOOL USAGE GUIDELINES:\n"
+            "- Always check if you have the necessary IDs before using a tool\n"
+            "- guild_id can often be found in the task context\n"
+            "- user_id and message_id should be in the message context\n"
+            "- Start with less severe actions (timeout) before escalating\n"
+            "- Always provide a clear reason for moderation actions\n"
+            "- If IDs are missing, use OBSERVE with active=true to gather more context first\n"
+        ),
+
+
+
+
+
         "normal_mode_csdma_ambiguity_guidance": (
             "If CSDMA highlighted critical ambiguity, highly align 'Speak' (for user clarification) "
             "or 'Ponder' (to formulate key clarifying questions) with Fidelity & Do-Good."
@@ -145,20 +171,30 @@ class ActionSelectionPDMAEvaluator:
         )
     }
 
-    def __init__(self,
-                 aclient: AsyncOpenAI, # Expect raw AsyncOpenAI client
-                 model_name: str = DEFAULT_OPENAI_MODEL_NAME,
-                 max_retries: int = 2, # Default to a sensible number of retries
-                 prompt_overrides: Optional[Dict[str, str]] = None,
-                 instructor_mode: instructor.Mode = instructor.Mode.JSON): # Add instructor_mode
+    def __init__(
+        self,
+        aclient: AsyncOpenAI,  # Expect raw AsyncOpenAI client
+        model_name: str = DEFAULT_OPENAI_MODEL_NAME,
+        max_retries: int = 2,  # Default to a sensible number of retries
+        prompt_overrides: Optional[Dict[str, str]] = None,
+        *,  # Enforce instructor_mode as keyword-only
+        instructor_mode: instructor.Mode = instructor.Mode.JSON
+    ):
+        """
+        Initialize ActionSelectionPDMAEvaluator.
+        Args:
+            aclient: AsyncOpenAI client (will be patched with instructor).
+            model_name: LLM model name.
+            max_retries: Max retries for LLM calls.
+            prompt_overrides: Optional prompt overrides dict.
+            instructor_mode: instructor.Mode (must be passed as keyword argument).
+        """
         # Patch the client with instructor and the specified mode
-        # instructor.patch itself does not take max_retries for the patch operation,
-        # max_retries is typically passed to the .create() call.
         self.aclient: instructor.Instructor = instructor.patch(aclient, mode=instructor_mode)
         self.model_name = model_name
-        self.max_retries = max_retries # Store max_retries
+        self.max_retries = max_retries  # Store max_retries
         self.prompt = {**self.DEFAULT_PROMPT, **(prompt_overrides or {})}
-        self.instructor_mode = instructor_mode # Store for reference if needed
+        self.instructor_mode = instructor_mode  # Store for reference if needed
 
     def _get_profile_specific_prompt(self, base_key: str, agent_profile_name: Optional[str]) -> str:
         if agent_profile_name:
@@ -182,7 +218,7 @@ class ActionSelectionPDMAEvaluator:
         triaged_inputs: Dict[str, Any]
     ) -> str:
         original_thought: Thought = triaged_inputs['original_thought'] # Assuming Thought model
-        ethical_pdma_result: EthicalPDMAResult = triaged_inputs['ethical_pdma_result']
+        ethical_pdma_result: EthicalDMAResult = triaged_inputs['ethical_pdma_result']
         csdma_result: CSDMAResult = triaged_inputs['csdma_result']
         dsdma_result: Optional[DSDMAResult] = triaged_inputs.get('dsdma_result')
         current_ponder_count: int = triaged_inputs['current_ponder_count']
@@ -194,9 +230,12 @@ class ActionSelectionPDMAEvaluator:
         if agent_profile and hasattr(agent_profile, 'name'): # Check for 'name' attribute
              agent_name_from_thought = agent_profile.name
              logger.debug(f"Using agent name '{agent_name_from_thought}' from provided agent_profile object.")
-        elif hasattr(original_thought, 'processing_context') and original_thought.processing_context:
+        
+        # Access processing_context from triaged_inputs
+        processing_context_data = triaged_inputs.get('processing_context')
+        if not agent_name_from_thought and processing_context_data and isinstance(processing_context_data, dict):
             # Fallback to environment_context within the thought if agent_profile not passed or no name
-            environment_context = original_thought.processing_context.get('environment_context')
+            environment_context = processing_context_data.get('environment_context') # Use processing_context_data
             if isinstance(environment_context, dict):
                 agent_name_from_thought = environment_context.get('agent_name')
                 if agent_name_from_thought:
@@ -210,7 +249,10 @@ class ActionSelectionPDMAEvaluator:
         # Default fallback list
         default_permitted_actions = [
             HandlerActionType.SPEAK, HandlerActionType.PONDER,
-            HandlerActionType.REJECT, HandlerActionType.DEFER
+            HandlerActionType.REJECT, HandlerActionType.DEFER,
+            HandlerActionType.MEMORIZE, HandlerActionType.REMEMBER,
+            HandlerActionType.FORGET, HandlerActionType.OBSERVE,
+            HandlerActionType.TOOL, HandlerActionType.TASK_COMPLETE
         ]
         permitted_actions: List[HandlerActionType] = triaged_inputs.get('permitted_actions', default_permitted_actions)
 
@@ -220,17 +262,40 @@ class ActionSelectionPDMAEvaluator:
              logger.warning(f"ActionSelectionPDMA: 'permitted_actions' in triaged_inputs is empty for thought {original_thought.thought_id}. Falling back to default.")
              permitted_actions = default_permitted_actions
 
-        action_options_str = ", ".join([action.value.upper() for action in permitted_actions])
-        # --- End dynamic permitted actions ---
+        # Build action_options_str for prompt
+        action_options_str = ', '.join([a.value for a in permitted_actions])
 
-        # Using ethical_pdma_result.decision as decision_rationale is not present
-        ethical_summary = f"Ethical PDMA Stance: {ethical_pdma_result.decision}. Key Conflicts: {ethical_pdma_result.conflicts or 'None'}. Resolution: {ethical_pdma_result.resolution or 'None'}."
-        csdma_summary = f"CSDMA Output: Plausibility {csdma_result.common_sense_plausibility_score:.2f}, Flags: {', '.join(csdma_result.flags) if csdma_result.flags else 'None'}. Reasoning: {csdma_result.reasoning}"
+        # Get available tools if TOOL action is permitted
+        available_tools_str = ""
+        if HandlerActionType.TOOL in permitted_actions:
+            try:
+                from ciris_engine.action_handlers.tool_handler import ToolHandler
+                tool_registry = ToolHandler._tool_registry
+                if tool_registry and hasattr(tool_registry, '_tools'):
+                    tool_names = list(tool_registry._tools.keys())
+                    if tool_names:
+                        available_tools_str = f"\nAvailable tools: {', '.join(tool_names)}"
+            except Exception:
+                pass  # Silently ignore if tool registry not available
+        # Add tool usage guidance
+        tool_usage_guidance = self.prompt.get("tool_usage_guidance", self.DEFAULT_PROMPT.get("tool_usage_guidance", ""))
+        # ...existing code...
+
+        # Construct ethical_summary carefully, accessing potential nested fields in alignment_check
+        conflicts_str = "None"
+        resolution_str = "None"
+        if isinstance(ethical_pdma_result.alignment_check, dict):
+            conflicts_str = str(ethical_pdma_result.alignment_check.get('conflicts', "None"))
+            resolution_str = str(ethical_pdma_result.alignment_check.get('resolution', "None"))
+        
+        ethical_summary = f"Ethical PDMA Stance: {ethical_pdma_result.decision}. Key Conflicts: {conflicts_str}. Resolution: {resolution_str}."
+        # Note: csdma_result.common_sense_plausibility_score was an old field name, schema uses plausibility_score
+        csdma_summary = f"CSDMA Output: Plausibility {csdma_result.plausibility_score:.2f}, Flags: {', '.join(csdma_result.flags) if csdma_result.flags else 'None'}. Reasoning: {csdma_result.reasoning}"
         
         dsdma_summary_str = "DSDMA did not apply or did not run for this thought."
         if dsdma_result:
-            # Accessing dsdma_result.domain_name which was added to the schema
-            dsdma_summary_str = f"DSDMA ({dsdma_result.domain_name}) Output: Score {dsdma_result.domain_alignment_score:.2f}, Recommended Domain Action: {dsdma_result.recommended_action or 'None'}, Flags: {', '.join(dsdma_result.flags) if dsdma_result.flags else 'None'}. Reasoning: {dsdma_result.reasoning}"
+            # Accessing dsdma_result.domain and dsdma_result.alignment_score as per schema
+            dsdma_summary_str = f"DSDMA ({dsdma_result.domain}) Output: Score {dsdma_result.alignment_score:.2f}, Recommended Domain Action: {dsdma_result.recommended_action or 'None'}, Flags: {', '.join(dsdma_result.flags) if dsdma_result.flags else 'None'}. Reasoning: {dsdma_result.reasoning}"
 
         ponder_notes_str_for_prompt_if_any = ""
         notes_list = original_thought.ponder_notes if original_thought.ponder_notes else []
@@ -287,8 +352,9 @@ class ActionSelectionPDMAEvaluator:
         system_snapshot_context_str = "" # This will include general system snapshot details
         other_processing_context_str = ""
 
-        if original_thought.processing_context:
-            system_snapshot = original_thought.processing_context.get("system_snapshot")
+        # Use processing_context_data obtained from triaged_inputs
+        if processing_context_data and isinstance(processing_context_data, dict):
+            system_snapshot = processing_context_data.get("system_snapshot")
             if system_snapshot and isinstance(system_snapshot, dict):
                 user_profiles_data = system_snapshot.get("user_profiles")
                 user_profile_context_str = format_user_profiles(user_profiles_data)
@@ -304,7 +370,7 @@ class ActionSelectionPDMAEvaluator:
 {profile_specific_system_header_injection}Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
 You MUST execute the Principled Decision-Making Algorithm (PDMA) to choose this HANDLER ACTION and structure your response as a JSON object matching the provided schema.
 All fields specified in the schema for your response are MANDATORY unless explicitly marked as optional.
-Permitted Handler Actions: {action_options_str}
+Permitted Handler Actions: {action_options_str}{available_tools_str}
 {startup_guidance}
 {reject_thought_guidance}
 {final_ponder_advisory}
@@ -318,20 +384,20 @@ PDMA for Action Selection (all fields MANDATORY):
     {action_alignment_example}
 3.  'action_conflicts': Identify conflicts *between potential handler actions*. If none, "No conflicts identified." or null.
 4.  'action_resolution': Resolve conflicts. If none, "Not applicable as no conflicts were identified." or null.
-5.  'selected_handler_action': The LLM should determine this based on the inputs and other PDMA steps from the list: {action_options_str}.
-6.  'action_parameters': Parameters for the chosen action. This MUST be a JSON object strictly matching the schema for the selected_handler_action.
+5.  'selected_action': The LLM should determine this based on the inputs and other PDMA steps from the list: {action_options_str}.
+6.  'action_parameters': Parameters for the chosen action. This MUST be a JSON object strictly matching the schema for the selected_action.
     {action_parameters_speak_csdma_guidance}
     {action_parameters_ponder_guidance}
     Provide empty dict {{}} if no parameters for other actions.
     {action_parameters_observe_guidance}
-7.  'action_selection_rationale': Justify *why* this handler action is optimal. {action_selection_rationale_csdma_guidance}
+7.  'rationale': Justify *why* this handler action is optimal. {action_selection_rationale_csdma_guidance}
 8.  'monitoring_for_selected_action': Concrete monitoring plan for THIS chosen action (string or dict).
 
 IMPORTANT: Your entire response MUST be a single JSON object.
 The JSON object MUST have these top-level keys, all populated:
 'context_summary_for_action_selection', 'action_alignment_check', 'action_conflicts',
-'action_resolution', 'selected_handler_action', 'action_parameters',
-'action_selection_rationale', 'monitoring_for_selected_action'.
+'action_resolution', 'selected_action', 'action_parameters',
+'rationale', 'monitoring_for_selected_action'.
 
 Original Thought: "{original_thought.content}"
 {ponder_notes_str_for_prompt_if_any}
@@ -353,41 +419,27 @@ Adhere strictly to the schema for your JSON output.
     async def evaluate(
         self,
         triaged_inputs: Dict[str, Any]
-    ) -> ActionSelectionPDMAResult:
+    ) -> ActionSelectionResult:
         original_thought: Thought = triaged_inputs['original_thought'] # For logging & post-processing
+        processing_context_data = triaged_inputs.get('processing_context') # Define this at the start of the method
 
         # --- Special case for forcing PONDER ---
-        # Check the original message content from the task context stored in the thought's processing_context
+        # Check the original message content from the task context stored in the processing_context
         original_message_content = None
-        if original_thought.processing_context and \
-           isinstance(original_thought.processing_context.get("initial_task_context"), dict):
-            original_message_content = original_thought.processing_context["initial_task_context"].get("content")
+        # Use processing_context_data defined above
+        if processing_context_data and isinstance(processing_context_data, dict) and \
+           isinstance(processing_context_data.get("initial_task_context"), dict):
+            original_message_content = processing_context_data["initial_task_context"].get("content")
 
         if original_message_content and original_message_content.strip().lower() == "ponder":
             logger.info(f"ActionSelectionPDMA: Detected 'ponder' keyword in original message for thought ID {original_thought.thought_id}. Forcing PONDER action.")
-            ponder_params = PonderParams(key_questions=["Forced ponder: What are the key ambiguities?", "Forced ponder: How can this be clarified?"])
-            return ActionSelectionPDMAResult(
-                context_summary_for_action_selection="Forced PONDER action due to 'ponder' keyword.",
-                action_alignment_check={"PONDER": "Forced by test condition"},
-                selected_handler_action=HandlerActionType.PONDER,
-                action_parameters=ponder_params,
-                action_selection_rationale="Forced PONDER for testing ponder loop.",
-                monitoring_for_selected_action="Monitor ponder count and deferral.",
-                ethical_assessment_summary=(
-                    triaged_inputs['ethical_pdma_result'].model_dump()
-                    if isinstance(triaged_inputs.get('ethical_pdma_result'), BaseModel)
-                    else ({"summary": triaged_inputs.get('ethical_pdma_result')} if isinstance(triaged_inputs.get('ethical_pdma_result'), dict) else {"status": "Skipped or error", "details": str(triaged_inputs.get('ethical_pdma_result'))})
-                ),
-                csdma_assessment_summary=(
-                    triaged_inputs['csdma_result'].model_dump()
-                    if isinstance(triaged_inputs.get('csdma_result'), BaseModel)
-                    else ({"summary": triaged_inputs.get('csdma_result')} if isinstance(triaged_inputs.get('csdma_result'), dict) else {"status": "Skipped or error", "details": str(triaged_inputs.get('csdma_result'))})
-                ),
-                dsdma_assessment_summary=(
-                    triaged_inputs['dsdma_result'].model_dump()
-                    if isinstance(triaged_inputs.get('dsdma_result'), BaseModel)
-                    else ({"summary": triaged_inputs.get('dsdma_result')} if isinstance(triaged_inputs.get('dsdma_result'), dict) else {"status": "Skipped or error", "details": str(triaged_inputs.get('dsdma_result'))})
-                )
+            ponder_params = PonderParams(questions=["Forced ponder: What are the key ambiguities?", "Forced ponder: How can this be clarified?"])
+            return ActionSelectionResult(
+                selected_action=HandlerActionType.PONDER,
+                action_parameters=ponder_params.model_dump(mode='json'),
+                rationale="Forced PONDER for testing ponder loop.",
+                confidence=None,
+                raw_llm_response=None
             )
         # --- End special case ---
         
@@ -395,8 +447,10 @@ Adhere strictly to the schema for your JSON output.
 
         system_snapshot_block = ""
         user_profiles_block = ""
-        if original_thought.processing_context and isinstance(original_thought.processing_context.get("system_snapshot"), dict):
-            system_snapshot = original_thought.processing_context.get("system_snapshot")
+        # Use processing_context_data obtained from triaged_inputs
+        if processing_context_data and isinstance(processing_context_data, dict) and \
+           isinstance(processing_context_data.get("system_snapshot"), dict):
+            system_snapshot = processing_context_data.get("system_snapshot")
             user_profiles_block = format_user_profiles(system_snapshot.get("user_profiles"))
             system_snapshot_block = format_system_snapshot(system_snapshot)
 
@@ -407,8 +461,9 @@ Adhere strictly to the schema for your JSON output.
         )
 
         identity_block = ""
-        if hasattr(original_thought, "processing_context") and original_thought.processing_context:
-            identity_block = original_thought.processing_context.get("identity_context", "")
+        # Use processing_context_data obtained from triaged_inputs
+        if processing_context_data and isinstance(processing_context_data, dict):
+            identity_block = processing_context_data.get("identity_context", "")
 
         system_message = format_system_prompt_blocks(
             identity_block,
@@ -425,185 +480,110 @@ Adhere strictly to the schema for your JSON output.
         ]
 
         try:
-            # Use the internal _ActionSelectionLLMResponse model for the instructor call
-            llm_response_internal: _ActionSelectionLLMResponse = await self.aclient.chat.completions.create(
+            # Use ActionSelectionResult as the response model for the instructor call
+            llm_response_internal: ActionSelectionResult = await self.aclient.chat.completions.create(
                 model=self.model_name,
-                response_model=_ActionSelectionLLMResponse, # Use internal model
+                response_model=ActionSelectionResult,  # Use schema directly
                 messages=messages,
                 max_tokens=1500,
-                max_retries=self.max_retries # Pass configured max_retries here
+                max_retries=self.max_retries
             )
 
-            # Manually construct the final ActionSelectionPDMAResult
-            # and parse action_parameters
-            parsed_action_params: Union[ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]] = llm_response_internal.action_parameters
-            if isinstance(llm_response_internal.action_parameters, dict):  # If LLM returns a dict, try to parse to specific type
-                action_type = llm_response_internal.selected_handler_action
-                if not isinstance(llm_response_internal.action_parameters, (ObserveParams, SpeakParams, ActParams, PonderParams, RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams)):
-                    try:
-                        if action_type == HandlerActionType.OBSERVE:
-                            parsed_action_params = ObserveParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.SPEAK:
-                            parsed_action_params = SpeakParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.TOOL:
-                            parsed_action_params = ActParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.PONDER:
-                            parsed_action_params = PonderParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.REJECT:
-                            parsed_action_params = RejectParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.DEFER:
-                            parsed_action_params = DeferParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.MEMORIZE:
-                            parsed_action_params = MemorizeParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.REMEMBER:
-                            parsed_action_params = RememberParams(**llm_response_internal.action_parameters)
-                        elif action_type == HandlerActionType.FORGET:
-                            parsed_action_params = ForgetParams(**llm_response_internal.action_parameters)
-                        else:
-                            parsed_action_params = llm_response_internal.action_parameters
-                    except ValidationError as ve:
-                        logger.warning(f"Could not parse action_parameters dict into specific model for {action_type}: {ve}. Using raw dict.")
-                        parsed_action_params = llm_response_internal.action_parameters
+            # action_parameters may still need parsing to the correct type, but the schema is now consistent
+            parsed_action_params = llm_response_internal.action_parameters
+            if isinstance(parsed_action_params, dict):
+                action_type = llm_response_internal.selected_action
+                try:
+                    if action_type == HandlerActionType.OBSERVE:
+                        parsed_action_params = ObserveParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.SPEAK:
+                        parsed_action_params = SpeakParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.TOOL:
+                        parsed_action_params = ToolParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.PONDER:
+                        parsed_action_params = PonderParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.REJECT:
+                        parsed_action_params = RejectParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.DEFER:
+                        parsed_action_params = DeferParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.MEMORIZE:
+                        parsed_action_params = MemorizeParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.REMEMBER:
+                        parsed_action_params = RememberParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.FORGET:
+                        parsed_action_params = ForgetParams(**parsed_action_params)
+                except ValidationError as ve:
+                    logger.warning(f"Could not parse action_parameters dict into specific model for {action_type}: {ve}. Using raw dict.")
+                    # fallback to dict
+            # Convert to dict for ActionSelectionResult
+            if isinstance(parsed_action_params, BaseModel):
+                action_params_dict = parsed_action_params.model_dump(mode='json')
+            elif isinstance(parsed_action_params, dict):
+                action_params_dict = parsed_action_params
             else:
-                parsed_action_params = llm_response_internal.action_parameters
+                logger.warning(f"action_parameters is not a Pydantic model or dict: {type(parsed_action_params)}. Using empty dict.")
+                action_params_dict = {}
 
-            # Get raw response if available (instructor might attach it)
-            raw_llm_response_str = None
-            if hasattr(llm_response_internal, '_raw_response'):
-                raw_llm_response_str = str(llm_response_internal._raw_response)
+            # --- Inject channel_id for SPEAK actions if available in context ---
+            if (
+                llm_response_internal.selected_action == HandlerActionType.SPEAK
+                and isinstance(action_params_dict, dict)
+            ):
+                channel_id = None
+                processing_context = triaged_inputs.get('processing_context')
+                if processing_context:
+                    if hasattr(processing_context, 'identity_context') and processing_context.identity_context:
+                        if isinstance(processing_context.identity_context, str) and 'channel' in processing_context.identity_context:
+                            import re
+                            match = re.search(r"channel is (\S+)", processing_context.identity_context)
+                            if match:
+                                channel_id = match.group(1)
+                    elif isinstance(processing_context, dict):
+                        channel_id = (
+                            (processing_context.get('identity_context', {}) or {}).get('channel_id')
+                            or (processing_context.get('initial_task_context', {}) or {}).get('channel_id')
+                            or processing_context.get('channel_id')
+                        )
+                if channel_id:
+                    action_params_dict['channel_id'] = channel_id
+            # --- End channel_id injection ---
 
-            final_action_eval = ActionSelectionPDMAResult(
-                schema_version=llm_response_internal.schema_version,
-                context_summary_for_action_selection=llm_response_internal.context_summary_for_action_selection,
-                action_alignment_check=llm_response_internal.action_alignment_check,
-                action_conflicts=llm_response_internal.action_conflicts,
-                action_resolution=llm_response_internal.action_resolution,
-                selected_handler_action=llm_response_internal.selected_handler_action,
-                action_parameters=parsed_action_params, # Use the parsed or original dict
-                action_selection_rationale=llm_response_internal.action_selection_rationale,
-                monitoring_for_selected_action=llm_response_internal.monitoring_for_selected_action,
-                confidence_score=llm_response_internal.confidence_score,
-                raw_llm_response=raw_llm_response_str # Populate from the internal response
+            # Return a new ActionSelectionResult with possibly updated action_parameters
+            final_action_eval = ActionSelectionResult(
+                selected_action=llm_response_internal.selected_action,
+                action_parameters=action_params_dict,
+                rationale=llm_response_internal.rationale,
+                confidence=getattr(llm_response_internal, 'confidence', None),
+                raw_llm_response=getattr(llm_response_internal, 'raw_llm_response', None)
             )
-
-            # Populate the decision_input_context_snapshot
-            input_snapshot_for_decision = {}
-            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
-                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
-                if system_snapshot_data is not None:
-                    if isinstance(system_snapshot_data, dict): # Ensure it's a dict
-                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
-                    else: # It's not a dict but not None (e.g. error string)
-                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
-                else: # system_snapshot key not found
-                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
-                
-                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
-                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
-                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
-            else: # processing_context attribute doesn't exist or is None/empty
-                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
-            
-            final_action_eval.decision_input_context_snapshot = input_snapshot_for_decision
-
-            logger.info(f"ActionSelectionPDMA (instructor) evaluation successful for thought ID {original_thought.thought_id}: Chose {final_action_eval.selected_handler_action.value}")
+            logger.info(f"ActionSelectionPDMA (instructor) evaluation successful for thought ID {original_thought.thought_id}: Chose {final_action_eval.selected_action.value}")
             logger.debug(f"ActionSelectionPDMA (instructor) action_parameters: {final_action_eval.action_parameters}")
             return final_action_eval
 
         except InstructorRetryException as e_instr:
             error_detail = e_instr.errors() if hasattr(e_instr, 'errors') else str(e_instr)
             logger.error(f"ActionSelectionPDMA (instructor) InstructorRetryException for thought {original_thought.thought_id}: {error_detail}", exc_info=True)
-            fallback_params = PonderParams(key_questions=[f"System error during action selection: {error_detail}"])
+            fallback_params = PonderParams(questions=[f"System error during action selection: {error_detail}"]) # Corrected key_questions to questions
 
-            input_snapshot_for_decision = {}
-            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
-                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
-                if system_snapshot_data is not None:
-                    if isinstance(system_snapshot_data, dict):
-                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
-                    else:
-                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
-                else:
-                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
-                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
-                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
-                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
-            else:
-                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
 
-            return ActionSelectionPDMAResult(
-                context_summary_for_action_selection="Error: LLM/Instructor validation error during action selection.",
-                action_alignment_check={"error": f"InstructorRetryException: {error_detail}"},
-                decision_input_context_snapshot=input_snapshot_for_decision,
-                selected_handler_action=HandlerActionType.PONDER, 
-                action_parameters=fallback_params,
-                action_selection_rationale=f"Fallback due to InstructorRetryException: {error_detail}",
-                monitoring_for_selected_action="Monitor system logs for error resolution.",
+            # Fallback should only populate fields of ActionSelectionResult.
+            return ActionSelectionResult(
+                selected_action=HandlerActionType.PONDER, 
+                action_parameters=fallback_params.model_dump(mode='json'),
+                rationale=f"Fallback due to InstructorRetryException: {error_detail}",
                 raw_llm_response=f"InstructorRetryException: {error_detail}"
             )
         except Exception as e:
             logger.error(f"ActionSelectionPDMA (instructor) evaluation failed for thought ID {original_thought.thought_id}: {e}", exc_info=True)
-            fallback_params = PonderParams(key_questions=[f"System error during action selection: {str(e)}"])
+            fallback_params = PonderParams(questions=[f"System error during action selection: {str(e)}"]) # Corrected key_questions to questions
 
-            input_snapshot_for_decision = {}
-            if hasattr(original_thought, 'processing_context') and original_thought.processing_context:
-                system_snapshot_data = original_thought.processing_context.get("system_snapshot")
-                if system_snapshot_data is not None:
-                    if isinstance(system_snapshot_data, dict):
-                        input_snapshot_for_decision["system_snapshot"] = system_snapshot_data.copy()
-                    else:
-                        input_snapshot_for_decision["system_snapshot_error_details"] = str(system_snapshot_data)
-                else:
-                    input_snapshot_for_decision["system_snapshot_status"] = "Not found in processing_context"
-                initial_task_ctx = original_thought.processing_context.get("initial_task_context")
-                if initial_task_ctx is not None and isinstance(initial_task_ctx, dict):
-                    input_snapshot_for_decision["initial_task_context_at_decision"] = initial_task_ctx.copy()
-            else:
-                input_snapshot_for_decision["processing_context_status"] = "Not available or empty at decision point"
-
-            return ActionSelectionPDMAResult(
-                context_summary_for_action_selection=f"Error: General exception - {str(e)}",
-                action_alignment_check={"error": f"General Exception: {str(e)}"},
-                decision_input_context_snapshot=input_snapshot_for_decision,
-                selected_handler_action=HandlerActionType.PONDER,
-                action_parameters=fallback_params,
-                action_selection_rationale=f"Fallback due to General Exception: {str(e)}",
-                monitoring_for_selected_action="Monitor system logs for error resolution.",
+            # input_snapshot_for_decision logic removed as it's not part of ActionSelectionResult
+            return ActionSelectionResult(
+                selected_action=HandlerActionType.PONDER,
+                action_parameters=fallback_params.model_dump(mode='json'),
+                rationale=f"Fallback due to General Exception: {str(e)}",
                 raw_llm_response=f"Exception: {str(e)}"
             )
 
     def __repr__(self) -> str:
         return f"<ActionSelectionPDMAEvaluator model='{self.model_name}' (using instructor)>"
-
-
-# --- Internal Model for Instructor Parsing (Workaround for Grammar Issues) ---
-# Mirrors ActionSelectionPDMAResult but simplifies action_parameters to Dict
-class _ActionSelectionLLMResponse(BaseModel):
-    schema_version: CIRISSchemaVersion = Field(default=CIRISSchemaVersion.V1_0_BETA)
-    context_summary_for_action_selection: str
-    action_alignment_check: Dict[str, Any]
-    action_conflicts: Optional[str] = None
-    action_resolution: Optional[str] = None
-    selected_handler_action: CoreHandlerActionType  # Use aliased HandlerActionType
-    action_parameters: Union[
-        ObserveParams, SpeakParams, ActParams, PonderParams,
-        RejectParams, DeferParams, MemorizeParams, RememberParams, ForgetParams, Dict[str, Any]
-    ]
-    action_selection_rationale: str
-    monitoring_for_selected_action: Union[Dict[str, Union[str, List[str], int]], str]  # Allow int for timeout
-    confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0)
-    class Config:
-        populate_by_name = True
-
-# --- Mapping from HandlerActionType to specific Param Model ---
-ACTION_PARAM_MODELS: Dict[CoreHandlerActionType, type[BaseModel]] = {
-    CoreHandlerActionType.OBSERVE: ObserveParams,
-    CoreHandlerActionType.SPEAK: SpeakParams,
-    CoreHandlerActionType.TOOL: ActParams,
-    CoreHandlerActionType.PONDER: PonderParams,
-    CoreHandlerActionType.REJECT: RejectParams,
-    CoreHandlerActionType.DEFER: DeferParams,
-    CoreHandlerActionType.MEMORIZE: MemorizeParams,
-    CoreHandlerActionType.REMEMBER: RememberParams,
-    CoreHandlerActionType.FORGET: ForgetParams,
-}

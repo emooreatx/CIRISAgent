@@ -4,14 +4,14 @@ import asyncio
 from pathlib import Path
 from typing import Optional
 
-from ciris_engine.core.config_schemas import SerializableAgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AgentProfile
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROFILE_PATH = Path("ciris_profiles/default.yaml")
 
 
-async def load_profile(profile_path: Optional[Path]) -> Optional[SerializableAgentProfile]:
+async def load_profile(profile_path: Optional[Path]) -> Optional[AgentProfile]:
     """Asynchronously load an agent profile from a YAML file.
 
     This coroutine should be awaited so file I/O does not block the event loop.
@@ -58,16 +58,40 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[SerializableAge
         if "dsdma_kwargs" not in profile_data and "dsdma_overrides" in profile_data:
             profile_data["dsdma_kwargs"] = profile_data.pop("dsdma_overrides")
 
-        # Convert permitted_actions from string to HandlerActionType if needed
+        # Convert permitted_actions from string to HandlerActionType robustly
         if "permitted_actions" in profile_data:
-            from ciris_engine.core.foundational_schemas import HandlerActionType
-            profile_data["permitted_actions"] = [
-                HandlerActionType(a) if not isinstance(a, HandlerActionType) else a
-                for a in profile_data["permitted_actions"]
-            ]
+            from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+            converted_actions = []
+            for action in profile_data["permitted_actions"]:
+                if isinstance(action, HandlerActionType):
+                    converted_actions.append(action)
+                elif isinstance(action, str):
+                    try:
+                        # Try to convert string to enum (case-insensitive value)
+                        enum_action = HandlerActionType(action)
+                        converted_actions.append(enum_action)
+                    except ValueError:
+                        try:
+                            # Try by name (case-insensitive)
+                            enum_action = HandlerActionType[action.upper()]
+                            converted_actions.append(enum_action)
+                        except KeyError:
+                            # Try matching by lowercased value
+                            matched = False
+                            for member in HandlerActionType:
+                                if member.value.lower() == action.lower():
+                                    converted_actions.append(member)
+                                    matched = True
+                                    break
+                            if not matched:
+                                logger.warning(f"Unknown action '{action}' in permitted_actions, skipping")
+                else:
+                    logger.warning(f"Invalid action type {type(action)} in permitted_actions")
+            # Ensure all are HandlerActionType, filter out any str
+            profile_data["permitted_actions"] = [a for a in converted_actions if isinstance(a, HandlerActionType)]
 
         # The profile_data should directly map to SerializableAgentProfile fields
-        profile = SerializableAgentProfile(**profile_data)
+        profile = AgentProfile(**profile_data)
         logger.info(f"Successfully loaded profile '{profile.name}' from {profile_path}")
         return profile
         

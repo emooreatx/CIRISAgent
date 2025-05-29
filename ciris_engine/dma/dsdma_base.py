@@ -6,12 +6,12 @@ import instructor # For instructor.Mode
 from openai import AsyncOpenAI # For type hinting raw client
 
 # Corrected imports based on project structure
-from ciris_engine.core.agent_processing_queue import ProcessingQueueItem
-from ciris_engine.core.agent_core_schemas import DSDMAResult
-from ciris_engine.utils.context_formatters import format_user_profiles_for_prompt, format_system_snapshot_for_prompt # New import
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
+from ciris_engine.schemas.dma_results_v1 import DSDMAResult
+from ciris_engine.formatters import format_user_profiles, format_system_snapshot
 from pydantic import BaseModel, Field
 from instructor.exceptions import InstructorRetryException
-from ciris_engine.core.config_manager import get_config # To access global config
+from ciris_engine.config.config_manager import get_config # To access global config
 
 logger = logging.getLogger(__name__) # Add logger
 
@@ -20,7 +20,16 @@ class BaseDSDMA(ABC):
     Abstract Base Class for Domain-Specific Decision-Making Algorithms.
     Handles instructor client patching based on global config.
     """
-    DEFAULT_TEMPLATE: Optional[str] = "" # Subclasses should override this
+    DEFAULT_TEMPLATE: Optional[str] = (
+        "You are a domain-specific evaluator for the '{domain_name}' domain. "
+        "Your primary goal is to assess how well a given 'thought' aligns with the specific rules, "
+        "objectives, and knowledge pertinent to this domain. "
+        "Consider the provided domain rules: '{rules_summary_str}' and the general platform context: '{context_str}'. "
+        "Additionally, user profile information and system snapshot details will be provided with the thought for background awareness. "
+        "When evaluating thoughts that might lead to TOOL actions, consider whether the tools available "
+        "are appropriate for the domain and whether their use aligns with domain-specific best practices. "
+        "Focus your evaluation on domain alignment."
+    )
 
     def __init__(self,
                  domain_name: str,
@@ -68,13 +77,13 @@ class BaseDSDMA(ABC):
         system_snapshot_context_str = ""
         user_profile_context_str = ""
 
-        if hasattr(thought_item, 'processing_context') and thought_item.processing_context:
-            system_snapshot = thought_item.processing_context.get("system_snapshot")
+        if hasattr(thought_item, 'context') and thought_item.context:
+            system_snapshot = thought_item.context.get("system_snapshot")
             if system_snapshot:
                 user_profiles_data = system_snapshot.get("user_profiles")
-                user_profile_context_str = format_user_profiles_for_prompt(user_profiles_data)
-                
-                system_snapshot_context_str = format_system_snapshot_for_prompt(system_snapshot, thought_item.processing_context)
+                user_profile_context_str = format_user_profiles(user_profiles_data)
+
+                system_snapshot_context_str = format_system_snapshot(system_snapshot)
 
         # Prepare system message content
         # Subclasses might provide a more specific template.
@@ -118,16 +127,16 @@ class BaseDSDMA(ABC):
             )
 
             result = DSDMAResult(
-                domain_name=self.domain_name,
-                domain_alignment_score=min(max(llm_eval_data.domain_alignment_score, 0.0), 1.0),
+                domain=self.domain_name, # Corrected field name
+                alignment_score=min(max(llm_eval_data.domain_alignment_score, 0.0), 1.0), # Corrected field name
                 recommended_action=llm_eval_data.recommended_action,
                 flags=llm_eval_data.flags,
-                reasoning=llm_eval_data.reasoning,
-                domain_specific_output={},
+                reasoning=llm_eval_data.reasoning
+                # domain_specific_output was not a field in DSDMAResult schema
             )
             logger.info(
                 f"DSDMA '{self.domain_name}' (instructor) evaluation successful for thought ID {thought_item.thought_id}: "
-                f"Score {result.domain_alignment_score}, Recommended Action: {result.recommended_action}"
+                f"Score {result.alignment_score}, Recommended Action: {result.recommended_action}" # Corrected field name
             )
             if hasattr(llm_eval_data, "_raw_response"):
                 result.raw_llm_response = str(llm_eval_data._raw_response)
@@ -139,8 +148,8 @@ class BaseDSDMA(ABC):
                 exc_info=True,
             )
             return DSDMAResult(
-                domain_name=self.domain_name,
-                domain_alignment_score=0.0,
+                domain=self.domain_name, # Corrected field name
+                alignment_score=0.0,   # Corrected field name
                 recommended_action=None,
                 flags=["Instructor_ValidationError"],
                 reasoning=f"Failed DSDMA evaluation via instructor due to validation error: {error_detail}",
@@ -152,8 +161,8 @@ class BaseDSDMA(ABC):
                 exc_info=True,
             )
             return DSDMAResult(
-                domain_name=self.domain_name,
-                domain_alignment_score=0.0,
+                domain=self.domain_name, # Corrected field name
+                alignment_score=0.0,   # Corrected field name
                 recommended_action=None,
                 flags=["LLM_Error_Instructor"],
                 reasoning=f"Failed DSDMA evaluation via instructor: {str(e)}",
@@ -162,3 +171,4 @@ class BaseDSDMA(ABC):
 
     def __repr__(self) -> str:
         return f"<BaseDSDMA domain='{self.domain_name}'>"
+        # No legacy field names present; v1 field names are already used throughout.

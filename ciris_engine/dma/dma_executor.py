@@ -1,20 +1,19 @@
 import logging
 from typing import Any, Dict, Optional, Callable, Awaitable
 
-from ..core.thought_escalation import escalate_dma_failure
-from ..core.agent_core_schemas import Thought
-from ..core.agent_processing_queue import ProcessingQueueItem
+from ..processor.thought_escalation import escalate_dma_failure
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.processor.processing_queue import ProcessingQueueItem
 
 from .pdma import EthicalPDMAEvaluator
 from .csdma import CSDMAEvaluator
 from .dsdma_base import BaseDSDMA
 from .action_selection_pdma import ActionSelectionPDMAEvaluator
-from ..core.agent_processing_queue import ProcessingQueueItem
-from ..core.dma_results import (
-    EthicalPDMAResult,
+from ciris_engine.schemas.dma_results_v1 import (
+    EthicalDMAResult,
     CSDMAResult,
     DSDMAResult,
-    ActionSelectionPDMAResult,
+    ActionSelectionResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,7 +59,7 @@ async def run_dma_with_retries(
 
 async def run_pdma(
     evaluator: EthicalPDMAEvaluator, thought: ProcessingQueueItem
-) -> EthicalPDMAResult:
+) -> EthicalDMAResult:
     """Run the Ethical PDMA for the given thought."""
     return await evaluator.evaluate(thought)
 
@@ -83,6 +82,6 @@ async def run_dsdma(
 
 async def run_action_selection_pdma(
     evaluator: ActionSelectionPDMAEvaluator, triaged_inputs: Dict[str, Any]
-) -> ActionSelectionPDMAResult:
+) -> ActionSelectionResult:
     """Select the next handler action using the triaged DMA results."""
     return await evaluator.evaluate(triaged_inputs=triaged_inputs)
