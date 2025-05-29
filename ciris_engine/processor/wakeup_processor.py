@@ -377,12 +377,18 @@ class WakeupProcessor(BaseProcessor):
                     if result:
                         await self._dispatch_step_action(result, thought, step_task)
                     logger.info(f"Queued and dispatched non-blocking wakeup step {i+1}: {step_task.context.get('step_type', 'UNKNOWN')}")
-        # 2. For all step tasks, process any PROCESSING or PENDING thoughts (e.g., follow-ups)
+        # 2. For all ACTIVE step tasks, process any PROCESSING or PENDING thoughts (e.g., follow-ups)
         for i, step_task in enumerate(self.wakeup_tasks[1:]):
+            current_task = persistence.get_task_by_id(step_task.task_id)
+            if not current_task or current_task.status != TaskStatus.ACTIVE:
+                continue
+
             all_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
             for t in all_thoughts:
                 if getattr(t, 'status', None) in [ThoughtStatus.PROCESSING, ThoughtStatus.PENDING]:
-                    logger.info(f"Processing follow-up or pending thought {t.thought_id} for step {step_task.context.get('step_type', 'UNKNOWN')}")
+                    logger.info(
+                        f"Processing follow-up or pending thought {t.thought_id} for step {step_task.context.get('step_type', 'UNKNOWN')}"
+                    )
                     result = await self._process_step_thought(t)
                     if result:
                         await self._dispatch_step_action(result, t, step_task)
