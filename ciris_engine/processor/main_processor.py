@@ -44,18 +44,18 @@ class AgentProcessor:
         """Initialize the agent processor with v1 configuration."""
         self.app_config = app_config
         self.thought_processor = thought_processor
-        self.action_dispatcher = action_dispatcher
+        self._action_dispatcher = action_dispatcher  # Store internally
         self.services = services
         self.startup_channel_id = startup_channel_id
         
         # Initialize state manager
         self.state_manager = StateManager(initial_state=AgentState.SHUTDOWN)
         
-        # Initialize specialized processors
+        # Initialize specialized processors, passing the initial dispatcher
         self.wakeup_processor = WakeupProcessor(
             app_config=app_config,
             thought_processor=thought_processor,
-            action_dispatcher=action_dispatcher,
+            action_dispatcher=self._action_dispatcher, # Use internal dispatcher
             services=services,
             startup_channel_id=startup_channel_id
         )
@@ -63,21 +63,21 @@ class AgentProcessor:
         self.work_processor = WorkProcessor(
             app_config=app_config,
             thought_processor=thought_processor,
-            action_dispatcher=action_dispatcher,
+            action_dispatcher=self._action_dispatcher, # Use internal dispatcher
             services=services
         )
         
         self.play_processor = PlayProcessor(
             app_config=app_config,
             thought_processor=thought_processor,
-            action_dispatcher=action_dispatcher,
+            action_dispatcher=self._action_dispatcher, # Use internal dispatcher
             services=services
         )
         
         self.solitude_processor = SolitudeProcessor(
             app_config=app_config,
             thought_processor=thought_processor,
-            action_dispatcher=action_dispatcher,
+            action_dispatcher=self._action_dispatcher, # Use internal dispatcher
             services=services
         )
         
@@ -101,174 +101,200 @@ class AgentProcessor:
         self._processing_task: Optional[asyncio.Task] = None
         
         logger.info("AgentProcessor initialized with v1 schemas and modular processors")
+
+    @property
+    def action_dispatcher(self) -> "ActionDispatcher":
+        return self._action_dispatcher
+
+    @action_dispatcher.setter
+    def action_dispatcher(self, new_dispatcher: "ActionDispatcher"):
+        logger.info(f"AgentProcessor's action_dispatcher is being updated to: {new_dispatcher}")
+        self._action_dispatcher = new_dispatcher
+        # Propagate the new dispatcher to sub-processors
+        # Ensure sub-processors have an 'action_dispatcher' attribute to be updated
+        sub_processors_to_update = [
+            getattr(self, 'wakeup_processor', None),
+            getattr(self, 'work_processor', None),
+            getattr(self, 'play_processor', None),
+            getattr(self, 'solitude_processor', None)
+        ]
+        for sub_processor in sub_processors_to_update:
+            if sub_processor and hasattr(sub_processor, 'action_dispatcher'):
+                logger.info(f"Updating action_dispatcher for {sub_processor.__class__.__name__}")
+                sub_processor.action_dispatcher = new_dispatcher
+            elif sub_processor:
+                logger.warning(f"{sub_processor.__class__.__name__} does not have an 'action_dispatcher' attribute to update.")
+        logger.info("AgentProcessor's action_dispatcher updated and propagated if applicable.")
     
-async def start_processing(self, num_rounds: Optional[int] = None):
-    """Start the main agent processing loop."""
-    if self._processing_task and not self._processing_task.done():
-        logger.warning("Processing is already running")
-        return
-    
-    self._stop_event.clear()
-    logger.info(f"Starting agent processing (rounds: {num_rounds or 'infinite'})")
-    
-    # Transition to WAKEUP state
-    if not self.state_manager.transition_to(AgentState.WAKEUP):
-        logger.error("Failed to transition to WAKEUP state")
-        return
-    
-    # Initialize wakeup processor
-    await self.wakeup_processor.initialize()
-    
-    # Process WAKEUP in non-blocking mode
-    wakeup_complete = False
-    wakeup_round = 0
-    max_wakeup_rounds = 30  # Safety limit
-    
-    while not wakeup_complete and not self._stop_event.is_set() and wakeup_round < max_wakeup_rounds:
-        logger.info(f"=== WAKEUP Round {wakeup_round} ===")
+    async def start_processing(self, num_rounds: Optional[int] = None):
+        """Start the main agent processing loop."""
+        if self._processing_task and not self._processing_task.done():
+            logger.warning("Processing is already running")
+            return
         
-        # 1. Run wakeup processor in non-blocking mode
-        wakeup_result = await self.wakeup_processor.process(wakeup_round, non_blocking=True)
-        wakeup_complete = wakeup_result.get("wakeup_complete", False)
+        self._stop_event.clear()
+        logger.info(f"Starting agent processing (rounds: {num_rounds or 'infinite'})")
+        
+        # Transition to WAKEUP state
+        if not self.state_manager.transition_to(AgentState.WAKEUP):
+            logger.error("Failed to transition to WAKEUP state")
+            return
+        
+        # Initialize wakeup processor
+        await self.wakeup_processor.initialize()
+        
+        # Process WAKEUP in non-blocking mode
+        wakeup_complete = False
+        wakeup_round = 0
+        max_wakeup_rounds = 30  # Safety limit
+        
+        while not wakeup_complete and not self._stop_event.is_set() and wakeup_round < max_wakeup_rounds:
+            logger.info(f"=== WAKEUP Round {wakeup_round} ===")
+            
+            # 1. Run wakeup processor in non-blocking mode
+            wakeup_result = await self.wakeup_processor.process_wakeup(wakeup_round, non_blocking=True)
+            wakeup_complete = wakeup_result.get("wakeup_complete", False)
+            
+            if not wakeup_complete:
+                # 2. Process any pending thoughts from ALL tasks (not just wakeup)
+                # This ensures PONDER and other actions get processed
+                thoughts_processed = await self._process_pending_thoughts_async()
+                
+                logger.info(f"Wakeup round {wakeup_round}: {wakeup_result.get('steps_completed', 0)}/{wakeup_result.get('total_steps', 5)} steps complete, {thoughts_processed} thoughts processed")
+                
+                # 3. Brief delay between rounds
+                await asyncio.sleep(1.0)
+            else:
+                logger.info("✓ Wakeup sequence completed successfully!")
+            
+            wakeup_round += 1
+            self.current_round_number += 1
         
         if not wakeup_complete:
-            # 2. Process any pending thoughts from ALL tasks (not just wakeup)
-            # This ensures PONDER and other actions get processed
-            thoughts_processed = await self._process_pending_thoughts_async()
-            
-            logger.info(f"Wakeup round {wakeup_round}: {wakeup_result.get('steps_completed', 0)}/{wakeup_result.get('total_steps', 5)} steps complete, {thoughts_processed} thoughts processed")
-            
-            # 3. Brief delay between rounds
-            await asyncio.sleep(1.0)
-        else:
-            logger.info("✓ Wakeup sequence completed successfully!")
+            logger.error(f"Wakeup did not complete within {max_wakeup_rounds} rounds")
+            await self.stop_processing()
+            return
         
-        wakeup_round += 1
-        self.current_round_number += 1
-    
-    if not wakeup_complete:
-        logger.error(f"Wakeup did not complete within {max_wakeup_rounds} rounds")
-        await self.stop_processing()
-        return
-    
-    # Transition to WORK state after wakeup completes
-    if not self.state_manager.transition_to(AgentState.WORK):
-        logger.error("Failed to transition to WORK state after wakeup")
-        await self.stop_processing()
-        return
-    
-    # Mark wakeup as complete in state metadata
-    self.state_manager.update_state_metadata("wakeup_complete", True)
-    
-    # Initialize work processor
-    await self.work_processor.initialize()
-    
-    # Start main processing loop
-    self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
-    
-    try:
-        await self._processing_task
-    except asyncio.CancelledError:
-        logger.info("Processing task was cancelled")
-    except Exception as e:
-        logger.error(f"Processing loop error: {e}", exc_info=True)
-    finally:
-        self._stop_event.set()
+        # Transition to WORK state after wakeup completes
+        if not self.state_manager.transition_to(AgentState.WORK):
+            logger.error("Failed to transition to WORK state after wakeup")
+            await self.stop_processing()
+            return
+        
+        # Mark wakeup as complete in state metadata
+        self.state_manager.update_state_metadata("wakeup_complete", True)
+        
+        # Initialize work processor
+        await self.work_processor.initialize()
+        
+        # Start main processing loop
+        self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
+        
+        try:
+            await self._processing_task
+        except asyncio.CancelledError:
+            logger.info("Processing task was cancelled")
+        except Exception as e:
+            logger.error(f"Processing loop error: {e}", exc_info=True)
+        finally:
+            self._stop_event.set()
 
-async def _process_pending_thoughts_async(self) -> int:
-    """
-    Process all pending thoughts asynchronously.
-    This is the key to non-blocking operation - it processes ALL thoughts,
-    not just wakeup thoughts.
-    """
-    # Get all pending thoughts for active tasks
-    pending_thoughts = persistence.get_pending_thoughts_for_active_tasks()
-    
-    if not pending_thoughts:
-        return 0
-    
-    processed_count = 0
-    
-    # Process thoughts in parallel batches
-    batch_size = 5  # Process up to 5 thoughts concurrently
-    
-    for i in range(0, len(pending_thoughts), batch_size):
-        batch = pending_thoughts[i:i + batch_size]
+    async def _process_pending_thoughts_async(self) -> int:
+        """
+        Process all pending thoughts asynchronously.
+        This is the key to non-blocking operation - it processes ALL thoughts,
+        not just wakeup thoughts.
+        """
+        # Get all pending thoughts for active tasks
+        pending_thoughts = persistence.get_pending_thoughts_for_active_tasks()
         
-        # Create tasks for parallel processing
-        tasks = []
-        for thought in batch:
-            # Mark as PROCESSING
-            persistence.update_thought_status(
-                thought_id=thought.thought_id,
-                status=ThoughtStatus.PROCESSING
-            )
+        if not pending_thoughts:
+            return 0
+        
+        processed_count = 0
+        
+        # Process thoughts in parallel batches
+        batch_size = 5  # Process up to 5 thoughts concurrently
+        
+        for i in range(0, len(pending_thoughts), batch_size):
+            batch = pending_thoughts[i:i + batch_size]
             
-            # Create processing task
-            task = self._process_single_thought(thought)
-            tasks.append(task)
-        
-        # Wait for batch to complete
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        for result, thought in zip(results, batch):
-            if isinstance(result, Exception):
-                logger.error(f"Error processing thought {thought.thought_id}: {result}")
+            # Create tasks for parallel processing
+            tasks = []
+            for thought in batch:
+                # Mark as PROCESSING
                 persistence.update_thought_status(
                     thought_id=thought.thought_id,
-                    status=ThoughtStatus.FAILED,
-                    final_action={"error": str(result)}
+                    status=ThoughtStatus.PROCESSING
                 )
-            else:
-                processed_count += 1
-    
-    return processed_count
+                
+                # Create processing task
+                task = self._process_single_thought(thought)
+                tasks.append(task)
+            
+            # Wait for batch to complete
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            for result, thought in zip(results, batch):
+                if isinstance(result, Exception):
+                    logger.error(f"Error processing thought {thought.thought_id}: {result}")
+                    persistence.update_thought_status(
+                        thought_id=thought.thought_id,
+                        status=ThoughtStatus.FAILED,
+                        final_action={"error": str(result)}
+                    )
+                else:
+                    processed_count += 1
+        
+        return processed_count
 
-async def _process_single_thought(self, thought: Thought) -> bool:
-    """Process a single thought and dispatch its action."""
-    try:
-        # Create processing queue item
-        item = ProcessingQueueItem.from_thought(thought)
-        
-        # Process through thought processor
-        result = await self.thought_processor.process_thought(
-            thought_item=item,
-            platform_context={"origin": "wakeup_async"}
-        )
-        
-        if result:
-            # Get the task for context
-            task = persistence.get_task_by_id(thought.source_task_id)
+    async def _process_single_thought(self, thought: Thought) -> bool:
+        """Process a single thought and dispatch its action."""
+        try:
+            # Create processing queue item
+            item = ProcessingQueueItem.from_thought(thought)
             
-            # Build dispatch context
-            dispatch_context = {
-                "thought_id": thought.thought_id,
-                "source_task_id": thought.source_task_id,
-                "origin_service": "discord",
-                "round_number": self.current_round_number
-            }
-            
-            # Add task context if available
-            if task and task.context:
-                for key in ["channel_id", "author_name", "author_id"]:
-                    if key in task.context:
-                        dispatch_context[key] = task.context[key]
-            
-            # Dispatch the action
-            await self.action_dispatcher.dispatch(
-                action_selection_result=result,
-                thought=thought,
-                dispatch_context=dispatch_context
+            # Process through thought processor
+            result = await self.thought_processor.process_thought(
+                thought_item=item,
+                platform_context={"origin": "wakeup_async"}
             )
             
-            return True
-        else:
-            logger.warning(f"No result from processing thought {thought.thought_id}")
-            return False
-            
-    except Exception as e:
-        logger.error(f"Error processing thought {thought.thought_id}: {e}", exc_info=True)
-        raise
+            if result:
+                # Get the task for context
+                task = persistence.get_task_by_id(thought.source_task_id)
+                
+                # Build dispatch context
+                dispatch_context = {
+                    "thought_id": thought.thought_id,
+                    "source_task_id": thought.source_task_id,
+                    "origin_service": "discord",
+                    "round_number": self.current_round_number
+                }
+                
+                # Add task context if available
+                if task and task.context:
+                    for key in ["channel_id", "author_name", "author_id"]:
+                        if key in task.context:
+                            dispatch_context[key] = task.context[key]
+                # Ensure channel_id is always present in dispatch_context
+                if "channel_id" not in dispatch_context or not dispatch_context["channel_id"]:
+                    dispatch_context["channel_id"] = self.startup_channel_id
+                # Dispatch the action
+                await self.action_dispatcher.dispatch(
+                    action_selection_result=result,
+                    thought=thought,
+                    dispatch_context=dispatch_context
+                )
+                
+                return True
+            else:
+                logger.warning(f"No result from processing thought {thought.thought_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error processing thought {thought.thought_id}: {e}", exc_info=True)
+            raise
     
     async def stop_processing(self):
         """Stop the processing loop gracefully."""

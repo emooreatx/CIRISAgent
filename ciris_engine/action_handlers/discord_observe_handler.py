@@ -6,6 +6,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
+from ciris_engine.schemas.agent_core_schemas_v1 import Task
+
 from ciris_engine import persistence
 
 logger = logging.getLogger(__name__)
@@ -42,7 +45,7 @@ async def handle_discord_observe_event(
             return
 
         now_iso = datetime.now(timezone.utc).isoformat()
-        task = persistence.Task(
+        task = Task(
             task_id=message_id,
             description=description,
             status=persistence.TaskStatus.PENDING,
