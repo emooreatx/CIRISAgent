@@ -26,6 +26,18 @@ class GuardrailOrchestrator:
         dma_results_dict: Dict[str, Any]
     ) -> GuardrailResult:
         """Apply guardrails and handle overrides. Retries up to 3 times if guardrail fails."""
+        
+        # Skip guardrails for TASK_COMPLETE actions - they should proceed immediately
+        if action_result.selected_action == HandlerActionType.TASK_COMPLETE:
+            logger.debug(f"GuardrailOrchestrator: Skipping guardrails for TASK_COMPLETE action on thought {thought.thought_id}")
+            return GuardrailResult(
+                original_action=action_result,
+                final_action=action_result,
+                overridden=False,
+                override_reason=None,
+                epistemic_data=None,
+            )
+        
         # Parse the incoming dict into DMAResults model
         try:
             dma_results = DMAResults(**dma_results_dict)
@@ -87,14 +99,14 @@ class GuardrailOrchestrator:
                 passes_guardrail, reason, epistemic_data = await self.ethical_guardrails.check_action_output_safety(action_result)
                 if passes_guardrail:
                     break
-                logger.warning(f"Guardrail failed attempt {attempt} for thought ID {thought.thought_id}: {reason}")
+                logger.info(f"Guardrail failed attempt {attempt} for thought ID {thought.thought_id}: {reason}")
                 if attempt < max_retries:
                     continue
                 # Only proceed to override after final failed attempt
 
             override_action_result = None
             if not passes_guardrail:
-                logger.warning(f"Guardrail failed for thought ID {thought.thought_id}: {reason}. Overriding action to PONDER.")
+                logger.info(f"Guardrail failed for thought ID {thought.thought_id}: {reason}. Overriding action to PONDER.")
 
                 # Create ponder questions based on the guardrail failure
                 ponder_questions = [

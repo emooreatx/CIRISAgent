@@ -1,11 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, AsyncMock
 from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.schemas.dma_results_v1 import CSDMAResult
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from openai import AsyncOpenAI
 
-@pytest.mark.asyncio
 def test_csdma_init_and_patch(monkeypatch):
     aclient = MagicMock(spec=AsyncOpenAI)
     monkeypatch.setattr("instructor.patch", lambda c, mode: c)
@@ -14,7 +12,6 @@ def test_csdma_init_and_patch(monkeypatch):
     assert evaluator.prompt_overrides["csdma_system_prompt"] == "PROMPT"
     assert evaluator.aclient is aclient
 
-@pytest.mark.asyncio
 async def test_csdma_evaluate_thought(monkeypatch):
     aclient = MagicMock()
     evaluator = CSDMAEvaluator(aclient=aclient, model_name="m")

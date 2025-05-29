@@ -92,12 +92,12 @@ class EthicalGuardrails:
             
             if entropy > self.entropy_threshold:
                 reason = f"Output failed guardrail: Entropy ({entropy:.2f}) > threshold ({self.entropy_threshold:.2f}). Potential for being too chaotic/surprising."
-                logging.warning(f"Guardrail: {reason}")
+                logging.info(f"Guardrail: {reason}")
                 return False, reason, epistemic_data
 
             if coherence < self.coherence_threshold:
                 reason = f"Output failed guardrail: Coherence ({coherence:.2f}) < threshold ({self.coherence_threshold:.2f}). Potential for misalignment with CIRIS voice/values."
-                logging.warning(f"Guardrail: {reason}")
+                logging.info(f"Guardrail: {reason}")
                 return False, reason, epistemic_data
 
         optimization_result = await self._evaluate_optimization_veto(proposed_action_result)
@@ -108,7 +108,7 @@ class EthicalGuardrails:
             or optimization_result.decision in {"abort", "defer"}
         ):
             reason = f"Optimization veto triggered: {optimization_result.justification}"
-            logging.warning(f"Guardrail: {reason}")
+            logging.info(f"Guardrail: {reason}")
             return False, reason, epistemic_data
 
         humility_result = await self._evaluate_epistemic_humility(proposed_action_result)
@@ -116,7 +116,7 @@ class EthicalGuardrails:
 
         if humility_result.recommended_action in {"abort", "defer", "ponder"}:
             reason = f"Epistemic humility check requested {humility_result.recommended_action}: {humility_result.reflective_justification}"
-            logging.warning(f"Guardrail: {reason}")
+            logging.info(f"Guardrail: {reason}")
             return False, reason, epistemic_data
 
         if action_type == HandlerActionType.SPEAK:

@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from ciris_engine.services.cirisnode_client import CIRISNodeClient
 
 @pytest.mark.asyncio
@@ -10,7 +10,7 @@ async def test_run_simplebench(mock_async_client, mock_get_config):
     mock_client = AsyncMock()
     mock_async_client.return_value = mock_client
     mock_client.post.return_value.json = AsyncMock(return_value={"result": "ok"})
-    mock_client.post.return_value.raise_for_status.return_value = None
+    mock_client.post.return_value.raise_for_status = Mock(return_value=None)
     mock_get_config.return_value = MagicMock(cirisnode=MagicMock(base_url="http://x", load_env_vars=lambda: None))
     client = CIRISNodeClient(audit)
     mock_client.post.return_value = mock_client.post.return_value

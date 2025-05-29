@@ -5,7 +5,7 @@ from ciris_engine.persistence import tasks
 from ciris_engine.persistence.db import initialize_database
 from ciris_engine.schemas.agent_core_schemas_v1 import Task
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 
 def temp_db_file():
     f = tempfile.NamedTemporaryFile(delete=False)
@@ -13,7 +13,7 @@ def temp_db_file():
     return f.name
 
 def make_task(task_id, status=TaskStatus.ACTIVE, priority=0, created_at=None, updated_at=None):
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     return Task(
         task_id=task_id,
         description=f"desc-{task_id}",
@@ -79,7 +79,7 @@ def test_get_recent_completed_tasks():
     db_path = temp_db_file()
     try:
         initialize_database(db_path=db_path)
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         t1 = make_task("t6", status=TaskStatus.COMPLETED, updated_at=(now - timedelta(days=1)).isoformat())
         t2 = make_task("t7", status=TaskStatus.COMPLETED, updated_at=now.isoformat())
         t3 = make_task("t8", status=TaskStatus.PENDING)

@@ -68,6 +68,18 @@ class WakeupProcessor(BaseProcessor):
         """
         logger.info(f"Starting wakeup sequence (round {round_number}, non_blocking={non_blocking})")
         
+        # Run database maintenance only on round 0
+        if round_number == 0:
+            try:
+                from ciris_engine.services import maintenance_service
+                if hasattr(maintenance_service, 'run_maintenance'):
+                    await maintenance_service.run_maintenance()
+                    logger.info("Database maintenance completed before wakeup")
+                else:
+                    logger.info("No maintenance function available, skipping")
+            except Exception as e:
+                logger.warning(f"Database maintenance failed: {e}")
+        
         try:
             # Create wakeup tasks if they don't exist
             if not self.wakeup_tasks:
@@ -81,24 +93,50 @@ class WakeupProcessor(BaseProcessor):
                 processed_any = False
                 
                 # 1. Create thoughts for any ACTIVE tasks that don't have them
+                logger.info(f"Checking {len(self.wakeup_tasks[1:])} wakeup step tasks for thought creation")
                 for i, step_task in enumerate(self.wakeup_tasks[1:]):  # Skip root
                     current_task = persistence.get_task_by_id(step_task.task_id)
+                    logger.info(f"Step {i+1}: task_id={step_task.task_id}, status={current_task.status if current_task else 'missing'}")
+                    
                     if not current_task or current_task.status != TaskStatus.ACTIVE:
+                        logger.info(f"Skipping step {i+1} - not ACTIVE (status: {current_task.status if current_task else 'missing'})")
                         continue
                     
-                    # Check if this task already has a thought for this round
+                    # Check if this task already has ANY thoughts (not just for this round)
                     existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
-                    has_current_round_thought = any(
-                        t.round_number == round_number and 
-                        t.status in [ThoughtStatus.PENDING, ThoughtStatus.PROCESSING]
-                        for t in existing_thoughts
-                    )
+                    logger.info(f"Step {i+1} has {len(existing_thoughts)} existing thoughts")
                     
-                    if not has_current_round_thought:
-                        # Create thought for this step
+                    # Log the status of existing thoughts for debugging
+                    thought_statuses = [t.status.value for t in existing_thoughts] if existing_thoughts else []
+                    logger.info(f"Step {i+1} thought statuses: {thought_statuses}")
+                    
+                    # Check for PENDING thoughts that need processing
+                    pending_thoughts = [t for t in existing_thoughts if t.status == ThoughtStatus.PENDING]
+                    if pending_thoughts:
+                        logger.info(f"Step {i+1} has {len(pending_thoughts)} PENDING thoughts - they will be processed")
+                        processed_any = True
+                        continue
+                    
+                    # Check for PROCESSING thoughts
+                    processing_thoughts = [t for t in existing_thoughts if t.status == ThoughtStatus.PROCESSING]
+                    if processing_thoughts:
+                        logger.info(f"Step {i+1} has {len(processing_thoughts)} PROCESSING thoughts - waiting for completion")
+                        continue
+                    
+                    # If all thoughts are COMPLETED/FAILED, but task is ACTIVE, we need to create a new thought
+                    if existing_thoughts and current_task.status == TaskStatus.ACTIVE:
+                        logger.info(f"Step {i+1} has {len(existing_thoughts)} existing thoughts but task is ACTIVE - creating new thought")
+                        thought = await self._create_step_thought(step_task, round_number)
+                        logger.info(f"Created new thought {thought.thought_id} for active step {i+1}")
+                        processed_any = True
+                    elif not existing_thoughts:
+                        # No thoughts at all - create one
+                        logger.info(f"Creating thought for step {i+1} (no existing thoughts)")
                         thought = await self._create_step_thought(step_task, round_number)
                         logger.info(f"Created thought {thought.thought_id} for wakeup step {i+1}")
                         processed_any = True
+                    else:
+                        logger.info(f"Step {i+1} has existing thoughts and task not active, skipping")
                 
                 # 2. Check completion status
                 steps_status = []

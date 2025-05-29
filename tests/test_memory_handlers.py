@@ -1,10 +1,8 @@
-import pytest
 from unittest.mock import Mock, AsyncMock
 from ciris_engine.action_handlers.memorize_handler import MemorizeHandler
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
-@pytest.mark.asyncio
 def test_memorize_handler_with_new_schema(monkeypatch):
     # Setup
     deps = Mock()
@@ -36,7 +34,6 @@ def test_memorize_handler_with_new_schema(monkeypatch):
     # Verify memory service was called correctly
     assert deps.memory_service.memorize.called
 
-@pytest.mark.asyncio
 def test_memorize_handler_with_old_schema(monkeypatch):
     # Test backward compatibility
     deps = Mock()

@@ -110,18 +110,42 @@ def count_thoughts(db_path=None) -> int:
         logger.exception(f"Failed to count PENDING or PROCESSING thoughts: {e}")
     return count
 
-def update_thought_status(thought_id, status, db_path=None, **kwargs):
-    """Update the status of a thought by ID. Returns True if updated, False otherwise. Ignores extra kwargs for compatibility."""
+def update_thought_status(thought_id, status, db_path=None, final_action=None, **kwargs):
+    """Update the status of a thought by ID and optionally final_action. Returns True if updated, False otherwise. Ignores extra kwargs for compatibility."""
     from .db import get_db_connection
     status_val = getattr(status, "value", status)
+    
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE thoughts SET status = ? WHERE thought_id = ?", (status_val, thought_id))
+            
+            # Build dynamic SQL based on what needs to be updated
+            updates = ["status = ?"]
+            params = [status_val]
+            
+            if final_action is not None:
+                # Ensure final_action is JSON serializable
+                if hasattr(final_action, 'model_dump'):
+                    # Convert Pydantic models to dict to avoid serialization warnings
+                    final_action = final_action.model_dump(mode="json")
+                elif not isinstance(final_action, (dict, list, str, int, float, bool, type(None))):
+                    # Convert other objects to string representation
+                    final_action = {"result": str(final_action)}
+                
+                updates.append("final_action_json = ?")
+                params.append(json.dumps(final_action))
+            
+            params.append(thought_id)
+            
+            sql = f"UPDATE thoughts SET {', '.join(updates)} WHERE thought_id = ?"
+            cursor.execute(sql, params)
             conn.commit()
+            
             updated = cursor.rowcount > 0
             if not updated:
                 logger.warning(f"No thought found with id {thought_id} to update status.")
+            else:
+                logger.info(f"Updated thought {thought_id} status to {status_val}")
             return updated
     except Exception as e:
         logger.exception(f"Failed to update status for thought {thought_id}: {e}")

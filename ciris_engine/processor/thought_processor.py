@@ -81,8 +81,11 @@ class ThoughtProcessor:
             guardrail_result, thought, context
         )
 
-        # 8. Update persistence (but don't call this here since handlers will update status)
-        # await self._update_thought_status(thought, final_result)
+        # 8. Ensure we return the final result, especially for TASK_COMPLETE actions
+        if final_result:
+            logger.debug(f"ThoughtProcessor returning result for thought {thought.thought_id}: {final_result.selected_action}")
+        else:
+            logger.warning(f"ThoughtProcessor: No final result for thought {thought.thought_id}")
 
         return final_result
 
@@ -152,15 +155,37 @@ class ThoughtProcessor:
         """Handle special cases like PONDER and DEFER overrides."""
         # Handle both GuardrailResult and ActionSelectionResult
         selected_action = None
+        final_result = result
+        
         if hasattr(result, 'selected_action'):
+            # This is an ActionSelectionResult
             selected_action = result.selected_action
+            final_result = result
         elif hasattr(result, 'final_action') and hasattr(result.final_action, 'selected_action'):
+            # This is a GuardrailResult - extract the final_action
             selected_action = result.final_action.selected_action
-            result = result.final_action  # Use the final_action for PONDER processing
+            final_result = result.final_action  # Use the final_action ActionSelectionResult
+            logger.debug(f"ThoughtProcessor: Extracted final_action from GuardrailResult for thought {thought.thought_id}")
+        else:
+            logger.error(f"ThoughtProcessor: Unknown result type for thought {thought.thought_id}: {type(result)}")
+            return None
+        
+        # Log the action being handled
+        if selected_action:
+            logger.debug(f"ThoughtProcessor handling special case for action: {selected_action}")
+        else:
+            logger.warning(f"ThoughtProcessor: No selected_action found for thought {thought.thought_id}")
+            return None
+        
+        # TASK_COMPLETE actions should be returned as-is for proper dispatch
+        from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+        if selected_action == HandlerActionType.TASK_COMPLETE:
+            logger.debug(f"ThoughtProcessor: Returning TASK_COMPLETE result for thought {thought.thought_id}")
+            return final_result
         
         # NOTE: PONDER actions are now handled by the PonderHandler in the action dispatcher
         # No special processing needed here - just return the result for normal dispatch
-        return result
+        return final_result
 
     async def _update_thought_status(self, thought, result):
         from ciris_engine import persistence
@@ -187,7 +212,7 @@ class ThoughtProcessor:
         # Other actions might imply ThoughtStatus.COMPLETED if they are terminal for the thought.
         final_action_details = {
             "action_type": selected_action.value if selected_action else None,
-            "parameters": action_parameters,
+            "parameters": action_parameters.model_dump(mode="json") if hasattr(action_parameters, "model_dump") else action_parameters,
             "rationale": rationale
         }
         persistence.update_thought_status(
@@ -240,4 +265,28 @@ class ThoughtProcessor:
                 else:
                     logger.warning(f"ActionSink not available. Cannot re-queue thought ID {thought.thought_id} for pondering.")
         
+        # Special handling for OBSERVE action in CLI mode
+        if action_selection.action == HandlerActionType.OBSERVE:
+            agent_mode = getattr(self.app_config, "agent_mode", "").lower()
+            if agent_mode == "cli":
+                import os
+                try:
+                    cwd = os.getcwd()
+                    files = os.listdir(cwd)
+                    file_list = "\n".join(sorted(files))
+                    observation = f"[CLI MODE] Agent working directory: {cwd}\n\nDirectory contents:\n{file_list}\n\nNote: CIRISAgent is running in CLI mode."
+                except Exception as e:
+                    observation = f"[CLI MODE] Error listing working directory: {e}"
+                # Attach the observation to the action_parameters
+                obs_result = locals().get('final_result', None)
+                if obs_result and hasattr(obs_result, "action_parameters"):
+                    if isinstance(obs_result.action_parameters, dict):
+                        obs_result.action_parameters["observation"] = observation
+                    else:
+                        try:
+                            setattr(obs_result.action_parameters, "observation", observation)
+                        except Exception:
+                            pass
+                logger.info(f"[OBSERVE] CLI observation attached for thought {thought.thought_id}")
+                return obs_result
         # ...existing code...

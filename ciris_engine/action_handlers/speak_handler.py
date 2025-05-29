@@ -148,6 +148,10 @@ class SpeakHandler(BaseActionHandler):
 
             new_follow_up.context = context_for_follow_up  # v1 uses 'context'
             persistence.add_thought(new_follow_up)
+            
+            # Follow-up thoughts are automatically picked up by the main processing loop
+            # as PENDING thoughts, so no manual queueing is needed
+            
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after SPEAK action."
             )

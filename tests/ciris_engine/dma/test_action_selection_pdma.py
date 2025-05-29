@@ -73,7 +73,10 @@ async def test_llm_success(monkeypatch):
     assert isinstance(result, ActionSelectionResult)
     assert result.selected_action == HandlerActionType.SPEAK
     # Schema-driven assertion
-    speak_params = SpeakParams(**result.action_parameters)
+    if isinstance(result.action_parameters, SpeakParams):
+        speak_params = result.action_parameters
+    else:
+        speak_params = SpeakParams(**result.action_parameters)
     assert speak_params.content == "hi"
     assert result.confidence == 0.9
 
