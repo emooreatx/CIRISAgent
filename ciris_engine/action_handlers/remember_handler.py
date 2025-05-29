@@ -57,5 +57,13 @@ class RememberHandler(BaseActionHandler):
             parent=thought,
             content=follow_up_content,
         )
+        # Always set action_performed and is_follow_up in context
+        follow_up_context = follow_up.context if isinstance(follow_up.context, dict) else {}
+        follow_up_context["action_performed"] = HandlerActionType.REMEMBER.value
+        follow_up_context["is_follow_up"] = True
+        # Optionally add error or memory details if available
+        if memory_result and hasattr(memory_result, "status") and memory_result.status != "OK":
+            follow_up_context["error_details"] = str(memory_result.status)
+        follow_up.context = follow_up_context
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(HandlerActionType.REMEMBER, {**dispatch_context, "thought_id": thought_id}, outcome="success" if memory_result.status == MemoryOpStatus.OK and memory_result.data else "failed")
