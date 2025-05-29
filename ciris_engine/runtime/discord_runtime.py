@@ -128,10 +128,14 @@ class DiscordRuntime(CIRISRuntime):
                     logger.debug(f"Set discord_service on {processor.__class__.__name__}")
 
         # Rebuild dispatcher with correct sinks and services
+        # Rebuild action dispatcher with proper sinks after action_sink is created
         if self.agent_processor:
-            ponder_manager = getattr(self.agent_processor.thought_processor, 'ponder_manager', None)
+            dependencies = getattr(self.agent_processor.thought_processor, 'dependencies', None)
+            if dependencies:
+                # Update the action_sink in dependencies
+                dependencies.action_sink = self.action_sink
             logger.info(f"DiscordRuntime: Rebuilding dispatcher with action_sink: {self.action_sink}")
-            new_dispatcher = await self._build_action_dispatcher(ponder_manager)
+            new_dispatcher = await self._build_action_dispatcher(dependencies)
             self.agent_processor.action_dispatcher = new_dispatcher
             logger.info("DiscordRuntime: Action dispatcher rebuilt with correct sinks.")
 
@@ -156,11 +160,11 @@ class DiscordRuntime(CIRISRuntime):
             context=context
         )
         
-    async def _build_action_dispatcher(self, ponder_manager):
+    async def _build_action_dispatcher(self, dependencies):
         """Build Discord-specific action dispatcher."""
         return build_action_dispatcher(
             audit_service=self.audit_service,
-            ponder_manager=ponder_manager,
+            max_ponder_rounds=self.app_config.workflow.max_ponder_rounds,
             action_sink=self.action_sink,
             memory_service=self.memory_service,
             observer_service=self.discord_observer,

@@ -40,7 +40,7 @@ class ObserveHandler(BaseActionHandler):
                 persistence.update_thought_status(
                     thought_id=thought_id,
                     status=final_thought_status,
-                    final_action=result.model_dump(),
+                    final_action=result.model_dump() if hasattr(result, 'model_dump') else result,
                 )
                 return
         elif isinstance(raw_params, ObserveParams):
@@ -52,7 +52,7 @@ class ObserveHandler(BaseActionHandler):
             persistence.update_thought_status(
                 thought_id=thought_id,
                 status=final_thought_status,
-                final_action=result.model_dump(),
+                final_action=result.model_dump() if hasattr(result, 'model_dump') else result,
             )
             return
 
@@ -133,10 +133,11 @@ class ObserveHandler(BaseActionHandler):
                 follow_up_content_key_info = f"Passive Discord observe handler error: {str(e)}"
 
         # v1 uses 'final_action' instead of 'final_action_result'
+        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result.model_dump(),  # v1 field
+            final_action=result_data,  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after OBSERVE attempt.")
 

@@ -105,7 +105,14 @@ class SpeakHandler(BaseActionHandler):
         # Update original thought status
         # v1 uses 'status' instead of 'new_status'
         # Ensure final_action is always a dict for persistence (avoid Pydantic serialization warning)
-        final_action_dump = result.model_dump(mode="json") if isinstance(result, BaseModel) else result
+        final_action_dump = {}
+        if hasattr(result, 'model_dump'):
+            final_action_dump = result.model_dump(mode="json")
+        elif isinstance(result, dict):
+            final_action_dump = result
+        else:
+            final_action_dump = {"result": str(result)}
+            
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
@@ -133,8 +140,10 @@ class SpeakHandler(BaseActionHandler):
                 context_for_follow_up["error_details"] = follow_up_content_key_info
 
             action_params_dump = result.action_parameters
-            if isinstance(action_params_dump, BaseModel):
+            if hasattr(action_params_dump, 'model_dump'):
                 action_params_dump = action_params_dump.model_dump(mode="json")
+            elif not isinstance(action_params_dump, (dict, list, str, int, float, bool, type(None))):
+                action_params_dump = str(action_params_dump)
             context_for_follow_up["action_params"] = action_params_dump
 
             new_follow_up.context = context_for_follow_up  # v1 uses 'context'
