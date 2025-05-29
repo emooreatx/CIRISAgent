@@ -7,7 +7,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from . import BaseActionHandler
 from .. import persistence
-from ciris_engine.processor.thought_escalation import escalate_due_to_failure
+from ciris_engine.action_handlers.exceptions import FollowUpCreationError
 
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ class ActionDispatcher:
                     status=ThoughtStatus.FAILED,
                     final_action={
                         "error": f"No handler for action {action_type.value}",
-                        "original_result": action_selection_result.model_dump()
+                        "original_result": action_selection_result.model_dump() if hasattr(action_selection_result, 'model_dump') else str(action_selection_result)
                     }
                 )
                 # Consider creating a follow-up error thought here if handlers normally do
@@ -102,20 +102,20 @@ class ActionDispatcher:
             )
             try:
                 persistence.update_thought_status(
-                    thought_id=thought.thought_id,
-                    status=ThoughtStatus.FAILED,
-                    final_action={
-                        "error": f"Handler {handler_instance.__class__.__name__} failed: {str(e)}",
-                        "original_result": action_selection_result.model_dump(),
-                    },
+                    thought_id=thought.thought_id,                status=ThoughtStatus.FAILED,
+                final_action={
+                    "error": f"Handler {handler_instance.__class__.__name__} failed: {str(e)}",
+                    "original_result": action_selection_result.model_dump() if hasattr(action_selection_result, 'model_dump') else str(action_selection_result),
+                },
                 )
             except Exception as e_persist:
                 logger.error(
                     f"Failed to update thought {thought.thought_id} to FAILED after handler exception: {e_persist}"
                 )
 
-            if isinstance(e, escalate_due_to_failure):
-                raise
+            # Log the failure and continue - don't escalate generic exceptions
+            # if hasattr(e, '__name__') and 'escalate' in e.__name__.lower():
+            #     raise
 
     # If service_handlers are still needed for very specific, non-core actions,
     # that logic could be re-added, but the primary path is via self.handlers.

@@ -35,7 +35,7 @@ def create_follow_up_thought(
         round_number=parent_round,
         content=content,
         parent_thought_id=parent.thought_id,
-        context=parent.context.copy() if parent.context else {},  # propagate context
+        context=parent.context.model_copy() if hasattr(parent.context, 'model_copy') else (dict(parent.context) if parent.context else {}),  # propagate context as dict
         ponder_count=0,
         ponder_notes=None,
         final_action={},
