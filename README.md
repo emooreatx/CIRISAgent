@@ -106,7 +106,7 @@ Example memory action JSON:
 *   `dma/`: Implementations of the various DMAs (EthicalPDMA, CSDMA, DSDMA, ASPDMA).
 *   `utils/`: Utility helpers like `logging_config.py` and an asynchronous `load_profile` function in `profile_loader.py` (remember to `await` it).
 *   `guardrails/`: Ethical guardrail implementation.
-*   `services/`: LLM client abstractions (`llm_client.py`, `llm_service.py`) and service integrations like `discord_service.py`.
+*   `services/`: LLM client abstractions (`llm_client.py`, `llm_service.py`) and service integrations.
 *   `ciris_profiles/`: Directory for agent profile YAML files (e.g., `student.yaml`, `teacher.yaml`).
 
 ---
