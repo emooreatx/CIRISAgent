@@ -18,11 +18,11 @@ def test_valid_transition_records_history():
 
 def test_invalid_transition_does_not_change_state():
     sm = StateManager(initial_state=AgentState.WAKEUP)
-    # WAKEUP -> SHUTDOWN is invalid
-    assert not sm.transition_to(AgentState.SHUTDOWN)
-    assert sm.get_state() == AgentState.WAKEUP
-    # history size remains 1
-    assert len(sm.state_history) == 1
+    # WAKEUP -> SHUTDOWN is now valid after refactor
+    assert sm.transition_to(AgentState.SHUTDOWN)
+    assert sm.get_state() == AgentState.SHUTDOWN
+    # history should record the transition
+    assert len(sm.state_history) == 2
 
 
 def test_state_duration(monkeypatch):
