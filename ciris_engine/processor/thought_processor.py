@@ -9,6 +9,9 @@ from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import ActionSelectionResult, Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType # Added imports
+from ciris_engine.schemas.action_params_v1 import PonderParams # Ensure this import is present
+from ciris_engine.action_handlers.ponder_handler import PonderHandler # Ensure this import is present
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies # Add this import
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +21,15 @@ class ThoughtProcessor:
         dma_orchestrator,
         context_builder,
         guardrail_orchestrator,
-        ponder_manager,
-        app_config: AppConfig
+        app_config: AppConfig,
+        dependencies: ActionHandlerDependencies # Add dependencies
     ):
         self.dma_orchestrator = dma_orchestrator
         self.context_builder = context_builder
         self.guardrail_orchestrator = guardrail_orchestrator
-        self.ponder_manager = ponder_manager
         self.app_config = app_config
+        self.dependencies = dependencies # Store dependencies
+        self.settings = app_config.workflow # New: Point to the workflow config directly
 
     async def process_thought(
         self,
@@ -200,3 +204,49 @@ class ThoughtProcessor:
             status=new_status_val, # Pass ThoughtStatus enum member
             final_action=final_action_details
         )
+
+    async def _handle_action_selection(
+        self, thought: Thought, action_selection: ActionSelectionResult, context: Dict[str, Any]
+    ) -> None:
+        """Handles the selected action by dispatching to the appropriate handler."""
+        # ...existing code...
+        if action_selection.action == HandlerActionType.PONDER:
+            ponder_questions = []
+            if action_selection.action_parameters:
+                if isinstance(action_selection.action_parameters, dict) and 'questions' in action_selection.action_parameters:
+                    ponder_questions = action_selection.action_parameters['questions']
+                elif hasattr(action_selection.action_parameters, 'questions'):
+                    ponder_questions = action_selection.action_parameters.questions
+            
+            if not ponder_questions:
+                ponder_questions = [
+                    "What is the core issue I need to address?",
+                    "What additional context would help me provide a better response?",
+                    "Are there any assumptions I should reconsider?"
+                ]
+            
+            ponder_params = PonderParams(questions=ponder_questions)
+            
+            # max_ponder_rounds is now directly on self.settings (which is app_config.workflow)
+            max_ponder_rounds = getattr(self.settings, 'max_ponder_rounds', 5) 
+            ponder_handler = PonderHandler(dependencies=self.dependencies, max_ponder_rounds=max_ponder_rounds)
+            
+            await ponder_handler.handle(
+                thought=thought,
+                ponder_params=ponder_params,
+                context=context
+            )
+            
+            # After PonderHandler.handle, the thought's status and ponder_count are updated.
+            # If status is PENDING, it means it should be re-processed.
+            if thought.status == ThoughtStatus.PENDING:
+                if self.dependencies.action_sink:
+                    # Re-queue the thought for another processing cycle.
+                    # The thought object in memory (passed by reference) is updated by PonderHandler.
+                    queue_item = ProcessingQueueItem.from_thought(thought, context) 
+                    await self.dependencies.action_sink.enqueue_item(queue_item)
+                    logger.info(f"Thought ID {thought.thought_id} re-queued for further pondering after PONDER action.")
+                else:
+                    logger.warning(f"ActionSink not available. Cannot re-queue thought ID {thought.thought_id} for pondering.")
+        
+        # ...existing code...
