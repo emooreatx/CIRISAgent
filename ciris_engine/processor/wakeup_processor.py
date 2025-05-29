@@ -229,9 +229,8 @@ class WakeupProcessor(BaseProcessor):
         return completed
     
     def _create_wakeup_tasks(self):
-        """Create all wakeup sequence tasks."""
+        """Create all wakeup sequence tasks, but never re-activate or re-create completed step tasks."""
         now_iso = datetime.now(timezone.utc).isoformat()
-        
         # Create root task
         root_task = Task(
             task_id="WAKEUP_ROOT",
@@ -242,35 +241,44 @@ class WakeupProcessor(BaseProcessor):
             updated_at=now_iso,
             context={"channel_id": self.startup_channel_id} if self.startup_channel_id else {},
         )
-        
         if not persistence.task_exists(root_task.task_id):
             persistence.add_task(root_task)
         else:
             persistence.update_task_status(root_task.task_id, TaskStatus.ACTIVE)
-        
         self.wakeup_tasks = [root_task]
-        
         # Get channel_id from root_task context if present
         channel_id = root_task.context.get("channel_id")
-        
         # Create step tasks
         for step_type, content in self.WAKEUP_SEQUENCE:
-            # Inherit channel_id in context if present
             step_context = {"step_type": step_type}
             if channel_id:
                 step_context["channel_id"] = channel_id
-            step_task = Task(
-                task_id=str(uuid.uuid4()),
-                description=content,
-                status=TaskStatus.ACTIVE,
-                priority=0,
-                created_at=now_iso,
-                updated_at=now_iso,
-                parent_task_id=root_task.task_id,
-                context=step_context,
-            )
-            persistence.add_task(step_task)
-            self.wakeup_tasks.append(step_task)
+            # Check if a task for this step_type already exists and is COMPLETED
+            existing_tasks = [t for t in persistence.get_tasks_by_parent_id(root_task.task_id) if t.context.get("step_type") == step_type]
+            completed_task = next((t for t in existing_tasks if t.status == TaskStatus.COMPLETED), None)
+            if completed_task:
+                self.wakeup_tasks.append(completed_task)
+                continue  # Do not re-create or re-activate completed step
+            # Otherwise, create or re-activate the step task
+            step_task = next((t for t in existing_tasks if t.status != TaskStatus.COMPLETED), None)
+            if step_task:
+                # Re-activate if not completed
+                persistence.update_task_status(step_task.task_id, TaskStatus.ACTIVE)
+                self.wakeup_tasks.append(step_task)
+            else:
+                # Create new step task
+                step_task = Task(
+                    task_id=str(uuid.uuid4()),
+                    description=content,
+                    status=TaskStatus.ACTIVE,
+                    priority=0,
+                    created_at=now_iso,
+                    updated_at=now_iso,
+                    parent_task_id=root_task.task_id,
+                    context=step_context,
+                )
+                persistence.add_task(step_task)
+                self.wakeup_tasks.append(step_task)
     
     def _ensure_monitoring_task(self):
         """Ensure the Discord monitoring task exists."""
