@@ -109,3 +109,16 @@ def count_thoughts_by_status(status):
     thoughts = get_thoughts_by_status(status)
     return len(thoughts)
 
+
+def get_tasks_by_parent_id(parent_task_id, db_path=None):
+    """
+    Return a list of Task objects whose parent_task_id matches the given value.
+    """
+    # If you have a DB, replace this with a query. For now, use get_all_tasks if available.
+    try:
+        all_tasks = get_all_tasks(db_path=db_path)
+    except Exception:
+        # Fallback: if get_all_tasks is not available, raise a clear error
+        raise NotImplementedError("get_all_tasks is required for get_tasks_by_parent_id")
+    return [t for t in all_tasks if getattr(t, 'parent_task_id', None) == parent_task_id]
+
