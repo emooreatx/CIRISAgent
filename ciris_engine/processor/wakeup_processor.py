@@ -12,6 +12,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType
 from ciris_engine import persistence
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
+from ciris_engine.context.builder import ContextBuilder
 
 from .base_processor import BaseProcessor
 
@@ -387,20 +388,31 @@ class WakeupProcessor(BaseProcessor):
                         await self._dispatch_step_action(result, t, step_task)
     
     async def _create_step_thought(self, step_task: Task, round_number: int) -> Thought:
-        """Create a thought for a wakeup step, ensuring channel_id is present in context."""
-        step_type = step_task.context.get("step_type", "unknown").lower()
-        channel_id = step_task.context.get("channel_id") or self.startup_channel_id
+        """Create a thought for a wakeup step, ensuring context is formatted with the standard formatter."""
+        # Use the new ContextBuilder to build the context for the thought
+        context_builder = ContextBuilder(
+            memory_service=getattr(self, 'memory_service', None),
+            graphql_provider=getattr(self, 'graphql_provider', None),
+            app_config=getattr(self, 'app_config', None),
+        )
+        # Create a new Thought object for this step
+        now_iso = datetime.now(timezone.utc).isoformat()
         thought = Thought(
             thought_id=str(uuid.uuid4()),
-            source_task_id=step_task.task_id,
-            thought_type=step_type,
-            status=ThoughtStatus.PROCESSING,
-            created_at=datetime.now(timezone.utc).isoformat(),
-            updated_at=datetime.now(timezone.utc).isoformat(),
+            task_id=step_task.task_id,
             round_number=round_number,
-            content=step_task.description,
-            context={"channel_id": channel_id} if channel_id else {},
+            status=ThoughtStatus.PENDING,
+            created_at=now_iso,
+            updated_at=now_iso,
+            context={},  # Will be filled by ContextBuilder
         )
+        # Build the context for this thought and step task, passing the Thought object
+        thought_context = await context_builder.build_thought_context(
+            thought=thought,
+            task=step_task
+        )
+        thought.context = thought_context
+        # Persist the new thought
         persistence.add_thought(thought)
         return thought
     
