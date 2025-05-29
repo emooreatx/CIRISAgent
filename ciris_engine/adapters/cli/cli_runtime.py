@@ -75,10 +75,24 @@ class CLIRuntime(CIRISRuntime):
         )
         self.action_sink = CLIActionSink()
         self.interactive = interactive
-    async def _build_action_dispatcher(self, ponder_manager):
+        
+    async def initialize(self):
+        """Initialize CLI-specific components."""
+        await super().initialize()
+        
+        # Update action_sink in dependencies after initialization
+        if self.agent_processor:
+            dependencies = getattr(self.agent_processor.thought_processor, 'dependencies', None)
+            if dependencies:
+                dependencies.action_sink = self.action_sink
+            # Rebuild action dispatcher with proper action_sink
+            new_dispatcher = await self._build_action_dispatcher(dependencies)
+            self.agent_processor.action_dispatcher = new_dispatcher
+        
+    async def _build_action_dispatcher(self, dependencies):
         return build_action_dispatcher(
             audit_service=self.audit_service,
-            ponder_manager=ponder_manager,
+            max_ponder_rounds=self.app_config.workflow.max_ponder_rounds,
             action_sink=self.action_sink,
             memory_service=self.memory_service,
         )

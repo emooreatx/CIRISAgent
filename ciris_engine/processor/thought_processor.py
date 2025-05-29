@@ -81,8 +81,8 @@ class ThoughtProcessor:
             guardrail_result, thought, context
         )
 
-        # 8. Update persistence
-        await self._update_thought_status(thought, final_result)
+        # 8. Update persistence (but don't call this here since handlers will update status)
+        # await self._update_thought_status(thought, final_result)
 
         return final_result
 
@@ -157,18 +157,9 @@ class ThoughtProcessor:
         elif hasattr(result, 'final_action') and hasattr(result.final_action, 'selected_action'):
             selected_action = result.final_action.selected_action
             result = result.final_action  # Use the final_action for PONDER processing
-        # Use getattr for compatibility with both dict and Pydantic models
-        epistemic_data = getattr(context, 'epistemic_data', None)
-        if epistemic_data is None and isinstance(context, dict):
-            epistemic_data = context.get('epistemic_data', {})
-        if selected_action == HandlerActionType.PONDER:
-            # Pass the result in context so PonderManager can extract questions
-            ponder_context = {
-                'action_result': result,
-                'epistemic_data': epistemic_data or {},
-                'processing_context': context
-            }
-            await self.ponder_manager.ponder(thought, ponder_context)
+        
+        # NOTE: PONDER actions are now handled by the PonderHandler in the action dispatcher
+        # No special processing needed here - just return the result for normal dispatch
         return result
 
     async def _update_thought_status(self, thought, result):
