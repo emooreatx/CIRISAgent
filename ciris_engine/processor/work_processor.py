@@ -175,6 +175,8 @@ class WorkProcessor(BaseProcessor):
         # Get the task object for context
         task = persistence.get_task_by_id(item.source_task_id)
         dispatch_context = build_dispatch_context(item, thought_obj, task)
+        if hasattr(self, "discord_service"):
+            dispatch_context["discord_service"] = self.discord_service
         
         try:
             await self.dispatch_action(result, thought_obj, dispatch_context)

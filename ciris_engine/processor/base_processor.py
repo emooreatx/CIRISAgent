@@ -32,6 +32,9 @@ class BaseProcessor(ABC):
         self.thought_processor = thought_processor  # type: ignore  # ThoughtProcessor is imported at runtime or via forward reference
         self.action_dispatcher = action_dispatcher
         self.services = services
+        # Propagate commonly used services as direct attributes for convenience
+        if services and "discord_service" in services:
+            self.discord_service = services["discord_service"]
         self.metrics: Dict[str, Any] = {
             "start_time": None,
             "end_time": None,
