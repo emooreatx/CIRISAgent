@@ -63,8 +63,9 @@ class AgentProcessor:
         self.work_processor = WorkProcessor(
             app_config=app_config,
             thought_processor=thought_processor,
-            action_dispatcher=self._action_dispatcher, # Use internal dispatcher
-            services=services
+            action_dispatcher=self._action_dispatcher,  # Use internal dispatcher
+            services=services,
+            startup_channel_id=startup_channel_id,
         )
         
         self.play_processor = PlayProcessor(
