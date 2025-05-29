@@ -1,4 +1,3 @@
-# ciris_engine/services/discord_tools.py
 """
 Discord Tool Suite: Moderation, Channel Management, and Info Tools
 Implements async tool handlers and registration for CIRIS ToolRegistry.

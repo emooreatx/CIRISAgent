@@ -20,11 +20,10 @@ from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.action_params_v1 import DeferParams, RejectParams, SpeakParams, ToolParams
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine import persistence  # For creating tasks and updating status
-from .discord_event_queue import DiscordEventQueue
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.utils import extract_user_nick
 from ciris_engine.services.tool_registry import ToolRegistry
-from ciris_engine.services.discord_tools import register_discord_tools
+from ciris_engine.adapters.discord.discord_tools import register_discord_tools
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 
 logger = logging.getLogger(__name__)

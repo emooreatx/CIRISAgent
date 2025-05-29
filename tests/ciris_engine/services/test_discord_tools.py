@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from ciris_engine.services import discord_tools
+from ciris_engine.adapters.discord import discord_tools
 
 @pytest.mark.asyncio
 async def test_discord_delete_message_success():

@@ -14,7 +14,7 @@ from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 from ciris_engine.services.tool_registry import ToolRegistry
-from ciris_engine.services.discord_tools import register_discord_tools
+from ciris_engine.adapters.discord.discord_tools import register_discord_tools
 import discord
 import asyncio
 import uuid

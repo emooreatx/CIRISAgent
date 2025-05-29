@@ -1,5 +1,5 @@
 import logging
-from ciris_engine.services.discord_event_queue import DiscordEventQueue
+from ciris_engine.adapters.discord.discord_event_queue import DiscordEventQueue
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 
 logger = logging.getLogger(__name__)
