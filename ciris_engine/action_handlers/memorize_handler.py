@@ -26,19 +26,56 @@ class MemorizeHandler(BaseActionHandler):
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
-        params = result.action_parameters
+        raw_params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         final_thought_status = ThoughtStatus.COMPLETED
         action_performed_successfully = False
         follow_up_content_key_info = f"MEMORIZE action for thought {thought_id}"
 
-        if not isinstance(params, MemorizeParams):
-            self.logger.error(f"MEMORIZE action params are not MemorizeParams model. Type: {type(params)}. Thought ID: {thought_id}")
+        # Handle both dict and MemorizeParams
+        from pydantic import ValidationError
+        params = None
+        if isinstance(raw_params, dict):
+            try:
+                params = MemorizeParams(**raw_params)
+            except ValidationError as e:
+                # Try to map old format to new
+                if "knowledge_unit_description" in raw_params:
+                    params = MemorizeParams(
+                        key=raw_params.get("knowledge_unit_description", "memory"),
+                        value=raw_params.get("knowledge_data", {}),
+                        scope=raw_params.get("scope", "local")
+                    )
+                else:
+                    logger.error(f"Invalid memorize params: {e}")
+                    final_thought_status = ThoughtStatus.FAILED
+                    follow_up_content_key_info = f"MEMORIZE action failed: Invalid parameters type ({type(raw_params)}) for thought {thought_id}. Error: {e}"
+                    await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="failed_invalid_params")
+                    # v1 uses 'final_action' instead of 'final_action_result'
+                    persistence.update_thought_status(
+                        thought_id=thought_id,
+                        status=final_thought_status,
+                        final_action=result.model_dump(),  # v1 field
+                    )
+                    return
+        elif isinstance(raw_params, MemorizeParams):
+            params = raw_params
+        else:
+            logger.error(f"Invalid params type: {type(raw_params)}")
             final_thought_status = ThoughtStatus.FAILED
-            follow_up_content_key_info = f"MEMORIZE action failed: Invalid parameters type ({type(params)}) for thought {thought_id}."
+            follow_up_content_key_info = f"MEMORIZE action failed: Invalid parameters type ({type(raw_params)}) for thought {thought_id}."
             await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="failed_invalid_params")
-        elif not self.dependencies.memory_service:
+            persistence.update_thought_status(
+                thought_id=thought_id,
+                status=final_thought_status,
+                final_action=result.model_dump(),
+            )
+            return
+
+        from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+
+        if not self.dependencies.memory_service:
             self.logger.error(f"MemoryService not available. Cannot perform MEMORIZE for thought {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
             follow_up_content_key_info = f"MEMORIZE action failed: MemoryService unavailable for thought {thought_id}."
@@ -49,42 +86,28 @@ class MemorizeHandler(BaseActionHandler):
                 dispatch_context=dispatch_context,
                 thought_id=thought_id,
             )
-            # Get channel from dispatch context (v1 doesn't have channel_metadata field)
             channel = dispatch_context.get("channel_id")
-            
-            # v1 MemorizeParams has 'key', 'value', and 'scope' fields
-            metadata = params.value if isinstance(params.value, dict) else {"data": str(params.value)}
-            
-            # Prepare channel metadata from scope or context
-            channel_metadata = {"scope": params.scope}
-            if channel:
-                channel_metadata["channel"] = channel
-
-            if not user_nick or not channel:
-                self.logger.error(f"MEMORIZE failed for thought {thought_id}: Missing user_nick ('{user_nick}') or channel ('{channel}').")
+            # --- v1 graph node creation ---
+            node = GraphNode(
+                id=params.key,
+                type=NodeType.CONCEPT if params.scope == "identity" else NodeType.USER,
+                scope=GraphScope(params.scope),
+                attributes={"value": params.value, "source": thought.source_task_id}
+            )
+            try:
+                mem_op_result = await self.dependencies.memory_service.memorize(node)
+                if mem_op_result.status == MemoryOpStatus.SAVED:
+                    action_performed_successfully = True
+                    follow_up_content_key_info = f"Memorization successful. Key: '{params.key}', Value: '{str(params.value)[:50]}...'"
+                else:
+                    self.logger.error(f"Memorization operation status: {mem_op_result.status.name}. Reason: {mem_op_result.reason}. Thought ID: {thought_id}")
+                    final_thought_status = ThoughtStatus.FAILED if mem_op_result.status == MemoryOpStatus.FAILED else ThoughtStatus.DEFERRED
+                    follow_up_content_key_info = f"Memorization status {mem_op_result.status.name}: {mem_op_result.reason}"
+            except Exception as e_mem:
+                self.logger.exception(f"Error during MEMORIZE operation for thought {thought_id}: {e_mem}")
                 final_thought_status = ThoughtStatus.FAILED
-                follow_up_content_key_info = f"MEMORIZE action failed: Missing user_nick or channel for thought {thought_id}."
-            else:
-                try:
-                    mem_op_result = await self.dependencies.memory_service.memorize(
-                        user_nick=str(user_nick),
-                        channel=str(channel),
-                        metadata=metadata,
-                        channel_metadata=channel_metadata,
-                        is_feedback=dispatch_context.get("is_wa_feedback", False)  # from original context
-                    )
-                    if mem_op_result.status == MemoryOpStatus.SAVED:
-                        action_performed_successfully = True
-                        follow_up_content_key_info = f"Memorization successful. Key: '{params.key}', Value: '{str(params.value)[:50]}...'"
-                    else:
-                        self.logger.error(f"Memorization operation status: {mem_op_result.status.name}. Reason: {mem_op_result.reason}. Thought ID: {thought_id}")
-                        final_thought_status = ThoughtStatus.FAILED if mem_op_result.status == MemoryOpStatus.FAILED else ThoughtStatus.DEFERRED
-                        follow_up_content_key_info = f"Memorization status {mem_op_result.status.name}: {mem_op_result.reason}"
-                except Exception as e_mem:
-                    self.logger.exception(f"Error during MEMORIZE operation for thought {thought_id}: {e_mem}")
-                    final_thought_status = ThoughtStatus.FAILED
-                    follow_up_content_key_info = f"MEMORIZE action failed due to exception: {str(e_mem)}"
-        
+                follow_up_content_key_info = f"MEMORIZE action failed due to exception: {str(e_mem)}"
+
         # v1 uses 'final_action' instead of 'final_action_result'
         persistence.update_thought_status(
             thought_id=thought_id,

@@ -67,16 +67,24 @@ class ActionSelectionPDMAEvaluator:
         "closing_reminder": (
             "Remember CIRIS principles override personal preference."
         ),
+
         "action_parameter_schemas": (
             "Schemas for 'action_parameters' based on the selected_action:\n"
-            "SPEAK: {\"content\": string, \"channel_id\"?: string, \"target_agent_did\"?: string, \"modality\"?: string, \"correlation_id\"?: string}\n"
+            "SPEAK: {\"content\": string, \"channel_id\"?: string}\n"
             "PONDER: {\"questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
-            "MEMORIZE: {\"knowledge_unit_description\": string, \"knowledge_data\": object|string, \"knowledge_type\": string, \"source\": string, \"confidence\": float, \"publish_to_dkg\"?: bool, \"target_ka_ual\"?: string, \"channel_metadata\"?: object}\n"
-            "DEFER: {\"reason\": string, \"target_wa_ual\": string, \"context\"?: object}\n"
+            "MEMORIZE: {\"key\": string, \"value\": any, \"scope\": string}\n"  # Updated
+            "REMEMBER: {\"query\": string, \"scope\": string}\n"  # Added
+            "FORGET: {\"key\": string, \"scope\": string, \"reason\": string}\n"  # Added
+            "DEFER: {\"reason\": string, \"context\"?: object}\n"
             "REJECT: {\"reason\": string, \"rejection_code\"?: string}\n"
             "TOOL: {\"name\": string, \"args\": object}\n"
-            "OBSERVE: {\"sources\": [string], \"filters\"?: object, \"max_duration_ms\"?: int, \"reason\"?: string, \"active\"?: boolean}"
+            "OBSERVE: {\"channel_id\"?: string, \"active\"?: boolean, \"context\"?: object}"
         ),
+
+
+
+
+
         "normal_mode_csdma_ambiguity_guidance": (
             "If CSDMA highlighted critical ambiguity, highly align 'Speak' (for user clarification) "
             "or 'Ponder' (to formulate key clarifying questions) with Fidelity & Do-Good."

@@ -1,31 +1,45 @@
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import ForgetParams
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.memory.ciris_local_graph import MemoryOpStatus
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 import logging
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
 class ForgetHandler(BaseActionHandler):
     async def handle(self, result: ActionSelectionResult, thought: Thought, dispatch_context: dict) -> None:
-        params = result.action_parameters
+        raw_params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="start")
-        if not isinstance(params, ForgetParams):
-            logger.error(f"ForgetHandler: Invalid params type: {type(params)}")
+        params = None
+        if isinstance(raw_params, dict):
+            try:
+                params = ForgetParams(**raw_params)
+            except ValidationError as e:
+                logger.error(f"ForgetHandler: Invalid params dict: {e}")
+                return
+        elif isinstance(raw_params, ForgetParams):
+            params = raw_params
+        else:
+            logger.error(f"ForgetHandler: Invalid params type: {type(raw_params)}")
             return
         if not self._can_forget(params, dispatch_context):
             logger.info("ForgetHandler: Permission denied or WA required for forget operation. Creating deferral.")
             # Optionally, create a deferral to WA here
             return
-        forget_result = await self.dependencies.memory_service.forget(
-            params.key,
-            GraphScope(params.scope)
+        # Build a GraphNode for the key to forget
+        node = GraphNode(
+            id=params.key,
+            type=NodeType.CONCEPT if params.scope == "identity" else NodeType.USER,
+            scope=GraphScope(params.scope),
+            attributes={}
         )
+        forget_result = await self.dependencies.memory_service.forget(node)
         await self._audit_forget_operation(params, dispatch_context, forget_result)
         if forget_result.status == MemoryOpStatus.OK:
             follow_up_content = f"Successfully forgot key '{params.key}' in scope {params.scope}."
