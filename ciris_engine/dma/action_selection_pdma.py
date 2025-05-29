@@ -58,27 +58,47 @@ class ActionSelectionPDMAEvaluator:
             "REMEMBER and FORGET exist but may be disabled. "
             "If ponder rounds exceed the limit the system auto‑defers."
         ),
-        "decision_format": ( # This describes the LLM's direct output structure
+        "decision_format": (
             "Return JSON with keys: context_summary_for_action_selection, action_alignment_check, "
             "action_conflicts, action_resolution, selected_action, action_parameters, "
             "action_selection_rationale, monitoring_for_selected_action."
-            # Confidence score is not requested from LLM here, but is part of ActionSelectionResult
         ),
         "closing_reminder": (
             "Remember CIRIS principles override personal preference."
         ),
-
         "action_parameter_schemas": (
             "Schemas for 'action_parameters' based on the selected_action:\n"
             "SPEAK: {\"content\": string, \"channel_id\"?: string}\n"
             "PONDER: {\"questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
-            "MEMORIZE: {\"key\": string, \"value\": any, \"scope\": string}\n"  # Updated
-            "REMEMBER: {\"query\": string, \"scope\": string}\n"  # Added
-            "FORGET: {\"key\": string, \"scope\": string, \"reason\": string}\n"  # Added
+            "MEMORIZE: {\"key\": string, \"value\": any, \"scope\": string}\n"
+            "REMEMBER: {\"query\": string, \"scope\": string}\n"
+            "FORGET: {\"key\": string, \"scope\": string, \"reason\": string}\n"
             "DEFER: {\"reason\": string, \"context\"?: object}\n"
             "REJECT: {\"reason\": string, \"rejection_code\"?: string}\n"
-            "TOOL: {\"name\": string, \"args\": object}\n"
-            "OBSERVE: {\"channel_id\"?: string, \"active\"?: boolean, \"context\"?: object}"
+            "TOOL: {\"name\": string, \"args\": object} - Available tools and their argument schemas:\n"
+            "  - discord_delete_message: Delete a message\n"
+            "    args: {\"channel_id\": integer, \"message_id\": integer}\n"
+            "    Use when: Message violates rules, contains harmful content, or needs removal\n"
+            "  - discord_timeout_user: Temporarily mute a user\n"
+            "    args: {\"guild_id\": integer, \"user_id\": integer, \"duration_seconds\": integer, \"reason\"?: string}\n"
+            "    Use when: User needs a cooling-off period (max 28 days = 2419200 seconds)\n"
+            "  - discord_ban_user: Permanently ban a user from the server\n"
+            "    args: {\"guild_id\": integer, \"user_id\": integer, \"reason\"?: string, \"delete_message_days\"?: integer (0-7)}\n"
+            "    Use when: Severe or repeated violations requiring permanent removal\n"
+            "  - discord_kick_user: Remove user from server (they can rejoin)\n"
+            "    args: {\"guild_id\": integer, \"user_id\": integer, \"reason\"?: string}\n"
+            "    Use when: User needs removal but may be allowed back later\n"
+            "OBSERVE: {\"channel_id\"?: string, \"active\"?: boolean, \"context\"?: object}\n"
+            "TASK_COMPLETE: {} (no parameters needed)"
+        ),
+        "tool_usage_guidance": (
+            "\nTOOL USAGE GUIDELINES:\n"
+            "- Always check if you have the necessary IDs before using a tool\n"
+            "- guild_id can often be found in the task context\n"
+            "- user_id and message_id should be in the message context\n"
+            "- Start with less severe actions (timeout) before escalating\n"
+            "- Always provide a clear reason for moderation actions\n"
+            "- If IDs are missing, use OBSERVE with active=true to gather more context first\n"
         ),
 
 
@@ -242,6 +262,9 @@ class ActionSelectionPDMAEvaluator:
              logger.warning(f"ActionSelectionPDMA: 'permitted_actions' in triaged_inputs is empty for thought {original_thought.thought_id}. Falling back to default.")
              permitted_actions = default_permitted_actions
 
+        # Build action_options_str for prompt
+        action_options_str = ', '.join([a.value for a in permitted_actions])
+
         # Get available tools if TOOL action is permitted
         available_tools_str = ""
         if HandlerActionType.TOOL in permitted_actions:
@@ -254,12 +277,9 @@ class ActionSelectionPDMAEvaluator:
                         available_tools_str = f"\nAvailable tools: {', '.join(tool_names)}"
             except Exception:
                 pass  # Silently ignore if tool registry not available
-
-        action_options_str = ", ".join([
-            action.value.upper() if hasattr(action, 'value') else str(action).upper()
-            for action in permitted_actions
-        ])
-        # --- End dynamic permitted actions ---
+        # Add tool usage guidance
+        tool_usage_guidance = self.prompt.get("tool_usage_guidance", self.DEFAULT_PROMPT.get("tool_usage_guidance", ""))
+        # ...existing code...
 
         # Construct ethical_summary carefully, accessing potential nested fields in alignment_check
         conflicts_str = "None"
