@@ -36,9 +36,13 @@ class ObserveHandler(BaseActionHandler):
         elif params.active:  # v1 uses 'active'
             # Use the Discord observe handler in active mode
             try:
+                target_channel_id = params.channel_id or dispatch_context.get("channel_id")
+                if not target_channel_id:
+                    target_channel_id = os.getenv("DISCORD_CHANNEL_ID")
+
                 await handle_discord_observe_event(
                     payload={
-                        "channel_id": params.sources[0] if params.sources else None,
+                        "channel_id": target_channel_id,
                         "offset": params.offset if hasattr(params, 'offset') else 0,
                         "limit": params.limit if hasattr(params, 'limit') else 10,
                         "include_agent": True
@@ -51,7 +55,7 @@ class ObserveHandler(BaseActionHandler):
                     }
                 )
                 action_performed_successfully = True
-                follow_up_content_key_info = f"Active Discord observe handler invoked for sources: {params.sources}"
+                follow_up_content_key_info = f"Active Discord observe handler invoked for channel: {target_channel_id}"
             except Exception as e:
                 self.logger.exception(f"Error during active Discord observe handler for thought {thought_id}: {e}")
                 final_thought_status = ThoughtStatus.FAILED
@@ -69,7 +73,7 @@ class ObserveHandler(BaseActionHandler):
                     mode="passive"
                 )
                 action_performed_successfully = True
-                follow_up_content_key_info = f"Passive Discord observe handler invoked for sources: {params.sources}"
+                follow_up_content_key_info = "Passive Discord observe handler invoked"
             except Exception as e:
                 self.logger.exception(f"Error during passive Discord observe handler for thought {thought_id}: {e}")
                 final_thought_status = ThoughtStatus.FAILED
