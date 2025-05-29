@@ -24,36 +24,46 @@ class ContextBuilder:
     ) -> ThoughtContext:
         """Build complete context for thought processing."""
         system_snapshot_data = await self.build_system_snapshot(task, thought)
-
-        # Extract user_profiles for the top-level field, providing a default.
-        # The build_system_snapshot method already puts 'user_profiles' into its result if available.
-        # If user_profiles is part of system_snapshot_data and also a top-level field in ThoughtContext,
-        # we might want to avoid duplication. For now, we get it and pass it separately.
-        # If it's intended to remain in system_snapshot_data as well, this is fine.
+        
+        # Extract user_profiles for the top-level field
         user_profiles_data = system_snapshot_data.get("user_profiles", {})
         
-        # Use recently_completed_tasks_summary from the snapshot as task_history for now.
-        # This matches the List[Dict[str, Any]] type.
-        # A more specific source for task_history might be needed in the future.
+        # Use recently_completed_tasks_summary from the snapshot as task_history
         task_history_data = system_snapshot_data.get("recently_completed_tasks_summary", [])
-
+        
         identity_context_str = self.memory_service.export_identity_context() if self.memory_service else None
-
+        
         # --- Add Discord channel context ---
-        # Try to get from environment, then from app_config if available
-        discord_channel_id = getenv("DISCORD_CHANNEL_ID")
-        if not discord_channel_id and self.app_config and hasattr(self.app_config, 'discord_channel_id'):
-            discord_channel_id = self.app_config.discord_channel_id
+        channel_id = None
+        
+        # Try to get channel_id from task context first
+        if task and hasattr(task, 'context') and isinstance(task.context, dict):
+            channel_id = task.context.get('channel_id')
+        
+        # Then try from thought context
+        if not channel_id and hasattr(thought, 'context') and isinstance(thought.context, dict):
+            channel_id = thought.context.get('channel_id')
+        
+        # Then try environment variable
+        if not channel_id:
+            channel_id = getenv("DISCORD_CHANNEL_ID")
+        
+        # Then try app_config
+        if not channel_id and self.app_config and hasattr(self.app_config, 'discord_channel_id'):
+            channel_id = self.app_config.discord_channel_id
+        
         channel_context_str = None
-        if discord_channel_id:
-            channel_context_str = f"Our assigned channel is {discord_channel_id}"
-        # Optionally, append to identity_context_str or add as a new field
+        if channel_id:
+            channel_context_str = f"Our assigned channel is {channel_id}"
+            # Also add to system_snapshot_data for downstream use
+            system_snapshot_data['channel_id'] = channel_id
+        
+        # Combine identity and channel context
         if identity_context_str and channel_context_str:
             identity_context_str = f"{identity_context_str}\n{channel_context_str}"
         elif channel_context_str:
             identity_context_str = channel_context_str
-        # --- End Discord channel context ---
-
+        
         return ThoughtContext(
             system_snapshot=system_snapshot_data,
             user_profiles=user_profiles_data,

@@ -23,121 +23,133 @@ class GuardrailOrchestrator:
         self,
         action_result: ActionSelectionResult,
         thought: Thought,
-        dma_results_dict: Dict[str, Any] # Changed type hint, was DMAResults
+        dma_results_dict: Dict[str, Any]
     ) -> GuardrailResult:
         """Apply guardrails and handle overrides. Retries up to 3 times if guardrail fails."""
         # Parse the incoming dict into DMAResults model
         try:
             dma_results = DMAResults(**dma_results_dict)
         except Exception as e:
-            logger.error(f"Failed to parse dma_results_dict into DMAResults model: {e}. dma_results_dict: {dma_results_dict}", exc_info=True)
+            logger.error(f"Failed to parse dma_results_dict into DMAResults model: {e}", exc_info=True)
             dma_results = DMAResults()
 
         # Inject channel_id for SPEAK actions before guardrail check
         if action_result.selected_action == HandlerActionType.SPEAK:
             params = action_result.action_parameters
-            # Debug: log available context sources
-            logger.debug(f"[GuardrailOrchestrator] SPEAK injection: thought.context={getattr(thought, 'context', None)}, dma_results_dict={dma_results_dict}")
-            # Try to get channel_id from thought, dma_results_dict, or context
+            
+            # Try to get channel_id from multiple sources
             channel_id = None
-            # Try DMA results dict (may have context info)
-            if isinstance(dma_results_dict, dict):
-                channel_id = (
-                    dma_results_dict.get('identity_context', {}).get('channel_id')
-                    if isinstance(dma_results_dict.get('identity_context', {}), dict) else None
-                )
-                if not channel_id:
-                    channel_id = dma_results_dict.get('channel_id')
-            # Fallback to thought (if it has context)
-            if not channel_id and hasattr(thought, 'context'):
-                if isinstance(thought.context, dict):
-                    channel_id = thought.context.get('channel_id')
-            # Inject if missing
-            injected = False
-            if isinstance(params, dict):
-                if not params.get('channel_id') and channel_id:
-                    params['channel_id'] = channel_id
-                    injected = True
-            elif isinstance(params, SpeakParams):
-                if not params.channel_id and channel_id:
-                    params.channel_id = channel_id
-                    injected = True
-            action_result.action_parameters = params
-            logger.debug(f"[GuardrailOrchestrator] SPEAK channel_id injection: action_parameters now {action_result.action_parameters}, injected channel_id={channel_id}")
+            
+            # 1. From dma_results_dict processing_context
+            if isinstance(dma_results_dict, dict) and 'processing_context' in dma_results_dict:
+                proc_ctx = dma_results_dict['processing_context']
+                if isinstance(proc_ctx, dict):
+                    channel_id = proc_ctx.get('channel_id')
+                    if not channel_id:
+                        # Check system_snapshot within processing_context
+                        sys_snap = proc_ctx.get('system_snapshot', {})
+                        if isinstance(sys_snap, dict):
+                            channel_id = sys_snap.get('channel_id')
+            
+            # 2. From thought context
+            if not channel_id and hasattr(thought, 'context') and isinstance(thought.context, dict):
+                channel_id = thought.context.get('channel_id')
+            
+            # 3. From identity_context parsing
+            if not channel_id and isinstance(dma_results_dict, dict):
+                identity_ctx = dma_results_dict.get('identity_context')
+                if isinstance(identity_ctx, str) and 'channel is' in identity_ctx:
+                    import re
+                    match = re.search(r'channel is (\S+)', identity_ctx)
+                    if match:
+                        channel_id = match.group(1)
+            
+            # 4. From environment variable as last resort
             if not channel_id:
-                logger.warning(f"[GuardrailOrchestrator] SPEAK channel_id injection: channel_id is STILL None after attempted injection! This will cause epistemic humility to flag it.")
-            elif not injected:
-                logger.warning(f"[GuardrailOrchestrator] SPEAK channel_id injection: channel_id was found ({channel_id}) but not injected (already present or params type mismatch).")
+                import os
+                channel_id = os.getenv('DISCORD_CHANNEL_ID')
+            
+            # Inject channel_id if found
+            if channel_id:
+                if isinstance(params, dict):
+                    params['channel_id'] = channel_id
+                elif isinstance(params, SpeakParams):
+                    params.channel_id = channel_id
+                action_result.action_parameters = params
+                logger.debug(f"Injected channel_id={channel_id} into SPEAK parameters")
+            else:
+                logger.error("Failed to find channel_id from any source!")
+        
+        # ... rest of the method remains the same
+            # Retry guardrail check up to 3 times if it fails
+            max_retries = 3
+            for attempt in range(1, max_retries + 1):
+                passes_guardrail, reason, epistemic_data = await self.ethical_guardrails.check_action_output_safety(action_result)
+                if passes_guardrail:
+                    break
+                logger.warning(f"Guardrail failed attempt {attempt} for thought ID {thought.thought_id}: {reason}")
+                if attempt < max_retries:
+                    continue
+                # Only proceed to override after final failed attempt
 
-        # Retry guardrail check up to 3 times if it fails
-        max_retries = 3
-        for attempt in range(1, max_retries + 1):
-            passes_guardrail, reason, epistemic_data = await self.ethical_guardrails.check_action_output_safety(action_result)
-            if passes_guardrail:
-                break
-            logger.warning(f"Guardrail failed attempt {attempt} for thought ID {thought.thought_id}: {reason}")
-            if attempt < max_retries:
-                continue
-            # Only proceed to override after final failed attempt
+            override_action_result = None
+            if not passes_guardrail:
+                logger.warning(f"Guardrail failed for thought ID {thought.thought_id}: {reason}. Overriding action to PONDER.")
 
-        override_action_result = None
-        if not passes_guardrail:
-            logger.warning(f"Guardrail failed for thought ID {thought.thought_id}: {reason}. Overriding action to PONDER.")
+                # Create ponder questions based on the guardrail failure
+                ponder_questions = [
+                    f"Why did the guardrail fail with reason: {reason}?",
+                    "What alternative approach would satisfy the epistemic constraints?",
+                    "How can I reformulate my response to align with CIRIS values?"
+                ]
 
-            # Create ponder questions based on the guardrail failure
-            ponder_questions = [
-                f"Why did the guardrail fail with reason: {reason}?",
-                "What alternative approach would satisfy the epistemic constraints?",
-                "How can I reformulate my response to align with CIRIS values?"
-            ]
+                # Add specific questions based on epistemic data
+                if epistemic_data:
+                    if epistemic_data.get('entropy', 0) > self.ethical_guardrails.entropy_threshold:
+                        ponder_questions.append("How can I reduce the entropy/chaos in my response?")
+                    if epistemic_data.get('coherence', 1) < self.ethical_guardrails.coherence_threshold:
+                        ponder_questions.append("How can I better align my response with CIRIS principles?")
+                    if 'optimization_veto' in epistemic_data:
+                        veto = epistemic_data['optimization_veto']
+                        if veto.get('decision') in ['abort', 'defer']:
+                            ponder_questions.append(f"Optimization concern: {veto.get('justification')} - How to address this?")
+                    if 'epistemic_humility' in epistemic_data:
+                        humility = epistemic_data['epistemic_humility']
+                        if humility.get('recommended_action') in ['abort', 'defer']:
+                            ponder_questions.extend(humility.get('identified_uncertainties', []))
 
-            # Add specific questions based on epistemic data
-            if epistemic_data:
-                if epistemic_data.get('entropy', 0) > self.ethical_guardrails.entropy_threshold:
-                    ponder_questions.append("How can I reduce the entropy/chaos in my response?")
-                if epistemic_data.get('coherence', 1) < self.ethical_guardrails.coherence_threshold:
-                    ponder_questions.append("How can I better align my response with CIRIS principles?")
-                if 'optimization_veto' in epistemic_data:
-                    veto = epistemic_data['optimization_veto']
-                    if veto.get('decision') in ['abort', 'defer']:
-                        ponder_questions.append(f"Optimization concern: {veto.get('justification')} - How to address this?")
-                if 'epistemic_humility' in epistemic_data:
-                    humility = epistemic_data['epistemic_humility']
-                    if humility.get('recommended_action') in ['abort', 'defer']:
-                        ponder_questions.extend(humility.get('identified_uncertainties', []))
+                ponder_params = PonderParams(questions=ponder_questions[:5])  # Limit to 5 questions
 
-            ponder_params = PonderParams(questions=ponder_questions[:5])  # Limit to 5 questions
+                override_action_result = ActionSelectionResult(
+                    selected_action=HandlerActionType.PONDER,
+                    action_parameters=ponder_params.model_dump(mode='json'),
+                    rationale=f"Original action '{action_result.selected_action.value}' failed guardrails. Pondering to find aligned approach. Reason: {reason}",
+                    confidence=0.3,  # Low confidence due to guardrail failure
+                    raw_llm_response=action_result.raw_llm_response
+                )
 
-            override_action_result = ActionSelectionResult(
-                selected_action=HandlerActionType.PONDER,
-                action_parameters=ponder_params.model_dump(mode='json'),
-                rationale=f"Original action '{action_result.selected_action.value}' failed guardrails. Pondering to find aligned approach. Reason: {reason}",
-                confidence=0.3,  # Low confidence due to guardrail failure
-                raw_llm_response=action_result.raw_llm_response
+                logger.info(f"Guardrail triggered PONDER for thought {thought.thought_id}: {reason}")
+
+            final_action = override_action_result if override_action_result else action_result
+
+            # Normalize action_parameters for all main action types before dispatch
+            if final_action.selected_action == HandlerActionType.SPEAK:
+                params = final_action.action_parameters
+                if isinstance(params, dict):
+                    final_action.action_parameters = SpeakParams(**params)
+            elif final_action.selected_action == HandlerActionType.DEFER:
+                params = final_action.action_parameters
+                if isinstance(params, dict):
+                    final_action.action_parameters = DeferParams(**params)
+            elif final_action.selected_action == HandlerActionType.PONDER:
+                params = final_action.action_parameters
+                if isinstance(params, dict):
+                    final_action.action_parameters = PonderParams(**params)
+
+            return GuardrailResult(
+                original_action=action_result,
+                final_action=final_action,
+                overridden=not passes_guardrail,
+                override_reason=reason if not passes_guardrail else None,
+                epistemic_data=epistemic_data,
             )
-
-            logger.info(f"Guardrail triggered PONDER for thought {thought.thought_id}: {reason}")
-
-        final_action = override_action_result if override_action_result else action_result
-
-        # Normalize action_parameters for all main action types before dispatch
-        if final_action.selected_action == HandlerActionType.SPEAK:
-            params = final_action.action_parameters
-            if isinstance(params, dict):
-                final_action.action_parameters = SpeakParams(**params)
-        elif final_action.selected_action == HandlerActionType.DEFER:
-            params = final_action.action_parameters
-            if isinstance(params, dict):
-                final_action.action_parameters = DeferParams(**params)
-        elif final_action.selected_action == HandlerActionType.PONDER:
-            params = final_action.action_parameters
-            if isinstance(params, dict):
-                final_action.action_parameters = PonderParams(**params)
-
-        return GuardrailResult(
-            original_action=action_result,
-            final_action=final_action,
-            overridden=not passes_guardrail,
-            override_reason=reason if not passes_guardrail else None,
-            epistemic_data=epistemic_data,
-        )

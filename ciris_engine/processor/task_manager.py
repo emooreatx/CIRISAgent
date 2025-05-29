@@ -30,6 +30,18 @@ class TaskManager:
         """Create a new task with v1 schema."""
         now_iso = datetime.now(timezone.utc).isoformat()
         
+        # Ensure context exists
+        if context is None:
+            context = {}
+        
+        # Ensure channel_id is in context
+        if 'channel_id' not in context:
+            # Try to get from environment
+            import os
+            channel_id = os.getenv('DISCORD_CHANNEL_ID')
+            if channel_id:
+                context['channel_id'] = channel_id
+        
         task = Task(
             task_id=str(uuid.uuid4()),
             description=description,
@@ -38,9 +50,11 @@ class TaskManager:
             created_at=now_iso,
             updated_at=now_iso,
             parent_task_id=parent_task_id,
-            context=context or {},
+            context=context,
             outcome={}
         )
+        
+        # ... rest of the method remains the same
         # Inject agent_profile_name into context if not already present and profile is available
         if context is not None and 'agent_profile_name' not in task.context:
             from ciris_engine.utils.profile_loader import load_profile
