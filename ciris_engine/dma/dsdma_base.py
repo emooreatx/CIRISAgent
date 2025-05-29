@@ -20,7 +20,16 @@ class BaseDSDMA(ABC):
     Abstract Base Class for Domain-Specific Decision-Making Algorithms.
     Handles instructor client patching based on global config.
     """
-    DEFAULT_TEMPLATE: Optional[str] = "" # Subclasses should override this
+    DEFAULT_TEMPLATE: Optional[str] = (
+        "You are a domain-specific evaluator for the '{domain_name}' domain. "
+        "Your primary goal is to assess how well a given 'thought' aligns with the specific rules, "
+        "objectives, and knowledge pertinent to this domain. "
+        "Consider the provided domain rules: '{rules_summary_str}' and the general platform context: '{context_str}'. "
+        "Additionally, user profile information and system snapshot details will be provided with the thought for background awareness. "
+        "When evaluating thoughts that might lead to TOOL actions, consider whether the tools available "
+        "are appropriate for the domain and whether their use aligns with domain-specific best practices. "
+        "Focus your evaluation on domain alignment."
+    )
 
     def __init__(self,
                  domain_name: str,

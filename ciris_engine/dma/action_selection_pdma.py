@@ -229,7 +229,10 @@ class ActionSelectionPDMAEvaluator:
         # Default fallback list
         default_permitted_actions = [
             HandlerActionType.SPEAK, HandlerActionType.PONDER,
-            HandlerActionType.REJECT, HandlerActionType.DEFER
+            HandlerActionType.REJECT, HandlerActionType.DEFER,
+            HandlerActionType.MEMORIZE, HandlerActionType.REMEMBER,
+            HandlerActionType.FORGET, HandlerActionType.OBSERVE,
+            HandlerActionType.TOOL, HandlerActionType.TASK_COMPLETE
         ]
         permitted_actions: List[HandlerActionType] = triaged_inputs.get('permitted_actions', default_permitted_actions)
 
@@ -238,6 +241,19 @@ class ActionSelectionPDMAEvaluator:
         elif not permitted_actions: # Handle case where it's provided but empty
              logger.warning(f"ActionSelectionPDMA: 'permitted_actions' in triaged_inputs is empty for thought {original_thought.thought_id}. Falling back to default.")
              permitted_actions = default_permitted_actions
+
+        # Get available tools if TOOL action is permitted
+        available_tools_str = ""
+        if HandlerActionType.TOOL in permitted_actions:
+            try:
+                from ciris_engine.action_handlers.tool_handler import ToolHandler
+                tool_registry = ToolHandler._tool_registry
+                if tool_registry and hasattr(tool_registry, '_tools'):
+                    tool_names = list(tool_registry._tools.keys())
+                    if tool_names:
+                        available_tools_str = f"\nAvailable tools: {', '.join(tool_names)}"
+            except Exception:
+                pass  # Silently ignore if tool registry not available
 
         action_options_str = ", ".join([
             action.value.upper() if hasattr(action, 'value') else str(action).upper()
@@ -334,7 +350,7 @@ class ActionSelectionPDMAEvaluator:
 {profile_specific_system_header_injection}Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
 You MUST execute the Principled Decision-Making Algorithm (PDMA) to choose this HANDLER ACTION and structure your response as a JSON object matching the provided schema.
 All fields specified in the schema for your response are MANDATORY unless explicitly marked as optional.
-Permitted Handler Actions: {action_options_str}
+Permitted Handler Actions: {action_options_str}{available_tools_str}
 {startup_guidance}
 {reject_thought_guidance}
 {final_ponder_advisory}
