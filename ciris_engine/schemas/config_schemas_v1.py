@@ -56,7 +56,7 @@ class AgentProfile(BaseModel):
     name: str
     dsdma_identifier: Optional[str] = None
     dsdma_kwargs: Optional[Dict[str, Any]] = None
-    permitted_actions: List[str] = Field(default_factory=list)
+    permitted_actions: List[HandlerActionType] = Field(default_factory=list)
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
 
