@@ -276,7 +276,9 @@ class AgentProcessor:
                     for key in ["channel_id", "author_name", "author_id"]:
                         if key in task.context:
                             dispatch_context[key] = task.context[key]
-                if "channel_id" not in dispatch_context or not dispatch_context["channel_id"]:
+                # Ensure channel_id is present and not None
+                if not dispatch_context.get("channel_id"):
+                    logger.warning(f"No channel_id found for thought {thought.thought_id}; using startup_channel_id as fallback.")
                     dispatch_context["channel_id"] = self.startup_channel_id
                 await self.action_dispatcher.dispatch(
                     action_selection_result=result,
