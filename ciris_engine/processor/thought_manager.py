@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 
 class ThoughtManager:
     """Manages thought generation, queueing, and processing."""
-    
-    def __init__(self, max_active_thoughts: int = 50):
+
+    def __init__(self, max_active_thoughts: int = 50, default_channel_id: Optional[str] = None):
         self.max_active_thoughts = max_active_thoughts
+        self.default_channel_id = default_channel_id
         self.processing_queue: Deque[ProcessingQueueItem] = collections.deque()
         
     def generate_seed_thought(
@@ -76,11 +77,18 @@ class ThoughtManager:
     def create_job_thought(self, round_number: int) -> Optional[Thought]:
         """Create a job thought for Discord monitoring."""
         job_task_id = "job-discord-monitor"
-        
+
         if not persistence.task_exists(job_task_id):
             logger.warning(f"Job task '{job_task_id}' not found")
             return None
-        
+
+        job_task = persistence.get_task_by_id(job_task_id)
+        channel_id = None
+        if job_task and job_task.context:
+            channel_id = job_task.context.get("channel_id")
+        if not channel_id:
+            channel_id = self.default_channel_id
+
         thought = Thought(
             thought_id=str(uuid.uuid4()),
             source_task_id=job_task_id,
@@ -90,6 +98,7 @@ class ThoughtManager:
             updated_at=datetime.now(timezone.utc).isoformat(),
             round_number=round_number,
             content="I should check for new messages and events.",
+            context={"channel_id": channel_id} if channel_id else {},
         )
         
         try:
@@ -226,7 +235,8 @@ class ThoughtManager:
                     updated_at=now_iso,
                     context={
                         "meta_goal": "continuous_monitoring",
-                        "origin_service": "agent_processor_fallback"
+                        "origin_service": "agent_processor_fallback",
+                        **({"channel_id": self.default_channel_id} if self.default_channel_id else {})
                     },
                 )
                 persistence.add_task(job_task)
