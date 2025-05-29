@@ -399,7 +399,8 @@ class WakeupProcessor(BaseProcessor):
         now_iso = datetime.now(timezone.utc).isoformat()
         thought = Thought(
             thought_id=str(uuid.uuid4()),
-            task_id=step_task.task_id,
+            source_task_id=step_task.task_id,
+            content=step_task.description,
             round_number=round_number,
             status=ThoughtStatus.PENDING,
             created_at=now_iso,
