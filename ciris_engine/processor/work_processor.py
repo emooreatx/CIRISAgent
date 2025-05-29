@@ -12,6 +12,8 @@ from ciris_engine.processor.base_processor import BaseProcessor
 from ciris_engine.processor.task_manager import TaskManager
 from ciris_engine.processor.thought_manager import ThoughtManager
 from ciris_engine.processor.thought_processor import ThoughtProcessor
+# Build dispatch context
+from ciris_engine.utils.context_utils import build_dispatch_context
 
 logger = logging.getLogger(__name__)
 
@@ -168,8 +170,11 @@ class WorkProcessor(BaseProcessor):
             logger.error(f"Could not retrieve thought {thought_id} for dispatch")
             return
         
-        # Build dispatch context
-        dispatch_context = self._build_dispatch_context(item, thought_obj)
+
+
+        # Get the task object for context
+        task = persistence.get_task_by_id(item.source_task_id)
+        dispatch_context = build_dispatch_context(item, thought_obj, task)
         
         try:
             await self.dispatch_action(result, thought_obj, dispatch_context)
