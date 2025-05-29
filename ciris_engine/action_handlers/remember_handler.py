@@ -22,11 +22,23 @@ class RememberHandler(BaseActionHandler):
                 params = RememberParams(**raw_params)
             except ValidationError as e:
                 logger.error(f"RememberHandler: Invalid params dict: {e}")
+                follow_up = create_follow_up_thought(
+                    parent=thought,
+                    content=f"REMEMBER action failed: Invalid parameters. {e}"
+                )
+                self.dependencies.persistence.add_thought(follow_up)
+                await self._audit_log(HandlerActionType.REMEMBER, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
                 return
         elif isinstance(raw_params, RememberParams):
             params = raw_params
         else:
             logger.error(f"RememberHandler: Invalid params type: {type(raw_params)}")
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                content=f"REMEMBER action failed: Invalid parameters type: {type(raw_params)}"
+            )
+            self.dependencies.persistence.add_thought(follow_up)
+            await self._audit_log(HandlerActionType.REMEMBER, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             return
         scope = GraphScope(params.scope)
         # Build a GraphNode for the query (id is the query string)

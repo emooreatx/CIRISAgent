@@ -22,15 +22,49 @@ class ForgetHandler(BaseActionHandler):
                 params = ForgetParams(**raw_params)
             except ValidationError as e:
                 logger.error(f"ForgetHandler: Invalid params dict: {e}")
+                follow_up = create_follow_up_thought(
+                    parent=thought,
+                    content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+                )
+                follow_up.context = {
+                    "action_performed": "FORGET",
+                    "parent_task_id": thought.source_task_id,
+                    "is_follow_up": True,
+                    "error": str(e)
+                }
+                self.dependencies.persistence.add_thought(follow_up)
+                await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
                 return
         elif isinstance(raw_params, ForgetParams):
             params = raw_params
         else:
             logger.error(f"ForgetHandler: Invalid params type: {type(raw_params)}")
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters type: {type(raw_params)}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            )
+            follow_up.context = {
+                "action_performed": "FORGET",
+                "parent_task_id": thought.source_task_id,
+                "is_follow_up": True,
+                "error": f"Invalid params type: {type(raw_params)}"
+            }
+            self.dependencies.persistence.add_thought(follow_up)
+            await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             return
         if not self._can_forget(params, dispatch_context):
             logger.info("ForgetHandler: Permission denied or WA required for forget operation. Creating deferral.")
-            # Optionally, create a deferral to WA here
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action was not permitted. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            )
+            follow_up.context = {
+                "action_performed": "FORGET",
+                "parent_task_id": thought.source_task_id,
+                "is_follow_up": True,
+                "error": "Permission denied or WA required"
+            }
+            self.dependencies.persistence.add_thought(follow_up)
             return
         # Build a GraphNode for the key to forget
         node = GraphNode(
@@ -42,13 +76,21 @@ class ForgetHandler(BaseActionHandler):
         forget_result = await self.dependencies.memory_service.forget(node)
         await self._audit_forget_operation(params, dispatch_context, forget_result)
         if forget_result.status == MemoryOpStatus.OK:
-            follow_up_content = f"Successfully forgot key '{params.key}' in scope {params.scope}."
+            follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. Successfully forgot key '{params.key}' in scope {params.scope}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
         else:
-            follow_up_content = f"Failed to forget key '{params.key}' in scope {params.scope}."
+            follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. Failed to forget key '{params.key}' in scope {params.scope}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
         follow_up = create_follow_up_thought(
             parent=thought,
             content=follow_up_content,
         )
+        follow_up.context = {
+            "action_performed": "FORGET",
+            "parent_task_id": thought.source_task_id,
+            "is_follow_up": True,
+            "forget_key": params.key,
+            "forget_scope": params.scope,
+            "forget_status": str(forget_result.status)
+        }
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="success" if forget_result.status == MemoryOpStatus.OK else "failed")
 
