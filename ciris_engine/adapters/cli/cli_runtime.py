@@ -56,6 +56,8 @@ class InteractiveCLIAdapter(CLIAdapter):
                     "content": line,
                 }
             )
+            # Ensure the database is initialized before adding the task
+            persistence.initialize_database()
             persistence.add_task(task)
             logger.info(f"Created task {task_id} from CLI input")
             return []
