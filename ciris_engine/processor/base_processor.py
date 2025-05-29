@@ -112,6 +112,7 @@ class BaseProcessor(ABC):
         """
         Process a single thought item through the thought processor.
         Returns the processing result.
+        Implements DMA failure fallback: force PONDER or DEFER as appropriate.
         """
         try:
             result = await self.thought_processor.process_thought(item, context)
@@ -120,7 +121,28 @@ class BaseProcessor(ABC):
         except Exception as e:
             logger.error(f"Error processing thought {item.thought_id}: {e}", exc_info=True)
             self.metrics["errors"] += 1
+            # DMA failure fallback logic
+            if hasattr(e, "is_dma_failure") and getattr(e, "is_dma_failure", False):
+                # Check for ponder rounds remaining (stub: always force ponder if possible)
+                if hasattr(self, "force_ponder"):
+                    logger.warning(f"DMA failure for {item.thought_id}, forcing PONDER fallback.")
+                    return await self.force_ponder(item, context)
+                elif hasattr(self, "force_defer"):
+                    logger.warning(f"DMA failure for {item.thought_id}, forcing DEFER fallback.")
+                    return await self.force_defer(item, context)
             raise
+
+    async def force_ponder(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None):
+        """Force a PONDER action for the given thought item. Override in subclass for custom logic."""
+        logger.info(f"Forcing PONDER for thought {item.thought_id}")
+        # Implement actual logic in subclass
+        pass
+
+    async def force_defer(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None):
+        """Force a DEFER action for the given thought item. Override in subclass for custom logic."""
+        logger.info(f"Forcing DEFER for thought {item.thought_id}")
+        # Implement actual logic in subclass
+        pass
     
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}>"

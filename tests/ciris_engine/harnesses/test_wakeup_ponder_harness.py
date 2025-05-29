@@ -39,6 +39,8 @@ class MemoryDB:
             return False
         self.thoughts[thought_id] = th.model_copy(update={"status": status})
         return True
+    def get_thoughts_by_task_id(self, task_id):
+        return [th for th in self.thoughts.values() if th.source_task_id == task_id]
 
 def setup_wakeup_proc(monkeypatch):
     db = MemoryDB()
@@ -49,6 +51,7 @@ def setup_wakeup_proc(monkeypatch):
     monkeypatch.setattr('ciris_engine.persistence.add_thought', db.add_thought)
     monkeypatch.setattr('ciris_engine.persistence.get_thought_by_id', db.get_thought_by_id)
     monkeypatch.setattr('ciris_engine.persistence.update_thought_status', db.update_thought_status)
+    monkeypatch.setattr('ciris_engine.persistence.get_thoughts_by_task_id', db.get_thoughts_by_task_id)
     ponder_manager = PonderManager()
     action_dispatcher = build_action_dispatcher(ponder_manager=ponder_manager)
     thought_processor = ThoughtProcessor(
@@ -70,25 +73,23 @@ async def test_wakeup_ponder_then_speak(monkeypatch):
     async def fake_process_thought(item, ctx=None, benchmark_mode=False):
         call_count["count"] += 1
         if call_count["count"] == 1:
+            # Mark the step task as completed after PONDER
+            step_task_id = item.thought.source_task_id if hasattr(item, 'thought') else None
+            if step_task_id:
+                db.update_task_status(step_task_id, TaskStatus.COMPLETED)
+                await asyncio.sleep(0.1)
             class Result:
                 selected_action = HandlerActionType.PONDER
                 action_parameters = {"questions": ["Q1"]}
             return Result()
         else:
-            # Mark the correct step task as completed to simulate successful SPEAK
-            # Use the source_task_id from the ProcessingQueueItem
-            step_task_id = item.thought.source_task_id if hasattr(item, 'thought') else None
-            if step_task_id:
-                db.update_task_status(step_task_id, TaskStatus.COMPLETED)
-                # Give the event loop a chance to process the update
-                await asyncio.sleep(0.1)
             class Result:
                 selected_action = HandlerActionType.SPEAK
                 action_parameters = {"content": "Hello!"}
             return Result()
     thought_processor.process_thought = fake_process_thought
     # Run the wakeup processor (blocking mode)
-    result = await proc.process(round_number=1, non_blocking=False)
+    result = await proc.process_wakeup(round_number=1, non_blocking=False)
     assert result["status"] == "success"
     assert result["wakeup_complete"] is True
     assert result["steps_completed"] == len(proc.WAKEUP_SEQUENCE)

@@ -49,8 +49,10 @@ async def test_llm_success(monkeypatch):
         selected_action=HandlerActionType.SPEAK,
         action_parameters={"content": "hi"},
         action_selection_rationale="rationale",
+        rationale="rationale",  # Add rationale attribute for compatibility
         monitoring_for_selected_action="monitor",
-        confidence_score=0.9
+        confidence_score=0.9,
+        confidence=0.9  # Add confidence attribute for compatibility
     )
     evaluator = ActionSelectionPDMAEvaluator(
         aclient=MagicMock(),

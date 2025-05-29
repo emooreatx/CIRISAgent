@@ -97,3 +97,34 @@ async def test_process_thought_item_error(monkeypatch):
     with pytest.raises(Exception):
         await proc.process_thought_item(item)
     assert proc.metrics["errors"] == 1
+
+
+@pytest.mark.asyncio
+async def test_process_thought_item_dma_failure_fallback(monkeypatch):
+    ad = AsyncMock()
+    tp = AsyncMock()
+    proc = DummyProcessor(AppConfig(), tp, ad, {})
+
+    # Patch force_ponder and force_defer to track calls
+    proc.force_ponder = AsyncMock(return_value="pondered")
+    proc.force_defer = AsyncMock(return_value="deferred")
+
+    class DMAFailure(Exception):
+        is_dma_failure = True
+
+    # Simulate DMA failure
+    tp.process_thought = AsyncMock(side_effect=DMAFailure("dma fail"))
+
+    item = ProcessingQueueItem(
+        thought_id="th1",
+        source_task_id="t1",
+        thought_type="test",
+        content="hello",
+    )
+
+    # Should call force_ponder and return its result
+    result = await proc.process_thought_item(item)
+    proc.force_ponder.assert_awaited_once_with(item, None)
+    assert result == "pondered"
+    # Should not call force_defer
+    proc.force_defer.assert_not_called()

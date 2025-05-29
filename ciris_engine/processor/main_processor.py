@@ -249,49 +249,44 @@ class AgentProcessor:
         return processed_count
 
     async def _process_single_thought(self, thought: Thought) -> bool:
-        """Process a single thought and dispatch its action."""
+        """Process a single thought and dispatch its action, with DMA fallback."""
         try:
             # Create processing queue item
             item = ProcessingQueueItem.from_thought(thought)
-            
-            # Process through thought processor
-            result = await self.thought_processor.process_thought(
-                thought_item=item,
-                platform_context={"origin": "wakeup_async"}
-            )
-            
+
+            # Use the current state's processor for fallback-aware processing
+            processor = self.state_processors.get(self.state_manager.get_state())
+            if processor is None:
+                logger.error(f"No processor found for state {self.state_manager.get_state()}")
+                return False
+
+            # Use fallback-aware process_thought_item
+            result = await processor.process_thought_item(item, context={"origin": "wakeup_async"})
+
             if result:
                 # Get the task for context
                 task = persistence.get_task_by_id(thought.source_task_id)
-                
-                # Build dispatch context
                 dispatch_context = {
                     "thought_id": thought.thought_id,
                     "source_task_id": thought.source_task_id,
                     "origin_service": "discord",
                     "round_number": self.current_round_number
                 }
-                
-                # Add task context if available
                 if task and task.context:
                     for key in ["channel_id", "author_name", "author_id"]:
                         if key in task.context:
                             dispatch_context[key] = task.context[key]
-                # Ensure channel_id is always present in dispatch_context
                 if "channel_id" not in dispatch_context or not dispatch_context["channel_id"]:
                     dispatch_context["channel_id"] = self.startup_channel_id
-                # Dispatch the action
                 await self.action_dispatcher.dispatch(
                     action_selection_result=result,
                     thought=thought,
                     dispatch_context=dispatch_context
                 )
-                
                 return True
             else:
                 logger.warning(f"No result from processing thought {thought.thought_id}")
                 return False
-                
         except Exception as e:
             logger.error(f"Error processing thought {thought.thought_id}: {e}", exc_info=True)
             raise
