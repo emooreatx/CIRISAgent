@@ -26,6 +26,7 @@ from .thoughts import (
     get_thoughts_by_status,
     get_thoughts_by_task_id,
     count_thoughts,
+    delete_thoughts_by_ids,
 )
 from .deferral import save_deferral_report_mapping, get_deferral_report_context
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus

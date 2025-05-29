@@ -7,6 +7,8 @@ import os
 import logging
 from typing import Optional, Dict, Any
 
+import discord
+
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
@@ -78,6 +80,11 @@ class DiscordRuntime(CIRISRuntime):
         """Initialize Discord-specific components."""
         await super().initialize()
 
+        # Create and assign the Discord client (Bot)
+        intents = discord.Intents.all()
+        self.client = discord.Client(intents=intents)
+        self.discord_adapter.client = self.client  # Assign the client to the adapter
+
         # Create action sink
         self.action_sink = DiscordActionSink(self.discord_adapter)
         # Create deferral sink
@@ -92,7 +99,7 @@ class DiscordRuntime(CIRISRuntime):
             monitored_channel_id=self.monitored_channel_id,
             deferral_sink=self.deferral_sink,
         )
-        # Register Discord tools
+        # Register Discord tools with the live client
         tool_registry = ToolRegistry()
         register_discord_tools(tool_registry, self.discord_adapter.client)
         ToolHandler.set_tool_registry(tool_registry)

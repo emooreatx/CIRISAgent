@@ -26,6 +26,9 @@ class DiscordDeferralSink(DeferralSink):
         if not self.deferral_channel_id:
             logger.warning("DiscordDeferralSink: deferral channel not configured")
             return
+        # Wait for the client to be ready
+        if hasattr(self.client, 'wait_until_ready'):
+            await self.client.wait_until_ready()
         channel = self.client.get_channel(self.deferral_channel_id)
         if channel is None:
             channel = await self.client.fetch_channel(self.deferral_channel_id)

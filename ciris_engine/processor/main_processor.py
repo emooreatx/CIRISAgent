@@ -164,7 +164,7 @@ class AgentProcessor:
                 logger.info(f"Wakeup round {wakeup_round}: {wakeup_result.get('steps_completed', 0)}/{wakeup_result.get('total_steps', 5)} steps complete, {thoughts_processed} thoughts processed")
                 
                 # 3. Brief delay between rounds
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(5.0)  # Increased delay for more natural pacing
             else:
                 logger.info("✓ Wakeup sequence completed successfully!")
             
