@@ -61,7 +61,10 @@ class WakeupProcessor(BaseProcessor):
             return await self.process_wakeup(round_number, non_blocking=True)
         
     async def process_wakeup(self, round_number: int, non_blocking: bool = False) -> Dict[str, Any]:
-
+        """
+        Execute wakeup processing for one round.
+        In non-blocking mode, creates thoughts for incomplete steps and returns immediately.
+        """
         logger.info(f"Starting wakeup sequence (round {round_number}, non_blocking={non_blocking})")
         
         try:
@@ -73,22 +76,60 @@ class WakeupProcessor(BaseProcessor):
             self._ensure_monitoring_task()
             
             if non_blocking:
-                # Non-blocking mode: create thoughts for active tasks and return immediately
-                await self._process_wakeup_steps_non_blocking(round_number)
+                # Non-blocking mode: Process thoughts asynchronously
+                processed_any = False
                 
-                # Check completion status without blocking
-                all_complete = await self._check_all_steps_complete()
+                # 1. Create thoughts for any ACTIVE tasks that don't have them
+                for i, step_task in enumerate(self.wakeup_tasks[1:]):  # Skip root
+                    current_task = persistence.get_task_by_id(step_task.task_id)
+                    if not current_task or current_task.status != TaskStatus.ACTIVE:
+                        continue
+                    
+                    # Check if this task already has a thought for this round
+                    existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
+                    has_current_round_thought = any(
+                        t.round_number == round_number and 
+                        t.status in [ThoughtStatus.PENDING, ThoughtStatus.PROCESSING]
+                        for t in existing_thoughts
+                    )
+                    
+                    if not has_current_round_thought:
+                        # Create thought for this step
+                        thought = await self._create_step_thought(step_task, round_number)
+                        logger.info(f"Created thought {thought.thought_id} for wakeup step {i+1}")
+                        processed_any = True
+                
+                # 2. Check completion status
+                steps_status = []
+                for i, step_task in enumerate(self.wakeup_tasks[1:]):
+                    current_task = persistence.get_task_by_id(step_task.task_id)
+                    status = "missing"
+                    if current_task:
+                        status = current_task.status.value
+                    steps_status.append({
+                        "step": i + 1,
+                        "task_id": step_task.task_id,
+                        "status": status,
+                        "type": step_task.context.get("step_type", "unknown")
+                    })
+                
+                # Check if all complete
+                all_complete = all(
+                    s["status"] == "completed" for s in steps_status
+                )
                 
                 if all_complete:
                     self.wakeup_complete = True
                     self._mark_root_task_complete()
-                    logger.info("Wakeup sequence completed!")
+                    logger.info("✓ Wakeup sequence completed successfully!")
                 
                 return {
                     "status": "completed" if all_complete else "in_progress",
                     "wakeup_complete": all_complete,
-                    "steps_completed": self._count_completed_steps(),
-                    "total_steps": len(self.WAKEUP_SEQUENCE)
+                    "steps_status": steps_status,
+                    "steps_completed": sum(1 for s in steps_status if s["status"] == "completed"),
+                    "total_steps": len(self.WAKEUP_SEQUENCE),
+                    "processed_thoughts": processed_any
                 }
             else:
                 # Original blocking mode (kept for compatibility)
@@ -110,6 +151,7 @@ class WakeupProcessor(BaseProcessor):
                         "wakeup_complete": False,
                         "error": "One or more wakeup steps failed"
                     }
+                    
         except Exception as e:
             logger.error(f"Error in wakeup sequence: {e}", exc_info=True)
             self._mark_root_task_failed()
