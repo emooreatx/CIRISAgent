@@ -157,6 +157,10 @@ class ThoughtProcessor:
         selected_action = None
         final_result = result
         
+        if result is None:
+            logger.error(f"ThoughtProcessor: No result provided for thought {thought.thought_id}")
+            return None
+
         if hasattr(result, 'selected_action'):
             # This is an ActionSelectionResult
             selected_action = result.selected_action
@@ -165,10 +169,14 @@ class ThoughtProcessor:
             # This is a GuardrailResult - extract the final_action
             selected_action = result.final_action.selected_action
             final_result = result.final_action  # Use the final_action ActionSelectionResult
-            logger.debug(f"ThoughtProcessor: Extracted final_action from GuardrailResult for thought {thought.thought_id}")
+            logger.debug(
+                f"ThoughtProcessor: Extracted final_action from GuardrailResult for thought {thought.thought_id}"
+            )
         else:
-            logger.error(f"ThoughtProcessor: Unknown result type for thought {thought.thought_id}: {type(result)}")
-            return None
+            logger.warning(
+                f"ThoughtProcessor: Unknown result type for thought {thought.thought_id}: {type(result)}. Returning result as-is."
+            )
+            return result
         
         # Log the action being handled
         if selected_action:
