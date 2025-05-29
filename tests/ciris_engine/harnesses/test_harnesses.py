@@ -22,7 +22,11 @@ from ciris_engine.services.event_log_service import EventLogService
 from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 from ciris_engine.processor.main_processor import AgentProcessor
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import (
+    TaskStatus,
+    ThoughtStatus,
+    HandlerActionType,
+)
 from ciris_engine.ponder.manager import PonderManager
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 
@@ -244,9 +248,12 @@ def test_wakeup_ponder_then_speak(monkeypatch):
             step_task_id = item.source_task_id
             db.update_task_status(step_task_id, TaskStatus.COMPLETED)
             await asyncio.sleep(0.01)
-            return DummyResult("ponder")
+            return DummyResult(HandlerActionType.PONDER)
         else:
-            return DummyResult("speak")
+            # Mark the current step task complete for SPEAK since we don't have a real handler
+            step_task_id = item.source_task_id
+            db.update_task_status(step_task_id, TaskStatus.COMPLETED)
+            return DummyResult(HandlerActionType.SPEAK)
 
     tp = AsyncMock()
     tp.process_thought.side_effect = fake_process_thought
@@ -322,12 +329,26 @@ async def test_wakeup_full_real_handlers(monkeypatch):
     class DummyDMAOrchestrator:
         async def run_initial_dmas(self, *args, **kwargs):
             return []
+        async def run_action_selection(self, *args, **kwargs):
+            thought_item = kwargs.get("thought_item")
+            step_task_id = getattr(thought_item, "source_task_id", None)
+            if step_task_id:
+                db.update_task_status(step_task_id, TaskStatus.COMPLETED)
+            class Result:
+                selected_action = HandlerActionType.SPEAK
+                action_parameters = {"content": "hi"}
+                rationale = "test"
+            return Result()
+
+    class DummyGuardrailOrchestrator:
+        async def apply_guardrails(self, action_result, thought, dma_results):
+            return action_result
     thought_processor = ThoughtProcessor(
         dma_orchestrator=DummyDMAOrchestrator(),
         context_builder=context_builder,
-        guardrail_orchestrator=None,
+        guardrail_orchestrator=DummyGuardrailOrchestrator(),
         ponder_manager=ponder_manager,
-        app_config=AppConfig()
+        app_config=AppConfig(),
     )
     processor = AgentProcessor(AppConfig(), thought_processor, dispatcher, {})
     out = []
