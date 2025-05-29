@@ -74,7 +74,7 @@ async def test_wakeup_ponder_then_speak(monkeypatch):
         call_count["count"] += 1
         if call_count["count"] == 1:
             # Mark the step task as completed after PONDER
-            step_task_id = item.thought.source_task_id if hasattr(item, 'thought') else None
+            step_task_id = getattr(item, "source_task_id", None)
             if step_task_id:
                 db.update_task_status(step_task_id, TaskStatus.COMPLETED)
                 await asyncio.sleep(0.1)
@@ -83,6 +83,10 @@ async def test_wakeup_ponder_then_speak(monkeypatch):
                 action_parameters = {"questions": ["Q1"]}
             return Result()
         else:
+            # Mark the step as complete for SPEAK since no real handler runs
+            step_task_id = getattr(item, "source_task_id", None)
+            if step_task_id:
+                db.update_task_status(step_task_id, TaskStatus.COMPLETED)
             class Result:
                 selected_action = HandlerActionType.SPEAK
                 action_parameters = {"content": "Hello!"}
