@@ -233,7 +233,16 @@ class AgentProcessor:
         # Get all pending thoughts for active tasks
         pending_thoughts = persistence.get_pending_thoughts_for_active_tasks()
         
-        if not pending_thoughts:
+        # Apply max_active_thoughts limit from workflow config
+        max_active = 10  # Default value
+        if hasattr(self.app_config, 'workflow') and self.app_config.workflow:
+            max_active = getattr(self.app_config.workflow, 'max_active_thoughts', 10)
+        
+        limited_thoughts = pending_thoughts[:max_active]
+        
+        logger.info(f"Found {len(pending_thoughts)} PENDING thoughts, processing {len(limited_thoughts)} (max_active_thoughts: {max_active})")
+        
+        if not limited_thoughts:
             return 0
         
         processed_count = 0
@@ -241,8 +250,8 @@ class AgentProcessor:
         # Process thoughts in parallel batches
         batch_size = 5  # Process up to 5 thoughts concurrently
         
-        for i in range(0, len(pending_thoughts), batch_size):
-            batch = pending_thoughts[i:i + batch_size]
+        for i in range(0, len(limited_thoughts), batch_size):
+            batch = limited_thoughts[i:i + batch_size]
             
             # Create tasks for parallel processing
             tasks = []
@@ -303,8 +312,14 @@ class AgentProcessor:
                 )
                 return True
             else:
-                logger.warning(f"No result from processing thought {thought.thought_id}")
-                return False
+                # Check if the thought was already handled (e.g., TASK_COMPLETE)
+                updated_thought = persistence.get_thought_by_id(thought.thought_id)
+                if updated_thought and updated_thought.status in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED]:
+                    logger.debug(f"Thought {thought.thought_id} was already handled with status {updated_thought.status.value}")
+                    return True
+                else:
+                    logger.warning(f"No result from processing thought {thought.thought_id}")
+                    return False
         except Exception as e:
             logger.error(f"Error processing thought {thought.thought_id}: {e}", exc_info=True)
             raise

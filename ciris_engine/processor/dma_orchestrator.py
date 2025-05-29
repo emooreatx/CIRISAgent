@@ -62,25 +62,47 @@ class DMAOrchestrator:
 
     async def run_action_selection(
         self,
-        thought_item: ProcessingQueueItem, # Contains queue-level info like thought_id, initial_context
-        actual_thought: Thought,           # The full Thought model instance
-        processing_context: Dict[str, Any], # This is the ThoughtContext
+        thought_item: ProcessingQueueItem,
+        actual_thought: Thought,
+        processing_context: Dict[str, Any],
         dma_results: Dict[str, Any],
-        profile_name: str, # Added to fetch AgentProfile
+        profile_name: str,
         triaged_inputs: Optional[Dict[str, Any]] = None
     ) -> ActionSelectionResult:
-        """
-        Run ActionSelectionPDMAEvaluator sequentially after DMAs. Returns ActionSelectionResult.
-        """
+        """Run ActionSelectionPDMAEvaluator sequentially after DMAs."""
         triaged = triaged_inputs or {}
         
         # Populate triaged_inputs correctly
-        triaged["original_thought"] = actual_thought # Use the actual Thought model
-        triaged["processing_context"] = processing_context # Pass the full ThoughtContext
+        triaged["original_thought"] = actual_thought
+        triaged["processing_context"] = processing_context
         triaged["ethical_pdma_result"] = dma_results.get("ethical_pdma")
         triaged["csdma_result"] = dma_results.get("csdma")
         triaged["dsdma_result"] = dma_results.get("dsdma")
         
+        # Extract channel_id from various sources and add to processing_context
+        channel_id = None
+        
+        # From thought context
+        if hasattr(actual_thought, 'context') and isinstance(actual_thought.context, dict):
+            channel_id = actual_thought.context.get('channel_id')
+        
+        # From processing_context system_snapshot
+        if not channel_id and isinstance(processing_context, dict):
+            system_snapshot = processing_context.get('system_snapshot', {})
+            if isinstance(system_snapshot, dict):
+                channel_id = system_snapshot.get('channel_id')
+        
+        # From initial task context
+        if not channel_id and isinstance(processing_context, dict):
+            initial_task_context = processing_context.get('initial_task_context', {})
+            if isinstance(initial_task_context, dict):
+                channel_id = initial_task_context.get('channel_id')
+        
+        # Add channel_id to processing_context if found
+        if channel_id and isinstance(processing_context, dict):
+            processing_context['channel_id'] = channel_id
+        
+        # ... rest of the method remains the same
         # Get ponder_count from the actual Thought model
         triaged.setdefault("current_ponder_count", actual_thought.ponder_count)
         

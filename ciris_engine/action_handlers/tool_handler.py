@@ -49,6 +49,16 @@ class ToolHandler(BaseActionHandler):
         action_performed_successfully = False
         new_follow_up = None
 
+        # Always use schema internally
+        if isinstance(params, dict):
+            try:
+                params = ToolParams(**params)
+            except Exception as e:
+                self.logger.error(f"TOOL action params dict could not be parsed: {e}. Thought ID: {thought_id}")
+                final_thought_status = ThoughtStatus.FAILED
+                follow_up_content_key_info = f"TOOL action failed: Invalid parameters dict for thought {thought_id}. Error: {e}"
+                params = None
+
         # Tool registry validation
         if not isinstance(params, ToolParams):  # v1 uses ToolParams
             self.logger.error(f"TOOL action params are not ToolParams model. Type: {type(params)}. Thought ID: {thought_id}")
@@ -93,10 +103,11 @@ class ToolHandler(BaseActionHandler):
                 self._pending_results.pop(correlation_id, None)
 
         # v1 uses 'final_action' instead of 'final_action_result'
+        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result.model_dump(),  # v1 field
+            final_action=result_data,  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after TOOL attempt.")
 
@@ -113,9 +124,8 @@ class ToolHandler(BaseActionHandler):
             context_for_follow_up = {"action_performed": HandlerActionType.TOOL.value}
             if final_thought_status == ThoughtStatus.FAILED:
                 context_for_follow_up["error_details"] = follow_up_content_key_info
-            action_params_dump = result.action_parameters
-            if isinstance(action_params_dump, BaseModel):
-                action_params_dump = action_params_dump.model_dump(mode="json")
+            # When serializing for follow-up, convert to dict
+            action_params_dump = params.model_dump(mode="json") if hasattr(params, "model_dump") else params
             context_for_follow_up["action_params"] = action_params_dump
             new_follow_up.context = context_for_follow_up
             persistence.add_thought(new_follow_up)

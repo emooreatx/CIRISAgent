@@ -59,3 +59,9 @@ class BaseActionHandler(ABC):
         3. Create necessary follow-up thoughts in persistence.
         """
         pass
+
+def ensure_dict(val):
+    """Convert Pydantic models to dicts for serialization."""
+    if hasattr(val, 'model_dump'):
+        return val.model_dump(mode="json")
+    return val

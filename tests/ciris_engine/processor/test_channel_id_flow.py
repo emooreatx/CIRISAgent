@@ -6,7 +6,6 @@ from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 
-@pytest.mark.asyncio
 def test_channel_id_flows_from_env_to_processors(monkeypatch):
     # Set up environment variable
     test_channel_id = "TEST_CHANNEL_123"

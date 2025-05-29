@@ -53,10 +53,11 @@ class MemorizeHandler(BaseActionHandler):
                     follow_up_content_key_info = f"MEMORIZE action failed: Invalid parameters type ({type(raw_params)}) for thought {thought_id}. Error: {e}"
                     await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="failed_invalid_params")
                     # v1 uses 'final_action' instead of 'final_action_result'
+                    result_data = result.model_dump() if hasattr(result, 'model_dump') else result
                     persistence.update_thought_status(
                         thought_id=thought_id,
                         status=final_thought_status,
-                        final_action=result.model_dump(),  # v1 field
+                        final_action=result_data,  # v1 field
                     )
                     return
         elif isinstance(raw_params, MemorizeParams):
@@ -69,7 +70,7 @@ class MemorizeHandler(BaseActionHandler):
             persistence.update_thought_status(
                 thought_id=thought_id,
                 status=final_thought_status,
-                final_action=result.model_dump(),
+                final_action=result.model_dump() if hasattr(result, 'model_dump') else result,
             )
             return
 
@@ -109,10 +110,11 @@ class MemorizeHandler(BaseActionHandler):
                 follow_up_content_key_info = f"MEMORIZE action failed due to exception: {str(e_mem)}"
 
         # v1 uses 'final_action' instead of 'final_action_result'
+        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result.model_dump(),  # v1 field
+            final_action=result_data,  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after MEMORIZE attempt.")
 
@@ -141,7 +143,7 @@ class MemorizeHandler(BaseActionHandler):
                 context_for_follow_up["error_details"] = follow_up_content_key_info
 
             action_params_dump = result.action_parameters
-            if isinstance(action_params_dump, BaseModel):
+            if hasattr(action_params_dump, 'model_dump'):
                 action_params_dump = action_params_dump.model_dump(mode="json")
             context_for_follow_up["action_params"] = action_params_dump
 

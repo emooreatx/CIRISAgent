@@ -516,18 +516,12 @@ Adhere strictly to the schema for your JSON output.
                     logger.warning(f"Could not parse action_parameters dict into specific model for {action_type}: {ve}. Using raw dict.")
                     # fallback to dict
             # Convert to dict for ActionSelectionResult
-            if isinstance(parsed_action_params, BaseModel):
-                action_params_dict = parsed_action_params.model_dump(mode='json')
-            elif isinstance(parsed_action_params, dict):
-                action_params_dict = parsed_action_params
-            else:
-                logger.warning(f"action_parameters is not a Pydantic model or dict: {type(parsed_action_params)}. Using empty dict.")
-                action_params_dict = {}
-
+            # (No longer needed: keep as Pydantic model internally)
+            action_params_dict = parsed_action_params
             # --- Inject channel_id for SPEAK actions if available in context ---
             if (
                 llm_response_internal.selected_action == HandlerActionType.SPEAK
-                and isinstance(action_params_dict, dict)
+                and hasattr(action_params_dict, 'channel_id')
             ):
                 channel_id = None
                 processing_context = triaged_inputs.get('processing_context')
@@ -545,7 +539,7 @@ Adhere strictly to the schema for your JSON output.
                             or processing_context.get('channel_id')
                         )
                 if channel_id:
-                    action_params_dict['channel_id'] = channel_id
+                    action_params_dict.channel_id = channel_id
             # --- End channel_id injection ---
 
             # Return a new ActionSelectionResult with possibly updated action_parameters

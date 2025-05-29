@@ -7,7 +7,7 @@ from .foundational_schemas_v1 import HandlerActionType
 class ActionSelectionResult(BaseModel):
     """Minimal v1 result from action selection DMA."""
     selected_action: HandlerActionType
-    action_parameters: Dict[str, Any]
+    action_parameters: Any  # Accept Pydantic model or dict for internal use
     rationale: str
     confidence: Optional[float] = None
     raw_llm_response: Optional[str] = None
