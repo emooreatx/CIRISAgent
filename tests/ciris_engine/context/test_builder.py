@@ -84,3 +84,13 @@ async def test_discord_channel_context(monkeypatch):
     ctx = await builder.build_thought_context(thought)
     assert "12345" in ctx.identity_context
     monkeypatch.delenv("DISCORD_CHANNEL_ID", raising=False)
+
+@pytest.mark.asyncio
+async def test_build_context_includes_task_summaries():
+    builder = ContextBuilder(memory_service=DummyMemoryService())
+    thought = make_thought()
+    task = make_task()
+    ctx = await builder.build_thought_context(thought, task)
+    snap = ctx.system_snapshot
+    assert len(snap.recently_completed_tasks_summary) == 10
+    assert len(snap.top_pending_tasks_summary) == 10
