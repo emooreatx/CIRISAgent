@@ -78,6 +78,23 @@ class PonderManager:
         
         current_ponder_count = thought.ponder_count
         
+        # Special handling: If this is a wakeup step thought, do not re-queue for further pondering
+        if getattr(thought, 'thought_type', '').lower() in [
+            'verify_identity', 'validate_integrity', 'evaluate_resilience', 'accept_incompleteness', 'express_gratitude', 'signalling_gratitude']:
+            logger.info(f"Thought ID {thought.thought_id} is a wakeup step ({thought.thought_type}); not re-queuing for further pondering.")
+            persistence.update_thought_status(
+                thought_id=thought.thought_id,
+                status=ThoughtStatus.COMPLETED,
+                final_action={
+                    "action": "PONDER",
+                    "ponder_count": current_ponder_count + 1,
+                    "ponder_notes": key_questions_list,
+                    "wakeup_step": True
+                }
+            )
+            return None
+        
+        # Normal ponder logic
         if self.should_defer_for_max_ponder(thought, current_ponder_count):
             logger.warning(f"Thought ID {thought.thought_id} has reached max ponder rounds ({self.max_ponder_rounds}). Marking as DEFERRED.")
             persistence.update_thought_status(
@@ -108,6 +125,8 @@ class PonderManager:
             )
             
             if success:
+                # Actually update the ponder_count on the Thought object in memory as well
+                thought.ponder_count = new_ponder_count
                 logger.info(f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for re-processing.")
                 return None
             else:
@@ -123,19 +142,3 @@ class PonderManager:
                     }
                 )
                 return None
-        
-        # Special handling: If this is a wakeup step thought, do not re-queue for further pondering
-        if getattr(thought, 'thought_type', '').lower() in [
-            'verify_identity', 'validate_integrity', 'evaluate_resilience', 'accept_incompleteness', 'express_gratitude', 'signalling_gratitude']:
-            logger.info(f"Thought ID {thought.thought_id} is a wakeup step ({thought.thought_type}); not re-queuing for further pondering.")
-            persistence.update_thought_status(
-                thought_id=thought.thought_id,
-                status=ThoughtStatus.COMPLETED,
-                final_action={
-                    "action": "PONDER",
-                    "ponder_count": current_ponder_count + 1,
-                    "ponder_notes": key_questions_list,
-                    "wakeup_step": True
-                }
-            )
-            return None

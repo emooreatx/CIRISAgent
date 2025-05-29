@@ -28,6 +28,15 @@ class RejectHandler(BaseActionHandler):
         await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         original_event_channel_id = dispatch_context.get("channel_id")
 
+        # Always use schema internally
+        if isinstance(params, dict):
+            try:
+                params = RejectParams(**params)
+            except Exception as e:
+                self.logger.error(f"REJECT action params dict could not be parsed: {e}. Thought ID: {thought_id}")
+                follow_up_content_key_info = f"REJECT action failed: Invalid parameters dict for thought {thought_id}. Error: {e}"
+                final_thought_status = ThoughtStatus.FAILED
+                params = None
         # REJECT actions usually mean the thought processing has failed for a stated reason.
         final_thought_status = ThoughtStatus.FAILED 
         action_performed_successfully = False  # The agent couldn't proceed.
@@ -47,10 +56,11 @@ class RejectHandler(BaseActionHandler):
                     self.logger.error(f"Failed to send REJECT notification to channel {original_event_channel_id} for thought {thought_id}: {e}")
         
         # v1 uses 'final_action' instead of 'final_action_result'
+        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,  # FAILED
-            final_action=result.model_dump(),  # v1 field
+            final_action=result_data,  # v1 field
         )
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for REJECT action. Info: {follow_up_content_key_info}")
 
@@ -67,9 +77,8 @@ class RejectHandler(BaseActionHandler):
             context_for_follow_up = {"action_performed": HandlerActionType.REJECT.value}
             context_for_follow_up["error_details"] = follow_up_content_key_info
 
-            action_params_dump = result.action_parameters
-            if isinstance(action_params_dump, BaseModel):
-                action_params_dump = action_params_dump.model_dump(mode="json")
+            # When serializing for follow-up, convert to dict
+            action_params_dump = params.model_dump(mode="json") if hasattr(params, "model_dump") else params
             context_for_follow_up["action_params"] = action_params_dump
 
             new_follow_up.context = context_for_follow_up  # v1 uses 'context'

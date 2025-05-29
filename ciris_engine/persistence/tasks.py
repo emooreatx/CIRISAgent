@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from typing import List, Optional
 from ciris_engine.persistence.db import get_db_connection
 from ciris_engine.persistence.utils import map_row_to_task
@@ -77,7 +77,7 @@ def get_task_by_id(task_id: str, db_path=None) -> Optional[Task]:
 
 def update_task_status(task_id: str, new_status: TaskStatus, db_path: Optional[str] = None) -> bool:
     sql = "UPDATE tasks SET status = ?, updated_at = ? WHERE task_id = ?"
-    params = (new_status.value, datetime.now(UTC).isoformat(), task_id)
+    params = (new_status.value, datetime.now(timezone.utc).isoformat(), task_id)
     try:
         with get_db_connection(db_path) as conn:
             cursor = conn.execute(sql, params)

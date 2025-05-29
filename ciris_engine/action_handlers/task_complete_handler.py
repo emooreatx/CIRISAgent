@@ -32,15 +32,18 @@ class TaskCompleteHandler(BaseActionHandler):
         # action_performed_successfully = True # The decision to complete the task is the action.
         
         self.logger.info(f"Handling TASK_COMPLETE for thought {thought_id} (Task: {parent_task_id}).")
+        print(f"[TASK_COMPLETE_HANDLER] Processing TASK_COMPLETE for task {parent_task_id}")
 
         # Update the current thought that led to TASK_COMPLETE
         # v1 schema uses 'final_action' instead of 'final_action_result'
+        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result.model_dump(),  # v1 field
+            final_action=result_data,  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} for TASK_COMPLETE.")
+        print(f"[TASK_COMPLETE_HANDLER] ✓ Thought {thought_id} marked as COMPLETED")
         await self._audit_log(HandlerActionType.TASK_COMPLETE, {**dispatch_context, "thought_id": thought_id}, outcome="success")
 
         # Update the parent task status to COMPLETED, unless it's a persistent task
@@ -55,6 +58,8 @@ class TaskCompleteHandler(BaseActionHandler):
                 task_updated = persistence.update_task_status(parent_task_id, TaskStatus.COMPLETED)
                 if task_updated:
                     self.logger.info(f"Marked parent task {parent_task_id} as COMPLETED due to TASK_COMPLETE action on thought {thought_id}.")
+                    print(f"[TASK_COMPLETE_HANDLER] ✓ Task {parent_task_id} marked as COMPLETED")
+                    
                     # Optionally, send a notification if an action_sink is available
                     if self.dependencies.action_sink:
                         original_event_channel_id = dispatch_context.get("channel_id")
@@ -66,10 +71,13 @@ class TaskCompleteHandler(BaseActionHandler):
                                     original_event_channel_id,
                                     f"Task '{task_desc[:50]}...' (ID: {parent_task_id}) has been marked as complete by the agent."
                                 )
+                                print(f"[TASK_COMPLETE_HANDLER] ✓ Notification sent for completed task {parent_task_id}")
                             except Exception as e:
                                 self.logger.error(f"Failed to send TASK_COMPLETE notification for task {parent_task_id}: {e}")
+                                print(f"[TASK_COMPLETE_HANDLER] ✗ Failed to send notification: {e}")
                 else: # This else corresponds to "if task_updated:"
                     self.logger.error(f"Failed to update status for parent task {parent_task_id} to COMPLETED.")
+                    print(f"[TASK_COMPLETE_HANDLER] ✗ Failed to update task {parent_task_id} status")
         else:
             self.logger.error(f"Could not find parent task ID for thought {thought_id} to mark as complete.")
 

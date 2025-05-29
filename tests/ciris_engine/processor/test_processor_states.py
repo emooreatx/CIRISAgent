@@ -27,7 +27,7 @@ class MemoryDB:
         t = self.tasks.get(task_id)
         if not t:
             return False
-        self.tasks[task_id] = t.copy(update={"status": status})
+        self.tasks[task_id] = t.model_copy(update={"status": status})
         return True
 
     def get_pending_tasks_for_activation(self, limit: int = 10):
@@ -50,12 +50,18 @@ class MemoryDB:
         active_ids = {t.task_id for t in self.tasks.values() if t.status == TaskStatus.ACTIVE}
         pending = [th for th in self.thoughts.values() if th.status == ThoughtStatus.PENDING and th.source_task_id in active_ids]
         return pending[:limit]
+    
+    def get_tasks_by_parent_id(self, parent_id: str):
+        return [t for t in self.tasks.values() if getattr(t, 'parent_task_id', None) == parent_id]
+    
+    def get_thoughts_by_task_id(self, task_id: str):
+        return [th for th in self.thoughts.values() if th.source_task_id == task_id]
 
     def update_thought_status(self, thought_id: str, status: ThoughtStatus, **kwargs):
         th = self.thoughts.get(thought_id)
         if not th:
             return False
-        self.thoughts[thought_id] = th.copy(update={"status": status})
+        self.thoughts[thought_id] = th.model_copy(update={"status": status})
         return True
 
     def pending_thoughts(self):
@@ -78,6 +84,7 @@ async def test_wakeup_processor_completion(monkeypatch):
     monkeypatch.setattr('ciris_engine.persistence.update_task_status', db.update_task_status)
     monkeypatch.setattr('ciris_engine.persistence.get_thoughts_by_task_id', db.get_thoughts_by_task_id)
     monkeypatch.setattr('ciris_engine.persistence.add_thought', db.add_thought)
+    monkeypatch.setattr('ciris_engine.persistence.get_tasks_by_parent_id', db.get_tasks_by_parent_id)
 
     proc = WakeupProcessor(AppConfig(), AsyncMock(), AsyncMock(), {}, startup_channel_id='chan')
     # Initial call creates tasks
@@ -86,8 +93,8 @@ async def test_wakeup_processor_completion(monkeypatch):
     assert result['status'] in ('in_progress', 'success', 'completed', 'error')  # Accept error for investigation
     assert len(proc.wakeup_tasks) == len(WakeupProcessor.WAKEUP_SEQUENCE) + 1
 
-    # Mark all as completed
-    for t in proc.wakeup_tasks:
+    # Mark all step tasks as completed (using the actual generated task IDs)
+    for t in proc.wakeup_tasks[1:]:  # Only mark step tasks, not root
         db.update_task_status(t.task_id, TaskStatus.COMPLETED)
 
     result = await proc.process_wakeup(1, non_blocking=True)

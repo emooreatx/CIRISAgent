@@ -22,17 +22,17 @@ class ObserveHandler(BaseActionHandler):
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
-        raw_params = result.action_parameters
+        params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.OBSERVE, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         final_thought_status = ThoughtStatus.COMPLETED
         action_performed_successfully = False
         follow_up_content_key_info = f"OBSERVE action for thought {thought_id}"
 
-        params = None
-        if isinstance(raw_params, dict):
+        # Always use schema internally
+        if isinstance(params, dict):
             try:
-                params = ObserveParams(**raw_params)
+                params = ObserveParams(**params)
             except ValidationError as e:
                 self.logger.error(f"OBSERVE action params dict could not be parsed: {e}. Thought ID: {thought_id}")
                 final_thought_status = ThoughtStatus.FAILED
@@ -40,19 +40,17 @@ class ObserveHandler(BaseActionHandler):
                 persistence.update_thought_status(
                     thought_id=thought_id,
                     status=final_thought_status,
-                    final_action=result.model_dump(),
+                    final_action=None
                 )
                 return
-        elif isinstance(raw_params, ObserveParams):
-            params = raw_params
-        else:
-            self.logger.error(f"OBSERVE action params are not ObserveParams model or dict. Type: {type(raw_params)}. Thought ID: {thought_id}")
+        elif not isinstance(params, ObserveParams):
+            self.logger.error(f"OBSERVE action params are not ObserveParams model or dict. Type: {type(params)}. Thought ID: {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
-            follow_up_content_key_info = f"OBSERVE action failed: Invalid parameters type ({type(raw_params)}) for thought {thought_id}."
+            follow_up_content_key_info = f"OBSERVE action failed: Invalid parameters type ({type(params)}) for thought {thought_id}."
             persistence.update_thought_status(
                 thought_id=thought_id,
                 status=final_thought_status,
-                final_action=result.model_dump(),
+                final_action=result.model_dump() if hasattr(result, 'model_dump') else result,
             )
             return
 
@@ -63,6 +61,40 @@ class ObserveHandler(BaseActionHandler):
                 if not target_channel_id:
                     target_channel_id = os.getenv("DISCORD_CHANNEL_ID")
 
+                # Build comprehensive context for active observation
+                observe_context = {
+                    "default_channel_id": target_channel_id or os.getenv("DISCORD_CHANNEL_ID"),
+                    "agent_id": dispatch_context.get("agent_id")
+                }
+                
+                # Try multiple sources for discord_service
+                discord_service = None
+                
+                # 1. From dependencies
+                if hasattr(self.dependencies, 'io_adapter') and hasattr(self.dependencies.io_adapter, 'client'):
+                    discord_service = self.dependencies.io_adapter.client
+                    logger.debug("Got discord_service from dependencies.io_adapter.client")
+                
+                # 2. From dispatch_context
+                if not discord_service:
+                    discord_service = dispatch_context.get("discord_service")
+                    if discord_service:
+                        logger.debug("Got discord_service from dispatch_context")
+                
+                # 3. From services dict in dispatch_context
+                if not discord_service and "services" in dispatch_context:
+                    services = dispatch_context["services"]
+                    discord_service = services.get("discord_service") or services.get("discord_client")
+                    if discord_service:
+                        logger.debug("Got discord_service from dispatch_context.services")
+                
+                # 4. Try to get from global runtime state (last resort)
+                if not discord_service:
+                    # This is a fallback - ideally context should provide it
+                    logger.warning("discord_service not found in expected locations, active observation may fail")
+                
+                observe_context["discord_service"] = discord_service
+
                 await handle_discord_observe_event(
                     payload={
                         "channel_id": target_channel_id,
@@ -71,11 +103,7 @@ class ObserveHandler(BaseActionHandler):
                         "include_agent": True
                     },
                     mode="active",
-                    context={
-                        "discord_service": getattr(self.dependencies, "discord_service", None),
-                        "default_channel_id": os.getenv("DISCORD_CHANNEL_ID"),
-                        "agent_id": getattr(self.dependencies, "agent_id", None)
-                    }
+                    context=observe_context
                 )
                 action_performed_successfully = True
                 follow_up_content_key_info = f"Active Discord observe handler invoked for channel: {target_channel_id}"
@@ -103,10 +131,11 @@ class ObserveHandler(BaseActionHandler):
                 follow_up_content_key_info = f"Passive Discord observe handler error: {str(e)}"
 
         # v1 uses 'final_action' instead of 'final_action_result'
+        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result.model_dump(),  # v1 field
+            final_action=result_data,  # v1 field
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after OBSERVE attempt.")
 
@@ -139,9 +168,8 @@ class ObserveHandler(BaseActionHandler):
                 if final_thought_status == ThoughtStatus.FAILED:
                     context_for_follow_up["error_details"] = follow_up_content_key_info
 
-                action_params_dump = result.action_parameters
-                if isinstance(action_params_dump, BaseModel):
-                    action_params_dump = action_params_dump.model_dump(mode="json")
+                # When serializing for follow-up, convert to dict
+                action_params_dump = params.model_dump(mode="json") if hasattr(params, "model_dump") else params
                 context_for_follow_up["action_params"] = action_params_dump
 
                 new_follow_up.context = context_for_follow_up  # v1 uses 'context'

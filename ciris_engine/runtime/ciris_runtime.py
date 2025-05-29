@@ -18,6 +18,7 @@ from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
 from ciris_engine.services.llm_service import LLMService
 from ciris_engine.services.audit_service import AuditService
 from ciris_engine.services.maintenance_service import DatabaseMaintenanceService
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
 # Components
 from ciris_engine.processor.thought_processor import ThoughtProcessor
@@ -223,17 +224,23 @@ class CIRISRuntime:
         guardrail_orchestrator = GuardrailOrchestrator(guardrails)
         ponder_manager = PonderManager()
         
+        # Create dependencies for handlers and ThoughtProcessor
+        dependencies = ActionHandlerDependencies(action_sink=None)  # action_sink will be set later by subclass
+        
         # Build thought processor
         thought_processor = ThoughtProcessor(
             dma_orchestrator,
             context_builder,
             guardrail_orchestrator,
-            ponder_manager,
-            self.app_config
+            self.app_config,
+            dependencies
         )
         
         # Build action dispatcher - this needs to be customized per IO adapter
-        action_dispatcher = await self._build_action_dispatcher(ponder_manager)
+        action_dispatcher = await self._build_action_dispatcher(dependencies)
+        
+        # Update dependencies with action_sink from the action dispatcher
+        # The action_sink should be set by the subclass implementation of _build_action_dispatcher
         
         # Build agent processor
         self.agent_processor = AgentProcessor(
@@ -249,13 +256,13 @@ class CIRISRuntime:
             startup_channel_id=self.startup_channel_id,
         )
         
-    async def _build_action_dispatcher(self, ponder_manager):
+    async def _build_action_dispatcher(self, dependencies):
         """Build action dispatcher. Override in subclasses for custom sinks."""
         # This is a basic implementation - subclasses should override
         # to provide proper action_sink, deferral_sink, etc.
         return build_action_dispatcher(
             audit_service=self.audit_service,
-            ponder_manager=ponder_manager,
+            max_ponder_rounds=self.app_config.workflow.max_ponder_rounds,
             action_sink=None,  # Override in subclass
             memory_service=self.memory_service,
         )

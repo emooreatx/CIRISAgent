@@ -1,7 +1,7 @@
 """
-ciris_engine/adapters/discord/discord_runtime.py
+ciris_engine/runtime/discord_runtime.py
 
-Discord-specific runtime implementation.
+Discord-specific runtime implementation with proper service context passing.
 """
 import os
 import logging
@@ -87,58 +87,84 @@ class DiscordRuntime(CIRISRuntime):
 
         # Create action sink
         self.action_sink = DiscordActionSink(self.discord_adapter)
+        
         # Create deferral sink
         self.deferral_sink = DiscordDeferralSink(
             self.discord_adapter,
             self.deferral_channel_id
         )
-        # Create Discord observer
+        
+        # Create Discord observer with proper context
         self.discord_observer = DiscordObserver(
-            on_observe=handle_discord_observe_event,
+            on_observe=self._handle_observe_event,  # Use wrapper method
             message_queue=self.message_queue,
             monitored_channel_id=self.monitored_channel_id,
             deferral_sink=self.deferral_sink,
         )
+        
         # Register Discord tools with the live client
         tool_registry = ToolRegistry()
-        register_discord_tools(tool_registry, self.discord_adapter.client)
+        register_discord_tools(tool_registry, self.client)
         ToolHandler.set_tool_registry(tool_registry)
 
-        # Expose the discord client/service to processors for active observation
+        # Update agent processor services with Discord client
         if self.agent_processor:
-            for proc in [self.agent_processor,
-                         self.agent_processor.wakeup_processor,
-                         self.agent_processor.work_processor,
-                         self.agent_processor.play_processor,
-                         self.agent_processor.solitude_processor]:
-                setattr(proc, "discord_service", self.client)
+            # Update the main services dict
+            self.agent_processor.services["discord_service"] = self.client
+            self.agent_processor.services["discord_client"] = self.client  # Alternative key
+            
+            # Set discord_service on all processors for context passing
+            processors = [
+                self.agent_processor.wakeup_processor,
+                self.agent_processor.work_processor,
+                self.agent_processor.play_processor,
+                self.agent_processor.solitude_processor
+            ]
+            
+            for processor in processors:
+                if processor:
+                    processor.discord_service = self.client
+                    processor.services = self.agent_processor.services  # Share services dict
+                    logger.debug(f"Set discord_service on {processor.__class__.__name__}")
 
-        # --- Ensure dispatcher is rebuilt with the correct sinks BEFORE starting observer ---
-        if not self.action_sink:
-            logger.error("DiscordRuntime: action_sink is not set before dispatcher rebuild attempt!")
-        
+        # Rebuild dispatcher with correct sinks and services
+        # Rebuild action dispatcher with proper sinks after action_sink is created
         if self.agent_processor:
-            ponder_manager = getattr(self.agent_processor.thought_processor, 'ponder_manager', None)
-            if self.action_sink: # Double check self.action_sink is not None
-                logger.info(f"DiscordRuntime: Rebuilding dispatcher. Action_sink is: {self.action_sink}")
-                new_dispatcher = await self._build_action_dispatcher(ponder_manager)
-                self.agent_processor.action_dispatcher = new_dispatcher
-                logger.info("DiscordRuntime: Action dispatcher rebuilt with correct sinks.")
-            else:
-                logger.error("DiscordRuntime: Cannot rebuild dispatcher, self.action_sink is None!")
-        else:
-            logger.error("DiscordRuntime: agent_processor is not set when trying to update dispatcher!")
+            dependencies = getattr(self.agent_processor.thought_processor, 'dependencies', None)
+            if dependencies:
+                # Update the action_sink in dependencies
+                dependencies.action_sink = self.action_sink
+            logger.info(f"DiscordRuntime: Rebuilding dispatcher with action_sink: {self.action_sink}")
+            new_dispatcher = await self._build_action_dispatcher(dependencies)
+            self.agent_processor.action_dispatcher = new_dispatcher
+            logger.info("DiscordRuntime: Action dispatcher rebuilt with correct sinks.")
 
-        # Start Discord-specific services AFTER dispatcher is potentially fixed
+        # Start Discord-specific services
         await self.discord_observer.start()
-        await self.action_sink.start() # action_sink.start() is a no-op, but good practice
+        await self.action_sink.start()
         await self.deferral_sink.start()
         
-    async def _build_action_dispatcher(self, ponder_manager):
+    async def _handle_observe_event(self, payload: Dict[str, Any]) -> None:
+        """Wrapper for observe event handling with proper context."""
+        # Add discord_service to context for active observations
+        context = {
+            "discord_service": self.client,
+            "default_channel_id": self.monitored_channel_id,
+            "agent_id": getattr(self.client, 'user', {}).id if hasattr(self.client, 'user') else None
+        }
+        
+        # Call the actual handler with enhanced context
+        await handle_discord_observe_event(
+            payload=payload,
+            mode="passive",  # Default mode
+            context=context
+        )
+        
+    async def _build_action_dispatcher(self, dependencies):
         """Build Discord-specific action dispatcher."""
         return build_action_dispatcher(
             audit_service=self.audit_service,
-            ponder_manager=ponder_manager,
+            max_ponder_rounds=self.app_config.workflow.max_ponder_rounds,
             action_sink=self.action_sink,
             memory_service=self.memory_service,
             observer_service=self.discord_observer,
