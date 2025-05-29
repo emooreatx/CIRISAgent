@@ -10,7 +10,7 @@ def test_memorize_params_validation():
     
     # Test scope enum
     params = MemorizeParams(key="test", value="data", scope="identity")
-    assert params.scope == "identity"
+    assert params.scope == GraphScope.IDENTITY
     
     # Invalid scope should fail
     with pytest.raises(ValidationError):

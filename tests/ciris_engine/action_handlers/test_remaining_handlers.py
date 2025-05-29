@@ -17,7 +17,7 @@ from ciris_engine.schemas.action_params_v1 import (
 )
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, TaskStatus
 from ciris_engine.memory.ciris_local_graph import MemoryOpResult, MemoryOpStatus
 
@@ -56,7 +56,13 @@ async def test_forget_handler_schema_driven(monkeypatch):
 
     await handler.handle(action_result, thought, {})
 
-    memory_service.forget.assert_awaited_with("user1", GraphScope("local"))
+    expected_node = GraphNode(
+        id="user1",
+        type=NodeType.USER,
+        scope=GraphScope.LOCAL,
+        attributes={},
+    )
+    memory_service.forget.assert_awaited_with(expected_node)
     deps.persistence.add_thought.assert_called_once()
 
 
@@ -79,7 +85,13 @@ async def test_remember_handler_schema_driven(monkeypatch):
 
     await handler.handle(action_result, thought, {})
 
-    memory_service.remember.assert_awaited_with("user1", GraphScope("local"))
+    expected_node = GraphNode(
+        id="user1",
+        type=NodeType.USER,
+        scope=GraphScope.LOCAL,
+        attributes={},
+    )
+    memory_service.remember.assert_awaited_with(expected_node)
     deps.persistence.add_thought.assert_called_once()
 
 
@@ -98,7 +110,7 @@ async def test_observe_handler_passive(monkeypatch):
     deps = ActionHandlerDependencies()
     handler = ObserveHandler(deps)
 
-    params = ObserveParams(active=False, sources=["chan1"], context={})
+    params = ObserveParams(active=False, context={})
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.OBSERVE,
         action_parameters=params,

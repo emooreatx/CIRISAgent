@@ -30,7 +30,7 @@ async def test_tools_listed_in_prompt(monkeypatch):
     monkeypatch.setattr('ciris_engine.formatters.format_user_profiles', lambda x: '')
     monkeypatch.setattr('ciris_engine.formatters.format_system_snapshot', lambda x: '')
 
-    evaluator = ActionSelectionPDMAEvaluator(aclient=AsyncOpenAI())
+    evaluator = ActionSelectionPDMAEvaluator(aclient=AsyncOpenAI(api_key="test"))
     prompt = evaluator._prepare_main_user_content(triaged_inputs)
     # Check that all fake tool names appear in the prompt
     for tool_name in fake_tools:

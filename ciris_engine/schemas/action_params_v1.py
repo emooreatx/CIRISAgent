@@ -1,6 +1,7 @@
 # --- v1 Action Params Schemas ---
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
+from .graph_schemas_v1 import GraphScope
 
 class ObserveParams(BaseModel):
     channel_id: Optional[str] = None
@@ -28,13 +29,13 @@ class DeferParams(BaseModel):
 class MemorizeParams(BaseModel):
     key: str  # What to remember
     value: Any  # The memory content
-    scope: str = "local"  # local/identity/environment
+    scope: GraphScope = GraphScope.LOCAL
 
 class RememberParams(BaseModel):
     query: str
-    scope: str = "local"
+    scope: GraphScope = GraphScope.LOCAL
 
 class ForgetParams(BaseModel):
     key: str
-    scope: str = "local"
+    scope: GraphScope = GraphScope.LOCAL
     reason: str
