@@ -1,0 +1,150 @@
+"""
+ciris_engine/adapters/discord/discord_runtime.py
+
+Discord-specific runtime implementation.
+"""
+import os
+import logging
+from typing import Optional, Dict, Any
+
+from ciris_engine.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
+from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+from ciris_engine.adapters.discord.discord_event_queue import DiscordEventQueue
+from ciris_engine.adapters.discord.discord_observer import DiscordObserver
+from ciris_engine.adapters.discord.discord_tools import register_discord_tools
+from ciris_engine.services.discord_deferral_sink import DiscordDeferralSink
+from ciris_engine.action_handlers.discord_observe_handler import handle_discord_observe_event
+from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
+from ciris_engine.ports import ActionSink
+from ciris_engine.services.tool_registry import ToolRegistry
+from ciris_engine.action_handlers.tool_handler import ToolHandler
+
+logger = logging.getLogger(__name__)
+
+
+class DiscordActionSink(ActionSink):
+    """Discord implementation of ActionSink."""
+    
+    def __init__(self, discord_adapter: DiscordAdapter):
+        self.adapter = discord_adapter
+        
+    async def start(self) -> None:
+        pass
+        
+    async def stop(self) -> None:
+        pass
+        
+    async def send_message(self, channel_id: str, content: str) -> None:
+        await self.adapter.send_output(channel_id, content)
+        
+    async def run_tool(self, name: str, args: Dict[str, Any]) -> Any:
+        # Tool execution is handled by the ToolHandler and ToolRegistry
+        logger.info(f"DiscordActionSink: Tool '{name}' execution requested with args: {args}")
+        return None
+
+
+class DiscordRuntime(CIRISRuntime):
+    """Discord-specific runtime with proper event handling."""
+    
+    def __init__(
+        self,
+        token: str,
+        profile_name: str = "default",
+        startup_channel_id: Optional[str] = None,
+        monitored_channel_id: Optional[str] = None,
+        deferral_channel_id: Optional[str] = None,
+    ):
+        # Create Discord components
+        self.token = token
+        self.message_queue = DiscordEventQueue[IncomingMessage]()
+        self.discord_adapter = DiscordAdapter(token, self.message_queue)
+        self.monitored_channel_id = monitored_channel_id or os.getenv("DISCORD_CHANNEL_ID")
+        self.deferral_channel_id = deferral_channel_id or os.getenv("DISCORD_DEFERRAL_CHANNEL_ID")
+        
+        # Initialize base runtime
+        super().__init__(
+            profile_name=profile_name,
+            io_adapter=self.discord_adapter,
+            startup_channel_id=startup_channel_id,
+        )
+        
+        # Discord-specific services
+        self.discord_observer: Optional[DiscordObserver] = None
+        self.action_sink: Optional[DiscordActionSink] = None
+        self.deferral_sink: Optional[DiscordDeferralSink] = None
+        
+    async def initialize(self):
+        """Initialize Discord-specific components."""
+        await super().initialize()
+
+        # Create action sink
+        self.action_sink = DiscordActionSink(self.discord_adapter)
+        # Create deferral sink
+        self.deferral_sink = DiscordDeferralSink(
+            self.discord_adapter,
+            self.deferral_channel_id
+        )
+        # Create Discord observer
+        self.discord_observer = DiscordObserver(
+            on_observe=handle_discord_observe_event,
+            message_queue=self.message_queue,
+            monitored_channel_id=self.monitored_channel_id,
+            deferral_sink=self.deferral_sink,
+        )
+        # Register Discord tools
+        tool_registry = ToolRegistry()
+        register_discord_tools(tool_registry, self.discord_adapter.client)
+        ToolHandler.set_tool_registry(tool_registry)
+
+        # --- Ensure dispatcher is rebuilt with the correct sinks BEFORE starting observer ---
+        if not self.action_sink:
+            logger.error("DiscordRuntime: action_sink is not set before dispatcher rebuild attempt!")
+        
+        if self.agent_processor:
+            ponder_manager = getattr(self.agent_processor.thought_processor, 'ponder_manager', None)
+            if self.action_sink: # Double check self.action_sink is not None
+                logger.info(f"DiscordRuntime: Rebuilding dispatcher. Action_sink is: {self.action_sink}")
+                new_dispatcher = await self._build_action_dispatcher(ponder_manager)
+                self.agent_processor.action_dispatcher = new_dispatcher
+                logger.info("DiscordRuntime: Action dispatcher rebuilt with correct sinks.")
+            else:
+                logger.error("DiscordRuntime: Cannot rebuild dispatcher, self.action_sink is None!")
+        else:
+            logger.error("DiscordRuntime: agent_processor is not set when trying to update dispatcher!")
+
+        # Start Discord-specific services AFTER dispatcher is potentially fixed
+        await self.discord_observer.start()
+        await self.action_sink.start() # action_sink.start() is a no-op, but good practice
+        await self.deferral_sink.start()
+        
+    async def _build_action_dispatcher(self, ponder_manager):
+        """Build Discord-specific action dispatcher."""
+        return build_action_dispatcher(
+            audit_service=self.audit_service,
+            ponder_manager=ponder_manager,
+            action_sink=self.action_sink,
+            memory_service=self.memory_service,
+            observer_service=self.discord_observer,
+            io_adapter=self.discord_adapter,
+            deferral_sink=self.deferral_sink,
+        )
+        
+    async def shutdown(self):
+        """Shutdown Discord-specific components."""
+        # Stop Discord services
+        discord_services = [
+            self.discord_observer,
+            self.action_sink,
+            self.deferral_sink,
+        ]
+        
+        for service in discord_services:
+            if service:
+                try:
+                    await service.stop()
+                except Exception as e:
+                    logger.error(f"Error stopping {service.__class__.__name__}: {e}")
+                    
+        # Call parent shutdown
+        await super().shutdown()

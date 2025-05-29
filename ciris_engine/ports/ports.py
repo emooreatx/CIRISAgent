@@ -66,6 +66,13 @@ class DeferralSink(ABC):
         """Handle WA correction replies if applicable. Return True if handled."""
         return False
 
+class FeedbackSink(ABC):
+    """Sink for processing incoming feedback/corrections (e.g., WA, user feedback)."""
+    @abstractmethod
+    async def process_feedback(self, msg: Any, raw_message: Any) -> bool:
+        """Process incoming feedback/correction and create follow-up thoughts as needed."""
+        raise NotImplementedError
+
 # Example: To add Prometheus-style metrics, define a MetricsSink ABC here.
 # class MetricsSink(ABC):
 #     @abstractmethod
