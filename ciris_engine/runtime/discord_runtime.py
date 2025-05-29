@@ -104,6 +104,15 @@ class DiscordRuntime(CIRISRuntime):
         register_discord_tools(tool_registry, self.discord_adapter.client)
         ToolHandler.set_tool_registry(tool_registry)
 
+        # Expose the discord client/service to processors for active observation
+        if self.agent_processor:
+            for proc in [self.agent_processor,
+                         self.agent_processor.wakeup_processor,
+                         self.agent_processor.work_processor,
+                         self.agent_processor.play_processor,
+                         self.agent_processor.solitude_processor]:
+                setattr(proc, "discord_service", self.client)
+
         # --- Ensure dispatcher is rebuilt with the correct sinks BEFORE starting observer ---
         if not self.action_sink:
             logger.error("DiscordRuntime: action_sink is not set before dispatcher rebuild attempt!")
