@@ -15,3 +15,4 @@ __pycache__/
 memory_graph.pkl
 audit_logs.jsonl
 data_archive/
+:memory:

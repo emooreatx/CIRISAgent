@@ -47,7 +47,14 @@ class ActionDispatcher:
         and creating follow-up thoughts.
         """
 
+        # Defensive: ensure selected_action is a HandlerActionType
         action_type = action_selection_result.selected_action
+        if not isinstance(action_type, HandlerActionType):
+            try:
+                action_type = HandlerActionType(action_type)
+            except Exception as e:
+                logger.error(f"ActionDispatcher: selected_action {action_type} is not a valid HandlerActionType: {e}")
+                return
 
         if self.action_filter:
             try:
