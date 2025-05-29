@@ -7,7 +7,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.ports import ActionSink, DeferralSink
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
-from ciris_engine.services.discord_observer import DiscordObserver  # For active look
+from ciris_engine.adapters.discord.discord_observer import DiscordObserver  # For active look
 from ciris_engine import persistence
 
 logger = logging.getLogger(__name__)

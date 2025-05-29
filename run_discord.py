@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from ciris_engine.utils.logging_config import setup_basic_logging
-from ciris_engine.runtime.discord_runtime import DiscordRuntime
+from ciris_engine.adapters.discord.discord_runtime import DiscordRuntime
 
 # Configure logging
 setup_basic_logging(level=logging.INFO)

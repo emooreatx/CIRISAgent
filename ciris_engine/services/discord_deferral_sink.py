@@ -9,10 +9,9 @@ from ciris_engine import persistence
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage # ERIC
 from ciris_engine.services.base import Service
-from ciris_engine.adapters.discord_adapter import DiscordAdapter
-
+from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
 try:
-    from ciris_engine.services.discord_service import _truncate_discord_message
+    from ciris_engine.adapters.discord.discord_tools import _truncate_discord_message
 except Exception:
     def _truncate_discord_message(message: str, limit: int = 1900) -> str:
         return message if len(message) <= limit else message[:limit-3] + "..."

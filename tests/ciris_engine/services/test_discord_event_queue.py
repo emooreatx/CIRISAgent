@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from ciris_engine.services.discord_event_queue import DiscordEventQueue
+from ciris_engine.adapters.discord.discord_event_queue import DiscordEventQueue
 
 @pytest.mark.asyncio
 async def test_enqueue_dequeue():

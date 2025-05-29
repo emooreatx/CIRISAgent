@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from ciris_engine.services.discord_observer import DiscordObserver
+from ciris_engine.adapters.discord.discord_observer import DiscordObserver
 
 @pytest.mark.asyncio
 async def test_handle_incoming_message_skips_non_incoming():
