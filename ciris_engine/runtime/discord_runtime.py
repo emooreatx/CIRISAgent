@@ -8,7 +8,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
-from ciris_engine.runtime.base_runtime import DiscordAdapter
+from ciris_engine.adapters.discord_adapter import DiscordAdapter
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.services.discord_event_queue import DiscordEventQueue
 from ciris_engine.services.discord_observer import DiscordObserver

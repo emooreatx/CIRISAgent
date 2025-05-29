@@ -5,6 +5,8 @@
 from .db import (
     get_db_connection,
     initialize_database,
+    get_tasks_older_than,  # <-- Added to re-export for external use
+    get_thoughts_older_than,  # <-- Added to re-export for external use
 )
 from .tasks import (
     update_task_status,

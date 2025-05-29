@@ -35,7 +35,6 @@ from ciris_engine.dma.factory import create_dsdma_from_profile
 from ciris_engine.guardrails import EthicalGuardrails
 
 # IO Adapters
-from ciris_engine.runtime.base_runtime import BaseIOAdapter, CLIAdapter
 from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
 
 import instructor
@@ -52,12 +51,12 @@ class CIRISRuntime:
     def __init__(
         self,
         profile_name: str = "default",
-        io_adapter: Optional[BaseIOAdapter] = None,
+        io_adapter: Optional[Any] = None,
         app_config: Optional[AppConfig] = None,
         startup_channel_id: Optional[str] = None,
     ):
         self.profile_name = profile_name
-        self.io_adapter = io_adapter or CLIAdapter()
+        self.io_adapter = io_adapter
         self.app_config = app_config
         self.startup_channel_id = startup_channel_id
         
