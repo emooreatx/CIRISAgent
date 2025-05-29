@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 
 class WorkProcessor(BaseProcessor):
     """Handles the WORK state for normal task/thought processing."""
-    
-    def __init__(self, *args, **kwargs):
+
+    def __init__(self, *args, startup_channel_id: Optional[str] = None, **kwargs):
         """Initialize work processor."""
+        self.startup_channel_id = startup_channel_id
         super().__init__(*args, **kwargs)
         
         # Extract config values with defaults
@@ -33,7 +34,10 @@ class WorkProcessor(BaseProcessor):
             max_active_thoughts = 50
         
         self.task_manager = TaskManager(max_active_tasks=max_active_tasks)
-        self.thought_manager = ThoughtManager(max_active_thoughts=max_active_thoughts)
+        self.thought_manager = ThoughtManager(
+            max_active_thoughts=max_active_thoughts,
+            default_channel_id=self.startup_channel_id,
+        )
         self.last_activity_time = datetime.now(timezone.utc)
         self.idle_rounds = 0
     
