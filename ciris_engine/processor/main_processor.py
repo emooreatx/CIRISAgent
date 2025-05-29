@@ -17,6 +17,8 @@ from ciris_engine.processor.thought_processor import ThoughtProcessor
 if TYPE_CHECKING:
     from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 
+# For main_processor.py and work_processor.py (or anywhere else you need it)
+from ciris_engine.utils.context_utils import build_dispatch_context
 from .state_manager import StateManager
 from .wakeup_processor import WakeupProcessor
 from .work_processor import WorkProcessor
@@ -249,26 +251,6 @@ class AgentProcessor:
         
         return processed_count
 
-    def _build_dispatch_context(self, thought, task):
-        dispatch_context = {
-            "thought_id": thought.thought_id,
-            "source_task_id": thought.source_task_id,
-            "origin_service": "CLI" if self.app_config and getattr(self.app_config, "agent_mode", "").lower() == "cli" else "discord",
-            "round_number": self.current_round_number
-        }
-        channel_id = None
-        if task and task.context:
-            for key in ["channel_id", "author_name", "author_id"]:
-                if key in task.context:
-                    dispatch_context[key] = task.context[key]
-            channel_id = task.context.get("channel_id")
-        if not channel_id:
-            channel_id = self.startup_channel_id
-            if not channel_id:
-                logger.error(f"No channel_id found for thought {thought.thought_id} and no startup_channel_id set. This may cause downstream errors.")
-                channel_id = "CLI" if dispatch_context["origin_service"] == "CLI" else "default"
-        dispatch_context["channel_id"] = str(channel_id)
-        return dispatch_context
 
     async def _process_single_thought(self, thought: Thought) -> bool:
         """Process a single thought and dispatch its action, with DMA fallback."""
@@ -288,7 +270,8 @@ class AgentProcessor:
             if result:
                 # Get the task for context
                 task = persistence.get_task_by_id(thought.source_task_id)
-                dispatch_context = self._build_dispatch_context(thought, task)
+                dispatch_context = build_dispatch_context(item, thought, task)
+                
                 await self.action_dispatcher.dispatch(
                     action_selection_result=result,
                     thought=thought,
