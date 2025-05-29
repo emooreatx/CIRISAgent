@@ -10,7 +10,7 @@ from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
 from .discord_observe_handler import handle_discord_observe_event
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -22,18 +22,41 @@ class ObserveHandler(BaseActionHandler):
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
-        params = result.action_parameters
+        raw_params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.OBSERVE, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         final_thought_status = ThoughtStatus.COMPLETED
         action_performed_successfully = False
         follow_up_content_key_info = f"OBSERVE action for thought {thought_id}"
 
-        if not isinstance(params, ObserveParams):
-            self.logger.error(f"OBSERVE action params are not ObserveParams model. Type: {type(params)}. Thought ID: {thought_id}")
+        params = None
+        if isinstance(raw_params, dict):
+            try:
+                params = ObserveParams(**raw_params)
+            except ValidationError as e:
+                self.logger.error(f"OBSERVE action params dict could not be parsed: {e}. Thought ID: {thought_id}")
+                final_thought_status = ThoughtStatus.FAILED
+                follow_up_content_key_info = f"OBSERVE action failed: Invalid parameters dict for thought {thought_id}. Error: {e}"
+                persistence.update_thought_status(
+                    thought_id=thought_id,
+                    status=final_thought_status,
+                    final_action=result.model_dump(),
+                )
+                return
+        elif isinstance(raw_params, ObserveParams):
+            params = raw_params
+        else:
+            self.logger.error(f"OBSERVE action params are not ObserveParams model or dict. Type: {type(raw_params)}. Thought ID: {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
-            follow_up_content_key_info = f"OBSERVE action failed: Invalid parameters type ({type(params)}) for thought {thought_id}."
-        elif params.active:  # v1 uses 'active'
+            follow_up_content_key_info = f"OBSERVE action failed: Invalid parameters type ({type(raw_params)}) for thought {thought_id}."
+            persistence.update_thought_status(
+                thought_id=thought_id,
+                status=final_thought_status,
+                final_action=result.model_dump(),
+            )
+            return
+
+        if params.active:  # v1 uses 'active'
             # Use the Discord observe handler in active mode
             try:
                 target_channel_id = params.channel_id or dispatch_context.get("channel_id")
