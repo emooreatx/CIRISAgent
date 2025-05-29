@@ -9,7 +9,7 @@ from ciris_engine import persistence
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage # ERIC
 from ciris_engine.services.base import Service
-from ciris_engine.runtime.base_runtime import DiscordAdapter
+from ciris_engine.adapters.discord_adapter import DiscordAdapter
 
 try:
     from ciris_engine.services.discord_service import _truncate_discord_message
