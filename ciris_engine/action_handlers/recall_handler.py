@@ -40,6 +40,24 @@ class RecallHandler(BaseActionHandler):
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(HandlerActionType.RECALL, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             return
+        memory_service = await self.get_memory_service()
+
+        if not memory_service:
+            logger.error(
+                "RecallHandler: MemoryService not available"
+            )
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                content=f"RECALL action failed: MemoryService unavailable for thought {thought_id}"
+            )
+            self.dependencies.persistence.add_thought(follow_up)
+            await self._audit_log(
+                HandlerActionType.RECALL,
+                {**dispatch_context, "thought_id": thought_id},
+                outcome="failed_no_memory_service",
+            )
+            return
+
         scope = GraphScope(params.scope)
         # Build a GraphNode for the query (id is the query string)
         node = GraphNode(
@@ -48,7 +66,7 @@ class RecallHandler(BaseActionHandler):
             scope=scope,
             attributes={}
         )
-        memory_result = await self.dependencies.memory_service.recall(node)
+        memory_result = await memory_service.recall(node)
         if memory_result.status == MemoryOpStatus.OK and memory_result.data:
             follow_up_content = f"Memory query '{params.query}' returned: {memory_result.data}"
         else:
