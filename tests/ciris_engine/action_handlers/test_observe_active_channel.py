@@ -28,17 +28,15 @@ DEFAULT_THOUGHT_KWARGS = dict(
 
 @pytest.mark.asyncio
 async def test_observe_handler_active_injects_channel(monkeypatch):
-    handle_event = AsyncMock()
-    monkeypatch.setattr(
-        "ciris_engine.action_handlers.observe_handler.handle_discord_observe_event",
-        handle_event,
-    )
     update_status = MagicMock()
     add_thought = MagicMock()
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
+    mock_comm = AsyncMock()
+    mock_comm.fetch_messages = AsyncMock(return_value=[])
     deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(return_value=mock_comm)
     handler = ObserveHandler(deps)
 
     params = ObserveParams(active=True, channel_id=None, context={})
@@ -51,6 +49,4 @@ async def test_observe_handler_active_injects_channel(monkeypatch):
 
     await handler.handle(action_result, thought, {"channel_id": "chanX"})
 
-    handle_event.assert_awaited()
-    payload = handle_event.call_args.kwargs["payload"]
-    assert payload["channel_id"] == "chanX"
+    mock_comm.fetch_messages.assert_awaited_with("chanX", 10)

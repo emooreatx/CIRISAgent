@@ -29,8 +29,10 @@ class SpeakHandler(BaseActionHandler):
     ) -> None:
         params = result.action_parameters
         thought_id = thought.thought_id
-        # channel_id from the original event context, if available
+        # channel_id from the original event context or thought context
         original_event_channel_id = dispatch_context.get("channel_id")
+        if not original_event_channel_id and getattr(thought, "context", None):
+            original_event_channel_id = thought.context.get("channel_id")
 
         final_thought_status = ThoughtStatus.COMPLETED
         action_performed_successfully = False
