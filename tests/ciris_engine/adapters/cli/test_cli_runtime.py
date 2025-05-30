@@ -6,9 +6,9 @@ from ciris_engine.adapters.cli.cli_observer import CLIObserver
 
 @pytest.mark.asyncio
 async def test_cli_runtime_initialization(monkeypatch):
-    monkeypatch.setattr("ciris_engine.services.llm_service.LLMService.start", AsyncMock())
+    monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
     monkeypatch.setattr(
-        "ciris_engine.services.llm_service.LLMService.get_client",
+        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test"))
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())

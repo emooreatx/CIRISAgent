@@ -14,7 +14,7 @@ from ciris_engine.schemas.graph_schemas_v1 import (
     GraphEdge,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import CaseInsensitiveEnum, TaskStatus
-from ciris_engine.services.base import Service
+from ciris_engine.adapters.base import Service
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)

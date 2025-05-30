@@ -1,5 +1,5 @@
 import pytest
-from ciris_engine.services.base import Service
+from ciris_engine.adapters.base import Service
 import asyncio
 
 class DummyService(Service):
