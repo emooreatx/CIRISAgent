@@ -101,17 +101,16 @@ async def test_recall_handler_schema_driven(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_observe_handler_passive(monkeypatch):
-    handle_event = AsyncMock()
-    monkeypatch.setattr(
-        "ciris_engine.action_handlers.observe_handler.handle_discord_observe_event",
-        handle_event,
-    )
     update_status = MagicMock()
     add_thought = MagicMock()
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
+    mock_observer = AsyncMock()
+    mock_observer.handle_incoming_message = AsyncMock()
+
     deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(return_value=mock_observer)
     handler = ObserveHandler(deps)
 
     params = ObserveParams(active=False, context={})
@@ -124,7 +123,7 @@ async def test_observe_handler_passive(monkeypatch):
 
     await handler.handle(action_result, thought, {})
 
-    handle_event.assert_awaited()
+    mock_observer.handle_incoming_message.assert_awaited()
     update_status.assert_called_once()
     add_thought.assert_called_once()
 
