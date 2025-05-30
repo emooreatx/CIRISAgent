@@ -2,9 +2,9 @@ import logging
 from typing import Dict, Any, Optional
 
 import instructor
-from openai import AsyncOpenAI
 
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
+from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult
 from ciris_engine.formatters import format_user_profiles, format_system_snapshot
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
@@ -18,12 +18,12 @@ class EthicalPDMAEvaluator:
     """
 
     def __init__(self,
-                 aclient: instructor.Instructor,
+                 service_registry: ServiceRegistry,
                  model_name: str = DEFAULT_OPENAI_MODEL_NAME,
                  max_retries: int = 2,
                  prompt_overrides: Optional[Dict[str, str]] = None
                  ):
-        self.aclient = aclient
+        self.service_registry = service_registry
         self.model_name = model_name
         self.max_retries = max_retries
 
@@ -59,6 +59,17 @@ Do not include extra fields or PDMA step names.""",
         original_thought_content = str(thought_item.content)
         logger.debug(f"Evaluating thought ID {thought_item.thought_id}")
 
+        llm_service = None
+        if self.service_registry:
+            llm_service = await self.service_registry.get_service(
+                handler=self.__class__.__name__,
+                service_type="llm"
+            )
+        if not llm_service:
+            raise RuntimeError("LLM service unavailable for PDMA evaluation")
+
+        aclient = llm_service.get_client().instruct_client
+
         system_snapshot_context_str = ""
         user_profile_context_str = ""
 
@@ -76,7 +87,7 @@ Do not include extra fields or PDMA step names.""",
         )
 
         try:
-            response_obj: EthicalDMAResult = await self.aclient.chat.completions.create(
+            response_obj: EthicalDMAResult = await aclient.chat.completions.create(
                 model=self.model_name,
                 response_model=EthicalDMAResult,
                 messages=[

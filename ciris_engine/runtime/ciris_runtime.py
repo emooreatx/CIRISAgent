@@ -180,34 +180,34 @@ class CIRISRuntime:
     async def _build_components(self):
         """Build all processing components."""
         llm_client = self.llm_service.get_client()
-        
-        # Build DMAs
+
+        # Build DMAs using service registry
         ethical_pdma = EthicalPDMAEvaluator(
-            aclient=llm_client.instruct_client,
-            model_name=llm_client.model_name,
-            max_retries=self.app_config.llm_services.openai.max_retries
-        )
-        
-        csdma = CSDMAEvaluator(
-            aclient=llm_client.client,
+            service_registry=self.service_registry,
             model_name=llm_client.model_name,
             max_retries=self.app_config.llm_services.openai.max_retries,
-            prompt_overrides=self.profile.csdma_overrides if self.profile else None
         )
-        
+
+        csdma = CSDMAEvaluator(
+            service_registry=self.service_registry,
+            model_name=llm_client.model_name,
+            max_retries=self.app_config.llm_services.openai.max_retries,
+            prompt_overrides=self.profile.csdma_overrides if self.profile else None,
+        )
+
         action_pdma = ActionSelectionPDMAEvaluator(
-            aclient=llm_client.client,
+            service_registry=self.service_registry,
             model_name=llm_client.model_name,
             max_retries=self.app_config.llm_services.openai.max_retries,
             prompt_overrides=self.profile.action_selection_pdma_overrides if self.profile else None,
-            instructor_mode=instructor.Mode[self.app_config.llm_services.openai.instructor_mode.upper()]
+            instructor_mode=instructor.Mode[self.app_config.llm_services.openai.instructor_mode.upper()],
         )
-        
+
         # Create DSDMA
         dsdma = await create_dsdma_from_profile(
             self.profile,
-            llm_client.client,
-            model_name=llm_client.model_name
+            self.service_registry,
+            model_name=llm_client.model_name,
         )
         
         # Build guardrails
@@ -312,6 +312,15 @@ class CIRISRuntime:
                 provider=self.audit_service,
                 priority=Priority.HIGH,
                 capabilities=["log_action", "get_audit_trail"]
+            )
+
+        # Register LLM service globally so processors and DMAs can fetch it
+        if self.llm_service:
+            self.service_registry.register_global(
+                service_type="llm",
+                provider=self.llm_service,
+                priority=Priority.HIGH,
+                capabilities=["generate_response", "generate_structured_response"]
             )
         
         # Note: Communication and WA services will be registered by subclasses
