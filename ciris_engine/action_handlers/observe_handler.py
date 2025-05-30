@@ -10,6 +10,8 @@ from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
 from .discord_observe_handler import handle_discord_observe_event
+from ciris_engine.sinks.action_types import FetchMessagesAction
+from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -66,58 +68,98 @@ class ObserveHandler(BaseActionHandler):
         logger.warning(f"OBSERVE HANDLER DEBUG: Memory service available: {self.dependencies.memory_service is not None}")
 
         if params.active:  # v1 uses 'active'
-            # Use the Discord observe handler in active mode
+            # Use the new MultiServiceActionSink with FETCH_MESSAGES action
             try:
                 target_channel_id = params.channel_id or dispatch_context.get("channel_id")
                 if not target_channel_id:
                     target_channel_id = os.getenv("DISCORD_CHANNEL_ID")
 
-                # Build comprehensive context for active observation
-                observe_context = {
-                    "default_channel_id": target_channel_id or os.getenv("DISCORD_CHANNEL_ID"),
-                    "agent_id": dispatch_context.get("agent_id")
-                }
-                
-                # Try multiple sources for discord_service
-                discord_service = None
-                
-                # 1. From dependencies
-                if hasattr(self.dependencies, 'io_adapter') and hasattr(self.dependencies.io_adapter, 'client'):
-                    discord_service = self.dependencies.io_adapter.client
-                    logger.debug("Got discord_service from dependencies.io_adapter.client")
-                
-                # 2. From dispatch_context
-                if not discord_service:
-                    discord_service = dispatch_context.get("discord_service")
-                    if discord_service:
-                        logger.debug("Got discord_service from dispatch_context")
-                
-                # 3. From services dict in dispatch_context
-                if not discord_service and "services" in dispatch_context:
-                    services = dispatch_context["services"]
-                    discord_service = services.get("discord_service") or services.get("discord_client")
-                    if discord_service:
-                        logger.debug("Got discord_service from dispatch_context.services")
-                
-                # 4. Try to get from global runtime state (last resort)
-                if not discord_service:
-                    # This is a fallback - ideally context should provide it
-                    logger.warning("discord_service not found in expected locations, active observation may fail")
-                
-                observe_context["discord_service"] = discord_service
+                if not target_channel_id:
+                    raise ValueError("No channel ID available for active observation")
 
-                await handle_discord_observe_event(
-                    payload={
-                        "channel_id": target_channel_id,
-                        "offset": params.offset if hasattr(params, 'offset') else 0,
-                        "limit": params.limit if hasattr(params, 'limit') else 10,
-                        "include_agent": True
-                    },
-                    mode="active",
-                    context=observe_context
-                )
-                action_performed_successfully = True
-                follow_up_content_key_info = f"Active Discord observe handler invoked for channel: {target_channel_id}"
+                # Check if we have service registry for new action system
+                if self.dependencies.service_registry:
+                    # Use new action system with MultiServiceActionSink
+                    action_sink = MultiServiceActionSink(
+                        service_registry=self.dependencies.service_registry,
+                        fallback_channel_id=target_channel_id
+                    )
+                    
+                    # Create FETCH_MESSAGES action
+                    fetch_action = FetchMessagesAction(
+                        type=None,  # Will be set in __post_init__
+                        handler_name="ObserveHandler",
+                        metadata={
+                            "thought_id": thought_id,
+                            "observation_type": "active",
+                            "dispatch_context": dispatch_context
+                        },
+                        channel_id=target_channel_id,
+                        limit=getattr(params, 'limit', 10)
+                    )
+                    
+                    # Start action sink and enqueue action
+                    await action_sink.start()
+                    try:
+                        success = await action_sink.enqueue_action(fetch_action)
+                        if success:
+                            action_performed_successfully = True
+                            follow_up_content_key_info = f"Active message fetch queued for channel: {target_channel_id}"
+                        else:
+                            raise Exception("Failed to enqueue FETCH_MESSAGES action")
+                    finally:
+                        await action_sink.stop()
+                
+                else:
+                    # Fallback to legacy Discord observe handler
+                    logger.warning("No service registry available, falling back to legacy Discord observe handler")
+                    
+                    # Build comprehensive context for active observation
+                    observe_context = {
+                        "default_channel_id": target_channel_id or os.getenv("DISCORD_CHANNEL_ID"),
+                        "agent_id": dispatch_context.get("agent_id")
+                    }
+                    
+                    # Try multiple sources for discord_service
+                    discord_service = None
+                    
+                    # 1. From dependencies
+                    if hasattr(self.dependencies, 'io_adapter') and hasattr(self.dependencies.io_adapter, 'client'):
+                        discord_service = self.dependencies.io_adapter.client
+                        logger.debug("Got discord_service from dependencies.io_adapter.client")
+                    
+                    # 2. From dispatch_context
+                    if not discord_service:
+                        discord_service = dispatch_context.get("discord_service")
+                        if discord_service:
+                            logger.debug("Got discord_service from dispatch_context")
+                    
+                    # 3. From services dict in dispatch_context
+                    if not discord_service and "services" in dispatch_context:
+                        services = dispatch_context["services"]
+                        discord_service = services.get("discord_service") or services.get("discord_client")
+                        if discord_service:
+                            logger.debug("Got discord_service from dispatch_context.services")
+                    
+                    # 4. Try to get from global runtime state (last resort)
+                    if not discord_service:
+                        # This is a fallback - ideally context should provide it
+                        logger.warning("discord_service not found in expected locations, active observation may fail")
+                    
+                    observe_context["discord_service"] = discord_service
+
+                    await handle_discord_observe_event(
+                        payload={
+                            "channel_id": target_channel_id,
+                            "offset": params.offset if hasattr(params, 'offset') else 0,
+                            "limit": params.limit if hasattr(params, 'limit') else 10,
+                            "include_agent": True
+                        },
+                        mode="active",
+                        context=observe_context
+                    )
+                    action_performed_successfully = True
+                    follow_up_content_key_info = f"Active Discord observe handler invoked for channel: {target_channel_id}"
             except Exception as e:
                 self.logger.exception(f"Error during active Discord observe handler for thought {thought_id}: {e}")
                 final_thought_status = ThoughtStatus.FAILED

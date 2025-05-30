@@ -54,9 +54,9 @@ class WiseAuthorityService(Protocol):
     """Protocol for Wise Authority services"""
     
     @abstractmethod
-    async def request_guidance(self, context: Dict[str, Any]) -> Optional[str]:
+    async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:
         """
-        Request guidance from the wise authority.
+        Fetch guidance from the wise authority.
         
         Args:
             context: Context information for the guidance request
@@ -67,9 +67,9 @@ class WiseAuthorityService(Protocol):
         ...
     
     @abstractmethod
-    async def submit_deferral(self, thought_id: str, reason: str) -> bool:
+    async def send_deferral(self, thought_id: str, reason: str) -> bool:
         """
-        Submit a thought for deferral to wise authority.
+        Send a thought for deferral to wise authority.
         
         Args:
             thought_id: The ID of the thought to defer
@@ -86,7 +86,7 @@ class WiseAuthorityService(Protocol):
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["request_guidance", "submit_deferral"]
+        return ["fetch_guidance", "send_deferral"]
 
 
 class MemoryService(Protocol):
@@ -185,6 +185,20 @@ class ToolService(Protocol):
         """
         ...
     
+    @abstractmethod
+    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
+        """
+        Get the result of a previously executed tool by correlation ID.
+        
+        Args:
+            correlation_id: The correlation ID of the tool execution
+            timeout: Maximum time to wait for the result
+            
+        Returns:
+            Tool result if available, None if not found or timeout
+        """
+        ...
+    
     async def validate_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
         """
         Validate parameters for a tool.
@@ -204,7 +218,7 @@ class ToolService(Protocol):
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["execute_tool", "get_available_tools", "validate_parameters"]
+        return ["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
 
 
 class AuditService(Protocol):

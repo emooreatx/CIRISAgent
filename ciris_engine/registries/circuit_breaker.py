@@ -13,6 +13,11 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+class CircuitBreakerError(Exception):
+    """Exception raised when circuit breaker is open and service is unavailable"""
+    pass
+
+
 class CircuitState(Enum):
     CLOSED = "closed"      # Normal operation
     OPEN = "open"          # Service disabled due to failures
@@ -65,6 +70,13 @@ class CircuitBreaker:
             return True
         
         return False
+    
+    def check_and_raise(self):
+        """Check if service is available, raise CircuitBreakerError if not"""
+        if not self.is_available():
+            raise CircuitBreakerError(
+                f"Circuit breaker '{self.name}' is {self.state.value}, service unavailable"
+            )
     
     def record_success(self):
         """Record a successful operation"""
