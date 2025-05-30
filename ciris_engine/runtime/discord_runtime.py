@@ -144,7 +144,7 @@ class DiscordRuntime(CIRISRuntime):
         await self.action_sink.start()
         await self.deferral_sink.start()
         
-    async def _handle_observe_event(self, payload: Dict[str, Any]) -> None:
+    async def _handle_observe_event(self, payload: Dict[str, Any]):
         """Wrapper for observe event handling with proper context."""
         # Add discord_service to context for active observations
         context = {
@@ -152,9 +152,8 @@ class DiscordRuntime(CIRISRuntime):
             "default_channel_id": self.monitored_channel_id,
             "agent_id": getattr(self.client, 'user', {}).id if hasattr(self.client, 'user') else None
         }
-        
-        # Call the actual handler with enhanced context
-        await handle_discord_observe_event(
+        # Call the actual handler with enhanced context and return its result
+        return await handle_discord_observe_event(
             payload=payload,
             mode="passive",  # Default mode
             context=context

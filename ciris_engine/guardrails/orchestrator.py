@@ -27,6 +27,16 @@ class GuardrailOrchestrator:
     ) -> GuardrailResult:
         """Apply guardrails and handle overrides. Retries up to 3 times if guardrail fails."""
         
+        # CRITICAL DEBUG: Check if we receive OBSERVE actions
+        if action_result and hasattr(action_result, 'selected_action'):
+            if action_result.selected_action == HandlerActionType.OBSERVE:
+                logger.warning(f"OBSERVE ACTION DEBUG: GuardrailOrchestrator received OBSERVE action for thought {thought.thought_id}")
+                logger.warning(f"OBSERVE ACTION DEBUG: action_result type: {type(action_result)}")
+                logger.warning(f"OBSERVE ACTION DEBUG: action_result.selected_action: {action_result.selected_action}")
+                logger.warning(f"OBSERVE ACTION DEBUG: action_result.action_parameters: {action_result.action_parameters}")
+        else:
+            logger.error(f"GuardrailOrchestrator: No action_result or missing selected_action for thought {thought.thought_id}")
+        
         # Skip guardrails for TASK_COMPLETE actions - they should proceed immediately
         if action_result.selected_action == HandlerActionType.TASK_COMPLETE:
             logger.debug(f"GuardrailOrchestrator: Skipping guardrails for TASK_COMPLETE action on thought {thought.thought_id}")
@@ -92,76 +102,84 @@ class GuardrailOrchestrator:
             else:
                 logger.error("Failed to find channel_id from any source!")
         
-        # ... rest of the method remains the same
-            # Retry guardrail check up to 3 times if it fails
-            max_retries = 3
-            for attempt in range(1, max_retries + 1):
-                passes_guardrail, reason, epistemic_data = await self.ethical_guardrails.check_action_output_safety(action_result)
-                if passes_guardrail:
-                    break
-                logger.info(f"Guardrail failed attempt {attempt} for thought ID {thought.thought_id}: {reason}")
-                if attempt < max_retries:
-                    continue
-                # Only proceed to override after final failed attempt
+        # Retry guardrail check up to 3 times if it fails
+        max_retries = 3
+        passes_guardrail = True
+        reason = None
+        epistemic_data = None
+        
+        for attempt in range(1, max_retries + 1):
+            passes_guardrail, reason, epistemic_data = await self.ethical_guardrails.check_action_output_safety(action_result)
+            if passes_guardrail:
+                break
+            logger.info(f"Guardrail failed attempt {attempt} for thought ID {thought.thought_id}: {reason}")
+            if attempt < max_retries:
+                continue
+            # Only proceed to override after final failed attempt
 
-            override_action_result = None
-            if not passes_guardrail:
-                logger.info(f"Guardrail failed for thought ID {thought.thought_id}: {reason}. Overriding action to PONDER.")
+        override_action_result = None
+        if not passes_guardrail:
+            logger.info(f"Guardrail failed for thought ID {thought.thought_id}: {reason}. Overriding action to PONDER.")
 
-                # Create ponder questions based on the guardrail failure
-                ponder_questions = [
-                    f"Why did the guardrail fail with reason: {reason}?",
-                    "What alternative approach would satisfy the epistemic constraints?",
-                    "How can I reformulate my response to align with CIRIS values?"
-                ]
+            # Create ponder questions based on the guardrail failure
+            ponder_questions = [
+                f"Why did the guardrail fail with reason: {reason}?",
+                "What alternative approach would satisfy the epistemic constraints?",
+                "How can I reformulate my response to align with CIRIS values?"
+            ]
 
-                # Add specific questions based on epistemic data
-                if epistemic_data:
-                    if epistemic_data.get('entropy', 0) > self.ethical_guardrails.entropy_threshold:
-                        ponder_questions.append("How can I reduce the entropy/chaos in my response?")
-                    if epistemic_data.get('coherence', 1) < self.ethical_guardrails.coherence_threshold:
-                        ponder_questions.append("How can I better align my response with CIRIS principles?")
-                    if 'optimization_veto' in epistemic_data:
-                        veto = epistemic_data['optimization_veto']
-                        if veto.get('decision') in ['abort', 'defer']:
-                            ponder_questions.append(f"Optimization concern: {veto.get('justification')} - How to address this?")
-                    if 'epistemic_humility' in epistemic_data:
-                        humility = epistemic_data['epistemic_humility']
-                        if humility.get('recommended_action') in ['abort', 'defer']:
-                            ponder_questions.extend(humility.get('identified_uncertainties', []))
+            # Add specific questions based on epistemic data
+            if epistemic_data:
+                if epistemic_data.get('entropy', 0) > self.ethical_guardrails.entropy_threshold:
+                    ponder_questions.append("How can I reduce the entropy/chaos in my response?")
+                if epistemic_data.get('coherence', 1) < self.ethical_guardrails.coherence_threshold:
+                    ponder_questions.append("How can I better align my response with CIRIS principles?")
+                if 'optimization_veto' in epistemic_data:
+                    veto = epistemic_data['optimization_veto']
+                    if veto.get('decision') in ['abort', 'defer']:
+                        ponder_questions.append(f"Optimization concern: {veto.get('justification')} - How to address this?")
+                if 'epistemic_humility' in epistemic_data:
+                    humility = epistemic_data['epistemic_humility']
+                    if humility.get('recommended_action') in ['abort', 'defer']:
+                        ponder_questions.extend(humility.get('identified_uncertainties', []))
 
-                ponder_params = PonderParams(questions=ponder_questions[:5])  # Limit to 5 questions
+            ponder_params = PonderParams(questions=ponder_questions[:5])  # Limit to 5 questions
 
-                override_action_result = ActionSelectionResult(
-                    selected_action=HandlerActionType.PONDER,
-                    action_parameters=ponder_params.model_dump(mode='json'),
-                    rationale=f"Original action '{action_result.selected_action.value}' failed guardrails. Pondering to find aligned approach. Reason: {reason}",
-                    confidence=0.3,  # Low confidence due to guardrail failure
-                    raw_llm_response=action_result.raw_llm_response
-                )
-
-                logger.info(f"Guardrail triggered PONDER for thought {thought.thought_id}: {reason}")
-
-            final_action = override_action_result if override_action_result else action_result
-
-            # Normalize action_parameters for all main action types before dispatch
-            if final_action.selected_action == HandlerActionType.SPEAK:
-                params = final_action.action_parameters
-                if isinstance(params, dict):
-                    final_action.action_parameters = SpeakParams(**params)
-            elif final_action.selected_action == HandlerActionType.DEFER:
-                params = final_action.action_parameters
-                if isinstance(params, dict):
-                    final_action.action_parameters = DeferParams(**params)
-            elif final_action.selected_action == HandlerActionType.PONDER:
-                params = final_action.action_parameters
-                if isinstance(params, dict):
-                    final_action.action_parameters = PonderParams(**params)
-
-            return GuardrailResult(
-                original_action=action_result,
-                final_action=final_action,
-                overridden=not passes_guardrail,
-                override_reason=reason if not passes_guardrail else None,
-                epistemic_data=epistemic_data,
+            override_action_result = ActionSelectionResult(
+                selected_action=HandlerActionType.PONDER,
+                action_parameters=ponder_params.model_dump(mode='json'),
+                rationale=f"Original action '{action_result.selected_action.value}' failed guardrails. Pondering to find aligned approach. Reason: {reason}",
+                confidence=0.3,  # Low confidence due to guardrail failure
+                raw_llm_response=action_result.raw_llm_response
             )
+
+            logger.info(f"Guardrail triggered PONDER for thought {thought.thought_id}: {reason}")
+
+        final_action = override_action_result if override_action_result else action_result
+
+        # Normalize action_parameters for all main action types before dispatch
+        if final_action.selected_action == HandlerActionType.SPEAK:
+            params = final_action.action_parameters
+            if isinstance(params, dict):
+                final_action.action_parameters = SpeakParams(**params)
+        elif final_action.selected_action == HandlerActionType.DEFER:
+            params = final_action.action_parameters
+            if isinstance(params, dict):
+                final_action.action_parameters = DeferParams(**params)
+        elif final_action.selected_action == HandlerActionType.PONDER:
+            params = final_action.action_parameters
+            if isinstance(params, dict):
+                final_action.action_parameters = PonderParams(**params)
+
+        # CRITICAL DEBUG: Check OBSERVE actions before returning
+        if final_action.selected_action == HandlerActionType.OBSERVE:
+            logger.warning(f"OBSERVE ACTION DEBUG: GuardrailOrchestrator returning OBSERVE action for thought {thought.thought_id}")
+            logger.warning(f"OBSERVE ACTION DEBUG: final_action type: {type(final_action)}")
+
+        return GuardrailResult(
+            original_action=action_result,
+            final_action=final_action,
+            overridden=not passes_guardrail,
+            override_reason=reason if not passes_guardrail else None,
+            epistemic_data=epistemic_data,
+        )
