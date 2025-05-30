@@ -43,7 +43,9 @@ DEFAULT_THOUGHT_KWARGS = dict(
 async def test_forget_handler_schema_driven(monkeypatch):
     memory_service = AsyncMock()
     memory_service.forget.return_value = MemoryOpResult(status=MemoryOpStatus.OK)
-    deps = ActionHandlerDependencies(memory_service=memory_service)
+    deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(return_value=memory_service)
+    deps.memory_service = memory_service
     deps.persistence = MagicMock()
     handler = ForgetHandler(deps)
 
@@ -72,7 +74,9 @@ async def test_recall_handler_schema_driven(monkeypatch):
     memory_service.recall.return_value = MemoryOpResult(
         status=MemoryOpStatus.OK, data={"foo": "bar"}
     )
-    deps = ActionHandlerDependencies(memory_service=memory_service)
+    deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(return_value=memory_service)
+    deps.memory_service = memory_service
     deps.persistence = MagicMock()
     handler = RecallHandler(deps)
 
