@@ -103,6 +103,15 @@ class BaseActionHandler(ABC):
             "llm"
         )
 
+    async def get_observer_service(self) -> Optional[Any]:
+        """Get best available observer service"""
+        return await self.dependencies.get_service(
+            self.__class__.__name__,
+            "observer",
+            required_capabilities=["observe_messages"],
+        )
+
+
     @abstractmethod
     async def handle(
         self,
