@@ -28,6 +28,11 @@ class InteractiveCLIAdapter(CLIAdapter):
     def __init__(self):
         super().__init__()
         self._should_stop = False
+        self._observe_handler = None
+
+    def set_observe_handler(self, observe_handler):
+        """Set the observe handler callback for processing user input."""
+        self._observe_handler = observe_handler
 
     async def start(self):
         """Start the interactive CLI adapter."""
@@ -48,31 +53,70 @@ class InteractiveCLIAdapter(CLIAdapter):
                 self._should_stop = True
                 print("Goodbye!")
                 return []
-            task_id = f"cli_{uuid.uuid4().hex[:8]}"
-            now = datetime.now(timezone.utc).isoformat()
-            task = Task(
-                task_id=task_id,
-                description=line,
-                status=TaskStatus.PENDING,
-                priority=1,
-                created_at=now,
-                updated_at=now,
-                context={
+            
+            # Generate a unique message ID for this CLI input
+            message_id = f"cli_{uuid.uuid4().hex[:8]}"
+            
+            # Create observation payload for passive observe handling
+            payload = {
+                "message_id": message_id,
+                "content": line,
+                "context": {
                     "origin_service": "cli",
                     "author_id": "local_user",
                     "author_name": "User",
                     "channel_id": "cli",
-                    "content": line,
-                }
-            )
-            # Ensure the database is initialized before adding the task
-            persistence.initialize_database()
-            persistence.add_task(task)
-            logger.info(f"Created task {task_id} from CLI input")
+                },
+                "task_description": (
+                    f"Observed user 'User' in CLI say: '{line}'. "
+                    "Evaluate and decide on the appropriate course of action."
+                ),
+            }
+            
+            # Send through observe handler if available
+            if self._observe_handler:
+                try:
+                    from ciris_engine.action_handlers.discord_observe_handler import handle_discord_observe_event
+                    # Use CLI-aware context for observe handler
+                    context = {"agent_mode": "cli"}
+                    await handle_discord_observe_event(payload, mode="passive", context=context)
+                    logger.info(f"Sent CLI input to observe queue: {message_id}")
+                except Exception as e:
+                    logger.error(f"Error processing CLI input through observe handler: {e}")
+                    # Fallback: create task directly
+                    await self._create_task_fallback(message_id, line)
+            else:
+                # Fallback: create task directly if no observe handler
+                await self._create_task_fallback(message_id, line)
+            
             return []
         except EOFError:
             self._should_stop = True
             return []
+
+    async def _create_task_fallback(self, task_id: str, content: str):
+        """Fallback method to create task directly if observe handler is not available."""
+        now = datetime.now(timezone.utc).isoformat()
+        task = Task(
+            task_id=task_id,
+            description=content,
+            status=TaskStatus.PENDING,
+            priority=1,
+            created_at=now,
+            updated_at=now,
+            context={
+                "origin_service": "cli",
+                "author_id": "local_user",
+                "author_name": "User",
+                "channel_id": "cli",
+                "content": content,
+            }
+        )
+        # Ensure the database is initialized before adding the task
+        persistence.initialize_database()
+        persistence.add_task(task)
+        logger.info(f"Created task {task_id} from CLI input (fallback)")
+        return task
 
 class CLIRuntime(CIRISRuntime):
     def __init__(self, profile_name: str = "default", interactive: bool = True):
@@ -89,6 +133,22 @@ class CLIRuntime(CIRISRuntime):
     async def initialize(self):
         """Initialize CLI-specific components."""
         await super().initialize()
+        
+        # Set up observe handler for CLI input processing
+        if isinstance(self.io_adapter, InteractiveCLIAdapter):
+            # Create observe handler callback that mimics Discord's pattern
+            async def cli_observe_handler(payload):
+                """Handle CLI observe events (mimics Discord observer pattern)."""
+                try:
+                    from ciris_engine.action_handlers.discord_observe_handler import handle_discord_observe_event
+                    # Add CLI-specific context
+                    context = {"agent_mode": "cli"}
+                    await handle_discord_observe_event(payload, mode="passive", context=context)
+                    logger.debug(f"Processed CLI observe event: {payload.get('message_id')}")
+                except Exception as e:
+                    logger.error(f"Error in CLI observe handler: {e}")
+            
+            self.io_adapter.set_observe_handler(cli_observe_handler)
         
         # Update action_sink in dependencies after initialization
         if self.agent_processor and self.agent_processor.thought_processor:
