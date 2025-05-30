@@ -156,6 +156,8 @@ class ThoughtProcessor:
             # Confidence and raw_llm_response can be None/omitted for system-generated deferrals
         )
 
+
+
     async def _handle_special_cases(self, result, thought, context):
         """Handle special cases like PONDER and DEFER overrides."""
         # Handle both GuardrailResult and ActionSelectionResult
@@ -170,7 +172,7 @@ class ThoughtProcessor:
             # This is an ActionSelectionResult
             selected_action = result.selected_action
             final_result = result
-        elif hasattr(result, 'final_action') and hasattr(result.final_action, 'selected_action'):
+        elif hasattr(result, 'final_action') and result.final_action and hasattr(result.final_action, 'selected_action'):
             # This is a GuardrailResult - extract the final_action
             selected_action = result.final_action.selected_action
             final_result = result.final_action  # Use the final_action ActionSelectionResult
@@ -188,7 +190,7 @@ class ThoughtProcessor:
             logger.debug(f"ThoughtProcessor handling special case for action: {selected_action}")
         else:
             logger.warning(f"ThoughtProcessor: No selected_action found for thought {thought.thought_id}")
-            return None
+            return final_result  # Return what we have instead of None
         
         # TASK_COMPLETE actions should be returned as-is for proper dispatch
         from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
@@ -199,6 +201,12 @@ class ThoughtProcessor:
         # NOTE: PONDER actions are now handled by the PonderHandler in the action dispatcher
         # No special processing needed here - just return the result for normal dispatch
         return final_result
+
+
+
+
+
+
 
     async def _update_thought_status(self, thought, result):
         from ciris_engine import persistence
