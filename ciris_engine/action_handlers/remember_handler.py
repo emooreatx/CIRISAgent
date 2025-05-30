@@ -22,11 +22,23 @@ class RememberHandler(BaseActionHandler):
                 params = RememberParams(**raw_params)
             except ValidationError as e:
                 logger.error(f"RememberHandler: Invalid params dict: {e}")
+                follow_up = create_follow_up_thought(
+                    parent=thought,
+                    content=f"REMEMBER action failed: Invalid parameters. {e}"
+                )
+                self.dependencies.persistence.add_thought(follow_up)
+                await self._audit_log(HandlerActionType.REMEMBER, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
                 return
         elif isinstance(raw_params, RememberParams):
             params = raw_params
         else:
             logger.error(f"RememberHandler: Invalid params type: {type(raw_params)}")
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                content=f"REMEMBER action failed: Invalid parameters type: {type(raw_params)}"
+            )
+            self.dependencies.persistence.add_thought(follow_up)
+            await self._audit_log(HandlerActionType.REMEMBER, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             return
         scope = GraphScope(params.scope)
         # Build a GraphNode for the query (id is the query string)
@@ -45,5 +57,13 @@ class RememberHandler(BaseActionHandler):
             parent=thought,
             content=follow_up_content,
         )
+        # Always set action_performed and is_follow_up in context
+        follow_up_context = follow_up.context if isinstance(follow_up.context, dict) else {}
+        follow_up_context["action_performed"] = "REMEMBER"
+        follow_up_context["is_follow_up"] = True
+        # Optionally add error or memory details if available
+        if memory_result and hasattr(memory_result, "status") and memory_result.status != "OK":
+            follow_up_context["error_details"] = str(memory_result.status)
+        follow_up.context = follow_up_context
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(HandlerActionType.REMEMBER, {**dispatch_context, "thought_id": thought_id}, outcome="success" if memory_result.status == MemoryOpStatus.OK and memory_result.data else "failed")

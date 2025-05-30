@@ -552,6 +552,13 @@ Adhere strictly to the schema for your JSON output.
             )
             logger.info(f"ActionSelectionPDMA (instructor) evaluation successful for thought ID {original_thought.thought_id}: Chose {final_action_eval.selected_action.value}")
             logger.debug(f"ActionSelectionPDMA (instructor) action_parameters: {final_action_eval.action_parameters}")
+            
+            # CRITICAL DEBUG: Check for OBSERVE actions specifically
+            if final_action_eval.selected_action == HandlerActionType.OBSERVE:
+                logger.warning(f"OBSERVE ACTION DEBUG: Successfully created OBSERVE action for thought {original_thought.thought_id}")
+                logger.warning(f"OBSERVE ACTION DEBUG: Parameters: {final_action_eval.action_parameters}")
+                logger.warning(f"OBSERVE ACTION DEBUG: Rationale: {final_action_eval.rationale}")
+            
             return final_action_eval
 
         except InstructorRetryException as e_instr:

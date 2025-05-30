@@ -95,5 +95,5 @@ class WiseAuthorityFeedback(BaseModel):
     feedback_source: FeedbackSource
     directives: List[FeedbackDirective] = Field(default_factory=list)
     summary: str = ""
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     created_by: str = "wise_authority"

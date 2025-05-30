@@ -87,7 +87,6 @@ class PonderHandler(BaseActionHandler):
         else:
             new_ponder_count = current_ponder_count + 1
             logger.info(f"Thought ID {thought.thought_id} pondering (count: {new_ponder_count}). Questions: {key_questions_list}")
-            
             success = persistence.update_thought_status(
                 thought_id=thought.thought_id,
                 status=ThoughtStatus.PENDING,  # Back to PENDING for re-processing
@@ -97,12 +96,29 @@ class PonderHandler(BaseActionHandler):
                     "ponder_notes": key_questions_list
                 }
             )
-            
             if success:
                 thought.ponder_count = new_ponder_count
                 logger.info(f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for re-processing.")
                 # Log audit for successful ponder
                 await self._audit_log("PONDER_REPROCESS", dispatch_context, {"thought_id": thought.thought_id, "status": "PENDING", "new_ponder_count": new_ponder_count})
+                # Create a follow-up thought for the ponder action
+                follow_up_content = (
+                    f"This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
+                    f"Pondered questions: {key_questions_list}. "
+                    "If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+                )
+                from .helpers import create_follow_up_thought
+                follow_up = create_follow_up_thought(
+                    parent=thought,
+                    content=follow_up_content,
+                )
+                follow_up.context = {
+                    "action_performed": "PONDER",
+                    "parent_task_id": thought.source_task_id,
+                    "is_follow_up": True,
+                    "ponder_notes": key_questions_list,
+                }
+                persistence.add_thought(follow_up)
                 return None
             else:
                 logger.error(f"Failed to update thought ID {thought.thought_id} for re-processing Ponder.")
@@ -117,4 +133,23 @@ class PonderHandler(BaseActionHandler):
                 )
                 # Log audit for failed ponder update
                 await self._audit_log("PONDER_UPDATE_FAILED", dispatch_context, {"thought_id": thought.thought_id, "status": "FAILED"})
+                # Create a follow-up thought for the failed ponder action
+                follow_up_content = (
+                    f"This is a follow-up thought from a FAILED PONDER action performed on parent task {thought.source_task_id}. "
+                    f"Pondered questions: {key_questions_list}. "
+                    "The update failed. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+                )
+                from .helpers import create_follow_up_thought
+                follow_up = create_follow_up_thought(
+                    parent=thought,
+                    content=follow_up_content,
+                )
+                follow_up.context = {
+                    "action_performed": "PONDER",
+                    "parent_task_id": thought.source_task_id,
+                    "is_follow_up": True,
+                    "ponder_notes": key_questions_list,
+                    "error": "Failed to update for re-processing"
+                }
+                persistence.add_thought(follow_up)
                 return None
