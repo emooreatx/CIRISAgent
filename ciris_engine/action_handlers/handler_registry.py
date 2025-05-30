@@ -24,7 +24,7 @@ def build_action_dispatcher(audit_service=None, max_ponder_rounds: int = 5, **ha
     Instantiates all handlers and returns a ready-to-use ActionDispatcher.
     Passes handler_dependencies to each handler as needed.
     """
-    deps = ActionHandlerDependencies(**handler_dependencies)
+    deps = ActionHandlerDependencies(audit_service=audit_service, **handler_dependencies)
     handlers = {
         HandlerActionType.MEMORIZE: MemorizeHandler(deps),
         HandlerActionType.SPEAK: SpeakHandler(deps, snore_channel_id=os.getenv("SNORE_CHANNEL_ID")),

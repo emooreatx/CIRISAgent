@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class GraphQLClient:
     def __init__(self, endpoint: str | None = None):
-        self.endpoint = endpoint or os.getenv("GRAPHQL_ENDPOINT", "http://localhost:8000/graphql")
+        self.endpoint = endpoint or os.getenv("GRAPHQL_ENDPOINT", "https://localhost:8000/graphql")
         # Use a short timeout per repository guidelines
         self._client = httpx.AsyncClient(timeout=3.0)
 

@@ -89,7 +89,7 @@ class AgentProcessor:
         self.dream_processor = DreamProcessor(
             app_config=app_config,  # Added
             profile=self.active_profile,  # Use the active profile directly
-            cirisnode_url=app_config.cirisnode.base_url if hasattr(app_config, 'cirisnode') else "http://localhost:8001"
+            cirisnode_url=app_config.cirisnode.base_url if hasattr(app_config, 'cirisnode') else "https://localhost:8001"
         )
         
         # Map states to processors

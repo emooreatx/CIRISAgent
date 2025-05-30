@@ -16,7 +16,7 @@ def test_channel_id_flows_from_env_to_processors(monkeypatch):
     # Mock AppConfig to reflect env var
     app_config = MagicMock(spec=AppConfig)
     app_config.cirisnode = MagicMock()
-    app_config.cirisnode.base_url = "http://localhost:8001"
+    app_config.cirisnode.base_url = "https://localhost:8001"
     app_config.agent_profiles = {}
     app_config.profile_directory = "."
     app_config.llm_services = MagicMock()

@@ -167,7 +167,7 @@ async def test_dream_processor_pulse(monkeypatch):
     # Create mock AppConfig and AgentProfile
     mock_app_config = AppConfig(
         llm_services=LLMServicesConfig(openai=OpenAIConfig(model_name="test-model")),
-        cirisnode=CIRISNodeConfig(base_url="http://x") 
+        cirisnode=CIRISNodeConfig(base_url="https://x") 
     )
     mock_profile = AgentProfile(name="test_agent")
 

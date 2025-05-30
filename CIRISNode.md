@@ -2,7 +2,7 @@
 
 This document outlines the minimal HTTP endpoints that the `CIRISNodeClient`
 expects. The base URL is configured via the `CIRISNODE_BASE_URL` environment
-variable (default `http://localhost:8001`).
+variable (default `https://localhost:8001`).
 
 ## `POST /simplebench`
 
