@@ -58,14 +58,18 @@ class PonderHandler(BaseActionHandler):
                 thought_id=thought.thought_id,
                 status=ThoughtStatus.COMPLETED,
                 final_action={
-                    "action": "PONDER",
+                    "action": HandlerActionType.PONDER.value,
                     "ponder_count": current_ponder_count + 1,
                     "ponder_notes": key_questions_list,
                     "wakeup_step": True
                 }
             )
             # Log audit for wakeup step ponder
-            await self._audit_log(HandlerActionType.PONDER, dispatch_context, {"thought_id": thought.thought_id, "status": "COMPLETED", "ponder_type": "wakeup_step"})
+            await self._audit_log(
+                HandlerActionType.PONDER,
+                dispatch_context,
+                {"thought_id": thought.thought_id, "status": ThoughtStatus.COMPLETED.value, "ponder_type": "wakeup_step"},
+            )
             return None
         
         # Normal ponder logic
@@ -75,14 +79,18 @@ class PonderHandler(BaseActionHandler):
                 thought_id=thought.thought_id,
                 status=ThoughtStatus.DEFERRED,
                 final_action={
-                    "action": "DEFER",
+                    "action": HandlerActionType.DEFER.value,
                     "reason": f"Maximum ponder rounds ({self.max_ponder_rounds}) reached",
                     "ponder_notes": key_questions_list,
                     "ponder_count": current_ponder_count
                 }
             )
             # Log audit for max ponder deferral
-            await self._audit_log(HandlerActionType.PONDER, dispatch_context, {"thought_id": thought.thought_id, "status": "DEFERRED", "ponder_type": "max_rounds_defer"})
+            await self._audit_log(
+                HandlerActionType.PONDER,
+                dispatch_context,
+                {"thought_id": thought.thought_id, "status": ThoughtStatus.DEFERRED.value, "ponder_type": "max_rounds_defer"},
+            )
             return None
         else:
             new_ponder_count = current_ponder_count + 1
@@ -91,7 +99,7 @@ class PonderHandler(BaseActionHandler):
                 thought_id=thought.thought_id,
                 status=ThoughtStatus.PENDING,  # Back to PENDING for re-processing
                 final_action={
-                    "action": "PONDER",
+                    "action": HandlerActionType.PONDER.value,
                     "ponder_count": new_ponder_count,
                     "ponder_notes": key_questions_list
                 }
@@ -100,7 +108,16 @@ class PonderHandler(BaseActionHandler):
                 thought.ponder_count = new_ponder_count
                 logger.info(f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for re-processing.")
                 # Log audit for successful ponder
-                await self._audit_log(HandlerActionType.PONDER, dispatch_context, {"thought_id": thought.thought_id, "status": "PENDING", "new_ponder_count": new_ponder_count, "ponder_type": "reprocess"})
+                await self._audit_log(
+                    HandlerActionType.PONDER,
+                    dispatch_context,
+                    {
+                        "thought_id": thought.thought_id,
+                        "status": ThoughtStatus.PENDING.value,
+                        "new_ponder_count": new_ponder_count,
+                        "ponder_type": "reprocess",
+                    },
+                )
                 # Create a follow-up thought for the ponder action
                 follow_up_content = (
                     f"This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
@@ -113,7 +130,7 @@ class PonderHandler(BaseActionHandler):
                     content=follow_up_content,
                 )
                 follow_up.context = {
-                    "action_performed": "PONDER",
+                    "action_performed": HandlerActionType.PONDER.name,
                     "parent_task_id": thought.source_task_id,
                     "is_follow_up": True,
                     "ponder_notes": key_questions_list,
@@ -126,13 +143,17 @@ class PonderHandler(BaseActionHandler):
                     thought_id=thought.thought_id,
                     status=ThoughtStatus.FAILED,
                     final_action={
-                        "action": "PONDER",
+                        "action": HandlerActionType.PONDER.value,
                         "error": "Failed to update for re-processing",
                         "ponder_count": current_ponder_count # Reverted to current_ponder_count as update failed
                     }
                 )
                 # Log audit for failed ponder update
-                await self._audit_log(HandlerActionType.PONDER, dispatch_context, {"thought_id": thought.thought_id, "status": "FAILED", "ponder_type": "update_failed"})
+                await self._audit_log(
+                    HandlerActionType.PONDER,
+                    dispatch_context,
+                    {"thought_id": thought.thought_id, "status": ThoughtStatus.FAILED.value, "ponder_type": "update_failed"},
+                )
                 # Create a follow-up thought for the failed ponder action
                 follow_up_content = (
                     f"This is a follow-up thought from a FAILED PONDER action performed on parent task {thought.source_task_id}. "
@@ -145,7 +166,7 @@ class PonderHandler(BaseActionHandler):
                     content=follow_up_content,
                 )
                 follow_up.context = {
-                    "action_performed": "PONDER",
+                    "action_performed": HandlerActionType.PONDER.name,
                     "parent_task_id": thought.source_task_id,
                     "is_follow_up": True,
                     "ponder_notes": key_questions_list,
