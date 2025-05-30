@@ -13,7 +13,7 @@ from ciris_engine.action_handlers.task_complete_handler import TaskCompleteHandl
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
 @pytest.mark.asyncio
-def test_speak_handler_creates_followup(monkeypatch):
+async def test_speak_handler_creates_followup(monkeypatch):
     add_thought_mock = MagicMock()
     monkeypatch.setattr('ciris_engine.action_handlers.speak_handler.persistence.add_thought', add_thought_mock)
     deps = MagicMock()
@@ -22,11 +22,14 @@ def test_speak_handler_creates_followup(monkeypatch):
     deps.persistence.add_thought = add_thought_mock
     deps.audit_service = MagicMock()
     deps.audit_service.log_action = AsyncMock()
+    mock_comm = MagicMock()
+    mock_comm.send_message = AsyncMock(return_value=True)
+    deps.get_service = AsyncMock(return_value=mock_comm)
     handler = SpeakHandler(deps)
     thought = Thought(thought_id="t1", source_task_id="parent1", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
     params = SpeakParams(content="hello", channel_id="c1")
     result = ActionSelectionResult(selected_action=HandlerActionType.SPEAK, action_parameters=params, rationale="r")
-    import asyncio; asyncio.run(handler.handle(result, thought, {"channel_id": "c1"}))
+    await handler.handle(result, thought, {"channel_id": "c1"})
     follow_up = add_thought_mock.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
     # Only require that follow_up.content is a non-empty string

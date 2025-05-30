@@ -152,6 +152,22 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
         logger.warning(f"DiscordAdapter: Tool result for correlation_id {correlation_id} not found after {timeout}s.")
         return {"correlation_id": correlation_id, "status": "not_found"}
 
+    async def get_available_tools(self) -> list[str]:
+        """Return names of registered Discord tools."""
+        if not self.tool_registry:
+            return []
+        return list(self.tool_registry.tools.keys())
+
+    async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
+        """Basic parameter validation using tool registry schemas."""
+        if not self.tool_registry:
+            return False
+        schema = self.tool_registry.get_schema(tool_name)
+        if not schema:
+            return False
+        # Simple validation: ensure required keys exist
+        return all(k in parameters for k in schema.keys())
+
     # --- Capabilities ---
     def get_capabilities(self) -> list[str]:
         return [
