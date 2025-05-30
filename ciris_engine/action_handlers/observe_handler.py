@@ -111,6 +111,8 @@ class ObserveHandler(BaseActionHandler):
                 messages = await comm_service.fetch_messages(
                     str(channel_id).lstrip("#"), getattr(params, "limit", 10)
                 )
+                if not messages and observer_service and hasattr(observer_service, "get_recent_messages"):
+                    messages = await observer_service.get_recent_messages(getattr(params, "limit", 10))
                 await self._recall_from_messages(memory_service, channel_id, messages)
                 action_performed = True
                 follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"
