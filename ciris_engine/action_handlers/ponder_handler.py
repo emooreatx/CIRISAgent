@@ -3,7 +3,7 @@ import logging
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import PonderParams
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
 from ciris_engine.action_handlers.base_handler import BaseActionHandler, ActionHandlerDependencies
@@ -65,7 +65,7 @@ class PonderHandler(BaseActionHandler):
                 }
             )
             # Log audit for wakeup step ponder
-            await self._audit_log("PONDER_WAKEUP_STEP", dispatch_context, {"thought_id": thought.thought_id, "status": "COMPLETED"})
+            await self._audit_log(HandlerActionType.PONDER, dispatch_context, {"thought_id": thought.thought_id, "status": "COMPLETED", "ponder_type": "wakeup_step"})
             return None
         
         # Normal ponder logic
@@ -82,7 +82,7 @@ class PonderHandler(BaseActionHandler):
                 }
             )
             # Log audit for max ponder deferral
-            await self._audit_log("PONDER_MAX_ROUNDS_DEFER", dispatch_context, {"thought_id": thought.thought_id, "status": "DEFERRED"})
+            await self._audit_log(HandlerActionType.PONDER, dispatch_context, {"thought_id": thought.thought_id, "status": "DEFERRED", "ponder_type": "max_rounds_defer"})
             return None
         else:
             new_ponder_count = current_ponder_count + 1
@@ -100,7 +100,7 @@ class PonderHandler(BaseActionHandler):
                 thought.ponder_count = new_ponder_count
                 logger.info(f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for re-processing.")
                 # Log audit for successful ponder
-                await self._audit_log("PONDER_REPROCESS", dispatch_context, {"thought_id": thought.thought_id, "status": "PENDING", "new_ponder_count": new_ponder_count})
+                await self._audit_log(HandlerActionType.PONDER, dispatch_context, {"thought_id": thought.thought_id, "status": "PENDING", "new_ponder_count": new_ponder_count, "ponder_type": "reprocess"})
                 # Create a follow-up thought for the ponder action
                 follow_up_content = (
                     f"This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
@@ -132,7 +132,7 @@ class PonderHandler(BaseActionHandler):
                     }
                 )
                 # Log audit for failed ponder update
-                await self._audit_log("PONDER_UPDATE_FAILED", dispatch_context, {"thought_id": thought.thought_id, "status": "FAILED"})
+                await self._audit_log(HandlerActionType.PONDER, dispatch_context, {"thought_id": thought.thought_id, "status": "FAILED", "ponder_type": "update_failed"})
                 # Create a follow-up thought for the failed ponder action
                 follow_up_content = (
                     f"This is a follow-up thought from a FAILED PONDER action performed on parent task {thought.source_task_id}. "
