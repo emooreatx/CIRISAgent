@@ -1,10 +1,10 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from ciris_engine.services.cirisnode_client import CIRISNodeClient
+from ciris_engine.adapters import CIRISNodeClient
 
 @pytest.mark.asyncio
-@patch("ciris_engine.services.cirisnode_client.get_config")
-@patch("ciris_engine.services.cirisnode_client.httpx.AsyncClient")
+@patch("ciris_engine.adapters.cirisnode_client.get_config")
+@patch("ciris_engine.adapters.cirisnode_client.httpx.AsyncClient")
 async def test_run_simplebench(mock_async_client, mock_get_config):
     audit = AsyncMock()
     mock_client = AsyncMock()

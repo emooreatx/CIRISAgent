@@ -11,13 +11,13 @@ from typing import Optional, Dict, Any
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.processor import AgentProcessor
-from ciris_engine.services.base import Service
+from ciris_engine.adapters.base import Service
 from ciris_engine import persistence
 from ciris_engine.utils.profile_loader import load_profile
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
-from ciris_engine.services.llm_service import LLMService
-from ciris_engine.services.audit_service import AuditService
-from ciris_engine.services.maintenance_service import DatabaseMaintenanceService
+from ciris_engine.adapters.openai_compatible_llm import OpenAICompatibleLLM
+from ciris_engine.adapters import LocalAuditLog
+from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
 # Service Registry
@@ -66,9 +66,9 @@ class CIRISRuntime:
         self.startup_channel_id = startup_channel_id
         
         # Core services
-        self.llm_service: Optional[LLMService] = None
+        self.llm_service: Optional[OpenAICompatibleLLM] = None
         self.memory_service: Optional[LocalGraphMemoryService] = None
-        self.audit_service: Optional[AuditService] = None
+        self.audit_service: Optional[LocalAuditLog] = None
         self.maintenance_service: Optional[DatabaseMaintenanceService] = None
         
         # Service Registry
@@ -153,7 +153,7 @@ class CIRISRuntime:
         )
         
         # LLM Service
-        self.llm_service = LLMService(self.app_config.llm_services)
+        self.llm_service = OpenAICompatibleLLM(self.app_config.llm_services)
         await self.llm_service.start()
         
         # Memory Service
@@ -161,7 +161,7 @@ class CIRISRuntime:
         await self.memory_service.start()
         
         # Audit Service
-        self.audit_service = AuditService()
+        self.audit_service = LocalAuditLog()
         await self.audit_service.start()
         
         # Maintenance Service

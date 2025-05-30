@@ -71,7 +71,7 @@ class WakeupProcessor(BaseProcessor):
         # Run database maintenance only on round 0
         if round_number == 0:
             try:
-                from ciris_engine.services import maintenance_service
+                from ciris_engine.persistence import maintenance as maintenance_service
                 if hasattr(maintenance_service, 'run_maintenance'):
                     await maintenance_service.run_maintenance()
                     logger.info("Database maintenance completed before wakeup")
