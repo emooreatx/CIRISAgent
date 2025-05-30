@@ -74,7 +74,17 @@ class DiscordAdapter:
             await self.on_message(message)
 
     async def start(self):
+        """
+        Start the Discord adapter.
+        Currently no initialization is needed as the adapter is passive - 
+        it only responds to events attached via attach_to_client().
+        """
         pass
 
     async def stop(self):
+        """
+        Stop the Discord adapter and clean up resources.
+        Currently no cleanup is needed as the adapter doesn't maintain
+        any persistent connections or background tasks.
+        """
         pass
