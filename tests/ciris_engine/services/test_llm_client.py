@@ -52,7 +52,7 @@ def test_init_env_priority(mock_get_config, mock_patch, mock_async_openai):
     mock_patch.return_value = MagicMock()
     mock_async_openai.return_value = MagicMock()
     make_env(api_key="env-key", base_url="https://env-base", model_name="env-model")
-    client = CIRISLLMClient()
+    client = OpenAICompatibleClient()
     assert client.model_name == "env-model"
     mock_async_openai.assert_called_with(
         api_key="env-key", base_url="https://env-base", timeout=30, max_retries=0
@@ -67,7 +67,7 @@ def test_init_config_fallback(mock_get_config, mock_patch, mock_async_openai):
     mock_patch.return_value = MagicMock()
     mock_async_openai.return_value = MagicMock()
     make_env(api_key=None, base_url="https://api.test.com", model_name=None)  # Ensure base_url matches assertion
-    client = CIRISLLMClient()
+    client = OpenAICompatibleClient()
     assert client.model_name == "gpt-test"
     mock_async_openai.assert_called_with(
         api_key=None, base_url="https://api.test.com", timeout=30, max_retries=0
@@ -81,7 +81,7 @@ def test_init_with_config_obj(mock_patch, mock_async_openai):
     mock_async_openai.return_value = MagicMock()
     config = DummyConfig()
     make_env(api_key=None, base_url="https://api.test.com", model_name=None)  # Ensure base_url matches assertion
-    client = CIRISLLMClient(config)
+    client = OpenAICompatibleClient(config)
     assert client.model_name == "gpt-test"
     mock_async_openai.assert_called_with(
         api_key=None, base_url="https://api.test.com", timeout=30, max_retries=0
@@ -93,7 +93,7 @@ def test_init_with_config_obj(mock_patch, mock_async_openai):
 def test_instructor_patch_fallback(mock_patch, mock_async_openai):
     mock_async_openai.return_value = MagicMock()
     config = DummyConfig()
-    client = CIRISLLMClient(config)
+    client = OpenAICompatibleClient(config)
     assert client.instruct_client == client.client
 
 @pytest.mark.parametrize("raw,expected", [
@@ -104,7 +104,7 @@ def test_instructor_patch_fallback(mock_patch, mock_async_openai):
     ("""{'bad': 1,}""", {"error": "Failed to parse JSON. Raw content snippet: {'bad': 1,..."}),
 ])
 def test_extract_json(raw, expected):
-    result = CIRISLLMClient.extract_json(raw)
+    result = OpenAICompatibleClient.extract_json(raw)
     if "error" in expected:
         assert "error" in result
     else:
@@ -118,7 +118,7 @@ async def test_call_llm_raw_and_structured(mock_patch, mock_async_openai):
     mock_async_openai.return_value = mock_client
     mock_patch.return_value = mock_client
     config = DummyConfig()
-    client = CIRISLLMClient(config)
+    client = OpenAICompatibleClient(config)
     # Mock chat.completions.create for raw
     mock_client.chat.completions.create = AsyncMock(return_value=types.SimpleNamespace(
         choices=[types.SimpleNamespace(message=types.SimpleNamespace(content="hello world"))]

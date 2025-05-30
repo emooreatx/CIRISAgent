@@ -16,7 +16,7 @@ from ciris_engine import persistence
 from ciris_engine.utils.profile_loader import load_profile
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.adapters.openai_compatible_llm import OpenAICompatibleLLM
-from ciris_engine.adapters import LocalAuditLog
+from ciris_engine.adapters import AuditService
 from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
@@ -68,7 +68,7 @@ class CIRISRuntime:
         # Core services
         self.llm_service: Optional[OpenAICompatibleLLM] = None
         self.memory_service: Optional[LocalGraphMemoryService] = None
-        self.audit_service: Optional[LocalAuditLog] = None
+        self.audit_service: Optional[AuditService] = None
         self.maintenance_service: Optional[DatabaseMaintenanceService] = None
         
         # Service Registry
@@ -161,7 +161,7 @@ class CIRISRuntime:
         await self.memory_service.start()
         
         # Audit Service
-        self.audit_service = LocalAuditLog()
+        self.audit_service = AuditService()
         await self.audit_service.start()
         
         # Maintenance Service
