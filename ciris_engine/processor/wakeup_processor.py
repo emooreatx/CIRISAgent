@@ -85,8 +85,7 @@ class WakeupProcessor(BaseProcessor):
             if not self.wakeup_tasks:
                 self._create_wakeup_tasks()
             
-            # Ensure monitoring task exists
-            self._ensure_monitoring_task()
+
             
             if non_blocking:
                 # Non-blocking mode: Process thoughts asynchronously
@@ -304,27 +303,6 @@ class WakeupProcessor(BaseProcessor):
             persistence.add_task(step_task)
             self.wakeup_tasks.append(step_task)
     
-    def _ensure_monitoring_task(self):
-        """Ensure the Discord monitoring task exists."""
-        task_id = "job-discord-monitor"
-        
-        if not persistence.task_exists(task_id):
-            now_iso = datetime.now(timezone.utc).isoformat()
-            monitor_task = Task(
-                task_id=task_id,
-                description="Monitor Discord for new messages and events.",
-                status=TaskStatus.PENDING,
-                priority=0,
-                created_at=now_iso,
-                updated_at=now_iso,
-                context={
-                    "meta_goal": "continuous_monitoring",
-                    "origin_service": "wakeup_processor",
-                    **({"channel_id": self.startup_channel_id} if self.startup_channel_id else {})
-                },
-            )
-            persistence.add_task(monitor_task)
-            logger.info(f"Created monitoring task '{task_id}'")
     
     async def _process_wakeup_steps(self, round_number: int, non_blocking: bool = False) -> bool:
         """Process each wakeup step sequentially. If non_blocking, only queue thoughts and return immediately."""

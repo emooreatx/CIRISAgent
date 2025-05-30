@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # List of persistent task IDs that should not be marked as COMPLETED by this handler.
 # These tasks are expected to run continuously or be re-activated by other means.
-PERSISTENT_TASK_IDS = {"job-discord-monitor"} 
+PERSISTENT_TASK_IDS = {} 
 
 class TaskCompleteHandler(BaseActionHandler):
     async def handle(
