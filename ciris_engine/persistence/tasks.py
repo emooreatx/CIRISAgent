@@ -105,6 +105,13 @@ def get_top_tasks(limit: int = 10, db_path=None) -> list[Task]:
     sorted_tasks = sorted(tasks_list, key=lambda t: (-getattr(t, 'priority', 0), getattr(t, 'created_at', '')))
     return sorted_tasks[:limit]
 
+def get_pending_tasks_for_activation(limit: int = 10, db_path=None) -> List[Task]:
+    """Get pending tasks ordered by priority (highest first) then by creation date, with optional limit."""
+    pending_tasks = get_tasks_by_status(TaskStatus.PENDING, db_path=db_path)
+    # Sort by priority (descending) then by created_at (ascending for oldest first)
+    sorted_tasks = sorted(pending_tasks, key=lambda t: (-getattr(t, 'priority', 0), getattr(t, 'created_at', '')))
+    return sorted_tasks[:limit]
+
 def count_tasks(status: Optional[TaskStatus] = None, db_path=None) -> int:
     tasks_list = get_all_tasks(db_path=db_path)
     if status:
