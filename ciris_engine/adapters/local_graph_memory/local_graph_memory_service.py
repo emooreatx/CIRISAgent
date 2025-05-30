@@ -14,7 +14,7 @@ from ciris_engine.schemas.graph_schemas_v1 import (
     GraphEdge,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import CaseInsensitiveEnum, TaskStatus
-from ..services.base import Service
+from ciris_engine.services.base import Service
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class MemoryOpResult(BaseModel):
     data: Optional[Any] = None
 
 
-class CIRISLocalGraph(Service):
+class LocalGraphMemoryService(Service):
     """Local graph storage split across three scopes."""
 
     def __init__(self, storage_path: Optional[str] = None):
@@ -197,22 +197,4 @@ class CIRISLocalGraph(Service):
                 return False
         return True
 
-    def get_recent_completed_tasks(self, limit: int = 10):
-        """Delegate to persistence layer for recent completed tasks."""
-        from ciris_engine.persistence.tasks import get_recent_completed_tasks
-        return get_recent_completed_tasks(limit)
 
-    def get_top_tasks(self, limit: int = 10):
-        """Delegate to persistence layer for top tasks."""
-        from ciris_engine.persistence.tasks import get_top_tasks
-        return get_top_tasks(limit)
-
-    def count_tasks(self, status: Optional[TaskStatus] = None) -> int:
-        """Delegate to persistence layer for task count, optionally filtered by status."""
-        from ciris_engine.persistence.tasks import count_tasks
-        return count_tasks(status=status)
-
-    def count_thoughts(self) -> int:
-        """Delegate to persistence layer for count of active or pending thoughts only."""
-        from ciris_engine.persistence.thoughts import count_thoughts
-        return count_thoughts()

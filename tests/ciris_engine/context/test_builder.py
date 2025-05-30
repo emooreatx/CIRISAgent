@@ -11,14 +11,8 @@ class DummyMemoryService:
         self._identity = "Agent identity string"
     def export_identity_context(self):
         return self._identity
-    def get_recent_completed_tasks(self, n):
-        return [Task(task_id=f"t{i}", description="desc", status="completed", priority=0, created_at="now", updated_at="now") for i in range(n)]
-    def get_top_tasks(self, n):
-        return [Task(task_id=f"t{i}", description="desc", status="active", priority=10-i, created_at="now", updated_at="now") for i in range(n)]
-    def count_tasks(self, status=None):
-        return 5
-    def count_thoughts(self):
-        return 7
+    # Note: Removed delegation methods that were inappropriately mixed into memory service
+    # The ContextBuilder now uses persistence functions directly for task/thought data
 
 class DummyGraphQLProvider:
     async def enrich_context(self, task, thought):
