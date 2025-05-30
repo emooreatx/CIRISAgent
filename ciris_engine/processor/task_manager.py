@@ -99,7 +99,7 @@ class TaskManager:
     def get_tasks_needing_seed(self, limit: int = 50) -> List[Task]:
         """Get active tasks that need seed thoughts."""
         # Exclude special tasks that are handled separately
-        excluded_tasks = {"WAKEUP_ROOT", "job-discord-monitor"}
+        excluded_tasks = {"WAKEUP_ROOT", "SYSTEM_TASK"}
         
         tasks = persistence.get_tasks_needing_seed_thought(limit)
         return [t for t in tasks if t.task_id not in excluded_tasks 
@@ -181,31 +181,6 @@ class TaskManager:
             tasks.append(step_task)
         
         return tasks
-    
-    def ensure_monitoring_task(self, channel_id: Optional[str] = None) -> Task:
-        """Ensure the Discord monitoring task exists."""
-        task_id = "job-discord-monitor"
-        
-        if not persistence.task_exists(task_id):
-            now_iso = datetime.now(timezone.utc).isoformat()
-            monitor_task = Task(
-                task_id=task_id,
-                description="Monitor Discord for new messages and events.",
-                status=TaskStatus.PENDING,
-                priority=0,
-                created_at=now_iso,
-                updated_at=now_iso,
-                context={
-                    "meta_goal": "continuous_monitoring",
-                    "origin_service": "discord_runtime_startup",
-                    **({"channel_id": channel_id} if channel_id else {})
-                },
-            )
-            persistence.add_task(monitor_task)
-            logger.info(f"Created monitoring task '{task_id}'")
-            return monitor_task
-        else:
-            return persistence.get_task_by_id(task_id)
     
     def get_active_task_count(self) -> int:
         """Get count of active tasks."""
