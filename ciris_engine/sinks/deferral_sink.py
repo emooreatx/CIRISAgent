@@ -5,7 +5,11 @@ Deferral sink implementation for deferral-related actions.
 import logging
 from typing import Dict, List, Optional, Any
 
-from .action_types import ActionType, SendDeferralAction, ActionMessage
+from ciris_engine.schemas.service_actions_v1 import (
+    ActionType,
+    SendDeferralAction,
+    ActionMessage,
+)
 from .base_sink import BaseMultiServiceSink
 from ..protocols.services import WiseAuthorityService
 

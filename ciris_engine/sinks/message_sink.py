@@ -5,7 +5,12 @@ Message sink implementation for communication-related actions.
 import logging
 from typing import Dict, List, Optional, Any
 
-from .action_types import ActionType, ActionMessage, SendMessageAction, FetchMessagesAction
+from ciris_engine.schemas.service_actions_v1 import (
+    ActionType,
+    ActionMessage,
+    SendMessageAction,
+    FetchMessagesAction,
+)
 from .base_sink import BaseMultiServiceSink
 from ..protocols.services import CommunicationService
 

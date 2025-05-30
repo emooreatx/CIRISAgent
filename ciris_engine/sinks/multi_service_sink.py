@@ -10,10 +10,18 @@ from dataclasses import asdict
 import json
 from abc import ABC, abstractmethod
 
-from .action_types import (
-    ActionType, ActionMessage, SendMessageAction, FetchMessagesAction,
-    FetchGuidanceAction, SendDeferralAction, MemorizeAction, 
-    RecallAction, ForgetAction, SendToolAction, FetchToolAction
+from ciris_engine.schemas.service_actions_v1 import (
+    ActionType,
+    ActionMessage,
+    SendMessageAction,
+    FetchMessagesAction,
+    FetchGuidanceAction,
+    SendDeferralAction,
+    MemorizeAction,
+    RecallAction,
+    ForgetAction,
+    SendToolAction,
+    FetchToolAction,
 )
 from ..protocols.services import CommunicationService, WiseAuthorityService, MemoryService, ToolService
 from ..registries.circuit_breaker import CircuitBreakerError

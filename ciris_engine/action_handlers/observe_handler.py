@@ -10,7 +10,7 @@ from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
 from .discord_observe_handler import handle_discord_observe_event
-from ciris_engine.sinks.action_types import FetchMessagesAction
+from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from pydantic import BaseModel, ValidationError
 
