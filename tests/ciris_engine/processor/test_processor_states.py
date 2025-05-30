@@ -168,11 +168,27 @@ async def test_dream_processor_pulse(monkeypatch):
     mock_app_config = AppConfig(
         llm_services=LLMServicesConfig(openai=OpenAIConfig(model_name="test-model")),
         cirisnode=CIRISNodeConfig(base_url="https://x") 
-    )
+        )
     mock_profile = AgentProfile(name="test_agent")
+    
+    # Create a mock audit service
+    class MockAuditService:
+        async def log_action(self, handler_action, context, outcome=None):
+            pass
 
-    # Pass mocks to DreamProcessor constructor (removed audit_service parameter)
-    dp = DreamProcessor(app_config=mock_app_config, profile=mock_profile)
+    class MockServiceRegistry:
+        def __init__(self):
+            self._global_services = {"audit": []}
+            self._audit_service = MockAuditService()
+        
+        async def get_global_service(self, service_type: str, **kwargs):
+            if service_type == "audit":
+                return self._audit_service
+            return None
+
+    # Pass mocks to DreamProcessor constructor 
+    mock_service_registry = MockServiceRegistry()
+    dp = DreamProcessor(app_config=mock_app_config, profile=mock_profile, service_registry=mock_service_registry)
 
 
     class DummyClient:

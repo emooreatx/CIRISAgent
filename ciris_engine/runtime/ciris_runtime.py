@@ -277,6 +277,7 @@ class CIRISRuntime:
                 "llm_service": self.llm_service,
                 "memory_service": self.memory_service,
                 "audit_service": self.audit_service,
+                "service_registry": self.service_registry,
                 "io_adapter": self.io_adapter,
             },
             startup_channel_id=self.startup_channel_id,
@@ -303,6 +304,15 @@ class CIRISRuntime:
                     priority=Priority.HIGH,
                     capabilities=["memorize", "recall", "forget"]
                 )
+        
+        # Register audit service globally for all handlers
+        if self.audit_service:
+            self.service_registry.register_global(
+                service_type="audit",
+                provider=self.audit_service,
+                priority=Priority.HIGH,
+                capabilities=["log_action", "get_audit_trail"]
+            )
         
         # Note: Communication and WA services will be registered by subclasses
         # (e.g., DiscordRuntime registers Discord adapter, CIRISNode client)

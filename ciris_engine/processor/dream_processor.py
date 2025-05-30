@@ -4,11 +4,14 @@ Integrates with dream_harness to run HE-300 and simplebench during dream cycles.
 """
 import asyncio
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from datetime import datetime, timezone
 
 from ciris_engine.adapters import CIRISNodeClient
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile # Added imports
+
+if TYPE_CHECKING:
+    from ciris_engine.registries.base import ServiceRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +26,14 @@ class DreamProcessor:
         self,
         app_config: AppConfig, # Added
         profile: AgentProfile, # Added
+        service_registry: Optional["ServiceRegistry"],  # Add service_registry parameter instead of audit_service
         cirisnode_url: str = "https://localhost:8001",
         pulse_interval: float = 60.0,  # Snore pulse interval in seconds
         max_snore_history: int = 5
     ):
         self.app_config = app_config # Added
         self.profile = profile # Added
+        self.service_registry = service_registry  # Store service registry
         self.cirisnode_url = cirisnode_url
         self.pulse_interval = pulse_interval
         self.max_snore_history = max_snore_history
@@ -60,33 +65,49 @@ class DreamProcessor:
         self.dream_metrics["start_time"] = datetime.now(timezone.utc).isoformat()
         self.dream_metrics["total_dreams"] += 1
         
-        self.cirisnode_client = CIRISNodeClient(self.cirisnode_url)
+        self.cirisnode_client = CIRISNodeClient(service_registry=self.service_registry, base_url=self.cirisnode_url)
         
         logger.info(f"Starting dream cycle (duration: {duration or 'indefinite'}s)")
         self._dream_task = asyncio.create_task(self._dream_loop(duration))
     
     async def stop_dreaming(self):
         """Stop the dream cycle gracefully."""
-        if not self._dream_task or self._dream_task.done():
-            logger.info("No active dream cycle to stop")
-            return
-        
-        logger.info("Stopping dream cycle...")
-        self._stop_event.set()
-        
-        try:
-            await asyncio.wait_for(self._dream_task, timeout=10.0)
-        except asyncio.TimeoutError:
-            logger.warning("Dream cycle did not stop within timeout, cancelling")
-            self._dream_task.cancel()
+        client_to_close = self.cirisnode_client  # Hold a reference to the current client
+
+        if self._dream_task and not self._dream_task.done():
+            logger.info("Stopping active dream cycle...")
+            self._stop_event.set()
+            
             try:
-                await self._dream_task
-            except asyncio.CancelledError:
-                pass
-        
-        if self.cirisnode_client:
-            await self.cirisnode_client.close()
-            self.cirisnode_client = None
+                await asyncio.wait_for(self._dream_task, timeout=10.0)
+            except asyncio.TimeoutError:
+                logger.warning("Dream cycle did not stop within timeout, cancelling")
+                self._dream_task.cancel()
+                try:
+                    await self._dream_task
+                except asyncio.CancelledError:
+                    logger.info("Dream task cancelled.")
+                    pass
+            except Exception as e: # Catch other potential errors during await
+                logger.error(f"Error waiting for dream task: {e}", exc_info=True)
+        else: # Task was not active or already done
+            logger.info("No active dream cycle to stop, or task already completed.")
+
+        if client_to_close:
+            # The print statement below is for debugging the test, can be removed later
+            # print(f"DreamProcessor attempting to close client id={id(client_to_close)}, hasattr close: {hasattr(client_to_close, 'close')}")
+            if hasattr(client_to_close, 'close') and asyncio.iscoroutinefunction(client_to_close.close):
+                try:
+                    await client_to_close.close()
+                except Exception as e:
+                    logger.error(f"Error closing CIRISNodeClient: {e}", exc_info=True)
+            # else:
+                # logger.warning(f"Client {id(client_to_close)} has no async close method or was already None.")
+            
+            # Ensure we only nullify if it's the same client instance we intended to close,
+            # in case of any rapid re-initialization (though unlikely here).
+            if self.cirisnode_client is client_to_close:
+                self.cirisnode_client = None
         
         self.dream_metrics["end_time"] = datetime.now(timezone.utc).isoformat()
         logger.info("Dream cycle stopped")

@@ -9,7 +9,9 @@ from ciris_engine.schemas.config_schemas_v1 import CIRISNodeConfig
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 if TYPE_CHECKING:
-    from ciris_engine.services.audit_service import AuditService
+    from ciris_engine.protocols.services import AuditService
+    from ciris_engine.registries.base import ServiceRegistry
+
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +19,24 @@ logger = logging.getLogger(__name__)
 class CIRISNodeClient:
     """Asynchronous client for interacting with CIRISNode."""
 
-    def __init__(self, audit_service: "AuditService", base_url: Optional[str] = None) -> None:
-        self.audit_service = audit_service
+    def __init__(self, service_registry: Optional["ServiceRegistry"] = None, base_url: Optional[str] = None) -> None:
+        self.service_registry = service_registry
+        self._audit_service: Optional["AuditService"] = None
         config = get_config()
         node_cfg: CIRISNodeConfig = getattr(config, "cirisnode", CIRISNodeConfig())
         node_cfg.load_env_vars()
         self.base_url = base_url or node_cfg.base_url
         self._client = httpx.AsyncClient(base_url=self.base_url)
+
+    async def _get_audit_service(self) -> Optional["AuditService"]:
+        """Get audit service from registry with caching."""
+        if self._audit_service is None and self.service_registry:
+            # Use an arbitrary handler name since audit is registered globally
+            self._audit_service = await self.service_registry.get_service(
+                handler="CIRISNodeClient", 
+                service_type="audit"
+            )
+        return self._audit_service
 
     async def _post(self, endpoint: str, payload: Dict[str, Any]) -> Any:
         resp = await self._client.post(endpoint, json=payload)
@@ -43,71 +56,81 @@ class CIRISNodeClient:
     async def run_simplebench(self, model_id: str, agent_id: str) -> Dict[str, Any]:
         """Run the simple bench benchmark for the given model."""
         result = await self._post("/simplebench", {"model_id": model_id, "agent_id": agent_id})
-        await self.audit_service.log_action(
-            HandlerActionType.TOOL,
-            {
-                "event_type": "cirisnode_test",
-                "originator_id": agent_id,
-                "event_summary": "simplebench",
-                "event_payload": result,
-            },
-        )
+        audit_service = await self._get_audit_service()
+        if audit_service:
+            await audit_service.log_action(
+                HandlerActionType.TOOL,
+                {
+                    "event_type": "cirisnode_test",
+                    "originator_id": agent_id,
+                    "event_summary": "simplebench",
+                    "event_payload": result,
+                },
+            )
         return result
 
     async def run_he300(self, model_id: str, agent_id: str) -> Dict[str, Any]:
         """Run the HE-300 benchmark for the given model."""
         result = await self._post("/he300", {"model_id": model_id, "agent_id": agent_id})
-        await self.audit_service.log_action(
-            HandlerActionType.TOOL,
-            {
-                "event_type": "cirisnode_test",
-                "originator_id": agent_id,
-                "event_summary": "he300",
-                "event_payload": result,
-            },
-        )
+        audit_service = await self._get_audit_service()
+        if audit_service:
+            await audit_service.log_action(
+                HandlerActionType.TOOL,
+                {
+                    "event_type": "cirisnode_test",
+                    "originator_id": agent_id,
+                    "event_summary": "he300",
+                    "event_payload": result,
+                },
+            )
         return result
 
     async def run_chaos_tests(self, agent_id: str, scenarios: List[str]) -> List[Dict[str, Any]]:
         """Run chaos test scenarios and return verdicts."""
         result = await self._post("/chaos", {"agent_id": agent_id, "scenarios": scenarios})
-        await self.audit_service.log_action(
-            HandlerActionType.TOOL,
-            {
-                "event_type": "cirisnode_test",
-                "originator_id": agent_id,
-                "event_summary": "chaos",
-                "event_payload": result,
-            },
-        )
+        audit_service = await self._get_audit_service()
+        if audit_service:
+            await audit_service.log_action(
+                HandlerActionType.TOOL,
+                {
+                    "event_type": "cirisnode_test",
+                    "originator_id": agent_id,
+                    "event_summary": "chaos",
+                    "event_payload": result,
+                },
+            )
         return result
 
     async def run_wa_service(self, service: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Call a WA service on CIRISNode."""
         result = await self._post(f"/wa/{service}", payload)
-        await self.audit_service.log_action(
-            HandlerActionType.TOOL,
-            {
-                "event_type": "cirisnode_test",
-                "originator_id": payload.get("agent_id", "unknown"),
-                "event_summary": "wa",
-                "event_payload": result,
-            },
-        )
+        audit_service = await self._get_audit_service()
+        if audit_service:
+            await audit_service.log_action(
+                HandlerActionType.TOOL,
+                {
+                    "event_type": "cirisnode_test",
+                    "originator_id": payload.get("agent_id", "unknown"),
+                    "event_summary": "wa",
+                    "event_payload": result,
+                },
+            )
         return result
 
     async def log_event(self, event_payload: Dict[str, Any]) -> Dict[str, Any]:
         """Send an event payload to CIRISNode for storage."""
         result = await self._post("/events", event_payload)
-        await self.audit_service.log_action(
-            HandlerActionType.TOOL,
-            {
-                "event_type": "cirisnode_event",
-                "originator_id": event_payload.get("originator_id", "unknown"),
-                "event_summary": event_payload.get("event_type", "event"),
-                "event_payload": result,
-            },
-        )
+        audit_service = await self._get_audit_service()
+        if audit_service:
+            await audit_service.log_action(
+                HandlerActionType.TOOL,
+                {
+                    "event_type": "cirisnode_event",
+                    "originator_id": event_payload.get("originator_id", "unknown"),
+                    "event_summary": event_payload.get("event_type", "event"),
+                    "event_payload": result,
+                },
+            )
         return result
 
     async def fetch_benchmark_prompts(
@@ -121,15 +144,17 @@ class CIRISNodeClient:
             f"/bench/{benchmark}/prompts",
             {"model_id": model_id, "agent_id": agent_id},
         )
-        await self.audit_service.log_action(
-            HandlerActionType.TOOL,
-            {
-                "event_type": "cirisnode_test",
-                "originator_id": agent_id,
-                "event_summary": f"{benchmark}_prompts",
-                "event_payload": result,
-            },
-        )
+        audit_service = await self._get_audit_service()
+        if audit_service:
+            await audit_service.log_action(
+                HandlerActionType.TOOL,
+                {
+                    "event_type": "cirisnode_test",
+                    "originator_id": agent_id,
+                    "event_summary": f"{benchmark}_prompts",
+                    "event_payload": result,
+                },
+            )
         return result
 
     async def submit_benchmark_answers(
@@ -144,15 +169,17 @@ class CIRISNodeClient:
             f"/bench/{benchmark}/answers",
             {"model_id": model_id, "agent_id": agent_id, "answers": answers},
         )
-        await self.audit_service.log_action(
-            HandlerActionType.TOOL,
-            {
-                "event_type": "cirisnode_test",
-                "originator_id": agent_id,
-                "event_summary": f"{benchmark}_answers",
-                "event_payload": result,
-            },
-        )
+        audit_service = await self._get_audit_service()
+        if audit_service:
+            await audit_service.log_action(
+                HandlerActionType.TOOL,
+                {
+                    "event_type": "cirisnode_test",
+                    "originator_id": agent_id,
+                    "event_summary": f"{benchmark}_answers",
+                    "event_payload": result,
+                },
+            )
         return result
 
     async def close(self) -> None:
