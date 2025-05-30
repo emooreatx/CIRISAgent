@@ -40,10 +40,32 @@ async def handle_discord_observe_event(
                 "DiscordObserveHandler: Missing message_id or content in payload. Cannot create task. Payload: %s",
                 payload,
             )
+            # CLI fallback: if running in CLI mode, show home directory contents
+            agent_mode = (context or {}).get("agent_mode", "").lower() if context else ""
+            if agent_mode == "cli":
+                import os
+                home_dir = os.path.expanduser("~")
+                try:
+                    files = os.listdir(home_dir)
+                    file_list = "\n".join(sorted(files))
+                    observation = (
+                        "You are running on the CLI speaking to a person.\n"
+                        f"Agent home directory: {home_dir}\n\nDirectory contents:\n{file_list}\n"
+                    )
+                except Exception as e:
+                    observation = f"[CLI MODE] Error listing home directory: {e}"
+                return ActionSelectionResult(
+                    selected_action=HandlerActionType.OBSERVE,
+                    action_parameters={"context": {"observation": observation}},
+                    rationale="CLI mode: listed agent home directory contents.",
+                )
+            # Default: observe the channel ID in the task context
+            channel_id = payload.get("channel_id") or (context.get("default_channel_id") if context else None)
+            context_data = {"channel_id": channel_id} if channel_id else {}
             return ActionSelectionResult(
                 selected_action=HandlerActionType.OBSERVE,
-                action_parameters={},
-                rationale="Missing message_id or content in payload.",
+                action_parameters={"context": context_data},
+                rationale="Missing message_id or content in payload. Observing channel_id in context instead.",
             )
 
         if persistence.task_exists(message_id):
@@ -91,6 +113,25 @@ async def handle_discord_observe_event(
         discord_service = context.get("discord_service")
         if discord_service is None:
             logger.error("Active observation mode requires 'discord_service' in context.")
+            # CLI fallback: if running in CLI mode, show home directory contents
+            agent_mode = (context or {}).get("agent_mode", "").lower() if context else ""
+            if agent_mode == "cli":
+                import os
+                home_dir = os.path.expanduser("~")
+                try:
+                    files = os.listdir(home_dir)
+                    file_list = "\n".join(sorted(files))
+                    observation = (
+                        "You are running on the CLI speaking to a person.\n"
+                        f"Agent home directory: {home_dir}\n\nDirectory contents:\n{file_list}\n"
+                    )
+                except Exception as e:
+                    observation = f"[CLI MODE] Error listing home directory: {e}"
+                return ActionSelectionResult(
+                    selected_action=HandlerActionType.OBSERVE,
+                    action_parameters={"context": {"observation": observation}},
+                    rationale="CLI mode: listed agent home directory contents.",
+                )
             return ActionSelectionResult(
                 selected_action=HandlerActionType.OBSERVE,
                 action_parameters={},
@@ -104,19 +145,35 @@ async def handle_discord_observe_event(
                 action_parameters={},
                 rationale="Active observation mode requires a channel_id.",
             )
+        # Sanitize channel_id: remove leading '#' if present
+        if isinstance(channel_id, str) and channel_id.startswith('#'):
+            channel_id = channel_id[1:]
         offset = payload.get("offset", 0)
         limit = payload.get("limit", 20)
         include_agent = payload.get("include_agent", True)
         agent_id = context.get("agent_id")
 
         try:
-            messages = await discord_service.fetch_messages(
-                channel_id=channel_id,
-                offset=offset,
-                limit=limit,
-                include_agent=include_agent,
-                agent_id=agent_id
-            )
+            # Fetch the channel object
+            channel = discord_service.get_channel(int(channel_id))
+            if channel is None:
+                channel = await discord_service.fetch_channel(int(channel_id))
+            if channel is None:
+                raise Exception(f"Could not find Discord channel with ID {channel_id}")
+
+            # Fetch messages using channel.history
+            fetched_messages = []
+            async for msg in channel.history(limit=limit):
+                # Optionally filter out agent messages
+                if not include_agent and agent_id and str(msg.author.id) == str(agent_id):
+                    continue
+                fetched_messages.append({
+                    "id": str(msg.id),
+                    "content": msg.content,
+                    "author_id": str(msg.author.id),
+                    "timestamp": msg.created_at.isoformat() if msg.created_at else "unknown time"
+                })
+            messages = fetched_messages
         except Exception as e:
             logger.error(f"Failed to fetch messages from channel {channel_id}: {e}")
             return ActionSelectionResult(
