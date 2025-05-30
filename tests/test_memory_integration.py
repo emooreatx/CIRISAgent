@@ -18,8 +18,8 @@ async def test_memory_operations():
     result = await memory.memorize(node)
     assert result.status.value == "ok"
     
-    # Test remember
-    result = await memory.remember("test_key", GraphScope.LOCAL)
+    # Test recall
+    result = await memory.recall("test_key", GraphScope.LOCAL)
     assert result.status.value == "ok"
     assert result.data["value"] == "test_data"
     

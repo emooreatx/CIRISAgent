@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from ciris_engine.action_handlers.forget_handler import ForgetHandler
-from ciris_engine.action_handlers.remember_handler import RememberHandler
+from ciris_engine.action_handlers.recall_handler import RecallHandler
 from ciris_engine.action_handlers.observe_handler import ObserveHandler
 from ciris_engine.action_handlers.reject_handler import RejectHandler
 from ciris_engine.action_handlers.task_complete_handler import TaskCompleteHandler
@@ -10,7 +10,7 @@ from ciris_engine.action_handlers.tool_handler import ToolHandler, ToolResult, T
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.schemas.action_params_v1 import (
     ForgetParams,
-    RememberParams,
+    RecallParams,
     ObserveParams,
     RejectParams,
     ToolParams,
@@ -67,18 +67,18 @@ async def test_forget_handler_schema_driven(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_remember_handler_schema_driven(monkeypatch):
+async def test_recall_handler_schema_driven(monkeypatch):
     memory_service = AsyncMock()
-    memory_service.remember.return_value = MemoryOpResult(
+    memory_service.recall.return_value = MemoryOpResult(
         status=MemoryOpStatus.OK, data={"foo": "bar"}
     )
     deps = ActionHandlerDependencies(memory_service=memory_service)
     deps.persistence = MagicMock()
-    handler = RememberHandler(deps)
+    handler = RecallHandler(deps)
 
     action_result = ActionSelectionResult.model_construct(
-        selected_action=HandlerActionType.REMEMBER,
-        action_parameters=RememberParams(query="user1", scope="local"),
+        selected_action=HandlerActionType.RECALL,
+        action_parameters=RecallParams(query="user1", scope="local"),
         rationale="r",
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
@@ -91,7 +91,7 @@ async def test_remember_handler_schema_driven(monkeypatch):
         scope=GraphScope.LOCAL,
         attributes={},
     )
-    memory_service.remember.assert_awaited_with(expected_node)
+    memory_service.recall.assert_awaited_with(expected_node)
     deps.persistence.add_thought.assert_called_once()
 
 

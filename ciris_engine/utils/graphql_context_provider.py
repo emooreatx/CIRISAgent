@@ -65,7 +65,7 @@ class GraphQLContextProvider:
         missing = [name for name in authors if name not in enriched]
         if self.memory_service and missing:
             memory_results = await asyncio.gather(
-                *(self.memory_service.remember(n, GraphScope.LOCAL) for n in missing)
+                *(self.memory_service.recall(n, GraphScope.LOCAL) for n in missing)
             )
             for name, result in zip(missing, memory_results):
                 if result and result.data:

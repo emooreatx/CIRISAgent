@@ -80,20 +80,54 @@ class SpeakHandler(BaseActionHandler):
                 final_channel_id_to_speak = self.snore_channel_id
 
             if speak_content and final_channel_id_to_speak:
-                if self.dependencies.action_sink:
+                # New way with automatic fallback via service registry
+                comm_service = await self.get_communication_service()
+                if comm_service:
                     try:
                         numeric_channel_id_str = str(final_channel_id_to_speak).lstrip('#')
-                        await self.dependencies.action_sink.send_message(numeric_channel_id_str, speak_content)
-                        action_performed_successfully = True
-                        follow_up_content_key_info = f"Spoke: '{str(speak_content)[:50]}...' in channel #{numeric_channel_id_str}"
+                        success = await comm_service.send_message(numeric_channel_id_str, speak_content)
+                        if success:
+                            action_performed_successfully = True
+                            follow_up_content_key_info = f"Spoke: '{str(speak_content)[:50]}...' in channel #{numeric_channel_id_str}"
+                            logger.info(f"Message sent via service registry to channel {numeric_channel_id_str}")
+                        else:
+                            logger.warning(f"Communication service failed to send message, trying fallbacks")
+                            # The registry automatically tries fallback services, but if all fail:
+                            final_thought_status = ThoughtStatus.FAILED
+                            follow_up_content_key_info = f"All communication services failed for channel {final_channel_id_to_speak}"
                     except Exception as send_ex:
-                        self.logger.exception(f"Error sending SPEAK message to channel {final_channel_id_to_speak}. Thought ID: {thought_id}: {send_ex}")
-                        final_thought_status = ThoughtStatus.FAILED
-                        follow_up_content_key_info = f"SPEAK action failed during send to {final_channel_id_to_speak}: {str(send_ex)}"
+                        logger.exception(f"Error with communication service for thought {thought_id}: {send_ex}")
+                        # Try ultimate fallback to legacy action sink
+                        if self.dependencies.action_sink:
+                            try:
+                                logger.info("Falling back to legacy action sink")
+                                await self.dependencies.action_sink.send_message(numeric_channel_id_str, speak_content)
+                                action_performed_successfully = True
+                                follow_up_content_key_info = f"Spoke via fallback: '{str(speak_content)[:50]}...' in channel #{numeric_channel_id_str}"
+                            except Exception as fallback_ex:
+                                logger.exception(f"Legacy fallback also failed for thought {thought_id}: {fallback_ex}")
+                                final_thought_status = ThoughtStatus.FAILED
+                                follow_up_content_key_info = f"SPEAK action failed (all services): {str(fallback_ex)}"
+                        else:
+                            final_thought_status = ThoughtStatus.FAILED
+                            follow_up_content_key_info = f"SPEAK action failed: {str(send_ex)}"
                 else:
-                    self.logger.error(f"ActionSink not available. Cannot send SPEAK message for thought {thought_id}")
-                    final_thought_status = ThoughtStatus.FAILED
-                    follow_up_content_key_info = f"SPEAK action failed: ActionSink unavailable for thought {thought_id}."
+                    # Ultimate fallback to legacy action sink for backward compatibility
+                    if self.dependencies.action_sink:
+                        try:
+                            logger.info("No communication service available, using legacy action sink")
+                            numeric_channel_id_str = str(final_channel_id_to_speak).lstrip('#')
+                            await self.dependencies.action_sink.send_message(numeric_channel_id_str, speak_content)
+                            action_performed_successfully = True
+                            follow_up_content_key_info = f"Spoke via legacy: '{str(speak_content)[:50]}...' in channel #{numeric_channel_id_str}"
+                        except Exception as send_ex:
+                            logger.exception(f"Error sending SPEAK message to channel {final_channel_id_to_speak}. Thought ID: {thought_id}: {send_ex}")
+                            final_thought_status = ThoughtStatus.FAILED
+                            follow_up_content_key_info = f"SPEAK action failed during send to {final_channel_id_to_speak}: {str(send_ex)}"
+                    else:
+                        logger.error(f"No communication services or ActionSink available. Cannot send SPEAK message for thought {thought_id}")
+                        final_thought_status = ThoughtStatus.FAILED
+                        follow_up_content_key_info = f"SPEAK action failed: No communication services or ActionSink available for thought {thought_id}."
             else:
                 err_msg = "SPEAK action failed: "
                 if not speak_content: err_msg += "Missing content. "

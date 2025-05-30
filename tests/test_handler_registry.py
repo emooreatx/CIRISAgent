@@ -4,5 +4,5 @@ def test_memory_handlers_registered():
     dispatcher = build_action_dispatcher()
     # Verify all memory handlers are registered
     assert HandlerActionType.MEMORIZE in dispatcher.handlers
-    assert HandlerActionType.REMEMBER in dispatcher.handlers
+    assert HandlerActionType.RECALL in dispatcher.handlers
     assert HandlerActionType.FORGET in dispatcher.handlers

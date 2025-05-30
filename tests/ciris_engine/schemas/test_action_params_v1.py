@@ -39,8 +39,8 @@ def test_memorize_params():
     assert params.value == 123
     assert params.scope == "local"
 
-def test_remember_params_defaults():
-    params = action_params_v1.RememberParams(query="bar")
+def test_Recall_params_defaults():
+    params = action_params_v1.RecallParams(query="bar")
     assert params.query == "bar"
     assert params.scope == "local"
 

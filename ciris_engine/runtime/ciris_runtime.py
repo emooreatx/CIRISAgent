@@ -20,6 +20,11 @@ from ciris_engine.services.audit_service import AuditService
 from ciris_engine.services.maintenance_service import DatabaseMaintenanceService
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
+# Service Registry
+from ciris_engine.registries.base import ServiceRegistry, Priority
+from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
+from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+
 # Components
 from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.processor.dma_orchestrator import DMAOrchestrator
@@ -66,6 +71,12 @@ class CIRISRuntime:
         self.memory_service: Optional[CIRISLocalGraph] = None
         self.audit_service: Optional[AuditService] = None
         self.maintenance_service: Optional[DatabaseMaintenanceService] = None
+        
+        # Service Registry
+        self.service_registry: Optional[ServiceRegistry] = None
+        
+        # Multi-service sink for unified action routing
+        self.multi_service_sink: Optional[MultiServiceActionSink] = None
         
         # Processor
         self.agent_processor: Optional[AgentProcessor] = None
@@ -132,6 +143,16 @@ class CIRISRuntime:
                 
     async def _initialize_services(self):
         """Initialize all core services."""
+        # Service Registry (initialize first)
+        self.service_registry = ServiceRegistry()
+        
+        # Multi-service sink for action routing
+        self.multi_service_sink = MultiServiceActionSink(
+            service_registry=self.service_registry,
+            max_queue_size=1000,
+            fallback_channel_id=self.startup_channel_id
+        )
+        
         # LLM Service
         self.llm_service = LLMService(self.app_config.llm_services)
         await self.llm_service.start()
@@ -224,8 +245,14 @@ class CIRISRuntime:
         guardrail_orchestrator = GuardrailOrchestrator(guardrails)
         ponder_manager = PonderManager()
         
+        # Register core services in the service registry
+        await self._register_core_services()
+        
         # Create dependencies for handlers and ThoughtProcessor
-        dependencies = ActionHandlerDependencies(action_sink=None)  # action_sink will be set later by subclass
+        dependencies = ActionHandlerDependencies(
+            service_registry=self.service_registry,
+            action_sink=self.multi_service_sink  # Use multi-service sink as primary action sink
+        )
         
         # Build thought processor
         thought_processor = ThoughtProcessor(
@@ -257,6 +284,31 @@ class CIRISRuntime:
             startup_channel_id=self.startup_channel_id,
         )
         
+    async def _register_core_services(self):
+        """Register core services in the service registry."""
+        if not self.service_registry:
+            return
+        
+        # Register memory service for all handlers that need memory operations
+        if self.memory_service:
+            # Register for all major handlers
+            handler_names = [
+                "MemorizeHandler", "RecallHandler", "ForgetHandler",
+                "SpeakHandler", "ToolHandler", "ObserveHandler"
+            ]
+            
+            for handler_name in handler_names:
+                self.service_registry.register(
+                    handler=handler_name,
+                    service_type="memory",
+                    provider=self.memory_service,
+                    priority=Priority.HIGH,
+                    capabilities=["store", "retrieve", "delete", "search"]
+                )
+        
+        # Note: Communication and WA services will be registered by subclasses
+        # (e.g., DiscordRuntime registers Discord adapter, CIRISNode client)
+        
     async def _build_action_dispatcher(self, dependencies):
         """Build action dispatcher. Override in subclasses for custom sinks."""
         # This is a basic implementation - subclasses should override
@@ -274,6 +326,10 @@ class CIRISRuntime:
             await self.initialize()
             
         try:
+            # Start multi-service sink processing
+            if self.multi_service_sink:
+                await self.multi_service_sink.start()
+            
             # Start IO adapter
             await self.io_adapter.start()
             
@@ -295,6 +351,10 @@ class CIRISRuntime:
         if self.agent_processor:
             await self.agent_processor.stop_processing()
             
+        # Stop multi-service sink
+        if self.multi_service_sink:
+            await self.multi_service_sink.stop()
+            
         # Stop IO adapter
         if self.io_adapter:
             await self.io_adapter.stop()
@@ -311,5 +371,10 @@ class CIRISRuntime:
             *[s.stop() for s in services_to_stop if s],
             return_exceptions=True
         )
+        
+        # Clear service registry
+        if self.service_registry:
+            self.service_registry.clear_all()
+            self.service_registry = None
         
         logger.info("CIRIS Runtime shutdown complete")

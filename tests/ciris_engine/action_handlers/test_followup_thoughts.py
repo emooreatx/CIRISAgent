@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.schemas.action_params_v1 import SpeakParams, RememberParams, ForgetParams, MemorizeParams, PonderParams
+from ciris_engine.schemas.action_params_v1 import SpeakParams, RecallParams, ForgetParams, MemorizeParams, PonderParams
 from ciris_engine.action_handlers.speak_handler import SpeakHandler
-from ciris_engine.action_handlers.remember_handler import RememberHandler
+from ciris_engine.action_handlers.recall_handler import RecallHandler
 from ciris_engine.action_handlers.forget_handler import ForgetHandler
 from ciris_engine.action_handlers.memorize_handler import MemorizeHandler
 from ciris_engine.action_handlers.ponder_handler import PonderHandler
@@ -33,21 +33,21 @@ def test_speak_handler_creates_followup(monkeypatch):
     assert follow_up.content is not None and isinstance(follow_up.content, str) and follow_up.content.strip() != ""
 
 @pytest.mark.asyncio
-async def test_remember_handler_creates_followup():
+async def test_recall_handler_creates_followup():
     deps = MagicMock()
     deps.memory_service = AsyncMock()
-    deps.memory_service.remember = AsyncMock(return_value=MagicMock(status="OK", data="result"))
+    deps.memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
     deps.persistence = MagicMock()
     deps.audit_service = MagicMock()
     deps.audit_service.log_action = AsyncMock()
-    handler = RememberHandler(deps)
+    handler = RecallHandler(deps)
     thought = Thought(thought_id="t2", source_task_id="parent2", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
-    params = RememberParams(query="q", scope="identity")
-    result = ActionSelectionResult(selected_action=HandlerActionType.REMEMBER, action_parameters=params, rationale="r")
+    params = RecallParams(query="q", scope="identity")
+    result = ActionSelectionResult(selected_action=HandlerActionType.RECALL, action_parameters=params, rationale="r")
     await handler.handle(result, thought, {})
     follow_up = deps.persistence.add_thought.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
-    assert follow_up.context["action_performed"] == "REMEMBER" or "REMEMBER" in follow_up.content
+    assert follow_up.context["action_performed"] == "RECALL" or "RECALL" in follow_up.content
     assert follow_up.context.get("is_follow_up", True)
     # Allow for any valid follow-up content, not just those mentioning 'complete'
     assert follow_up.content is not None and isinstance(follow_up.content, str)

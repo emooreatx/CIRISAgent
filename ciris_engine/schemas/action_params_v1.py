@@ -32,11 +32,11 @@ class DeferParams(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
 
 class MemorizeParams(BaseModel):
-    key: str  # What to remember
+    key: str  # What to recall
     value: Any  # The memory content
     scope: GraphScope = GraphScope.LOCAL
 
-class RememberParams(BaseModel):
+class RecallParams(BaseModel):
     query: str
     scope: GraphScope = GraphScope.LOCAL
 

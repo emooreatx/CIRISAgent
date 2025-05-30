@@ -151,7 +151,7 @@ class TestGuardrailBypassPrevention:
         all_action_types = [
             HandlerActionType.SPEAK,
             HandlerActionType.OBSERVE,
-            HandlerActionType.REMEMBER,
+            HandlerActionType.RECALL,
             HandlerActionType.MEMORIZE,
             HandlerActionType.FORGET,
             HandlerActionType.PONDER,
@@ -236,7 +236,7 @@ class TestGuardrailBypassPrevention:
         all_action_types = [
             HandlerActionType.SPEAK,
             HandlerActionType.OBSERVE,
-            HandlerActionType.REMEMBER,
+            HandlerActionType.RECALL,
             HandlerActionType.MEMORIZE,
             HandlerActionType.FORGET,
             HandlerActionType.PONDER,
@@ -292,7 +292,7 @@ class TestGuardrailBypassPrevention:
         test_actions = [
             HandlerActionType.SPEAK,
             HandlerActionType.OBSERVE,
-            HandlerActionType.REMEMBER
+            HandlerActionType.RECALL
         ]
 
         for action_type in test_actions:
@@ -324,7 +324,7 @@ class TestGuardrailBypassPrevention:
         all_action_types = [
             HandlerActionType.SPEAK,
             HandlerActionType.OBSERVE,
-            HandlerActionType.REMEMBER,
+            HandlerActionType.RECALL,
             HandlerActionType.MEMORIZE,
             HandlerActionType.FORGET,
             HandlerActionType.PONDER,

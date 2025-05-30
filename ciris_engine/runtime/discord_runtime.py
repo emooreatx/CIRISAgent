@@ -22,6 +22,10 @@ from ciris_engine.ports import ActionSink
 from ciris_engine.services.tool_registry import ToolRegistry
 from ciris_engine.action_handlers.tool_handler import ToolHandler
 
+# Import service registry components
+from ciris_engine.registries.base import ServiceRegistry, Priority
+from ciris_engine.services.cirisnode_client import CIRISNodeClient
+
 logger = logging.getLogger(__name__)
 
 
@@ -144,6 +148,9 @@ class DiscordRuntime(CIRISRuntime):
         await self.action_sink.start()
         await self.deferral_sink.start()
         
+        # Register Discord-specific services in the service registry
+        await self._register_discord_services()
+        
     async def _handle_observe_event(self, payload: Dict[str, Any]):
         """Wrapper for observe event handling with proper context."""
         # Add discord_service to context for active observations
@@ -171,6 +178,58 @@ class DiscordRuntime(CIRISRuntime):
             deferral_sink=self.deferral_sink,
         )
         
+    async def _register_discord_services(self):
+        """Register Discord-specific services in the service registry."""
+        if not self.service_registry:
+            logger.warning("No service registry available for Discord service registration")
+            return
+        
+        try:
+            # Register Discord adapter as communication service
+            await self.service_registry.register(
+                service_instance=self.discord_adapter,
+                service_type='communication',
+                priority=1,  # High priority for primary Discord service
+                capabilities=['send_message', 'fetch_messages'],
+                metadata={
+                    'platform': 'discord',
+                    'token_configured': bool(self.token),
+                    'monitored_channel': self.monitored_channel_id,
+                    'deferral_channel': self.deferral_channel_id
+                }
+            )
+            
+            # Register Discord client as a raw Discord service (for legacy compatibility)
+            if self.client:
+                await self.service_registry.register(
+                    service_instance=self.client,
+                    service_type='discord_client',
+                    priority=1,
+                    capabilities=['raw_discord_access'],
+                    metadata={
+                        'type': 'discord.Client',
+                        'ready': not self.client.is_closed() if hasattr(self.client, 'is_closed') else True
+                    }
+                )
+            
+            # Register Discord observer if it exists
+            if self.discord_observer:
+                await self.service_registry.register(
+                    service_instance=self.discord_observer,
+                    service_type='observer',
+                    priority=1,
+                    capabilities=['observe_messages', 'monitor_channel'],
+                    metadata={
+                        'platform': 'discord',
+                        'monitored_channel': self.monitored_channel_id
+                    }
+                )
+            
+            logger.info("Successfully registered Discord services in service registry")
+            
+        except Exception as e:
+            logger.error(f"Failed to register Discord services: {e}", exc_info=True)
+
     async def shutdown(self):
         """Shutdown Discord-specific components."""
         # Stop Discord services

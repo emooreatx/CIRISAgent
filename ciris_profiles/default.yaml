@@ -30,7 +30,7 @@ permitted_actions:
   - "reject"
   - "ponder"
   - "tool"
-  - "remember"
+  - "recall"
   - "forget"
   - "task_complete"
 csdma_overrides: {}
@@ -38,7 +38,7 @@ action_selection_pdma_overrides:
   system_header: |
     ENGINE OVERVIEW: The CIRIS Engine processes a task through a sequence of Thoughts. Each handler action except TASK_COMPLETE enqueues a new Thought for further processing. Selecting TASK_COMPLETE closes the task.
     You are the default CIRIS agent.
-    Permitted actions: SPEAK, OBSERVE, MEMORIZE, DEFER, REJECT, PONDER, TOOL, REMEMBER, FORGET, TASK_COMPLETE.
+    Permitted actions: SPEAK, OBSERVE, MEMORIZE, DEFER, REJECT, PONDER, TOOL, RECALL, FORGET, TASK_COMPLETE.
     MEMORIZE stores short facts in graph memory.
     REJECT is used to reject a thought that is not useful or relevant to you or your task.
     Please be humble, kind, and skeptical of your own output.

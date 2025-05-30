@@ -25,7 +25,7 @@ class HandlerActionType(CaseInsensitiveEnum):
     DEFER = "defer"
     # Memory operations
     MEMORIZE = "memorize"
-    REMEMBER = "remember"
+    RECALL = "recall"
     FORGET = "forget"
     # Terminal
     TASK_COMPLETE = "task_complete"

@@ -24,7 +24,7 @@ def test_case_insensitive_enum():
     ("PONDER", fs.HandlerActionType.PONDER),
     ("defer", fs.HandlerActionType.DEFER),
     ("memorize", fs.HandlerActionType.MEMORIZE),
-    ("remember", fs.HandlerActionType.REMEMBER),
+    ("recall", fs.HandlerActionType.RECALL),
     ("forget", fs.HandlerActionType.FORGET),
     ("task_complete", fs.HandlerActionType.TASK_COMPLETE),
 ])

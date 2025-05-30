@@ -11,7 +11,7 @@ from .defer_handler import DeferHandler
 from .reject_handler import RejectHandler
 from .task_complete_handler import TaskCompleteHandler
 from .tool_handler import ToolHandler
-from .remember_handler import RememberHandler
+from .recall_handler import RecallHandler
 from .forget_handler import ForgetHandler
 from .action_dispatcher import ActionDispatcher
 from .base_handler import ActionHandlerDependencies
@@ -33,7 +33,7 @@ def build_action_dispatcher(audit_service=None, max_ponder_rounds: int = 5, **ha
         HandlerActionType.REJECT: RejectHandler(deps),
         HandlerActionType.TASK_COMPLETE: TaskCompleteHandler(deps),
         HandlerActionType.TOOL: ToolHandler(deps),
-        HandlerActionType.REMEMBER: RememberHandler(deps),
+        HandlerActionType.RECALL: RecallHandler(deps),
         HandlerActionType.FORGET: ForgetHandler(deps),
         HandlerActionType.PONDER: PonderHandler(deps, max_ponder_rounds=max_ponder_rounds),
     }

@@ -7,14 +7,14 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 
 @pytest.mark.asyncio
-async def test_ciris_local_graph_memorize_and_remember():
+async def test_ciris_local_graph_memorize_and_Recall():
     g = CIRISLocalGraph(storage_path=None)
     node = GraphNode(id="alice", type=NodeType.USER, scope=GraphScope.LOCAL, attributes={"foo": "bar"})
     result = await g.memorize(node)
     assert result.status == MemoryOpStatus.OK
-    remembered = await g.remember("alice", GraphScope.LOCAL)
-    assert remembered.status == MemoryOpStatus.OK
-    assert remembered.data["foo"] == "bar"
+    Recalled = await g.recall("alice", GraphScope.LOCAL)
+    assert Recalled.status == MemoryOpStatus.OK
+    assert Recalled.data["foo"] == "bar"
 
 @pytest.mark.asyncio
 async def test_ciris_local_graph_forget():
@@ -23,8 +23,8 @@ async def test_ciris_local_graph_forget():
     await g.memorize(node)
     result = await g.forget("bob", GraphScope.LOCAL)
     assert result.status == MemoryOpStatus.OK
-    remembered = await g.remember("bob", GraphScope.LOCAL)
-    assert remembered.data is None
+    Recalled = await g.recall("bob", GraphScope.LOCAL)
+    assert Recalled.data is None
 
 def test_export_identity_context():
     g = CIRISLocalGraph(storage_path=None)
@@ -47,8 +47,8 @@ async def test_memory_handler_process_memorize_user(monkeypatch):
     mw = MemoryWrite(key_path="user/alice/bio", user_nick="alice", value="bio text")
     result = await handler.process_memorize(thought, mw)
     assert result is None
-    remembered = await g.remember("alice", GraphScope.LOCAL)
-    assert remembered.data is not None
+    Recalled = await g.recall("alice", GraphScope.LOCAL)
+    assert Recalled.data is not None
 
 @pytest.mark.asyncio
 async def test_memory_handler_process_memorize_channel_wa_feedback(monkeypatch):
@@ -64,8 +64,8 @@ async def test_memory_handler_process_memorize_channel_wa_feedback(monkeypatch):
     mw = MemoryWrite(key_path="channel/#general/topic", user_nick="alice", value="topic text")
     result = await handler.process_memorize(thought, mw)
     assert result is None  # Should complete
-    remembered = await g.remember("alice", GraphScope.LOCAL)
-    assert remembered.data is not None
+    Recalled = await g.recall("alice", GraphScope.LOCAL)
+    assert Recalled.data is not None
 
 @pytest.mark.asyncio
 async def test_memory_handler_process_memorize_channel_wa_feedback_invalid(monkeypatch):

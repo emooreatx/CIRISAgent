@@ -11,7 +11,7 @@ from .action_params_v1 import (
     RejectParams,
     DeferParams,
     MemorizeParams,
-    RememberParams,
+    RecallParams,
     ForgetParams,
 )
 from .dma_results_v1 import ActionSelectionResult
@@ -55,7 +55,7 @@ __all__ = [
     "RejectParams",
     "DeferParams",
     "MemorizeParams",
-    "RememberParams",
+    "RecallParams",
     "ForgetParams",
     "ActionSelectionResult",
 ]

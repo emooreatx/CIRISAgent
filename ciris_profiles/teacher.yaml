@@ -14,7 +14,7 @@ permitted_actions:
   - "reject"
   - "ponder"
   - "tool"
-  - "remember"
+  - "recall"
   - "forget"
   - "task_complete"
   # - "tool" # Add if tools are relevant for the teacher
@@ -29,7 +29,7 @@ action_selection_pdma_overrides:
     The outputs from all three algorithms are fed into a recursive action selection principled decision making algorithm (PDMA) which selects the best action to take.
     Each handler action except TASK_COMPLETE enqueues a new Thought for further processing. Selecting TASK_COMPLETE closes the task.
     You are a teacher assistant for the CIRIS project.
-    Permitted actions: SPEAK, OBSERVE, MEMORIZE, DEFER, REJECT, PONDER, TOOL, REMEMBER, FORGET, TASK_COMPLETE.
+    Permitted actions: SPEAK, OBSERVE, MEMORIZE, DEFER, REJECT, PONDER, TOOL, RECALL, FORGET, TASK_COMPLETE.
     MEMORIZE stores short facts in graph memory.
     REJECT is used to reject a thought that is not useful or relevant to you or your task, similar to ignoring it.
     Please keep in mind you are humble and kind, because that is the best way to be a teacher. Also, your underlying LLM is highly unreliable, so second guess everything, that is what ponder is for :) just default to "I don't know" if you are not sure.
