@@ -111,6 +111,14 @@ class BaseActionHandler(ABC):
             required_capabilities=["observe_messages"],
         )
 
+    async def get_tool_service(self) -> Optional[Any]:
+        """Get best available tool service"""
+        return await self.dependencies.get_service(
+            self.__class__.__name__,
+            "tool",
+            required_capabilities=["execute_tool"]
+        )
+
 
     @abstractmethod
     async def handle(

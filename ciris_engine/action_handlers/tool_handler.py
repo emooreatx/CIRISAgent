@@ -13,9 +13,6 @@ from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
-from ciris_engine.adapters import ToolRegistry
-from ciris_engine.adapters.discord.discord_tools import register_discord_tools
-import discord
 import asyncio
 import uuid
 
@@ -23,17 +20,6 @@ logger = logging.getLogger(__name__)
 
 class ToolHandler(BaseActionHandler):
     TOOL_RESULT_TIMEOUT = 30  # seconds
-    _pending_results: Dict[str, asyncio.Future] = {}
-    _tool_registry: ToolRegistry = ToolRegistry()
-
-    @classmethod
-    def set_tool_registry(cls, registry: ToolRegistry):
-        cls._tool_registry = registry
-
-    async def register_tool_result(self, correlation_id: str, result: ToolResult) -> None:
-        fut = self._pending_results.get(correlation_id)
-        if fut and not fut.done():
-            fut.set_result(result)
 
     async def handle(
         self,
@@ -59,48 +45,44 @@ class ToolHandler(BaseActionHandler):
                 follow_up_content_key_info = f"TOOL action failed: Invalid parameters dict for thought {thought_id}. Error: {e}"
                 params = None
 
-        # Tool registry validation
-        if not isinstance(params, ToolParams):  # v1 uses ToolParams
-            self.logger.error(f"TOOL action params are not ToolParams model. Type: {type(params)}. Thought ID: {thought_id}")
+        # Tool service validation and execution
+        tool_service = await self.get_tool_service()
+        if not isinstance(params, ToolParams):
+            self.logger.error(
+                f"TOOL action params are not ToolParams model. Type: {type(params)}. Thought ID: {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
-            follow_up_content_key_info = f"TOOL action failed: Invalid parameters type ({type(params)}) for thought {thought_id}."
-        elif not self.dependencies.action_sink or not hasattr(self.dependencies.action_sink, 'run_tool'):
-            self.logger.error(f"ActionSink or run_tool method not available. Cannot execute TOOL for thought {thought_id}")
+            follow_up_content_key_info = (
+                f"TOOL action failed: Invalid parameters type ({type(params)}) for thought {thought_id}.")
+        elif not tool_service:
+            self.logger.error("No ToolService available")
             final_thought_status = ThoughtStatus.FAILED
-            follow_up_content_key_info = f"TOOL action failed: ActionSink or run_tool unavailable for thought {thought_id}."
-        elif not self._tool_registry.get_tool_schema(params.name):
-            self.logger.error(f"Tool '{params.name}' not found in registry. Thought ID: {thought_id}")
-            final_thought_status = ThoughtStatus.FAILED
-            follow_up_content_key_info = f"TOOL action failed: Tool '{params.name}' not registered."
-        elif not self._tool_registry.validate_arguments(params.name, params.args):
-            self.logger.error(f"Arguments for tool '{params.name}' failed validation. Thought ID: {thought_id}")
+            follow_up_content_key_info = "Tool service unavailable"
+        elif not await tool_service.validate_parameters(params.name, params.args):
+            self.logger.error(
+                f"Arguments for tool '{params.name}' failed validation. Thought ID: {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
             follow_up_content_key_info = f"TOOL action failed: Arguments for tool '{params.name}' invalid."
         else:
             correlation_id = str(uuid.uuid4())
-            fut = asyncio.get_event_loop().create_future()
-            self._pending_results[correlation_id] = fut
             try:
-                # The run_tool method on ActionSink is expected to be async if it involves I/O
-                # v1 ToolParams has 'name' and 'args' fields instead of 'tool_name' and 'arguments'
-                await self.dependencies.action_sink.run_tool(params.name, {**params.args, "correlation_id": correlation_id})
-                try:
-                    tool_result: ToolResult = await asyncio.wait_for(fut, timeout=self.TOOL_RESULT_TIMEOUT)
-                    if tool_result.execution_status == ToolExecutionStatus.SUCCESS:
-                        action_performed_successfully = True
-                        follow_up_content_key_info = f"Tool '{params.name}' executed successfully. Result: {tool_result.result_data}"
-                    else:
-                        final_thought_status = ThoughtStatus.FAILED
-                        follow_up_content_key_info = f"Tool '{params.name}' failed: {tool_result.error_message}"
-                except asyncio.TimeoutError:
+                await tool_service.execute_tool(params.name, {**params.args, "correlation_id": correlation_id})
+                tool_result = await tool_service.get_tool_result(
+                    correlation_id, timeout=self.TOOL_RESULT_TIMEOUT
+                )
+                if tool_result and tool_result.get("error") is None:
+                    action_performed_successfully = True
+                    follow_up_content_key_info = (
+                        f"Tool '{params.name}' executed successfully. Result: {tool_result}"
+                    )
+                else:
                     final_thought_status = ThoughtStatus.FAILED
-                    follow_up_content_key_info = f"TOOL action timed out waiting for result from '{params.name}'."
+                    err = tool_result.get("error") if tool_result else "timeout"
+                    follow_up_content_key_info = f"Tool '{params.name}' failed: {err}"
             except Exception as e_tool:
-                self.logger.exception(f"Error executing TOOL {params.name} for thought {thought_id}: {e_tool}")
+                self.logger.exception(
+                    f"Error executing TOOL {params.name} for thought {thought_id}: {e_tool}")
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = f"TOOL {params.name} execution failed: {str(e_tool)}"
-            finally:
-                self._pending_results.pop(correlation_id, None)
 
         # v1 uses 'final_action' instead of 'final_action_result'
         result_data = result.model_dump() if hasattr(result, 'model_dump') else result
@@ -140,9 +122,3 @@ class ToolHandler(BaseActionHandler):
             )
             await self._audit_log(HandlerActionType.TOOL, {**dispatch_context, "thought_id": thought_id}, outcome="failed_followup")
             raise FollowUpCreationError from e
-
-# Set up the global ToolRegistry and register Discord tools if not already set
-_tool_registry = ToolRegistry()
-# Discord bot instance will be set at runtime; placeholder for registration
-# register_discord_tools(_tool_registry, bot)
-ToolHandler.set_tool_registry(_tool_registry)

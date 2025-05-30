@@ -6,7 +6,7 @@ from ciris_engine.action_handlers.recall_handler import RecallHandler
 from ciris_engine.action_handlers.observe_handler import ObserveHandler
 from ciris_engine.action_handlers.reject_handler import RejectHandler
 from ciris_engine.action_handlers.task_complete_handler import TaskCompleteHandler
-from ciris_engine.action_handlers.tool_handler import ToolHandler, ToolResult, ToolExecutionStatus, ToolRegistry
+from ciris_engine.action_handlers.tool_handler import ToolHandler, ToolResult, ToolExecutionStatus
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.schemas.action_params_v1 import (
     ForgetParams,
@@ -198,18 +198,19 @@ async def test_tool_handler_schema_driven(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
-    ToolHandler._tool_registry = ToolRegistry()
-    ToolHandler._tool_registry.register_tool("echo", {"dummy": True}, lambda **k: None)
+    class DummyToolService:
+        async def execute_tool(self, name, parameters):
+            return {"ok": True}
+        async def get_available_tools(self):
+            return ["echo"]
+        async def get_tool_result(self, cid, timeout=30.0):
+            return {"result": "done"}
+        async def validate_parameters(self, name, params):
+            return True
 
-    deps = ActionHandlerDependencies(action_sink=action_sink)
+    deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(return_value=DummyToolService())
     handler = ToolHandler(deps)
-
-    async def run_tool(name, args):
-        await handler.register_tool_result(
-            args["correlation_id"],
-            ToolResult(tool_name=name, execution_status=ToolExecutionStatus.SUCCESS),
-        )
-    action_sink.run_tool.side_effect = run_tool
 
     params = ToolParams(name="echo", args={})
     action_result = ActionSelectionResult.model_construct(
@@ -221,6 +222,5 @@ async def test_tool_handler_schema_driven(monkeypatch):
 
     await handler.handle(action_result, thought, {})
 
-    action_sink.run_tool.assert_awaited()
     update_status.assert_called_once()
     add_thought.assert_called_once()

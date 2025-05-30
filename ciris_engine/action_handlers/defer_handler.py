@@ -6,6 +6,7 @@ from pydantic import BaseModel
 # Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import DeferParams
+from ciris_engine.schemas.deferral_schemas_v1 import DeferralPackage, DeferralReason
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
@@ -31,7 +32,6 @@ class DeferHandler(BaseActionHandler):
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.DEFER, {**dispatch_context, "thought_id": thought_id}, outcome="start")
 
-        original_event_channel_id = dispatch_context.get("channel_id")
         final_thought_status = ThoughtStatus.DEFERRED
         action_performed_successfully = False
         follow_up_content_key_info = f"DEFER action for thought {thought_id}"
@@ -47,23 +47,27 @@ class DeferHandler(BaseActionHandler):
 
             follow_up_content_key_info = f"Deferred thought {thought_id}. Reason: {defer_params_obj.reason}"
             
-            if self.dependencies.action_sink and original_event_channel_id and defer_params_obj.reason:
-                try:
-                    await self.dependencies.action_sink.send_message(original_event_channel_id, f"Action Deferred: {defer_params_obj.reason}")
-                    action_performed_successfully = True
-                except Exception as e:
-                    self.logger.error(f"Failed to send DEFER notification to channel {original_event_channel_id} for thought {thought_id}: {e}")
+
             
             if self.dependencies.deferral_sink:
                 try:
                     source_task_id = dispatch_context.get("source_task_id", thought.source_task_id)
-                    # The context field in DeferParams is where dma_results_summary is stored
-                    deferral_package_context = defer_params_obj.context or {}
+                    pkg = DeferralPackage(
+                        thought_id=thought_id,
+                        task_id=source_task_id,
+                        deferral_reason=DeferralReason.UNKNOWN,
+                        reason_description=defer_params_obj.reason,
+                        thought_content=thought.content,
+                        task_description=dispatch_context.get("task_description"),
+                        ethical_assessment=defer_params_obj.context.get("ethical") if defer_params_obj.context else None,
+                        csdma_assessment=defer_params_obj.context.get("csdma") if defer_params_obj.context else None,
+                        dsdma_assessment=defer_params_obj.context.get("dsdma") if defer_params_obj.context else None,
+                    )
                     await self.dependencies.deferral_sink.send_deferral(
                         source_task_id,
                         thought_id,
                         defer_params_obj.reason,
-                        deferral_package_context 
+                        {"deferral_package": pkg.model_dump()}
                     )
                 except Exception as e:
                     self.logger.error(f"DeferralSink failed for thought {thought_id}: {e}")
@@ -74,14 +78,21 @@ class DeferHandler(BaseActionHandler):
             self.logger.error(f"DEFER action params parsing error or unexpected structure. Type: {type(raw_params)}, Error: {param_parse_error}. Thought ID: {thought_id}")
             follow_up_content_key_info = f"DEFER action failed: Invalid parameters ({type(raw_params)}) for thought {thought_id}. Error: {param_parse_error}"
             # Deferral still proceeds, but with potentially less context for the sink.
-            if self.dependencies.deferral_sink: # Attempt to send minimal deferral info
+            if self.dependencies.deferral_sink:  # Attempt to send minimal deferral info
                  try:
                     source_task_id = dispatch_context.get("source_task_id", thought.source_task_id)
+                    pkg = DeferralPackage(
+                        thought_id=thought_id,
+                        task_id=source_task_id,
+                        deferral_reason=DeferralReason.UNKNOWN,
+                        reason_description="parameter_error",
+                        thought_content=thought.content,
+                    )
                     await self.dependencies.deferral_sink.send_deferral(
                         source_task_id,
                         thought_id,
                         "Deferral due to parameter processing error.",
-                        {"error": "Parameter processing failed", "raw_params": str(raw_params)}
+                        {"deferral_package": pkg.model_dump()}
                     )
                  except Exception as e_sink_fallback:
                      self.logger.error(f"Fallback DeferralSink failed for thought {thought_id}: {e_sink_fallback}")
