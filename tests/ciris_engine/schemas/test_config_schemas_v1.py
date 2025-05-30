@@ -1,4 +1,4 @@
-from ciris_engine.schemas.config_schemas_v1 import DatabaseConfig, LLMConfig, WorkflowConfig
+from ciris_engine.schemas.config_schemas_v1 import DatabaseConfig, WorkflowConfig, OpenAIConfig
 
 def test_database_config_defaults():
     config = DatabaseConfig()
@@ -6,14 +6,12 @@ def test_database_config_defaults():
     assert config.data_directory == "data"
     assert config.graph_memory_filename == "graph_memory.pkl"
 
-def test_llm_config_defaults():
-    config = LLMConfig()
-    assert config.model
-    assert config.temperature == 0.7
-    assert config.max_retries == 2
-    assert config.api_base.startswith("https://")
-    assert config.max_tokens > 0
-    assert config.timeout > 0
+def test_openai_config_defaults():
+    config = OpenAIConfig()
+    assert config.model_name
+    assert config.timeout_seconds == 30.0
+    assert config.max_retries == 3
+    assert config.api_key_env_var == "OPENAI_API_KEY"
     assert config.instructor_mode == "JSON"
 
 def test_workflow_config_defaults():

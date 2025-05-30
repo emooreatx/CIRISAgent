@@ -8,23 +8,9 @@ from typing import Any, Dict, List, Optional
 
 from .base import Service
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from pydantic import BaseModel
+from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry  # Import from schemas
 
 logger = logging.getLogger(__name__)
-
-
-class AuditLogEntry(BaseModel):
-    event_id: str
-    event_timestamp: str
-    event_type: str
-    originator_id: str
-    target_id: Optional[str] = None
-    event_summary: Optional[str] = None
-    event_payload: Dict[str, Any]
-    agent_profile: Optional[str] = None
-    round_number: Optional[int] = None
-    thought_id: Optional[str] = None
-    task_id: Optional[str] = None
 
 
 class AuditService(Service):
@@ -63,12 +49,12 @@ class AuditService(Service):
             event_type=handler_action.value,
             originator_id=context.get("thought_id", "unknown"),
             target_id=context.get("target_id"),
-            event_summary=self._generate_summary(handler_action, context),
+            event_summary=self._generate_summary(handler_action, context, outcome),  # Pass outcome
             event_payload=context,
             agent_profile=context.get("agent_profile"),
             round_number=context.get("round_number"),
             thought_id=context.get("thought_id"),
-            task_id=context.get("task_id"),
+            task_id=context.get("task_id") or context.get("source_task_id"),  # Handle both keys
         )
         self._buffer.append(entry)
         if len(self._buffer) >= 100:  # Flush every 100 entries
@@ -113,6 +99,10 @@ class AuditService(Service):
         self.log_path.rename(rotated)
 
     def _generate_summary(
-        self, handler_action: HandlerActionType, context: Dict[str, Any]
+        self, handler_action: HandlerActionType, context: Dict[str, Any], outcome: Optional[str] = None
     ) -> str:
-        return f"{handler_action.value} action for thought {context.get('thought_id', 'unknown')}"
+        """Generate a summary including outcome if provided."""
+        base_summary = f"{handler_action.value} action for thought {context.get('thought_id', 'unknown')}"
+        if outcome:
+            return f"{base_summary} - {outcome}"
+        return base_summary

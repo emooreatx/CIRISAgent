@@ -12,18 +12,6 @@ class DatabaseConfig(BaseModel):
     data_directory: str = DEFAULT_DATA_DIR
     graph_memory_filename: str = Field(default="graph_memory.pkl", alias="graph_memory_filename")
 
-class LLMConfig(BaseModel):
-    """Minimal v1 LLM configuration."""
-    model: str = DEFAULT_OPENAI_MODEL_NAME
-    temperature: float = 0.7
-    max_retries: int = 2
-    api_base: str = "https://api.openai.com/v1"
-    api_key: str = ""
-    max_tokens: int = 4096
-    timeout: int = 60
-    instructor_mode: str = "JSON"  # Default instructor mode is JSON
-    # Add more fields as needed for v1 compatibility
-
 from .guardrails_config_v1 import GuardrailsConfig
 from .agent_core_schemas_v1 import Task, Thought
 from .action_params_v1 import *
@@ -60,24 +48,6 @@ class AgentProfile(BaseModel):
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
 
-class AppConfig(BaseModel):
-    """Minimal v1 application configuration."""
-    version: Optional[str] = None
-    log_level: Optional[str] = None
-    database: DatabaseConfig = DatabaseConfig()
-    llm_services: LLMServicesConfig = LLMServicesConfig()  # Updated structure
-    guardrails: GuardrailsConfig = GuardrailsConfig()
-    workflow: WorkflowConfig = WorkflowConfig()
-    profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
-    default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
-    agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
-    discord_channel_id: Optional[str] = None  # Add this field for Discord channel id
-
-# Expose commonly used constants at module level for convenience
-DMA_RETRY_LIMIT = 3
-GUARDRAIL_RETRY_LIMIT = 2
-
-
 class CIRISNodeConfig(BaseModel):
     """Configuration for communicating with CIRISNode service."""
 
@@ -94,3 +64,21 @@ class CIRISNodeConfig(BaseModel):
         if env_url:
             self.base_url = env_url
         self.agent_secret_jwt = os.getenv("CIRISNODE_AGENT_SECRET_JWT")
+
+class AppConfig(BaseModel):
+    """Minimal v1 application configuration."""
+    version: Optional[str] = None
+    log_level: Optional[str] = None
+    database: DatabaseConfig = DatabaseConfig()
+    llm_services: LLMServicesConfig = LLMServicesConfig()  # Updated structure
+    guardrails: GuardrailsConfig = GuardrailsConfig()
+    workflow: WorkflowConfig = WorkflowConfig()
+    cirisnode: CIRISNodeConfig = CIRISNodeConfig()  # Add cirisnode configuration
+    profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
+    default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
+    agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
+    discord_channel_id: Optional[str] = None  # Add this field for Discord channel id
+
+# Expose commonly used constants at module level for convenience
+DMA_RETRY_LIMIT = 3
+GUARDRAIL_RETRY_LIMIT = 2
