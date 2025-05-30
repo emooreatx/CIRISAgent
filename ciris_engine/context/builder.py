@@ -109,7 +109,7 @@ class ContextBuilder:
         
         if channel_id and self.memory_service:
             logger.warning(f"DEBUG: Looking up channel {channel_id} in memory")
-            channel_info = await self.memory_service.remember(f"channel/{channel_id}", GraphScope.LOCAL)
+            channel_info = await self.memory_service.recall(f"channel/{channel_id}", GraphScope.LOCAL)
             logger.warning(f"DEBUG: Channel memory result: {channel_info}")
 
         # Recent and top tasks

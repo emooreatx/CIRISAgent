@@ -9,10 +9,10 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.action_params_v1 import (
-    SpeakParams, RememberParams, ForgetParams, MemorizeParams, PonderParams, ObserveParams
+    SpeakParams, RecallParams, ForgetParams, MemorizeParams, PonderParams, ObserveParams
 )
 from ciris_engine.action_handlers.speak_handler import SpeakHandler
-from ciris_engine.action_handlers.remember_handler import RememberHandler
+from ciris_engine.action_handlers.recall_handler import RecallHandler
 from ciris_engine.action_handlers.forget_handler import ForgetHandler
 from ciris_engine.action_handlers.memorize_handler import MemorizeHandler
 from ciris_engine.action_handlers.ponder_handler import PonderHandler
@@ -62,7 +62,7 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("handler_cls,params,result_action,extra_setup", [
     (SpeakHandler, SpeakParams(content="hello", channel_id="c1"), HandlerActionType.SPEAK, None),
-    (RememberHandler, RememberParams(query="q", scope="identity"), HandlerActionType.REMEMBER, None),
+    (RecallHandler, RecallParams(query="q", scope="identity"), HandlerActionType.RECALL, None),
     (ForgetHandler, ForgetParams(key="k", scope="identity", reason="r"), HandlerActionType.FORGET, None),
     (MemorizeHandler, MemorizeParams(key="k", value="v", scope="identity"), HandlerActionType.MEMORIZE, None),
     (PonderHandler, PonderParams(questions=["q1", "q2"]), HandlerActionType.PONDER, None),
@@ -78,7 +78,7 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
         add_thought(thought, db_path=db_path)
         deps = ActionHandlerDependencies()
         deps.memory_service = AsyncMock()
-        deps.memory_service.remember = AsyncMock(return_value=MagicMock(status="OK", data="result"))
+        deps.memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
         deps.memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
         deps.memory_service.memorize = AsyncMock(return_value=MagicMock(status="SAVED"))
         deps.action_sink = AsyncMock()

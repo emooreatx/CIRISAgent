@@ -86,7 +86,7 @@ class CIRISLocalGraph(Service):
         await asyncio.to_thread(self._persist)
         return MemoryOpResult(status=MemoryOpStatus.OK)
 
-    async def remember(self, node_id: str, scope: GraphScope) -> MemoryOpResult:
+    async def recall(self, node_id: str, scope: GraphScope) -> MemoryOpResult:
         g = self._graphs[scope]
         if g.has_node(node_id):
             return MemoryOpResult(

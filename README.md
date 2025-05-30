@@ -37,7 +37,7 @@ The system is designed for modularity, allowing developers to create and integra
 *   **Profile‑Driven Actions:** Allowed handler actions are loaded from the active profile and passed dynamically to the ASPDMA.
 *   **Basic Guardrails:** Includes an ethical guardrail to check action outputs.
 *   **SQLite Persistence:** Uses SQLite for persisting tasks and thoughts.
-*   **Graph Memory:** MEMORIZE actions store user metadata in `CIRISLocalGraph`. REMEMBER and FORGET exist but are often disabled via profiles during testing.
+*   **Graph Memory:** MEMORIZE actions store user metadata in `CIRISLocalGraph`. RECALL and FORGET exist but are often disabled via profiles during testing.
     * Channel node updates require WA approval. The initial write is deferred and a new thought is generated for the Wise Authority. When that follow-up thought includes `is_wa_correction` and references the deferred thought, the update is applied automatically.
     * User nick node updates can be memorized immediately if guardrails are satisfied.
 
@@ -78,10 +78,10 @@ The `HandlerActionType` enum defines core operations grouped as:
 
 * **External Actions:** `OBSERVE`, `SPEAK`, `TOOL`
 * **Control Responses:** `REJECT`, `PONDER`, `DEFER`
-* **Memory Operations:** `MEMORIZE`, `REMEMBER`, `FORGET` (now fully supported and enabled by default)
+* **Memory Operations:** `MEMORIZE`, `RECALL`, `FORGET` (now fully supported and enabled by default)
 * **Terminal:** `TASK_COMPLETE`
 
-These actions are processed by matching handlers within the engine. Profiles now enable all actions, including `REMEMBER` and `FORGET`, by default.
+These actions are processed by matching handlers within the engine. Profiles now enable all actions, including `RECALL` and `FORGET`, by default.
 
 ### Audit Logging
 All handler actions are now logged via the integrated `AuditService`, which supports log rotation, retention, and query. Audit logs are written to `audit_logs.jsonl` by default and can be queried for compliance and debugging.
@@ -104,7 +104,7 @@ Example memory action JSON:
 
 *   `core/`: Contains data schemas (`config_schemas.py`, `agent_core_schemas.py`, `foundational_schemas.py`), configuration management (`config_manager.py`), the `AgentProcessor`, `WorkflowCoordinator`, `ActionDispatcher`, and persistence layer (`persistence.py`).
 *   `dma/`: Implementations of the various DMAs (EthicalPDMA, CSDMA, DSDMA, ASPDMA).
-*   `utils/`: Utility helpers like `logging_config.py` and an asynchronous `load_profile` function in `profile_loader.py` (remember to `await` it).
+*   `utils/`: Utility helpers like `logging_config.py` and an asynchronous `load_profile` function in `profile_loader.py` (recall to `await` it).
 *   `guardrails/`: Ethical guardrail implementation.
 *   `services/`: LLM client abstractions (`llm_client.py`, `llm_service.py`) and service integrations.
 *   `ciris_profiles/`: Directory for agent profile YAML files (e.g., `student.yaml`, `teacher.yaml`).

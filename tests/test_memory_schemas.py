@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from ciris_engine.schemas.action_params_v1 import MemorizeParams, RememberParams, ForgetParams
+from ciris_engine.schemas.action_params_v1 import MemorizeParams, RecallParams, ForgetParams
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
 def test_memorize_params_validation():

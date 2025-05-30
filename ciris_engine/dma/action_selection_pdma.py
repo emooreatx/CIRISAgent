@@ -21,7 +21,7 @@ from ciris_engine.schemas.action_params_v1 import (
     RejectParams,
     DeferParams,
     MemorizeParams,
-    RememberParams,
+    RecallParams,
     ForgetParams,
 )
 from ciris_engine.schemas.action_params_v1 import ToolParams
@@ -55,7 +55,7 @@ class ActionSelectionPDMAEvaluator:
             "You are the CIRIS Action‑Selection evaluator. "
             "Given PDMA, CSDMA and DSDMA results, choose one handler action. "
             "Use MEMORIZE to store facts in graph memory when allowed. "
-            "REMEMBER and FORGET exist but may be disabled. "
+            "RECALL and FORGET exist but may be disabled. "
             "If ponder rounds exceed the limit the system auto‑defers."
         ),
         "decision_format": (
@@ -64,14 +64,14 @@ class ActionSelectionPDMAEvaluator:
             "action_selection_rationale, monitoring_for_selected_action."
         ),
         "closing_reminder": (
-            "Remember CIRIS principles override personal preference."
+            "Recall CIRIS principles override personal preference."
         ),
         "action_parameter_schemas": (
             "Schemas for 'action_parameters' based on the selected_action:\n"
             "SPEAK: {\"content\": string, \"channel_id\"?: string}\n"
             "PONDER: {\"questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
             "MEMORIZE: {\"key\": string, \"value\": any, \"scope\": string}\n"
-            "REMEMBER: {\"query\": string, \"scope\": string}\n"
+            "RECALL: {\"query\": string, \"scope\": string}\n"
             "FORGET: {\"key\": string, \"scope\": string, \"reason\": string}\n"
             "DEFER: {\"reason\": string, \"context\"?: object}\n"
             "REJECT: {\"reason\": string, \"rejection_code\"?: string}\n"
@@ -250,7 +250,7 @@ class ActionSelectionPDMAEvaluator:
         default_permitted_actions = [
             HandlerActionType.SPEAK, HandlerActionType.PONDER,
             HandlerActionType.REJECT, HandlerActionType.DEFER,
-            HandlerActionType.MEMORIZE, HandlerActionType.REMEMBER,
+            HandlerActionType.MEMORIZE, HandlerActionType.RECALL,
             HandlerActionType.FORGET, HandlerActionType.OBSERVE,
             HandlerActionType.TOOL, HandlerActionType.TASK_COMPLETE
         ]
@@ -508,8 +508,8 @@ Adhere strictly to the schema for your JSON output.
                         parsed_action_params = DeferParams(**parsed_action_params)
                     elif action_type == HandlerActionType.MEMORIZE:
                         parsed_action_params = MemorizeParams(**parsed_action_params)
-                    elif action_type == HandlerActionType.REMEMBER:
-                        parsed_action_params = RememberParams(**parsed_action_params)
+                    elif action_type == HandlerActionType.RECALL:
+                        parsed_action_params = RecallParams(**parsed_action_params)
                     elif action_type == HandlerActionType.FORGET:
                         parsed_action_params = ForgetParams(**parsed_action_params)
                 except ValidationError as ve:
