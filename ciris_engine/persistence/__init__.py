@@ -17,6 +17,7 @@ from .tasks import (
     get_tasks_by_status,
     get_recent_completed_tasks,
     get_top_tasks,
+    get_pending_tasks_for_activation,
     count_tasks,
 )
 from .thoughts import (
