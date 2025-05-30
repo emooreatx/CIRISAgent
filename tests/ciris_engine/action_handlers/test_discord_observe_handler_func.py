@@ -45,5 +45,6 @@ async def test_handle_discord_observe_event_active(monkeypatch):
 
     discord_service.fetch_messages.assert_awaited_with(channel_id='c1', offset=0, limit=20, include_agent=True, agent_id=None)
     assert result.selected_action == HandlerActionType.OBSERVE
-    assert result.action_parameters['created_tasks'] == ['m1', 'm2']
-    assert add_task.call_count == 2
+    assert 'observation_summary' in result.action_parameters
+    assert result.action_parameters['channel_id'] == 'c1'
+    assert result.action_parameters['message_count'] == 2
