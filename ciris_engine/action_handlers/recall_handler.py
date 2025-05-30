@@ -16,10 +16,10 @@ class RecallHandler(BaseActionHandler):
         raw_params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.RECALL, {**dispatch_context, "thought_id": thought_id}, outcome="start")
-        params = None
-        if isinstance(raw_params, dict):
+        params = raw_params
+        if not isinstance(params, RecallParams):
             try:
-                params = RecallParams(**raw_params)
+                params = RecallParams(**params) if isinstance(params, dict) else params
             except ValidationError as e:
                 logger.error(f"RecallHandler: Invalid params dict: {e}")
                 follow_up = create_follow_up_thought(
@@ -29,9 +29,7 @@ class RecallHandler(BaseActionHandler):
                 self.dependencies.persistence.add_thought(follow_up)
                 await self._audit_log(HandlerActionType.RECALL, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
                 return
-        elif isinstance(raw_params, RecallParams):
-            params = raw_params
-        else:
+        if not isinstance(params, RecallParams):
             logger.error(f"RecallHandler: Invalid params type: {type(raw_params)}")
             follow_up = create_follow_up_thought(
                 parent=thought,
@@ -77,10 +75,10 @@ class RecallHandler(BaseActionHandler):
         )
         # Always set action_performed and is_follow_up in context
         follow_up_context = follow_up.context if isinstance(follow_up.context, dict) else {}
-        follow_up_context["action_performed"] = "RECALL"
+        follow_up_context["action_performed"] = HandlerActionType.RECALL.name
         follow_up_context["is_follow_up"] = True
         # Optionally add error or memory details if available
-        if memory_result and hasattr(memory_result, "status") and memory_result.status != "OK":
+        if memory_result and hasattr(memory_result, "status") and memory_result.status != MemoryOpStatus.OK:
             follow_up_context["error_details"] = str(memory_result.status)
         follow_up.context = follow_up_context
         self.dependencies.persistence.add_thought(follow_up)
