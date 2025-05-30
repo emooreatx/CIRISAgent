@@ -23,7 +23,7 @@ class DreamProcessor:
         self,
         app_config: AppConfig, # Added
         profile: AgentProfile, # Added
-        cirisnode_url: str = "http://localhost:8001",
+        cirisnode_url: str = "https://localhost:8001",
         pulse_interval: float = 60.0,  # Snore pulse interval in seconds
         max_snore_history: int = 5
     ):

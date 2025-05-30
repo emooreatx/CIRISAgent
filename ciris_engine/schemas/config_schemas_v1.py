@@ -51,7 +51,7 @@ class AgentProfile(BaseModel):
 class CIRISNodeConfig(BaseModel):
     """Configuration for communicating with CIRISNode service."""
 
-    base_url: str = Field(default="http://localhost:8001")
+    base_url: str = Field(default="https://localhost:8001")
     timeout_seconds: float = Field(default=30.0)
     max_retries: int = Field(default=2)
     agent_secret_jwt: Optional[str] = None
