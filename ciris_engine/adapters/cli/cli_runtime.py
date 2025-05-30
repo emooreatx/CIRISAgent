@@ -82,6 +82,7 @@ class CLIRuntime(CIRISRuntime):
             io_adapter=cli_adapter,
             startup_channel_id="cli",
         )
+        # Create action sink early
         self.action_sink = CLIActionSink()
         self.interactive = interactive
         
@@ -90,11 +91,19 @@ class CLIRuntime(CIRISRuntime):
         await super().initialize()
         
         # Update action_sink in dependencies after initialization
-        if self.agent_processor:
+        if self.agent_processor and self.agent_processor.thought_processor:
             dependencies = getattr(self.agent_processor.thought_processor, 'dependencies', None)
             if dependencies:
                 dependencies.action_sink = self.action_sink
-            # Rebuild action dispatcher with proper action_sink
+                
+            # Also update all handlers' dependencies
+            if hasattr(self.agent_processor, 'action_dispatcher') and self.agent_processor.action_dispatcher:
+                for handler in self.agent_processor.action_dispatcher.handlers.values():
+                    if hasattr(handler, 'dependencies'):
+                        handler.dependencies.action_sink = self.action_sink
+                        
+        # Rebuild action dispatcher with proper action_sink
+        if self.agent_processor:
             new_dispatcher = await self._build_action_dispatcher(dependencies)
             self.agent_processor.action_dispatcher = new_dispatcher
         
