@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional, Type
 
-from openai import AsyncOpenAI
+from ciris_engine.registries.base import ServiceRegistry
 
 from .dsdma_base import BaseDSDMA
 from ciris_engine.schemas.config_schemas_v1 import AgentProfile
@@ -19,7 +19,7 @@ DEFAULT_PROFILE_PATH = Path("ciris_profiles/default.yaml")
 
 async def create_dsdma_from_profile(
     profile: Optional[AgentProfile],
-    aclient: AsyncOpenAI,
+    service_registry: ServiceRegistry,
     *,
     model_name: Optional[str] = None,
     default_profile_path: Path = DEFAULT_PROFILE_PATH,
@@ -50,7 +50,7 @@ async def create_dsdma_from_profile(
 
     return dsdma_cls(
         domain_name=profile.name,
-        aclient=aclient,
+        service_registry=service_registry,
         model_name=model_name,
         domain_specific_knowledge=domain_knowledge,
         prompt_template=prompt_template,

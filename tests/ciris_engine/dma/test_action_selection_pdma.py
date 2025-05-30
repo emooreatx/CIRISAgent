@@ -1,5 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
+from types import SimpleNamespace
+from ciris_engine.registries.base import ServiceRegistry, Priority
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator, HandlerActionType, ActionSelectionResult, PonderParams, SpeakParams
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult, CSDMAResult, DSDMAResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
@@ -14,10 +16,15 @@ class DummyLLMResponse:
 
 @pytest.mark.asyncio
 async def test_forced_ponder(monkeypatch):
+    service_registry = ServiceRegistry()
+    dummy_client = SimpleNamespace(client=MagicMock())
+    dummy_service = SimpleNamespace(get_client=lambda: dummy_client)
+    service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
+    monkeypatch.setattr("instructor.patch", lambda c, mode: c)
     evaluator = ActionSelectionPDMAEvaluator(
-        aclient=MagicMock(),
+        service_registry=service_registry,
         model_name="test-model",
-        instructor_mode=MagicMock()
+        instructor_mode=MagicMock(),
     )
     triaged_inputs = {
         'original_thought': Thought(thought_id="t1", content="irrelevant", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
@@ -54,12 +61,17 @@ async def test_llm_success(monkeypatch):
         confidence_score=0.9,
         confidence=0.9  # Add confidence attribute for compatibility
     )
+    service_registry = ServiceRegistry()
+    dummy_client = SimpleNamespace(client=MagicMock())
+    dummy_service = SimpleNamespace(get_client=lambda: dummy_client)
+    service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
+    monkeypatch.setattr("instructor.patch", lambda c, mode: c)
     evaluator = ActionSelectionPDMAEvaluator(
-        aclient=MagicMock(),
+        service_registry=service_registry,
         model_name="test-model",
         instructor_mode=MagicMock()
     )
-    evaluator.aclient.chat.completions.create = AsyncMock(return_value=dummy_llm_response)
+    dummy_client.client.chat.completions.create = AsyncMock(return_value=dummy_llm_response)
     triaged_inputs = {
         'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
@@ -82,15 +94,20 @@ async def test_llm_success(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_instructor_retry(monkeypatch):
+    service_registry = ServiceRegistry()
+    dummy_client = SimpleNamespace(client=MagicMock())
+    dummy_service = SimpleNamespace(get_client=lambda: dummy_client)
+    service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
+    monkeypatch.setattr("instructor.patch", lambda c, mode: c)
     evaluator = ActionSelectionPDMAEvaluator(
-        aclient=MagicMock(),
+        service_registry=service_registry,
         model_name="test-model",
         instructor_mode=MagicMock()
     )
     class DummyInstrRetry(Exception):
         def errors(self):
             return ["err"]
-    evaluator.aclient.chat.completions.create = AsyncMock(side_effect=DummyInstrRetry())
+    dummy_client.client.chat.completions.create = AsyncMock(side_effect=DummyInstrRetry())
     triaged_inputs = {
         'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
@@ -109,12 +126,17 @@ async def test_instructor_retry(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_general_exception(monkeypatch):
+    service_registry = ServiceRegistry()
+    dummy_client = SimpleNamespace(client=MagicMock())
+    dummy_service = SimpleNamespace(get_client=lambda: dummy_client)
+    service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
+    monkeypatch.setattr("instructor.patch", lambda c, mode: c)
     evaluator = ActionSelectionPDMAEvaluator(
-        aclient=MagicMock(),
+        service_registry=service_registry,
         model_name="test-model",
         instructor_mode=MagicMock()
     )
-    evaluator.aclient.chat.completions.create = AsyncMock(side_effect=Exception("fail"))
+    dummy_client.client.chat.completions.create = AsyncMock(side_effect=Exception("fail"))
     triaged_inputs = {
         'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),

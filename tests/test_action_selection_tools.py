@@ -2,7 +2,8 @@ import pytest
 from unittest.mock import patch, Mock
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from openai import AsyncOpenAI
+from types import SimpleNamespace
+from ciris_engine.registries.base import ServiceRegistry, Priority
 
 @pytest.mark.asyncio
 async def test_tools_listed_in_prompt(monkeypatch):
@@ -30,7 +31,12 @@ async def test_tools_listed_in_prompt(monkeypatch):
     monkeypatch.setattr('ciris_engine.formatters.format_user_profiles', lambda x: '')
     monkeypatch.setattr('ciris_engine.formatters.format_system_snapshot', lambda x: '')
 
-    evaluator = ActionSelectionPDMAEvaluator(aclient=AsyncOpenAI(api_key="test"))
+    service_registry = ServiceRegistry()
+    dummy_client = SimpleNamespace(client=Mock())
+    dummy_service = SimpleNamespace(get_client=lambda: dummy_client)
+    service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
+    monkeypatch.setattr('instructor.patch', lambda c, mode: c)
+    evaluator = ActionSelectionPDMAEvaluator(service_registry=service_registry)
     prompt = evaluator._prepare_main_user_content(triaged_inputs)
     # Check that all fake tool names appear in the prompt
     for tool_name in fake_tools:

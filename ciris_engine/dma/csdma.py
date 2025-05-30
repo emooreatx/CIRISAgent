@@ -2,8 +2,8 @@ from typing import Dict, Any, List, Optional
 import logging
 
 import instructor
-from openai import AsyncOpenAI
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
+from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.schemas.dma_results_v1 import CSDMAResult
 from ciris_engine.config.config_manager import get_config
 from ciris_engine.formatters import (
@@ -43,17 +43,18 @@ class CSDMAEvaluator:
     """
 
     def __init__(self,
-                 aclient: AsyncOpenAI, # Expect raw AsyncOpenAI client
-                 model_name: Optional[str] = None, # Allow override, else use config
-                 max_retries: int = 2, # Default to a sensible number of retries
+                 service_registry: ServiceRegistry,
+                 model_name: Optional[str] = None,
+                 max_retries: int = 2,
                  environmental_kg: Any = None,
                  task_specific_kg: Any = None,
-                 prompt_overrides: Optional[Dict[str, str]] = None): # Added prompt_overrides
-        
+                 prompt_overrides: Optional[Dict[str, str]] = None):
+
         app_config = get_config()
+        self.service_registry = service_registry
         self.model_name = model_name or app_config.llm_services.openai.model_name
-        self.max_retries = max_retries # Store max_retries
-        self.prompt_overrides = prompt_overrides or {} # Store overrides
+        self.max_retries = max_retries
+        self.prompt_overrides = prompt_overrides or {}
         
         try:
             configured_mode_str = app_config.llm_services.openai.instructor_mode.upper()
@@ -62,22 +63,16 @@ class CSDMAEvaluator:
              logger.warning(f"Invalid instructor_mode '{app_config.llm_services.openai.instructor_mode}' in config. Defaulting to JSON.")
              self.instructor_mode = instructor.Mode.JSON
         
-        # Check if the client is already patched by instructor
-        if isinstance(aclient, instructor.Instructor):
-            logger.debug("CSDMAEvaluator received an already patched instructor client.")
-            self.aclient = aclient
-            # Optionally, verify if the mode matches the expected mode?
-            # if aclient.mode != self.instructor_mode:
-            #     logger.warning(f"CSDMAEvaluator received instructor client with mode {aclient.mode.name}, but expected {self.instructor_mode.name}. Using received client anyway.")
-        else:
-            logger.debug("CSDMAEvaluator received a raw AsyncOpenAI client. Patching with instructor...")
-            self.aclient: instructor.Instructor = instructor.patch(aclient, mode=self.instructor_mode)
+        # Client will be retrieved from the service registry during evaluation
 
         self.env_kg = environmental_kg # Placeholder for now
         self.task_kg = task_specific_kg   # Placeholder for now
         # Log the final client type and mode being used
-        log_mode = self.aclient.mode.name if hasattr(self.aclient, 'mode') else self.instructor_mode.name
-        logger.info(f"CSDMAEvaluator initialized with model: {self.model_name}. Using instructor client with mode: {log_mode}. Overrides: {self.prompt_overrides is not None}")
+        log_mode = self.instructor_mode.name
+        logger.info(
+            f"CSDMAEvaluator initialized with model: {self.model_name}. "
+            f"Using instructor client with mode: {log_mode}. Overrides: {self.prompt_overrides is not None}"
+        )
 
     def _create_csdma_messages_for_instructor(
         self,
@@ -114,6 +109,17 @@ class CSDMAEvaluator:
 
     # Updated signature to use ProcessingQueueItem
     async def evaluate_thought(self, thought_item: ProcessingQueueItem) -> CSDMAResult:
+        llm_service = None
+        if self.service_registry:
+            llm_service = await self.service_registry.get_service(
+                handler=self.__class__.__name__,
+                service_type="llm"
+            )
+        if not llm_service:
+            raise RuntimeError("LLM service unavailable for CSDMA evaluation")
+
+        aclient = instructor.patch(llm_service.get_client().client, mode=self.instructor_mode)
+
         # Extract thought content string robustly from ProcessingQueueItem.content (Dict[str, Any])
         thought_content_str = ""
         if isinstance(thought_item.content, dict):
@@ -166,7 +172,7 @@ class CSDMAEvaluator:
         )
 
         try:
-            csdma_eval: CSDMAResult = await self.aclient.chat.completions.create(
+            csdma_eval: CSDMAResult = await aclient.chat.completions.create(
                 model=self.model_name,
                 response_model=CSDMAResult, # Key instructor feature
                 messages=messages,
