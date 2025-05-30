@@ -30,7 +30,6 @@ from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.processor.dma_orchestrator import DMAOrchestrator
 from ciris_engine.context.builder import ContextBuilder
 from ciris_engine.guardrails.orchestrator import GuardrailOrchestrator
-from ciris_engine.ponder.manager import PonderManager
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 
 # DMAs
@@ -243,7 +242,6 @@ class CIRISRuntime:
         )
         
         guardrail_orchestrator = GuardrailOrchestrator(guardrails)
-        ponder_manager = PonderManager()
         
         # Register core services in the service registry
         await self._register_core_services()

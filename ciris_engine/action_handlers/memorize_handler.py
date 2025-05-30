@@ -76,11 +76,21 @@ class MemorizeHandler(BaseActionHandler):
 
         from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
-        if not self.dependencies.memory_service:
-            self.logger.error(f"MemoryService not available. Cannot perform MEMORIZE for thought {thought_id}")
+        memory_service = await self.get_memory_service()
+
+        if not memory_service:
+            self.logger.error(
+                f"MemoryService not available. Cannot perform MEMORIZE for thought {thought_id}"
+            )
             final_thought_status = ThoughtStatus.FAILED
-            follow_up_content_key_info = f"MEMORIZE action failed: MemoryService unavailable for thought {thought_id}."
-            await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="failed_no_memory_service")
+            follow_up_content_key_info = (
+                f"MEMORIZE action failed: MemoryService unavailable for thought {thought_id}."
+            )
+            await self._audit_log(
+                HandlerActionType.MEMORIZE,
+                {**dispatch_context, "thought_id": thought_id},
+                outcome="failed_no_memory_service",
+            )
         else:
             user_nick = await extract_user_nick(
                 params=params,
@@ -96,7 +106,7 @@ class MemorizeHandler(BaseActionHandler):
                 attributes={"value": params.value, "source": thought.source_task_id}
             )
             try:
-                mem_op_result = await self.dependencies.memory_service.memorize(node)
+                mem_op_result = await memory_service.memorize(node)
                 if mem_op_result.status == MemoryOpStatus.OK:
                     action_performed_successfully = True
                     follow_up_content_key_info = f"Memorization successful. Key: '{params.key}', Value: '{str(params.value)[:50]}...'"
