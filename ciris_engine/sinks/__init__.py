@@ -4,10 +4,18 @@ for automatic fallback and reliability.
 """
 
 from .multi_service_sink import MultiServiceActionSink, MultiServiceDeferralSink
-from .action_types import (
-    ActionMessage, ActionType, DeferralMessage,
-    SendMessageAction, FetchMessagesAction, FetchGuidanceAction, SendDeferralAction,
-    MemorizeAction, RecallAction, ForgetAction, SendToolAction, FetchToolAction
+from ciris_engine.schemas.service_actions_v1 import (
+    ActionMessage,
+    ActionType,
+    SendMessageAction,
+    FetchMessagesAction,
+    FetchGuidanceAction,
+    SendDeferralAction,
+    MemorizeAction,
+    RecallAction,
+    ForgetAction,
+    SendToolAction,
+    FetchToolAction,
 )
 
 __all__ = [
@@ -15,7 +23,6 @@ __all__ = [
     "MultiServiceDeferralSink", 
     "ActionMessage",
     "ActionType",
-    "DeferralMessage",
     "SendMessageAction",
     "FetchMessagesAction", 
     "FetchGuidanceAction",

@@ -6,7 +6,12 @@ import logging
 import asyncio
 from typing import Dict, List, Optional, Any
 
-from .action_types import ActionType, ActionMessage, SendToolAction, FetchToolAction
+from ciris_engine.schemas.service_actions_v1 import (
+    ActionType,
+    ActionMessage,
+    SendToolAction,
+    FetchToolAction,
+)
 from .base_sink import BaseMultiServiceSink
 from ..protocols.services import ToolService
 

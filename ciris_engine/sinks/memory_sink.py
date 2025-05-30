@@ -5,7 +5,13 @@ Memory sink implementation for memory-related actions.
 import logging
 from typing import Dict, List, Optional, Any
 
-from .action_types import ActionType, ActionMessage, MemorizeAction, RecallAction, ForgetAction
+from ciris_engine.schemas.service_actions_v1 import (
+    ActionType,
+    ActionMessage,
+    MemorizeAction,
+    RecallAction,
+    ForgetAction,
+)
 from .base_sink import BaseMultiServiceSink
 from ..protocols.services import MemoryService
 
