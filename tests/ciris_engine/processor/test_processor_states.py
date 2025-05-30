@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock
 
 from ciris_engine.processor import WakeupProcessor, WorkProcessor, PlayProcessor, SolitudeProcessor, DreamProcessor
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, CIRISNodeConfig, AgentProfile # Corrected import for AgentProfile
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 
@@ -164,15 +164,30 @@ async def test_solitude_processor_exit_after_critical(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_dream_processor_pulse(monkeypatch):
-    dp = DreamProcessor(cirisnode_url='http://x')
+    # Create mock AppConfig and AgentProfile
+    mock_app_config = AppConfig(
+        llm_services=LLMServicesConfig(openai=OpenAIConfig(model_name="test-model")),
+        cirisnode=CIRISNodeConfig(base_url="http://x") 
+    )
+    mock_profile = AgentProfile(name="test_agent")
+
+    # Pass mocks to DreamProcessor constructor (removed audit_service parameter)
+    dp = DreamProcessor(app_config=mock_app_config, profile=mock_profile)
+
 
     class DummyClient:
-        async def run_he300(self):
+        async def run_he300(self, model_id: str, agent_id: str):
             return {'topic': 'A'}
-        async def run_simplebench(self):
+        async def run_simplebench(self, model_id: str, agent_id: str):
             return {'score': 1}
+        async def close(self): # Add close method to dummy client
+            pass
+    
+    # Re-assign cirisnode_client after DreamProcessor instantiation for this test's purpose
     dp.cirisnode_client = DummyClient()
+
 
     await dp._dream_pulse()
     assert dp.dream_metrics['total_pulses'] == 1
     assert dp.snore_history
+    # Note: DreamProcessor doesn't have a close method, cleanup happens in stop_dreaming()

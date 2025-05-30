@@ -7,6 +7,8 @@ from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 
 def test_channel_id_flows_from_env_to_processors(monkeypatch):
+    from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+    
     # Set up environment variable
     test_channel_id = "TEST_CHANNEL_123"
     monkeypatch.setenv("DISCORD_CHANNEL_ID", test_channel_id)
@@ -20,6 +22,9 @@ def test_channel_id_flows_from_env_to_processors(monkeypatch):
     app_config.llm_services = MagicMock()
     app_config.guardrails = MagicMock()
 
+    # Create active profile
+    active_profile = AgentProfile(name="test_profile")
+
     # Mock all processors and dependencies
     thought_processor = MagicMock(spec=ThoughtProcessor)
     action_dispatcher = MagicMock(spec=ActionDispatcher)
@@ -29,6 +34,7 @@ def test_channel_id_flows_from_env_to_processors(monkeypatch):
     with patch("ciris_engine.processor.wakeup_processor.WakeupProcessor.__init__", return_value=None) as mock_wakeup_init:
         AgentProcessor(
             app_config=app_config,
+            active_profile=active_profile,  # Pass active profile
             thought_processor=thought_processor,
             action_dispatcher=action_dispatcher,
             services=services,

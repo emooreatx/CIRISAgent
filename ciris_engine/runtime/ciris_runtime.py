@@ -245,6 +245,7 @@ class CIRISRuntime:
         # Build agent processor
         self.agent_processor = AgentProcessor(
             app_config=self.app_config,
+            active_profile=self.profile,  # Pass the active profile
             thought_processor=thought_processor,
             action_dispatcher=action_dispatcher,
             services={
