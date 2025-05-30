@@ -66,6 +66,22 @@ class ForgetHandler(BaseActionHandler):
             }
             self.dependencies.persistence.add_thought(follow_up)
             return
+        memory_service = await self.get_memory_service()
+
+        if not memory_service:
+            logger.error("ForgetHandler: MemoryService not available")
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                content=f"FORGET action failed: MemoryService unavailable for thought {thought_id}"
+            )
+            self.dependencies.persistence.add_thought(follow_up)
+            await self._audit_log(
+                HandlerActionType.FORGET,
+                {**dispatch_context, "thought_id": thought_id},
+                outcome="failed_no_memory_service",
+            )
+            return
+
         # Build a GraphNode for the key to forget
         node = GraphNode(
             id=params.key,
@@ -73,7 +89,7 @@ class ForgetHandler(BaseActionHandler):
             scope=GraphScope(params.scope),
             attributes={}
         )
-        forget_result = await self.dependencies.memory_service.forget(node)
+        forget_result = await memory_service.forget(node)
         await self._audit_forget_operation(params, dispatch_context, forget_result)
         if forget_result.status == MemoryOpStatus.OK:
             follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. Successfully forgot key '{params.key}' in scope {params.scope}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
