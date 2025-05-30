@@ -1,35 +1,19 @@
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-from ciris_engine.adapters.cli.cli_runtime import CLIRuntime, InteractiveCLIAdapter, CLIActionSink
+from unittest.mock import AsyncMock, MagicMock
+from ciris_engine.adapters.cli.cli_runtime import CLIRuntime
+from ciris_engine.adapters.cli.cli_adapter import CLIAdapter
+from ciris_engine.adapters.cli.cli_observer import CLIObserver
 
 @pytest.mark.asyncio
-async def test_cli_runtime_initialization():
+async def test_cli_runtime_initialization(monkeypatch):
+    monkeypatch.setattr("ciris_engine.services.llm_service.LLMService.start", AsyncMock())
+    monkeypatch.setattr(
+        "ciris_engine.services.llm_service.LLMService.get_client",
+        MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test"))
+    )
+    monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
     runtime = CLIRuntime(profile_name="test_profile", interactive=False)
+    await runtime.initialize()
     assert runtime.profile_name == "test_profile"
-    assert isinstance(runtime.action_sink, CLIActionSink)
-    assert not runtime.interactive
-
-@pytest.mark.asyncio
-async def test_interactive_cli_adapter_fetch_inputs(monkeypatch):
-    adapter = InteractiveCLIAdapter()
-    # Simulate user input
-    monkeypatch.setattr("builtins.input", lambda _: "test input")
-    result = await adapter.fetch_inputs()
-    assert result == []
-    assert not adapter._should_stop
-
-@pytest.mark.asyncio
-async def test_interactive_cli_adapter_exit(monkeypatch):
-    adapter = InteractiveCLIAdapter()
-    monkeypatch.setattr("builtins.input", lambda _: "exit")
-    result = await adapter.fetch_inputs()
-    assert result == []
-    assert adapter._should_stop
-
-@pytest.mark.asyncio
-async def test_cli_action_sink_methods():
-    sink = CLIActionSink()
-    await sink.start()
-    await sink.stop()
-    await sink.send_message("cli", "hello world")
-    await sink.run_tool("echo", {"msg": "hi"})
+    assert isinstance(runtime.io_adapter, CLIAdapter)
+    assert isinstance(runtime.cli_observer, CLIObserver)
