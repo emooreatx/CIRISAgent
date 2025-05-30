@@ -133,21 +133,36 @@ class CIRISLLMClient:
                 return json.loads(json_str_fixed_quotes)
             except json.JSONDecodeError as e2:
                 logger.error(f"Persistent JSONDecodeError for string '{json_str_fixed_quotes[:200]}...': {e2}")
-                # Last resort: find any valid JSON object
+                # Last resort: find any valid JSON object by looking for balanced braces
                 try:
                     best_match_obj = None
-                    for match in re.finditer(r"\{(?:[^{}]|(?R))*\}", raw, re.DOTALL):
-                        try:
-                            candidate = json.loads(match.group(0))
-                            if best_match_obj is None or len(match.group(0)) > len(json.dumps(best_match_obj)):
-                                best_match_obj = candidate
-                        except json.JSONDecodeError:
-                            continue
+                    # Find potential JSON objects by looking for opening braces
+                    for i, char in enumerate(raw):
+                        if char == '{':
+                            # Try to find the matching closing brace
+                            brace_count = 1
+                            j = i + 1
+                            while j < len(raw) and brace_count > 0:
+                                if raw[j] == '{':
+                                    brace_count += 1
+                                elif raw[j] == '}':
+                                    brace_count -= 1
+                                j += 1
+                            
+                            if brace_count == 0:  # Found balanced braces
+                                candidate_json = raw[i:j]
+                                try:
+                                    candidate = json.loads(candidate_json)
+                                    if best_match_obj is None or len(candidate_json) > len(json.dumps(best_match_obj)):
+                                        best_match_obj = candidate
+                                except json.JSONDecodeError:
+                                    continue
+                    
                     if best_match_obj:
-                        logger.warning("Successfully parsed JSON using recursive brace matching fallback.")
+                        logger.warning("Successfully parsed JSON using brace balancing fallback.")
                         return best_match_obj
                 except Exception as fallback_ex:
-                     logger.error(f"Error during recursive brace matching fallback: {fallback_ex}")
+                     logger.error(f"Error during brace balancing fallback: {fallback_ex}")
                 return {"error": f"Failed to parse JSON. Raw content snippet: {raw[:250]}..."}
 
     async def call_llm_raw(
