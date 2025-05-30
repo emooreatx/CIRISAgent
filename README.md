@@ -37,7 +37,7 @@ The system is designed for modularity, allowing developers to create and integra
 *   **Profile‑Driven Actions:** Allowed handler actions are loaded from the active profile and passed dynamically to the ASPDMA.
 *   **Basic Guardrails:** Includes an ethical guardrail to check action outputs.
 *   **SQLite Persistence:** Uses SQLite for persisting tasks and thoughts.
-*   **Graph Memory:** MEMORIZE actions store user metadata in `CIRISLocalGraph`. RECALL and FORGET exist but are often disabled via profiles during testing.
+*   **Graph Memory:** MEMORIZE actions store user metadata in `LocalGraphMemoryService`. RECALL and FORGET exist but are often disabled via profiles during testing.
     * Channel node updates require WA approval. The initial write is deferred and a new thought is generated for the Wise Authority. When that follow-up thought includes `is_wa_correction` and references the deferred thought, the update is applied automatically.
     * User nick node updates can be memorized immediately if guardrails are satisfied.
 

@@ -3,7 +3,7 @@ import logging
 from typing import Callable, Awaitable, Dict, Any, Optional
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.ports import DeferralSink
+from ciris_engine.sinks import MultiServiceDeferralSink
 from .cli_event_queues import CLIEventQueue
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class CLIObserver:
         self,
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]],
         message_queue: CLIEventQueue[IncomingMessage],
-        deferral_sink: Optional[DeferralSink] = None,
+        deferral_sink: Optional[MultiServiceDeferralSink] = None,
     ):
         self.on_observe = on_observe
         self.message_queue = message_queue
