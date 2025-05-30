@@ -1,4 +1,4 @@
-from ciris_engine.schemas.deferral_schemas_v1 import DeferralReason, DeferralPackage
+from ciris_engine.schemas.deferral_schemas_v1 import DeferralReason, DeferralPackage, DeferralReport
 
 def test_deferral_reason_enum():
     assert DeferralReason.GUARDRAIL_FAILURE == "guardrail_failure"

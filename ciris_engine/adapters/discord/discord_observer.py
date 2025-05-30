@@ -5,7 +5,7 @@ from typing import Callable, Awaitable, Dict, Any, Optional
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.ports import DeferralSink
-from ciris_engine.adapters.discord.discord_event_queue import DiscordEventQueue
+from ciris_engine.adapters.discord.discord_adapter import DiscordEventQueue
 
 logger = logging.getLogger(__name__)
 
