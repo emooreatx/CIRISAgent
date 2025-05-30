@@ -19,6 +19,21 @@ class CLIActionSink(ActionSink):
         pass
     async def stop(self) -> None:
         pass
+    async def _process_action(self, action: Any):
+        """Process a single action - CLI implementation"""
+        action_type = getattr(action, 'action_type', getattr(action, 'type', 'unknown'))
+        
+        if hasattr(action, 'channel_id') and hasattr(action, 'content'):
+            # Send message action
+            await self.send_message(action.channel_id, action.content)
+        elif hasattr(action, 'tool_name') and hasattr(action, 'args'):
+            # Tool action
+            await self.run_tool(action.tool_name, action.args)
+        elif hasattr(action, 'name') and hasattr(action, 'args'):
+            # Alternative tool action format
+            await self.run_tool(action.name, action.args)
+        else:
+            logger.warning(f"CLIActionSink: Unknown action format: {action}")
     async def send_message(self, channel_id: str, content: str) -> None:
         print(f"\n[CIRIS] {content}\n")
     async def run_tool(self, name: str, args: dict) -> None:

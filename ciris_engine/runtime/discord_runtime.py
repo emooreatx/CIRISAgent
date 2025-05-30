@@ -15,39 +15,17 @@ from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter, DiscordEventQueue
 from ciris_engine.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.adapters.discord.discord_tools import register_discord_tools
-from ciris_engine.services.discord_deferral_sink import DiscordDeferralSink
 from ciris_engine.action_handlers.discord_observe_handler import handle_discord_observe_event
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
-from ciris_engine.ports import ActionSink
 from ciris_engine.services.tool_registry import ToolRegistry
 from ciris_engine.action_handlers.tool_handler import ToolHandler
 
-# Import service registry components
+# Import multi-service sink components
+from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
 from ciris_engine.registries.base import ServiceRegistry, Priority
 from ciris_engine.services.cirisnode_client import CIRISNodeClient
 
 logger = logging.getLogger(__name__)
-
-
-class DiscordActionSink(ActionSink):
-    """Discord implementation of ActionSink."""
-    
-    def __init__(self, discord_adapter: DiscordAdapter):
-        self.adapter = discord_adapter
-        
-    async def start(self) -> None:
-        pass
-        
-    async def stop(self) -> None:
-        pass
-        
-    async def send_message(self, channel_id: str, content: str) -> None:
-        await self.adapter.send_output(channel_id, content)
-        
-    async def run_tool(self, name: str, args: Dict[str, Any]) -> Any:
-        # Tool execution is handled by the ToolHandler and ToolRegistry
-        logger.info(f"DiscordActionSink: Tool '{name}' execution requested with args: {args}")
-        return None
 
 
 class DiscordRuntime(CIRISRuntime):
@@ -77,8 +55,8 @@ class DiscordRuntime(CIRISRuntime):
         
         # Discord-specific services
         self.discord_observer: Optional[DiscordObserver] = None
-        self.action_sink: Optional[DiscordActionSink] = None
-        self.deferral_sink: Optional[DiscordDeferralSink] = None
+        self.action_sink: Optional[MultiServiceActionSink] = None
+        self.deferral_sink: Optional[MultiServiceDeferralSink] = None
         
     async def initialize(self):
         """Initialize Discord-specific components."""
@@ -89,13 +67,20 @@ class DiscordRuntime(CIRISRuntime):
         self.client = discord.Client(intents=intents)
         self.discord_adapter.client = self.client  # Assign the client to the adapter
 
-        # Create action sink
-        self.action_sink = DiscordActionSink(self.discord_adapter)
+        # Create action sink using MultiServiceActionSink
+        if not self.service_registry:
+            logger.error("ServiceRegistry not initialized before creating MultiServiceActionSink.")
+            # Potentially raise an error or handle appropriately
+            # For now, we'll proceed, but this is a critical dependency
+        self.action_sink = MultiServiceActionSink(
+            service_registry=self.service_registry,
+            fallback_channel_id=self.monitored_channel_id
+        )
         
-        # Create deferral sink
-        self.deferral_sink = DiscordDeferralSink(
-            self.discord_adapter,
-            self.deferral_channel_id
+        # Create deferral sink using MultiServiceDeferralSink
+        self.deferral_sink = MultiServiceDeferralSink(
+            service_registry=self.service_registry,
+            default_deferral_channel_id=self.deferral_channel_id
         )
         
         # Create Discord observer with proper context

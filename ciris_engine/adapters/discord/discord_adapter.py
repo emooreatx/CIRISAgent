@@ -3,7 +3,7 @@ import logging
 import asyncio
 from typing import TypeVar, Generic, List, Dict, Any
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.protocols.services import CommunicationService
+from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
 
 logger = logging.getLogger(__name__)
 
@@ -26,16 +26,23 @@ class DiscordEventQueue(Generic[T_Event]):
     def empty(self) -> bool:
         return self._queue.empty()
 
-class DiscordAdapter(CommunicationService):
+class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
     """
-    Discord adapter implementing CommunicationService protocol.
-    Wraps the event queue and provides communication functionality.
+    Discord adapter implementing CommunicationService, WiseAuthorityService, and ToolService protocols.
+    Wraps the event queue and provides communication, guidance/deferral, and tool functionality.
     """
-    def __init__(self, token: str, message_queue: DiscordEventQueue):
+    def __init__(self, token: str, message_queue: DiscordEventQueue, 
+                 guidance_channel_id: str = None, deferral_channel_id: str = None, 
+                 tool_registry: Any = None, bot: discord.Client = None):
         self.token = token
         self.message_queue = message_queue
-        self.client = None  # Placeholder for actual Discord client if needed
+        self.client = bot  # Discord client instance
+        self.guidance_channel_id = guidance_channel_id
+        self.deferral_channel_id = deferral_channel_id
+        self.tool_registry = tool_registry
+        self._tool_results = {}  # correlation_id -> ToolResult
 
+    # --- CommunicationService ---
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Implementation of CommunicationService.send_message"""
         try:
@@ -75,9 +82,83 @@ class DiscordAdapter(CommunicationService):
             logger.exception(f"Failed to fetch messages from Discord channel {channel_id}: {e}")
             return []
 
-    async def is_healthy(self) -> bool:
-        """Health check for circuit breaker"""
-        return self.client is not None and not self.client.is_closed()
+    # --- WiseAuthorityService ---
+    async def fetch_guidance(self, context: dict) -> dict:
+        """Send a guidance request to the configured guidance channel and wait for a response."""
+        if not self.client or not self.guidance_channel_id:
+            logger.error("DiscordAdapter: Guidance channel or client not configured.")
+            raise RuntimeError("Guidance channel or client not configured.")
+        channel = self.client.get_channel(int(self.guidance_channel_id))
+        if channel is None:
+            channel = await self.client.fetch_channel(int(self.guidance_channel_id))
+        if channel is None:
+            logger.error(f"DiscordAdapter: Could not find guidance channel {self.guidance_channel_id}")
+            raise RuntimeError("Guidance channel not found.")
+        # Post the guidance request
+        request_content = f"[CIRIS Guidance Request]\nContext: ```json\n{context}\n```"
+        await channel.send(request_content)
+        # For demo: fetch the latest bot response as guidance (in real use, implement a more robust protocol)
+        async for message in channel.history(limit=10):
+            if message.author.bot and message.content.startswith("[CIRIS Guidance Reply]"):
+                # Parse guidance from message
+                try:
+                    # Assume guidance is in a code block after the prefix
+                    guidance = message.content.split('```', 1)[-1].rsplit('```', 1)[0]
+                    return {"guidance": guidance}
+                except Exception:
+                    continue
+        logger.warning("DiscordAdapter: No guidance reply found in channel history.")
+        return {"guidance": None}
+
+    async def send_deferral(self, thought_id: str, reason: str) -> bool:
+        """Send a deferral report to the configured deferral channel."""
+        if not self.client or not self.deferral_channel_id:
+            logger.error("DiscordAdapter: Deferral channel or client not configured.")
+            return False
+        channel = self.client.get_channel(int(self.deferral_channel_id))
+        if channel is None:
+            channel = await self.client.fetch_channel(int(self.deferral_channel_id))
+        if channel is None:
+            logger.error(f"DiscordAdapter: Could not find deferral channel {self.deferral_channel_id}")
+            return False
+        report = f"[CIRIS Deferral Report]\nThought ID: `{thought_id}`\nReason: {reason}"
+        await channel.send(report)
+        return True
+
+    # --- ToolService ---
+    async def execute_tool(self, tool_name: str, tool_args: dict) -> dict:
+        """Execute a registered Discord tool via the tool registry and store the result."""
+        if not self.tool_registry:
+            logger.error("DiscordAdapter: Tool registry not configured.")
+            raise RuntimeError("Tool registry not configured.")
+        handler = self.tool_registry.get_handler(tool_name)
+        if not handler:
+            logger.error(f"DiscordAdapter: Tool handler for '{tool_name}' not found.")
+            raise RuntimeError(f"Tool handler for '{tool_name}' not found.")
+        correlation_id = tool_args.get("correlation_id")
+        result = await handler({**tool_args, "bot": self.client})
+        # Store result for later retrieval
+        if correlation_id:
+            self._tool_results[correlation_id] = result if isinstance(result, dict) else result.__dict__
+        return result if isinstance(result, dict) else result.__dict__
+
+    async def get_tool_result(self, correlation_id: str, timeout: int = 10) -> dict:
+        """Fetch a tool result by correlation ID from the internal cache."""
+        # Wait up to timeout seconds for the result to appear
+        for _ in range(timeout * 10):
+            if correlation_id in self._tool_results:
+                return self._tool_results.pop(correlation_id)
+            await asyncio.sleep(0.1)
+        logger.warning(f"DiscordAdapter: Tool result for correlation_id {correlation_id} not found after {timeout}s.")
+        return {"correlation_id": correlation_id, "status": "not_found"}
+
+    # --- Capabilities ---
+    def get_capabilities(self) -> list[str]:
+        return [
+            "send_message", "fetch_messages",
+            "fetch_guidance", "send_deferral",
+            "execute_tool", "get_tool_result"
+        ]
 
     async def send_output(self, channel_id: str, content: str):
         if not self.client:
