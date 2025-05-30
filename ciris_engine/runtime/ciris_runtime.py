@@ -14,7 +14,7 @@ from ciris_engine.processor import AgentProcessor
 from ciris_engine.services.base import Service
 from ciris_engine import persistence
 from ciris_engine.utils.profile_loader import load_profile
-from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
+from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.services.llm_service import LLMService
 from ciris_engine.services.audit_service import AuditService
 from ciris_engine.services.maintenance_service import DatabaseMaintenanceService
@@ -68,7 +68,7 @@ class CIRISRuntime:
         
         # Core services
         self.llm_service: Optional[LLMService] = None
-        self.memory_service: Optional[CIRISLocalGraph] = None
+        self.memory_service: Optional[LocalGraphMemoryService] = None
         self.audit_service: Optional[AuditService] = None
         self.maintenance_service: Optional[DatabaseMaintenanceService] = None
         
@@ -158,7 +158,7 @@ class CIRISRuntime:
         await self.llm_service.start()
         
         # Memory Service
-        self.memory_service = CIRISLocalGraph()
+        self.memory_service = LocalGraphMemoryService()
         await self.memory_service.start()
         
         # Audit Service
@@ -303,7 +303,7 @@ class CIRISRuntime:
                     service_type="memory",
                     provider=self.memory_service,
                     priority=Priority.HIGH,
-                    capabilities=["store", "retrieve", "delete", "search"]
+                    capabilities=["memorize", "recall", "forget"]
                 )
         
         # Note: Communication and WA services will be registered by subclasses

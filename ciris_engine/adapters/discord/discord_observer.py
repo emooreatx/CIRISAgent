@@ -4,7 +4,7 @@ import asyncio
 from typing import Callable, Awaitable, Dict, Any, Optional
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.ports import DeferralSink
+from ciris_engine.sinks import MultiServiceDeferralSink
 from ciris_engine.adapters.discord.discord_adapter import DiscordEventQueue
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class DiscordObserver:
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]], # This callback will create the Task
         message_queue: DiscordEventQueue, # Use DiscordEventQueue[IncomingMessage]
         monitored_channel_id: Optional[str] = None,
-        deferral_sink: Optional[DeferralSink] = None,
+        deferral_sink: Optional[MultiServiceDeferralSink] = None,
     ):
         self.on_observe = on_observe
         self.message_queue = message_queue # Store the DiscordEventQueue[IncomingMessage]
@@ -71,14 +71,6 @@ class DiscordObserver:
             logger.debug(f"DiscordObserver: Ignoring message from unmonitored channel: {msg.channel_id} for message {msg.message_id}")
             return
         raw_msg = getattr(msg, "_raw_message", None)
-        if self.deferral_sink and raw_msg:
-            try:
-                handled = await self.deferral_sink.process_possible_correction(msg, raw_msg)
-                if handled:
-                    logger.debug("DiscordObserver: message %s handled as correction", msg.message_id)
-                    return
-            except Exception as e:
-                logger.exception("DiscordObserver: deferral sink error: %s", e)
         payload: Dict[str, Any] = {
             "type": "OBSERVATION",
             "message_id": msg.message_id,
