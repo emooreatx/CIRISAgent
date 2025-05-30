@@ -2,13 +2,16 @@ from unittest.mock import Mock, AsyncMock
 from ciris_engine.action_handlers.memorize_handler import MemorizeHandler
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
 def test_memorize_handler_with_new_schema(monkeypatch):
     # Setup
-    deps = Mock()
-    deps.memory_service = Mock()
+    memory_service = Mock()
+    memory_service.memorize = AsyncMock(return_value=Mock(status=Mock(value="ok")))
+    deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(return_value=memory_service)
+    deps.memory_service = memory_service
     deps.audit_service = None
-    deps.memory_service.memorize = AsyncMock(return_value=Mock(status=Mock(value="ok")))
     # Patch persistence functions and helper
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", Mock())
     monkeypatch.setattr("ciris_engine.persistence.add_thought", Mock())
@@ -36,10 +39,12 @@ def test_memorize_handler_with_new_schema(monkeypatch):
 
 def test_memorize_handler_with_old_schema(monkeypatch):
     # Test backward compatibility
-    deps = Mock()
-    deps.memory_service = Mock()
+    memory_service = Mock()
+    memory_service.memorize = AsyncMock(return_value=Mock(status=Mock(value="ok")))
+    deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(return_value=memory_service)
+    deps.memory_service = memory_service
     deps.audit_service = None
-    deps.memory_service.memorize = AsyncMock(return_value=Mock(status=Mock(value="ok")))
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", Mock())
     monkeypatch.setattr("ciris_engine.persistence.add_thought", Mock())
     monkeypatch.setattr(
