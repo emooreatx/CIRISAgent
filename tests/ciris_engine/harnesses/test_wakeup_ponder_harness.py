@@ -79,7 +79,6 @@ def setup_wakeup_proc(monkeypatch):
     monkeypatch.setattr('ciris_engine.persistence.get_thought_by_id', db.get_thought_by_id)
     monkeypatch.setattr('ciris_engine.persistence.update_thought_status', db.update_thought_status)
     monkeypatch.setattr('ciris_engine.persistence.get_thoughts_by_task_id', db.get_thoughts_by_task_id)
-    monkeypatch.setattr('ciris_engine.persistence.get_tasks_by_parent_id', db.get_tasks_by_parent_id)
 
     # Ensure all step tasks exist in the DB
     from ciris_engine.processor.wakeup_processor import WakeupProcessor

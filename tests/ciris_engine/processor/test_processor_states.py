@@ -84,7 +84,6 @@ async def test_wakeup_processor_completion(monkeypatch):
     monkeypatch.setattr('ciris_engine.persistence.update_task_status', db.update_task_status)
     monkeypatch.setattr('ciris_engine.persistence.get_thoughts_by_task_id', db.get_thoughts_by_task_id)
     monkeypatch.setattr('ciris_engine.persistence.add_thought', db.add_thought)
-    monkeypatch.setattr('ciris_engine.persistence.get_tasks_by_parent_id', db.get_tasks_by_parent_id)
 
     proc = WakeupProcessor(AppConfig(), AsyncMock(), AsyncMock(), {}, startup_channel_id='chan')
     # Initial call creates tasks
