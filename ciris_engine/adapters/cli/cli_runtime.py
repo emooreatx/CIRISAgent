@@ -9,6 +9,7 @@ from ciris_engine.registries.base import Priority
 from .cli_event_queues import CLIEventQueue
 from .cli_adapter import CLIAdapter
 from .cli_observer import CLIObserver
+from .cli_tools import CLIToolService
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,14 @@ class CLIRuntime(CIRISRuntime):
                 priority=Priority.NORMAL,
                 capabilities=["send_message"],
             )
+        tool_service = CLIToolService()
+        self.service_registry.register(
+            handler="ToolHandler",
+            service_type="tool",
+            provider=tool_service,
+            priority=Priority.NORMAL,
+            capabilities=["execute_tool", "get_tool_result"],
+        )
 
     async def _build_action_dispatcher(self, dependencies):
         return build_action_dispatcher(

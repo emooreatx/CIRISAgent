@@ -25,3 +25,18 @@ async def test_cli_observer_handle_message():
     msg = IncomingMessage(message_id="1", content="hi", author_id="u", author_name="User", channel_id="cli")
     await observer.handle_incoming_message(msg)
     assert observed and observed[0]["content"] == "hi"
+
+@pytest.mark.asyncio
+async def test_cli_observer_get_recent_messages():
+    from ciris_engine.adapters.cli.cli_observer import CLIObserver
+
+    queue = CLIEventQueue()
+    async def noop(_):
+        pass
+    observer = CLIObserver(noop, queue)
+    msg1 = IncomingMessage(message_id="1", content="a", author_id="u", author_name="User", channel_id="cli")
+    msg2 = IncomingMessage(message_id="2", content="b", author_id="u", author_name="User", channel_id="cli")
+    await observer.handle_incoming_message(msg1)
+    await observer.handle_incoming_message(msg2)
+    recent = await observer.get_recent_messages(limit=1)
+    assert recent and recent[0]["id"] == "2"
