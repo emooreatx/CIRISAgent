@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 # Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.ports import ActionSink, DeferralSink
-from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
+from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
+from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.adapters.discord.discord_observer import DiscordObserver  # For active look
 from ciris_engine import persistence
 from ciris_engine.registries.base import ServiceRegistry
@@ -21,10 +21,10 @@ class ActionHandlerDependencies:
         self,
         service_registry: Optional[ServiceRegistry] = None,
         # Legacy services for backward compatibility
-        action_sink: Optional[ActionSink] = None,
-        memory_service: Optional[CIRISLocalGraph] = None,
+        action_sink: Optional[MultiServiceActionSink] = None,
+        memory_service: Optional[LocalGraphMemoryService] = None,
         observer_service: Optional[DiscordObserver] = None,
-        deferral_sink: Optional[DeferralSink] = None,
+        deferral_sink: Optional[MultiServiceDeferralSink] = None,
         io_adapter: Optional[Any] = None,  # General type, can be cast in handler
         audit_service: Optional[Any] = None,  # Add audit_service
         **legacy_services  # For additional backward compatibility

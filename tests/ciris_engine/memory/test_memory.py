@@ -1,6 +1,7 @@
 import pytest
 import asyncio
-from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph, GraphNode, NodeType, GraphScope, MemoryOpStatus
+from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService, MemoryOpStatus
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from ciris_engine.memory.memory_handler import MemoryHandler, MemoryWrite
 from ciris_engine.memory.utils import is_wa_feedback, process_feedback
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
@@ -8,7 +9,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 
 @pytest.mark.asyncio
 async def test_ciris_local_graph_memorize_and_Recall():
-    g = CIRISLocalGraph(storage_path=None)
+    g = LocalGraphMemoryService(storage_path=None)
     node = GraphNode(id="alice", type=NodeType.USER, scope=GraphScope.LOCAL, attributes={"foo": "bar"})
     result = await g.memorize(node)
     assert result.status == MemoryOpStatus.OK
@@ -18,7 +19,7 @@ async def test_ciris_local_graph_memorize_and_Recall():
 
 @pytest.mark.asyncio
 async def test_ciris_local_graph_forget():
-    g = CIRISLocalGraph(storage_path=None)
+    g = LocalGraphMemoryService(storage_path=None)
     node = GraphNode(id="bob", type=NodeType.USER, scope=GraphScope.LOCAL, attributes={"x": 1})
     await g.memorize(node)
     result = await g.forget("bob", GraphScope.LOCAL)
@@ -27,7 +28,7 @@ async def test_ciris_local_graph_forget():
     assert Recalled.data is None
 
 def test_export_identity_context():
-    g = CIRISLocalGraph(storage_path=None)
+    g = LocalGraphMemoryService(storage_path=None)
     node = GraphNode(id="id1", type=NodeType.USER, scope=GraphScope.IDENTITY, attributes={"role": "admin"})
     # Directly add to graph for test
     g._graphs[GraphScope.IDENTITY].add_node(node.id, **node.attributes)
@@ -36,7 +37,7 @@ def test_export_identity_context():
 
 @pytest.mark.asyncio
 async def test_memory_handler_process_memorize_user(monkeypatch):
-    g = CIRISLocalGraph(storage_path=None)
+    g = LocalGraphMemoryService(storage_path=None)
     handler = MemoryHandler(g)
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", lambda *a, **k: None)
     thought = Thought(
@@ -52,7 +53,7 @@ async def test_memory_handler_process_memorize_user(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_memory_handler_process_memorize_channel_wa_feedback(monkeypatch):
-    g = CIRISLocalGraph(storage_path=None)
+    g = LocalGraphMemoryService(storage_path=None)
     handler = MemoryHandler(g)
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", lambda *a, **k: None)
     thought = Thought(
@@ -69,7 +70,7 @@ async def test_memory_handler_process_memorize_channel_wa_feedback(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_memory_handler_process_memorize_channel_wa_feedback_invalid(monkeypatch):
-    g = CIRISLocalGraph(storage_path=None)
+    g = LocalGraphMemoryService(storage_path=None)
     handler = MemoryHandler(g)
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", lambda *a, **k: None)
     thought = Thought(
@@ -85,7 +86,7 @@ async def test_memory_handler_process_memorize_channel_wa_feedback_invalid(monke
 
 @pytest.mark.asyncio
 async def test_memory_handler_process_memorize_channel_wa_required(monkeypatch):
-    g = CIRISLocalGraph(storage_path=None)
+    g = LocalGraphMemoryService(storage_path=None)
     handler = MemoryHandler(g)
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", lambda *a, **k: None)
     thought = Thought(
@@ -101,7 +102,7 @@ async def test_memory_handler_process_memorize_channel_wa_required(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_process_feedback_identity(monkeypatch):
-    g = CIRISLocalGraph(storage_path=None)
+    g = LocalGraphMemoryService(storage_path=None)
     # Patch update_identity_graph to check call
     called = {}
     async def fake_update_identity_graph(data):
@@ -120,7 +121,7 @@ async def test_process_feedback_identity(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_process_feedback_invalid():
-    g = CIRISLocalGraph(storage_path=None)
+    g = LocalGraphMemoryService(storage_path=None)
     thought = Thought(
         thought_id="th6", source_task_id="t1", thought_type="test", status=ThoughtStatus.PENDING,
         created_at="now", updated_at="now", round_number=1, content="test",
