@@ -2,14 +2,15 @@ import logging
 from typing import Any, Optional
 from pydantic import BaseModel
 
-from .ciris_local_graph import CIRISLocalGraph
+from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 from ciris_engine import persistence
+# Utilities and schemas
 from .utils import is_wa_feedback
-# Use the legacy graph schemas for now because CIRISLocalGraph expects
-# those classes. The v1 schemas are being adopted incrementally and
+# LocalGraphMemoryService currently relies on v1 graph schemas.
+# The v1 schemas are being adopted incrementally and
 # aren't compatible with the current memory service implementation.
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
@@ -40,7 +41,7 @@ class MemoryWrite(BaseModel):
 
 
 class MemoryHandler:
-    def __init__(self, memory_service: CIRISLocalGraph):
+    def __init__(self, memory_service: LocalGraphMemoryService):
         self.memory_service = memory_service
 
     async def process_memorize(self, thought: Thought, mem_write: MemoryWrite) -> Optional[ActionSelectionResult]:

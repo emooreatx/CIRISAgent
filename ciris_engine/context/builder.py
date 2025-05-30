@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
-from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
+from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope # Corrected import for GraphScope
 from ciris_engine.utils import GraphQLContextProvider
 from pydantic import BaseModel
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__) # Initialize logger
 class ContextBuilder:
     def __init__(
         self,
-        memory_service: Optional[CIRISLocalGraph] = None,
+        memory_service: Optional[LocalGraphMemoryService] = None,
         graphql_provider: Optional[GraphQLContextProvider] = None,
         app_config: Optional[Any] = None,
     ):

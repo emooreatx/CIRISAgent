@@ -2,7 +2,7 @@ from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import ForgetParams
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
-from ciris_engine.memory.ciris_local_graph import MemoryOpStatus
+from ciris_engine.adapters.local_graph_memory import MemoryOpStatus
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType

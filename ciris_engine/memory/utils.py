@@ -3,7 +3,11 @@ from typing import Any
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
-from .ciris_local_graph import CIRISLocalGraph, MemoryOpResult, MemoryOpStatus
+from ciris_engine.adapters.local_graph_memory import (
+    LocalGraphMemoryService,
+    MemoryOpResult,
+    MemoryOpStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +21,7 @@ def is_wa_feedback(thought: Thought) -> bool:
     )
 
 
-def process_feedback(thought: Thought, memory_service: CIRISLocalGraph) -> MemoryOpResult:
+def process_feedback(thought: Thought, memory_service: LocalGraphMemoryService) -> MemoryOpResult:
     """Process WA feedback for graph updates."""
     ctx = thought.context
     target = ctx.get("feedback_target")

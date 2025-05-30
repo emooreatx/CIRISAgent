@@ -1,9 +1,9 @@
 import pytest
-from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
+from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 
 @pytest.mark.asyncio
 async def test_identity_graph_updates():
-    memory = CIRISLocalGraph(":memory:")
+    memory = LocalGraphMemoryService(":memory:")
     await memory.start()
     
     # Test WA authorization required for identity
