@@ -59,7 +59,7 @@ class RememberHandler(BaseActionHandler):
         )
         # Always set action_performed and is_follow_up in context
         follow_up_context = follow_up.context if isinstance(follow_up.context, dict) else {}
-        follow_up_context["action_performed"] = HandlerActionType.REMEMBER.value
+        follow_up_context["action_performed"] = "REMEMBER"
         follow_up_context["is_follow_up"] = True
         # Optionally add error or memory details if available
         if memory_result and hasattr(memory_result, "status") and memory_result.status != "OK":

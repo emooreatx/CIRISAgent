@@ -125,37 +125,36 @@ async def handle_discord_observe_event(
                 rationale=f"Failed to fetch messages: {e}",
             )
 
-        created_tasks = []
+        # Process messages into a summary for follow-up thought
+        message_summaries = []
         for msg in messages:
             message_id = msg.get("id")
             content = msg.get("content")
             author_id = msg.get("author_id")
-            context_data = {"author_id": author_id, "channel_id": channel_id}
-            description = msg.get("task_description", content)
+            timestamp = msg.get("timestamp", "unknown time")
+            
             if not message_id or not content:
                 continue
-            if persistence.task_exists(message_id):
-                continue
-            now_iso = datetime.now(timezone.utc).isoformat()
-            task = persistence.Task(
-                task_id=message_id,
-                description=description,
-                status=persistence.TaskStatus.PENDING,
-                priority=1,
-                created_at=now_iso,
-                updated_at=now_iso,
-                context=context_data,
-            )
-            try:
-                persistence.add_task(task)
-                logger.info(f"DiscordObserveHandler: Created task {message_id} from active observation.")
-                created_tasks.append(message_id)
-            except Exception as e:
-                logger.exception(f"DiscordObserveHandler: Failed to add task {message_id}: {e}")
+                
+            # Format message for inclusion in follow-up
+            summary = f"[{timestamp}] {author_id}: {content[:200]}{'...' if len(content) > 200 else ''}"
+            message_summaries.append(summary)
+        
+        # Create summary of observed messages
+        if message_summaries:
+            messages_text = "\n".join(message_summaries)
+            observation_summary = f"Active Discord observation of channel {channel_id} (limit: {limit}, offset: {offset}):\n\n{messages_text}"
+        else:
+            observation_summary = f"Active Discord observation of channel {channel_id} found no messages (limit: {limit}, offset: {offset})"
+        
         return ActionSelectionResult(
             selected_action=HandlerActionType.OBSERVE,
-            action_parameters={"created_tasks": created_tasks},
-            rationale=f"Active observation completed. Created {len(created_tasks)} tasks.",
+            action_parameters={
+                "channel_id": channel_id,
+                "message_count": len(message_summaries),
+                "observation_summary": observation_summary
+            },
+            rationale=f"Active observation completed. Observed {len(message_summaries)} messages from channel {channel_id}.",
         )
     else:
         logger.error(f"Unknown Discord observation event mode: {mode}")

@@ -97,13 +97,14 @@ class MemorizeHandler(BaseActionHandler):
             )
             try:
                 mem_op_result = await self.dependencies.memory_service.memorize(node)
-                if mem_op_result.status == MemoryOpStatus.SAVED:
+                if mem_op_result.status == MemoryOpStatus.OK:
                     action_performed_successfully = True
                     follow_up_content_key_info = f"Memorization successful. Key: '{params.key}', Value: '{str(params.value)[:50]}...'"
                 else:
-                    self.logger.error(f"Memorization operation status: {mem_op_result.status.name}. Reason: {mem_op_result.reason}. Thought ID: {thought_id}")
-                    final_thought_status = ThoughtStatus.FAILED if mem_op_result.status == MemoryOpStatus.FAILED else ThoughtStatus.DEFERRED
-                    follow_up_content_key_info = f"Memorization status {mem_op_result.status.name}: {mem_op_result.reason}"
+                    status_str = mem_op_result.status.name if hasattr(mem_op_result.status, 'name') else str(mem_op_result.status)
+                    self.logger.error(f"Memorization operation status: {status_str}. Reason: {mem_op_result.reason}. Thought ID: {thought_id}")
+                    final_thought_status = ThoughtStatus.FAILED if mem_op_result.status == MemoryOpStatus.DENIED else ThoughtStatus.DEFERRED
+                    follow_up_content_key_info = f"Memorization status {status_str}: {mem_op_result.reason}"
             except Exception as e_mem:
                 self.logger.exception(f"Error during MEMORIZE operation for thought {thought_id}: {e_mem}")
                 final_thought_status = ThoughtStatus.FAILED

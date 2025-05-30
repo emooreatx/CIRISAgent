@@ -70,13 +70,41 @@ class ThoughtProcessor:
             dma_results=dma_results,
             profile_name=profile_name
         )
+        
+        # CRITICAL DEBUG: Check action_result details immediately
+        if action_result:
+            selected_action = getattr(action_result, 'selected_action', 'UNKNOWN')
+            logger.info(f"ThoughtProcessor: Action selection result for {thought.thought_id}: {selected_action}")
+            
+            # Special debug for OBSERVE actions
+            if selected_action == HandlerActionType.OBSERVE:
+                logger.warning(f"OBSERVE ACTION DEBUG: ThoughtProcessor received OBSERVE action for thought {thought.thought_id}")
+                logger.warning(f"OBSERVE ACTION DEBUG: action_result type: {type(action_result)}")
+                logger.warning(f"OBSERVE ACTION DEBUG: action_result details: {action_result}")
+        else:
+            logger.error(f"ThoughtProcessor: No action result from DMA for {thought.thought_id}")
+            logger.error(f"ThoughtProcessor: action_result is None! This is the critical issue.")
+            # Return early with fallback result
+            return self._create_deferral_result(dma_results, thought)
 
         # 6. Apply guardrails
+        logger.info(f"ThoughtProcessor: Applying guardrails for {thought.thought_id} with action {getattr(action_result, 'selected_action', 'UNKNOWN')}")
         guardrail_result = await self.guardrail_orchestrator.apply_guardrails(
             action_result, thought, dma_results
         )
+        
+        # DEBUG: Log guardrail result details
+        if guardrail_result:
+            if hasattr(guardrail_result, 'final_action') and guardrail_result.final_action:
+                final_action = getattr(guardrail_result.final_action, 'selected_action', 'UNKNOWN')
+                logger.info(f"ThoughtProcessor: Guardrail result for {thought.thought_id}: final_action={final_action}")
+            else:
+                logger.warning(f"ThoughtProcessor: Guardrail result for {thought.thought_id} has no final_action")
+        else:
+            logger.error(f"ThoughtProcessor: No guardrail result for {thought.thought_id}")
 
         # 7. Handle special cases (PONDER, DEFER overrides)
+        logger.info(f"ThoughtProcessor: Handling special cases for {thought.thought_id}")
         final_result = await self._handle_special_cases(
             guardrail_result, thought, context
         )
