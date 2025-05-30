@@ -1,5 +1,5 @@
 import pytest
-from ciris_engine.services.tool_registry import ToolRegistry
+from ciris_engine.adapters import ToolRegistry
 
 def test_register_and_get_tool():
     reg = ToolRegistry()

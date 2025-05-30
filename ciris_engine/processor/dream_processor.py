@@ -7,7 +7,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 
-from ciris_engine.services.cirisnode_client import CIRISNodeClient
+from ciris_engine.adapters import CIRISNodeClient
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile # Added imports
 
 logger = logging.getLogger(__name__)
