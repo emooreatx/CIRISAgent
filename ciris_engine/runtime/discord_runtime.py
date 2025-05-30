@@ -17,13 +17,13 @@ from ciris_engine.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.adapters.discord.discord_tools import register_discord_tools
 from ciris_engine.action_handlers.discord_observe_handler import handle_discord_observe_event
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
-from ciris_engine.services.tool_registry import ToolRegistry
+from ciris_engine.adapters import ToolRegistry
 from ciris_engine.action_handlers.tool_handler import ToolHandler
 
 # Import multi-service sink components
 from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
 from ciris_engine.registries.base import ServiceRegistry, Priority
-from ciris_engine.services.cirisnode_client import CIRISNodeClient
+from ciris_engine.adapters import CIRISNodeClient
 
 logger = logging.getLogger(__name__)
 
