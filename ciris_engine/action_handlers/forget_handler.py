@@ -16,10 +16,10 @@ class ForgetHandler(BaseActionHandler):
         raw_params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="start")
-        params = None
-        if isinstance(raw_params, dict):
+        params = raw_params
+        if not isinstance(params, ForgetParams):
             try:
-                params = ForgetParams(**raw_params)
+                params = ForgetParams(**params) if isinstance(params, dict) else params
             except ValidationError as e:
                 logger.error(f"ForgetHandler: Invalid params dict: {e}")
                 follow_up = create_follow_up_thought(
@@ -27,7 +27,7 @@ class ForgetHandler(BaseActionHandler):
                     content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 )
                 follow_up.context = {
-                    "action_performed": "FORGET",
+                    "action_performed": HandlerActionType.FORGET.name,
                     "parent_task_id": thought.source_task_id,
                     "is_follow_up": True,
                     "error": str(e)
@@ -35,16 +35,14 @@ class ForgetHandler(BaseActionHandler):
                 self.dependencies.persistence.add_thought(follow_up)
                 await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
                 return
-        elif isinstance(raw_params, ForgetParams):
-            params = raw_params
-        else:
+        if not isinstance(params, ForgetParams):
             logger.error(f"ForgetHandler: Invalid params type: {type(raw_params)}")
             follow_up = create_follow_up_thought(
                 parent=thought,
                 content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters type: {type(raw_params)}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
             follow_up.context = {
-                "action_performed": "FORGET",
+                "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "error": f"Invalid params type: {type(raw_params)}"
@@ -59,7 +57,7 @@ class ForgetHandler(BaseActionHandler):
                 content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action was not permitted. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
             follow_up.context = {
-                "action_performed": "FORGET",
+                "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "error": "Permission denied or WA required"
@@ -100,7 +98,7 @@ class ForgetHandler(BaseActionHandler):
             content=follow_up_content,
         )
         follow_up.context = {
-            "action_performed": "FORGET",
+            "action_performed": HandlerActionType.FORGET.name,
             "parent_task_id": thought.source_task_id,
             "is_follow_up": True,
             "forget_key": params.key,
