@@ -162,25 +162,13 @@ class StateManager:
         Check if an automatic state transition should occur.
         Returns the target state if a transition should happen, None otherwise.
         """
-        # Example auto-transition rules
         if self.current_state == AgentState.WAKEUP:
             # After successful wakeup, transition to WORK
             if self.get_state_metadata().get("wakeup_complete", False):
                 return AgentState.WORK
         
-        elif self.current_state == AgentState.WORK:
-            # Transition to DREAM if idle for too long
-            idle_threshold = 300  # 5 minutes
-            last_activity = self.get_state_metadata().get("last_activity_time")
-            if last_activity:
-                idle_time = (datetime.now(timezone.utc) - datetime.fromisoformat(last_activity)).total_seconds()
-                if idle_time > idle_threshold:
-                    return AgentState.DREAM
-        
-        elif self.current_state == AgentState.DREAM:
-            # Exit dream after a certain duration
-            dream_duration = self.get_state_metadata().get("dream_duration", 600)  # Default 10 minutes
-            if self.get_state_duration() > dream_duration:
-                return AgentState.WORK
+        # All other auto-transitions are removed as per the new requirements.
+        # For example, the transition from WORK to DREAM based on idle time,
+        # and from DREAM to WORK based on duration, are no longer automatic.
         
         return None

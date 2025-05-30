@@ -12,7 +12,7 @@ import discord
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.adapters.discord.discord_event_queue import DiscordEventQueue
+from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter, DiscordEventQueue
 from ciris_engine.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.adapters.discord.discord_tools import register_discord_tools
 from ciris_engine.services.discord_deferral_sink import DiscordDeferralSink

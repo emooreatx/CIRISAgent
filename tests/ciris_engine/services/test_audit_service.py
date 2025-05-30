@@ -1,5 +1,6 @@
 import pytest
-from ciris_engine.services.audit_service import AuditService, AuditLogEntry
+from ciris_engine.services.audit_service import AuditService
+from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 import asyncio
 

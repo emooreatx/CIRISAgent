@@ -2,9 +2,13 @@ from typing import Optional, Dict, Any
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.memory.ciris_local_graph import CIRISLocalGraph
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope # Corrected import for GraphScope
 from ciris_engine.utils import GraphQLContextProvider
 from pydantic import BaseModel
 from os import getenv
+import logging
+
+logger = logging.getLogger(__name__) # Initialize logger
 
 class ContextBuilder:
     def __init__(
@@ -95,6 +99,19 @@ class ContextBuilder:
                 "thought_type": thought_type_val,
                 "ponder_count": thought.ponder_count
             }
+
+        # Add channel memory lookup for debugging
+        channel_id = None 
+        if task and hasattr(task, 'context') and task.context and 'channel_id' in task.context:
+            channel_id = task.context['channel_id']
+        elif thought and hasattr(thought, 'context') and thought.context and 'channel_id' in thought.context:
+            channel_id = thought.context['channel_id']
+        
+        if channel_id and self.memory_service:
+            logger.warning(f"DEBUG: Looking up channel {channel_id} in memory")
+            channel_info = await self.memory_service.remember(f"channel/{channel_id}", GraphScope.LOCAL)
+            logger.warning(f"DEBUG: Channel memory result: {channel_info}")
+
         # Recent and top tasks
         recent_tasks_list = []
         if self.memory_service:

@@ -4,6 +4,7 @@ from ciris_engine.processor.main_processor import AgentProcessor
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.states import AgentState
+from ciris_engine.utils.context_utils import build_dispatch_context
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("agent_mode,startup_channel_id,task_channel_id,expected_channel_id,expected_origin_service", [
@@ -15,14 +16,19 @@ from ciris_engine.schemas.states import AgentState
     ("cli", None, "67890", "67890", "CLI"),
 ])
 async def test_build_dispatch_context_modes(agent_mode, startup_channel_id, task_channel_id, expected_channel_id, expected_origin_service):
+    from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+    
     # Minimal AppConfig mock
     app_config = MagicMock()
     app_config.agent_mode = agent_mode
+    # Create active profile
+    active_profile = AgentProfile(name="test_profile")
     # Minimal dispatcher and services
     dispatcher = MagicMock()
     services = {}
     processor = AgentProcessor(
         app_config=app_config,
+        active_profile=active_profile,  # Pass active profile
         thought_processor=MagicMock(),
         action_dispatcher=dispatcher,
         services=services,
@@ -36,8 +42,14 @@ async def test_build_dispatch_context_modes(agent_mode, startup_channel_id, task
     task.context = {}
     if task_channel_id is not None:
         task.context["channel_id"] = task_channel_id
-    # Build context
-    context = processor._build_dispatch_context(thought, task)
+    # Build context using centralized utility
+    context = build_dispatch_context(
+        thought=thought, 
+        task=task, 
+        app_config=app_config, 
+        startup_channel_id=startup_channel_id, 
+        round_number=0
+    )
     assert context["channel_id"] == str(expected_channel_id)
     assert context["origin_service"] == expected_origin_service
     assert context["thought_id"] == "th1"
@@ -46,12 +58,16 @@ async def test_build_dispatch_context_modes(agent_mode, startup_channel_id, task
 
 @pytest.mark.asyncio
 async def test_build_dispatch_context_missing_everything_logs_error(caplog):
+    from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+    
     app_config = MagicMock()
     app_config.agent_mode = "discord"
+    active_profile = AgentProfile(name="test_profile")
     dispatcher = MagicMock()
     services = {}
     processor = AgentProcessor(
         app_config=app_config,
+        active_profile=active_profile,  # Pass active profile
         thought_processor=MagicMock(),
         action_dispatcher=dispatcher,
         services=services,
@@ -63,6 +79,12 @@ async def test_build_dispatch_context_missing_everything_logs_error(caplog):
     task = MagicMock(spec=Task)
     task.context = {}
     with caplog.at_level("ERROR"):
-        context = processor._build_dispatch_context(thought, task)
+        context = build_dispatch_context(
+            thought=thought, 
+            task=task, 
+            app_config=app_config, 
+            startup_channel_id=None, 
+            round_number=0
+        )
     assert context["channel_id"] == "default"
     assert "No channel_id found for thought th2 and no startup_channel_id set" in caplog.text

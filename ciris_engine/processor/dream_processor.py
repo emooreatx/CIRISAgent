@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 
 from ciris_engine.services.cirisnode_client import CIRISNodeClient
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile # Added imports
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +21,14 @@ class DreamProcessor:
     
     def __init__(
         self,
+        app_config: AppConfig, # Added
+        profile: AgentProfile, # Added
         cirisnode_url: str = "http://localhost:8001",
         pulse_interval: float = 60.0,  # Snore pulse interval in seconds
         max_snore_history: int = 5
     ):
+        self.app_config = app_config # Added
+        self.profile = profile # Added
         self.cirisnode_url = cirisnode_url
         self.pulse_interval = pulse_interval
         self.max_snore_history = max_snore_history
@@ -121,10 +126,26 @@ class DreamProcessor:
         self.dream_metrics["total_pulses"] += 1
         pulse_num = self.dream_metrics["total_pulses"]
         
+        agent_id = self.profile.name if self.profile else "unknown_agent"
+        model_id = "unknown_model" # Default fallback
+        if self.app_config and \
+           self.app_config.llm_services and \
+           self.app_config.llm_services.openai and \
+           self.app_config.llm_services.openai.model_name:
+            model_id = self.app_config.llm_services.openai.model_name
+        else:
+            logger.warning("Could not determine model_id from AppConfig llm_services.openai.model_name, using fallback 'unknown_model'")
+
         try:
             # Run benchmarks
-            he300_result = await self.cirisnode_client.run_he300()
-            simplebench_result = await self.cirisnode_client.run_simplebench()
+            he300_result = await self.cirisnode_client.run_he300(
+                model_id=model_id,
+                agent_id=agent_id
+            )
+            simplebench_result = await self.cirisnode_client.run_simplebench(
+                model_id=model_id,
+                agent_id=agent_id
+            )
             
             # Extract results
             topic = he300_result.get('topic', 'Unknown')

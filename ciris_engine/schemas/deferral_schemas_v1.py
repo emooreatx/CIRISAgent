@@ -3,6 +3,9 @@ from typing import Dict, Any, Optional, List, Union
 from datetime import datetime, timezone
 from enum import Enum
 
+# Import shared enums from feedback_schemas_v1
+from .feedback_schemas_v1 import FeedbackType, FeedbackSource, FeedbackDirective
+
 class DeferralReason(str, Enum):
     """Standard deferral reason codes."""
     GUARDRAIL_FAILURE = "guardrail_failure"
@@ -57,43 +60,3 @@ class DeferralReport(BaseModel):
     delivered_at: Optional[str] = None
     response_received: bool = False
     response_at: Optional[str] = None
-
-class FeedbackType(str, Enum):
-    """Types of WA feedback."""
-    IDENTITY_UPDATE = "identity_update"
-    ENVIRONMENT_UPDATE = "environment_update" 
-    MEMORY_CORRECTION = "memory_correction"
-    DECISION_OVERRIDE = "decision_override"
-    POLICY_CLARIFICATION = "policy_clarification"
-    SYSTEM_DIRECTIVE = "system_directive"
-
-class FeedbackSource(str, Enum):
-    """Source of the feedback."""
-    WISE_AUTHORITY = "wise_authority"
-    HUMAN_OPERATOR = "human_operator"
-    SYSTEM_MONITOR = "system_monitor"
-    PEER_AGENT = "peer_agent"
-
-class FeedbackDirective(BaseModel):
-    """Specific directive within feedback."""
-    action: str  # "update", "delete", "add", "override", etc.
-    target: str  # What to act on
-    data: Union[Dict[str, Any], str, List[Any]]
-    reasoning: Optional[str] = None
-
-class WiseAuthorityFeedback(BaseModel):
-    """Structured feedback from WA on deferred decisions."""
-    feedback_id: str
-    
-    # Reference to original deferral
-    original_report_id: Optional[str] = None
-    original_thought_id: Optional[str] = None
-    original_task_id: Optional[str] = None
-    
-    # Feedback content  
-    feedback_type: FeedbackType
-    feedback_source: FeedbackSource
-    directives: List[FeedbackDirective] = Field(default_factory=list)
-    summary: str = ""
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    created_by: str = "wise_authority"

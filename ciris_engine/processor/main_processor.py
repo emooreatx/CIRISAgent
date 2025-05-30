@@ -7,11 +7,12 @@ import logging
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.config_schemas_v1 import AppConfig
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.schemas.states import AgentState
 from ciris_engine import persistence
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus, Task
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
+from ciris_engine.utils.context_utils import build_dispatch_context
 
 from ciris_engine.processor.thought_processor import ThoughtProcessor
 if TYPE_CHECKING:
@@ -37,6 +38,7 @@ class AgentProcessor:
     def __init__(
         self,
         app_config: AppConfig,
+        active_profile: AgentProfile,  # Add active_profile parameter
         thought_processor: ThoughtProcessor,
         action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any],
@@ -44,6 +46,7 @@ class AgentProcessor:
     ):
         """Initialize the agent processor with v1 configuration."""
         self.app_config = app_config
+        self.active_profile = active_profile  # Store active profile
         self.thought_processor = thought_processor
         self._action_dispatcher = action_dispatcher  # Store internally
         self.services = services
@@ -84,6 +87,8 @@ class AgentProcessor:
         )
         
         self.dream_processor = DreamProcessor(
+            app_config=app_config,  # Added
+            profile=self.active_profile,  # Use the active profile directly
             cirisnode_url=app_config.cirisnode.base_url if hasattr(app_config, 'cirisnode') else "http://localhost:8001"
         )
         
@@ -103,29 +108,6 @@ class AgentProcessor:
         self._processing_task: Optional[asyncio.Task] = None
 
         logger.info("AgentProcessor initialized with v1 schemas and modular processors")
-
-    def _build_dispatch_context(self, thought: Thought, task: Optional[Task]):
-        dispatch_context = {
-            "thought_id": thought.thought_id,
-            "source_task_id": thought.source_task_id,
-            "origin_service": "CLI" if self.app_config and getattr(self.app_config, "agent_mode", "").lower() == "cli" else "discord",
-            "round_number": self.current_round_number,
-        }
-        channel_id = None
-        if task and getattr(task, "context", None):
-            for key in ["channel_id", "author_name", "author_id"]:
-                if key in task.context:
-                    dispatch_context[key] = task.context[key]
-            channel_id = task.context.get("channel_id")
-        if not channel_id:
-            channel_id = self.startup_channel_id
-            if not channel_id:
-                logger.error(
-                    f"No channel_id found for thought {thought.thought_id} and no startup_channel_id set. This may cause downstream errors."
-                )
-                channel_id = "CLI" if dispatch_context["origin_service"] == "CLI" else "default"
-        dispatch_context["channel_id"] = str(channel_id)
-        return dispatch_context
 
     @property
     def action_dispatcher(self) -> "ActionDispatcher":
@@ -301,7 +283,13 @@ class AgentProcessor:
             if result:
                 # Get the task for context
                 task = persistence.get_task_by_id(thought.source_task_id)
-                dispatch_context = self._build_dispatch_context(thought, task)
+                dispatch_context = build_dispatch_context(
+                    thought=thought, 
+                    task=task, 
+                    app_config=self.app_config, 
+                    startup_channel_id=self.startup_channel_id, 
+                    round_number=self.current_round_number
+                )
                 if hasattr(self, "discord_service"):
                     dispatch_context["discord_service"] = self.discord_service
                 

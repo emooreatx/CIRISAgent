@@ -46,10 +46,14 @@ async def test_work_processor_injects_discord_service(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agent_processor_injects_discord_service(monkeypatch):
+    from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+    
     app_config = AppConfig()
+    active_profile = AgentProfile(name="test_profile")  # Create active profile
     dispatcher = AsyncMock()
     processor = AgentProcessor(
         app_config=app_config,
+        active_profile=active_profile,  # Pass active profile
         thought_processor=AsyncMock(),
         action_dispatcher=dispatcher,
         services={},

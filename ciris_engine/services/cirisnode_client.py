@@ -1,12 +1,15 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import httpx
 
-from ciris_engine.services.audit_service import AuditService
+from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry  # Use schema version
 from ciris_engine.config.config_manager import get_config
 from ciris_engine.schemas.config_schemas_v1 import CIRISNodeConfig
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+
+if TYPE_CHECKING:
+    from ciris_engine.services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +17,7 @@ logger = logging.getLogger(__name__)
 class CIRISNodeClient:
     """Asynchronous client for interacting with CIRISNode."""
 
-    def __init__(self, audit_service: AuditService, base_url: Optional[str] = None) -> None:
+    def __init__(self, audit_service: "AuditService", base_url: Optional[str] = None) -> None:
         self.audit_service = audit_service
         config = get_config()
         node_cfg: CIRISNodeConfig = getattr(config, "cirisnode", CIRISNodeConfig())
@@ -151,3 +154,7 @@ class CIRISNodeClient:
             },
         )
         return result
+
+    async def close(self) -> None:
+        """Close the HTTP client."""
+        await self._client.aclose()

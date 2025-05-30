@@ -61,16 +61,6 @@ def count_active_tasks():
     return count_tasks(TaskStatus.ACTIVE)
 
 
-def get_pending_tasks_for_activation(limit=None):
-    """Get pending tasks ordered by priority for activation."""
-    all_pending = get_tasks_by_status(TaskStatus.PENDING)
-    # Sort by priority (descending) and created_at (ascending)
-    sorted_tasks = sorted(all_pending, key=lambda t: (-t.priority, t.created_at))
-    if limit:
-        return sorted_tasks[:limit]
-    return sorted_tasks
-
-
 def get_tasks_needing_seed_thought(limit=None):
     """Get active tasks that don't have any thoughts yet."""
     active_tasks = get_tasks_by_status(TaskStatus.ACTIVE)
@@ -84,13 +74,6 @@ def get_tasks_needing_seed_thought(limit=None):
     if limit:
         return tasks_needing_seed[:limit]
     return tasks_needing_seed
-
-
-def delete_tasks_by_ids(task_ids):
-    """Delete tasks by their IDs. Returns count of deleted tasks."""
-    # This would need to be implemented in tasks.py
-    # For now, return 0 as a placeholder
-    return 0
 
 
 def pending_thoughts():
@@ -108,17 +91,4 @@ def count_thoughts_by_status(status):
     """Count thoughts with the given status. Accepts a TaskStatus enum value."""
     thoughts = get_thoughts_by_status(status)
     return len(thoughts)
-
-
-def get_tasks_by_parent_id(parent_task_id, db_path=None):
-    """
-    Return a list of Task objects whose parent_task_id matches the given value.
-    """
-    # If you have a DB, replace this with a query. For now, use get_all_tasks if available.
-    try:
-        all_tasks = get_all_tasks(db_path=db_path)
-    except Exception:
-        # Fallback: if get_all_tasks is not available, raise a clear error
-        raise NotImplementedError("get_all_tasks is required for get_tasks_by_parent_id")
-    return [t for t in all_tasks if getattr(t, 'parent_task_id', None) == parent_task_id]
 
