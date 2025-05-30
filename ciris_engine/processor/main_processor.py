@@ -89,6 +89,7 @@ class AgentProcessor:
         self.dream_processor = DreamProcessor(
             app_config=app_config,  # Added
             profile=self.active_profile,  # Use the active profile directly
+            service_registry=services.get("service_registry"),  # Pass service registry
             cirisnode_url=app_config.cirisnode.base_url if hasattr(app_config, 'cirisnode') else "https://localhost:8001"
         )
         

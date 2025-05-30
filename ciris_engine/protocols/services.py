@@ -4,6 +4,7 @@ These protocols define clear contracts for different types of services.
 """
 from typing import Protocol, Optional, Dict, Any, List
 from abc import abstractmethod
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 class CommunicationService(Protocol):
     """Protocol for communication services (Discord, Veilid, etc)"""
@@ -225,12 +226,12 @@ class AuditService(Protocol):
     """Protocol for audit and logging services"""
     
     @abstractmethod
-    async def log_action(self, action_type: str, context: Dict[str, Any], outcome: Optional[str] = None) -> bool:
+    async def log_action(self, action_type: HandlerActionType, context: Dict[str, Any], outcome: Optional[str] = None) -> bool:
         """
         Log an action for audit purposes.
         
         Args:
-            action_type: Type of action being logged
+            action_type: Type of action being logged (HandlerActionType enum)
             context: Context information
             outcome: Optional outcome description
             
