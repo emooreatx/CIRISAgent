@@ -37,9 +37,10 @@ async def test_speak_handler_creates_followup(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_recall_handler_creates_followup():
-    deps = MagicMock()
-    deps.memory_service = AsyncMock()
-    deps.memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
+    memory_service = AsyncMock()
+    memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
+    deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(return_value=memory_service)
     deps.persistence = MagicMock()
     deps.audit_service = MagicMock()
     deps.audit_service.log_action = AsyncMock()
@@ -57,9 +58,10 @@ async def test_recall_handler_creates_followup():
 
 @pytest.mark.asyncio
 async def test_forget_handler_creates_followup():
-    deps = MagicMock()
-    deps.memory_service = AsyncMock()
-    deps.memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
+    memory_service = AsyncMock()
+    memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
+    deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(return_value=memory_service)
     deps.persistence = MagicMock()
     deps.audit_service = MagicMock()
     deps.audit_service.log_action = AsyncMock()
@@ -79,9 +81,10 @@ async def test_forget_handler_creates_followup():
 def test_memorize_handler_creates_followup(monkeypatch):
     add_thought_mock = MagicMock()
     monkeypatch.setattr('ciris_engine.action_handlers.memorize_handler.persistence.add_thought', add_thought_mock)
-    deps = MagicMock()
-    deps.memory_service = AsyncMock()
-    deps.memory_service.memorize = AsyncMock(return_value=MagicMock(status="SAVED"))
+    memory_service = AsyncMock()
+    memory_service.memorize = AsyncMock(return_value=MagicMock(status="SAVED"))
+    deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(return_value=memory_service)
     deps.persistence = MagicMock()
     deps.persistence.add_thought = add_thought_mock
     deps.audit_service = MagicMock()

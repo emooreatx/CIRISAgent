@@ -1,13 +1,13 @@
 """Adapter implementations for CIRIS Agent."""
-from .local_audit_log import LocalAuditLog
-from .local_event_log import LocalEventLog
+from .local_audit_log import AuditService
+from .local_event_log import EventLogService
 from .openai_compatible_llm import OpenAICompatibleLLM, OpenAICompatibleClient
 from .tool_registry import ToolRegistry
 from .cirisnode_client import CIRISNodeClient
 
 __all__ = [
-    "LocalAuditLog",
-    "LocalEventLog",
+    "AuditService",
+    "EventLogService",
     "OpenAICompatibleLLM",
     "OpenAICompatibleClient",
     "ToolRegistry",
