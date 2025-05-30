@@ -380,8 +380,8 @@ class AgentProcessor:
                     
                     # Check for state transition recommendations
                     if current_state == AgentState.WORK:
-                        if self.work_processor.should_transition_to_dream():
-                            await self._handle_state_transition(AgentState.DREAM)
+                        # Dream mode disabled - no automatic transition to DREAM state
+                        pass
                     
                     elif current_state == AgentState.SOLITUDE and processor == self.solitude_processor:
                         if result.get("should_exit_solitude"):
