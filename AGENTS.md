@@ -10,6 +10,12 @@
   memory, and other services. See `registries/README.md` for details on the
   registry and fallback behavior.
 
+- Action handlers must follow the standard BaseActionHandler pattern. Each handler defines `action_type` and implements `handle(thought, params, dispatch_context) -> bool`.
+- Replace any direct service usage (e.g. discord_service.send_message) with registry lookups like `get_communication_service()`.
+
+- Validate handler parameters using Pydantic models. If `params` is a dict, cast it to the proper `*Params` model before using it.
+- Do not compare action names with string literals. Use the `HandlerActionType` enums instead.
+
 - Configure logging using `ciris_engine.utils.logging_config.setup_basic_logging`
   and access the application configuration with
   `ciris_engine.config.config_manager.get_config()`.

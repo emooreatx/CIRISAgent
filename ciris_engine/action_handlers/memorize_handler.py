@@ -35,10 +35,10 @@ class MemorizeHandler(BaseActionHandler):
 
         # Handle both dict and MemorizeParams
         from pydantic import ValidationError
-        params = None
-        if isinstance(raw_params, dict):
+        params = raw_params
+        if not isinstance(params, MemorizeParams):
             try:
-                params = MemorizeParams(**raw_params)
+                params = MemorizeParams(**params) if isinstance(params, dict) else params
             except ValidationError as e:
                 # Try to map old format to new
                 if "knowledge_unit_description" in raw_params:
@@ -60,9 +60,7 @@ class MemorizeHandler(BaseActionHandler):
                         final_action=result_data,  # v1 field
                     )
                     return
-        elif isinstance(raw_params, MemorizeParams):
-            params = raw_params
-        else:
+        if not isinstance(params, MemorizeParams):
             logger.error(f"Invalid params type: {type(raw_params)}")
             final_thought_status = ThoughtStatus.FAILED
             follow_up_content_key_info = f"MEMORIZE action failed: Invalid parameters type ({type(raw_params)}) for thought {thought_id}."
