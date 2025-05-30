@@ -29,10 +29,14 @@ class ObserveHandler(BaseActionHandler):
         action_performed_successfully = False
         follow_up_content_key_info = f"OBSERVE action for thought {thought_id}"
 
+        # DEBUG: Log the incoming parameters
+        logger.warning(f"OBSERVE HANDLER DEBUG: thought_id={thought_id}, params type={type(params)}, params={params}")
+
         # Always use schema internally
         if isinstance(params, dict):
             try:
                 params = ObserveParams(**params)
+                logger.warning(f"OBSERVE HANDLER DEBUG: Created ObserveParams from dict: {params}")
             except ValidationError as e:
                 self.logger.error(f"OBSERVE action params dict could not be parsed: {e}. Thought ID: {thought_id}")
                 final_thought_status = ThoughtStatus.FAILED
@@ -53,6 +57,10 @@ class ObserveHandler(BaseActionHandler):
                 final_action=result.model_dump() if hasattr(result, 'model_dump') else result,
             )
             raise FollowUpCreationError(f"OBSERVE action failed: Invalid parameters type ({type(params)}) for thought {thought_id}.")
+        
+        # DEBUG: Log the processed parameters
+        logger.warning(f"OBSERVE HANDLER DEBUG: processed params: active={params.active}, channel_id={params.channel_id}")
+        
         if params.active:  # v1 uses 'active'
             # Use the Discord observe handler in active mode
             try:
@@ -138,19 +146,21 @@ class ObserveHandler(BaseActionHandler):
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after OBSERVE attempt.")
 
-        # Create a follow-up thought ONLY if it's not an active look that successfully created its own result thought.
-        # Or if any OBSERVE action failed.
+        # ALWAYS create a follow-up thought for OBSERVE actions
+        # This ensures the DMA can see the results and continue reasoning
         should_create_standard_follow_up = True
-        if params and params.active and action_performed_successfully:  # v1 uses 'active'
-            should_create_standard_follow_up = False  # Active look created its own specific follow-up
+        
+        # DEBUG: Log the decision logic
+        logger.warning(f"OBSERVE HANDLER DEBUG: Follow-up decision logic - params={params}, params.active={params.active if params else 'None'}, action_performed_successfully={action_performed_successfully}")
+        logger.warning(f"OBSERVE HANDLER DEBUG: Always creating follow-up for OBSERVE actions")
 
-        if final_thought_status == ThoughtStatus.FAILED:  # Always create follow-up for failures
-            should_create_standard_follow_up = True
+        logger.warning(f"OBSERVE HANDLER DEBUG: should_create_standard_follow_up={should_create_standard_follow_up}")
 
         if should_create_standard_follow_up:
             follow_up_text = ""
-            if action_performed_successfully:  # This implies passive observe success
-                follow_up_text = f"OBSERVE action ({'passive' if params else 'unknown type'}) for thought {thought_id} completed. Info: {follow_up_content_key_info}. Review if this completes the task or if further steps are needed."
+            if action_performed_successfully:
+                observation_type = "active" if (params and params.active) else "passive"
+                follow_up_text = f"OBSERVE action ({observation_type}) for thought {thought_id} completed. Info: {follow_up_content_key_info}. Review if this completes the task or if further steps are needed."
             else:  # Failed
                 follow_up_text = f"OBSERVE action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. Review and determine next steps."
 
