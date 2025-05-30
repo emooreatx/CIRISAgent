@@ -81,11 +81,16 @@ class ThoughtProcessor:
             guardrail_result, thought, context
         )
 
-        # 8. Ensure we return the final result, especially for TASK_COMPLETE actions
+        # 8. Ensure we return the final result
         if final_result:
             logger.debug(f"ThoughtProcessor returning result for thought {thought.thought_id}: {final_result.selected_action}")
         else:
-            logger.warning(f"ThoughtProcessor: No final result for thought {thought.thought_id}")
+            # If no final result, check if we got a guardrail result we can use
+            if hasattr(guardrail_result, 'final_action') and guardrail_result.final_action:
+                final_result = guardrail_result.final_action
+                logger.debug(f"ThoughtProcessor using guardrail final_action for thought {thought.thought_id}")
+            else:
+                logger.warning(f"ThoughtProcessor: No final result for thought {thought.thought_id}")
 
         return final_result
 
