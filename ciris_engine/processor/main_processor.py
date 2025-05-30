@@ -7,7 +7,7 @@ import logging
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.config_schemas_v1 import AppConfig
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.schemas.states import AgentState
 from ciris_engine import persistence
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus, Task
@@ -38,6 +38,7 @@ class AgentProcessor:
     def __init__(
         self,
         app_config: AppConfig,
+        active_profile: AgentProfile,  # Add active_profile parameter
         thought_processor: ThoughtProcessor,
         action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any],
@@ -45,6 +46,7 @@ class AgentProcessor:
     ):
         """Initialize the agent processor with v1 configuration."""
         self.app_config = app_config
+        self.active_profile = active_profile  # Store active profile
         self.thought_processor = thought_processor
         self._action_dispatcher = action_dispatcher  # Store internally
         self.services = services
@@ -85,6 +87,8 @@ class AgentProcessor:
         )
         
         self.dream_processor = DreamProcessor(
+            app_config=app_config,  # Added
+            profile=self.active_profile,  # Use the active profile directly
             cirisnode_url=app_config.cirisnode.base_url if hasattr(app_config, 'cirisnode') else "http://localhost:8001"
         )
         

@@ -61,6 +61,10 @@ class ObserveHandler(BaseActionHandler):
         # DEBUG: Log the processed parameters
         logger.warning(f"OBSERVE HANDLER DEBUG: processed params: active={params.active}, channel_id={params.channel_id}")
         
+        logger.warning(f"OBSERVE HANDLER DEBUG: Processing {params.active} observation")
+        logger.warning(f"OBSERVE HANDLER DEBUG: Channel ID: {params.channel_id}")
+        logger.warning(f"OBSERVE HANDLER DEBUG: Memory service available: {self.dependencies.memory_service is not None}")
+
         if params.active:  # v1 uses 'active'
             # Use the Discord observe handler in active mode
             try:

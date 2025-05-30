@@ -16,14 +16,19 @@ from ciris_engine.utils.context_utils import build_dispatch_context
     ("cli", None, "67890", "67890", "CLI"),
 ])
 async def test_build_dispatch_context_modes(agent_mode, startup_channel_id, task_channel_id, expected_channel_id, expected_origin_service):
+    from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+    
     # Minimal AppConfig mock
     app_config = MagicMock()
     app_config.agent_mode = agent_mode
+    # Create active profile
+    active_profile = AgentProfile(name="test_profile")
     # Minimal dispatcher and services
     dispatcher = MagicMock()
     services = {}
     processor = AgentProcessor(
         app_config=app_config,
+        active_profile=active_profile,  # Pass active profile
         thought_processor=MagicMock(),
         action_dispatcher=dispatcher,
         services=services,
@@ -53,12 +58,16 @@ async def test_build_dispatch_context_modes(agent_mode, startup_channel_id, task
 
 @pytest.mark.asyncio
 async def test_build_dispatch_context_missing_everything_logs_error(caplog):
+    from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+    
     app_config = MagicMock()
     app_config.agent_mode = "discord"
+    active_profile = AgentProfile(name="test_profile")
     dispatcher = MagicMock()
     services = {}
     processor = AgentProcessor(
         app_config=app_config,
+        active_profile=active_profile,  # Pass active profile
         thought_processor=MagicMock(),
         action_dispatcher=dispatcher,
         services=services,
