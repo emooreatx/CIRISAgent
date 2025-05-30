@@ -3,7 +3,9 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope # Corrected import for GraphScope
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus  # Add TaskStatus import
 from ciris_engine.utils import GraphQLContextProvider
+from ciris_engine import persistence  # Import persistence for proper task/thought access
 from pydantic import BaseModel
 from os import getenv
 import logging
@@ -114,33 +116,31 @@ class ContextBuilder:
 
         # Recent and top tasks
         recent_tasks_list = []
-        if self.memory_service:
-            db_recent_tasks = self.memory_service.get_recent_completed_tasks(10)
-        else:
-            db_recent_tasks = []
+        # Use persistence layer directly for task data, not memory service
+        db_recent_tasks = persistence.get_recent_completed_tasks(10)
         for t_obj in db_recent_tasks:
             if isinstance(t_obj, BaseModel):
                 recent_tasks_list.append(t_obj.model_dump(mode='json', exclude_none=True))
             else:
                 recent_tasks_list.append(t_obj)
+        
         top_tasks_list = []
-        if self.memory_service:
-            db_top_tasks = self.memory_service.get_top_tasks(10)
-        else:
-            db_top_tasks = []
+        # Use persistence layer directly for task data, not memory service
+        db_top_tasks = persistence.get_top_tasks(10)
         for t_obj in db_top_tasks:
             if isinstance(t_obj, BaseModel):
                 top_tasks_list.append({"task_id": t_obj.task_id, "description": t_obj.description, "priority": t_obj.priority})
             else:
                 top_tasks_list.append(t_obj)
+        
         context = {
             "current_task_details": task.model_dump(mode='json', exclude_none=True) if task and isinstance(task, BaseModel) else None,
             "current_thought_summary": thought_summary,
             "system_counts": {
-                "total_tasks": self.memory_service.count_tasks() if self.memory_service else 0,
-                "total_thoughts": self.memory_service.count_thoughts() if self.memory_service else 0, # This now correctly counts PENDING + PROCESSING
-                "pending_tasks": self.memory_service.count_tasks("pending") if self.memory_service else 0,
-                "pending_thoughts": self.memory_service.count_thoughts() if self.memory_service else 0, # Corrected: count_thoughts takes no args
+                "total_tasks": persistence.count_tasks(),
+                "total_thoughts": persistence.count_thoughts(),  # Count of PENDING + PROCESSING thoughts
+                "pending_tasks": persistence.count_tasks(TaskStatus.PENDING),  # Use proper TaskStatus enum
+                "pending_thoughts": persistence.count_thoughts(),  # Already counts PENDING + PROCESSING
             },
             "top_pending_tasks_summary": top_tasks_list,
             "recently_completed_tasks_summary": recent_tasks_list
