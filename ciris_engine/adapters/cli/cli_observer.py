@@ -22,6 +22,7 @@ class CLIObserver:
         self.deferral_sink = deferral_sink
         self._poll_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
+        self._history: list[IncomingMessage] = []
 
     async def start(self):
         self._poll_task = asyncio.create_task(self._poll_events())
@@ -45,6 +46,7 @@ class CLIObserver:
         if not isinstance(msg, IncomingMessage):
             logger.warning("CLIObserver received non-IncomingMessage")
             return
+        self._history.append(msg)
         payload: Dict[str, Any] = {
             "type": "OBSERVATION",
             "message_id": msg.message_id,
@@ -59,3 +61,16 @@ class CLIObserver:
         }
         if self.on_observe:
             await self.on_observe(payload)
+
+    async def get_recent_messages(self, limit: int = 20) -> list[Dict[str, Any]]:
+        """Return recent CLI messages for active observation."""
+        msgs = self._history[-limit:]
+        return [
+            {
+                "id": m.message_id,
+                "content": m.content,
+                "author_id": m.author_id,
+                "timestamp": "n/a",
+            }
+            for m in msgs
+        ]
