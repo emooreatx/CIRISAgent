@@ -3,11 +3,11 @@ from abc import ABC
 from typing import Dict, Any, Optional, List
 
 import instructor # For instructor.Mode
-from openai import AsyncOpenAI # For type hinting raw client
 
 # Corrected imports based on project structure
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import DSDMAResult
+from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.formatters import (
     format_user_profiles, 
     format_system_snapshot,
@@ -38,8 +38,8 @@ class BaseDSDMA(ABC):
 
     def __init__(self,
                  domain_name: str,
-                 aclient: AsyncOpenAI, # Expect raw AsyncOpenAI client
-                 model_name: Optional[str] = None, # Allow override, else use config
+                 service_registry: ServiceRegistry,
+                 model_name: Optional[str] = None,
                  domain_specific_knowledge: Optional[Dict[str, Any]] = None,
                  prompt_template: Optional[str] = None):
         
@@ -53,7 +53,7 @@ class BaseDSDMA(ABC):
             logger.warning(f"Invalid instructor_mode '{app_config.llm_services.openai.instructor_mode}' in config for DSDMA {domain_name}. Defaulting to JSON.")
             self.instructor_mode = instructor.Mode.JSON
 
-        self.aclient: instructor.Instructor = instructor.patch(aclient, mode=self.instructor_mode)
+        self.service_registry = service_registry
         
         self.domain_name = domain_name
         self.domain_specific_knowledge = domain_specific_knowledge if domain_specific_knowledge else {}
@@ -70,6 +70,17 @@ class BaseDSDMA(ABC):
         reasoning: str
 
     async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Dict[str, Any]) -> DSDMAResult:
+        llm_service = None
+        if self.service_registry:
+            llm_service = await self.service_registry.get_service(
+                handler=self.__class__.__name__,
+                service_type="llm"
+            )
+        if not llm_service:
+            raise RuntimeError("LLM service unavailable for DSDMA evaluation")
+
+        aclient = instructor.patch(llm_service.get_client().client, mode=self.instructor_mode)
+
         thought_content_str = ""
         if isinstance(thought_item.content, dict):
             thought_content_str = thought_item.content.get("text", thought_item.content.get("description", str(thought_item.content)))
@@ -160,7 +171,7 @@ class BaseDSDMA(ABC):
         ]
 
         try:
-            llm_eval_data: BaseDSDMA.LLMOutputForDSDMA = await self.aclient.chat.completions.create(
+            llm_eval_data: BaseDSDMA.LLMOutputForDSDMA = await aclient.chat.completions.create(
                 model=self.model_name,
                 response_model=BaseDSDMA.LLMOutputForDSDMA,
                 messages=messages,

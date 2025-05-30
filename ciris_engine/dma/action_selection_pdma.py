@@ -2,7 +2,6 @@ from typing import Dict, Any, Optional, List, Union
 import logging
 
 import instructor
-from openai import AsyncOpenAI
 
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import (
@@ -27,6 +26,7 @@ from ciris_engine.schemas.action_params_v1 import (
 from ciris_engine.schemas.action_params_v1 import ToolParams
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, CIRISSchemaVersion
 from ciris_engine.schemas.config_schemas_v1 import DEFAULT_OPENAI_MODEL_NAME
+from ciris_engine.registries.base import ServiceRegistry
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
 from ciris_engine.formatters import (
@@ -173,12 +173,12 @@ class ActionSelectionPDMAEvaluator:
 
     def __init__(
         self,
-        aclient: AsyncOpenAI,  # Expect raw AsyncOpenAI client
+        service_registry: ServiceRegistry,
         model_name: str = DEFAULT_OPENAI_MODEL_NAME,
-        max_retries: int = 2,  # Default to a sensible number of retries
+        max_retries: int = 2,
         prompt_overrides: Optional[Dict[str, str]] = None,
-        *,  # Enforce instructor_mode as keyword-only
-        instructor_mode: instructor.Mode = instructor.Mode.JSON
+        *,
+        instructor_mode: instructor.Mode = instructor.Mode.JSON,
     ):
         """
         Initialize ActionSelectionPDMAEvaluator.
@@ -189,8 +189,7 @@ class ActionSelectionPDMAEvaluator:
             prompt_overrides: Optional prompt overrides dict.
             instructor_mode: instructor.Mode (must be passed as keyword argument).
         """
-        # Patch the client with instructor and the specified mode
-        self.aclient: instructor.Instructor = instructor.patch(aclient, mode=instructor_mode)
+        self.service_registry = service_registry
         self.model_name = model_name
         self.max_retries = max_retries  # Store max_retries
         self.prompt = {**self.DEFAULT_PROMPT, **(prompt_overrides or {})}
@@ -423,6 +422,17 @@ Adhere strictly to the schema for your JSON output.
         original_thought: Thought = triaged_inputs['original_thought'] # For logging & post-processing
         processing_context_data = triaged_inputs.get('processing_context') # Define this at the start of the method
 
+        llm_service = None
+        if self.service_registry:
+            llm_service = await self.service_registry.get_service(
+                handler=self.__class__.__name__,
+                service_type="llm"
+            )
+        if not llm_service:
+            raise RuntimeError("LLM service unavailable for ActionSelectionPDMA")
+
+        aclient = instructor.patch(llm_service.get_client().client, mode=self.instructor_mode)
+
         # --- Special case for forcing PONDER ---
         # Check the original message content from the task context stored in the processing_context
         original_message_content = None
@@ -481,7 +491,7 @@ Adhere strictly to the schema for your JSON output.
 
         try:
             # Use ActionSelectionResult as the response model for the instructor call
-            llm_response_internal: ActionSelectionResult = await self.aclient.chat.completions.create(
+            llm_response_internal: ActionSelectionResult = await aclient.chat.completions.create(
                 model=self.model_name,
                 response_model=ActionSelectionResult,  # Use schema directly
                 messages=messages,
