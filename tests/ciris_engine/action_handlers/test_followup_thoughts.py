@@ -48,7 +48,7 @@ async def test_recall_handler_creates_followup():
     thought = Thought(thought_id="t2", source_task_id="parent2", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
     params = RecallParams(query="q", scope="identity")
     result = ActionSelectionResult(selected_action=HandlerActionType.RECALL, action_parameters=params, rationale="r")
-    await handler.handle(result, thought, {})
+    await handler.handle(result, thought, {"wa_authorized": True})
     follow_up = deps.persistence.add_thought.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
     assert follow_up.context["action_performed"] == "RECALL" or "RECALL" in follow_up.content
@@ -69,7 +69,7 @@ async def test_forget_handler_creates_followup():
     thought = Thought(thought_id="t3", source_task_id="parent3", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
     params = ForgetParams(key="k", scope="identity", reason="r")
     result = ActionSelectionResult(selected_action=HandlerActionType.FORGET, action_parameters=params, rationale="r")
-    await handler.handle(result, thought, {})
+    await handler.handle(result, thought, {"wa_authorized": True})
     follow_up = deps.persistence.add_thought.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
     assert follow_up.context["action_performed"] == "FORGET"
@@ -93,7 +93,7 @@ def test_memorize_handler_creates_followup(monkeypatch):
     thought = Thought(thought_id="t4", source_task_id="parent4", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
     params = MemorizeParams(key="k", value="v", scope="identity")
     result = ActionSelectionResult(selected_action=HandlerActionType.MEMORIZE, action_parameters=params, rationale="r")
-    import asyncio; asyncio.run(handler.handle(result, thought, {}))
+    import asyncio; asyncio.run(handler.handle(result, thought, {"wa_authorized": True}))
     follow_up = add_thought_mock.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
     # Only require that follow_up.content is a non-empty string
