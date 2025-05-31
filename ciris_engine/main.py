@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from .utils.logging_config import setup_basic_logging
 from .config.config_manager import load_config_from_file_async, AppConfig
