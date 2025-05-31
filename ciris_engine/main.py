@@ -1,0 +1,78 @@
+import asyncio
+import contextlib
+import logging
+import os
+import signal
+from pathlib import Path
+from typing import Optional
+
+import click
+
+from .utils.logging_config import setup_basic_logging
+from .config.config_manager import load_config_from_file_async, AppConfig
+from .runtime.ciris_runtime import CIRISRuntime
+from .runtime.discord_runtime import DiscordRuntime
+from .adapters.cli.cli_runtime import CLIRuntime
+from .runtime.api_runtime import APIRuntime
+
+
+def create_runtime(mode: str, profile: str, config: AppConfig) -> CIRISRuntime:
+    """Factory to create a runtime based on the mode."""
+    if mode == "discord":
+        token = os.getenv("DISCORD_BOT_TOKEN")
+        if not token:
+            raise RuntimeError("DISCORD_BOT_TOKEN must be set for Discord mode")
+        return DiscordRuntime(
+            token=token,
+            profile_name=profile,
+            startup_channel_id=config.discord_channel_id,
+        )
+    if mode == "cli":
+        return CLIRuntime(profile_name=profile)
+    if mode == "api":
+        return APIRuntime(profile_name=profile)
+    raise ValueError(f"Unsupported mode: {mode}")
+
+
+async def run_with_shutdown_handler(runtime: CIRISRuntime) -> None:
+    """Run the runtime and handle shutdown signals gracefully."""
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+
+    def _stop() -> None:
+        stop_event.set()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, _stop)
+        except NotImplementedError:
+            pass
+
+    run_task = asyncio.create_task(runtime.run())
+    await stop_event.wait()
+    run_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await run_task
+
+
+async def load_config(config_path: Optional[str]) -> AppConfig:
+    """Load application configuration from a path."""
+    return await load_config_from_file_async(Path(config_path) if config_path else None)
+
+
+@click.command()
+@click.option("--mode", type=click.Choice(["discord", "cli", "api"]), default="discord")
+@click.option("--profile", default="default")
+@click.option("--config", type=click.Path(exists=True))
+@click.option("--debug/--no-debug", default=False)
+async def main(mode: str, profile: str, config: Optional[str], debug: bool) -> None:
+    """Unified CIRIS Engine entry point."""
+    setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
+    app_config = await load_config(config)
+    runtime = create_runtime(mode, profile, app_config)
+    await run_with_shutdown_handler(runtime)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+

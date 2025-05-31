@@ -4,6 +4,7 @@ import logging
 import instructor
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.registries.base import ServiceRegistry
+from .base_dma import BaseDMA
 from ciris_engine.schemas.dma_results_v1 import CSDMAResult
 from ciris_engine.config.config_manager import get_config
 from ciris_engine.formatters import (
@@ -37,33 +38,44 @@ Your response MUST be a single JSON object adhering to the provided schema, with
 
 """
 
-class CSDMAEvaluator:
+class CSDMAEvaluator(BaseDMA):
     """
     Evaluates a thought for common-sense plausibility using an LLM
     and returns a structured CSDMAResult using the 'instructor' library.
     """
 
-    def __init__(self,
-                 service_registry: ServiceRegistry,
-                 model_name: Optional[str] = None,
-                 max_retries: int = 2,
-                 environmental_kg: Any = None,
-                 task_specific_kg: Any = None,
-                 prompt_overrides: Optional[Dict[str, str]] = None):
+    def __init__(
+        self,
+        service_registry: ServiceRegistry,
+        model_name: Optional[str] = None,
+        max_retries: int = 2,
+        environmental_kg: Any = None,
+        task_specific_kg: Any = None,
+        prompt_overrides: Optional[Dict[str, str]] = None,
+    ) -> None:
 
         app_config = get_config()
-        self.service_registry = service_registry
-        self.model_name = model_name or app_config.llm_services.openai.model_name
-        self.max_retries = max_retries
-        self.prompt_overrides = prompt_overrides or {}
-        
+        resolved_model = model_name or app_config.llm_services.openai.model_name
+
         try:
             configured_mode_str = app_config.llm_services.openai.instructor_mode.upper()
-            self.instructor_mode = instructor.Mode[configured_mode_str]
+            instructor_mode = instructor.Mode[configured_mode_str]
         except KeyError:
-             logger.warning(f"Invalid instructor_mode '{app_config.llm_services.openai.instructor_mode}' in config. Defaulting to JSON.")
-             self.instructor_mode = instructor.Mode.JSON
+            logger.warning(
+                f"Invalid instructor_mode '{app_config.llm_services.openai.instructor_mode}' in config. Defaulting to JSON."
+            )
+            instructor_mode = instructor.Mode.JSON
+
+        super().__init__(
+            service_registry=service_registry,
+            model_name=resolved_model,
+            max_retries=max_retries,
+            instructor_mode=instructor_mode,
+        )
+
+        self.prompt_overrides = prompt_overrides or {}
         
+
         # Client will be retrieved from the service registry during evaluation
 
         self.env_kg = environmental_kg # Placeholder for now
@@ -111,12 +123,7 @@ class CSDMAEvaluator:
 
     # Updated signature to use ProcessingQueueItem
     async def evaluate_thought(self, thought_item: ProcessingQueueItem) -> CSDMAResult:
-        llm_service = None
-        if self.service_registry:
-            llm_service = await self.service_registry.get_service(
-                handler=self.__class__.__name__,
-                service_type="llm"
-            )
+        llm_service = await self.get_llm_service()
         if not llm_service:
             raise RuntimeError("LLM service unavailable for CSDMA evaluation")
 
@@ -210,6 +217,10 @@ class CSDMAEvaluator:
                 reasoning=f"Failed CSDMA evaluation via instructor: {str(e)}",
                 raw_llm_response=f"Exception: {str(e)}"
             )
+
+    async def evaluate(self, thought_item: ProcessingQueueItem) -> CSDMAResult:
+        """Alias for evaluate_thought to satisfy BaseDMA."""
+        return await self.evaluate_thought(thought_item)
 
     def __repr__(self) -> str:
         return f"<CSDMAEvaluator model='{self.model_name}' (using instructor)>"

@@ -50,7 +50,8 @@ The repository root contains the following notable directories and scripts:
 * `tests/` – unit and integration tests for the engine.
 * `docker/` – container build scripts and Dockerfiles.
 * `legacy/` – archived utilities and documents.
-* `run_*.py` – example launch scripts for CLI and Discord agents.
+* `ciris_engine/main.py` – unified entry point for running the agent in CLI,
+  Discord, or API modes.
 
 ## Guardrails Summary
 
@@ -166,50 +167,13 @@ export DISCORD_BOT_TOKEN="your_discord_bot_token_here"
 
 ## Running Agents
 
-This repository includes example scripts to run agents with pre-configured profiles. These scripts are located in the project root.
+Run the agent using the unified entry point. Specify the mode and profile as needed:
 
-### 1. `run_discord_student.py` — Discord Student Agent
-
-**Purpose:**
-Run the CIRIS agent with the "Student" profile as a Discord bot.
-
-**Usage:**
-Ensure environment variables (`OPENAI_API_KEY`, `DISCORD_BOT_TOKEN`) are set.
 ```bash
-python run_discord_student.py
-```
-(The script uses `logging_config.py` for log levels. Set `LOG_LEVEL=DEBUG` to enable verbose output.)
-
-### 2. `run_discord_teacher.py` — Discord Teacher Agent
-
-**Purpose:**
-Run the CIRIS agent with the "Teacher" profile as a Discord bot.
-
-**Usage:**
-Ensure environment variables (`OPENAI_API_KEY`, `DISCORD_BOT_TOKEN`) are set.
-```bash
-python run_discord_teacher.py
+python -m ciris_engine.main --mode discord --profile default
 ```
 
-### 3. `run_cli_student.py` — CLI Student Agent
-
-**Purpose:**
-Run the CIRIS agent with the "Student" profile via a simple command-line interface. Useful for local benchmarking without Discord.
-
-**Usage:**
-Ensure the `OPENAI_API_KEY` environment variable is set.
-```bash
-python run_cli_student.py
-```
-
-All run scripts now rely on `BaseRuntime`, which unifies configuration loading, audit logging, and Dream Mode handling. Creating a new runtime is as simple as providing an I/O adapter:
-
-```python
-from ciris_engine.runtime import BaseRuntime, CLIAdapter
-
-runtime = BaseRuntime(io_adapter=CLIAdapter(), profile_path="ciris_profiles/student.yaml")
-runtime.run()
-```
+Use `--mode cli` for a local command-line interface or `--mode api` for the API runtime. Enable debug logging with `--debug`.
 
 Play Mode and Solitude Mode provide short introspective sessions for the agent. Each lasts five minutes and is offered at random roughly once per hour. In safety-critical deployments, these sessions should be restricted to non‑shift hours via agent configuration.
 
@@ -218,7 +182,6 @@ Play Mode and Solitude Mode provide short introspective sessions for the agent. 
 
 *   **`run_services.py`**: Appears to be a script for running services, potentially for testing or a different deployment mode.
 *   **`test_client_init.py`**: A test script, likely for initializing or testing client connections.
-*   **`run_cli_student.py`**: Simple CLI runner for the student profile.
 *   **`discord_graph_memory.py`**: Lightweight persistent graph memory for Discord user metadata.
 *   **`discord_observer.py`**: Minimal observer that dispatches OBSERVE payloads.
 *   **`legacy/`**: Archived utilities and documents.
