@@ -60,21 +60,33 @@ class TaskCompleteHandler(BaseActionHandler):
                     self.logger.info(f"Marked parent task {parent_task_id} as COMPLETED due to TASK_COMPLETE action on thought {thought_id}.")
                     print(f"[TASK_COMPLETE_HANDLER] ✓ Task {parent_task_id} marked as COMPLETED")
                     
-                    # Optionally, send a notification if an action_sink is available
-                    if self.dependencies.action_sink:
-                        original_event_channel_id = dispatch_context.get("channel_id")
-                        if original_event_channel_id:
+                    # Optionally, send a notification if communication service is available
+                    original_event_channel_id = dispatch_context.get("channel_id")
+                    if original_event_channel_id:
+                        parent_task_obj = persistence.get_task_by_id(parent_task_id)
+                        task_desc = parent_task_obj.description if parent_task_obj else "Unknown task"
+                        message = f"Task '{task_desc[:50]}...' (ID: {parent_task_id}) has been marked as complete by the agent."
+                        comm_service = await self.get_communication_service()
+                        if comm_service:
                             try:
-                                parent_task_obj = persistence.get_task_by_id(parent_task_id)
-                                task_desc = parent_task_obj.description if parent_task_obj else "Unknown task"
-                                await self.dependencies.action_sink.send_message(
-                                    original_event_channel_id,
-                                    f"Task '{task_desc[:50]}...' (ID: {parent_task_id}) has been marked as complete by the agent."
-                                )
+                                await comm_service.send_message(original_event_channel_id, message)
+                                print(f"[TASK_COMPLETE_HANDLER] ✓ Notification sent for completed task {parent_task_id}")
+                            except Exception as e:
+                                self.logger.error(f"Failed to send TASK_COMPLETE notification via communication service for task {parent_task_id}: {e}")
+                        elif self.dependencies.action_sink:
+                            try:
+                                await self.dependencies.action_sink.send_message(original_event_channel_id, message)
                                 print(f"[TASK_COMPLETE_HANDLER] ✓ Notification sent for completed task {parent_task_id}")
                             except Exception as e:
                                 self.logger.error(f"Failed to send TASK_COMPLETE notification for task {parent_task_id}: {e}")
                                 print(f"[TASK_COMPLETE_HANDLER] ✗ Failed to send notification: {e}")
+
+                    # Clean up any pending thoughts/resources for this task
+                    pending = persistence.get_thoughts_by_task_id(parent_task_id)
+                    to_delete = [t.thought_id for t in pending if getattr(t, 'status', None) in {ThoughtStatus.PENDING, ThoughtStatus.PROCESSING}]
+                    if to_delete:
+                        persistence.delete_thoughts_by_ids(to_delete)
+                        self.logger.debug(f"Cleaned up {len(to_delete)} pending thoughts for task {parent_task_id}")
                 else: # This else corresponds to "if task_updated:"
                     self.logger.error(f"Failed to update status for parent task {parent_task_id} to COMPLETED.")
                     print(f"[TASK_COMPLETE_HANDLER] ✗ Failed to update task {parent_task_id} status")
