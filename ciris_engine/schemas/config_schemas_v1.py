@@ -22,7 +22,7 @@ class WorkflowConfig(BaseModel):
     max_active_tasks: int = Field(default=10, description="Maximum tasks that can be active simultaneously")
     max_active_thoughts: int = Field(default=50, description="Maximum thoughts to pull into processing queue per round") 
     round_delay_seconds: float = Field(default=1.0, description="Delay between processing rounds in seconds")
-    max_ponder_rounds: int = Field(default=5, description="Maximum ponder iterations before auto-defer")
+    max_rounds: int = Field(default=5, description="Maximum ponder iterations before auto-defer")
     DMA_RETRY_LIMIT: int = Field(default=3, description="Maximum retry attempts for DMAs")
     GUARDRAIL_RETRY_LIMIT: int = Field(default=2, description="Maximum retry attempts for guardrails")
 

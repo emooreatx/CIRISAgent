@@ -50,7 +50,7 @@ class GuardrailsConfig(BaseModel):
         default=7,
         description="Maximum actions before thought escalation"
     )
-    max_ponder_rounds: int = Field(
+    max_rounds: int = Field(
         default=5,
         description="Maximum ponder iterations before auto-defer"
     )

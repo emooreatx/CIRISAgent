@@ -9,11 +9,11 @@ from ciris_engine.action_handlers.cli_observe_handler import handle_cli_observe_
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.registries.base import Priority
 from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
-from .cli_event_queues import CLIEventQueue
-from .cli_adapter import CLIAdapter
-from .cli_observer import CLIObserver
-from .cli_tools import CLIToolService
-from .cli_wa_service import CLIWiseAuthorityService
+from ..adapters.cli.cli_event_queues import CLIEventQueue
+from ..adapters.cli.cli_adapter import CLIAdapter
+from ..adapters.cli.cli_observer import CLIObserver
+from ..adapters.cli.cli_tools import CLIToolService
+from ..adapters.cli.cli_wa_service import CLIWiseAuthorityService
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +70,15 @@ class CLIRuntime(CIRISRuntime):
         await asyncio.gather(
             self.cli_observer.start(),
             self.cli_adapter.start(),
-            self.action_sink.start() if self.action_sink else asyncio.sleep(0),
-            self.deferral_sink.start() if self.deferral_sink else asyncio.sleep(0),
+        )
+        
+        # Start sinks as background tasks since they contain infinite loops
+        self.action_sink_task = asyncio.create_task(self.action_sink.start())
+        self.deferral_sink_task = asyncio.create_task(self.deferral_sink.start())
+
+        logger.info("Starting agent processing with WAKEUP sequence...")
+        processing_task = asyncio.create_task(
+            self.agent_processor.start_processing(num_rounds=self.app_config.workflow.max_rounds)
         )
 
     async def _handle_observe_event(self, payload: Dict[str, Any]):
@@ -148,7 +155,7 @@ class CLIRuntime(CIRISRuntime):
     async def _build_action_dispatcher(self, dependencies):
         return build_action_dispatcher(
             audit_service=self.audit_service,
-            max_ponder_rounds=self.app_config.workflow.max_ponder_rounds,
+            max_rounds=self.app_config.workflow.max_rounds,
             action_sink=self.action_sink or self.multi_service_sink,
             memory_service=self.memory_service,
             observer_service=self.cli_observer,

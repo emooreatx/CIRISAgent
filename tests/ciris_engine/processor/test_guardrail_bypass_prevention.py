@@ -40,7 +40,7 @@ class TestGuardrailBypassPrevention:
         """Create a mock app config for testing."""
         config = MagicMock(spec=AppConfig)
         config.workflow = MagicMock()
-        config.workflow.max_ponder_rounds = 3
+        config.workflow.max_rounds = 3
         config.agent_mode = "test"
         config.default_profile = "default"
         config.agent_profiles = {"default": {}}

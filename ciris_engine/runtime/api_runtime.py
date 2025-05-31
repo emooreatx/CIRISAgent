@@ -133,7 +133,7 @@ class APIRuntime(CIRISRuntime):
     async def _build_action_dispatcher(self, dependencies):
         return build_action_dispatcher(
             audit_service=self.audit_service,
-            max_ponder_rounds=self.app_config.workflow.max_ponder_rounds,
+            max_rounds=self.app_config.workflow.max_rounds,
             action_sink=self.multi_service_sink,
             memory_service=self.memory_service,
             observer_service=self.api_observer,

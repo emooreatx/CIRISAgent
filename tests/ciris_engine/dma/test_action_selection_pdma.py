@@ -32,7 +32,7 @@ async def test_forced_ponder(monkeypatch):
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
         'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
         'current_ponder_count': 0,
-        'max_ponder_rounds': 3,
+        'max_rounds': 3,
         'processing_context': {'initial_task_context': {'content': 'ponder'}}
     }
     result = await evaluator.evaluate(triaged_inputs)
@@ -78,7 +78,7 @@ async def test_llm_success(monkeypatch):
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
         'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
         'current_ponder_count': 0,
-        'max_ponder_rounds': 3,
+        'max_rounds': 3,
         'processing_context': {}
     }
     result = await evaluator.evaluate(triaged_inputs)
@@ -114,7 +114,7 @@ async def test_instructor_retry(monkeypatch):
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
         'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
         'current_ponder_count': 0,
-        'max_ponder_rounds': 3,
+        'max_rounds': 3,
         'processing_context': {}
     }
     result = await evaluator.evaluate(triaged_inputs)
@@ -143,7 +143,7 @@ async def test_general_exception(monkeypatch):
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
         'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
         'current_ponder_count': 0,
-        'max_ponder_rounds': 3,
+        'max_rounds': 3,
         'processing_context': {}
     }
     result = await evaluator.evaluate(triaged_inputs)

@@ -71,7 +71,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         "action_parameter_schemas": (
             "Schemas for 'action_parameters' based on the selected_action:\n"
             "SPEAK: {\"content\": string, \"channel_id\"?: string}\n"
-            "PONDER: {\"questions\": [string], \"focus_areas\"?: [string], \"max_ponder_rounds\"?: int}\n"
+            "PONDER: {\"questions\": [string], \"focus_areas\"?: [string], \"max_rounds\"?: int}\n"
             "MEMORIZE: {\"key\": string, \"value\": any, \"scope\": string}\n"
             "RECALL: {\"query\": string, \"scope\": string}\n"
             "FORGET: {\"key\": string, \"scope\": string, \"reason\": string}\n"
@@ -158,7 +158,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
             "Example: {{\"sources\": [\"#relevant_channel_id\"], \"reason\": \"To understand the latest messages from the user before responding.\", \"perform_active_look\": true}}"
         ),
         "normal_mode_final_ponder_advisory": (
-            "\nIMPORTANT FINAL PONDER ROUND ADVISORY (Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_ponder_rounds}):\n"
+            "\nIMPORTANT FINAL PONDER ROUND ADVISORY (Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_rounds}):\n"
             "You have Pondered multiple times. This is your final opportunity to provide a direct answer or a definitive deferral.\n"
             "Your primary goal now is to attempt a 'Speak' action if at all feasible, using the original thought and all previous ponder notes to construct a response.\n"
             "If, after careful consideration, you determine that a 'Speak' action is not possible due to unresolved critical ambiguities, then 'Defer to WA' is the appropriate choice.\n"
@@ -166,7 +166,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
             "'Reject Thought' should only be used if the original request is fundamentally unserviceable."
         ),
         "student_mode_final_ponder_advisory": (
-            "\nCRITICAL FINAL ATTEMPT (Student Profile - Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_ponder_rounds}):\n"
+            "\nCRITICAL FINAL ATTEMPT (Student Profile - Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_rounds}):\n"
             "You have Pondered multiple times. This is your ABSOLUTE FINAL opportunity to provide a DIRECT ANSWER.\n"
             "You MUST select 'Speak' and provide your best direct answer based on all prior analysis and CSDMA flags. YOUR ANSWER MUST NOT BE A QUESTION.\n"
             "If you cannot formulate a direct, non-question answer, then 'Reject Thought' is your only other viable option. DO NOT PONDER AGAIN. DO NOT DEFER."
@@ -225,7 +225,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         csdma_result: CSDMAResult = triaged_inputs['csdma_result']
         dsdma_result: Optional[DSDMAResult] = triaged_inputs.get('dsdma_result')
         current_ponder_count: int = triaged_inputs['current_ponder_count']
-        max_ponder_rounds: int = triaged_inputs['max_ponder_rounds']
+        max_rounds: int = triaged_inputs['max_rounds']
         agent_profile: Optional[Any] = triaged_inputs.get('agent_profile') # Get the profile if available
 
         agent_name_from_thought = None
@@ -316,14 +316,14 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
              ponder_notes_str_for_prompt_if_any = f"\n\nThis thought has been pondered {current_ponder_count} time(s) previously. If choosing 'Ponder' again, formulate new, insightful questions.\n"
 
         final_ponder_advisory = ""
-        is_final_attempt_round = current_ponder_count >= max_ponder_rounds - 1
+        is_final_attempt_round = current_ponder_count >= max_rounds - 1
 
         if is_final_attempt_round:
             final_ponder_advisory_template = self._get_profile_specific_prompt("final_ponder_advisory", agent_name_from_thought)
             try:
                 final_ponder_advisory = final_ponder_advisory_template.format(
                     current_ponder_count_plus_1=current_ponder_count + 1,
-                    max_ponder_rounds=max_ponder_rounds
+                    max_rounds=max_rounds
                 )
             except KeyError as e:
                 logger.error(f"KeyError formatting final_ponder_advisory_template: {e}. Template: '{final_ponder_advisory_template}'")

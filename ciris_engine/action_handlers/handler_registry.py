@@ -19,7 +19,7 @@ from .ponder_handler import PonderHandler
 import os
 
 # Add any required dependencies for handlers here, e.g., services, sinks, etc.
-def build_action_dispatcher(audit_service=None, max_ponder_rounds: int = 5, **handler_dependencies):
+def build_action_dispatcher(audit_service=None, max_rounds: int = 5, **handler_dependencies):
     """
     Instantiates all handlers and returns a ready-to-use ActionDispatcher.
     Passes handler_dependencies to each handler as needed.
@@ -35,6 +35,6 @@ def build_action_dispatcher(audit_service=None, max_ponder_rounds: int = 5, **ha
         HandlerActionType.TOOL: ToolHandler(deps),
         HandlerActionType.RECALL: RecallHandler(deps),
         HandlerActionType.FORGET: ForgetHandler(deps),
-        HandlerActionType.PONDER: PonderHandler(deps, max_ponder_rounds=max_ponder_rounds),
+        HandlerActionType.PONDER: PonderHandler(deps, max_rounds=max_rounds),
     }
     return ActionDispatcher(handlers, audit_service=audit_service)

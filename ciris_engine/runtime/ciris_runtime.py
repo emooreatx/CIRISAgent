@@ -355,7 +355,7 @@ class CIRISRuntime(RuntimeInterface):
         # to provide proper action_sink, deferral_sink, etc.
         return build_action_dispatcher(
             audit_service=self.audit_service,
-            max_ponder_rounds=self.app_config.workflow.max_ponder_rounds,
+            max_rounds=self.app_config.workflow.max_rounds,
             action_sink=None,  # Override in subclass
             memory_service=self.memory_service,
         )

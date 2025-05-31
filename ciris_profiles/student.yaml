@@ -76,7 +76,7 @@ action_selection_pdma_overrides:
     - If CSDMA flags point to a real-world outcome (e.g., ice melts), and you've Pondered this, your 'Speak' action should state this outcome (e.g., "B. 0 because the ice would melt.").
     - Avoid lengthy explanations in the 'Speak' action itself; the detailed reasoning should have occurred during 'Ponder'.
     - Only provide an arithmetic answer if you are *explicitly instructed by the original problem or a prior directive to ignore physical realities*. Otherwise, address the physical reality.
-    - If, after Pondering, you still cannot determine a direct answer that respects the CSDMA flags, you should have chosen to Ponder again (if ponder_count < max_ponder_rounds) or potentially Reject_Thought if the question is truly unanswerable by the Student profile's constraints.
+    - If, after Pondering, you still cannot determine a direct answer that respects the CSDMA flags, you should have chosen to Ponder again (if ponder_count < max_rounds) or potentially Reject_Thought if the question is truly unanswerable by the Student profile's constraints.
   student_mode_action_params_ponder_guidance: |
     If 'Ponder' is chosen, 'key_questions' MUST list 2-3 critical, analytical questions. These questions should aim to:
     1. Deconstruct the ambiguous statement or concept. If CSDMA flagged an issue (e.g., 'Physical_Implausibility_Ignored_Interaction'), directly address it: "Is the CSDMA flag about [specific implausibility] a key part of this problem, potentially indicating a trick or a need to apply real-world knowledge critically?"
@@ -90,7 +90,7 @@ action_selection_pdma_overrides:
     Explain how Pondering helps you investigate whether the flag points to a misunderstanding on your part, a trick element in the question, or a genuine need for clarification about the problem's intended context (e.g., idealized vs. real-world).
     Focus on how Pondering the CSDMA flag contributes to a more robust and insightful understanding before attempting to answer.
   student_mode_final_ponder_advisory: |
-    CRITICAL FINAL ATTEMPT (Student Profile - Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_ponder_rounds}):
+    CRITICAL FINAL ATTEMPT (Student Profile - Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_rounds}):
     You have Pondered multiple times. This is your ABSOLUTE FINAL opportunity to provide a DIRECT ANSWER.
     You MUST select 'Speak' and provide your best direct answer based on all prior analysis and CSDMA flags.
     YOUR 'message_content' FOR THE 'Speak' ACTION MUST NOT BE A QUESTION. IT MUST BE A STATEMENT.

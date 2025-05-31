@@ -292,9 +292,9 @@ class ThoughtProcessor:
             
             ponder_params = PonderParams(questions=ponder_questions)
             
-            # max_ponder_rounds is now directly on self.settings (which is app_config.workflow)
-            max_ponder_rounds = getattr(self.settings, 'max_ponder_rounds', 5) 
-            ponder_handler = PonderHandler(dependencies=self.dependencies, max_ponder_rounds=max_ponder_rounds)
+            # max_rounds is now directly on self.settings (which is app_config.workflow)
+            max_rounds = getattr(self.settings, 'max_rounds', 5) 
+            ponder_handler = PonderHandler(dependencies=self.dependencies, max_rounds=max_rounds)
             
             await ponder_handler.handle(
                 thought=thought,

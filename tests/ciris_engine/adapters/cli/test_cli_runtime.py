@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from ciris_engine.adapters.cli.cli_runtime import CLIRuntime
+from ciris_engine.runtime.cli_runtime import CLIRuntime
 from ciris_engine.adapters.cli.cli_adapter import CLIAdapter
 from ciris_engine.adapters.cli.cli_observer import CLIObserver
 
@@ -13,16 +13,16 @@ async def test_cli_runtime_initialization(monkeypatch):
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
     monkeypatch.setattr(
-        "ciris_engine.adapters.cli.cli_runtime.CLIObserver.start", AsyncMock()
+        "ciris_engine.runtime.cli_runtime.CLIObserver.start", AsyncMock()
     )
     monkeypatch.setattr(
-        "ciris_engine.adapters.cli.cli_runtime.CLIAdapter.start", AsyncMock()
+        "ciris_engine.runtime.cli_runtime.CLIAdapter.start", AsyncMock()
     )
     monkeypatch.setattr(
-        "ciris_engine.adapters.cli.cli_runtime.MultiServiceActionSink.start", AsyncMock()
+        "ciris_engine.runtime.cli_runtime.MultiServiceActionSink.start", AsyncMock()
     )
     monkeypatch.setattr(
-        "ciris_engine.adapters.cli.cli_runtime.MultiServiceDeferralSink.start", AsyncMock()
+        "ciris_engine.runtime.cli_runtime.MultiServiceDeferralSink.start", AsyncMock()
     )
 
     runtime = CLIRuntime(profile_name="test_profile", interactive=False)
@@ -39,10 +39,10 @@ async def test_cli_message_processing(monkeypatch):
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
-    monkeypatch.setattr("ciris_engine.adapters.cli.cli_runtime.CLIObserver.start", AsyncMock())
-    monkeypatch.setattr("ciris_engine.adapters.cli.cli_runtime.CLIAdapter.start", AsyncMock())
-    monkeypatch.setattr("ciris_engine.adapters.cli.cli_runtime.MultiServiceActionSink.start", AsyncMock())
-    monkeypatch.setattr("ciris_engine.adapters.cli.cli_runtime.MultiServiceDeferralSink.start", AsyncMock())
+    monkeypatch.setattr("ciris_engine.runtime.cli_runtime.CLIObserver.start", AsyncMock())
+    monkeypatch.setattr("ciris_engine.runtime.cli_runtime.CLIAdapter.start", AsyncMock())
+    monkeypatch.setattr("ciris_engine.runtime.cli_runtime.MultiServiceActionSink.start", AsyncMock())
+    monkeypatch.setattr("ciris_engine.runtime.cli_runtime.MultiServiceDeferralSink.start", AsyncMock())
 
     observe_mock = AsyncMock()
     monkeypatch.setattr(CLIRuntime, "_handle_observe_event", observe_mock)

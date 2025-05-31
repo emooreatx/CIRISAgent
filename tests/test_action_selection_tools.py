@@ -24,7 +24,7 @@ async def test_tools_listed_in_prompt(monkeypatch):
         'ethical_pdma_result': Mock(alignment_check={}, decision='ok'),
         'csdma_result': Mock(plausibility_score=1.0, flags=[], reasoning=''),
         'current_ponder_count': 0,
-        'max_ponder_rounds': 3,
+        'max_rounds': 3,
         'permitted_actions': [HandlerActionType.TOOL],
     }
     # Patch format_user_profiles and format_system_snapshot to empty

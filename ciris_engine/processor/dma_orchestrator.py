@@ -183,12 +183,12 @@ class DMAOrchestrator:
         # Get ponder_count from the actual Thought model
         triaged.setdefault("current_ponder_count", actual_thought.ponder_count)
         
-        # Get max_ponder_rounds from app_config
+        # Get max_rounds from app_config
         if self.app_config and hasattr(self.app_config, 'workflow'):
-            triaged.setdefault("max_ponder_rounds", self.app_config.workflow.max_ponder_rounds)
+            triaged.setdefault("max_rounds", self.app_config.workflow.max_rounds)
         else:
-            triaged.setdefault("max_ponder_rounds", 5) # Fallback if app_config not available
-            logger.warning("DMAOrchestrator: app_config or workflow config not found for max_ponder_rounds, using fallback.")
+            triaged.setdefault("max_rounds", 5) # Fallback if app_config not available
+            logger.warning("DMAOrchestrator: app_config or workflow config not found for max_rounds, using fallback.")
 
         # Improved agent_profile lookup with fallback logic
         agent_profile_obj = None

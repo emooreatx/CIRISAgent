@@ -16,7 +16,7 @@ from .utils.logging_config import setup_basic_logging
 from .config.config_manager import load_config_from_file_async, AppConfig
 from .runtime.ciris_runtime import CIRISRuntime
 from .runtime.discord_runtime import DiscordRuntime
-from .adapters.cli.cli_runtime import CLIRuntime
+from .runtime.cli_runtime import CLIRuntime
 from .runtime.api_runtime import APIRuntime
 
 

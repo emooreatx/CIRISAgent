@@ -14,14 +14,14 @@ from ciris_engine.config.config_manager import get_config
 
 
 class PonderHandler(BaseActionHandler):
-    def __init__(self, dependencies: ActionHandlerDependencies, max_ponder_rounds: Optional[int] = None):
+    def __init__(self, dependencies: ActionHandlerDependencies, max_rounds: Optional[int] = None):
         super().__init__(dependencies)
-        if max_ponder_rounds is None:
+        if max_rounds is None:
             try:
-                max_ponder_rounds = get_config().workflow.max_ponder_rounds
+                max_rounds = get_config().workflow.max_rounds
             except Exception:
-                max_ponder_rounds = 5
-        self.max_ponder_rounds = max_ponder_rounds
+                max_rounds = 5
+        self.max_rounds = max_rounds
 
     def should_defer_for_max_ponder(
         self,
@@ -29,7 +29,7 @@ class PonderHandler(BaseActionHandler):
         current_ponder_count: int
     ) -> bool:
         """Check if thought has exceeded ponder limits."""
-        return current_ponder_count >= self.max_ponder_rounds
+        return current_ponder_count >= self.max_rounds
 
     async def handle(
         self,
@@ -83,14 +83,14 @@ class PonderHandler(BaseActionHandler):
         # Normal ponder logic
         if self.should_defer_for_max_ponder(thought, current_ponder_count):
             logger.warning(
-                f"Thought ID {thought.thought_id} has reached max ponder rounds ({self.max_ponder_rounds}). Marking as DEFERRED."
+                f"Thought ID {thought.thought_id} has reached max ponder rounds ({self.max_rounds}). Marking as DEFERRED."
             )
             persistence.update_thought_status(
                 thought_id=thought.thought_id,
                 status=ThoughtStatus.DEFERRED,
                 final_action={
                     "action": HandlerActionType.DEFER.value,
-                    "reason": f"Maximum ponder rounds ({self.max_ponder_rounds}) reached",
+                    "reason": f"Maximum ponder rounds ({self.max_rounds}) reached",
                     "ponder_notes": key_questions_list,
                     "ponder_count": current_ponder_count,
                 },
@@ -106,7 +106,7 @@ class PonderHandler(BaseActionHandler):
             new_ponder_count = current_ponder_count + 1
             logger.info(f"Thought ID {thought.thought_id} pondering (count: {new_ponder_count}). Questions: {key_questions_list}")
             next_status = ThoughtStatus.PENDING
-            if new_ponder_count >= self.max_ponder_rounds:
+            if new_ponder_count >= self.max_rounds:
                 next_status = ThoughtStatus.DEFERRED
             success = persistence.update_thought_status(
                 thought_id=thought.thought_id,
