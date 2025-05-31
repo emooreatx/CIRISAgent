@@ -170,13 +170,13 @@ export DISCORD_BOT_TOKEN="your_discord_bot_token_here"
 Run the agent using the unified entry point. Specify the mode and profile as needed:
 
 ```bash
-python cirisagent.py --mode auto --profile default
+python main.py --mode auto --profile default
 ```
 
 The script automatically loads the CLI runtime and adds Discord if a bot token is available:
 
 ```bash
-python cirisagent.py --profile teacher   # Auto-detect Discord support
+python main.py --profile teacher   # Auto-detect Discord support
 ```
 
 Use `--mode cli` for a local command-line interface or `--mode api` for the API runtime. Enable debug logging with `--debug`.

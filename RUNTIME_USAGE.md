@@ -3,7 +3,7 @@
 ## Starting the CLI Runtime
 
 ```bash
-python cirisagent.py --mode cli --profile default
+python main.py --mode cli --profile default
 ```
 
 ## Available Commands
@@ -28,7 +28,7 @@ python cirisagent.py --mode cli --profile default
 ## Starting the API Runtime
 
 ```bash
-python cirisagent.py --mode api --profile default --port 8080
+python main.py --mode api --profile default --port 8080
 ```
 
 ## API Endpoints

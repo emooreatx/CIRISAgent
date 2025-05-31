@@ -49,15 +49,53 @@ async def _execute_handler(runtime, handler: str, params: Optional[str]) -> None
 
 
 async def _run_runtime(runtime, timeout: Optional[int]) -> None:
-    async def runner():
-        await runtime.run()
-    if timeout:
+    """Run the runtime with optional timeout and graceful shutdown."""
+    run_task = None
+    
+    try:
+        if timeout:
+            # Create the runtime task
+            run_task = asyncio.create_task(runtime.run())
+            
+            # Wait for either the task to complete or timeout
+            try:
+                await asyncio.wait_for(run_task, timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.info(f"Timeout of {timeout} seconds reached, initiating graceful shutdown...")
+                
+                # Cancel the run task and trigger graceful shutdown
+                run_task.cancel()
+                
+                # Give the runtime a chance to shutdown gracefully
+                try:
+                    await asyncio.wait_for(runtime.shutdown(), timeout=30.0)
+                    logger.info("Graceful shutdown completed")
+                except asyncio.TimeoutError:
+                    logger.warning("Graceful shutdown timed out after 30 seconds")
+                except Exception as e:
+                    logger.error(f"Error during graceful shutdown: {e}", exc_info=True)
+                
+                # Wait for the cancelled task to finish
+                try:
+                    await run_task
+                except asyncio.CancelledError:
+                    pass
+                    
+                return
+        else:
+            # No timeout, just run normally
+            await runtime.run()
+            
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received, shutting down runtime")
+    except Exception as e:
+        logger.error(f"Runtime error: {e}", exc_info=True)
+    finally:
+        # Always ensure proper shutdown if it hasn't been called yet
         try:
-            await asyncio.wait_for(runner(), timeout=timeout)
-        except asyncio.TimeoutError:
-            logger.info("Timeout reached, shutting down")
-    else:
-        await runner()
+            await runtime.shutdown()
+        except Exception as e:
+            logger.error(f"Error during final shutdown: {e}", exc_info=True)
 
 
 @click.command()
@@ -69,7 +107,8 @@ async def _run_runtime(runtime, timeout: Optional[int]) -> None:
 @click.option("--handler", help="Direct handler to execute and exit")
 @click.option("--params", help="JSON parameters for handler execution")
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
-def main(mode: str, profile: str, config: Optional[str], task: tuple[str], timeout: Optional[int], handler: Optional[str], params: Optional[str], debug: bool) -> None:
+@click.option("--no-interactive/--interactive", default=False, help="Disable interactive CLI input (start agent automatically)")
+def main(mode: str, profile: str, config: Optional[str], task: tuple[str], timeout: Optional[int], handler: Optional[str], params: Optional[str], debug: bool, no_interactive: bool) -> None:
     """Unified CIRIS agent entry point."""
     setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
 
@@ -78,7 +117,9 @@ def main(mode: str, profile: str, config: Optional[str], task: tuple[str], timeo
         selected_mode = mode
         if mode == "auto":
             selected_mode = "discord" if os.getenv("DISCORD_BOT_TOKEN") else "cli"
-        runtime = create_runtime(selected_mode, profile, app_config)
+        # Pass interactive flag for CLI mode
+        interactive = not no_interactive if selected_mode == "cli" else True
+        runtime = create_runtime(selected_mode, profile, app_config, interactive=interactive)
         await runtime.initialize()
 
         # Preload tasks

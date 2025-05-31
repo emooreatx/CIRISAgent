@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Source the environment variables and run the application
-CMD ["/bin/bash", "-c", "python run_discord_teacher.py"]
+CMD ["/bin/bash", "-c", "python main.py --mode discord --profile teacher"]

@@ -163,8 +163,10 @@ class DiscordRuntime(CIRISRuntime):
         await self.discord_observer.start()
         await self.cli_observer.start()
         await self.cli_adapter.start()
-        await self.action_sink.start()
-        await self.deferral_sink.start()
+        
+        # Start sinks as background tasks since they contain infinite loops
+        self.action_sink_task = asyncio.create_task(self.action_sink.start())
+        self.deferral_sink_task = asyncio.create_task(self.deferral_sink.start())
         
         # Register Discord-specific services in the service registry
         await self._register_discord_services()
@@ -280,6 +282,21 @@ class DiscordRuntime(CIRISRuntime):
 
     async def shutdown(self):
         """Shutdown Discord-specific components."""
+        # Cancel sink background tasks
+        if hasattr(self, 'action_sink_task') and self.action_sink_task:
+            self.action_sink_task.cancel()
+            try:
+                await self.action_sink_task
+            except asyncio.CancelledError:
+                pass
+        
+        if hasattr(self, 'deferral_sink_task') and self.deferral_sink_task:
+            self.deferral_sink_task.cancel()
+            try:
+                await self.deferral_sink_task
+            except asyncio.CancelledError:
+                pass
+        
         # Stop Discord services
         discord_services = [
             self.discord_observer,
@@ -309,11 +326,16 @@ class DiscordRuntime(CIRISRuntime):
         if not self._initialized:
             await self.initialize()
             
+        # Initialize task variables to None
+        discord_task = None
+        processing_task = None
+        sink_task = None
+            
         try:
-            # Start multi-service sink processing
+            # Start multi-service sink processing as background task
             if self.multi_service_sink:
-                await self.multi_service_sink.start()
-                logger.info("Started multi-service sink")
+                sink_task = asyncio.create_task(self.multi_service_sink.start())
+                logger.info("Started multi-service sink as background task")
             
             # Start IO adapter (this doesn't start Discord client yet)
             await self.io_adapter.start()
@@ -364,8 +386,8 @@ class DiscordRuntime(CIRISRuntime):
             logger.error(f"Runtime error: {e}", exc_info=True)
         finally:
             # Cancel any pending tasks
-            for task in [discord_task, processing_task]:
-                if 'task' in locals() and not task.done():
+            for task in [discord_task, processing_task, sink_task]:
+                if task and not task.done():
                     task.cancel()
                     try:
                         await task

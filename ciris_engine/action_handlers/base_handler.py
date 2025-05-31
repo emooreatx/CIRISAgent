@@ -143,7 +143,7 @@ class BaseActionHandler(ABC):
                 self.logger.error(f"Communication service failed to send message: {e}")
         if getattr(self.dependencies, "action_sink", None):
             try:
-                await self.dependencies.action_sink.send_message(channel_id, content)
+                await self.dependencies.action_sink.send_message(self.__class__.__name__, channel_id, content)
                 return True
             except Exception as e:
                 self.logger.error(f"Action sink failed to send message: {e}")

@@ -303,16 +303,10 @@ class ThoughtProcessor:
             )
             
             # After PonderHandler.handle, the thought's status and ponder_count are updated.
-            # If status is PENDING, it means it should be re-processed.
+            # If status is PENDING, it means it should be re-processed in the next round.
+            # No need to manually re-queue - the processing loop will pick up PENDING thoughts naturally.
             if thought.status == ThoughtStatus.PENDING:
-                if self.dependencies.action_sink:
-                    # Re-queue the thought for another processing cycle.
-                    # The thought object in memory (passed by reference) is updated by PonderHandler.
-                    queue_item = ProcessingQueueItem.from_thought(thought, context) 
-                    await self.dependencies.action_sink.enqueue_item(queue_item)
-                    logger.info(f"Thought ID {thought.thought_id} re-queued for further pondering after PONDER action.")
-                else:
-                    logger.warning(f"ActionSink not available. Cannot re-queue thought ID {thought.thought_id} for pondering.")
+                logger.info(f"Thought ID {thought.thought_id} marked as PENDING after PONDER action - will be processed in next round.")
         
         # Special handling for OBSERVE action in CLI mode
         if action_selection.action == HandlerActionType.OBSERVE:

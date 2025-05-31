@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, ANY
 from click.testing import CliRunner
-import cirisagent
+import main
 from ciris_engine.runtime.discord_runtime import DiscordRuntime
 
 
@@ -10,9 +10,9 @@ def test_run_discord_uses_env(monkeypatch):
     monkeypatch.setenv("DISCORD_CHANNEL_ID", "111")
     monkeypatch.setenv("DISCORD_DEFERRAL_CHANNEL_ID", "222")
     mock_runtime = MagicMock()
-    monkeypatch.setattr(cirisagent, "create_runtime", MagicMock(return_value=mock_runtime))
-    monkeypatch.setattr(cirisagent, "load_config", AsyncMock(return_value=MagicMock(discord_channel_id="111")))
-    monkeypatch.setattr(cirisagent, "_run_runtime", AsyncMock())
+    monkeypatch.setattr(main, "create_runtime", MagicMock(return_value=mock_runtime))
+    monkeypatch.setattr(main, "load_config", AsyncMock(return_value=MagicMock(discord_channel_id="111")))
+    monkeypatch.setattr(main, "_run_runtime", AsyncMock())
     monkeypatch.setattr(mock_runtime, "initialize", AsyncMock())
     monkeypatch.setattr(mock_runtime, "shutdown", AsyncMock())
 
@@ -24,12 +24,12 @@ def test_run_discord_uses_env(monkeypatch):
     def fake_run(coro):
         real_run(coro)
 
-    monkeypatch.setattr(cirisagent, "asyncio", types.SimpleNamespace(run=fake_run))
+    monkeypatch.setattr(main, "asyncio", types.SimpleNamespace(run=fake_run))
 
-    result = CliRunner().invoke(cirisagent.main, [])
+    result = CliRunner().invoke(main.main, [])
     assert result.exit_code == 0
-    cirisagent.create_runtime.assert_called_once()
-    args = cirisagent.create_runtime.call_args[0]
+    main.create_runtime.assert_called_once()
+    args = main.create_runtime.call_args[0]
     assert args[0] == "discord"
     assert args[1] == "default"
     assert args[2] == ANY

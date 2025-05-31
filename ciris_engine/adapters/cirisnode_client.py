@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import httpx
 
+from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry  # Use schema version
 from ciris_engine.config.config_manager import get_config
 from ciris_engine.schemas.config_schemas_v1 import CIRISNodeConfig
@@ -16,10 +17,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class CIRISNodeClient:
+class CIRISNodeClient(Service):
     """Asynchronous client for interacting with CIRISNode."""
 
     def __init__(self, service_registry: Optional["ServiceRegistry"] = None, base_url: Optional[str] = None) -> None:
+        # Configure retry settings for HTTP operations
+        retry_config = {
+            "retry": {
+                "global": {
+                    "max_retries": 3,
+                    "base_delay": 1.0,
+                    "max_delay": 30.0,  # Shorter max delay for API calls
+                },
+                "http_request": {
+                    "retryable_exceptions": (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError),
+                    "non_retryable_exceptions": (httpx.HTTPStatusError,),  # Will be filtered by status code
+                }
+            }
+        }
+        super().__init__(config=retry_config)
+        
         self.service_registry = service_registry
         self._audit_service: Optional["AuditService"] = None
         config = get_config()
@@ -28,30 +45,59 @@ class CIRISNodeClient:
         self.base_url = base_url or node_cfg.base_url
         self._client = httpx.AsyncClient(base_url=self.base_url)
 
-    async def _get_audit_service(self) -> Optional["AuditService"]:
-        """Get audit service from registry with caching."""
-        if self._audit_service is None and self.service_registry:
-            # Use an arbitrary handler name since audit is registered globally
-            self._audit_service = await self.service_registry.get_service(
-                handler="CIRISNodeClient", 
-                service_type="audit"
-            )
-        return self._audit_service
+    async def start(self):
+        """Start the client service."""
+        await super().start()
+
+    async def stop(self):
+        """Stop the client service and clean up resources."""
+        await self._client.aclose()
+        await super().stop()
 
     async def _post(self, endpoint: str, payload: Dict[str, Any]) -> Any:
-        resp = await self._client.post(endpoint, json=payload)
-        resp.raise_for_status()
-        return await resp.json()
+        async def _make_request():
+            resp = await self._client.post(endpoint, json=payload)
+            if 400 <= resp.status_code < 500:
+                resp.raise_for_status()  # Don't retry 4xx client errors
+            resp.raise_for_status()  # Raise for any other errors (will be retried)
+            return await resp.json()
+            
+        return await self.retry_with_backoff(
+            _make_request,
+            retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),
+            non_retryable_exceptions=(httpx.HTTPStatusError,),
+            **self.get_retry_config("http_request")
+        )
 
     async def _get(self, endpoint: str, params: Dict[str, Any]) -> Any:
-        resp = await self._client.get(endpoint, params=params)
-        resp.raise_for_status()
-        return await resp.json()
+        async def _make_request():
+            resp = await self._client.get(endpoint, params=params)
+            if 400 <= resp.status_code < 500:
+                resp.raise_for_status()  # Don't retry 4xx client errors
+            resp.raise_for_status()  # Raise for any other errors (will be retried)
+            return await resp.json()
+            
+        return await self.retry_with_backoff(
+            _make_request,
+            retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),
+            non_retryable_exceptions=(httpx.HTTPStatusError,),
+            **self.get_retry_config("http_request")
+        )
 
     async def _put(self, endpoint: str, payload: Dict[str, Any]) -> Any:
-        resp = await self._client.put(endpoint, json=payload)
-        resp.raise_for_status()
-        return await resp.json()
+        async def _make_request():
+            resp = await self._client.put(endpoint, json=payload)
+            if 400 <= resp.status_code < 500:
+                resp.raise_for_status()  # Don't retry 4xx client errors
+            resp.raise_for_status()  # Raise for any other errors (will be retried)
+            return await resp.json()
+            
+        return await self.retry_with_backoff(
+            _make_request,
+            retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),
+            non_retryable_exceptions=(httpx.HTTPStatusError,),
+            **self.get_retry_config("http_request")
+        )
 
     async def run_simplebench(self, model_id: str, agent_id: str) -> Dict[str, Any]:
         """Run the simple bench benchmark for the given model."""
@@ -181,7 +227,3 @@ class CIRISNodeClient:
                 },
             )
         return result
-
-    async def close(self) -> None:
-        """Close the HTTP client."""
-        await self._client.aclose()

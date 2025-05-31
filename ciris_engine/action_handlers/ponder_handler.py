@@ -154,14 +154,8 @@ class PonderHandler(BaseActionHandler):
                     "ponder_notes": key_questions_list,
                 }
                 persistence.add_thought(follow_up)
-                if self.dependencies.action_sink:
-                    from ciris_engine.processor.processing_queue import ProcessingQueueItem
-                    queue_item = ProcessingQueueItem.from_thought(
-                        thought,
-                        dispatch_context.get("raw_input"),
-                        dispatch_context.get("context"),
-                    )
-                    await self.dependencies.action_sink.enqueue_item(queue_item)
+                # Note: The thought is already set to PENDING status, so it will be automatically
+                # picked up in the next processing round when the queue is populated from the database
                 return None
             else:
                 logger.error(f"Failed to update thought ID {thought.thought_id} for re-processing Ponder.")

@@ -15,21 +15,37 @@ from ciris_engine.schemas.config_schemas_v1 import OpenAIConfig, LLMServicesConf
 logger = logging.getLogger(__name__)
 
 
-class OpenAICompatibleClient:
+class OpenAICompatibleClient(Service):
     """Client for interacting with OpenAI-compatible APIs."""
 
     def __init__(self, config: Optional[OpenAIConfig] = None) -> None:
         if config is None:
             app_cfg = get_config()
-            self.config = app_cfg.llm_services.openai
+            self.openai_config = app_cfg.llm_services.openai
         else:
-            self.config = config
+            self.openai_config = config
 
-        env_api_key = os.getenv("OPENAI_API_KEY") or os.getenv(self.config.api_key_env_var)
+        # Set up retry configuration specifically for OpenAI API calls
+        retry_config = {
+            "retry": {
+                "global": {
+                    "max_retries": getattr(self.openai_config, 'max_retries', 5),
+                    "base_delay": 1.0,
+                    "max_delay": 60.0,
+                },
+                "api_call": {
+                    "retryable_exceptions": (APIConnectionError, RateLimitError),
+                    "non_retryable_exceptions": (APIStatusError,)  # Will be filtered by status code
+                }
+            }
+        }
+        super().__init__(config=retry_config)
+
+        env_api_key = os.getenv("OPENAI_API_KEY") or os.getenv(self.openai_config.api_key_env_var)
         env_base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_API_BASE")
-        final_base_url = env_base_url if env_base_url is not None else self.config.base_url
+        final_base_url = env_base_url if env_base_url is not None else self.openai_config.base_url
         env_model_name = os.getenv("OPENAI_MODEL_NAME")
-        self.model_name = env_model_name if env_model_name is not None else self.config.model_name
+        self.model_name = env_model_name if env_model_name is not None else self.openai_config.model_name
 
         if not env_api_key and not final_base_url:
             logger.warning(
@@ -45,21 +61,29 @@ class OpenAICompatibleClient:
         self.client = AsyncOpenAI(
             api_key=env_api_key,
             base_url=final_base_url,
-            timeout=self.config.timeout_seconds,
-            max_retries=0,
+            timeout=self.openai_config.timeout_seconds,
+            max_retries=0,  # Disable OpenAI client retries, we'll handle our own
         )
 
         try:
-            mode_str = self.config.instructor_mode.upper()
+            mode_str = self.openai_config.instructor_mode.upper()
             if hasattr(instructor.Mode, mode_str):
                 mode_enum = getattr(instructor.Mode, mode_str)
             else:
-                logger.warning(f"Invalid instructor_mode '{self.config.instructor_mode}'. Defaulting to TOOLS")
+                logger.warning(f"Invalid instructor_mode '{self.openai_config.instructor_mode}'. Defaulting to TOOLS")
                 mode_enum = instructor.Mode.TOOLS
             self.instruct_client = instructor.patch(self.client, mode=mode_enum)
         except Exception as e:  # pragma: no cover - patch errors rare
             logger.exception(f"Failed to patch OpenAI client: {e}")
             self.instruct_client = self.client
+
+    async def start(self):
+        """Start the client service."""
+        await super().start()
+
+    async def stop(self):
+        """Stop the client service."""
+        await super().stop()
 
     @staticmethod
     def extract_json(raw: str) -> Dict[str, Any]:
@@ -92,7 +116,8 @@ class OpenAICompatibleClient:
         **kwargs,
     ) -> str:
         logger.debug(f"Raw LLM call with messages: {messages}")
-        try:
+        
+        async def _make_raw_call():
             response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
@@ -102,12 +127,14 @@ class OpenAICompatibleClient:
             )
             content = response.choices[0].message.content
             return content.strip() if content else ""
-        except (APIConnectionError, RateLimitError, APIStatusError) as e:
-            logger.exception(f"LLM API error: {e}")
-            raise
-        except Exception as e:
-            logger.exception("Generic error in raw LLM call:")
-            raise
+            
+        # Use base class retry with OpenAI-specific error handling
+        return await self.retry_with_backoff(
+            _make_raw_call,
+            retryable_exceptions=(APIConnectionError, RateLimitError),
+            non_retryable_exceptions=(APIStatusError,),
+            **self.get_retry_config("api_call")
+        )
 
     async def call_llm_structured(
         self,
@@ -118,30 +145,49 @@ class OpenAICompatibleClient:
         **kwargs,
     ) -> BaseModel:
         logger.debug(f"Structured LLM call for {response_model.__name__}")
-        try:
+        
+        async def _make_structured_call():
             response = await self.instruct_client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
                 response_model=response_model,
-                max_retries=self.config.max_retries,
+                max_retries=0,  # Disable instructor retries, we handle our own
                 max_tokens=max_tokens,
                 temperature=temperature,
                 **kwargs,
             )
             return response
-        except (APIConnectionError, RateLimitError, APIStatusError) as e:
-            logger.exception(f"LLM API error: {e}")
-            raise
-        except Exception as e:
-            logger.exception("Error in structured LLM call:")
-            raise
+            
+        # Use base class retry with OpenAI-specific error handling
+        return await self.retry_with_backoff(
+            _make_structured_call,
+            retryable_exceptions=(APIConnectionError, RateLimitError),
+            non_retryable_exceptions=(APIStatusError,),
+            **self.get_retry_config("api_call")
+        )
 
 
 class OpenAICompatibleLLM(Service):
     """Adapter that exposes an OpenAICompatibleClient through the Service interface."""
 
     def __init__(self, llm_config: Optional[LLMServicesConfig] = None) -> None:
-        super().__init__()
+        # Set up retry configuration for LLM operations
+        retry_config = {
+            "retry": {
+                "global": {
+                    "max_retries": 5,
+                    "base_delay": 1.0,
+                    "max_delay": 60.0,
+                    "backoff_multiplier": 2.0,
+                    "jitter_range": 0.25
+                },
+                "llm_call": {
+                    "max_retries": 5,  # LLM calls may need more retries
+                    "base_delay": 1.0,
+                }
+            }
+        }
+        super().__init__(config=retry_config)
         self.llm_config = llm_config
         self._client: Optional[OpenAICompatibleClient] = None
 

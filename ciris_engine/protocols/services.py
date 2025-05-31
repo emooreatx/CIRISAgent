@@ -241,6 +241,29 @@ class AuditService(Protocol):
         ...
     
     @abstractmethod
+    async def log_event(self, event_type: str, event_data: Dict[str, Any]) -> None:
+        """
+        Log a general event.
+        
+        Args:
+            event_type: Type of event being logged
+            event_data: Event data and context
+        """
+        ...
+    
+    @abstractmethod
+    async def log_guardrail_event(self, guardrail_name: str, action_type: str, result: Dict[str, Any]) -> None:
+        """
+        Log guardrail check events.
+        
+        Args:
+            guardrail_name: Name of the guardrail
+            action_type: Type of action being checked
+            result: Guardrail check result
+        """
+        ...
+    
+    @abstractmethod
     async def get_audit_trail(self, entity_id: str, limit: int = 100) -> List[Dict[str, Any]]:
         """
         Get audit trail for an entity.
