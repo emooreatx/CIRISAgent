@@ -188,8 +188,6 @@ class WorkProcessor(BaseProcessor):
             # Add specific service references for convenience
             if "discord_service" in self.services:
                 dispatch_context["discord_service"] = self.services["discord_service"]
-            if "discord_client" in self.services:
-                dispatch_context["discord_service"] = self.services["discord_client"]  # Alternative key
         
         # Add discord_service directly if available
         if hasattr(self, 'discord_service'):

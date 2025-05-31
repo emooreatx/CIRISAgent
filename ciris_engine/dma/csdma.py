@@ -15,6 +15,7 @@ from ciris_engine.formatters import (
     format_user_prompt_blocks,
 )
 from instructor.exceptions import InstructorRetryException
+from ciris_engine.utils import COVENANT_TEXT
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,7 @@ class CSDMAEvaluator:
         )
 
         return [
+            {"role": "system", "content": COVENANT_TEXT},
             {"role": "system", "content": system_message},
             {"role": "user", "content": user_message},
         ]

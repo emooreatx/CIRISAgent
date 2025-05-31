@@ -7,6 +7,7 @@ from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult
 from ciris_engine.formatters import format_user_profiles, format_system_snapshot
+from ciris_engine.utils import COVENANT_TEXT
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,7 @@ Do not include extra fields or PDMA step names.""",
                 model=self.model_name,
                 response_model=EthicalDMAResult,
                 messages=[
+                    {"role": "system", "content": COVENANT_TEXT},
                     {"role": "system", "content": self.prompt_template["system_guidance_header"]},
                     {"role": "user", "content": user_message_with_context}
                 ],
