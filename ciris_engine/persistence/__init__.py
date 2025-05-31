@@ -19,6 +19,7 @@ from .tasks import (
     get_top_tasks,
     get_pending_tasks_for_activation,
     count_tasks,
+    delete_tasks_by_ids,
 )
 from .thoughts import (
     add_thought,
