@@ -1,10 +1,20 @@
 import os
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_WA = os.getenv("WA_DISCORD_USER", "somecomputerguy")
 WA_USER_ID = os.getenv("WA_USER_ID")
+
+# Load the CIRIS Covenant text for inclusion in prompts
+_COVENANT_PATH = Path(__file__).resolve().parents[2] / "covenant_1.0b.txt"
+try:
+    with open(_COVENANT_PATH, "r", encoding="utf-8") as f:
+        COVENANT_TEXT = f.read()
+except Exception as exc:  # noqa: BLE001
+    logger.warning("Could not load covenant text from %s: %s", _COVENANT_PATH, exc)
+    COVENANT_TEXT = ""
 
 # Flag indicating that a memory meta-thought should be generated for the
 # originating context. It is toggled by the ActionDispatcher when

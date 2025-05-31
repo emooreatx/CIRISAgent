@@ -29,6 +29,7 @@ from ciris_engine.schemas.config_schemas_v1 import DEFAULT_OPENAI_MODEL_NAME
 from ciris_engine.registries.base import ServiceRegistry
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
+from ciris_engine.utils import COVENANT_TEXT
 from ciris_engine.formatters import (
     format_system_snapshot,
     format_user_profiles,
@@ -485,6 +486,7 @@ Adhere strictly to the schema for your JSON output.
         )
 
         messages = [
+            {"role": "system", "content": COVENANT_TEXT},
             {"role": "system", "content": system_message},
             {"role": "user", "content": main_user_content},
         ]

@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 # Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
@@ -41,13 +41,21 @@ class SpeakHandler(BaseActionHandler):
         speak_content: str = None
         channel_id_from_params: str = None
 
-        # Ensure channel_id is set in params, using dispatch_context if missing
-        if isinstance(params, SpeakParams):
-            if not params.channel_id:
-                params.channel_id = original_event_channel_id
-        elif isinstance(params, dict):
-            if not params.get("channel_id"):
-                params["channel_id"] = original_event_channel_id
+        # Ensure params is a SpeakParams instance
+        if isinstance(params, dict):
+            try:
+                params = SpeakParams(**params)
+            except ValidationError as ve:
+                self.logger.error(
+                    f"Invalid SpeakParams provided for thought {thought_id}: {ve}"
+                )
+                final_thought_status = ThoughtStatus.FAILED
+                follow_up_content_key_info = f"SPEAK action failed: {ve}"
+                params = None
+            else:
+                result.action_parameters = params
+        if isinstance(params, SpeakParams) and not params.channel_id:
+            params.channel_id = original_event_channel_id
         # --- Ensure event_summary is set for audit log ---
         event_summary = None
         if isinstance(params, SpeakParams):
@@ -63,13 +71,11 @@ class SpeakHandler(BaseActionHandler):
 
         if isinstance(params, SpeakParams):
             speak_content = params.content
-            channel_id_from_params = params.channel_id  # v1 uses 'channel_id' instead of 'target_channel'
-        elif isinstance(params, dict):  # Fallback for raw dict
-            speak_content = params.get("content")
-            channel_id_from_params = params.get("channel_id")  # Only use 'channel_id' for v1
-            self.logger.warning(f"SPEAK params were dict, not SpeakParams model for thought {thought_id}")
+            channel_id_from_params = params.channel_id
         else:
-            self.logger.error(f"SPEAK action params are neither SpeakParams nor dict. Type: {type(params)}. Thought ID: {thought_id}")
+            self.logger.error(
+                f"SPEAK action parameters must be SpeakParams. Got {type(params)} for thought {thought_id}"
+            )
             final_thought_status = ThoughtStatus.FAILED
             follow_up_content_key_info = f"SPEAK action failed: Invalid parameters type ({type(params)}) for thought {thought_id}."
             # No action_performed_successfully update here, it's already False
@@ -93,43 +99,27 @@ class SpeakHandler(BaseActionHandler):
                             follow_up_content_key_info = f"Spoke: '{str(speak_content)[:50]}...' in channel #{numeric_channel_id_str}"
                             logger.info(f"Message sent via service registry to channel {numeric_channel_id_str}")
                         else:
-                            logger.warning(f"Communication service failed to send message, trying fallbacks")
-                            # The registry automatically tries fallback services, but if all fail:
+                            logger.warning(
+                                f"Communication service failed to send message to channel {numeric_channel_id_str}"
+                            )
                             final_thought_status = ThoughtStatus.FAILED
-                            follow_up_content_key_info = f"All communication services failed for channel {final_channel_id_to_speak}"
+                            follow_up_content_key_info = (
+                                f"Communication service failed for channel {final_channel_id_to_speak}"
+                            )
                     except Exception as send_ex:
-                        logger.exception(f"Error with communication service for thought {thought_id}: {send_ex}")
-                        # Try ultimate fallback to legacy action sink
-                        if self.dependencies.action_sink:
-                            try:
-                                logger.info("Falling back to legacy action sink")
-                                await self.dependencies.action_sink.send_message(numeric_channel_id_str, speak_content)
-                                action_performed_successfully = True
-                                follow_up_content_key_info = f"Spoke via fallback: '{str(speak_content)[:50]}...' in channel #{numeric_channel_id_str}"
-                            except Exception as fallback_ex:
-                                logger.exception(f"Legacy fallback also failed for thought {thought_id}: {fallback_ex}")
-                                final_thought_status = ThoughtStatus.FAILED
-                                follow_up_content_key_info = f"SPEAK action failed (all services): {str(fallback_ex)}"
-                        else:
-                            final_thought_status = ThoughtStatus.FAILED
-                            follow_up_content_key_info = f"SPEAK action failed: {str(send_ex)}"
-                else:
-                    # Ultimate fallback to legacy action sink for backward compatibility
-                    if self.dependencies.action_sink:
-                        try:
-                            logger.info("No communication service available, using legacy action sink")
-                            numeric_channel_id_str = str(final_channel_id_to_speak).lstrip('#')
-                            await self.dependencies.action_sink.send_message(numeric_channel_id_str, speak_content)
-                            action_performed_successfully = True
-                            follow_up_content_key_info = f"Spoke via legacy: '{str(speak_content)[:50]}...' in channel #{numeric_channel_id_str}"
-                        except Exception as send_ex:
-                            logger.exception(f"Error sending SPEAK message to channel {final_channel_id_to_speak}. Thought ID: {thought_id}: {send_ex}")
-                            final_thought_status = ThoughtStatus.FAILED
-                            follow_up_content_key_info = f"SPEAK action failed during send to {final_channel_id_to_speak}: {str(send_ex)}"
-                    else:
-                        logger.error(f"No communication services or ActionSink available. Cannot send SPEAK message for thought {thought_id}")
+                        logger.exception(
+                            f"Error with communication service for thought {thought_id}: {send_ex}"
+                        )
                         final_thought_status = ThoughtStatus.FAILED
-                        follow_up_content_key_info = f"SPEAK action failed: No communication services or ActionSink available for thought {thought_id}."
+                        follow_up_content_key_info = f"SPEAK action failed: {send_ex}"
+                else:
+                    logger.error(
+                        f"No communication services available. Cannot send SPEAK message for thought {thought_id}"
+                    )
+                    final_thought_status = ThoughtStatus.FAILED
+                    follow_up_content_key_info = (
+                        f"SPEAK action failed: No communication service for thought {thought_id}"
+                    )
             else:
                 err_msg = "SPEAK action failed: "
                 if not speak_content: err_msg += "Missing content. "

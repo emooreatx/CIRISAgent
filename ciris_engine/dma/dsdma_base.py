@@ -9,11 +9,12 @@ from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import DSDMAResult
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.formatters import (
-    format_user_profiles, 
+    format_user_profiles,
     format_system_snapshot,
     format_system_prompt_blocks,
     get_escalation_guidance
 )
+from ciris_engine.utils import COVENANT_TEXT
 from pydantic import BaseModel, Field
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.config.config_manager import get_config # To access global config
@@ -166,6 +167,7 @@ class BaseDSDMA(ABC):
         logger.debug(f"DSDMA '{self.domain_name}' input to LLM for thought {thought_item.thought_id}:\nSystem: {system_message_content}\nUser: {user_message_content}")
 
         messages = [
+            {"role": "system", "content": COVENANT_TEXT},
             {"role": "system", "content": system_message_content},
             {"role": "user", "content": user_message_content}
         ]
