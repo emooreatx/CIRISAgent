@@ -1,5 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel
+from .versioning import SchemaVersion
 from typing import Optional
 
 class CaseInsensitiveEnum(str, Enum):
@@ -63,9 +64,9 @@ class IncomingMessage(BaseModel):
     is_bot: bool = False
     is_dm: bool = False
 
-class CIRISSchemaVersion(str, Enum):
-    """Version tracking for schema evolution."""
-    V1_0_BETA = "1.0-beta"
+
+# Backwards-compatible alias for SchemaVersion
+CIRISSchemaVersion = SchemaVersion
 
 
 __all__ = [
@@ -75,5 +76,6 @@ __all__ = [
     "ThoughtStatus",
     "ObservationSourceType",
     "IncomingMessage",
+    "SchemaVersion",
     "CIRISSchemaVersion",
 ]

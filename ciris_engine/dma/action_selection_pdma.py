@@ -24,9 +24,10 @@ from ciris_engine.schemas.action_params_v1 import (
     ForgetParams,
 )
 from ciris_engine.schemas.action_params_v1 import ToolParams
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, CIRISSchemaVersion
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, SchemaVersion
 from ciris_engine.schemas.config_schemas_v1 import DEFAULT_OPENAI_MODEL_NAME
 from ciris_engine.registries.base import ServiceRegistry
+from .base_dma import BaseDMA
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
 from ciris_engine.utils import COVENANT_TEXT
@@ -45,7 +46,7 @@ DEFAULT_TEMPLATE = """{system_header}
 
 {closing_reminder}"""
 
-class ActionSelectionPDMAEvaluator:
+class ActionSelectionPDMAEvaluator(BaseDMA):
     """
     The second PDMA in the sequence. It takes the original thought and the outputs
     of the Ethical PDMA, CSDMA, and DSDMA, then performs a PDMA process
@@ -190,11 +191,13 @@ class ActionSelectionPDMAEvaluator:
             prompt_overrides: Optional prompt overrides dict.
             instructor_mode: instructor.Mode (must be passed as keyword argument).
         """
-        self.service_registry = service_registry
-        self.model_name = model_name
-        self.max_retries = max_retries  # Store max_retries
+        super().__init__(
+            service_registry=service_registry,
+            model_name=model_name,
+            max_retries=max_retries,
+            instructor_mode=instructor_mode,
+        )
         self.prompt = {**self.DEFAULT_PROMPT, **(prompt_overrides or {})}
-        self.instructor_mode = instructor_mode  # Store for reference if needed
 
     def _get_profile_specific_prompt(self, base_key: str, agent_profile_name: Optional[str]) -> str:
         if agent_profile_name:
@@ -423,12 +426,7 @@ Adhere strictly to the schema for your JSON output.
         original_thought: Thought = triaged_inputs['original_thought'] # For logging & post-processing
         processing_context_data = triaged_inputs.get('processing_context') # Define this at the start of the method
 
-        llm_service = None
-        if self.service_registry:
-            llm_service = await self.service_registry.get_service(
-                handler=self.__class__.__name__,
-                service_type="llm"
-            )
+        llm_service = await self.get_llm_service()
         if not llm_service:
             raise RuntimeError("LLM service unavailable for ActionSelectionPDMA")
 
