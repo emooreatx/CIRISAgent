@@ -20,11 +20,17 @@ async def test_speak_handler_creates_followup(monkeypatch):
     deps.action_sink = AsyncMock()
     deps.persistence = MagicMock()
     deps.persistence.add_thought = add_thought_mock
-    deps.audit_service = MagicMock()
-    deps.audit_service.log_action = AsyncMock()
+    audit_service = MagicMock()
+    audit_service.log_action = AsyncMock()
     mock_comm = MagicMock()
     mock_comm.send_message = AsyncMock(return_value=True)
-    deps.get_service = AsyncMock(return_value=mock_comm)
+    async def get_service(handler, service_type, **kwargs):
+        if service_type == "communication":
+            return mock_comm
+        if service_type == "audit":
+            return audit_service
+        return None
+    deps.get_service = AsyncMock(side_effect=get_service)
     handler = SpeakHandler(deps)
     thought = Thought(thought_id="t1", source_task_id="parent1", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
     params = SpeakParams(content="hello", channel_id="c1")
@@ -40,10 +46,16 @@ async def test_recall_handler_creates_followup():
     memory_service = AsyncMock()
     memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
     deps = ActionHandlerDependencies()
-    deps.get_service = AsyncMock(return_value=memory_service)
     deps.persistence = MagicMock()
-    deps.audit_service = MagicMock()
-    deps.audit_service.log_action = AsyncMock()
+    audit_service = MagicMock()
+    audit_service.log_action = AsyncMock()
+    async def get_service(handler, service_type, **kwargs):
+        if service_type == "memory":
+            return memory_service
+        if service_type == "audit":
+            return audit_service
+        return None
+    deps.get_service = AsyncMock(side_effect=get_service)
     handler = RecallHandler(deps)
     thought = Thought(thought_id="t2", source_task_id="parent2", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
     params = RecallParams(query="q", scope="identity")
@@ -61,10 +73,16 @@ async def test_forget_handler_creates_followup():
     memory_service = AsyncMock()
     memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
     deps = ActionHandlerDependencies()
-    deps.get_service = AsyncMock(return_value=memory_service)
     deps.persistence = MagicMock()
-    deps.audit_service = MagicMock()
-    deps.audit_service.log_action = AsyncMock()
+    audit_service = MagicMock()
+    audit_service.log_action = AsyncMock()
+    async def get_service(handler, service_type, **kwargs):
+        if service_type == "memory":
+            return memory_service
+        if service_type == "audit":
+            return audit_service
+        return None
+    deps.get_service = AsyncMock(side_effect=get_service)
     handler = ForgetHandler(deps)
     thought = Thought(thought_id="t3", source_task_id="parent3", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
     params = ForgetParams(key="k", scope="identity", reason="r")
@@ -84,11 +102,17 @@ def test_memorize_handler_creates_followup(monkeypatch):
     memory_service = AsyncMock()
     memory_service.memorize = AsyncMock(return_value=MagicMock(status="SAVED"))
     deps = ActionHandlerDependencies()
-    deps.get_service = AsyncMock(return_value=memory_service)
     deps.persistence = MagicMock()
     deps.persistence.add_thought = add_thought_mock
-    deps.audit_service = MagicMock()
-    deps.audit_service.log_action = AsyncMock()
+    audit_service = MagicMock()
+    audit_service.log_action = AsyncMock()
+    async def get_service(handler, service_type, **kwargs):
+        if service_type == "memory":
+            return memory_service
+        if service_type == "audit":
+            return audit_service
+        return None
+    deps.get_service = AsyncMock(side_effect=get_service)
     handler = MemorizeHandler(deps)
     thought = Thought(thought_id="t4", source_task_id="parent4", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
     params = MemorizeParams(key="k", value="v", scope="identity")
@@ -106,8 +130,13 @@ def test_ponder_handler_creates_followup(monkeypatch):
     deps = MagicMock()
     deps.persistence = MagicMock()
     deps.persistence.add_thought = add_thought_mock
-    deps.audit_service = MagicMock()
-    deps.audit_service.log_action = AsyncMock()
+    audit_service = MagicMock()
+    audit_service.log_action = AsyncMock()
+    async def get_service(handler, service_type, **kwargs):
+        if service_type == "audit":
+            return audit_service
+        return None
+    deps.get_service = AsyncMock(side_effect=get_service)
     handler = PonderHandler(deps)
     thought = Thought(thought_id="t5", source_task_id="parent5", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1, ponder_count=0)
     params = PonderParams(questions=["q1", "q2"])
@@ -126,8 +155,13 @@ async def test_task_complete_handler_no_followup():
     deps = MagicMock()
     deps.persistence = MagicMock()
     deps.action_sink = AsyncMock()
-    deps.audit_service = MagicMock()
-    deps.audit_service.log_action = AsyncMock()
+    audit_service = MagicMock()
+    audit_service.log_action = AsyncMock()
+    async def get_service(handler, service_type, **kwargs):
+        if service_type == "audit":
+            return audit_service
+        return None
+    deps.get_service = AsyncMock(side_effect=get_service)
     handler = TaskCompleteHandler(deps)
     thought = Thought(thought_id="t6", source_task_id="parent6", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
     result = ActionSelectionResult(selected_action=HandlerActionType.TASK_COMPLETE, action_parameters={}, rationale="r")
