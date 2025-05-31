@@ -1,16 +1,18 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Type
 from abc import ABC, abstractmethod
 
 # Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.adapters.discord.discord_observer import DiscordObserver  # For active look
 from ciris_engine import persistence
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
+from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +120,56 @@ class BaseActionHandler(ABC):
             "tool",
             required_capabilities=["execute_tool"]
         )
+
+    async def _get_channel_id(self, thought: Thought, dispatch_context: Dict[str, Any]) -> Optional[str]:
+        """Get channel ID from dispatch or thought context."""
+        channel_id = dispatch_context.get("channel_id")
+        if not channel_id and getattr(thought, "context", None):
+            channel_id = thought.context.get("channel_id")
+        if not channel_id and getattr(self.dependencies, "observer_service", None):
+            channel_id = getattr(self.dependencies.observer_service, "monitored_channel_id", None)
+        return channel_id
+
+    async def _send_notification(self, channel_id: str, content: str) -> bool:
+        """Send a notification using the best available service."""
+        if not channel_id or not content:
+            return False
+        comm_service = await self.get_communication_service()
+        if comm_service:
+            try:
+                await comm_service.send_message(str(channel_id).lstrip('#'), content)
+                return True
+            except Exception as e:
+                self.logger.error(f"Communication service failed to send message: {e}")
+        if getattr(self.dependencies, "action_sink", None):
+            try:
+                await self.dependencies.action_sink.send_message(channel_id, content)
+                return True
+            except Exception as e:
+                self.logger.error(f"Action sink failed to send message: {e}")
+        return False
+
+    async def _validate_and_convert_params(self, params: Any, param_class: Type[BaseModel]) -> BaseModel:
+        """Ensure params is an instance of ``param_class``."""
+        if isinstance(params, param_class):
+            return params
+        if isinstance(params, dict):
+            try:
+                return param_class(**params)
+            except ValidationError as e:
+                raise e
+        raise TypeError(f"Parameters must be {param_class.__name__} or dict")
+
+    async def _handle_error(
+        self,
+        action: HandlerActionType,
+        dispatch_context: Dict[str, Any],
+        thought_id: str,
+        error: Exception,
+    ) -> None:
+        """Centralized error handling with audit logging."""
+        self.logger.exception(f"{action.value} handler error for {thought_id}: {error}")
+        await self._audit_log(action, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
 
 
     @abstractmethod

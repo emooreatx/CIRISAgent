@@ -33,44 +33,27 @@ class MemorizeHandler(BaseActionHandler):
         action_performed_successfully = False
         follow_up_content_key_info = f"MEMORIZE action for thought {thought_id}"
 
-        # Handle both dict and MemorizeParams
-        from pydantic import ValidationError
-        params = raw_params
-        if not isinstance(params, MemorizeParams):
-            try:
-                params = MemorizeParams(**params) if isinstance(params, dict) else params
-            except ValidationError as e:
-                # Try to map old format to new
-                if "knowledge_unit_description" in raw_params:
-                    params = MemorizeParams(
-                        key=raw_params.get("knowledge_unit_description", "memory"),
-                        value=raw_params.get("knowledge_data", {}),
-                        scope=raw_params.get("scope", "local")
-                    )
-                else:
-                    logger.error(f"Invalid memorize params: {e}")
-                    final_thought_status = ThoughtStatus.FAILED
-                    follow_up_content_key_info = f"MEMORIZE action failed: Invalid parameters type ({type(raw_params)}) for thought {thought_id}. Error: {e}"
-                    await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="failed_invalid_params")
-                    # v1 uses 'final_action' instead of 'final_action_result'
-                    result_data = result.model_dump() if hasattr(result, 'model_dump') else result
-                    persistence.update_thought_status(
-                        thought_id=thought_id,
-                        status=final_thought_status,
-                        final_action=result_data,  # v1 field
-                    )
-                    return
-        if not isinstance(params, MemorizeParams):
-            logger.error(f"Invalid params type: {type(raw_params)}")
-            final_thought_status = ThoughtStatus.FAILED
-            follow_up_content_key_info = f"MEMORIZE action failed: Invalid parameters type ({type(raw_params)}) for thought {thought_id}."
-            await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="failed_invalid_params")
-            persistence.update_thought_status(
-                thought_id=thought_id,
-                status=final_thought_status,
-                final_action=result.model_dump() if hasattr(result, 'model_dump') else result,
-            )
-            return
+        try:
+            params = await self._validate_and_convert_params(raw_params, MemorizeParams)
+        except Exception as e:
+            if isinstance(raw_params, dict) and "knowledge_unit_description" in raw_params:
+                params = MemorizeParams(
+                    key=raw_params.get("knowledge_unit_description", "memory"),
+                    value=raw_params.get("knowledge_data", {}),
+                    scope=raw_params.get("scope", "local")
+                )
+            else:
+                logger.error(f"Invalid memorize params: {e}")
+                await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e)
+                final_thought_status = ThoughtStatus.FAILED
+                follow_up_content_key_info = f"MEMORIZE action failed: {e}"
+                result_data = result.model_dump() if hasattr(result, 'model_dump') else result
+                persistence.update_thought_status(
+                    thought_id=thought_id,
+                    status=final_thought_status,
+                    final_action=result_data,
+                )
+                return
 
         from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
@@ -123,9 +106,7 @@ class MemorizeHandler(BaseActionHandler):
                         final_thought_status = ThoughtStatus.DEFERRED
                         follow_up_content_key_info = reason or "Memory operation failed"
                 except Exception as e_mem:
-                    self.logger.exception(
-                        f"Error during MEMORIZE operation for thought {thought_id}: {e_mem}"
-                    )
+                    await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e_mem)
                     final_thought_status = ThoughtStatus.FAILED
                     follow_up_content_key_info = f"Exception during memory operation: {e_mem}"
 
@@ -174,8 +155,5 @@ class MemorizeHandler(BaseActionHandler):
             )
             await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="success")
         except Exception as e:
-            self.logger.critical(
-                f"Failed to create follow-up thought for {thought_id}: {e}",
-                exc_info=e,
-            )
+            await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e)
             raise FollowUpCreationError from e
