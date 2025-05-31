@@ -100,7 +100,6 @@ class DiscordRuntime(CIRISRuntime):
         if self.agent_processor:
             # Update the main services dict
             self.agent_processor.services["discord_service"] = self.client
-            self.agent_processor.services["discord_client"] = self.client  # Alternative key
             
             # Set discord_service on all processors for context passing
             processors = [
@@ -184,18 +183,7 @@ class DiscordRuntime(CIRISRuntime):
                 }
             )
             
-            # Register Discord client as a raw Discord service (for legacy compatibility)
-            if self.client:
-                await self.service_registry.register(
-                    service_instance=self.client,
-                    service_type='discord_client',
-                    priority=1,
-                    capabilities=['raw_discord_access'],
-                    metadata={
-                        'type': 'discord.Client',
-                        'ready': not self.client.is_closed() if hasattr(self.client, 'is_closed') else True
-                    }
-                )
+
             
             # Register Discord observer if it exists
             if self.discord_observer:
