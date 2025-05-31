@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, Any, Optional
 
-from pydantic import BaseModel
 
 # Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
@@ -9,7 +8,8 @@ from ciris_engine.schemas.action_params_v1 import MemorizeParams
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
-from ciris_engine.adapters.local_graph_memory import MemoryOpStatus
+from ciris_engine.protocols.services import MemoryService
+from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpStatus
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
@@ -74,7 +74,7 @@ class MemorizeHandler(BaseActionHandler):
 
         from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
-        memory_service = await self.get_memory_service()
+        memory_service: Optional[MemoryService] = await self.get_memory_service()
 
         if not memory_service:
             self.logger.error(
@@ -90,33 +90,44 @@ class MemorizeHandler(BaseActionHandler):
                 outcome="failed_no_memory_service",
             )
         else:
-            user_nick = await extract_user_nick(
-                params=params,
-                dispatch_context=dispatch_context,
-                thought_id=thought_id,
-            )
-            channel = dispatch_context.get("channel_id")
-            # --- v1 graph node creation ---
-            node = GraphNode(
-                id=params.key,
-                type=NodeType.CONCEPT if params.scope == "identity" else NodeType.USER,
-                scope=GraphScope(params.scope),
-                attributes={"value": params.value, "source": thought.source_task_id}
-            )
-            try:
-                mem_op_result = await memory_service.memorize(node)
-                if mem_op_result.status == MemoryOpStatus.OK:
-                    action_performed_successfully = True
-                    follow_up_content_key_info = f"Memorization successful. Key: '{params.key}', Value: '{str(params.value)[:50]}...'"
-                else:
-                    status_str = mem_op_result.status.name if hasattr(mem_op_result.status, 'name') else str(mem_op_result.status)
-                    self.logger.error(f"Memorization operation status: {status_str}. Reason: {mem_op_result.reason}. Thought ID: {thought_id}")
-                    final_thought_status = ThoughtStatus.FAILED if mem_op_result.status == MemoryOpStatus.DENIED else ThoughtStatus.DEFERRED
-                    follow_up_content_key_info = f"Memorization status {status_str}: {mem_op_result.reason}"
-            except Exception as e_mem:
-                self.logger.exception(f"Error during MEMORIZE operation for thought {thought_id}: {e_mem}")
+            scope = GraphScope(params.scope)
+            if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not dispatch_context.get("wa_authorized"):
+                self.logger.warning(
+                    f"WA authorization required for MEMORIZE in scope {scope}. Thought {thought_id} denied."
+                )
                 final_thought_status = ThoughtStatus.FAILED
-                follow_up_content_key_info = f"MEMORIZE action failed due to exception: {str(e_mem)}"
+                follow_up_content_key_info = "WA authorization missing"
+            else:
+                node = GraphNode(
+                    id=params.key,
+                    type=NodeType.CONCEPT if scope == GraphScope.IDENTITY else NodeType.USER,
+                    scope=scope,
+                    attributes={"value": params.value, "source": thought.source_task_id},
+                )
+                try:
+                    mem_op = await memory_service.memorize(node)
+                    success = False
+                    reason = None
+                    if isinstance(mem_op, bool):
+                        success = mem_op
+                    elif hasattr(mem_op, "status"):
+                        success = str(getattr(mem_op, "status")) in {"ok", "OK", "saved", "SAVED"}
+                        reason = getattr(mem_op, "reason", None)
+                    else:
+                        success = bool(mem_op)
+
+                    if success:
+                        action_performed_successfully = True
+                        follow_up_content_key_info = f"Memorization successful. Key: '{params.key}'"
+                    else:
+                        final_thought_status = ThoughtStatus.DEFERRED
+                        follow_up_content_key_info = reason or "Memory operation failed"
+                except Exception as e_mem:
+                    self.logger.exception(
+                        f"Error during MEMORIZE operation for thought {thought_id}: {e_mem}"
+                    )
+                    final_thought_status = ThoughtStatus.FAILED
+                    follow_up_content_key_info = f"Exception during memory operation: {e_mem}"
 
         # v1 uses 'final_action' instead of 'final_action_result'
         result_data = result.model_dump() if hasattr(result, 'model_dump') else result

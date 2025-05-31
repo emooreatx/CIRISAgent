@@ -2,7 +2,8 @@ from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import ForgetParams
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
-from ciris_engine.adapters.local_graph_memory import MemoryOpStatus
+from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpStatus
+from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
@@ -64,7 +65,7 @@ class ForgetHandler(BaseActionHandler):
             }
             self.dependencies.persistence.add_thought(follow_up)
             return
-        memory_service = await self.get_memory_service()
+        memory_service: Optional[MemoryService] = await self.get_memory_service()
 
         if not memory_service:
             logger.error("ForgetHandler: MemoryService not available")
@@ -80,19 +81,50 @@ class ForgetHandler(BaseActionHandler):
             )
             return
 
-        # Build a GraphNode for the key to forget
+        scope = GraphScope(params.scope)
+        if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not dispatch_context.get("wa_authorized"):
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                content="FORGET action denied: WA authorization required"
+            )
+            follow_up.context = {
+                "action_performed": HandlerActionType.FORGET.name,
+                "parent_task_id": thought.source_task_id,
+                "is_follow_up": True,
+                "error": "wa_denied",
+            }
+            self.dependencies.persistence.add_thought(follow_up)
+            await self._audit_log(
+                HandlerActionType.FORGET,
+                {**dispatch_context, "thought_id": thought_id},
+                outcome="wa_denied",
+            )
+            return
+
         node = GraphNode(
             id=params.key,
-            type=NodeType.CONCEPT if params.scope == "identity" else NodeType.USER,
-            scope=GraphScope(params.scope),
+            type=NodeType.CONCEPT if scope == GraphScope.IDENTITY else NodeType.USER,
+            scope=scope,
             attributes={}
         )
         forget_result = await memory_service.forget(node)
         await self._audit_forget_operation(params, dispatch_context, forget_result)
-        if forget_result.status == MemoryOpStatus.OK:
-            follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. Successfully forgot key '{params.key}' in scope {params.scope}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+        success = False
+        if isinstance(forget_result, bool):
+            success = forget_result
+        elif hasattr(forget_result, "status"):
+            success = forget_result.status == MemoryOpStatus.OK
         else:
-            follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. Failed to forget key '{params.key}' in scope {params.scope}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            success = bool(forget_result)
+
+        if success:
+            follow_up_content = (
+                f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. Successfully forgot key '{params.key}' in scope {params.scope}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            )
+        else:
+            follow_up_content = (
+                f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. Failed to forget key '{params.key}' in scope {params.scope}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            )
         follow_up = create_follow_up_thought(
             parent=thought,
             content=follow_up_content,
@@ -103,10 +135,14 @@ class ForgetHandler(BaseActionHandler):
             "is_follow_up": True,
             "forget_key": params.key,
             "forget_scope": params.scope,
-            "forget_status": str(forget_result.status)
+            "forget_status": str(getattr(forget_result, "status", forget_result))
         }
         self.dependencies.persistence.add_thought(follow_up)
-        await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="success" if forget_result.status == MemoryOpStatus.OK else "failed")
+        await self._audit_log(
+            HandlerActionType.FORGET,
+            {**dispatch_context, "thought_id": thought_id},
+            outcome="success" if success else "failed",
+        )
 
     def _can_forget(self, params, dispatch_context):
         # Placeholder: implement permission logic as needed
