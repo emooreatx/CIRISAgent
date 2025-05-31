@@ -3,7 +3,11 @@ import logging
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import PonderParams
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import (
+    ThoughtStatus,
+    HandlerActionType,
+    TaskStatus,
+)
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
 from ciris_engine.action_handlers.base_handler import BaseActionHandler, ActionHandlerDependencies
@@ -72,6 +76,9 @@ class PonderHandler(BaseActionHandler):
                     "wakeup_step": True
                 }
             )
+            # Mark the parent wakeup task as completed
+            if thought.source_task_id:
+                persistence.update_task_status(thought.source_task_id, TaskStatus.COMPLETED)
             # Log audit for wakeup step ponder
             await self._audit_log(
                 HandlerActionType.PONDER,

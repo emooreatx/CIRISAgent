@@ -57,8 +57,11 @@ def build_dispatch_context(
         if "channel_id" in task.context:
             if not hasattr(thought, 'context') or thought.context is None:
                 thought.context = {}
-            if "channel_id" not in thought.context:
-                thought.context["channel_id"] = task.context["channel_id"]
+            if isinstance(thought.context, dict):
+                thought.context.setdefault("channel_id", task.context["channel_id"])
+            else:
+                if getattr(thought.context, "channel_id", None) is None:
+                    thought.context = thought.context.model_copy(update={"channel_id": task.context["channel_id"]})
     
     # Handle channel_id fallback logic
     if not channel_id:

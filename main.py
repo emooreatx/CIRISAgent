@@ -148,7 +148,7 @@ def main(
         interactive = not no_interactive if selected_mode == "cli" else True
 
         if mock_llm:
-            from tests.adapters.mock_llm_service import MockLLMService  # type: ignore
+            from tests.adapters.mock_llm import MockLLMService  # type: ignore
             import ciris_engine.runtime.ciris_runtime as runtime_module
             runtime_module.OpenAICompatibleLLM = MockLLMService  # patch
 
