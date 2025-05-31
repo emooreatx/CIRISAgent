@@ -8,6 +8,7 @@ import instructor # For instructor.Mode
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import DSDMAResult
 from ciris_engine.registries.base import ServiceRegistry
+from .base_dma import BaseDMA
 from ciris_engine.formatters import (
     format_user_profiles,
     format_system_snapshot,
@@ -21,7 +22,7 @@ from ciris_engine.config.config_manager import get_config # To access global con
 
 logger = logging.getLogger(__name__) # Add logger
 
-class BaseDSDMA(ABC):
+class BaseDSDMA(BaseDMA):
     """
     Abstract Base Class for Domain-Specific Decision-Making Algorithms.
     Handles instructor client patching based on global config.
@@ -45,24 +46,32 @@ class BaseDSDMA(ABC):
                  prompt_template: Optional[str] = None):
         
         app_config = get_config()
-        self.model_name = model_name or app_config.llm_services.openai.model_name
-        
+        resolved_model = model_name or app_config.llm_services.openai.model_name
+
         try:
             configured_mode_str = app_config.llm_services.openai.instructor_mode.upper()
-            self.instructor_mode = instructor.Mode[configured_mode_str]
+            instructor_mode = instructor.Mode[configured_mode_str]
         except KeyError:
-            logger.warning(f"Invalid instructor_mode '{app_config.llm_services.openai.instructor_mode}' in config for DSDMA {domain_name}. Defaulting to JSON.")
-            self.instructor_mode = instructor.Mode.JSON
+            logger.warning(
+                f"Invalid instructor_mode '{app_config.llm_services.openai.instructor_mode}' in config for DSDMA {domain_name}. Defaulting to JSON."
+            )
+            instructor_mode = instructor.Mode.JSON
 
-        self.service_registry = service_registry
-        
+        super().__init__(
+            service_registry=service_registry,
+            model_name=resolved_model,
+            max_retries=2,
+            instructor_mode=instructor_mode,
+        )
+
         self.domain_name = domain_name
         self.domain_specific_knowledge = domain_specific_knowledge if domain_specific_knowledge else {}
         # Use provided template, fallback to class default, then empty string
         self.prompt_template = prompt_template if prompt_template is not None else (self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE is not None else "")
-        
-        logger.info(f"BaseDSDMA '{self.domain_name}' initialized with model: {self.model_name}, instructor_mode: {self.instructor_mode.name}")
-        super().__init__()
+
+        logger.info(
+            f"BaseDSDMA '{self.domain_name}' initialized with model: {self.model_name}, instructor_mode: {self.instructor_mode.name}"
+        )
 
     class LLMOutputForDSDMA(BaseModel):
         domain_alignment_score: float = Field(..., ge=0.0, le=1.0)
@@ -71,12 +80,7 @@ class BaseDSDMA(ABC):
         reasoning: str
 
     async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Dict[str, Any]) -> DSDMAResult:
-        llm_service = None
-        if self.service_registry:
-            llm_service = await self.service_registry.get_service(
-                handler=self.__class__.__name__,
-                service_type="llm"
-            )
+        llm_service = await self.get_llm_service()
         if not llm_service:
             raise RuntimeError("LLM service unavailable for DSDMA evaluation")
 
@@ -222,6 +226,12 @@ class BaseDSDMA(ABC):
                 reasoning=f"Failed DSDMA evaluation via instructor: {str(e)}",
                 raw_llm_response=f"Exception: {str(e)}",
             )
+
+    async def evaluate(
+        self, thought_item: ProcessingQueueItem, current_context: Dict[str, Any]
+    ) -> DSDMAResult:
+        """Alias for evaluate_thought to satisfy BaseDMA."""
+        return await self.evaluate_thought(thought_item, current_context)
 
     def __repr__(self) -> str:
         return f"<BaseDSDMA domain='{self.domain_name}'>"
