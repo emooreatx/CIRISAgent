@@ -7,7 +7,13 @@ from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.dsdma_base import BaseDSDMA
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.dma.dma_executor import run_pdma, run_csdma, run_dsdma, run_action_selection_pdma
-from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult, CSDMAResult, DSDMAResult, ActionSelectionResult
+from ciris_engine.schemas.dma_results_v1 import (
+    EthicalDMAResult,
+    CSDMAResult,
+    DSDMAResult,
+    ActionSelectionResult,
+)
+from ciris_engine.registries.circuit_breaker import CircuitBreaker
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought # Added import
 
@@ -31,6 +37,14 @@ class DMAOrchestrator:
         self.app_config = app_config
         self.llm_service = llm_service
         self.memory_service = memory_service
+
+        # Circuit breakers for each DMA to prevent cascading failures
+        self._circuit_breakers: Dict[str, CircuitBreaker] = {
+            "ethical_pdma": CircuitBreaker("ethical_pdma"),
+            "csdma": CircuitBreaker("csdma"),
+        }
+        if self.dsdma is not None:
+            self._circuit_breakers["dsdma"] = CircuitBreaker("dsdma")
 
     async def run_initial_dmas(self, thought_item: ProcessingQueueItem, dsdma_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -58,6 +72,69 @@ class DMAOrchestrator:
         if errors:
             # Escalate or handle as needed; for now, just raise the first error
             raise Exception(f"DMA(s) failed: {errors}")
+        return results
+
+    async def run_dmas(
+        self,
+        thought_item: ProcessingQueueItem,
+        dsdma_context: Optional[Dict[str, Any]] = None,
+    ) -> "DMAResults":
+        """Run all DMAs with circuit breaker protection."""
+
+        from ciris_engine.schemas.processing_schemas_v1 import DMAResults
+
+        results = DMAResults()
+        tasks: Dict[str, asyncio.Task] = {}
+
+        # Ethical PDMA
+        cb = self._circuit_breakers.get("ethical_pdma")
+        if cb and cb.is_available():
+            tasks["ethical_pdma"] = asyncio.create_task(
+                run_pdma(self.ethical_pdma_evaluator, thought_item)
+            )
+        else:
+            results.errors.append("ethical_pdma circuit open")
+
+        # CSDMA
+        cb = self._circuit_breakers.get("csdma")
+        if cb and cb.is_available():
+            tasks["csdma"] = asyncio.create_task(
+                run_csdma(self.csdma_evaluator, thought_item)
+            )
+        else:
+            results.errors.append("csdma circuit open")
+
+        # DSDMA (optional)
+        if self.dsdma:
+            cb = self._circuit_breakers.get("dsdma")
+            if cb and cb.is_available():
+                tasks["dsdma"] = asyncio.create_task(
+                    run_dsdma(self.dsdma, thought_item, dsdma_context or {})
+                )
+            elif cb:
+                results.errors.append("dsdma circuit open")
+        else:
+            results.dsdma = None
+
+        if tasks:
+            task_results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+            for (name, _), outcome in zip(tasks.items(), task_results):
+                cb = self._circuit_breakers.get(name)
+                if isinstance(outcome, Exception):
+                    logger.error(f"DMA '{name}' failed: {outcome}", exc_info=True)
+                    results.errors.append(str(outcome))
+                    if cb:
+                        cb.record_failure()
+                else:
+                    if cb:
+                        cb.record_success()
+                    if name == "ethical_pdma":
+                        results.ethical_pdma = outcome
+                    elif name == "csdma":
+                        results.csdma = outcome
+                    elif name == "dsdma":
+                        results.dsdma = outcome
+
         return results
 
     async def run_action_selection(
