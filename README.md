@@ -167,10 +167,18 @@ export DISCORD_BOT_TOKEN="your_discord_bot_token_here"
 
 ## Running Agents
 
-Run the agent using the unified entry point. Specify the mode and profile as needed:
+Run the agent using the unified entry point or one of the convenience scripts. Specify the mode and profile as needed:
 
 ```bash
 python -m ciris_engine.main --mode discord --profile default
+```
+
+Convenience wrappers are also provided:
+
+```bash
+python run_discord.py --profile teacher  # Discord runtime
+python run_cli.py --profile default      # Interactive CLI
+python run_api.py --profile default      # API server
 ```
 
 Use `--mode cli` for a local command-line interface or `--mode api` for the API runtime. Enable debug logging with `--debug`.

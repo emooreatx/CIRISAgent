@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from ciris_engine.runtime.api_runtime import APIRuntime
+from ciris_engine.runtime.runtime_interface import RuntimeInterface
 
 @pytest.mark.asyncio
 async def test_api_runtime_initialization_calls_register(monkeypatch):
