@@ -189,8 +189,10 @@ class DiscordRuntime(CIRISRuntime):
     async def _build_action_dispatcher(self, dependencies):
         """Build Discord-specific action dispatcher."""
         return build_action_dispatcher(
-            audit_service=self.audit_service,
+            service_registry=self.service_registry,
+            shutdown_callback=dependencies.shutdown_callback,
             max_rounds=self.app_config.workflow.max_rounds,
+            audit_service=self.audit_service,
             action_sink=self.action_sink,
             memory_service=self.memory_service,
             observer_service=self.discord_observer,

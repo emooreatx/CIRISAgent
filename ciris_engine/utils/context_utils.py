@@ -67,11 +67,15 @@ def build_dispatch_context(
     if not channel_id:
         channel_id = startup_channel_id
         if not channel_id:
-            logger.error(
-                f"No channel_id found for thought {thought.thought_id} and no startup_channel_id set. "
-                f"This may cause downstream errors."
-            )
-            channel_id = "CLI" if origin_service == "CLI" else "default"
+            # Try to get from environment variable as a last resort
+            import os
+            channel_id = os.getenv("DISCORD_CHANNEL_ID")
+            if not channel_id:
+                logger.error(
+                    f"No channel_id found for thought {thought.thought_id}, no startup_channel_id set, "
+                    f"and DISCORD_CHANNEL_ID environment variable not found. This may cause downstream errors."
+                )
+                channel_id = "CLI" if origin_service == "CLI" else "default"
     
     context["channel_id"] = str(channel_id)
     

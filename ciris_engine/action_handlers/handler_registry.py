@@ -19,12 +19,16 @@ from .ponder_handler import PonderHandler
 import os
 
 # Add any required dependencies for handlers here, e.g., services, sinks, etc.
-def build_action_dispatcher(service_registry=None, max_rounds: int = 5, **kwargs):
+def build_action_dispatcher(service_registry=None, max_rounds: int = 5, shutdown_callback=None, **kwargs):
     """
     Instantiates all handlers and returns a ready-to-use ActionDispatcher.
     Uses service_registry for all service dependencies.
     """
-    deps = ActionHandlerDependencies(service_registry=service_registry)
+    deps = ActionHandlerDependencies(
+        service_registry=service_registry,
+        shutdown_callback=shutdown_callback,
+        **kwargs  # Pass through any legacy services
+    )
     handlers = {
         HandlerActionType.MEMORIZE: MemorizeHandler(deps),
         HandlerActionType.SPEAK: SpeakHandler(deps, snore_channel_id=os.getenv("SNORE_CHANNEL_ID")),

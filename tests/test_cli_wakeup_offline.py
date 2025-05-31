@@ -110,8 +110,11 @@ async def test_wakeup_sequence_offline(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_runtime_timeout(monkeypatch):
+    async def slow_run():
+        await asyncio.sleep(0.2)
+    
     runtime = AsyncMock()
-    runtime.run = AsyncMock(side_effect=asyncio.sleep(0.2))
+    runtime.run = AsyncMock(side_effect=slow_run)
     runtime.shutdown = AsyncMock()
     await main._run_runtime(runtime, timeout=0.1)
     runtime.run.assert_awaited()

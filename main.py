@@ -14,6 +14,7 @@ from ciris_engine.processor.task_manager import TaskManager
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from ciris_engine.utils.shutdown_manager import get_shutdown_manager
 
 logger = logging.getLogger(__name__)
 
@@ -50,47 +51,37 @@ async def _execute_handler(runtime, handler: str, params: Optional[str]) -> None
 
 async def _run_runtime(runtime, timeout: Optional[int]) -> None:
     """Run the runtime with optional timeout and graceful shutdown."""
-    run_task = None
+    timeout_task = None
+    shutdown_manager = get_shutdown_manager()
     
     try:
         if timeout:
-            # Create the runtime task
-            run_task = asyncio.create_task(runtime.run())
-            
-            # Wait for either the task to complete or timeout
-            try:
-                await asyncio.wait_for(run_task, timeout=timeout)
-            except asyncio.TimeoutError:
+            # Create a timeout task that will trigger global shutdown
+            async def timeout_handler():
+                await asyncio.sleep(timeout)
                 logger.info(f"Timeout of {timeout} seconds reached, initiating graceful shutdown...")
-                
-                # Cancel the run task and trigger graceful shutdown
-                run_task.cancel()
-                
-                # Give the runtime a chance to shutdown gracefully
-                try:
-                    await asyncio.wait_for(runtime.shutdown(), timeout=30.0)
-                    logger.info("Graceful shutdown completed")
-                except asyncio.TimeoutError:
-                    logger.warning("Graceful shutdown timed out after 30 seconds")
-                except Exception as e:
-                    logger.error(f"Error during graceful shutdown: {e}", exc_info=True)
-                
-                # Wait for the cancelled task to finish
-                try:
-                    await run_task
-                except asyncio.CancelledError:
-                    pass
-                    
-                return
-        else:
-            # No timeout, just run normally
-            await runtime.run()
+                shutdown_manager.request_shutdown(f"Runtime timeout after {timeout} seconds")
+            
+            timeout_task = asyncio.create_task(timeout_handler())
+            
+        # Run the runtime (this will handle global shutdown internally)
+        await runtime.run()
             
     except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received, shutting down runtime")
+        logger.info("Keyboard interrupt received, requesting shutdown...")
+        shutdown_manager.request_shutdown("Keyboard interrupt received")
     except Exception as e:
         logger.error(f"Runtime error: {e}", exc_info=True)
+        shutdown_manager.request_shutdown(f"Runtime error: {e}")
     finally:
+        # Cancel the timeout task if it's still running
+        if timeout_task and not timeout_task.done():
+            timeout_task.cancel()
+            try:
+                await timeout_task
+            except asyncio.CancelledError:
+                pass
+        
         # Always ensure proper shutdown if it hasn't been called yet
         try:
             await runtime.shutdown()

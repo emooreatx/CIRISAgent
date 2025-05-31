@@ -87,7 +87,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to fetch messages from Discord channel {channel_id}: {e}")
             return []
 
-    async def _fetch_messages_impl(self, channel_id: str, limit: int) -> List[Dict[str, Any]]:
+    async def _fetch_messages_impl(self, channel_id: str, limit: int, **kwargs) -> List[Dict[str, Any]]:
         """Internal implementation of fetch_messages for retry wrapping"""
         channel = self.client.get_channel(int(channel_id))
         if channel is None:
@@ -127,7 +127,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to fetch guidance from Discord: {e}")
             raise
 
-    async def _fetch_guidance_impl(self, context: dict) -> dict:
+    async def _fetch_guidance_impl(self, context: dict, **kwargs) -> dict:
         """Internal implementation of fetch_guidance for retry wrapping"""
         channel = self.client.get_channel(int(self.guidance_channel_id))
         if channel is None:
@@ -171,7 +171,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to send deferral to Discord: {e}")
             return False
 
-    async def _send_deferral_impl(self, thought_id: str, reason: str) -> None:
+    async def _send_deferral_impl(self, thought_id: str, reason: str, **kwargs) -> None:
         """Internal implementation of send_deferral for retry wrapping"""
         channel = self.client.get_channel(int(self.deferral_channel_id))
         if channel is None:
@@ -197,7 +197,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             config_key="discord_api"
         )
 
-    async def _execute_tool_impl(self, tool_name: str, tool_args: dict) -> dict:
+    async def _execute_tool_impl(self, tool_name: str, tool_args: dict, **kwargs) -> dict:
         """Internal implementation of execute_tool for retry wrapping"""
         handler = self.tool_registry.get_handler(tool_name)
         if not handler:
@@ -257,7 +257,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             channel_id, content
         )
 
-    async def _send_output_impl(self, channel_id: str, content: str):
+    async def _send_output_impl(self, channel_id: str, content: str, **kwargs):
         """Internal implementation of send_output for retry wrapping"""
         # Wait for the client to be ready before sending
         if hasattr(self.client, 'wait_until_ready'):

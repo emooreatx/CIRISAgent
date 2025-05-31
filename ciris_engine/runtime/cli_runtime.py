@@ -160,7 +160,7 @@ class CLIRuntime(CIRISRuntime):
         return build_action_dispatcher(
             audit_service=self.audit_service,
             max_rounds=self.app_config.workflow.max_rounds,
-            action_sink=self.action_sink or self.multi_service_sink,
+            action_sink=self.multi_service_sink,
             memory_service=self.memory_service,
             observer_service=self.cli_observer,
             io_adapter=self.cli_adapter,

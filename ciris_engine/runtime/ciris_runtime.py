@@ -20,6 +20,12 @@ from ciris_engine.adapters import AuditService
 from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
 from .runtime_interface import RuntimeInterface
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.utils.shutdown_manager import (
+    get_shutdown_manager, 
+    register_global_shutdown_handler,
+    wait_for_global_shutdown,
+    is_global_shutdown_requested
+)
 
 # Service Registry
 from ciris_engine.registries.base import ServiceRegistry, Priority
@@ -90,8 +96,26 @@ class CIRISRuntime(RuntimeInterface):
         # Profile
         self.profile: Optional[AgentProfile] = None
         
+        # Shutdown mechanism
+        self._shutdown_event = asyncio.Event()
+        self._shutdown_reason: Optional[str] = None
+        self._shutdown_manager = get_shutdown_manager()
+        
         # Track initialization state
         self._initialized = False
+    
+    def request_shutdown(self, reason: str = "Shutdown requested"):
+        """Request a graceful shutdown of the runtime."""
+        if self._shutdown_event.is_set():
+            logger.debug(f"Shutdown already requested, ignoring duplicate request: {reason}")
+            return
+        
+        logger.critical(f"RUNTIME SHUTDOWN REQUESTED: {reason}")
+        self._shutdown_reason = reason
+        self._shutdown_event.set()
+        
+        # Also notify the global shutdown manager
+        self._shutdown_manager.request_shutdown(f"Runtime: {reason}")
         
     async def initialize(self):
         """Initialize all components and services."""
@@ -271,7 +295,14 @@ class CIRISRuntime(RuntimeInterface):
         
         # Create dependencies for handlers and ThoughtProcessor
         dependencies = ActionHandlerDependencies(
-            service_registry=self.service_registry
+            service_registry=self.service_registry,
+            shutdown_callback=lambda: self.request_shutdown("Handler requested shutdown due to critical service failure")
+        )
+        
+        # Register runtime shutdown with global manager
+        register_global_shutdown_handler(
+            lambda: self.request_shutdown("Global shutdown manager triggered"),
+            is_async=False
         )
         
         # Build thought processor
@@ -353,14 +384,16 @@ class CIRISRuntime(RuntimeInterface):
         # This is a basic implementation - subclasses should override
         # to provide proper action_sink, deferral_sink, etc.
         return build_action_dispatcher(
-            audit_service=self.audit_service,
+            service_registry=self.service_registry,
+            shutdown_callback=dependencies.shutdown_callback,
             max_rounds=self.app_config.workflow.max_rounds,
+            audit_service=self.audit_service,
             action_sink=None,  # Override in subclass
             memory_service=self.memory_service,
         )
         
     async def run(self, max_rounds: Optional[int] = None):
-        """Run the agent processing loop."""
+        """Run the agent processing loop with shutdown monitoring."""
         if not self._initialized:
             await self.initialize()
             
@@ -372,8 +405,38 @@ class CIRISRuntime(RuntimeInterface):
             # Start IO adapter
             await self.io_adapter.start()
             
-            # Start processing
-            await self.agent_processor.start_processing(num_rounds=max_rounds)
+            # Start processing and monitor for shutdown requests
+            processing_task = asyncio.create_task(
+                self.agent_processor.start_processing(num_rounds=max_rounds)
+            )
+            shutdown_task = asyncio.create_task(self._shutdown_event.wait())
+            global_shutdown_task = asyncio.create_task(wait_for_global_shutdown())
+            
+            # Wait for either processing to complete or shutdown to be requested
+            done, pending = await asyncio.wait(
+                [processing_task, shutdown_task, global_shutdown_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            # Cancel any remaining tasks
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            
+            # Check if shutdown was requested
+            if self._shutdown_event.is_set() or is_global_shutdown_requested():
+                if self._shutdown_reason:
+                    logger.critical(f"GRACEFUL SHUTDOWN TRIGGERED: {self._shutdown_reason}")
+                elif is_global_shutdown_requested():
+                    logger.critical(f"GLOBAL SHUTDOWN TRIGGERED: {self._shutdown_manager.get_shutdown_reason()}")
+                else:
+                    logger.critical("GRACEFUL SHUTDOWN TRIGGERED: Unknown reason")
+                    
+                # Execute any pending global shutdown handlers
+                await self._shutdown_manager.execute_async_handlers()
             
         except KeyboardInterrupt:
             logger.info("Received interrupt signal")
