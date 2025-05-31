@@ -4,7 +4,7 @@ import pytest
 
 import main
 from ciris_engine.runtime.cli_runtime import CLIRuntime
-from tests.adapters.mock_llm_service import MockLLMService
+from tests.adapters.mock_llm import MockLLMService
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 

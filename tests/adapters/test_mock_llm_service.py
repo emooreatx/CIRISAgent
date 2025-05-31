@@ -1,5 +1,5 @@
 import pytest
-from tests.adapters.mock_llm_service import MockLLMClient
+from tests.adapters.mock_llm import MockLLMClient
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult, CSDMAResult, ActionSelectionResult
 from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
 from ciris_engine.dma.dsdma_base import BaseDSDMA
