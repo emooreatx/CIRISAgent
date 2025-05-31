@@ -2,8 +2,6 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from ciris_engine.runtime.api_runtime import APIRuntime
-from ciris_engine.runtime.runtime_interface import RuntimeInterface
-
 
 @pytest.mark.asyncio
 async def test_api_runtime_initialization_calls_register(monkeypatch):
@@ -32,3 +30,4 @@ async def test_api_runtime_initialization_calls_register(monkeypatch):
 def test_api_runtime_implements_interface():
     runtime = APIRuntime()
     assert isinstance(runtime, RuntimeInterface)
+
