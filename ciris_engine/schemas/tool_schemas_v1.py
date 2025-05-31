@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Optional
 from enum import Enum
-from .foundational_schemas_v1 import CIRISSchemaVersion
+from .versioning import SchemaVersion
 
 class ToolExecutionStatus(str, Enum):
     SUCCESS = "success"
@@ -12,7 +12,7 @@ class ToolExecutionStatus(str, Enum):
 
 class ToolResult(BaseModel):
     """Result from tool execution."""
-    schema_version: CIRISSchemaVersion = Field(default=CIRISSchemaVersion.V1_0_BETA)
+    schema_version: SchemaVersion = Field(default=SchemaVersion.V1_0)
     tool_name: str
     execution_status: ToolExecutionStatus
     result_data: Optional[Dict[str, Any]] = None

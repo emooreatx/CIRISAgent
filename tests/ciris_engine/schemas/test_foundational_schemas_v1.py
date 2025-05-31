@@ -73,7 +73,7 @@ def test_incoming_message_required_fields():
 
 
 @pytest.mark.parametrize("enum_cls, val, expected", [
-    (fs.CIRISSchemaVersion, "1.0-beta", fs.CIRISSchemaVersion.V1_0_BETA),
+    (fs.SchemaVersion, "1.0", fs.SchemaVersion.V1_0),
 ])
 def test_other_enums(enum_cls, val, expected):
     assert enum_cls(val) == expected
