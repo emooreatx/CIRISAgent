@@ -6,6 +6,9 @@ from abc import ABC, abstractmethod
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
+from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
+from ciris_engine.adapters.discord.discord_observer import DiscordObserver  # For active look
 from ciris_engine import persistence
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
@@ -16,14 +19,43 @@ logger = logging.getLogger(__name__)
 
 class ActionHandlerDependencies:
     """Services and context needed by action handlers."""
-    def __init__(self, service_registry: Optional[ServiceRegistry] = None):
+    def __init__(
+        self,
+        service_registry: Optional[ServiceRegistry] = None,
+        # Legacy services for backward compatibility
+        action_sink: Optional[MultiServiceActionSink] = None,
+        memory_service: Optional[LocalGraphMemoryService] = None,
+        observer_service: Optional[DiscordObserver] = None,
+        deferral_sink: Optional[MultiServiceDeferralSink] = None,
+        io_adapter: Optional[Any] = None,  # General type, can be cast in handler
+        audit_service: Optional[Any] = None,  # Add audit_service
+        **legacy_services  # For additional backward compatibility
+    ):
         self.service_registry = service_registry
-
+        # Keep legacy services for backward compatibility
+        self.action_sink = action_sink
+        self.memory_service = memory_service
+        self.observer_service = observer_service  # Still useful for its config like monitored_channel_id
+        self.deferral_sink = deferral_sink
+        self.io_adapter = io_adapter
+        self.audit_service = audit_service
+        # Store any additional legacy services
+        for name, service in legacy_services.items():
+            setattr(self, name, service)
+    
     async def get_service(self, handler: str, service_type: str, **kwargs) -> Optional[Any]:
-        """Get a service from the registry"""
+        """Get a service from the registry with automatic fallback to legacy services"""
+        service = None
+        
+        # Try to get from service registry first
         if self.service_registry:
-            return await self.service_registry.get_service(handler, service_type, **kwargs)
-        return None
+            service = await self.service_registry.get_service(handler, service_type, **kwargs)
+        
+        # Fallback to legacy services if available
+        if not service and hasattr(self, service_type):
+            service = getattr(self, service_type)
+            
+        return service
 
 
 class BaseActionHandler(ABC):
@@ -33,9 +65,8 @@ class BaseActionHandler(ABC):
         self.logger = logging.getLogger(self.__class__.__name__)
 
     async def _audit_log(self, handler_action, context, outcome=None):
-        audit_service = await self.get_audit_service()
-        if audit_service:
-            await audit_service.log_action(handler_action, context, outcome)
+        if self.dependencies and getattr(self.dependencies, 'audit_service', None):
+            await self.dependencies.audit_service.log_action(handler_action, context, outcome)
 
     async def get_communication_service(self) -> Optional[CommunicationService]:
         """Get best available communication service"""
@@ -95,6 +126,8 @@ class BaseActionHandler(ABC):
         channel_id = dispatch_context.get("channel_id")
         if not channel_id and getattr(thought, "context", None):
             channel_id = thought.context.get("channel_id")
+        if not channel_id and getattr(self.dependencies, "observer_service", None):
+            channel_id = getattr(self.dependencies.observer_service, "monitored_channel_id", None)
         return channel_id
 
     async def _send_notification(self, channel_id: str, content: str) -> bool:
@@ -108,8 +141,13 @@ class BaseActionHandler(ABC):
                 return True
             except Exception as e:
                 self.logger.error(f"Communication service failed to send message: {e}")
+        if getattr(self.dependencies, "action_sink", None):
+            try:
+                await self.dependencies.action_sink.send_message(self.__class__.__name__, channel_id, content)
+                return True
+            except Exception as e:
+                self.logger.error(f"Action sink failed to send message: {e}")
         return False
-
 
     async def _validate_and_convert_params(self, params: Any, param_class: Type[BaseModel]) -> BaseModel:
         """Ensure params is an instance of ``param_class``."""

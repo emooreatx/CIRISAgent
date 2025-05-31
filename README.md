@@ -178,6 +178,12 @@ The script automatically loads the CLI runtime and adds Discord if a bot token i
 python main.py --profile teacher   # Auto-detect Discord support
 ```
 
+When a Discord token is present the `DiscordRuntime` registers its communication
+and observer services with `Priority.HIGH`. The bundled CLI services are also
+registered at `Priority.NORMAL` so the agent can fall back to the console if the
+Discord connection drops. Running without a token automatically selects the
+`CLIRuntime`.
+
 Use `--mode cli` for a local command-line interface or `--mode api` for the API runtime. When running the API, you can set `--host` and `--port` to control the listen address. Disable interactive CLI input with `--no-interactive`. Enable debug logging with `--debug`.
 For offline testing you can pass `--mock-llm` to use the bundled mock LLM service.
 
