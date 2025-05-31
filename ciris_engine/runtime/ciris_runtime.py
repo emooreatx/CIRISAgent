@@ -37,7 +37,13 @@ from ciris_engine.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.dma.factory import create_dsdma_from_profile
-from ciris_engine.guardrails import EthicalGuardrails
+from ciris_engine.guardrails import (
+    GuardrailRegistry,
+    EntropyGuardrail,
+    CoherenceGuardrail,
+    OptimizationVetoGuardrail,
+    EpistemicHumilityGuardrail,
+)
 
 # IO Adapters
 from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
@@ -211,10 +217,26 @@ class CIRISRuntime:
         )
         
         # Build guardrails
-        guardrails = EthicalGuardrails(
-            llm_client.instruct_client,
-            self.app_config.guardrails,
-            model_name=llm_client.model_name
+        guardrail_registry = GuardrailRegistry()
+        guardrail_registry.register_guardrail(
+            "entropy",
+            EntropyGuardrail(self.service_registry, self.app_config.guardrails, llm_client.model_name),
+            priority=0,
+        )
+        guardrail_registry.register_guardrail(
+            "coherence",
+            CoherenceGuardrail(self.service_registry, self.app_config.guardrails, llm_client.model_name),
+            priority=1,
+        )
+        guardrail_registry.register_guardrail(
+            "optimization_veto",
+            OptimizationVetoGuardrail(self.service_registry, self.app_config.guardrails, llm_client.model_name),
+            priority=2,
+        )
+        guardrail_registry.register_guardrail(
+            "epistemic_humility",
+            EpistemicHumilityGuardrail(self.service_registry, self.app_config.guardrails, llm_client.model_name),
+            priority=3,
         )
         
         # Build context provider
@@ -241,7 +263,7 @@ class CIRISRuntime:
             app_config=self.app_config
         )
         
-        guardrail_orchestrator = GuardrailOrchestrator(guardrails)
+        guardrail_orchestrator = GuardrailOrchestrator(guardrail_registry)
         
         # Register core services in the service registry
         await self._register_core_services()
