@@ -6,6 +6,7 @@ Discord-specific runtime implementation with proper service context passing.
 import os
 import logging
 from typing import Optional, Dict, Any
+import asyncio
 
 import discord
 
@@ -80,7 +81,7 @@ class DiscordRuntime(CIRISRuntime):
         # Create deferral sink using MultiServiceDeferralSink
         self.deferral_sink = MultiServiceDeferralSink(
             service_registry=self.service_registry,
-            default_deferral_channel_id=self.deferral_channel_id
+            fallback_channel_id=self.deferral_channel_id
         )
         
         # Create Discord observer with proper context
@@ -94,7 +95,20 @@ class DiscordRuntime(CIRISRuntime):
         # Register Discord tools with the live client
         tool_registry = ToolRegistry()
         register_discord_tools(tool_registry, self.client)
-        ToolHandler.set_tool_registry(tool_registry)
+        
+        # Set the tool registry on the Discord adapter (which implements ToolService)
+        if hasattr(self.discord_adapter, 'tool_registry'):
+            self.discord_adapter.tool_registry = tool_registry
+        
+        # Register Discord adapter as tool service in the service registry
+        if self.service_registry and self.discord_adapter:
+            self.service_registry.register(
+                handler="ToolHandler",
+                service_type="tool",
+                provider=self.discord_adapter,
+                priority=Priority.HIGH,
+                capabilities=["execute_tool", "get_tool_result", "get_available_tools", "validate_parameters"]
+            )
 
         # Update agent processor services with Discord client
         if self.agent_processor:
@@ -221,3 +235,49 @@ class DiscordRuntime(CIRISRuntime):
                     
         # Call parent shutdown
         await super().shutdown()
+    
+    async def run(self, max_rounds: Optional[int] = None):
+        """Run the Discord runtime with proper client connection."""
+        if not self._initialized:
+            await self.initialize()
+            
+        try:
+            # Start multi-service sink processing
+            if self.multi_service_sink:
+                await self.multi_service_sink.start()
+            
+            # Start IO adapter (this doesn't start Discord client yet)
+            await self.io_adapter.start()
+            
+            # Attach event handlers to Discord client
+            self.discord_adapter.attach_to_client(self.client)
+            
+            # Start Discord client connection in background
+            logger.info("Starting Discord client connection...")
+            discord_task = asyncio.create_task(self.client.start(self.token))
+            
+            # Wait a moment for Discord to connect
+            await asyncio.sleep(2.0)
+            
+            # Start agent processing
+            logger.info("Starting agent processing...")
+            await self.agent_processor.start_processing(num_rounds=max_rounds)
+            
+        except KeyboardInterrupt:
+            logger.info("Received interrupt signal")
+        except Exception as e:
+            logger.error(f"Runtime error: {e}", exc_info=True)
+        finally:
+            # Cancel Discord client task if still running
+            if 'discord_task' in locals() and not discord_task.done():
+                discord_task.cancel()
+                try:
+                    await discord_task
+                except asyncio.CancelledError:
+                    pass
+            
+            # Close Discord client properly
+            if self.client and not self.client.is_closed():
+                await self.client.close()
+                
+            await self.shutdown()
