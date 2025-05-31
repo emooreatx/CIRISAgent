@@ -77,9 +77,12 @@ class CLIRuntime(CIRISRuntime):
         self.deferral_sink_task = asyncio.create_task(self.deferral_sink.start())
 
         logger.info("Starting agent processing with WAKEUP sequence...")
-        processing_task = asyncio.create_task(
-            self.agent_processor.start_processing(num_rounds=self.app_config.workflow.max_rounds)
-        )
+        if self.agent_processor:
+            asyncio.create_task(
+                self.agent_processor.start_processing(
+                    num_rounds=self.app_config.workflow.max_rounds
+                )
+            )
 
     async def _handle_observe_event(self, payload: Dict[str, Any]):
         """Enhanced observe event handling with CLI context"""
