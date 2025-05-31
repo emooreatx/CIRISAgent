@@ -45,7 +45,7 @@ class PonderHandler(BaseActionHandler):
         params = result.action_parameters
         ponder_params = PonderParams(**params) if isinstance(params, dict) else params
         
-        key_questions_list = ponder_params.questions if hasattr(ponder_params, 'questions') else []
+        questions_list = ponder_params.questions if hasattr(ponder_params, 'questions') else []
         
         epistemic_data = dispatch_context.get('epistemic_data')
         # Add epistemic notes if present
@@ -53,11 +53,11 @@ class PonderHandler(BaseActionHandler):
             if 'optimization_veto' in epistemic_data:
                 veto = epistemic_data['optimization_veto']
                 note = f"OptVeto: {veto.get('decision')} - {veto.get('justification')}"
-                key_questions_list.append(note)
+                questions_list.append(note)
             if 'epistemic_humility' in epistemic_data:
                 hum = epistemic_data['epistemic_humility']
                 h_note = f"Humility: {hum.get('recommended_action')} - {hum.get('epistemic_certainty')}"
-                key_questions_list.append(h_note)
+                questions_list.append(h_note)
         
         current_ponder_count = thought.ponder_count
         
@@ -72,7 +72,7 @@ class PonderHandler(BaseActionHandler):
                 final_action={
                     "action": HandlerActionType.DEFER.value,
                     "reason": f"Maximum ponder rounds ({self.max_rounds}) reached",
-                    "ponder_notes": key_questions_list,
+                    "ponder_notes": questions_list,
                     "ponder_count": current_ponder_count,
                 },
             )
@@ -85,7 +85,7 @@ class PonderHandler(BaseActionHandler):
             return None
         else:
             new_ponder_count = current_ponder_count + 1
-            logger.info(f"Thought ID {thought.thought_id} pondering (count: {new_ponder_count}). Questions: {key_questions_list}")
+            logger.info(f"Thought ID {thought.thought_id} pondering (count: {new_ponder_count}). Questions: {questions_list}")
             next_status = ThoughtStatus.PENDING
             if new_ponder_count >= self.max_rounds:
                 next_status = ThoughtStatus.DEFERRED
@@ -95,13 +95,13 @@ class PonderHandler(BaseActionHandler):
                 final_action={
                     "action": HandlerActionType.PONDER.value if next_status == ThoughtStatus.PENDING else HandlerActionType.DEFER.value,
                     "ponder_count": new_ponder_count,
-                    "ponder_notes": key_questions_list,
+                    "ponder_notes": questions_list,
                 },
             )
             if success:
                 thought.ponder_count = new_ponder_count
                 existing_notes = thought.ponder_notes or []
-                thought.ponder_notes = existing_notes + key_questions_list
+                thought.ponder_notes = existing_notes + questions_list
                 thought.status = next_status
                 logger.info(
                     f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for {next_status.value}."
@@ -120,7 +120,7 @@ class PonderHandler(BaseActionHandler):
                 # Create a follow-up thought for the ponder action
                 follow_up_content = (
                     f"This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
-                    f"Pondered questions: {key_questions_list}. "
+                    f"Pondered questions: {questions_list}. "
                     "If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 )
                 from .helpers import create_follow_up_thought
@@ -132,7 +132,7 @@ class PonderHandler(BaseActionHandler):
                     "action_performed": HandlerActionType.PONDER.name,
                     "parent_task_id": thought.source_task_id,
                     "is_follow_up": True,
-                    "ponder_notes": key_questions_list,
+                    "ponder_notes": questions_list,
                 }
                 persistence.add_thought(follow_up)
                 # Note: The thought is already set to PENDING status, so it will be automatically
@@ -158,7 +158,7 @@ class PonderHandler(BaseActionHandler):
                 # Create a follow-up thought for the failed ponder action
                 follow_up_content = (
                     f"This is a follow-up thought from a FAILED PONDER action performed on parent task {thought.source_task_id}. "
-                    f"Pondered questions: {key_questions_list}. "
+                    f"Pondered questions: {questions_list}. "
                     "The update failed. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 )
                 from .helpers import create_follow_up_thought
@@ -170,7 +170,7 @@ class PonderHandler(BaseActionHandler):
                     "action_performed": HandlerActionType.PONDER.name,
                     "parent_task_id": thought.source_task_id,
                     "is_follow_up": True,
-                    "ponder_notes": key_questions_list,
+                    "ponder_notes": questions_list,
                     "error": "Failed to update for re-processing"
                 }
                 persistence.add_thought(follow_up)

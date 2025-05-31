@@ -118,9 +118,9 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
             "If 'Speak' is chosen, the 'action_parameters' MUST be a JSON object. This object MUST contain a key named 'content'. The value for 'content' MUST be the substantive response string. Example: {{\"content\": \"Your direct answer or clarifying question here.\"}}. DO NOT use 'message_content'."
         ),
         "normal_mode_action_params_ponder_guidance": (
-            "If 'Ponder' is chosen (and not in final benchmark attempt under benchmark_mode, or if advisory allows), 'key_questions' MUST "
+            "If 'Ponder' is chosen (and not in final benchmark attempt under benchmark_mode, or if advisory allows), 'questions' MUST "
             "list 2-3 distinct, NEW questions to resolve the ambiguity, building upon or differing from any previous ponder_notes. For example, if the original thought was about \"murres\":\n"
-            """    {{"key_questions": ["What are 'murres' in this specific fictional context?", "Are 'murres' animals, mythological beings, or something else entirely?", "What is the user's primary goal for this 'murres' narrative?"]}}"""
+            """    {{"questions": ["What are 'murres' in this specific fictional context?", "Are 'murres' animals, mythological beings, or something else entirely?", "What is the user's primary goal for this 'murres' narrative?"]}}"""
         ),
         "normal_mode_action_selection_rationale_csdma_guidance": (
             "If addressing CSDMA-flagged ambiguity, this MUST be a central part of your rationale."
@@ -137,9 +137,9 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
             "Avoid providing answers when fundamental understanding is lacking. Ensure the key is 'content'." # Add reminder
         ),
         "student_mode_action_params_ponder_guidance": (
-            "If 'Ponder' is chosen, 'key_questions' MUST list 2-3 critical, analytical questions that challenge assumptions, explore underlying principles, or seek deeper understanding of the ambiguous elements. "
+            "If 'Ponder' is chosen, 'questions' MUST list 2-3 critical, analytical questions that challenge assumptions, explore underlying principles, or seek deeper understanding of the ambiguous elements. "
             "For example, if the thought is 'Explain quantum entanglement for a layperson':\n"
-            """    {{"key_questions": ["What is the current understanding of 'layperson' in this context - e.g., no science background, some high school physics?", "What specific aspect of quantum entanglement is most confusing or interesting to the user?", "Are there any analogies the user already understands that could be leveraged (e.g., correlated dice)?"]}}"""
+            """    {{"questions": ["What is the current understanding of 'layperson' in this context - e.g., no science background, some high school physics?", "What specific aspect of quantum entanglement is most confusing or interesting to the user?", "Are there any analogies the user already understands that could be leveraged (e.g., correlated dice)?"]}}"""
         ),
         "student_mode_action_selection_rationale_csdma_guidance": (
             "If CSDMA flagged ambiguity, your rationale MUST explain how the chosen action (especially Ponder) helps in critically analyzing and understanding the ambiguous concept from a learner's perspective."
@@ -310,7 +310,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
             for i, q_note in enumerate(notes_list):
                 ponder_notes_str_for_prompt_if_any += f"{i+1}. {q_note}\n"
             ponder_notes_str_for_prompt_if_any += ("Please consider these questions and the original thought in your current evaluation. "
-                                                 "If you choose to 'Ponder' again, ensure your new 'key_questions' are DIFFERENT "
+                                                 "If you choose to 'Ponder' again, ensure your new 'questions' are DIFFERENT "
                                                  "from the ones listed above and aim to address any REMAINING ambiguities or guide towards a solution.\n")
         elif current_ponder_count > 0:
              ponder_notes_str_for_prompt_if_any = f"\n\nThis thought has been pondered {current_ponder_count} time(s) previously. If choosing 'Ponder' again, formulate new, insightful questions.\n"
@@ -574,7 +574,7 @@ Adhere strictly to the schema for your JSON output.
         except InstructorRetryException as e_instr:
             error_detail = e_instr.errors() if hasattr(e_instr, 'errors') else str(e_instr)
             logger.error(f"ActionSelectionPDMA (instructor) InstructorRetryException for thought {original_thought.thought_id}: {error_detail}", exc_info=True)
-            fallback_params = PonderParams(questions=[f"System error during action selection: {error_detail}"]) # Corrected key_questions to questions
+            fallback_params = PonderParams(questions=[f"System error during action selection: {error_detail}"]) # Corrected questions to questions
 
 
             # Fallback should only populate fields of ActionSelectionResult.
@@ -586,7 +586,7 @@ Adhere strictly to the schema for your JSON output.
             )
         except Exception as e:
             logger.error(f"ActionSelectionPDMA (instructor) evaluation failed for thought ID {original_thought.thought_id}: {e}", exc_info=True)
-            fallback_params = PonderParams(questions=[f"System error during action selection: {str(e)}"]) # Corrected key_questions to questions
+            fallback_params = PonderParams(questions=[f"System error during action selection: {str(e)}"]) # Corrected questions to questions
 
             # input_snapshot_for_decision logic removed as it's not part of ActionSelectionResult
             return ActionSelectionResult(
