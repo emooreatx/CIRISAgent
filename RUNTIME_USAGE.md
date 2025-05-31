@@ -3,8 +3,9 @@
 ## Starting the CLI Runtime
 
 ```bash
-python main.py --mode cli --profile default
+python main.py --mode cli --profile default --no-interactive
 ```
+Pass `--mock-llm` to run entirely offline using the bundled mock service.
 
 ## Available Commands
 
@@ -28,7 +29,7 @@ python main.py --mode cli --profile default
 ## Starting the API Runtime
 
 ```bash
-python main.py --mode api --profile default --port 8080
+python main.py --mode api --profile default --host 0.0.0.0 --port 8080
 ```
 
 ## API Endpoints

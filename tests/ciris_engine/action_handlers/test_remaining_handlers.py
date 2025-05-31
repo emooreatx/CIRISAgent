@@ -148,7 +148,9 @@ async def test_reject_handler_schema_driven(monkeypatch):
 
     await handler.handle(action_result, thought, {"channel_id": "chan"})
 
-    action_sink.send_message.assert_awaited_with("chan", "Unable to proceed: bad")
+    action_sink.send_message.assert_awaited_with(
+        "RejectHandler", "chan", "Unable to proceed: bad"
+    )
     update_status.assert_called_once()
     add_thought.assert_called_once()
     assert update_status.call_args.kwargs["status"] == ThoughtStatus.FAILED

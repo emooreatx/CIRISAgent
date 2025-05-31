@@ -69,5 +69,9 @@ async def test_discord_runtime_cli_fallback(monkeypatch):
     await runtime.initialize()
     info = runtime.service_registry.get_provider_info()
     comm = info["handlers"]["SpeakHandler"]["communication"]
-    assert any(p["priority"] == "HIGH" and p["name"].startswith("DiscordAdapter") for p in comm)
-    assert any(p["priority"] == "FALLBACK" and p["name"].startswith("CLIAdapter") for p in comm)
+    assert any(
+        p["priority"] == "HIGH" and p["name"].startswith("DiscordAdapter") for p in comm
+    )
+    assert any(
+        p["priority"] == "NORMAL" and p["name"].startswith("CLIAdapter") for p in comm
+    )

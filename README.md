@@ -49,8 +49,7 @@ The repository root contains the following notable directories and scripts:
 * `ciris_profiles/` – YAML files defining agent behavior and available actions.
 * `tests/` – unit and integration tests for the engine.
 * `docker/` – container build scripts and Dockerfiles.
-* `legacy/` – archived utilities and documents.
-* `ciris_engine/main.py` – unified entry point for running the agent in CLI,
+* `main.py` – unified entry point for running the agent or engine in CLI,
   Discord, or API modes.
 
 ## Guardrails Summary
@@ -140,7 +139,7 @@ Example memory action JSON:
 
 Set the following environment variables (see `.env.example` for a template):
 
-*   `OPENAI_API_KEY`: **Required.** Your API key for the LLM service.
+*   `OPENAI_API_KEY`: **Required.** Your API key for the LLM service. If running a local model, set `OPENAI_API_BASE` and `OPENAI_MODEL_NAME` and provide any value for this key.
 *   `DISCORD_BOT_TOKEN`: **Required for Discord agents.** Your Discord bot token.
 *   `OPENAI_BASE_URL` (Optional): If using a non-OpenAI endpoint (e.g., Together.ai, local LLM server), set this to the base URL (e.g., `https://api.together.xyz/v1/`).
 *   `OPENAI_MODEL_NAME` (Optional): Specify the LLM model to be used (e.g., `meta-llama/Llama-3-70b-chat-hf`). Defaults to `gpt-4o-mini` if not set (see `ciris_engine/core/config_schemas.py`).
@@ -179,20 +178,18 @@ The script automatically loads the CLI runtime and adds Discord if a bot token i
 python main.py --profile teacher   # Auto-detect Discord support
 ```
 
-Use `--mode cli` for a local command-line interface or `--mode api` for the API runtime. Enable debug logging with `--debug`.
+Use `--mode cli` for a local command-line interface or `--mode api` for the API runtime. When running the API, you can set `--host` and `--port` to control the listen address. Disable interactive CLI input with `--no-interactive`. Enable debug logging with `--debug`.
+For offline testing you can pass `--mock-llm` to use the bundled mock LLM service.
 
 Play Mode and Solitude Mode provide short introspective sessions for the agent. Each lasts five minutes and is offered at random roughly once per hour. In safety-critical deployments, these sessions should be restricted to non‑shift hours via agent configuration.
 
 ---
-## Other Notable Scripts & Components
+## Other Notable Components
 
-*   **`run_services.py`**: Appears to be a script for running services, potentially for testing or a different deployment mode.
-*   **`test_client_init.py`**: A test script, likely for initializing or testing client connections.
-*   **`discord_graph_memory.py`**: Lightweight persistent graph memory for Discord user metadata.
-*   **`discord_observer.py`**: Minimal observer that dispatches OBSERVE payloads.
-*   **`legacy/`**: Archived utilities and documents.
-*   **`play_mode.py` / `solitude_mode.py`**: Short harnesses offering five minute Play or Solitude sessions. These may run once per hour during normal operation.
-*   **`reflection_scheduler.py`**: Lightweight scheduler that triggers Play or Solitude Mode at random intervals.
+*   **`discord_graph_memory.py`** – persistent graph memory for Discord user metadata.
+*   **`discord_observer.py`** – minimal observer that dispatches OBSERVE payloads.
+*   **`play_mode.py` / `solitude_mode.py`** – short harnesses offering five minute Play or Solitude sessions.
+*   **`reflection_scheduler.py`** – scheduler that triggers Play or Solitude Mode at random intervals.
 *   The `tests/` directory contains unit and integration tests runnable with `pytest`.
 
 ---

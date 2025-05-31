@@ -13,9 +13,24 @@ async def test_main_invokes_runtime(monkeypatch):
     monkeypatch.setattr(engine_main, "create_runtime", MagicMock(return_value=runtime))
     monkeypatch.setattr(engine_main, "run_with_shutdown_handler", AsyncMock())
 
-    await engine_main.main.callback(mode="cli", profile="test", config=None, debug=False)
+    await engine_main.main.callback(
+        mode="cli",
+        profile="test",
+        config=None,
+        host="0.0.0.0",
+        port=8080,
+        no_interactive=False,
+        debug=False,
+    )
 
-    engine_main.create_runtime.assert_called_once_with("cli", "test", mock_config)
+    engine_main.create_runtime.assert_called_once_with(
+        "cli",
+        "test",
+        mock_config,
+        interactive=True,
+        host="0.0.0.0",
+        port=8080,
+    )
     engine_main.run_with_shutdown_handler.assert_called_once_with(runtime)
 
 

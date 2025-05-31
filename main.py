@@ -106,20 +106,60 @@ async def _run_runtime(runtime, timeout: Optional[int]) -> None:
 @click.option("--timeout", type=int, help="Maximum runtime duration in seconds")
 @click.option("--handler", help="Direct handler to execute and exit")
 @click.option("--params", help="JSON parameters for handler execution")
+@click.option("--host", default="0.0.0.0", help="API host")
+@click.option("--port", default=8080, type=int, help="API port")
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
 @click.option("--no-interactive/--interactive", default=False, help="Disable interactive CLI input (start agent automatically)")
-def main(mode: str, profile: str, config: Optional[str], task: tuple[str], timeout: Optional[int], handler: Optional[str], params: Optional[str], debug: bool, no_interactive: bool) -> None:
+@click.option("--mock-llm/--no-mock-llm", default=False, help="Use the mock LLM service for offline testing")
+def main(
+    mode: str,
+    profile: str,
+    config: Optional[str],
+    task: tuple[str],
+    timeout: Optional[int],
+    handler: Optional[str],
+    params: Optional[str],
+    host: str,
+    port: int,
+    debug: bool,
+    no_interactive: bool,
+    mock_llm: bool,
+) -> None:
     """Unified CIRIS agent entry point."""
     setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
 
     async def _async_main():
+        if not os.getenv("OPENAI_API_KEY"):
+            click.echo(
+                "OPENAI_API_KEY not set. The agent requires an OpenAI-compatible LLM. "
+                "For a local model set OPENAI_API_BASE, OPENAI_MODEL_NAME and provide any OPENAI_API_KEY."
+            )
+
         app_config = await load_config(config)
+
         selected_mode = mode
         if mode == "auto":
             selected_mode = "discord" if os.getenv("DISCORD_BOT_TOKEN") else "cli"
-        # Pass interactive flag for CLI mode
+
+        if selected_mode == "discord" and not os.getenv("DISCORD_BOT_TOKEN"):
+            click.echo("DISCORD_BOT_TOKEN not set, falling back to CLI mode")
+            selected_mode = "cli"
+
         interactive = not no_interactive if selected_mode == "cli" else True
-        runtime = create_runtime(selected_mode, profile, app_config, interactive=interactive)
+
+        if mock_llm:
+            from tests.adapters.mock_llm_service import MockLLMService  # type: ignore
+            import ciris_engine.runtime.ciris_runtime as runtime_module
+            runtime_module.OpenAICompatibleLLM = MockLLMService  # patch
+
+        runtime = create_runtime(
+            selected_mode,
+            profile,
+            app_config,
+            interactive=interactive,
+            host=host,
+            port=port,
+        )
         await runtime.initialize()
 
         # Preload tasks
