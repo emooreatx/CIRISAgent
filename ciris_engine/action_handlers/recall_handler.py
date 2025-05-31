@@ -58,18 +58,6 @@ class RecallHandler(BaseActionHandler):
             return
 
         scope = GraphScope(params.scope)
-        if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not dispatch_context.get("wa_authorized"):
-            follow_up = create_follow_up_thought(
-                parent=thought,
-                content="RECALL action denied: WA authorization required"
-            )
-            self.dependencies.persistence.add_thought(follow_up)
-            await self._audit_log(
-                HandlerActionType.RECALL,
-                {**dispatch_context, "thought_id": thought_id},
-                outcome="wa_denied",
-            )
-            return
 
         node = GraphNode(
             id=params.query,
