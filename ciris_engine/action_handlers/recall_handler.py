@@ -2,7 +2,8 @@ from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import RecallParams
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
-from ciris_engine.adapters.local_graph_memory import MemoryOpStatus
+from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpStatus
+from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
@@ -38,7 +39,7 @@ class RecallHandler(BaseActionHandler):
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(HandlerActionType.RECALL, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             return
-        memory_service = await self.get_memory_service()
+        memory_service: Optional[MemoryService] = await self.get_memory_service()
 
         if not memory_service:
             logger.error(
@@ -57,16 +58,40 @@ class RecallHandler(BaseActionHandler):
             return
 
         scope = GraphScope(params.scope)
-        # Build a GraphNode for the query (id is the query string)
+        if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not dispatch_context.get("wa_authorized"):
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                content="RECALL action denied: WA authorization required"
+            )
+            self.dependencies.persistence.add_thought(follow_up)
+            await self._audit_log(
+                HandlerActionType.RECALL,
+                {**dispatch_context, "thought_id": thought_id},
+                outcome="wa_denied",
+            )
+            return
+
         node = GraphNode(
             id=params.query,
-            type=NodeType.CONCEPT if params.scope == "identity" else NodeType.USER,
+            type=NodeType.CONCEPT if scope == GraphScope.IDENTITY else NodeType.USER,
             scope=scope,
             attributes={}
         )
+
         memory_result = await memory_service.recall(node)
-        if memory_result.status == MemoryOpStatus.OK and memory_result.data:
-            follow_up_content = f"Memory query '{params.query}' returned: {memory_result.data}"
+        success = False
+        data = None
+        if isinstance(memory_result, bool):
+            success = memory_result
+        elif hasattr(memory_result, "status"):
+            success = memory_result.status == MemoryOpStatus.OK
+            data = getattr(memory_result, "data", None)
+        else:
+            success = bool(memory_result)
+            data = memory_result if success else None
+
+        if success and data:
+            follow_up_content = f"Memory query '{params.query}' returned: {data}"
         else:
             follow_up_content = f"No memories found for query '{params.query}' in scope {params.scope}"
         follow_up = create_follow_up_thought(
@@ -78,8 +103,15 @@ class RecallHandler(BaseActionHandler):
         follow_up_context["action_performed"] = HandlerActionType.RECALL.name
         follow_up_context["is_follow_up"] = True
         # Optionally add error or memory details if available
-        if memory_result and hasattr(memory_result, "status") and memory_result.status != MemoryOpStatus.OK:
-            follow_up_context["error_details"] = str(memory_result.status)
+        if not success:
+            if isinstance(memory_result, MemoryOpResult):
+                follow_up_context["error_details"] = str(memory_result.status)
+            else:
+                follow_up_context["error_details"] = "recall_failed"
         follow_up.context = follow_up_context
         self.dependencies.persistence.add_thought(follow_up)
-        await self._audit_log(HandlerActionType.RECALL, {**dispatch_context, "thought_id": thought_id}, outcome="success" if memory_result.status == MemoryOpStatus.OK and memory_result.data else "failed")
+        await self._audit_log(
+            HandlerActionType.RECALL,
+            {**dispatch_context, "thought_id": thought_id},
+            outcome="success" if success and data else "failed",
+        )

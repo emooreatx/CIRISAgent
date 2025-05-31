@@ -92,7 +92,7 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
                  patch.object(handler_mod.persistence, 'update_thought_status', side_effect=lambda **kwargs: None):
                 handler = handler_cls(deps)
                 result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale="r")
-                dispatch_context = {"channel_id": "c1"}
+                dispatch_context = {"channel_id": "c1", "wa_authorized": True}
                 if extra_setup:
                     extra_setup(deps, thought, db_path)
                 await handler.handle(result, thought, dispatch_context)
@@ -102,7 +102,7 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
             deps.persistence.update_thought_status = lambda **kwargs: None
             handler = handler_cls(deps)
             result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale="r")
-            dispatch_context = {"channel_id": "c1"}
+            dispatch_context = {"channel_id": "c1", "wa_authorized": True}
             if extra_setup:
                 extra_setup(deps, thought, db_path)
             await handler.handle(result, thought, dispatch_context)
