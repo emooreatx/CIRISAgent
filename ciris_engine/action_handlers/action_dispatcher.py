@@ -15,18 +15,15 @@ logger = logging.getLogger(__name__)
 class ActionDispatcher:
     def __init__(
         self,
-        handlers: Dict[HandlerActionType, BaseActionHandler],
-        audit_service: Optional[Any] = None # Keep audit_service if used, though not in current logic
+        handlers: Dict[HandlerActionType, BaseActionHandler]
     ):
         """
         Initializes the ActionDispatcher with a map of action types to their handler instances.
 
         Args:
             handlers: A dictionary mapping HandlerActionType to an instance of a BaseActionHandler subclass.
-            audit_service: Optional audit service.
         """
         self.handlers: Dict[HandlerActionType, BaseActionHandler] = handlers
-        self.audit_service = audit_service
         self.action_filter: Optional[Callable[[ActionSelectionResult, Dict[str, Any]], Awaitable[bool] | bool]] = None
 
         # Log the registered handlers for clarity during startup

@@ -54,9 +54,7 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[AgentProfile]:
             profile_data['name'] = profile_path.stem 
             logger.warning(f"Profile 'name' not found in YAML, inferred as '{profile_data['name']}' from filename: {profile_path}")
 
-        # Map legacy "dsdma_overrides" to "dsdma_kwargs" if present
-        if "dsdma_kwargs" not in profile_data and "dsdma_overrides" in profile_data:
-            profile_data["dsdma_kwargs"] = profile_data.pop("dsdma_overrides")
+
 
         # Convert permitted_actions from string to HandlerActionType robustly
         if "permitted_actions" in profile_data:

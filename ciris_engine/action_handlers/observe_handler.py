@@ -111,7 +111,6 @@ class ObserveHandler(BaseActionHandler):
             params.channel_id
             or dispatch_context.get("channel_id")
             or getattr(thought, "context", {}).get("channel_id")
-            or getattr(self.dependencies.observer_service, "monitored_channel_id", None)
         )
         params.channel_id = channel_id
 
@@ -122,10 +121,6 @@ class ObserveHandler(BaseActionHandler):
         observer_service = await self.get_observer_service()
         logger.debug(f"ObserveHandler: Got observer service: {type(observer_service).__name__ if observer_service else 'None'}")
         
-        # Fallback to legacy observer service if needed
-        if not observer_service and hasattr(self.dependencies, 'observer_service'):
-            observer_service = self.dependencies.observer_service
-            logger.info(f"ObserveHandler: Using legacy observer service from dependencies")
         
         memory_service = await self.get_memory_service()
         logger.debug(f"ObserveHandler: Got memory service: {type(memory_service).__name__ if memory_service else 'None'}")

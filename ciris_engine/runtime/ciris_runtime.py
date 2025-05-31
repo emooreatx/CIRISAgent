@@ -271,8 +271,7 @@ class CIRISRuntime(RuntimeInterface):
         
         # Create dependencies for handlers and ThoughtProcessor
         dependencies = ActionHandlerDependencies(
-            service_registry=self.service_registry,
-            action_sink=self.multi_service_sink  # Use multi-service sink as primary action sink
+            service_registry=self.service_registry
         )
         
         # Build thought processor

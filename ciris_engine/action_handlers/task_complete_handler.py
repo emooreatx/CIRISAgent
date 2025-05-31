@@ -73,12 +73,6 @@ class TaskCompleteHandler(BaseActionHandler):
                                 print(f"[TASK_COMPLETE_HANDLER] ✓ Notification sent for completed task {parent_task_id}")
                             except Exception as e:
                                 await self._handle_error(HandlerActionType.TASK_COMPLETE, dispatch_context, thought_id, e)
-                        elif self.dependencies.action_sink:
-                            try:
-                                await self.dependencies.action_sink.send_message(self.__class__.__name__, original_event_channel_id, message)
-                                print(f"[TASK_COMPLETE_HANDLER] ✓ Notification sent for completed task {parent_task_id}")
-                            except Exception as e:
-                                await self._handle_error(HandlerActionType.TASK_COMPLETE, dispatch_context, thought_id, e)
 
                     # Clean up any pending thoughts/resources for this task
                     pending = persistence.get_thoughts_by_task_id(parent_task_id)

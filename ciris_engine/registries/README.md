@@ -101,9 +101,8 @@ class SpeakHandler(BaseActionHandler):
                 await self._audit_log(HandlerActionType.SPEAK, dispatch_context,
                                     {"status": "failed", "service": type(comm_service).__name__})
         else:
-            # Ultimate fallback to legacy system
-            if self.dependencies.action_sink:
-                await self.dependencies.action_sink.send_message(channel_id, content)
+            # log and exit
+            return 1
 ```
 
 ### Available Service Methods
@@ -164,9 +163,8 @@ await sink.enqueue_action(action)
 
 ### For Existing Handlers
 
-1. **Keep existing code** - Legacy `action_sink` access still works
-2. **Add service registry calls** - Use `get_*_service()` methods for new features
-3. **Update error handling** - Registry provides automatic fallback
+1. **Add service registry calls** - Use `get_*_service()` methods for new features
+2. **Update error handling** - Registry provides automatic fallback
 
 ### For Runtime Implementations
 
