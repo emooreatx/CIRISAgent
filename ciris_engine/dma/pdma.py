@@ -5,6 +5,7 @@ import instructor
 
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.registries.base import ServiceRegistry
+from .base_dma import BaseDMA
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult
 from ciris_engine.formatters import format_user_profiles, format_system_snapshot
 from ciris_engine.utils import COVENANT_TEXT
@@ -12,21 +13,25 @@ DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
 
 logger = logging.getLogger(__name__)
 
-class EthicalPDMAEvaluator:
+class EthicalPDMAEvaluator(BaseDMA):
     """
     Evaluates a thought against core ethical principles using an LLM
     and returns a structured EthicalDMAResult using the 'instructor' library.
     """
 
-    def __init__(self,
-                 service_registry: ServiceRegistry,
-                 model_name: str = DEFAULT_OPENAI_MODEL_NAME,
-                 max_retries: int = 2,
-                 prompt_overrides: Optional[Dict[str, str]] = None
-                 ):
-        self.service_registry = service_registry
-        self.model_name = model_name
-        self.max_retries = max_retries
+    def __init__(
+        self,
+        service_registry: ServiceRegistry,
+        model_name: str = DEFAULT_OPENAI_MODEL_NAME,
+        max_retries: int = 2,
+        prompt_overrides: Optional[Dict[str, str]] = None,
+    ) -> None:
+        super().__init__(
+            service_registry=service_registry,
+            model_name=model_name,
+            max_retries=max_retries,
+            instructor_mode=instructor.Mode.JSON,
+        )
 
         self.DEFAULT_PROMPT_TEMPLATE: Dict[str, str] = {
             "system_guidance_header": """You are an ethical reasoning shard of a CIRIS AI system governed by the CIRIS Covenant.
@@ -60,12 +65,7 @@ Do not include extra fields or PDMA step names.""",
         original_thought_content = str(thought_item.content)
         logger.debug(f"Evaluating thought ID {thought_item.thought_id}")
 
-        llm_service = None
-        if self.service_registry:
-            llm_service = await self.service_registry.get_service(
-                handler=self.__class__.__name__,
-                service_type="llm"
-            )
+        llm_service = await self.get_llm_service()
         if not llm_service:
             raise RuntimeError("LLM service unavailable for PDMA evaluation")
 

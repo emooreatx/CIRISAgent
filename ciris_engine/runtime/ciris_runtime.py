@@ -18,6 +18,7 @@ from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.adapters.openai_compatible_llm import OpenAICompatibleLLM
 from ciris_engine.adapters import AuditService
 from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
+from .runtime_interface import RuntimeInterface
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
 # Service Registry
@@ -47,7 +48,7 @@ import instructor
 logger = logging.getLogger(__name__)
 
 
-class CIRISRuntime:
+class CIRISRuntime(RuntimeInterface):
     """
     Main runtime orchestrator for CIRIS Agent.
     Handles initialization of all components and services.
