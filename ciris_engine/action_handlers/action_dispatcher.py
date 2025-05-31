@@ -90,7 +90,6 @@ class ActionDispatcher:
         
         try:
             # The handler's `handle` method will take care of everything.
-            # It has access to dependencies (like action_sink, memory_service) via its constructor.
             await handler_instance.handle(action_selection_result, thought, dispatch_context)
             print(f"[DISPATCHER] Handler {handler_instance.__class__.__name__} completed for action {action_type.value} on thought {thought.thought_id}")
         except Exception as e:
