@@ -17,7 +17,8 @@ from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.guardrails.orchestrator import GuardrailOrchestrator
-from ciris_engine.guardrails import EthicalGuardrails
+from ciris_engine.guardrails import GuardrailRegistry, GuardrailInterface
+from ciris_engine.schemas.guardrails_schemas_v1 import GuardrailCheckResult, GuardrailStatus
 from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
 from ciris_engine.processor.dma_orchestrator import DMAOrchestrator
 from ciris_engine.context.builder import ContextBuilder
@@ -56,28 +57,31 @@ class TestGuardrailBypassPrevention:
 
     @pytest.fixture
     def mock_ethical_guardrails(self):
-        """Create a mock ethical guardrails that tracks which actions were checked."""
-        guardrails = AsyncMock(spec=EthicalGuardrails)
+        """Create a mock guardrail that tracks which actions were checked."""
+        guardrails = AsyncMock(spec=GuardrailInterface)
         # Track which actions were checked
         guardrails.checked_actions = []
         
-        async def track_check_action_output_safety(action_result):
+        async def track_check(action_result, context):
             """Track which actions are being checked and return safe by default."""
             action_type = getattr(action_result, 'selected_action', 'UNKNOWN')
             guardrails.checked_actions.append(action_type)
             logger.info(f"Mock guardrails checking action: {action_type}")
-            return True, "Test approval", {}
-        
-        guardrails.check_action_output_safety = track_check_action_output_safety
+            return GuardrailCheckResult(
+                status=GuardrailStatus.PASSED,
+                passed=True,
+                check_timestamp="0",
+            )
+
+        guardrails.check = track_check
         return guardrails
 
     @pytest.fixture
     def mock_guardrail_orchestrator(self, mock_ethical_guardrails):
-        """Create a mock guardrail orchestrator that uses the tracking ethical guardrails."""
-        orchestrator = GuardrailOrchestrator(
-            ethical_guardrails=mock_ethical_guardrails
-        )
-        return orchestrator
+        """Create a mock guardrail orchestrator using a single mock guardrail."""
+        registry = GuardrailRegistry()
+        registry.register_guardrail("mock", mock_ethical_guardrails)
+        return GuardrailOrchestrator(registry)
 
     @pytest.fixture
     def mock_dma_orchestrator(self):
@@ -370,20 +374,24 @@ class TestGuardrailBypassPrevention:
         doesn't have indentation or scoping bugs that cause actions to bypass guardrails.
         """
         # Use real GuardrailOrchestrator with mocked dependencies
-        mock_ethical_guardrails = AsyncMock(spec=EthicalGuardrails)
+        mock_ethical_guardrails = AsyncMock(spec=GuardrailInterface)
         mock_ethical_guardrails.checked_actions = []
         
-        async def track_check_action_output_safety(action_result):
+        async def track_check(action_result, context):
             action_type = getattr(action_result, 'selected_action', 'UNKNOWN')
             mock_ethical_guardrails.checked_actions.append(action_type)
-            return True, "Test approval", {}
-        
-        mock_ethical_guardrails.check_action_output_safety = track_check_action_output_safety
-        
+            return GuardrailCheckResult(
+                status=GuardrailStatus.PASSED,
+                passed=True,
+                check_timestamp="0",
+            )
+
+        mock_ethical_guardrails.check = track_check
+
         # Create real GuardrailOrchestrator
-        orchestrator = GuardrailOrchestrator(
-            ethical_guardrails=mock_ethical_guardrails
-        )
+        registry = GuardrailRegistry()
+        registry.register_guardrail("mock", mock_ethical_guardrails)
+        orchestrator = GuardrailOrchestrator(registry)
         
         thought = self.create_test_thought()
         dma_results = {}
