@@ -7,11 +7,20 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.registries.base import ServiceRegistry, Priority
 
 @pytest.mark.asyncio
 async def test_speak_handler_schema_driven(monkeypatch):
-    action_sink = AsyncMock()
-    deps = ActionHandlerDependencies(action_sink=action_sink)
+    service_registry = ServiceRegistry()
+    comm_service = AsyncMock()
+    comm_service.send_message = AsyncMock(return_value=True)
+    service_registry.register_global(
+        service_type="communication",
+        provider=comm_service,
+        priority=Priority.HIGH,
+        capabilities=["send_message"],
+    )
+    deps = ActionHandlerDependencies(service_registry=service_registry)
     handler = SpeakHandler(deps)
 
     action_result = ActionSelectionResult(
@@ -42,7 +51,7 @@ async def test_speak_handler_schema_driven(monkeypatch):
 
     await handler.handle(action_result, thought, {"channel_id": "123"})
 
-    action_sink.send_message.assert_awaited_with("123", "Hello world!")
+    comm_service.send_message.assert_awaited_with("123", "Hello world!")
     update_thought.assert_called_once()
     assert update_thought.call_args.kwargs["status"] == ThoughtStatus.COMPLETED
     add_thought.assert_called_once()
@@ -50,8 +59,16 @@ async def test_speak_handler_schema_driven(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_speak_handler_missing_params(monkeypatch):
-    action_sink = AsyncMock()
-    deps = ActionHandlerDependencies(action_sink=action_sink)
+    service_registry = ServiceRegistry()
+    comm_service = AsyncMock()
+    comm_service.send_message = AsyncMock(return_value=True)
+    service_registry.register_global(
+        service_type="communication",
+        provider=comm_service,
+        priority=Priority.HIGH,
+        capabilities=["send_message"],
+    )
+    deps = ActionHandlerDependencies(service_registry=service_registry)
     handler = SpeakHandler(deps)
 
     action_result = ActionSelectionResult(
@@ -82,7 +99,7 @@ async def test_speak_handler_missing_params(monkeypatch):
 
     await handler.handle(action_result, thought, {"channel_id": None})
 
-    action_sink.send_message.assert_not_awaited()
+    comm_service.send_message.assert_not_awaited()
     update_thought.assert_called_once()
     assert update_thought.call_args.kwargs["status"] == ThoughtStatus.FAILED
     add_thought.assert_called_once()
