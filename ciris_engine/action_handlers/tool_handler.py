@@ -35,15 +35,13 @@ class ToolHandler(BaseActionHandler):
         action_performed_successfully = False
         new_follow_up = None
 
-        # Always use schema internally
-        if isinstance(params, dict):
-            try:
-                params = ToolParams(**params)
-            except Exception as e:
-                self.logger.error(f"TOOL action params dict could not be parsed: {e}. Thought ID: {thought_id}")
-                final_thought_status = ThoughtStatus.FAILED
-                follow_up_content_key_info = f"TOOL action failed: Invalid parameters dict for thought {thought_id}. Error: {e}"
-                params = None
+        try:
+            params = await self._validate_and_convert_params(params, ToolParams)
+        except Exception as e:
+            await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e)
+            final_thought_status = ThoughtStatus.FAILED
+            follow_up_content_key_info = f"TOOL action failed: {e}"
+            params = None
 
         # Tool service validation and execution
         tool_service = await self.get_tool_service()
@@ -79,8 +77,7 @@ class ToolHandler(BaseActionHandler):
                     err = tool_result.get("error") if tool_result else "timeout"
                     follow_up_content_key_info = f"Tool '{params.name}' failed: {err}"
             except Exception as e_tool:
-                self.logger.exception(
-                    f"Error executing TOOL {params.name} for thought {thought_id}: {e_tool}")
+                await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e_tool)
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = f"TOOL {params.name} execution failed: {str(e_tool)}"
 
@@ -116,9 +113,5 @@ class ToolHandler(BaseActionHandler):
             )
             await self._audit_log(HandlerActionType.TOOL, {**dispatch_context, "thought_id": thought_id}, outcome="success" if action_performed_successfully else "failed")
         except Exception as e:
-            self.logger.critical(
-                f"Failed to create follow-up thought for {thought_id}: {e}",
-                exc_info=e,
-            )
-            await self._audit_log(HandlerActionType.TOOL, {**dispatch_context, "thought_id": thought_id}, outcome="failed_followup")
+            await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e)
             raise FollowUpCreationError from e
