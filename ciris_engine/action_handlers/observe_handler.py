@@ -55,11 +55,17 @@ class ObserveHandler(BaseActionHandler):
     ) -> None:
         params = result.action_parameters
         thought_id = thought.thought_id
+        
+        logger.info(f"ObserveHandler: Starting handle for thought {thought_id}")
+        logger.debug(f"ObserveHandler: Parameters: {params}")
+        logger.debug(f"ObserveHandler: Dispatch context keys: {list(dispatch_context.keys())}")
+        
         await self._audit_log(
             HandlerActionType.OBSERVE,
             {**dispatch_context, "thought_id": thought_id},
             outcome="start",
         )
+        
         final_status = ThoughtStatus.COMPLETED
         action_performed = False
         follow_up_info = f"OBSERVE action for thought {thought_id}"
@@ -100,14 +106,26 @@ class ObserveHandler(BaseActionHandler):
         )
         params.channel_id = channel_id
 
+        # Get services with better logging
         comm_service = await self.get_communication_service()
+        logger.debug(f"ObserveHandler: Got communication service: {type(comm_service).__name__ if comm_service else 'None'}")
+        
         observer_service = await self.get_observer_service()
+        logger.debug(f"ObserveHandler: Got observer service: {type(observer_service).__name__ if observer_service else 'None'}")
+        
+        # Fallback to legacy observer service if needed
+        if not observer_service and hasattr(self.dependencies, 'observer_service'):
+            observer_service = self.dependencies.observer_service
+            logger.info(f"ObserveHandler: Using legacy observer service from dependencies")
+        
         memory_service = await self.get_memory_service()
+        logger.debug(f"ObserveHandler: Got memory service: {type(memory_service).__name__ if memory_service else 'None'}")
 
         try:
             if params.active:
+                logger.info(f"ObserveHandler: Performing active observation for channel {channel_id}")
                 if not comm_service or not channel_id:
-                    raise RuntimeError("No communication service or channel_id")
+                    raise RuntimeError(f"No communication service ({comm_service}) or channel_id ({channel_id})")
                 messages = await comm_service.fetch_messages(
                     str(channel_id).lstrip("#"), getattr(params, "limit", 10)
                 )
@@ -116,8 +134,11 @@ class ObserveHandler(BaseActionHandler):
                 await self._recall_from_messages(memory_service, channel_id, messages)
                 action_performed = True
                 follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"
+                logger.info(f"ObserveHandler: Active observation complete - {follow_up_info}")
             else:
+                logger.info(f"ObserveHandler: Performing passive observation")
                 if not observer_service:
+                    logger.error(f"ObserveHandler: Observer service unavailable for passive observation")
                     raise RuntimeError("Observer service unavailable")
                 incoming = IncomingMessage(
                     message_id=thought.thought_id,
@@ -135,7 +156,7 @@ class ObserveHandler(BaseActionHandler):
                 action_performed = True
                 follow_up_info = "Observation forwarded"
         except Exception as e:
-            logger.exception("ObserveHandler error for %s: %s", thought_id, e)
+            logger.exception(f"ObserveHandler error for {thought_id}: {e}")
             final_status = ThoughtStatus.FAILED
             follow_up_info = str(e)
 

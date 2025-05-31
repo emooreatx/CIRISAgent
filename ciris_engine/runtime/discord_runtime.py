@@ -184,35 +184,42 @@ class DiscordRuntime(CIRISRuntime):
         
         try:
             # Register Discord adapter as communication service
-            await self.service_registry.register(
-                service_instance=self.discord_adapter,
-                service_type='communication',
-                priority=1,  # High priority for primary Discord service
-                capabilities=['send_message', 'fetch_messages'],
-                metadata={
-                    'platform': 'discord',
-                    'token_configured': bool(self.token),
-                    'monitored_channel': self.monitored_channel_id,
-                    'deferral_channel': self.deferral_channel_id
-                }
-            )
+            if self.discord_adapter:
+                # Register for all handlers that need communication
+                for handler in ["SpeakHandler", "ObserveHandler", "ToolHandler"]:
+                    self.service_registry.register(
+                        handler=handler,
+                        service_type="communication",
+                        provider=self.discord_adapter,
+                        priority=Priority.HIGH,
+                        capabilities=["send_message", "fetch_messages"]
+                    )
+                logger.info("Registered Discord adapter as communication service")
             
-
-            
-            # Register Discord observer if it exists
+            # CRITICAL FIX: Register Discord observer service
             if self.discord_observer:
-                await self.service_registry.register(
-                    service_instance=self.discord_observer,
-                    service_type='observer',
-                    priority=1,
-                    capabilities=['observe_messages', 'monitor_channel'],
-                    metadata={
-                        'platform': 'discord',
-                        'monitored_channel': self.monitored_channel_id
-                    }
+                self.service_registry.register(
+                    handler="ObserveHandler",
+                    service_type="observer", 
+                    provider=self.discord_observer,
+                    priority=Priority.HIGH,
+                    capabilities=["observe_messages", "get_recent_messages", "handle_incoming_message"]
                 )
+                logger.info("Registered Discord observer as observer service")
             
-            logger.info("Successfully registered Discord services in service registry")
+            # Register CIRISNode as WA service if available
+            if hasattr(self, 'cirisnode_client') and self.cirisnode_client:
+                for handler in ["DeferHandler", "SpeakHandler"]:
+                    self.service_registry.register(
+                        handler=handler,
+                        service_type="wise_authority",
+                        provider=self.cirisnode_client,
+                        priority=Priority.NORMAL,
+                        capabilities=["request_guidance", "submit_deferral"]
+                    )
+                logger.info("Registered CIRISNode as wise authority service")
+            
+            logger.info("Successfully registered all Discord services in service registry")
             
         except Exception as e:
             logger.error(f"Failed to register Discord services: {e}", exc_info=True)
@@ -245,36 +252,64 @@ class DiscordRuntime(CIRISRuntime):
             # Start multi-service sink processing
             if self.multi_service_sink:
                 await self.multi_service_sink.start()
+                logger.info("Started multi-service sink")
             
             # Start IO adapter (this doesn't start Discord client yet)
             await self.io_adapter.start()
+            logger.info("Started IO adapter")
             
             # Attach event handlers to Discord client
             self.discord_adapter.attach_to_client(self.client)
+            logger.info("Attached Discord event handlers")
             
             # Start Discord client connection in background
             logger.info("Starting Discord client connection...")
             discord_task = asyncio.create_task(self.client.start(self.token))
             
-            # Wait a moment for Discord to connect
-            await asyncio.sleep(2.0)
+            # Wait for Discord to be ready
+            logger.info("Waiting for Discord client to be ready...")
+            ready_timeout = 30  # seconds
+            start_time = asyncio.get_event_loop().time()
             
-            # Start agent processing
-            logger.info("Starting agent processing...")
-            await self.agent_processor.start_processing(num_rounds=max_rounds)
+            while not self.client.is_ready():
+                await asyncio.sleep(0.5)
+                if asyncio.get_event_loop().time() - start_time > ready_timeout:
+                    logger.error("Discord client failed to become ready within timeout")
+                    raise RuntimeError("Discord client connection timeout")
+            
+            logger.info(f"Discord client ready! User: {self.client.user}")
+            
+            # NOW start agent processing - this is the key part that triggers WAKEUP
+            logger.info("Starting agent processing with WAKEUP sequence...")
+            processing_task = asyncio.create_task(
+                self.agent_processor.start_processing(num_rounds=max_rounds)
+            )
+            
+            # Wait for either task to complete or error
+            done, pending = await asyncio.wait(
+                [discord_task, processing_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            # Check which task completed and why
+            for task in done:
+                if task.exception():
+                    logger.error(f"Task failed with exception: {task.exception()}")
+                    raise task.exception()
             
         except KeyboardInterrupt:
             logger.info("Received interrupt signal")
         except Exception as e:
             logger.error(f"Runtime error: {e}", exc_info=True)
         finally:
-            # Cancel Discord client task if still running
-            if 'discord_task' in locals() and not discord_task.done():
-                discord_task.cancel()
-                try:
-                    await discord_task
-                except asyncio.CancelledError:
-                    pass
+            # Cancel any pending tasks
+            for task in [discord_task, processing_task]:
+                if 'task' in locals() and not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
             
             # Close Discord client properly
             if self.client and not self.client.is_closed():
