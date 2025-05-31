@@ -6,7 +6,6 @@ from ciris_engine.schemas.action_params_v1 import PonderParams
 from ciris_engine.schemas.foundational_schemas_v1 import (
     ThoughtStatus,
     HandlerActionType,
-    TaskStatus,
 )
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
@@ -61,31 +60,6 @@ class PonderHandler(BaseActionHandler):
                 key_questions_list.append(h_note)
         
         current_ponder_count = thought.ponder_count
-        
-        # Special handling: If this is a wakeup step thought, do not re-queue for further pondering
-        if getattr(thought, 'thought_type', '').lower() in [
-            'verify_identity', 'validate_integrity', 'evaluate_resilience', 'accept_incompleteness', 'express_gratitude', 'signalling_gratitude']:
-            logger.info(f"Thought ID {thought.thought_id} is a wakeup step ({thought.thought_type}); not re-queuing for further pondering.")
-            persistence.update_thought_status(
-                thought_id=thought.thought_id,
-                status=ThoughtStatus.COMPLETED,
-                final_action={
-                    "action": HandlerActionType.PONDER.value,
-                    "ponder_count": current_ponder_count + 1,
-                    "ponder_notes": key_questions_list,
-                    "wakeup_step": True
-                }
-            )
-            # Mark the parent wakeup task as completed
-            if thought.source_task_id:
-                persistence.update_task_status(thought.source_task_id, TaskStatus.COMPLETED)
-            # Log audit for wakeup step ponder
-            await self._audit_log(
-                HandlerActionType.PONDER,
-                dispatch_context,
-                {"thought_id": thought.thought_id, "status": ThoughtStatus.COMPLETED.value, "ponder_type": "wakeup_step"},
-            )
-            return None
         
         # Normal ponder logic
         if self.should_defer_for_max_ponder(thought, current_ponder_count):

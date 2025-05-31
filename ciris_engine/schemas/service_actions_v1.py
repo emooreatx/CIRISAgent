@@ -12,6 +12,9 @@ class ActionType(Enum):
     FETCH_MESSAGES = "fetch_messages"
     FETCH_GUIDANCE = "fetch_guidance"
     SEND_DEFERRAL = "send_deferral"
+    MEMORIZE = "memorize"
+    RECALL = "recall"
+    FORGET = "forget"
     SEND_TOOL = "send_tool"
     FETCH_TOOL = "fetch_tool"
 

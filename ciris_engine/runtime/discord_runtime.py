@@ -208,7 +208,7 @@ class DiscordRuntime(CIRISRuntime):
             # Register Discord adapter as communication service
             if self.discord_adapter:
                 # Register for all handlers that need communication
-                for handler in ["SpeakHandler", "ObserveHandler", "ToolHandler"]:
+                for handler in ["SpeakHandler", "ObserveHandler", "ToolHandler", "TaskCompleteHandler"]:
                     self.service_registry.register(
                         handler=handler,
                         service_type="communication",
@@ -220,7 +220,7 @@ class DiscordRuntime(CIRISRuntime):
 
             # Register CLI adapter as fallback communication service
             if self.cli_adapter:
-                for handler in ["SpeakHandler", "ObserveHandler", "ToolHandler"]:
+                for handler in ["SpeakHandler", "ObserveHandler", "ToolHandler", "TaskCompleteHandler"]:
                     self.service_registry.register(
                         handler=handler,
                         service_type="communication",

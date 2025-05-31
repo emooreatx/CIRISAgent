@@ -19,9 +19,24 @@ from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 def _attach_extras(obj: Any) -> Any:
     """Mimic instructor extra attributes expected on responses."""
+    import json
+    # Convert the object to JSON to simulate what a real LLM would return
+    try:
+        if hasattr(obj, 'model_dump'):
+            # Pydantic object
+            content_json = json.dumps(obj.model_dump())
+        else:
+            # Fallback for other objects
+            content_json = json.dumps(obj.__dict__ if hasattr(obj, '__dict__') else str(obj))
+    except Exception:
+        content_json = "{}"
+    
     object.__setattr__(obj, "finish_reason", "stop")
     object.__setattr__(obj, "_raw_response", {"mock": True})
-    object.__setattr__(obj, "choices", [SimpleNamespace(finish_reason="stop")])
+    object.__setattr__(obj, "choices", [SimpleNamespace(
+        finish_reason="stop",
+        message=SimpleNamespace(role="assistant", content=content_json)
+    )])
     return obj
 
 

@@ -64,12 +64,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Implementation of CommunicationService.send_message"""
         try:
-            await self.retry_with_backoff(
-                self.send_output,
-                channel_id, content,
-                operation_name="send_message",
-                config_key="discord_api"
-            )
+            await self.send_output(channel_id, content)
             return True
         except Exception as e:
             logger.error(f"Failed to send message via Discord: {e}")
@@ -259,9 +254,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         
         await self.retry_with_backoff(
             self._send_output_impl,
-            channel_id, content,
-            operation_name="send_output",
-            config_key="discord_api"
+            channel_id, content
         )
 
     async def _send_output_impl(self, channel_id: str, content: str):

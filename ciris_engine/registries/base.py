@@ -105,7 +105,11 @@ class ServiceRegistry:
         self._providers[handler][service_type].sort(key=lambda x: x.priority.value)
         
         logger.info(f"Registered {service_type} service '{provider_name}' for handler '{handler}' "
-                   f"with priority {priority.name}")
+                   f"with priority {priority.name} and capabilities {capabilities}")
+        
+        # Debug: Show current registry state for this handler
+        logger.debug(f"ServiceRegistry: Handler '{handler}' now has {len(self._providers[handler][service_type])} "
+                    f"{service_type} providers: {[p.name for p in self._providers[handler][service_type]]}")
         
         return provider_name
     
@@ -177,24 +181,34 @@ class ServiceRegistry:
         Returns:
             Service instance or None if no suitable service available
         """
+        logger.debug(f"ServiceRegistry.get_service: handler='{handler}', service_type='{service_type}', "
+                    f"capabilities={required_capabilities}")
+        
         # Try handler-specific services first
+        handler_providers = self._providers.get(handler, {}).get(service_type, [])
+        logger.debug(f"ServiceRegistry: Found {len(handler_providers)} handler-specific providers for {handler}.{service_type}")
+        
         service = await self._get_service_from_providers(
-            self._providers.get(handler, {}).get(service_type, []),
+            handler_providers,
             required_capabilities
         )
         
         if service is not None:
+            logger.debug(f"ServiceRegistry: Using handler-specific {service_type} service for '{handler}': {type(service).__name__}")
             return service
         
         # Fallback to global services
         if fallback_to_global:
+            global_providers = self._global_services.get(service_type, [])
+            logger.debug(f"ServiceRegistry: Found {len(global_providers)} global providers for {service_type}")
+            
             service = await self._get_service_from_providers(
-                self._global_services.get(service_type, []),
+                global_providers,
                 required_capabilities
             )
             
             if service is not None:
-                logger.debug(f"Using global {service_type} service for handler '{handler}'")
+                logger.debug(f"Using global {service_type} service for handler '{handler}': {type(service).__name__}")
                 return service
         
         logger.warning(f"No available {service_type} service found for handler '{handler}' "

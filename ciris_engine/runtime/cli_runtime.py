@@ -71,7 +71,7 @@ class CLIRuntime(CIRISRuntime):
             self.cli_observer.start(),
             self.cli_adapter.start(),
         )
-        
+
         # Start sinks as background tasks since they contain infinite loops
         self.action_sink_task = asyncio.create_task(self.action_sink.start())
         self.deferral_sink_task = asyncio.create_task(self.deferral_sink.start())
@@ -109,6 +109,7 @@ class CLIRuntime(CIRISRuntime):
         handler_names = [
             "SpeakHandler", "ObserveHandler", "ToolHandler",
             "DeferHandler", "MemorizeHandler", "RecallHandler",
+            "TaskCompleteHandler",
         ]
 
         for handler in handler_names:

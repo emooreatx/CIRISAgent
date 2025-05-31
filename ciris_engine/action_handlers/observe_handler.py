@@ -13,6 +13,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 from ciris_engine import persistence
+from ciris_engine.protocols.services import CommunicationService
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
@@ -21,6 +22,14 @@ logger = logging.getLogger(__name__)
 
 
 class ObserveHandler(BaseActionHandler):
+    async def get_communication_service(self) -> Optional[CommunicationService]:
+        """Get communication service with both send_message and fetch_messages capabilities for active observation"""
+        return await self.dependencies.get_service(
+            self.__class__.__name__,
+            "communication",
+            required_capabilities=["send_message", "fetch_messages"]
+        )
+
     async def _recall_from_messages(
         self,
         memory_service: Optional[Any],
@@ -199,3 +208,11 @@ class ObserveHandler(BaseActionHandler):
                 outcome="failed_followup",
             )
             raise FollowUpCreationError from e
+
+    async def get_communication_service(self) -> Optional[CommunicationService]:
+        """Get communication service with both send_message and fetch_messages capabilities for active observation"""
+        return await self.dependencies.get_service(
+            self.__class__.__name__,
+            "communication",
+            required_capabilities=["send_message", "fetch_messages"]
+        )
