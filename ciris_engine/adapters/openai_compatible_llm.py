@@ -131,8 +131,6 @@ class OpenAICompatibleClient(Service):
         # Use base class retry with OpenAI-specific error handling
         return await self.retry_with_backoff(
             _make_raw_call,
-            retryable_exceptions=(APIConnectionError, RateLimitError),
-            non_retryable_exceptions=(APIStatusError,),
             **self.get_retry_config("api_call")
         )
 
@@ -161,8 +159,6 @@ class OpenAICompatibleClient(Service):
         # Use base class retry with OpenAI-specific error handling
         return await self.retry_with_backoff(
             _make_structured_call,
-            retryable_exceptions=(APIConnectionError, RateLimitError),
-            non_retryable_exceptions=(APIStatusError,),
             **self.get_retry_config("api_call")
         )
 

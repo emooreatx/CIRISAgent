@@ -9,6 +9,7 @@
   service registry via `BaseActionHandler.get_*_service()` for communication,
   memory, and other services. See `registries/README.md` for details on the
   registry and fallback behavior.
+- Ensure `OPENAI_API_KEY` is set (or a local equivalent) before running tests.
 
 - Action handlers must follow the standard BaseActionHandler pattern. Each handler defines `action_type` and implements `handle(thought, params, dispatch_context) -> bool`.
 - Replace any direct service usage (e.g. discord_service.send_message) with registry lookups like `get_communication_service()`.
@@ -27,4 +28,8 @@
 - Each submodule under `ciris_engine/` should include a brief `README.md`
   describing its purpose and how to use it. Add one if it doesn't exist when
   modifying a module.
+
+- Use `python main.py --help` to see the unified runtime options. The same flags
+  map directly to runtime arguments (e.g., `--host`, `--port`, `--no-interactive`).
+  For offline tests pass `--mock-llm` to run without network access.
 

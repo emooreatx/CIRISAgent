@@ -44,6 +44,27 @@ class CIRISNodeClient(Service):
         node_cfg.load_env_vars()
         self.base_url = base_url or node_cfg.base_url
         self._client = httpx.AsyncClient(base_url=self.base_url)
+        self._closed = False
+
+    async def _get_audit_service(self) -> Optional["AuditService"]:
+        """Retrieve the audit service from the registry with caching."""
+        if self._audit_service is not None:
+            return self._audit_service
+
+        if not self.service_registry:
+            logger.debug("CIRISNodeClient has no service registry; audit logging disabled")
+            return None
+
+        self._audit_service = await self.service_registry.get_service(
+            self.__class__.__name__,
+            "audit",
+            required_capabilities=["log_action"],
+            fallback_to_global=True,
+        )
+
+        if not self._audit_service:
+            logger.warning("No audit service available for CIRISNodeClient")
+        return self._audit_service
 
     async def start(self):
         """Start the client service."""
@@ -53,6 +74,14 @@ class CIRISNodeClient(Service):
         """Stop the client service and clean up resources."""
         await self._client.aclose()
         await super().stop()
+        self._closed = True
+
+    async def close(self):
+        """Alias for stop() for backwards compatibility."""
+        await self.stop()
+
+    def is_closed(self) -> bool:
+        return self._closed
 
     async def _post(self, endpoint: str, payload: Dict[str, Any]) -> Any:
         async def _make_request():

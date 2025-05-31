@@ -20,7 +20,15 @@ from .adapters.cli.cli_runtime import CLIRuntime
 from .runtime.api_runtime import APIRuntime
 
 
-def create_runtime(mode: str, profile: str, config: AppConfig) -> CIRISRuntime:
+def create_runtime(
+    mode: str,
+    profile: str,
+    config: AppConfig,
+    *,
+    interactive: bool = True,
+    host: str = "0.0.0.0",
+    port: int = 8080,
+) -> CIRISRuntime:
     """Factory to create a runtime based on the mode."""
     if mode == "discord":
         token = os.getenv("DISCORD_BOT_TOKEN")
@@ -32,9 +40,9 @@ def create_runtime(mode: str, profile: str, config: AppConfig) -> CIRISRuntime:
             startup_channel_id=config.discord_channel_id,
         )
     if mode == "cli":
-        return CLIRuntime(profile_name=profile)
+        return CLIRuntime(profile_name=profile, interactive=interactive)
     if mode == "api":
-        return APIRuntime(profile_name=profile)
+        return APIRuntime(profile_name=profile, port=port, host=host)
     raise ValueError(f"Unsupported mode: {mode}")
 
 
@@ -68,12 +76,30 @@ async def load_config(config_path: Optional[str]) -> AppConfig:
 @click.option("--mode", type=click.Choice(["discord", "cli", "api"]), default="discord")
 @click.option("--profile", default="default")
 @click.option("--config", type=click.Path(exists=True))
+@click.option("--host", default="0.0.0.0", help="API host")
+@click.option("--port", default=8080, type=int, help="API port")
+@click.option("--no-interactive/--interactive", default=False, help="Disable interactive CLI input")
 @click.option("--debug/--no-debug", default=False)
-async def main(mode: str, profile: str, config: Optional[str], debug: bool) -> None:
+async def main(
+    mode: str,
+    profile: str,
+    config: Optional[str],
+    host: str,
+    port: int,
+    no_interactive: bool,
+    debug: bool,
+) -> None:
     """Unified CIRIS Engine entry point."""
     setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
     app_config = await load_config(config)
-    runtime = create_runtime(mode, profile, app_config)
+    runtime = create_runtime(
+        mode,
+        profile,
+        app_config,
+        interactive=not no_interactive,
+        host=host,
+        port=port,
+    )
     await run_with_shutdown_handler(runtime)
 
 

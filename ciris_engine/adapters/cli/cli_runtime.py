@@ -106,7 +106,7 @@ class CLIRuntime(CIRISRuntime):
                 handler=handler,
                 service_type="communication",
                 provider=self.cli_adapter,
-                priority=Priority.HIGH,
+                priority=Priority.NORMAL,
                 capabilities=["send_message", "fetch_messages"],
             )
 
@@ -116,7 +116,7 @@ class CLIRuntime(CIRISRuntime):
                 handler="ObserveHandler",
                 service_type="observer",
                 provider=self.cli_observer,
-                priority=Priority.HIGH,
+                priority=Priority.NORMAL,
                 capabilities=[
                     "observe_messages", "get_recent_messages", "handle_incoming_message"
                 ],
@@ -128,7 +128,7 @@ class CLIRuntime(CIRISRuntime):
                 handler="ToolHandler",
                 service_type="tool",
                 provider=self.cli_tool_service,
-                priority=Priority.HIGH,
+                priority=Priority.NORMAL,
                 capabilities=[
                     "execute_tool", "get_tool_result", "get_available_tools", "validate_parameters"
                 ],

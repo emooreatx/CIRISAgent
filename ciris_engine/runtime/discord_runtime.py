@@ -225,7 +225,7 @@ class DiscordRuntime(CIRISRuntime):
                         handler=handler,
                         service_type="communication",
                         provider=self.cli_adapter,
-                        priority=Priority.FALLBACK,
+                        priority=Priority.NORMAL,
                         capabilities=["send_message"]
                     )
                 logger.info("Registered CLI adapter as fallback communication service")
@@ -247,7 +247,7 @@ class DiscordRuntime(CIRISRuntime):
                     handler="ObserveHandler",
                     service_type="observer",
                     provider=self.cli_observer,
-                    priority=Priority.FALLBACK,
+                    priority=Priority.NORMAL,
                     capabilities=["observe_messages", "get_recent_messages", "handle_incoming_message"]
                 )
                 logger.info("Registered CLI observer as fallback observer service")
@@ -258,7 +258,7 @@ class DiscordRuntime(CIRISRuntime):
                     handler="ToolHandler",
                     service_type="tool",
                     provider=self.cli_tool_service,
-                    priority=Priority.FALLBACK,
+                    priority=Priority.NORMAL,
                     capabilities=["execute_tool", "get_tool_result"]
                 )
                 logger.info("Registered CLI tool service as fallback")
