@@ -5,7 +5,7 @@ from ciris_engine.registries.base import ServiceRegistry, Priority
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator, HandlerActionType, ActionSelectionResult, PonderParams, SpeakParams
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult, CSDMAResult, DSDMAResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ciris_engine.schemas.foundational_schemas_v1 import CIRISSchemaVersion
+from ciris_engine.schemas.foundational_schemas_v1 import SchemaVersion
 from ciris_engine.schemas.action_params_v1 import PonderParams, SpeakParams
 from pydantic import ValidationError
 
@@ -48,7 +48,7 @@ async def test_forced_ponder(monkeypatch):
 async def test_llm_success(monkeypatch):
     # Patch the instructor client to return a dummy LLM response
     dummy_llm_response = DummyLLMResponse(
-        schema_version=CIRISSchemaVersion.V1_0_BETA,
+        schema_version=SchemaVersion.V1_0,
         context_summary_for_action_selection="summary",
         action_alignment_check={"SPEAK": "ok"},
         action_conflicts=None,

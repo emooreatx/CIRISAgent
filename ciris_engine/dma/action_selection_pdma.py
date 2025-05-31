@@ -24,7 +24,7 @@ from ciris_engine.schemas.action_params_v1 import (
     ForgetParams,
 )
 from ciris_engine.schemas.action_params_v1 import ToolParams
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, CIRISSchemaVersion
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, SchemaVersion
 from ciris_engine.schemas.config_schemas_v1 import DEFAULT_OPENAI_MODEL_NAME
 from ciris_engine.registries.base import ServiceRegistry
 from .base_dma import BaseDMA
