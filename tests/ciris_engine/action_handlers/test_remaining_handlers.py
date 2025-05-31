@@ -211,7 +211,15 @@ async def test_tool_handler_schema_driven(monkeypatch):
             return True
 
     deps = ActionHandlerDependencies()
-    deps.get_service = AsyncMock(return_value=DummyToolService())
+    audit_service = MagicMock()
+    audit_service.log_action = AsyncMock()
+    async def get_service(handler, service_type, **kwargs):
+        if service_type == "tool":
+            return DummyToolService()
+        if service_type == "audit":
+            return audit_service
+        return None
+    deps.get_service = AsyncMock(side_effect=get_service)
     handler = ToolHandler(deps)
 
     params = ToolParams(name="echo", args={})

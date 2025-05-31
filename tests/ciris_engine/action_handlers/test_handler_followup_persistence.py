@@ -82,8 +82,13 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
         deps.memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
         deps.memory_service.memorize = AsyncMock(return_value=MagicMock(status="SAVED"))
         deps.action_sink = AsyncMock()
-        deps.audit_service = MagicMock()
-        deps.audit_service.log_action = AsyncMock()
+        audit_service = MagicMock()
+        audit_service.log_action = AsyncMock()
+        async def get_service(handler, service_type, **kwargs):
+            if service_type == "audit":
+                return audit_service
+            return None
+        deps.get_service = AsyncMock(side_effect=get_service)
         handler_mod = importlib.import_module(handler_cls.__module__)
         # Patch strategy: if module has 'persistence', patch it; else patch deps.persistence
         patch_module = hasattr(handler_mod, 'persistence')

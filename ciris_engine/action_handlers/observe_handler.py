@@ -22,13 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 class ObserveHandler(BaseActionHandler):
-    async def get_communication_service(self) -> Optional[CommunicationService]:
-        """Get communication service with both send_message and fetch_messages capabilities for active observation"""
-        return await self.dependencies.get_service(
-            self.__class__.__name__,
-            "communication",
-            required_capabilities=["send_message", "fetch_messages"]
-        )
 
     async def _recall_from_messages(
         self,
@@ -115,7 +108,7 @@ class ObserveHandler(BaseActionHandler):
         params.channel_id = channel_id
 
         # Get services with better logging
-        comm_service = await self.get_communication_service()
+        comm_service = await self.get_communication_service(["fetch_messages"])
         logger.debug(f"ObserveHandler: Got communication service: {type(comm_service).__name__ if comm_service else 'None'}")
         
         observer_service = await self.get_observer_service()
@@ -204,10 +197,3 @@ class ObserveHandler(BaseActionHandler):
             )
             raise FollowUpCreationError from e
 
-    async def get_communication_service(self) -> Optional[CommunicationService]:
-        """Get communication service with both send_message and fetch_messages capabilities for active observation"""
-        return await self.dependencies.get_service(
-            self.__class__.__name__,
-            "communication",
-            required_capabilities=["send_message", "fetch_messages"]
-        )
