@@ -72,14 +72,13 @@ class TaskCompleteHandler(BaseActionHandler):
                                 await comm_service.send_message(original_event_channel_id, message)
                                 print(f"[TASK_COMPLETE_HANDLER] ✓ Notification sent for completed task {parent_task_id}")
                             except Exception as e:
-                                self.logger.error(f"Failed to send TASK_COMPLETE notification via communication service for task {parent_task_id}: {e}")
+                                await self._handle_error(HandlerActionType.TASK_COMPLETE, dispatch_context, thought_id, e)
                         elif self.dependencies.action_sink:
                             try:
                                 await self.dependencies.action_sink.send_message(original_event_channel_id, message)
                                 print(f"[TASK_COMPLETE_HANDLER] ✓ Notification sent for completed task {parent_task_id}")
                             except Exception as e:
-                                self.logger.error(f"Failed to send TASK_COMPLETE notification for task {parent_task_id}: {e}")
-                                print(f"[TASK_COMPLETE_HANDLER] ✗ Failed to send notification: {e}")
+                                await self._handle_error(HandlerActionType.TASK_COMPLETE, dispatch_context, thought_id, e)
 
                     # Clean up any pending thoughts/resources for this task
                     pending = persistence.get_thoughts_by_task_id(parent_task_id)

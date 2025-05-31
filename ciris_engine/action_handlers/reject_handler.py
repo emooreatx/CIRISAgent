@@ -29,52 +29,38 @@ class RejectHandler(BaseActionHandler):
         await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         original_event_channel_id = dispatch_context.get("channel_id")
 
-        # Always use schema internally
-        if isinstance(params, dict):
+        try:
+            params = await self._validate_and_convert_params(params, RejectParams)
+        except Exception as e:
+            await self._handle_error(HandlerActionType.REJECT, dispatch_context, thought_id, e)
+            follow_up_content_key_info = f"REJECT action failed: {e}"
+            final_thought_status = ThoughtStatus.FAILED
+            follow_up_text = f"REJECT action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. This path of reasoning is terminated. Review and determine if a new approach or task is needed."
             try:
-                params = RejectParams(**params)
-            except Exception as e:
-                self.logger.error(f"REJECT action params dict could not be parsed: {e}. Thought ID: {thought_id}")
-                follow_up_content_key_info = f"REJECT action failed: Invalid parameters dict for thought {thought_id}. Error: {e}"
-                final_thought_status = ThoughtStatus.FAILED
-                # Always create a follow-up thought on error
-                follow_up_text = f"REJECT action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. This path of reasoning is terminated. Review and determine if a new approach or task is needed."
-                try:
-                    new_follow_up = create_follow_up_thought(
-                        parent=thought,
-                        content=follow_up_text,
-                    )
-                    context_for_follow_up = {
-                        "action_performed": HandlerActionType.REJECT.value,
-                        "parent_task_id": parent_task_id,
-                        "is_follow_up": True,
-                        "error_details": follow_up_content_key_info,
-                    }
-                    action_params_dump = params if params is None else (
-                        params.model_dump(mode="json") if hasattr(params, "model_dump") else params
-                    )
-                    context_for_follow_up["action_params"] = action_params_dump
-                    new_follow_up.context = context_for_follow_up
-                    persistence.add_thought(new_follow_up)
-                    self.logger.info(
-                        f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after REJECT action."
-                    )
-                    await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
-                except Exception as e:
-                    self.logger.critical(
-                        f"Failed to create follow-up thought for {thought_id}: {e}",
-                        exc_info=e,
-                    )
-                    await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="failed_followup")
-                    raise FollowUpCreationError from e
-                # Also update thought status
-                result_data = result.model_dump() if hasattr(result, 'model_dump') else result
-                persistence.update_thought_status(
-                    thought_id=thought_id,
-                    status=final_thought_status,  # FAILED
-                    final_action=result_data,  # v1 field
+                new_follow_up = create_follow_up_thought(
+                    parent=thought,
+                    content=follow_up_text,
                 )
-                return
+                context_for_follow_up = {
+                    "action_performed": HandlerActionType.REJECT.value,
+                    "parent_task_id": parent_task_id,
+                    "is_follow_up": True,
+                    "error_details": follow_up_content_key_info,
+                }
+                context_for_follow_up["action_params"] = params if isinstance(params, dict) else str(params)
+                new_follow_up.context = context_for_follow_up
+                persistence.add_thought(new_follow_up)
+                await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
+            except Exception as e2:
+                await self._handle_error(HandlerActionType.REJECT, dispatch_context, thought_id, e2)
+                raise FollowUpCreationError from e2
+            result_data = result.model_dump() if hasattr(result, 'model_dump') else result
+            persistence.update_thought_status(
+                thought_id=thought_id,
+                status=final_thought_status,
+                final_action=result_data,
+            )
+            return
         # REJECT actions usually mean the thought processing has failed for a stated reason.
         final_thought_status = ThoughtStatus.FAILED 
         action_performed_successfully = False  # The agent couldn't proceed.
@@ -137,9 +123,5 @@ class RejectHandler(BaseActionHandler):
             )
             await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="success")
         except Exception as e:
-            self.logger.critical(
-                f"Failed to create follow-up thought for {thought_id}: {e}",
-                exc_info=e,
-            )
-            await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="failed_followup")
+            await self._handle_error(HandlerActionType.REJECT, dispatch_context, thought_id, e)
             raise FollowUpCreationError from e
