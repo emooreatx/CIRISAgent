@@ -6,7 +6,10 @@ from ciris_engine.schemas.dma_results_v1 import (
     EthicalDMAResult,
     CSDMAResult,
     DSDMAResult,
+    ActionSelectionResult, # Added import
 )
+from ciris_engine.schemas.action_params_v1 import PonderParams # Added import
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType # Added import
 from ciris_engine.schemas.feedback_schemas_v1 import (
     OptimizationVetoResult,
     EpistemicHumilityResult,
@@ -47,6 +50,15 @@ class MockLLMClient:
                 identified_uncertainties=[],
                 reflective_justification="mock",
                 recommended_action="proceed",
+            )
+        if response_model is ActionSelectionResult:
+            # Return a default PONDER action for mock mode
+            return ActionSelectionResult(
+                selected_action=HandlerActionType.PONDER,
+                action_parameters=PonderParams(questions=["Mock LLM: What should I do next?"]).model_dump(mode='json'),
+                rationale="Mock LLM default action selection.",
+                confidence=0.9,
+                raw_llm_response={"mock_data": "ActionSelectionResult from MockLLM"}
             )
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="OK"))])
 

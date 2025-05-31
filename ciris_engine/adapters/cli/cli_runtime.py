@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.action_handlers.discord_observe_handler import handle_discord_observe_event
+from ciris_engine.action_handlers.cli_observe_handler import handle_cli_observe_event # Changed import
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.registries.base import Priority
 from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
@@ -84,9 +84,9 @@ class CLIRuntime(CIRISRuntime):
             "current_directory": os.getcwd(),
         }
 
-        return await handle_discord_observe_event(
+        # Use the new CLI-specific handler
+        return await handle_cli_observe_event(
             payload=payload,
-            mode="passive",
             context=context,
         )
 
