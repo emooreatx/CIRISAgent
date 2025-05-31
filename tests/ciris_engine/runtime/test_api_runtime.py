@@ -32,3 +32,50 @@ def test_api_runtime_implements_interface():
     runtime = APIRuntime()
     assert isinstance(runtime, RuntimeInterface)
 
+
+@pytest.mark.asyncio
+async def test_api_routes_setup(monkeypatch):
+    monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
+    monkeypatch.setattr(
+        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
+        MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
+    )
+    monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
+    monkeypatch.setattr("ciris_engine.adapters.api.api_observer.APIObserver.start", AsyncMock())
+
+    runtime = APIRuntime(profile_name="default")
+    await runtime.initialize()
+
+    routes = [r.resource.canonical for r in runtime.app.router.routes()]
+    assert "/v1/messages" in routes
+    assert "/v1/status" in routes
+
+    await runtime.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_handle_message(monkeypatch):
+    monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
+    monkeypatch.setattr(
+        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
+        MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
+    )
+    monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
+    monkeypatch.setattr("ciris_engine.adapters.api.api_observer.APIObserver.start", AsyncMock())
+
+    runtime = APIRuntime(profile_name="default")
+    await runtime.initialize()
+
+    runtime.message_queue.enqueue = AsyncMock()
+
+    class DummyRequest:
+        def __init__(self, data):
+            self._data = data
+        async def json(self):
+            return self._data
+
+    req = DummyRequest({"content": "hi"})
+    resp = await runtime._handle_message(req)
+    assert resp.status == 200
+    runtime.message_queue.enqueue.assert_awaited_once()
+    await runtime.shutdown()
