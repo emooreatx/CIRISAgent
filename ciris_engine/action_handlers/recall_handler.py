@@ -17,27 +17,15 @@ class RecallHandler(BaseActionHandler):
         raw_params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.RECALL, {**dispatch_context, "thought_id": thought_id}, outcome="start")
-        params = raw_params
-        if not isinstance(params, RecallParams):
-            try:
-                params = RecallParams(**params) if isinstance(params, dict) else params
-            except ValidationError as e:
-                logger.error(f"RecallHandler: Invalid params dict: {e}")
-                follow_up = create_follow_up_thought(
-                    parent=thought,
-                    content=f"RECALL action failed: Invalid parameters. {e}"
-                )
-                self.dependencies.persistence.add_thought(follow_up)
-                await self._audit_log(HandlerActionType.RECALL, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
-                return
-        if not isinstance(params, RecallParams):
-            logger.error(f"RecallHandler: Invalid params type: {type(raw_params)}")
+        try:
+            params = await self._validate_and_convert_params(raw_params, RecallParams)
+        except Exception as e:
+            await self._handle_error(HandlerActionType.RECALL, dispatch_context, thought_id, e)
             follow_up = create_follow_up_thought(
                 parent=thought,
-                content=f"RECALL action failed: Invalid parameters type: {type(raw_params)}"
+                content=f"RECALL action failed: {e}"
             )
             self.dependencies.persistence.add_thought(follow_up)
-            await self._audit_log(HandlerActionType.RECALL, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             return
         memory_service: Optional[MemoryService] = await self.get_memory_service()
 
