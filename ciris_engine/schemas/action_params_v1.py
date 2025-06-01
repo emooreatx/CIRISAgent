@@ -1,7 +1,7 @@
 # --- v1 Action Params Schemas ---
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
-from .graph_schemas_v1 import GraphScope
+from .graph_schemas_v1 import GraphScope, GraphNode
 
 class ObserveParams(BaseModel):
     channel_id: Optional[str] = None
@@ -32,15 +32,29 @@ class DeferParams(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
 
 class MemorizeParams(BaseModel):
-    key: str  # What to recall
-    value: Any  # The memory content
-    scope: GraphScope = GraphScope.LOCAL
+    """Parameters for MEMORIZE action."""
+
+    node: GraphNode
+
+    @property
+    def scope(self) -> GraphScope:
+        return self.node.scope
 
 class RecallParams(BaseModel):
-    query: str
-    scope: GraphScope = GraphScope.LOCAL
+    """Parameters for RECALL action."""
+
+    node: GraphNode
+
+    @property
+    def scope(self) -> GraphScope:
+        return self.node.scope
 
 class ForgetParams(BaseModel):
-    key: str
-    scope: GraphScope = GraphScope.LOCAL
+    """Parameters for FORGET action."""
+
+    node: GraphNode
     reason: str
+
+    @property
+    def scope(self) -> GraphScope:
+        return self.node.scope
