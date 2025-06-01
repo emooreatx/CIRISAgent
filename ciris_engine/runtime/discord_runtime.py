@@ -173,7 +173,15 @@ class DiscordRuntime(CIRISRuntime):
         content = payload.get("content", "")
         metadata = {"observer_payload": payload}
 
-        await sink.send_message("ObserveHandler", str(channel_id), content, metadata)
+        message = IncomingMessage(
+            message_id=str(payload.get("message_id")),
+            author_id=str(payload.get("context", {}).get("author_id", "unknown")),
+            author_name=str(payload.get("context", {}).get("author_name", "unknown")),
+            content=content,
+            channel_id=str(channel_id),
+        )
+
+        await sink.observe_message("ObserveHandler", message, metadata)
         return None
         
     async def _build_action_dispatcher(self, dependencies):
