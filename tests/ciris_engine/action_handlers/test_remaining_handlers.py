@@ -108,11 +108,8 @@ async def test_observe_handler_passive(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
-    mock_observer = AsyncMock()
-    mock_observer.handle_incoming_message = AsyncMock()
-
+    # Passive observation is now handled at the adapter/observer level, not by calling handle_incoming_message
     deps = ActionHandlerDependencies()
-    deps.get_service = AsyncMock(return_value=mock_observer)
     handler = ObserveHandler(deps)
 
     params = ObserveParams(active=False, context={})
@@ -125,7 +122,6 @@ async def test_observe_handler_passive(monkeypatch):
 
     await handler.handle(action_result, thought, {})
 
-    mock_observer.handle_incoming_message.assert_awaited()
     update_status.assert_called_once()
     add_thought.assert_called_once()
 

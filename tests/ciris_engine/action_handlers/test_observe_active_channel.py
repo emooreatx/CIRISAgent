@@ -33,11 +33,12 @@ async def test_observe_handler_active_injects_channel(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
-    mock_comm = AsyncMock()
-    mock_comm.fetch_messages = AsyncMock(return_value=[])
+    mock_sink = AsyncMock()
+    mock_sink.fetch_messages_sync = AsyncMock(return_value=[])
     deps = ActionHandlerDependencies()
-    deps.get_service = AsyncMock(return_value=mock_comm)
+    deps.get_multi_service_sink = lambda: mock_sink
     handler = ObserveHandler(deps)
+    handler.get_multi_service_sink = lambda: mock_sink
 
     params = ObserveParams(active=True, channel_id=None, context={})
     action_result = ActionSelectionResult.model_construct(
@@ -49,4 +50,9 @@ async def test_observe_handler_active_injects_channel(monkeypatch):
 
     await handler.handle(action_result, thought, {"channel_id": "chanX"})
 
-    mock_comm.fetch_messages.assert_awaited_with("chanX", 50)
+    mock_sink.fetch_messages_sync.assert_awaited_with(
+        handler_name="ObserveHandler",
+        channel_id="chanX",
+        limit=50,
+        metadata={"active_observation": True},
+    )

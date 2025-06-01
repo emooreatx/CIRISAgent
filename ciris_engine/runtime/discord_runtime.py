@@ -349,3 +349,7 @@ class DiscordRuntime(CIRISRuntime):
                 await self.client.close()
                 
             await self.shutdown()
+
+    async def start_interactive_console(self):
+        """Discord does not use a local interactive console, so this is a no-op."""
+        pass

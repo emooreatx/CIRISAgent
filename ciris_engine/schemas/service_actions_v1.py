@@ -22,6 +22,7 @@ class ActionType(Enum):
     OBSERVE_MESSAGE = "observe_message"
 
 
+
 @dataclass
 class ActionMessage:
     """Base action message for service sinks"""

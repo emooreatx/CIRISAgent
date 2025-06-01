@@ -12,8 +12,8 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     IncomingMessage,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
 from ciris_engine import persistence
-from ciris_engine.protocols.services import CommunicationService
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
@@ -111,12 +111,8 @@ class ObserveHandler(BaseActionHandler):
         params.channel_id = channel_id
 
         # Get services with better logging
-        comm_service = await self.get_communication_service(["fetch_messages"])
-        logger.debug(f"ObserveHandler: Got communication service: {type(comm_service).__name__ if comm_service else 'None'}")
-        
-        observer_service = await self.get_observer_service()
-        logger.debug(f"ObserveHandler: Got observer service: {type(observer_service).__name__ if observer_service else 'None'}")
-        
+        multi_service_sink = self.get_multi_service_sink()
+        logger.debug(f"ObserveHandler: Got multi-service sink: {type(multi_service_sink).__name__ if multi_service_sink else 'None'}")
         
         memory_service = await self.get_memory_service()
         logger.debug(f"ObserveHandler: Got memory service: {type(memory_service).__name__ if memory_service else 'None'}")
@@ -124,37 +120,29 @@ class ObserveHandler(BaseActionHandler):
         try:
             if params.active:
                 logger.info(f"ObserveHandler: Performing active observation for channel {channel_id}")
-                if not comm_service or not channel_id:
-                    raise RuntimeError(f"No communication service ({comm_service}) or channel_id ({channel_id})")
-                messages = await comm_service.fetch_messages(
-                    str(channel_id).lstrip("#"), ACTIVE_OBSERVE_LIMIT
+                if not multi_service_sink or not channel_id:
+                    raise RuntimeError(f"No multi-service sink ({multi_service_sink}) or channel_id ({channel_id})")
+                messages = await multi_service_sink.fetch_messages_sync(
+                    handler_name="ObserveHandler",
+                    channel_id=str(channel_id).lstrip("#"),
+                    limit=ACTIVE_OBSERVE_LIMIT,
+                    metadata={"active_observation": True}
                 )
-                if not messages and observer_service and hasattr(observer_service, "get_recent_messages"):
-                    messages = await observer_service.get_recent_messages(ACTIVE_OBSERVE_LIMIT)
+                if messages is None:
+                    raise RuntimeError("Failed to fetch messages via multi-service sink")
+                # Note: Observer adapters handle observation at adapter level, not service level
                 await self._recall_from_messages(memory_service, channel_id, messages)
                 action_performed = True
                 follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"
                 logger.info(f"ObserveHandler: Active observation complete - {follow_up_info}")
             else:
                 logger.info(f"ObserveHandler: Performing passive observation")
-                if not observer_service:
-                    logger.error(f"ObserveHandler: Observer service unavailable for passive observation")
-                    raise RuntimeError("Observer service unavailable")
-                incoming = IncomingMessage(
-                    message_id=thought.thought_id,
-                    author_id=thought.context.get("author_id", "unknown"),
-                    author_name=thought.context.get("author_name", "unknown"),
-                    content=thought.content,
-                    channel_id=channel_id,
-                )
-                if hasattr(observer_service, "handle_incoming_message"):
-                    await observer_service.handle_incoming_message(incoming)
-                elif hasattr(observer_service, "observe"):
-                    await observer_service.observe({"message": incoming})
-                else:
-                    raise RuntimeError("Observer service missing method")
+                # Passive observation is handled at the adapter level through observer adapters
+                # (CLIObserver, DiscordObserver, APIObserver) which forward observations to the runtime
+                # This handler is invoked when those observations create tasks
+                logger.info(f"ObserveHandler: Passive observation processed - task creation from adapter observation")
                 action_performed = True
-                follow_up_info = "Observation forwarded"
+                follow_up_info = "Passive observation processed from adapter"
         except Exception as e:
             logger.exception(f"ObserveHandler error for {thought_id}: {e}")
             final_status = ThoughtStatus.FAILED

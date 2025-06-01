@@ -41,6 +41,7 @@ class CLIRuntime(CIRISRuntime):
             on_observe=self._handle_observe_event,
             message_queue=self.cli_queue,
             memory_service=self.memory_service,
+            multi_service_sink=self.multi_service_sink,
         )
 
         # Create tool service
@@ -99,17 +100,7 @@ class CLIRuntime(CIRISRuntime):
                 capabilities=["send_message", "fetch_messages"],
             )
 
-        # 2. Register CLI observer service
-        if self.cli_observer:
-            self.service_registry.register(
-                handler="ObserveHandler",
-                service_type="observer",
-                provider=self.cli_observer,
-                priority=Priority.NORMAL,
-                capabilities=[
-                    "observe_messages", "get_recent_messages", "handle_incoming_message"
-                ],
-            )
+
 
         # 3. Register CLI tool service with proper capabilities
         if self.cli_tool_service:
@@ -168,3 +159,9 @@ class CLIRuntime(CIRISRuntime):
         # Call parent run method to handle the main processing loop
         # The parent method will start agent processing with the correct num_rounds
         await super().run(num_rounds=num_rounds)
+
+    async def start_interactive_console(self):
+        """Start the interactive console for user input if in interactive mode."""
+        if self.interactive and self.cli_observer:
+            print("[CLI] Interactive console is now active. Type your messages below.")
+            await self.cli_observer.start()

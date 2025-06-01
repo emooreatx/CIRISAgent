@@ -190,10 +190,19 @@ class AgentProcessor:
             logger.error("Failed to transition to WORK state after wakeup")
             await self.stop_processing()
             return
-        
+
         # Mark wakeup as complete in state metadata
         self.state_manager.update_state_metadata("wakeup_complete", True)
-        
+
+        # --- Initialize interactive console if available (for CLI, etc.) ---
+        # This is the hook for starting the interactive console after entering WORK
+        if hasattr(self, "runtime") and hasattr(self.runtime, "start_interactive_console"):
+            print("[STATE] Initializing interactive console for user input...")
+            try:
+                await self.runtime.start_interactive_console()
+            except Exception as e:
+                logger.error(f"Error initializing interactive console: {e}")
+
         # Initialize work processor
         await self.work_processor.initialize()
         

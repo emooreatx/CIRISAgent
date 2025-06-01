@@ -141,16 +141,7 @@ class BaseActionHandler(ABC):
             "llm"
         )
 
-    async def get_observer_service(self) -> Optional[Any]:
-        """Get best available observer service"""
-        return await self.dependencies.get_service(
-            self.__class__.__name__,
-            "observer",
-            required_capabilities=[
-                "observe_messages",
-                "handle_incoming_message",
-            ],
-        )
+
 
     async def get_tool_service(self) -> Optional[Any]:
         """Get best available tool service"""
@@ -160,15 +151,18 @@ class BaseActionHandler(ABC):
             required_capabilities=["execute_tool"]
         )
 
+    def get_multi_service_sink(self) -> Optional[Any]:
+        """Get multi-service sink from dependencies."""
+        return getattr(self.dependencies, 'multi_service_sink', None)
+
     async def _get_channel_id(self, thought: Thought, dispatch_context: Dict[str, Any]) -> Optional[str]:
         """Get channel ID from dispatch or thought context."""
         channel_id = dispatch_context.get("channel_id")
         if not channel_id and getattr(thought, "context", None):
             channel_id = thought.context.get("channel_id")
         if not channel_id:
-            observer_service = await self.get_observer_service()
-            if observer_service:
-                channel_id = getattr(observer_service, "monitored_channel_id", None)
+            # No fallback needed since observer functionality is at adapter level
+            pass
         return channel_id
 
     async def _send_notification(self, channel_id: str, content: str) -> bool:

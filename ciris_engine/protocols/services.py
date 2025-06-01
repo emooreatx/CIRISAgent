@@ -135,30 +135,7 @@ class MemoryService(Protocol):
         return ["memorize", "recall", "forget"]
 
 
-class ObserverService(Protocol):
-    """Protocol for observation services"""
 
-    @abstractmethod
-    async def handle_incoming_message(self, message: IncomingMessage) -> None:
-        """Handle an incoming message for observation"""
-        ...
-
-    @abstractmethod
-    async def get_recent_messages(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """Get recent messages for active observation"""
-        ...
-
-    async def is_healthy(self) -> bool:
-        """Health check for circuit breaker"""
-        return True
-
-    async def get_capabilities(self) -> List[str]:
-        """Return list of capabilities"""
-        return [
-            "observe_messages",
-            "handle_incoming_message",
-            "get_recent_messages",
-        ]
 
 
 class ToolService(Protocol):
