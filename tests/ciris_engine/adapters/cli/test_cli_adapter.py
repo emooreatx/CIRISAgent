@@ -22,8 +22,8 @@ async def test_cli_observer_handle_message(monkeypatch):
         observed.append(payload)
 
     observer = CLIObserver(on_obs, queue)
-    # Patch os.getenv so default_channel_id matches test message
-    monkeypatch.setattr("os.getenv", lambda key, default=None: "cli" if key == "DISCORD_CHANNEL_ID" else default)
+    # Ensure DISCORD_CHANNEL_ID is unset so CLIObserver falls back to 'cli'
+    monkeypatch.delenv("DISCORD_CHANNEL_ID", raising=False)
     msg = IncomingMessage(message_id="1", content="hi", author_id="u", author_name="User", channel_id="cli")
     observer.multi_service_sink = object()
     observer._is_agent_message = lambda m: False
@@ -57,3 +57,12 @@ async def test_cli_observer_get_recent_messages():
     await observer.handle_incoming_message(msg2)
     recent = await observer.get_recent_messages(limit=1)
     assert recent and recent[0]["id"] == "2"
+
+
+@pytest.mark.asyncio
+async def test_cli_adapter_capabilities():
+    queue = CLIEventQueue()
+    adapter = CLIAdapter(queue, interactive=False)
+    caps = adapter.get_capabilities()
+    assert "send_message" in caps
+    assert "fetch_messages" in caps

@@ -71,9 +71,10 @@ class CLIObserver:
             logger.warning("No multi_service_sink available for passive observation")
             return
             
-        # Get environment variables for channel filtering
-        default_channel_id = os.getenv("DISCORD_CHANNEL_ID")
-        deferral_channel_id = os.getenv("DISCORD_DEFERRAL_CHANNEL_ID") 
+        # Get environment variables for channel filtering. When running in CLI
+        # mode the Discord variables may not be set, so fall back to 'cli'.
+        default_channel_id = os.getenv("DISCORD_CHANNEL_ID") or "cli"
+        deferral_channel_id = os.getenv("DISCORD_DEFERRAL_CHANNEL_ID")
         wa_discord_user = os.getenv("WA_DISCORD_USER", DEFAULT_WA)
         
         # Route messages based on channel and author
