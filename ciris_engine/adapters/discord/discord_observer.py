@@ -5,7 +5,6 @@ from typing import Callable, Awaitable, Dict, Any, Optional
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.sinks import MultiServiceDeferralSink
 from ciris_engine.adapters.discord.discord_adapter import DiscordEventQueue
 
 logger = logging.getLogger(__name__)
@@ -22,13 +21,11 @@ class DiscordObserver:
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]], # This callback will create the Task
         message_queue: DiscordEventQueue, # Use DiscordEventQueue[IncomingMessage]
         monitored_channel_id: Optional[str] = None,
-        deferral_sink: Optional[MultiServiceDeferralSink] = None,
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
     ):
         self.on_observe = on_observe
         self.message_queue = message_queue # Store the DiscordEventQueue[IncomingMessage]
-        self.deferral_sink = deferral_sink
         self.memory_service = memory_service
         self.agent_id = agent_id
         self._poll_task: Optional[asyncio.Task] = None

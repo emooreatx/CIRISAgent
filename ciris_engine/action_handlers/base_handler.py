@@ -7,7 +7,7 @@ import asyncio
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
+from ciris_engine.sinks import MultiServiceActionSink
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine import persistence
 from ciris_engine.registries.base import ServiceRegistry
@@ -30,7 +30,6 @@ class ActionHandlerDependencies:
         # Legacy services for backward compatibility
         action_sink: Optional[MultiServiceActionSink] = None,
         memory_service: Optional[LocalGraphMemoryService] = None,
-        deferral_sink: Optional[MultiServiceDeferralSink] = None,
         io_adapter: Optional[Any] = None,  # General type, can be cast in handler
         # Shutdown signal mechanism
         shutdown_callback: Optional[Callable[[], None]] = None,
@@ -40,7 +39,6 @@ class ActionHandlerDependencies:
         # Keep legacy services for backward compatibility
         self.action_sink = action_sink
         self.memory_service = memory_service
-        self.deferral_sink = deferral_sink
         self.io_adapter = io_adapter
         # Shutdown signal mechanism
         self.shutdown_callback = shutdown_callback
@@ -185,6 +183,17 @@ class BaseActionHandler(ABC):
         if not channel_id or not content:
             self.logger.error(f"_send_notification failed: missing channel_id ({channel_id}) or content ({bool(content)})")
             return False
+
+        # Use multi-service action sink if available
+        if hasattr(self.dependencies, 'action_sink') and self.dependencies.action_sink:
+            try:
+                return await self.dependencies.action_sink.send_message(
+                    self.__class__.__name__,
+                    channel_id,
+                    content
+                )
+            except Exception as e:
+                self.logger.error(f"Action sink failed to send message: {e}")
         
         # Log the attempt for debugging
         self.logger.debug(f"_send_notification: attempting to send to channel_id={channel_id}, content_length={len(content)}")

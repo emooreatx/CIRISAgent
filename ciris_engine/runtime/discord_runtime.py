@@ -25,7 +25,7 @@ from ciris_engine.adapters.cli.cli_observer import CLIObserver
 from ciris_engine.adapters.cli.cli_tools import CLIToolService
 
 # Import multi-service sink components
-from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
+from ciris_engine.sinks import MultiServiceActionSink
 from ciris_engine.registries.base import ServiceRegistry, Priority
 from ciris_engine.adapters import CIRISNodeClient
 
@@ -66,7 +66,6 @@ class DiscordRuntime(CIRISRuntime):
         # Discord-specific services
         self.discord_observer: Optional[DiscordObserver] = None
         self.action_sink: Optional[MultiServiceActionSink] = None
-        self.deferral_sink: Optional[MultiServiceDeferralSink] = None
         
     async def initialize(self):
         """Initialize Discord-specific components."""
@@ -87,18 +86,12 @@ class DiscordRuntime(CIRISRuntime):
             fallback_channel_id=self.monitored_channel_id
         )
         
-        # Create deferral sink using MultiServiceDeferralSink
-        self.deferral_sink = MultiServiceDeferralSink(
-            service_registry=self.service_registry,
-            fallback_channel_id=self.deferral_channel_id
-        )
 
         # Create Discord observer with proper context
         self.discord_observer = DiscordObserver(
             on_observe=self._handle_observe_event,  # Use wrapper method
             message_queue=self.message_queue,
             monitored_channel_id=self.monitored_channel_id,
-            deferral_sink=self.deferral_sink,
             memory_service=self.memory_service,
         )
 
@@ -106,7 +99,6 @@ class DiscordRuntime(CIRISRuntime):
         self.cli_observer = CLIObserver(
             on_observe=self._handle_observe_event,
             message_queue=self.cli_queue,
-            deferral_sink=self.deferral_sink,
             memory_service=self.memory_service,
         )
         self.cli_tool_service = CLIToolService()
@@ -170,7 +162,6 @@ class DiscordRuntime(CIRISRuntime):
         
         # Start sinks as background tasks since they contain infinite loops
         self.action_sink_task = asyncio.create_task(self.action_sink.start())
-        self.deferral_sink_task = asyncio.create_task(self.deferral_sink.start())
         
         
     async def _handle_observe_event(self, payload: Dict[str, Any]):
@@ -199,7 +190,6 @@ class DiscordRuntime(CIRISRuntime):
             action_sink=self.action_sink,
             memory_service=self.memory_service,
             io_adapter=self.discord_adapter,
-            deferral_sink=self.deferral_sink,
         )
         
     async def _register_discord_services(self):
@@ -294,19 +284,12 @@ class DiscordRuntime(CIRISRuntime):
             except asyncio.CancelledError:
                 pass
         
-        if hasattr(self, 'deferral_sink_task') and self.deferral_sink_task:
-            self.deferral_sink_task.cancel()
-            try:
-                await self.deferral_sink_task
-            except asyncio.CancelledError:
-                pass
         
         # Stop Discord services
         discord_services = [
             self.discord_observer,
             self.cli_observer,
             self.action_sink,
-            self.deferral_sink,
         ]
         
         for service in discord_services:

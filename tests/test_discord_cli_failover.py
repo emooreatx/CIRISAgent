@@ -61,9 +61,6 @@ async def test_discord_runtime_cli_fallback(monkeypatch):
     monkeypatch.setattr(
         "ciris_engine.runtime.discord_runtime.MultiServiceActionSink.start", AsyncMock()
     )
-    monkeypatch.setattr(
-        "ciris_engine.runtime.discord_runtime.MultiServiceDeferralSink.start", AsyncMock()
-    )
 
     runtime = DiscordRuntime(token="tok", profile_name="p", startup_channel_id="chan")
     await runtime.initialize()

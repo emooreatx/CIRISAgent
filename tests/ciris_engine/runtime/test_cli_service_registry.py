@@ -22,7 +22,6 @@ async def test_cli_service_registry(monkeypatch):
     monkeypatch.setattr("ciris_engine.runtime.cli_runtime.CLIObserver.start", AsyncMock())
     monkeypatch.setattr("ciris_engine.runtime.cli_runtime.CLIAdapter.start", AsyncMock())
     monkeypatch.setattr("ciris_engine.runtime.cli_runtime.MultiServiceActionSink.start", AsyncMock())
-    monkeypatch.setattr("ciris_engine.runtime.cli_runtime.MultiServiceDeferralSink.start", AsyncMock())
 
     runtime = CLIRuntime(profile_name="default", interactive=False)
     await runtime.initialize()

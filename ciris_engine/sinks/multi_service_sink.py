@@ -22,14 +22,12 @@ from ciris_engine.schemas.service_actions_v1 import (
     ForgetAction,
     SendToolAction,
     FetchToolAction,
+    ObserveMessageAction,
 )
-from ..protocols.services import CommunicationService, WiseAuthorityService, MemoryService, ToolService
+from ..protocols.services import CommunicationService, WiseAuthorityService, MemoryService, ToolService, ObserverService
+from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ..registries.circuit_breaker import CircuitBreakerError
 from .base_sink import BaseMultiServiceSink
-from .message_sink import MultiServiceMessageSink
-from .memory_sink import MultiServiceMemorySink
-from .tool_sink import MultiServiceToolSink
-from .deferral_sink import MultiServiceDeferralSink
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +59,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FORGET: 'memory',
             ActionType.SEND_TOOL: 'tool',
             ActionType.FETCH_TOOL: 'tool',
+            ActionType.OBSERVE_MESSAGE: 'observer',
         }
     
     @property
@@ -76,6 +75,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FORGET: ['forget'],
             ActionType.SEND_TOOL: ['execute_tool'],
             ActionType.FETCH_TOOL: ['get_tool_result'],
+            ActionType.OBSERVE_MESSAGE: ['handle_incoming_message'],
         }
     
     async def _execute_action_on_service(self, service: Any, action: ActionMessage):
@@ -101,6 +101,8 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 await self._handle_send_tool(service, action)
             elif action_type == ActionType.FETCH_TOOL:
                 await self._handle_fetch_tool(service, action)
+            elif action_type == ActionType.OBSERVE_MESSAGE:
+                await self._handle_observe_message(service, action)
             else:
                 logger.error(f"No handler for action type: {action_type}")
                 
@@ -188,6 +190,14 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         except Exception as e:
             logger.error(f"Error fetching tool result for {action.correlation_id}: {e}")
             raise
+
+    async def _handle_observe_message(self, service: ObserverService, action: ObserveMessageAction):
+        """Handle observe message action"""
+        try:
+            await service.handle_incoming_message(action.message)
+        except Exception as e:
+            logger.error(f"Error observing message {action.message.message_id}: {e}")
+            raise
     
     # Convenience methods for common actions
     async def send_message(self, handler_name: str, channel_id: str, content: str, metadata: Optional[Dict] = None) -> bool:
@@ -207,6 +217,15 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             metadata=metadata or {},
             thought_id=thought_id,
             reason=reason
+        )
+        return await self.enqueue_action(action)
+
+    async def observe_message(self, handler_name: str, message: IncomingMessage, metadata: Optional[Dict] = None) -> bool:
+        """Convenience method to observe a message"""
+        action = ObserveMessageAction(
+            handler_name=handler_name,
+            metadata=metadata or {},
+            message=message
         )
         return await self.enqueue_action(action)
     
