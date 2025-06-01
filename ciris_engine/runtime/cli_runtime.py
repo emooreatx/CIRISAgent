@@ -1,5 +1,4 @@
 import logging
-import os
 import asyncio
 from typing import Optional, Dict, Any
 
@@ -140,12 +139,9 @@ class CLIRuntime(CIRISRuntime):
 
     async def _build_action_dispatcher(self, dependencies):
         return build_action_dispatcher(
-            audit_service=self.audit_service,
+            service_registry=self.service_registry,
             max_rounds=self.app_config.workflow.max_rounds,
-            action_sink=self.action_sink,
-            memory_service=self.memory_service,
-            observer_service=self.cli_observer,
-            io_adapter=self.cli_adapter,
+            shutdown_callback=dependencies.shutdown_callback,
         )
 
     async def shutdown(self):

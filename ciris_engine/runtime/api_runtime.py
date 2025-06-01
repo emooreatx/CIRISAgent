@@ -1,6 +1,4 @@
 """API runtime implementation for REST interfaces."""
-import asyncio
-import json
 import logging
 import uuid
 from typing import Optional, Dict, Any
@@ -140,7 +138,8 @@ class APIRuntime(CIRISRuntime):
     async def _build_action_dispatcher(self, dependencies):
         return build_action_dispatcher(
             service_registry=self.service_registry,
-            max_rounds=self.app_config.workflow.max_rounds
+            max_rounds=self.app_config.workflow.max_rounds,
+            shutdown_callback=dependencies.shutdown_callback
         )
 
     async def run(self, max_rounds: Optional[int] = None):
