@@ -62,8 +62,13 @@ class SpeakHandler(BaseActionHandler):
         success = await self._send_notification(params.channel_id, params.content)
 
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
+        
+        # Get the actual task content instead of just the ID
+        task = persistence.get_task_by_id(thought.source_task_id)
+        task_description = task.description if task else f"task {thought.source_task_id}"
+        
         follow_up_content_key_info = (
-            f"Spoke: '{params.content[:50]}...' in channel #{params.channel_id}"
+            f"YOU Spoke, as a result of your action: '{params.content[:50]}...' in channel #{params.channel_id} as a response to task: {task_description[:100]} this thought was created. The next action is probably TASK COMPLETE to mark the original task as handled. Any further user action will trigger a further observation thought automatically."
             if success
             else f"Failed to send message to {params.channel_id}"
         )
