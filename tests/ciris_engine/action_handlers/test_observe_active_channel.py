@@ -49,4 +49,4 @@ async def test_observe_handler_active_injects_channel(monkeypatch):
 
     await handler.handle(action_result, thought, {"channel_id": "chanX"})
 
-    mock_comm.fetch_messages.assert_awaited_with("chanX", 10)
+    mock_comm.fetch_messages.assert_awaited_with("chanX", 50)

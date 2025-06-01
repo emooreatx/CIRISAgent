@@ -155,7 +155,10 @@ class BaseActionHandler(ABC):
         return await self.dependencies.get_service(
             self.__class__.__name__,
             "observer",
-            required_capabilities=["observe_messages"],
+            required_capabilities=[
+                "observe_messages",
+                "handle_incoming_message",
+            ],
         )
 
     async def get_tool_service(self) -> Optional[Any]:
@@ -222,13 +225,11 @@ class BaseActionHandler(ABC):
                 self.logger.error(f"Communication service failed to send message to channel {channel_id}: {e}")
         else:
             self.logger.error("No communication service available - this indicates a service registry lookup failure")
-            
-        # DEPRECATED: Removing action_sink fallback as it's deprecated
-        # The action_sink pattern is being phased out in favor of the service registry
-        self.logger.debug("_send_notification: action_sink fallback is deprecated and has been removed")
-            
+
         self.logger.error(f"_send_notification: all notification methods failed for channel_id={channel_id}")
-        self.logger.error(f"_send_notification: Available services debug - handler='{self.__class__.__name__}', service_type='communication'")
+        self.logger.error(
+            f"_send_notification: Available services debug - handler='{self.__class__.__name__}', service_type='communication'"
+        )
         if self.dependencies.service_registry:
             available_services = await self.dependencies.service_registry.get_provider_info(
                 handler=self.__class__.__name__,

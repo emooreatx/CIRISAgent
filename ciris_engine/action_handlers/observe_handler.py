@@ -18,6 +18,9 @@ from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
 
+PASSIVE_OBSERVE_LIMIT = 10  # number of messages to fetch for passive context
+ACTIVE_OBSERVE_LIMIT = 50   # number of messages to fetch for active context
+
 logger = logging.getLogger(__name__)
 
 
@@ -124,10 +127,10 @@ class ObserveHandler(BaseActionHandler):
                 if not comm_service or not channel_id:
                     raise RuntimeError(f"No communication service ({comm_service}) or channel_id ({channel_id})")
                 messages = await comm_service.fetch_messages(
-                    str(channel_id).lstrip("#"), getattr(params, "limit", 10)
+                    str(channel_id).lstrip("#"), ACTIVE_OBSERVE_LIMIT
                 )
                 if not messages and observer_service and hasattr(observer_service, "get_recent_messages"):
-                    messages = await observer_service.get_recent_messages(getattr(params, "limit", 10))
+                    messages = await observer_service.get_recent_messages(ACTIVE_OBSERVE_LIMIT)
                 await self._recall_from_messages(memory_service, channel_id, messages)
                 action_performed = True
                 follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"

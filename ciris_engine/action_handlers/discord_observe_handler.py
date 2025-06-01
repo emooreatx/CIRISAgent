@@ -15,6 +15,9 @@ from ciris_engine import persistence
 
 logger = logging.getLogger(__name__)
 
+PASSIVE_OBSERVE_LIMIT = 10
+ACTIVE_OBSERVE_LIMIT = 50
+
 async def handle_discord_observe_event(
     payload: Dict[str, Any],
     mode: str = "passive",
@@ -34,6 +37,31 @@ async def handle_discord_observe_event(
         content = payload.get("content")
         context_data = payload.get("context", {})
         description = payload.get("task_description", content)
+
+        channel_id = context_data.get("channel_id") or payload.get("channel_id")
+        if not channel_id and context:
+            channel_id = context.get("default_channel_id")
+        if channel_id:
+            context_data["channel_id"] = channel_id
+            recent_messages = []
+            discord_service = context.get("discord_service") if context else None
+            if discord_service:
+                try:
+                    channel = discord_service.get_channel(int(channel_id))
+                    if channel is None:
+                        channel = await discord_service.fetch_channel(int(channel_id))
+                    if channel:
+                        async for msg in channel.history(limit=PASSIVE_OBSERVE_LIMIT):
+                            recent_messages.append({
+                                "id": str(msg.id),
+                                "content": msg.content,
+                                "author_id": str(msg.author.id),
+                                "timestamp": msg.created_at.isoformat() if msg.created_at else "unknown time",
+                            })
+                except Exception as e:
+                    logger.error(f"Failed to fetch passive context messages: {e}")
+            if recent_messages:
+                context_data["recent_messages"] = recent_messages
 
         if not message_id or not content:
             logger.error(
@@ -149,7 +177,7 @@ async def handle_discord_observe_event(
         if isinstance(channel_id, str) and channel_id.startswith('#'):
             channel_id = channel_id[1:]
         offset = payload.get("offset", 0)
-        limit = payload.get("limit", 20)
+        limit = payload.get("limit", ACTIVE_OBSERVE_LIMIT)
         include_agent = payload.get("include_agent", True)
         agent_id = context.get("agent_id")
 

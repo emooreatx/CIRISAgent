@@ -128,6 +128,9 @@ class DiscordRuntime(CIRISRuntime):
                 capabilities=["execute_tool", "get_tool_result", "get_available_tools", "validate_parameters"]
             )
 
+        # Register Discord-specific services before dispatcher is built
+        await self._register_discord_services()
+
         # Update agent processor services with Discord client
         if self.agent_processor:
             # Update the main services dict
@@ -168,8 +171,6 @@ class DiscordRuntime(CIRISRuntime):
         self.action_sink_task = asyncio.create_task(self.action_sink.start())
         self.deferral_sink_task = asyncio.create_task(self.deferral_sink.start())
         
-        # Register Discord-specific services in the service registry
-        await self._register_discord_services()
         
     async def _handle_observe_event(self, payload: Dict[str, Any]):
         """Wrapper for observe event handling with proper context."""
@@ -195,7 +196,6 @@ class DiscordRuntime(CIRISRuntime):
             audit_service=self.audit_service,
             action_sink=self.action_sink,
             memory_service=self.memory_service,
-            observer_service=self.discord_observer,
             io_adapter=self.discord_adapter,
             deferral_sink=self.deferral_sink,
         )
