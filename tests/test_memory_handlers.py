@@ -26,9 +26,10 @@ def test_memorize_handler_with_new_schema(monkeypatch):
     handler = MemorizeHandler(deps)
     
     # Test new schema
+    node = {"id": "test", "type": "user", "scope": "local", "attributes": {"value": "data"}}
     result = ActionSelectionResult(
         selected_action=HandlerActionType.MEMORIZE,
-        action_parameters={"key": "test", "value": "data", "scope": "local"},
+        action_parameters={"node": node},
         rationale="test"
     )
     

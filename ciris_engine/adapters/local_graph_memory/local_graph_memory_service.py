@@ -86,18 +86,18 @@ class LocalGraphMemoryService(Service):
         await asyncio.to_thread(self._persist)
         return MemoryOpResult(status=MemoryOpStatus.OK)
 
-    async def recall(self, node_id: str, scope: GraphScope) -> MemoryOpResult:
-        g = self._graphs[scope]
-        if g.has_node(node_id):
+    async def recall(self, node: GraphNode) -> MemoryOpResult:
+        g = self._graphs[node.scope]
+        if g.has_node(node.id):
             return MemoryOpResult(
-                status=MemoryOpStatus.OK, data=dict(g.nodes[node_id])
+                status=MemoryOpStatus.OK, data=dict(g.nodes[node.id])
             )
         return MemoryOpResult(status=MemoryOpStatus.OK, data=None)
 
-    async def forget(self, node_id: str, scope: GraphScope) -> MemoryOpResult:
-        g = self._graphs[scope]
-        if g.has_node(node_id):
-            g.remove_node(node_id)
+    async def forget(self, node: GraphNode) -> MemoryOpResult:
+        g = self._graphs[node.scope]
+        if g.has_node(node.id):
+            g.remove_node(node.id)
             await asyncio.to_thread(self._persist)
         return MemoryOpResult(status=MemoryOpStatus.OK)
 

@@ -3,6 +3,7 @@ Action and message types for multi-service sinks.
 """
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode
 from enum import Enum
 
 
@@ -76,39 +77,31 @@ class SendDeferralAction(ActionMessage):
 @dataclass
 class MemorizeAction(ActionMessage):
     """Action to memorize data via memory service"""
-    key: str
-    value: Any
-    scope: str
-    
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], key: str, value: Any, scope: str):
+    node: GraphNode
+
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], node: GraphNode):
         super().__init__(ActionType.MEMORIZE, handler_name, metadata)
-        self.key = key
-        self.value = value
-        self.scope = scope
+        self.node = node
 
 
 @dataclass
 class RecallAction(ActionMessage):
     """Action to recall data via memory service"""
-    key: str
-    scope: str
-    
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], key: str, scope: str):
+    node: GraphNode
+
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], node: GraphNode):
         super().__init__(ActionType.RECALL, handler_name, metadata)
-        self.key = key
-        self.scope = scope
+        self.node = node
 
 
 @dataclass
 class ForgetAction(ActionMessage):
     """Action to forget data via memory service"""
-    key: str
-    scope: str
-    
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], key: str, scope: str):
+    node: GraphNode
+
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], node: GraphNode):
         super().__init__(ActionType.FORGET, handler_name, metadata)
-        self.key = key
-        self.scope = scope
+        self.node = node
 
 
 @dataclass

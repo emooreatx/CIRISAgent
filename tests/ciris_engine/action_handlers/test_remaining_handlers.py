@@ -49,9 +49,10 @@ async def test_forget_handler_schema_driven(monkeypatch):
     deps.persistence = MagicMock()
     handler = ForgetHandler(deps)
 
+    node = GraphNode(id="user1", type=NodeType.USER, scope=GraphScope.LOCAL)
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.FORGET,
-        action_parameters=ForgetParams(key="user1", scope="local", reason="r"),
+        action_parameters=ForgetParams(node=node, reason="r"),
         rationale="r",
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
@@ -80,9 +81,10 @@ async def test_recall_handler_schema_driven(monkeypatch):
     deps.persistence = MagicMock()
     handler = RecallHandler(deps)
 
+    node = GraphNode(id="user1", type=NodeType.USER, scope=GraphScope.LOCAL)
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.RECALL,
-        action_parameters=RecallParams(query="user1", scope="local"),
+        action_parameters=RecallParams(node=node),
         rationale="r",
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)

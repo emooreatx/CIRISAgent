@@ -1,5 +1,6 @@
 import pytest
 from ciris_engine.schemas import action_params_v1
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from pydantic import ValidationError
 
 def test_observe_params_defaults():
@@ -34,18 +35,20 @@ def test_defer_params_defaults():
     assert isinstance(params.context, dict)
 
 def test_memorize_params():
-    params = action_params_v1.MemorizeParams(key="foo", value=123)
-    assert params.key == "foo"
-    assert params.value == 123
-    assert params.scope == "local"
+    node = GraphNode(id="foo", type=NodeType.USER, scope=GraphScope.LOCAL)
+    params = action_params_v1.MemorizeParams(node=node)
+    assert params.node.id == "foo"
+    assert params.scope == action_params_v1.GraphScope.LOCAL
 
 def test_Recall_params_defaults():
-    params = action_params_v1.RecallParams(query="bar")
-    assert params.query == "bar"
-    assert params.scope == "local"
+    node = GraphNode(id="bar", type=NodeType.USER, scope=GraphScope.LOCAL)
+    params = action_params_v1.RecallParams(node=node)
+    assert params.node.id == "bar"
+    assert params.scope == action_params_v1.GraphScope.LOCAL
 
 def test_forget_params():
-    params = action_params_v1.ForgetParams(key="baz", reason="cleanup")
-    assert params.key == "baz"
-    assert params.scope == "local"
+    node = GraphNode(id="baz", type=NodeType.USER, scope=GraphScope.LOCAL)
+    params = action_params_v1.ForgetParams(node=node, reason="cleanup")
+    assert params.node.id == "baz"
+    assert params.scope == action_params_v1.GraphScope.LOCAL
     assert params.reason == "cleanup"

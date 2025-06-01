@@ -40,18 +40,18 @@ class MultiServiceMemorySink(BaseMultiServiceSink):
     async def _execute_action_on_service(self, service: MemoryService, action: ActionMessage):
         """Execute memory action on service"""
         if action.type == ActionType.MEMORIZE:
-            success = await service.memorize(action.key, action.value, action.scope)
+            success = await service.memorize(action.node)
             if success:
-                logger.info(f"Stored memory {action.key} via {type(service).__name__}")
+                logger.info(f"Stored memory {action.node.id} via {type(service).__name__}")
             else:
                 logger.warning(f"Failed to store memory via {type(service).__name__}")
         elif action.type == ActionType.RECALL:
-            value = await service.recall(action.key, action.scope)
-            logger.info(f"Retrieved memory {action.key} via {type(service).__name__}")
+            value = await service.recall(action.node)
+            logger.info(f"Retrieved memory {action.node.id} via {type(service).__name__}")
             return value
         elif action.type == ActionType.FORGET:
-            success = await service.forget(action.key, action.scope)
+            success = await service.forget(action.node)
             if success:
-                logger.info(f"Deleted memory {action.key} via {type(service).__name__}")
+                logger.info(f"Deleted memory {action.node.id} via {type(service).__name__}")
             else:
                 logger.warning(f"Failed to delete memory via {type(service).__name__}")

@@ -4,17 +4,14 @@ from ciris_engine.schemas.action_params_v1 import MemorizeParams, RecallParams, 
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
 def test_memorize_params_validation():
-    # Valid params
-    params = MemorizeParams(key="test", value="data", scope="local")
-    assert params.key == "test"
-    
-    # Test scope enum
-    params = MemorizeParams(key="test", value="data", scope="identity")
-    assert params.scope == GraphScope.IDENTITY
-    
-    # Invalid scope should fail
-    with pytest.raises(ValidationError):
-        MemorizeParams(key="test", value="data", scope="invalid")
+    node = GraphNode(id="test", type=NodeType.USER, scope=GraphScope.LOCAL)
+    params = MemorizeParams(node=node)
+    assert params.node.id == "test"
+    assert params.scope == GraphScope.LOCAL
+
+    node2 = GraphNode(id="t2", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
+    params2 = MemorizeParams(node=node2)
+    assert params2.scope == GraphScope.IDENTITY
 
 def test_old_to_new_memorize_mapping():
     # Test conversion logic
@@ -25,9 +22,11 @@ def test_old_to_new_memorize_mapping():
     }
     
     # Should map to new format
-    new_params = MemorizeParams(
-        key=old_params["knowledge_unit_description"],
-        value=old_params["knowledge_data"],
-        scope="local"
+    node = GraphNode(
+        id=old_params["knowledge_unit_description"],
+        type=NodeType.USER,
+        scope=GraphScope.LOCAL,
+        attributes={"value": old_params["knowledge_data"]}
     )
-    assert new_params.key == "user preference"
+    new_params = MemorizeParams(node=node)
+    assert new_params.node.id == "user preference"

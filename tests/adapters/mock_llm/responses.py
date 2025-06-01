@@ -13,8 +13,9 @@ from ciris_engine.schemas.feedback_schemas_v1 import (
 )
 from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
 from ciris_engine.dma.dsdma_base import BaseDSDMA
-from ciris_engine.schemas.action_params_v1 import PonderParams
+from ciris_engine.schemas.action_params_v1 import PonderParams, MemorizeParams
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
 
 def _attach_extras(obj: Any) -> Any:
@@ -88,10 +89,11 @@ def epistemic_humility() -> EpistemicHumilityResult:
 
 
 def action_selection() -> ActionSelectionResult:
+    node = GraphNode(id="mock", type=NodeType.USER, scope=GraphScope.LOCAL, attributes={"value": "data"})
     return _attach_extras(
         ActionSelectionResult(
-            selected_action=HandlerActionType.PONDER,
-            action_parameters=PonderParams(questions=["Mock LLM: What should I do next?"]).model_dump(mode="json"),
+            selected_action=HandlerActionType.MEMORIZE,
+            action_parameters=MemorizeParams(node=node).model_dump(mode="json"),
             rationale="Mock LLM default action selection.",
             confidence=0.9,
             raw_llm_response="ActionSelectionResult from MockLLM",
