@@ -7,7 +7,7 @@ from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.registries.base import Priority
-from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
+from ciris_engine.sinks import MultiServiceActionSink
 from ..adapters.cli.cli_event_queues import CLIEventQueue
 from ..adapters.cli.cli_adapter import CLIAdapter
 from ..adapters.cli.cli_observer import CLIObserver
@@ -30,7 +30,6 @@ class CLIRuntime(CIRISRuntime):
         self.cli_wa_service: Optional[CLIWiseAuthorityService] = None
 
         self.action_sink: Optional[MultiServiceActionSink] = None
-        self.deferral_sink: Optional[MultiServiceDeferralSink] = None
 
         self.interactive = interactive
 
@@ -46,17 +45,11 @@ class CLIRuntime(CIRISRuntime):
                 service_registry=self.service_registry,
                 fallback_channel_id="cli"
             )
-        if not self.deferral_sink:
-            self.deferral_sink = MultiServiceDeferralSink(
-                service_registry=self.service_registry,
-                fallback_channel_id="cli"
-            )
 
         # Ensure observer has proper event handling
         self.cli_observer = CLIObserver(
             on_observe=self._handle_observe_event,
             message_queue=self.cli_queue,
-            deferral_sink=self.deferral_sink,
             memory_service=self.memory_service,
         )
 
@@ -74,7 +67,6 @@ class CLIRuntime(CIRISRuntime):
 
         # Start sinks as background tasks since they contain infinite loops
         self.action_sink_task = asyncio.create_task(self.action_sink.start())
-        self.deferral_sink_task = asyncio.create_task(self.deferral_sink.start())
 
         logger.info("Starting agent processing with WAKEUP sequence...")
         if self.agent_processor:
@@ -150,11 +142,10 @@ class CLIRuntime(CIRISRuntime):
         return build_action_dispatcher(
             audit_service=self.audit_service,
             max_rounds=self.app_config.workflow.max_rounds,
-            action_sink=self.multi_service_sink,
+            action_sink=self.action_sink,
             memory_service=self.memory_service,
             observer_service=self.cli_observer,
             io_adapter=self.cli_adapter,
-            deferral_sink=self.deferral_sink,
         )
 
     async def shutdown(self):
@@ -164,7 +155,6 @@ class CLIRuntime(CIRISRuntime):
             self.cli_observer,
             self.cli_adapter,
             self.action_sink,
-            self.deferral_sink,
             self.cli_wa_service,
             self.cli_tool_service,
         ]

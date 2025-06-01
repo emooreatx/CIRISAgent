@@ -3,7 +3,7 @@ Multi-service sink implementations that leverage the service registry
 for automatic fallback and reliability.
 """
 
-from .multi_service_sink import MultiServiceActionSink, MultiServiceDeferralSink
+from .multi_service_sink import MultiServiceActionSink
 from ciris_engine.schemas.service_actions_v1 import (
     ActionMessage,
     ActionType,
@@ -16,15 +16,15 @@ from ciris_engine.schemas.service_actions_v1 import (
     ForgetAction,
     SendToolAction,
     FetchToolAction,
+    ObserveMessageAction,
 )
 
 __all__ = [
     "MultiServiceActionSink",
-    "MultiServiceDeferralSink", 
     "ActionMessage",
     "ActionType",
     "SendMessageAction",
-    "FetchMessagesAction", 
+    "FetchMessagesAction",
     "FetchGuidanceAction",
     "SendDeferralAction",
     "MemorizeAction",
@@ -32,4 +32,5 @@ __all__ = [
     "ForgetAction",
     "SendToolAction",
     "FetchToolAction",
+    "ObserveMessageAction",
 ]

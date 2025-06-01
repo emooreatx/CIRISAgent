@@ -49,12 +49,11 @@ class DeferHandler(BaseActionHandler):
             
 
             
-            if self.dependencies.deferral_sink:
+            if self.dependencies.action_sink:
                 try:
-                    source_task_id = dispatch_context.get("source_task_id", thought.source_task_id)
                     pkg = DeferralPackage(
                         thought_id=thought_id,
-                        task_id=source_task_id,
+                        task_id=dispatch_context.get("source_task_id", thought.source_task_id),
                         deferral_reason=DeferralReason.UNKNOWN,
                         reason_description=defer_params_obj.reason,
                         thought_content=thought.content,
@@ -63,39 +62,38 @@ class DeferHandler(BaseActionHandler):
                         csdma_assessment=defer_params_obj.context.get("csdma") if defer_params_obj.context else None,
                         dsdma_assessment=defer_params_obj.context.get("dsdma") if defer_params_obj.context else None,
                     )
-                    await self.dependencies.deferral_sink.send_deferral(
-                        source_task_id,
+                    await self.dependencies.action_sink.submit_deferral(
+                        self.__class__.__name__,
                         thought_id,
                         defer_params_obj.reason,
                         {"deferral_package": pkg.model_dump()}
                     )
                 except Exception as e:
-                    self.logger.error(f"DeferralSink failed for thought {thought_id}: {e}")
+                    self.logger.error(f"Action sink failed for thought {thought_id}: {e}")
             else:
-                action_performed_successfully = True # Deferral itself is successful by updating status
+                action_performed_successfully = True  # Deferral itself is successful by updating status
 
         except Exception as param_parse_error:
             self.logger.error(f"DEFER action params parsing error or unexpected structure. Type: {type(raw_params)}, Error: {param_parse_error}. Thought ID: {thought_id}")
             follow_up_content_key_info = f"DEFER action failed: Invalid parameters ({type(raw_params)}) for thought {thought_id}. Error: {param_parse_error}"
             # Deferral still proceeds, but with potentially less context for the sink.
-            if self.dependencies.deferral_sink:  # Attempt to send minimal deferral info
+            if self.dependencies.action_sink:  # Attempt to send minimal deferral info
                  try:
-                    source_task_id = dispatch_context.get("source_task_id", thought.source_task_id)
                     pkg = DeferralPackage(
                         thought_id=thought_id,
-                        task_id=source_task_id,
+                        task_id=dispatch_context.get("source_task_id", thought.source_task_id),
                         deferral_reason=DeferralReason.UNKNOWN,
                         reason_description="parameter_error",
                         thought_content=thought.content,
                     )
-                    await self.dependencies.deferral_sink.send_deferral(
-                        source_task_id,
+                    await self.dependencies.action_sink.submit_deferral(
+                        self.__class__.__name__,
                         thought_id,
                         "Deferral due to parameter processing error.",
                         {"deferral_package": pkg.model_dump()}
                     )
                  except Exception as e_sink_fallback:
-                     self.logger.error(f"Fallback DeferralSink failed for thought {thought_id}: {e_sink_fallback}")
+                     self.logger.error(f"Fallback deferral submission failed for thought {thought_id}: {e_sink_fallback}")
             else:
                 # If no sink or channel, the deferral is silent, which is acceptable.
                 action_performed_successfully = True  # Deferral itself is successful by updating status

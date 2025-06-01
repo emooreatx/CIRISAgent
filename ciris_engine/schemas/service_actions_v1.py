@@ -4,6 +4,7 @@ Action and message types for multi-service sinks.
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
+from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from enum import Enum
 
 
@@ -18,6 +19,7 @@ class ActionType(Enum):
     FORGET = "forget"
     SEND_TOOL = "send_tool"
     FETCH_TOOL = "fetch_tool"
+    OBSERVE_MESSAGE = "observe_message"
 
 
 @dataclass
@@ -130,6 +132,16 @@ class FetchToolAction(ActionMessage):
         self.tool_name = tool_name
         self.correlation_id = correlation_id
         self.timeout = timeout
+
+
+@dataclass
+class ObserveMessageAction(ActionMessage):
+    """Action to observe/process a message"""
+    message: IncomingMessage
+
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], message: IncomingMessage):
+        super().__init__(ActionType.OBSERVE_MESSAGE, handler_name, metadata)
+        self.message = message
 
 
 # Alias for backward compatibility

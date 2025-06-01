@@ -4,7 +4,6 @@ from typing import Callable, Awaitable, Dict, Any, Optional
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.sinks import MultiServiceDeferralSink
 from .cli_event_queues import CLIEventQueue
 
 logger = logging.getLogger(__name__)
@@ -16,13 +15,11 @@ class CLIObserver:
         self,
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]],
         message_queue: CLIEventQueue[IncomingMessage],
-        deferral_sink: Optional[MultiServiceDeferralSink] = None,
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
     ):
         self.on_observe = on_observe
         self.message_queue = message_queue
-        self.deferral_sink = deferral_sink
         self.memory_service = memory_service
         self.agent_id = agent_id
         self._poll_task: Optional[asyncio.Task] = None
