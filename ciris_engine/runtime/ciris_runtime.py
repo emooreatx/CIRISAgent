@@ -33,6 +33,7 @@ from ciris_engine.utils.shutdown_manager import (
 from ciris_engine.registries.base import ServiceRegistry, Priority
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+from ciris_engine.schemas.service_actions_v1 import ObserveMessageAction
 
 # Components
 from ciris_engine.processor.thought_processor import ThoughtProcessor
@@ -190,7 +191,8 @@ class CIRISRuntime(RuntimeInterface):
         self.multi_service_sink = MultiServiceActionSink(
             service_registry=self.service_registry,
             max_queue_size=1000,
-            fallback_channel_id=self.startup_channel_id
+            fallback_channel_id=self.startup_channel_id,
+            observation_callback=self._process_observation_action
         )
         
         # LLM Service
@@ -230,6 +232,13 @@ class CIRISRuntime(RuntimeInterface):
             logger.critical("Database integrity cannot be guaranteed - initiating graceful shutdown")
             await self._request_shutdown("No maintenance service available")
             raise RuntimeError("No maintenance service available")
+
+    async def _process_observation_action(self, action: ObserveMessageAction) -> None:
+        """Default observation callback for OBSERVE_MESSAGE actions."""
+        msg = action.message
+        logger.info(
+            f"Observation received: {getattr(msg, 'content', '')} from {getattr(msg, 'author_name', 'unknown')}"
+        )
             
     async def _build_components(self):
         """Build all processing components."""
