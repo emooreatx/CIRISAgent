@@ -51,7 +51,10 @@ class CLIAdapter(CommunicationService):
         return True
 
     async def fetch_messages(self, channel_id: str, limit: int = 100):
+        # CLI adapter does not maintain history; return empty list
         return []
 
     def get_capabilities(self) -> list[str]:
-        return ["send_message"]
+        # Support both sending and fetching messages so the service
+        # can satisfy communication requests via the registry
+        return ["send_message", "fetch_messages"]
