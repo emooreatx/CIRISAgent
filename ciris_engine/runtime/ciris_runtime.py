@@ -317,8 +317,7 @@ class CIRISRuntime(RuntimeInterface):
         # Build action dispatcher - this needs to be customized per IO adapter
         action_dispatcher = await self._build_action_dispatcher(dependencies)
         
-        # Update dependencies with action_sink from the action dispatcher
-        # The action_sink should be set by the subclass implementation of _build_action_dispatcher
+
         
         # Build agent processor
         self.agent_processor = AgentProcessor(
@@ -382,13 +381,11 @@ class CIRISRuntime(RuntimeInterface):
     async def _build_action_dispatcher(self, dependencies):
         """Build action dispatcher. Override in subclasses for custom sinks."""
         # This is a basic implementation - subclasses should override
-        # to provide proper action_sink, deferral_sink, etc.
         return build_action_dispatcher(
             service_registry=self.service_registry,
             shutdown_callback=dependencies.shutdown_callback,
             max_rounds=self.app_config.workflow.max_rounds,
             audit_service=self.audit_service,
-            action_sink=None,  # Override in subclass
             memory_service=self.memory_service,
         )
         

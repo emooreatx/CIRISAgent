@@ -32,7 +32,6 @@ class ActionHandlerDependencies:
         **legacy_services  # For additional backward compatibility
     ):
         self.service_registry = service_registry
-        # Legacy attributes removed: action_sink, memory_service
         self.io_adapter = io_adapter
         # Shutdown signal mechanism
         self.shutdown_callback = shutdown_callback
