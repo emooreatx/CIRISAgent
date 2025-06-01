@@ -102,8 +102,8 @@ class AgentProcessor:
             AgentState.WORK: self.work_processor,
             AgentState.PLAY: self.play_processor,
             AgentState.SOLITUDE: self.solitude_processor,
-            # DREAM is handled separately
-            # SHUTDOWN has no processor
+            # DREAM is handled separately TODO: Integrate DREAM state with processor
+            # SHUTDOWN has no processor TODO: Turn graceful shutdown into a processor
         }
         
         # Processing control
@@ -157,9 +157,8 @@ class AgentProcessor:
         # Process WAKEUP in non-blocking mode
         wakeup_complete = False
         wakeup_round = 0
-        max_wakeup_rounds = 30  # Safety limit
         
-        while not wakeup_complete and not self._stop_event.is_set() and wakeup_round < max_wakeup_rounds:
+        while not wakeup_complete and not self._stop_event.is_set() and (num_rounds is None or self.current_round_number < num_rounds):
             logger.info(f"=== WAKEUP Round {wakeup_round} ===")
             
             # 1. Run wakeup processor in non-blocking mode
@@ -182,7 +181,7 @@ class AgentProcessor:
             self.current_round_number += 1
         
         if not wakeup_complete:
-            logger.error(f"Wakeup did not complete within {max_wakeup_rounds} rounds")
+            logger.error(f"Wakeup did not complete within {num_rounds or 'infinite'} rounds")
             await self.stop_processing()
             return
         

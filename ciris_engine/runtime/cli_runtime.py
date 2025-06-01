@@ -165,12 +165,6 @@ class CLIRuntime(CIRISRuntime):
         if not self._initialized:
             await self.initialize()
         
-        # Start agent processing with WAKEUP sequence
-        logger.info("Starting agent processing with WAKEUP sequence...")
-        if self.agent_processor:
-            asyncio.create_task(
-                self.agent_processor.start_processing(num_rounds=num_rounds)
-            )
-        
         # Call parent run method to handle the main processing loop
+        # The parent method will start agent processing with the correct num_rounds
         await super().run(num_rounds=num_rounds)

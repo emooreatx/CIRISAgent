@@ -418,16 +418,19 @@ class CIRISRuntime(RuntimeInterface):
             await self.initialize()
             
         try:
-            # Start multi-service sink processing
+            # Start multi-service sink processing as background task
             if self.multi_service_sink:
-                await self.multi_service_sink.start()
+                sink_task = asyncio.create_task(self.multi_service_sink.start())
+                logger.info("Started multi-service sink as background task")
+
             
             # Start IO adapter
             await self.io_adapter.start()
-            
+            logger.info("Started IO adapter")
             # Start processing and monitor for shutdown requests
             # Use the provided num_rounds, or fall back to DEFAULT_NUM_ROUNDS (None = infinite)
             effective_num_rounds = num_rounds if num_rounds is not None else DEFAULT_NUM_ROUNDS
+            logger.info("Starting agent processing with WAKEUP sequence...")
             processing_task = asyncio.create_task(
                 self.agent_processor.start_processing(effective_num_rounds)
             )
