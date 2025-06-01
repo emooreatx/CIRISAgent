@@ -197,6 +197,17 @@ class DiscordRuntime(CIRISRuntime):
                         capabilities=["send_message", "fetch_messages"]
                     )
                 logger.info("Registered Discord adapter as communication service")
+                
+                # Register Discord adapter as wise authority service for DeferHandler
+                for handler in ["DeferHandler", "SpeakHandler"]:
+                    self.service_registry.register(
+                        handler=handler,
+                        service_type="wise_authority",
+                        provider=self.discord_adapter,
+                        priority=Priority.HIGH,
+                        capabilities=["fetch_guidance", "send_deferral"]
+                    )
+                logger.info("Registered Discord adapter as wise authority service")
 
             # Register CLI adapter as fallback communication service
             if self.cli_adapter:

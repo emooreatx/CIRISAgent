@@ -15,8 +15,11 @@ from ciris_engine.utils.context_utils import build_dispatch_context
     ("discord", None, "12345", "12345", "discord"),
     ("cli", None, "67890", "67890", "CLI"),
 ])
-async def test_build_dispatch_context_modes(agent_mode, startup_channel_id, task_channel_id, expected_channel_id, expected_origin_service):
+async def test_build_dispatch_context_modes(agent_mode, startup_channel_id, task_channel_id, expected_channel_id, expected_origin_service, monkeypatch):
     from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+    
+    # Clear environment variable to ensure clean test state
+    monkeypatch.delenv("DISCORD_CHANNEL_ID", raising=False)
     
     # Minimal AppConfig mock
     app_config = MagicMock()
@@ -57,8 +60,11 @@ async def test_build_dispatch_context_modes(agent_mode, startup_channel_id, task
     assert "round_number" in context
 
 @pytest.mark.asyncio
-async def test_build_dispatch_context_missing_everything_logs_error(caplog):
+async def test_build_dispatch_context_missing_everything_logs_error(caplog, monkeypatch):
     from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+    
+    # Clear environment variable to ensure clean test state
+    monkeypatch.delenv("DISCORD_CHANNEL_ID", raising=False)
     
     app_config = MagicMock()
     app_config.agent_mode = "discord"

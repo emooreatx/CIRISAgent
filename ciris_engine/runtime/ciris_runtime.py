@@ -345,7 +345,7 @@ class CIRISRuntime(RuntimeInterface):
             # Register for all major handlers
             handler_names = [
                 "MemorizeHandler", "RecallHandler", "ForgetHandler",
-                "SpeakHandler", "ToolHandler", "ObserveHandler"
+                "SpeakHandler", "ToolHandler", "ObserveHandler", "TaskCompleteHandler"
             ]
             
             for handler_name in handler_names:
