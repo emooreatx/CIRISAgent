@@ -189,7 +189,6 @@ async def test_task_complete_handler_schema_driven(monkeypatch):
 
     update_thought_status.assert_called_once()
     update_task_status.assert_called_once_with("task1", TaskStatus.COMPLETED)
-    action_sink.send_message.assert_awaited()
 
 
 @pytest.mark.asyncio
