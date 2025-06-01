@@ -4,10 +4,7 @@ from typing import Dict, Any
 from pydantic import BaseModel
 
 # Updated imports for v1 schemas
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ciris_engine.schemas.action_params_v1 import RejectParams
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
-from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas import Thought, RejectParams, ThoughtStatus, TaskStatus, HandlerActionType, ActionSelectionResult
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
@@ -47,18 +44,18 @@ class RejectHandler(BaseActionHandler):
                     "is_follow_up": True,
                     "error_details": follow_up_content_key_info,
                 }
-                context_for_follow_up["action_params"] = params if isinstance(params, dict) else str(params)
+                context_for_follow_up["action_params"] = params
                 new_follow_up.context = context_for_follow_up
                 persistence.add_thought(new_follow_up)
                 await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             except Exception as e2:
                 await self._handle_error(HandlerActionType.REJECT, dispatch_context, thought_id, e2)
                 raise FollowUpCreationError from e2
-            result_data = result.model_dump() if hasattr(result, 'model_dump') else result
+            # Pass ActionSelectionResult directly to persistence - it handles serialization
             persistence.update_thought_status(
                 thought_id=thought_id,
                 status=final_thought_status,
-                final_action=result_data,
+                final_action=result,
             )
             return
         # REJECT actions usually mean the thought processing has failed for a stated reason.
@@ -81,12 +78,11 @@ class RejectHandler(BaseActionHandler):
                         self.logger.error(
                             f"Failed to send REJECT notification via communication service for thought {thought_id}: {e}"
                         )
-        # v1 uses 'final_action' instead of 'final_action_result'
-        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
+        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,  # FAILED
-            final_action=result_data,  # v1 field
+            final_action=result,  # Pass the ActionSelectionResult object directly
         )
         if parent_task_id:
             persistence.update_task_status(parent_task_id, TaskStatus.FAILED)
@@ -108,9 +104,8 @@ class RejectHandler(BaseActionHandler):
                 "error_details": follow_up_content_key_info,
             }
 
-            # When serializing for follow-up, convert to dict
-            action_params_dump = params.model_dump(mode="json") if hasattr(params, "model_dump") else params
-            context_for_follow_up["action_params"] = action_params_dump
+            # Pass params directly - persistence will handle serialization
+            context_for_follow_up["action_params"] = params
 
             new_follow_up.context = context_for_follow_up  # v1 uses 'context'
 

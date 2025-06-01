@@ -23,7 +23,7 @@ async def test_defer_handler_schema_driven(monkeypatch):
 
     action_result = ActionSelectionResult(
         selected_action=HandlerActionType.DEFER,
-        action_parameters=DeferParams(reason="Need WA", context={"foo": "bar"}).model_dump(),
+        action_parameters=DeferParams(reason="Need WA", context={"foo": "bar"}),
         rationale="r",
     )
     thought = Thought(

@@ -35,12 +35,11 @@ class TaskCompleteHandler(BaseActionHandler):
         print(f"[TASK_COMPLETE_HANDLER] Processing TASK_COMPLETE for task {parent_task_id}")
 
         # Update the current thought that led to TASK_COMPLETE
-        # v1 schema uses 'final_action' instead of 'final_action_result'
-        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
+        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result_data,  # v1 field
+            final_action=result,  # Pass the ActionSelectionResult object directly
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} for TASK_COMPLETE.")
         print(f"[TASK_COMPLETE_HANDLER] ✓ Thought {thought_id} marked as COMPLETED")

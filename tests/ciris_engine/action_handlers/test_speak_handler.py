@@ -25,7 +25,7 @@ async def test_speak_handler_schema_driven(monkeypatch):
 
     action_result = ActionSelectionResult(
         selected_action=HandlerActionType.SPEAK,
-        action_parameters=SpeakParams(content="Hello world!", channel_id="123").model_dump(),
+        action_parameters=SpeakParams(content="Hello world!", channel_id="123"),
         rationale="r",
     )
     thought = Thought(

@@ -51,11 +51,10 @@ class MemorizeHandler(BaseActionHandler):
                 await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e)
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = f"MEMORIZE action failed: {e}"
-                result_data = result.model_dump() if hasattr(result, 'model_dump') else result
                 persistence.update_thought_status(
                     thought_id=thought_id,
                     status=final_thought_status,
-                    final_action=result_data,
+                    final_action=result,
                 )
                 return
 
@@ -110,12 +109,11 @@ class MemorizeHandler(BaseActionHandler):
                     final_thought_status = ThoughtStatus.FAILED
                     follow_up_content_key_info = f"Exception during memory operation: {e_mem}"
 
-        # v1 uses 'final_action' instead of 'final_action_result'
-        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
+        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result_data,  # v1 field
+            final_action=result,  # Pass the ActionSelectionResult object directly
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after MEMORIZE attempt.")
 
@@ -143,10 +141,8 @@ class MemorizeHandler(BaseActionHandler):
             if final_thought_status != ThoughtStatus.COMPLETED:
                 context_for_follow_up["error_details"] = follow_up_content_key_info
 
-            action_params_dump = result.action_parameters
-            if hasattr(action_params_dump, 'model_dump'):
-                action_params_dump = action_params_dump.model_dump(mode="json")
-            context_for_follow_up["action_params"] = action_params_dump
+            # Pass action parameters directly - persistence will handle serialization
+            context_for_follow_up["action_params"] = result.action_parameters
 
             new_follow_up.context = context_for_follow_up  # v1 uses 'context'
             persistence.add_thought(new_follow_up)

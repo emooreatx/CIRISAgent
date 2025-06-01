@@ -160,13 +160,11 @@ class ObserveHandler(BaseActionHandler):
             final_status = ThoughtStatus.FAILED
             follow_up_info = str(e)
 
-        final_action_dump = (
-            result.model_dump(mode="json") if hasattr(result, "model_dump") else result
-        )
+        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_status,
-            final_action=final_action_dump,
+            final_action=result,
         )
 
         follow_up_text = (
@@ -178,7 +176,7 @@ class ObserveHandler(BaseActionHandler):
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
             ctx = {
                 "action_performed": HandlerActionType.OBSERVE.value,
-                "action_params": params.model_dump(mode="json"),
+                "action_params": params,
             }
             if final_status == ThoughtStatus.FAILED:
                 ctx["error_details"] = follow_up_info

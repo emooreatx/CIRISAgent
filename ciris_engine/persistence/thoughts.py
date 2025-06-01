@@ -111,7 +111,18 @@ def count_thoughts(db_path=None) -> int:
     return count
 
 def update_thought_status(thought_id, status, db_path=None, final_action=None, **kwargs):
-    """Update the status of a thought by ID and optionally final_action. Returns True if updated, False otherwise. Ignores extra kwargs for compatibility."""
+    """Update the status of a thought by ID and optionally final_action. 
+    
+    Args:
+        thought_id: The ID of the thought to update
+        status: ThoughtStatus enum value
+        db_path: Optional database path
+        final_action: ActionSelectionResult object, dict, or other serializable data
+        **kwargs: Additional parameters for compatibility
+        
+    Returns:
+        bool: True if updated, False otherwise
+    """
     from .db import get_db_connection
     status_val = getattr(status, "value", status)
     
@@ -124,16 +135,19 @@ def update_thought_status(thought_id, status, db_path=None, final_action=None, *
             params = [status_val]
             
             if final_action is not None:
-                # Ensure final_action is JSON serializable
+                # Handle ActionSelectionResult and other Pydantic models directly
                 if hasattr(final_action, 'model_dump'):
-                    # Convert Pydantic models to dict to avoid serialization warnings
-                    final_action = final_action.model_dump(mode="json")
-                elif not isinstance(final_action, (dict, list, str, int, float, bool, type(None))):
-                    # Convert other objects to string representation
-                    final_action = {"result": str(final_action)}
+                    # Convert Pydantic models to dict for JSON serialization
+                    final_action_dict = final_action.model_dump(mode="json")
+                elif isinstance(final_action, (dict, list, str, int, float, bool, type(None))):
+                    # Already JSON-serializable
+                    final_action_dict = final_action
+                else:
+                    # Convert other objects to string representation as fallback
+                    final_action_dict = {"result": str(final_action), "type": str(type(final_action))}
                 
                 updates.append("final_action_json = ?")
-                params.append(json.dumps(final_action))
+                params.append(json.dumps(final_action_dict))
             
             params.append(thought_id)
             

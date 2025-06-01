@@ -15,11 +15,7 @@ from .helpers import create_follow_up_thought  # Though DEFER might not always c
 
 logger = logging.getLogger(__name__)
 
-# NOTE: The CIRIS agent uses three special root job/task IDs that should never be marked DEFERRED by observation deferral logic:
-#   - "WAKEUP_ROOT": The main wakeup ritual root task
-#   - "SYSTEM_TASK": Used for system-level operations (if present)
-#   - "job-discord-monitor": The persistent Discord monitoring background job
-# If you add new root job types, update this exclusion logic accordingly.
+
 
 class DeferHandler(BaseActionHandler):
     async def handle(
@@ -72,12 +68,11 @@ class DeferHandler(BaseActionHandler):
             else:
                 action_performed_successfully = True
 
-        # v1 uses 'final_action' instead of 'final_action_result'
-        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
+        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,  # Should be DEFERRED
-            final_action=result_data,  # v1 field
+            final_action=result,  # Pass the ActionSelectionResult object directly
         )
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for DEFER action. Info: {follow_up_content_key_info}")
         await self._audit_log(HandlerActionType.DEFER, {**dispatch_context, "thought_id": thought_id}, outcome="success")

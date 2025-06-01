@@ -77,7 +77,7 @@ class ActionDispatcher:
                     status=ThoughtStatus.FAILED,
                     final_action={
                         "error": f"No handler for action {action_type.value}",
-                        "original_result": action_selection_result.model_dump() if hasattr(action_selection_result, 'model_dump') else str(action_selection_result)
+                        "original_result": action_selection_result
                     }
                 )
                 # Consider creating a follow-up error thought here if handlers normally do
@@ -101,7 +101,7 @@ class ActionDispatcher:
                     thought_id=thought.thought_id,                status=ThoughtStatus.FAILED,
                 final_action={
                     "error": f"Handler {handler_instance.__class__.__name__} failed: {str(e)}",
-                    "original_result": action_selection_result.model_dump() if hasattr(action_selection_result, 'model_dump') else str(action_selection_result),
+                    "original_result": action_selection_result,
                 },
                 )
             except Exception as e_persist:
@@ -109,11 +109,4 @@ class ActionDispatcher:
                     f"Failed to update thought {thought.thought_id} to FAILED after handler exception: {e_persist}"
                 )
 
-            # Log the failure and continue - don't escalate generic exceptions
-            # if hasattr(e, '__name__') and 'escalate' in e.__name__.lower():
-            #     raise
 
-    # If service_handlers are still needed for very specific, non-core actions,
-    # that logic could be re-added, but the primary path is via self.handlers.
-    # For this refactor, we assume all actions previously in _discord_handler and _memory_handler
-    # are now covered by the new centralized handlers.
