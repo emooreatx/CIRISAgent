@@ -73,6 +73,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
             "SPEAK: {\"content\": string, \"channel_id\"?: string}\n"
             "PONDER: {\"questions\": [string], \"focus_areas\"?: [string]}\n"
             "MEMORIZE: {\"node\": {id: string, type: string, scope: string, attributes?: object}}\n"
+            "The scopes are local for user and channel, identity for facts and beliefs you hold, and environment for earth/internet data.\n"
             "RECALL: {\"node\": {id: string, type: string, scope: string}}\n"
             "FORGET: {\"node\": {id: string, type: string, scope: string}, \"reason\": string}\n"
             "DEFER: {\"reason\": string, \"context\"?: object}\n"
