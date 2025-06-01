@@ -174,9 +174,19 @@ class DiscordRuntime(CIRISRuntime):
         
         
     async def _handle_observe_event(self, payload: Dict[str, Any]):
-        """Wrapper for observe event handling with proper context."""
-        # Add discord_service to context for active observations
+        """Forward observation payload through the multi service sink."""
         logger.debug("Discord runtime received observe event: %s", payload)
+
+        sink = self.action_sink or self.multi_service_sink
+        if not sink:
+            logger.warning("No action sink available for observe payload")
+            return None
+
+        channel_id = payload.get("context", {}).get("channel_id", self.monitored_channel_id)
+        content = payload.get("content", "")
+        metadata = {"observer_payload": payload}
+
+        await sink.send_message("ObserveHandler", str(channel_id), content, metadata)
         return None
         
     async def _build_action_dispatcher(self, dependencies):
