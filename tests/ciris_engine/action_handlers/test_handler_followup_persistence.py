@@ -82,7 +82,6 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
         deps.memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
         deps.memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
         deps.memory_service.memorize = AsyncMock(return_value=MagicMock(status="SAVED"))
-        deps.action_sink = AsyncMock()
         audit_service = MagicMock()
         audit_service.log_action = AsyncMock()
         async def get_service(handler, service_type, **kwargs):

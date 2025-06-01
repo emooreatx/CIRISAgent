@@ -18,7 +18,6 @@ async def test_speak_handler_creates_followup(monkeypatch):
     add_thought_mock = MagicMock()
     monkeypatch.setattr('ciris_engine.action_handlers.speak_handler.persistence.add_thought', add_thought_mock)
     deps = MagicMock()
-    deps.action_sink = AsyncMock()
     deps.persistence = MagicMock()
     deps.persistence.add_thought = add_thought_mock
     audit_service = MagicMock()
@@ -158,7 +157,6 @@ def test_ponder_handler_creates_followup(monkeypatch):
 async def test_task_complete_handler_no_followup():
     deps = MagicMock()
     deps.persistence = MagicMock()
-    deps.action_sink = AsyncMock()
     audit_service = MagicMock()
     audit_service.log_action = AsyncMock()
     async def get_service(handler, service_type, **kwargs):

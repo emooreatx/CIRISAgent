@@ -46,57 +46,31 @@ class DeferHandler(BaseActionHandler):
                 raise ValueError(f"Unexpected type for deferral parameters: {type(raw_params)}")
 
             follow_up_content_key_info = f"Deferred thought {thought_id}. Reason: {defer_params_obj.reason}"
-            
 
-            
-            if self.dependencies.action_sink:
+            wa_service = await self.get_wa_service()
+            if wa_service:
                 try:
-                    pkg = DeferralPackage(
-                        thought_id=thought_id,
-                        task_id=dispatch_context.get("source_task_id", thought.source_task_id),
-                        deferral_reason=DeferralReason.UNKNOWN,
-                        reason_description=defer_params_obj.reason,
-                        thought_content=thought.content,
-                        task_description=dispatch_context.get("task_description"),
-                        ethical_assessment=defer_params_obj.context.get("ethical") if defer_params_obj.context else None,
-                        csdma_assessment=defer_params_obj.context.get("csdma") if defer_params_obj.context else None,
-                        dsdma_assessment=defer_params_obj.context.get("dsdma") if defer_params_obj.context else None,
-                    )
-                    await self.dependencies.action_sink.submit_deferral(
-                        self.__class__.__name__,
-                        thought_id,
-                        defer_params_obj.reason,
-                        {"deferral_package": pkg.model_dump()}
-                    )
+                    await wa_service.send_deferral(thought_id, defer_params_obj.reason)
                 except Exception as e:
-                    self.logger.error(f"Action sink failed for thought {thought_id}: {e}")
+                    self.logger.error(f"WiseAuthorityService deferral failed for thought {thought_id}: {e}")
             else:
-                action_performed_successfully = True  # Deferral itself is successful by updating status
+                self.logger.warning("No WiseAuthorityService available for deferral")
+                action_performed_successfully = True  # Deferral still considered processed
 
         except Exception as param_parse_error:
             self.logger.error(f"DEFER action params parsing error or unexpected structure. Type: {type(raw_params)}, Error: {param_parse_error}. Thought ID: {thought_id}")
             follow_up_content_key_info = f"DEFER action failed: Invalid parameters ({type(raw_params)}) for thought {thought_id}. Error: {param_parse_error}"
             # Deferral still proceeds, but with potentially less context for the sink.
-            if self.dependencies.action_sink:  # Attempt to send minimal deferral info
-                 try:
-                    pkg = DeferralPackage(
-                        thought_id=thought_id,
-                        task_id=dispatch_context.get("source_task_id", thought.source_task_id),
-                        deferral_reason=DeferralReason.UNKNOWN,
-                        reason_description="parameter_error",
-                        thought_content=thought.content,
+            wa_service = await self.get_wa_service()
+            if wa_service:
+                try:
+                    await wa_service.send_deferral(thought_id, "parameter_error")
+                except Exception as e_sink_fallback:
+                    self.logger.error(
+                        f"Fallback deferral submission failed for thought {thought_id}: {e_sink_fallback}"
                     )
-                    await self.dependencies.action_sink.submit_deferral(
-                        self.__class__.__name__,
-                        thought_id,
-                        "Deferral due to parameter processing error.",
-                        {"deferral_package": pkg.model_dump()}
-                    )
-                 except Exception as e_sink_fallback:
-                     self.logger.error(f"Fallback deferral submission failed for thought {thought_id}: {e_sink_fallback}")
             else:
-                # If no sink or channel, the deferral is silent, which is acceptable.
-                action_performed_successfully = True  # Deferral itself is successful by updating status
+                action_performed_successfully = True
 
         # v1 uses 'final_action' instead of 'final_action_result'
         result_data = result.model_dump() if hasattr(result, 'model_dump') else result

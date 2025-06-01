@@ -77,6 +77,20 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FETCH_TOOL: ['get_tool_result'],
             ActionType.OBSERVE_MESSAGE: ['handle_incoming_message'],
         }
+
+    async def _validate_action(self, action: ActionMessage) -> bool:
+        """Validate action has required fields for its type"""
+        if action.type == ActionType.SEND_MESSAGE:
+            return bool(getattr(action, 'channel_id', None) and getattr(action, 'content', None))
+        if action.type == ActionType.SEND_DEFERRAL:
+            return bool(getattr(action, 'thought_id', None) and getattr(action, 'reason', None))
+        return True
+
+    async def _process_action(self, action: ActionMessage):
+        if not await self._validate_action(action):
+            logger.error(f"Invalid action payload: {asdict(action)}")
+            return
+        await super()._process_action(action)
     
     async def _execute_action_on_service(self, service: Any, action: ActionMessage):
         """Execute action on the appropriate service"""

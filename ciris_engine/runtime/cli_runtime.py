@@ -6,7 +6,6 @@ from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.registries.base import Priority
-from ciris_engine.sinks import MultiServiceActionSink
 from ..adapters.cli.cli_event_queues import CLIEventQueue
 from ..adapters.cli.cli_adapter import CLIAdapter
 from ..adapters.cli.cli_observer import CLIObserver
@@ -28,8 +27,6 @@ class CLIRuntime(CIRISRuntime):
         self.cli_tool_service: Optional[CLIToolService] = None
         self.cli_wa_service: Optional[CLIWiseAuthorityService] = None
 
-        self.action_sink: Optional[MultiServiceActionSink] = None
-
         self.interactive = interactive
 
     async def initialize(self):
@@ -38,12 +35,6 @@ class CLIRuntime(CIRISRuntime):
         # Create all CLI services
         self.cli_wa_service = CLIWiseAuthorityService()
 
-        # Create sinks if not already created by base runtime
-        if not self.action_sink:
-            self.action_sink = MultiServiceActionSink(
-                service_registry=self.service_registry,
-                fallback_channel_id="cli"
-            )
 
         # Ensure observer has proper event handling
         self.cli_observer = CLIObserver(
@@ -64,9 +55,6 @@ class CLIRuntime(CIRISRuntime):
             self.cli_adapter.start(),
         )
 
-        # Start sinks as background tasks since they contain infinite loops
-        self.action_sink_task = asyncio.create_task(self.action_sink.start())
-
         logger.info("Starting agent processing with WAKEUP sequence...")
         if self.agent_processor:
             asyncio.create_task(
@@ -79,7 +67,7 @@ class CLIRuntime(CIRISRuntime):
         """Forward observation payload through the multi service sink."""
         logger.debug("CLI runtime received observe event: %s", payload)
 
-        sink = self.action_sink or self.multi_service_sink
+        sink = self.multi_service_sink
         if not sink:
             logger.warning("No action sink available for observe payload")
             return None
@@ -167,7 +155,6 @@ class CLIRuntime(CIRISRuntime):
         services_to_stop = [
             self.cli_observer,
             self.cli_adapter,
-            self.action_sink,
             self.cli_wa_service,
             self.cli_tool_service,
         ]

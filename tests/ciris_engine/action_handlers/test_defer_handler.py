@@ -10,11 +10,15 @@ from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
 @pytest.mark.asyncio
 async def test_defer_handler_schema_driven(monkeypatch):
-    action_sink = AsyncMock()
+    wa_service = AsyncMock()
     deps = ActionHandlerDependencies(
-        action_sink=action_sink,
         memory_service=MagicMock(),
     )
+    async def get_service(handler, service_type, **kwargs):
+        if service_type == "wise_authority":
+            return wa_service
+        return None
+    deps.get_service = AsyncMock(side_effect=get_service)
     handler = DeferHandler(deps)
 
     action_result = ActionSelectionResult(
@@ -45,8 +49,7 @@ async def test_defer_handler_schema_driven(monkeypatch):
 
     await handler.handle(action_result, thought, {"channel_id": "chan1", "source_task_id": "s1"})
 
-    action_sink.submit_deferral.assert_awaited()
-    assert "deferral_package" in action_sink.submit_deferral.call_args.args[3]
+    wa_service.send_deferral.assert_awaited_with("t1", "Need WA")
     update_thought.assert_called_once()
     assert update_thought.call_args.kwargs["status"] == ThoughtStatus.DEFERRED
     update_task.assert_called_once()

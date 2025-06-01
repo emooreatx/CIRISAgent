@@ -22,7 +22,6 @@ from ciris_engine.adapters.cli.cli_adapter import CLIAdapter
 from ciris_engine.adapters.cli.cli_tools import CLIToolService
 
 # Import multi-service sink components
-from ciris_engine.sinks import MultiServiceActionSink
 from ciris_engine.registries.base import Priority
 from ciris_engine.adapters import CIRISNodeClient
 
@@ -57,8 +56,7 @@ class DiscordRuntime(CIRISRuntime):
             startup_channel_id=startup_channel_id,
         )
         
-        # Discord-specific services
-        self.action_sink: Optional[MultiServiceActionSink] = None
+
         
     async def initialize(self):
         """Initialize Discord-specific components."""
@@ -69,15 +67,6 @@ class DiscordRuntime(CIRISRuntime):
         self.client = discord.Client(intents=intents)
         self.discord_adapter.client = self.client  # Assign the client to the adapter
 
-        # Create action sink using MultiServiceActionSink
-        if not self.service_registry:
-            logger.error("Service registry not initialized before creating MultiServiceActionSink.")
-            # Potentially raise an error or handle appropriately
-            # For now, we'll proceed, but this is a critical dependency
-        self.action_sink = MultiServiceActionSink(
-            service_registry=self.service_registry,
-            fallback_channel_id=self.monitored_channel_id
-        )
 
         # CLI fallback tool service
         self.cli_tool_service = CLIToolService()
@@ -122,23 +111,17 @@ class DiscordRuntime(CIRISRuntime):
                     processor.services = self.agent_processor.services  # Share services dict
                     logger.debug(f"Set discord_service on {processor.__class__.__name__}")
 
-        # Rebuild dispatcher with correct sinks and services
-        # Rebuild action dispatcher with proper sinks after action_sink is created
+        # Rebuild dispatcher with correct services
         if self.agent_processor:
             dependencies = getattr(self.agent_processor.thought_processor, 'dependencies', None)
             if dependencies:
-                # Update the action_sink in dependencies
-                dependencies.action_sink = self.action_sink
-            logger.info(f"DiscordRuntime: Rebuilding dispatcher with action_sink: {self.action_sink}")
-            new_dispatcher = await self._build_action_dispatcher(dependencies)
-            self.agent_processor.action_dispatcher = new_dispatcher
-            logger.info("DiscordRuntime: Action dispatcher rebuilt with correct sinks.")
+                new_dispatcher = await self._build_action_dispatcher(dependencies)
+                self.agent_processor.action_dispatcher = new_dispatcher
+                logger.info("DiscordRuntime: Action dispatcher rebuilt with correct sinks.")
 
         # Start Discord-specific services
         await self.cli_adapter.start()
         
-        # Start sinks as background tasks since they contain infinite loops
-        self.action_sink_task = asyncio.create_task(self.action_sink.start())
 
 
     async def _handle_incoming_message(self, msg: IncomingMessage) -> None:
@@ -164,7 +147,7 @@ class DiscordRuntime(CIRISRuntime):
         """Forward observation payload through the multi service sink."""
         logger.debug("Discord runtime received observe event: %s", payload)
 
-        sink = self.action_sink or self.multi_service_sink
+        sink = self.multi_service_sink
         if not sink:
             logger.warning("No action sink available for observe payload")
             return None
@@ -191,7 +174,6 @@ class DiscordRuntime(CIRISRuntime):
             shutdown_callback=dependencies.shutdown_callback,
             max_rounds=self.app_config.workflow.max_rounds,
             audit_service=self.audit_service,
-            action_sink=self.action_sink,
             memory_service=self.memory_service,
             io_adapter=self.discord_adapter,
         )
@@ -259,20 +241,9 @@ class DiscordRuntime(CIRISRuntime):
 
     async def shutdown(self):
         """Shutdown Discord-specific components."""
-        # Cancel sink background tasks
-        if hasattr(self, 'action_sink_task') and self.action_sink_task:
-            self.action_sink_task.cancel()
-            try:
-                await self.action_sink_task
-            except asyncio.CancelledError:
-                pass
-        
-        
         # Stop Discord services
-        discord_services = [
-            self.action_sink,
-        ]
-        
+        discord_services: list[Any] = []
+
         for service in discord_services:
             if service:
                 try:

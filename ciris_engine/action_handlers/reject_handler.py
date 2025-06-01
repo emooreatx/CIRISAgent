@@ -78,12 +78,9 @@ class RejectHandler(BaseActionHandler):
                     try:
                         await comm_service.send_message(original_event_channel_id, f"Unable to proceed: {params.reason}")
                     except Exception as e:
-                        self.logger.error(f"Failed to send REJECT notification via communication service for thought {thought_id}: {e}")
-                elif self.dependencies.action_sink:
-                    try:
-                        await self.dependencies.action_sink.send_message(self.__class__.__name__, original_event_channel_id, f"Unable to proceed: {params.reason}")
-                    except Exception as e:
-                        self.logger.error(f"Failed to send REJECT notification to channel {original_event_channel_id} for thought {thought_id}: {e}")
+                        self.logger.error(
+                            f"Failed to send REJECT notification via communication service for thought {thought_id}: {e}"
+                        )
         # v1 uses 'final_action' instead of 'final_action_result'
         result_data = result.model_dump() if hasattr(result, 'model_dump') else result
         persistence.update_thought_status(

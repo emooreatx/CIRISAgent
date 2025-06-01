@@ -132,13 +132,19 @@ async def test_observe_handler_passive(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_reject_handler_schema_driven(monkeypatch):
-    action_sink = AsyncMock()
     update_status = MagicMock()
     add_thought = MagicMock()
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
-    deps = ActionHandlerDependencies(action_sink=action_sink)
+    comm_service = AsyncMock()
+    async def get_service(handler, service_type, **kwargs):
+        if service_type == "communication":
+            return comm_service
+        return None
+
+    deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(side_effect=get_service)
     handler = RejectHandler(deps)
 
     action_result = ActionSelectionResult.model_construct(
@@ -150,9 +156,7 @@ async def test_reject_handler_schema_driven(monkeypatch):
 
     await handler.handle(action_result, thought, {"channel_id": "chan"})
 
-    action_sink.send_message.assert_awaited_with(
-        "RejectHandler", "chan", "Unable to proceed: bad"
-    )
+    comm_service.send_message.assert_awaited_with("chan", "Unable to proceed: bad")
     update_status.assert_called_once()
     add_thought.assert_called_once()
     assert update_status.call_args.kwargs["status"] == ThoughtStatus.FAILED
@@ -160,7 +164,6 @@ async def test_reject_handler_schema_driven(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_task_complete_handler_schema_driven(monkeypatch):
-    action_sink = AsyncMock()
     update_thought_status = MagicMock()
     update_task_status = MagicMock(return_value=True)
     get_task_by_id = MagicMock(return_value=Task(
@@ -177,7 +180,7 @@ async def test_task_complete_handler_schema_driven(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_task_status", update_task_status)
     monkeypatch.setattr("ciris_engine.persistence.get_task_by_id", get_task_by_id)
 
-    deps = ActionHandlerDependencies(action_sink=action_sink)
+    deps = ActionHandlerDependencies()
     handler = TaskCompleteHandler(deps)
 
     action_result = ActionSelectionResult(
@@ -195,7 +198,6 @@ async def test_task_complete_handler_schema_driven(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_tool_handler_schema_driven(monkeypatch):
-    action_sink = AsyncMock()
     update_status = MagicMock()
     add_thought = MagicMock()
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)

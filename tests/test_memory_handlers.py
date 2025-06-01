@@ -14,7 +14,6 @@ def test_memorize_handler_with_new_schema(monkeypatch):
             return memory_service
         return None
     deps.get_service = AsyncMock(side_effect=get_service)
-    deps.memory_service = memory_service
     # Patch persistence functions and helper
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", Mock())
     monkeypatch.setattr("ciris_engine.persistence.add_thought", Mock())
@@ -39,7 +38,7 @@ def test_memorize_handler_with_new_schema(monkeypatch):
     asyncio.run(handler.handle(result, thought, {"channel_id": "test"}))
     
     # Verify memory service was called correctly
-    assert deps.memory_service.memorize.called
+    assert memory_service.memorize.called
 
 def test_memorize_handler_with_old_schema(monkeypatch):
     # Test backward compatibility
@@ -51,7 +50,6 @@ def test_memorize_handler_with_old_schema(monkeypatch):
             return memory_service
         return None
     deps.get_service = AsyncMock(side_effect=get_service)
-    deps.memory_service = memory_service
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", Mock())
     monkeypatch.setattr("ciris_engine.persistence.add_thought", Mock())
     monkeypatch.setattr(
@@ -71,4 +69,4 @@ def test_memorize_handler_with_old_schema(monkeypatch):
     thought = Mock(thought_id="test_thought", source_task_id="test_task")
     import asyncio
     asyncio.run(handler.handle(result, thought, {"channel_id": "test"}))
-    assert deps.memory_service.memorize.called
+    assert memory_service.memorize.called
