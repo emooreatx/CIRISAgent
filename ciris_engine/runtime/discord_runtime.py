@@ -11,7 +11,6 @@ import asyncio
 import discord
 
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
-from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter, DiscordEventQueue
 from ciris_engine.adapters.discord.discord_observer import DiscordObserver
@@ -26,7 +25,7 @@ from ciris_engine.adapters.cli.cli_tools import CLIToolService
 
 # Import multi-service sink components
 from ciris_engine.sinks import MultiServiceActionSink
-from ciris_engine.registries.base import ServiceRegistry, Priority
+from ciris_engine.registries.base import Priority
 from ciris_engine.adapters import CIRISNodeClient
 
 logger = logging.getLogger(__name__)
@@ -78,7 +77,7 @@ class DiscordRuntime(CIRISRuntime):
 
         # Create action sink using MultiServiceActionSink
         if not self.service_registry:
-            logger.error("ServiceRegistry not initialized before creating MultiServiceActionSink.")
+            logger.error("Service registry not initialized before creating MultiServiceActionSink.")
             # Potentially raise an error or handle appropriately
             # For now, we'll proceed, but this is a critical dependency
         self.action_sink = MultiServiceActionSink(
@@ -224,7 +223,6 @@ class DiscordRuntime(CIRISRuntime):
                     )
                 logger.info("Registered CLI adapter as fallback communication service")
             
-            # CRITICAL FIX: Register Discord observer service
             if self.discord_observer:
                 self.service_registry.register(
                     handler="ObserveHandler",
