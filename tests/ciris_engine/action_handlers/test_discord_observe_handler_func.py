@@ -11,8 +11,34 @@ async def test_handle_discord_observe_event_passive(monkeypatch):
     monkeypatch.setattr('ciris_engine.action_handlers.discord_observe_handler.persistence.add_task', add_task)
     monkeypatch.setattr('ciris_engine.action_handlers.discord_observe_handler.persistence.task_exists', task_exists)
 
-    payload = {'message_id': 'm1', 'content': 'hello'}
-    result = await handle_discord_observe_event(payload, mode='passive')
+    history_args = []
+    class FakeHistory:
+        def __init__(self, messages):
+            self._messages = messages
+        def __aiter__(self):
+            self._iter = iter(self._messages)
+            return self
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration:
+                raise StopAsyncIteration
+    class FakeChannel:
+        def __init__(self, messages):
+            self._messages = messages
+        def history(self, limit=20):
+            history_args.append(limit)
+            return FakeHistory(self._messages)
+    fake_channel = FakeChannel([Mock(id='x', content='c', author=Mock(id='u'), created_at=None)])
+    discord_service = Mock()
+    discord_service.get_channel.return_value = fake_channel
+    context = {'discord_service': discord_service}
+
+    payload = {'message_id': 'm1', 'content': 'hello', 'context': {'channel_id': 1}}
+    result = await handle_discord_observe_event(payload, mode='passive', context=context)
+
+    discord_service.get_channel.assert_called_with(1)
+    assert history_args == [10]
 
     assert result.selected_action == HandlerActionType.OBSERVE
     assert result.action_parameters['task_id'] == 'm1'
@@ -42,6 +68,7 @@ async def test_handle_discord_observe_event_active(monkeypatch):
     ]
 
     # Mock channel.history to yield fake messages
+    history_args_active = []
     class FakeHistory:
         def __init__(self, messages):
             self._messages = messages
@@ -57,6 +84,7 @@ async def test_handle_discord_observe_event_active(monkeypatch):
         def __init__(self, messages):
             self._messages = messages
         def history(self, limit=20):
+            history_args_active.append(limit)
             return FakeHistory(self._messages)
     fake_channel = FakeChannel(fake_messages)
 
@@ -73,6 +101,7 @@ async def test_handle_discord_observe_event_active(monkeypatch):
     result = await handle_discord_observe_event(payload, mode='active', context=context)
 
     discord_service.get_channel.assert_called_with(12345)
+    assert history_args_active == [50]
     assert result.selected_action == HandlerActionType.OBSERVE
     assert 'observation_summary' in result.action_parameters
     assert result.action_parameters['channel_id'] == 12345

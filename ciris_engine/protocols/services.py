@@ -4,7 +4,10 @@ These protocols define clear contracts for different types of services.
 """
 from typing import Protocol, Optional, Dict, Any, List
 from abc import abstractmethod
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import (
+    HandlerActionType,
+    IncomingMessage,
+)
 
 class CommunicationService(Protocol):
     """Protocol for communication services (Discord, Veilid, etc)"""
@@ -157,6 +160,32 @@ class MemoryService(Protocol):
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
         return ["memorize", "recall", "forget"]
+
+
+class ObserverService(Protocol):
+    """Protocol for observation services"""
+
+    @abstractmethod
+    async def handle_incoming_message(self, message: IncomingMessage) -> None:
+        """Handle an incoming message for observation"""
+        ...
+
+    @abstractmethod
+    async def get_recent_messages(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Get recent messages for active observation"""
+        ...
+
+    async def is_healthy(self) -> bool:
+        """Health check for circuit breaker"""
+        return True
+
+    async def get_capabilities(self) -> List[str]:
+        """Return list of capabilities"""
+        return [
+            "observe_messages",
+            "handle_incoming_message",
+            "get_recent_messages",
+        ]
 
 
 class ToolService(Protocol):
