@@ -6,11 +6,9 @@ import os
 from ciris_engine.persistence.db import initialize_database
 from ciris_engine.persistence.thoughts import update_thought_status, add_thought, get_thought_by_id
 from ciris_engine.persistence.tasks import add_task
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
-from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.action_params_v1 import RejectParams
-from ciris_engine.schemas.foundational_schemas_v1 import (
-    ThoughtStatus, TaskStatus, HandlerActionType, TaskType, ThoughtType
+from ciris_engine.schemas import (
+    Thought, Task, ActionSelectionResult, RejectParams,
+    ThoughtStatus, TaskStatus, HandlerActionType
 )
 from datetime import datetime, timezone
 import json
@@ -28,13 +26,13 @@ def test_persistence_with_pydantic():
         initialize_database(db_path=db_path)
         
         # Create test task
+        now = datetime.now(timezone.utc).isoformat()
         task = Task(
             task_id="test-task-1",
-            task_type=TaskType.SYSTEM,
             status=TaskStatus.ACTIVE,
             description="Test task for persistence",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            created_at=now,
+            updated_at=now
         )
         add_task(task, db_path=db_path)
         
@@ -42,11 +40,11 @@ def test_persistence_with_pydantic():
         thought = Thought(
             thought_id="test-thought-1",
             source_task_id="test-task-1",
-            thought_type=ThoughtType.OBSERVATION,
+            thought_type="observation",
             status=ThoughtStatus.PENDING,
             content="Test thought content",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=now,
+            updated_at=now,
             round_number=1
         )
         add_thought(thought, db_path=db_path)

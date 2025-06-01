@@ -7,9 +7,7 @@ from typing import Optional, Dict, Any
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
-from ciris_engine.schemas.agent_core_schemas_v1 import ActionSelectionResult, Thought
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType # Added imports
-from ciris_engine.schemas.action_params_v1 import PonderParams # Ensure this import is present
+from ciris_engine.schemas import ActionSelectionResult, Thought, ThoughtStatus, HandlerActionType, PonderParams, DeferParams
 from ciris_engine.action_handlers.ponder_handler import PonderHandler # Ensure this import is present
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies # Add this import
 
@@ -158,28 +156,19 @@ class ThoughtProcessor:
         return getattr(dma_results, 'critical_failure', False)
 
     def _create_deferral_result(self, dma_results: Dict[str, Any], thought: Thought) -> ActionSelectionResult:
-        from ciris_engine.schemas.action_params_v1 import DeferParams
-        from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
         from ciris_engine.utils.constants import DEFAULT_WA
 
         defer_reason = "Critical DMA failure or guardrail override."
-        # Ensure dma_results are serializable if they contain Pydantic models
-        serializable_dma_results = {}
-        for k, v in dma_results.items():
-            if hasattr(v, 'model_dump'):
-                serializable_dma_results[k] = v.model_dump(mode='json')
-            else:
-                serializable_dma_results[k] = v
-
+        # Keep dma_results as-is - persistence will handle serialization
         defer_params = DeferParams(
             reason=defer_reason,
             target_wa_ual=DEFAULT_WA, # Or a more specific UAL if available
-            context={"original_thought_id": thought.thought_id, "dma_results_summary": serializable_dma_results}
+            context={"original_thought_id": thought.thought_id, "dma_results_summary": dma_results}
         )
         
         return ActionSelectionResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=defer_params.model_dump(mode='json'), # Pass as dict
+            action_parameters=defer_params, # Pass Pydantic object directly
             rationale=defer_reason
             # Confidence and raw_llm_response can be None/omitted for system-generated deferrals
         )
@@ -221,7 +210,6 @@ class ThoughtProcessor:
             return final_result  # Return what we have instead of None
         
         # TASK_COMPLETE actions should be returned as-is for proper dispatch
-        from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
         if selected_action == HandlerActionType.TASK_COMPLETE:
             logger.debug(f"ThoughtProcessor: Returning TASK_COMPLETE result for thought {thought.thought_id}")
             return final_result
@@ -261,7 +249,7 @@ class ThoughtProcessor:
         # Other actions might imply ThoughtStatus.COMPLETED if they are terminal for the thought.
         final_action_details = {
             "action_type": selected_action.value if selected_action else None,
-            "parameters": action_parameters.model_dump(mode="json") if hasattr(action_parameters, "model_dump") else action_parameters,
+            "parameters": action_parameters,  # Pass Pydantic object directly
             "rationale": rationale
         }
         persistence.update_thought_status(
