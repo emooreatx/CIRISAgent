@@ -92,6 +92,17 @@ class APIRuntime(CIRISRuntime):
 
     async def _handle_observe_event(self, payload: Dict[str, Any]):
         logger.debug("API runtime received observe event: %s", payload)
+
+        sink = self.multi_service_sink
+        if not sink:
+            logger.warning("No action sink available for API observe payload")
+            return None
+
+        channel_id = payload.get("context", {}).get("channel_id", "api")
+        content = payload.get("content", "")
+        metadata = {"observer_payload": payload}
+
+        await sink.send_message("ObserveHandler", str(channel_id), content, metadata)
         return None
 
     async def _register_api_services(self):
