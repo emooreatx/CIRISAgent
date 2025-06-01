@@ -2,6 +2,7 @@ import logging
 import os
 import asyncio
 from typing import Callable, Awaitable, Dict, Any, Optional
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.sinks import MultiServiceDeferralSink
@@ -22,12 +23,17 @@ class DiscordObserver:
         message_queue: DiscordEventQueue, # Use DiscordEventQueue[IncomingMessage]
         monitored_channel_id: Optional[str] = None,
         deferral_sink: Optional[MultiServiceDeferralSink] = None,
+        memory_service: Optional[Any] = None,
+        agent_id: Optional[str] = None,
     ):
         self.on_observe = on_observe
         self.message_queue = message_queue # Store the DiscordEventQueue[IncomingMessage]
         self.deferral_sink = deferral_sink
+        self.memory_service = memory_service
+        self.agent_id = agent_id
         self._poll_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
+        self._history: list[IncomingMessage] = []
 
         env_id = os.getenv("DISCORD_CHANNEL_ID")
         if monitored_channel_id is None and env_id:
@@ -67,6 +73,9 @@ class DiscordObserver:
         if not isinstance(msg, IncomingMessage):
             logger.warning(f"DiscordObserver: Received non-IncomingMessage object: {type(msg)}. Skipping.")
             return
+        if self.agent_id and msg.author_id == self.agent_id:
+            logger.debug("Ignoring self message %s", msg.message_id)
+            return
         if self.monitored_channel_id and msg.channel_id != self.monitored_channel_id:
             logger.debug(f"DiscordObserver: Ignoring message from unmonitored channel: {msg.channel_id} for message {msg.message_id}")
             return
@@ -94,3 +103,22 @@ class DiscordObserver:
                 logger.exception(f"DiscordObserver: Error calling on_observe for message {msg.message_id}: {e}")
         else:
             logger.warning(f"DiscordObserver: on_observe callback not set. Message {msg.message_id} not processed for task creation.")
+        await self._recall_context(msg)
+
+    async def _recall_context(self, msg: IncomingMessage) -> None:
+        if not self.memory_service:
+            return
+        recall_ids = {f"channel/{msg.channel_id}"}
+        for m in self._history[-10:]:
+            if m.author_id:
+                recall_ids.add(f"user/{m.author_id}")
+        for rid in recall_ids:
+            for scope in (
+                GraphScope.IDENTITY,
+                GraphScope.ENVIRONMENT,
+                GraphScope.LOCAL,
+            ):
+                try:
+                    await self.memory_service.recall(rid, scope)
+                except Exception:
+                    continue

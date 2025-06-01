@@ -16,7 +16,6 @@ from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter, DiscordEventQueue
 from ciris_engine.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.adapters.discord.discord_tools import register_discord_tools
-from ciris_engine.action_handlers.discord_observe_handler import handle_discord_observe_event
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.adapters import ToolRegistry
 from ciris_engine.action_handlers.tool_handler import ToolHandler
@@ -100,6 +99,7 @@ class DiscordRuntime(CIRISRuntime):
             message_queue=self.message_queue,
             monitored_channel_id=self.monitored_channel_id,
             deferral_sink=self.deferral_sink,
+            memory_service=self.memory_service,
         )
 
         # CLI fallback observer and tool service
@@ -107,6 +107,7 @@ class DiscordRuntime(CIRISRuntime):
             on_observe=self._handle_observe_event,
             message_queue=self.cli_queue,
             deferral_sink=self.deferral_sink,
+            memory_service=self.memory_service,
         )
         self.cli_tool_service = CLIToolService()
         
@@ -175,17 +176,8 @@ class DiscordRuntime(CIRISRuntime):
     async def _handle_observe_event(self, payload: Dict[str, Any]):
         """Wrapper for observe event handling with proper context."""
         # Add discord_service to context for active observations
-        context = {
-            "discord_service": self.client,
-            "default_channel_id": self.monitored_channel_id,
-            "agent_id": getattr(self.client, 'user', {}).id if hasattr(self.client, 'user') else None
-        }
-        # Call the actual handler with enhanced context and return its result
-        return await handle_discord_observe_event(
-            payload=payload,
-            mode="passive",  # Default mode
-            context=context
-        )
+        logger.debug("Discord runtime received observe event: %s", payload)
+        return None
         
     async def _build_action_dispatcher(self, dependencies):
         """Build Discord-specific action dispatcher."""
@@ -210,7 +202,7 @@ class DiscordRuntime(CIRISRuntime):
             # Register Discord adapter as communication service
             if self.discord_adapter:
                 # Register for all handlers that need communication
-                for handler in ["SpeakHandler", "ObserveHandler", "ToolHandler", "TaskCompleteHandler"]:
+                for handler in ["SpeakHandler", "ObserveHandler", "ToolHandler"]:
                     self.service_registry.register(
                         handler=handler,
                         service_type="communication",
@@ -222,7 +214,7 @@ class DiscordRuntime(CIRISRuntime):
 
             # Register CLI adapter as fallback communication service
             if self.cli_adapter:
-                for handler in ["SpeakHandler", "ObserveHandler", "ToolHandler", "TaskCompleteHandler"]:
+                for handler in ["SpeakHandler", "ObserveHandler", "ToolHandler"]:
                     self.service_registry.register(
                         handler=handler,
                         service_type="communication",

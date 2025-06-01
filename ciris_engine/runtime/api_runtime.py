@@ -10,7 +10,6 @@ from aiohttp import web
 from .ciris_runtime import CIRISRuntime
 from ciris_engine.adapters.api import APIAdapter, APIEventQueue, APIObserver
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.action_handlers.discord_observe_handler import handle_discord_observe_event
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.registries.base import Priority
 
@@ -92,11 +91,8 @@ class APIRuntime(CIRISRuntime):
         return web.json_response(result)
 
     async def _handle_observe_event(self, payload: Dict[str, Any]):
-        context = {
-            "agent_mode": "api",
-            "default_channel_id": "api",
-        }
-        return await handle_discord_observe_event(payload=payload, mode="passive", context=context)
+        logger.debug("API runtime received observe event: %s", payload)
+        return None
 
     async def _register_api_services(self):
         if not self.service_registry:

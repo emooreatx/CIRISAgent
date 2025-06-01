@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from typing import Callable, Awaitable, Dict, Any, Optional
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.sinks import MultiServiceDeferralSink
@@ -16,10 +17,14 @@ class CLIObserver:
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]],
         message_queue: CLIEventQueue[IncomingMessage],
         deferral_sink: Optional[MultiServiceDeferralSink] = None,
+        memory_service: Optional[Any] = None,
+        agent_id: Optional[str] = None,
     ):
         self.on_observe = on_observe
         self.message_queue = message_queue
         self.deferral_sink = deferral_sink
+        self.memory_service = memory_service
+        self.agent_id = agent_id
         self._poll_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
         self._history: list[IncomingMessage] = []
@@ -46,6 +51,9 @@ class CLIObserver:
         if not isinstance(msg, IncomingMessage):
             logger.warning("CLIObserver received non-IncomingMessage")
             return
+        if self.agent_id and msg.author_id == self.agent_id:
+            logger.debug("Ignoring self message %s", msg.message_id)
+            return
         self._history.append(msg)
         payload: Dict[str, Any] = {
             "type": "OBSERVATION",
@@ -61,6 +69,26 @@ class CLIObserver:
         }
         if self.on_observe:
             await self.on_observe(payload)
+        await self._recall_context(msg)
+
+    async def _recall_context(self, msg: IncomingMessage) -> None:
+        if not self.memory_service:
+            return
+        import socket
+        recall_ids = {f"channel/{socket.gethostname()}"}
+        for m in self._history[-10:]:
+            if m.author_id:
+                recall_ids.add(f"user/{m.author_id}")
+        for rid in recall_ids:
+            for scope in (
+                GraphScope.IDENTITY,
+                GraphScope.ENVIRONMENT,
+                GraphScope.LOCAL,
+            ):
+                try:
+                    await self.memory_service.recall(rid, scope)
+                except Exception:
+                    continue
 
     async def get_recent_messages(self, limit: int = 20) -> list[Dict[str, Any]]:
         """Return recent CLI messages for active observation."""

@@ -5,7 +5,6 @@ from typing import Optional, Dict, Any
 
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.action_handlers.cli_observe_handler import handle_cli_observe_event # Changed import
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.registries.base import Priority
 from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
@@ -58,6 +57,7 @@ class CLIRuntime(CIRISRuntime):
             on_observe=self._handle_observe_event,
             message_queue=self.cli_queue,
             deferral_sink=self.deferral_sink,
+            memory_service=self.memory_service,
         )
 
         # Create tool service
@@ -86,19 +86,10 @@ class CLIRuntime(CIRISRuntime):
 
     async def _handle_observe_event(self, payload: Dict[str, Any]):
         """Enhanced observe event handling with CLI context"""
-        context = {
-            "cli_mode": True,
-            "agent_mode": "cli",
-            "default_channel_id": "cli",
-            "home_directory": os.path.expanduser("~"),
-            "current_directory": os.getcwd(),
-        }
-
-        # Use the new CLI-specific handler
-        return await handle_cli_observe_event(
-            payload=payload,
-            context=context,
-        )
+        logger.debug("CLI runtime received observe event: %s", payload)
+        # Observation events are no longer converted into tasks directly.
+        # Message history is maintained by the CLIObserver itself.
+        return None
 
     async def _register_cli_services(self):
         """Register CLI-specific services matching Discord's pattern"""
@@ -109,7 +100,6 @@ class CLIRuntime(CIRISRuntime):
         handler_names = [
             "SpeakHandler", "ObserveHandler", "ToolHandler",
             "DeferHandler", "MemorizeHandler", "RecallHandler",
-            "TaskCompleteHandler",
         ]
 
         for handler in handler_names:
