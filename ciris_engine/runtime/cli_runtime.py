@@ -76,10 +76,27 @@ class CLIRuntime(CIRISRuntime):
             )
 
     async def _handle_observe_event(self, payload: Dict[str, Any]):
-        """Enhanced observe event handling with CLI context"""
+        """Forward observation payload through the multi service sink."""
         logger.debug("CLI runtime received observe event: %s", payload)
-        # Observation events are no longer converted into tasks directly.
-        # Message history is maintained by the CLIObserver itself.
+
+        sink = self.action_sink or self.multi_service_sink
+        if not sink:
+            logger.warning("No action sink available for observe payload")
+            return None
+
+        channel_id = payload.get("context", {}).get("channel_id", "cli")
+        content = payload.get("content", "")
+        metadata = {"observer_payload": payload}
+
+        message = IncomingMessage(
+            message_id=str(payload.get("message_id")),
+            author_id=str(payload.get("context", {}).get("author_id", "unknown")),
+            author_name=str(payload.get("context", {}).get("author_name", "unknown")),
+            content=content,
+            channel_id=str(channel_id),
+        )
+
+        await sink.observe_message("ObserveHandler", message, metadata)
         return None
 
     async def _register_cli_services(self):
