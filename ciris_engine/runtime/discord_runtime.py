@@ -12,15 +12,13 @@ import discord
 
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter, DiscordEventQueue
-from ciris_engine.adapters.discord.discord_observer import DiscordObserver
+from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.adapters.discord.discord_tools import register_discord_tools
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.adapters import ToolRegistry
 from ciris_engine.action_handlers.tool_handler import ToolHandler
 from ciris_engine.adapters.cli.cli_event_queues import CLIEventQueue
 from ciris_engine.adapters.cli.cli_adapter import CLIAdapter
-from ciris_engine.adapters.cli.cli_observer import CLIObserver
 from ciris_engine.adapters.cli.cli_tools import CLIToolService
 
 # Import multi-service sink components
@@ -44,15 +42,12 @@ class DiscordRuntime(CIRISRuntime):
     ):
         # Create Discord components
         self.token = token
-        self.message_queue = DiscordEventQueue[IncomingMessage]()
-        self.discord_adapter = DiscordAdapter(token, self.message_queue)
+        self.discord_adapter = DiscordAdapter(token, on_message=self._handle_incoming_message)
         self.monitored_channel_id = monitored_channel_id or os.getenv("DISCORD_CHANNEL_ID")
         self.deferral_channel_id = deferral_channel_id or os.getenv("DISCORD_DEFERRAL_CHANNEL_ID")
 
         # CLI fallback components
-        self.cli_queue = CLIEventQueue[IncomingMessage]()
-        self.cli_adapter = CLIAdapter(self.cli_queue, interactive=False)
-        self.cli_observer: Optional[CLIObserver] = None
+        self.cli_adapter = CLIAdapter(CLIEventQueue[IncomingMessage](), interactive=False)
         self.cli_tool_service: Optional[CLIToolService] = None
         
         # Initialize base runtime
@@ -63,7 +58,6 @@ class DiscordRuntime(CIRISRuntime):
         )
         
         # Discord-specific services
-        self.discord_observer: Optional[DiscordObserver] = None
         self.action_sink: Optional[MultiServiceActionSink] = None
         
     async def initialize(self):
@@ -84,22 +78,8 @@ class DiscordRuntime(CIRISRuntime):
             service_registry=self.service_registry,
             fallback_channel_id=self.monitored_channel_id
         )
-        
 
-        # Create Discord observer with proper context
-        self.discord_observer = DiscordObserver(
-            on_observe=self._handle_observe_event,  # Use wrapper method
-            message_queue=self.message_queue,
-            monitored_channel_id=self.monitored_channel_id,
-            memory_service=self.memory_service,
-        )
-
-        # CLI fallback observer and tool service
-        self.cli_observer = CLIObserver(
-            on_observe=self._handle_observe_event,
-            message_queue=self.cli_queue,
-            memory_service=self.memory_service,
-        )
+        # CLI fallback tool service
         self.cli_tool_service = CLIToolService()
         
         # Register Discord tools with the live client
@@ -155,14 +135,31 @@ class DiscordRuntime(CIRISRuntime):
             logger.info("DiscordRuntime: Action dispatcher rebuilt with correct sinks.")
 
         # Start Discord-specific services
-        await self.discord_observer.start()
-        await self.cli_observer.start()
         await self.cli_adapter.start()
         
         # Start sinks as background tasks since they contain infinite loops
         self.action_sink_task = asyncio.create_task(self.action_sink.start())
-        
-        
+
+
+    async def _handle_incoming_message(self, msg: IncomingMessage) -> None:
+        """Convert an incoming Discord message to an observation payload."""
+        payload = {
+            "type": "OBSERVATION",
+            "message_id": msg.message_id,
+            "content": msg.content,
+            "context": {
+                "origin_service": "discord",
+                "author_id": msg.author_id,
+                "author_name": msg.author_name,
+                "channel_id": msg.channel_id,
+            },
+            "task_description": (
+                f"Observed user @{msg.author_name} (ID: {msg.author_id}) in channel #{msg.channel_id} "
+                f"(Msg ID: {msg.message_id}) say: '{msg.content}'. Evaluate and decide on the appropriate course of action."
+            ),
+        }
+        await self._handle_observe_event(payload)
+
     async def _handle_observe_event(self, payload: Dict[str, Any]):
         """Forward observation payload through the multi service sink."""
         logger.debug("Discord runtime received observe event: %s", payload)
@@ -223,26 +220,6 @@ class DiscordRuntime(CIRISRuntime):
                     )
                 logger.info("Registered CLI adapter as fallback communication service")
             
-            if self.discord_observer:
-                self.service_registry.register(
-                    handler="ObserveHandler",
-                    service_type="observer",
-                    provider=self.discord_observer,
-                    priority=Priority.HIGH,
-                    capabilities=["observe_messages", "get_recent_messages", "handle_incoming_message"]
-                )
-                logger.info("Registered Discord observer as observer service")
-
-            # Register CLI observer as fallback observer service
-            if self.cli_observer:
-                self.service_registry.register(
-                    handler="ObserveHandler",
-                    service_type="observer",
-                    provider=self.cli_observer,
-                    priority=Priority.NORMAL,
-                    capabilities=["observe_messages", "get_recent_messages", "handle_incoming_message"]
-                )
-                logger.info("Registered CLI observer as fallback observer service")
 
             # Register CLI tool service as fallback
             if self.cli_tool_service:
@@ -285,8 +262,6 @@ class DiscordRuntime(CIRISRuntime):
         
         # Stop Discord services
         discord_services = [
-            self.discord_observer,
-            self.cli_observer,
             self.action_sink,
         ]
         
