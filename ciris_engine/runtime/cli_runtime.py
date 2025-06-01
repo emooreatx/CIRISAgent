@@ -55,14 +55,6 @@ class CLIRuntime(CIRISRuntime):
             self.cli_adapter.start(),
         )
 
-        logger.info("Starting agent processing with WAKEUP sequence...")
-        if self.agent_processor:
-            asyncio.create_task(
-                self.agent_processor.start_processing(
-                    num_rounds=self.app_config.workflow.max_rounds
-                )
-            )
-
     async def _handle_observe_event(self, payload: Dict[str, Any]):
         """Forward observation payload through the multi service sink."""
         logger.debug("CLI runtime received observe event: %s", payload)
@@ -167,3 +159,18 @@ class CLIRuntime(CIRISRuntime):
                     logger.error(f"Error stopping {service.__class__.__name__}: {e}")
 
         await super().shutdown()
+
+    async def run(self, num_rounds: Optional[int] = None):
+        """Run the CLI runtime and start agent processing."""
+        if not self._initialized:
+            await self.initialize()
+        
+        # Start agent processing with WAKEUP sequence
+        logger.info("Starting agent processing with WAKEUP sequence...")
+        if self.agent_processor:
+            asyncio.create_task(
+                self.agent_processor.start_processing(num_rounds=num_rounds)
+            )
+        
+        # Call parent run method to handle the main processing loop
+        await super().run(num_rounds=num_rounds)

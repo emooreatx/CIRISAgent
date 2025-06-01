@@ -26,6 +26,9 @@ from .play_processor import PlayProcessor
 from .dream_processor import DreamProcessor
 from .solitude_processor import SolitudeProcessor
 
+# Import global shutdown functionality
+from ciris_engine.utils.shutdown_manager import request_global_shutdown
+
 logger = logging.getLogger(__name__)
 
 
@@ -355,7 +358,8 @@ class AgentProcessor:
         
         while not self._stop_event.is_set():
             if num_rounds is not None and round_count >= num_rounds:
-                logger.info(f"Reached target rounds ({num_rounds})")
+                logger.info(f"Reached target rounds ({num_rounds}), requesting graceful shutdown")
+                request_global_shutdown(f"Processing completed after {num_rounds} rounds")
                 break
             
             # Update round number

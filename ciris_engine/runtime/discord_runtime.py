@@ -271,7 +271,7 @@ class DiscordRuntime(CIRISRuntime):
         # Call parent shutdown
         await super().shutdown()
     
-    async def run(self, max_rounds: Optional[int] = None):
+    async def run(self, num_rounds: Optional[int] = None):
         """Run the Discord runtime with proper client connection."""
         if not self._initialized:
             await self.initialize()
@@ -315,7 +315,7 @@ class DiscordRuntime(CIRISRuntime):
             # NOW start agent processing - this is the key part that triggers WAKEUP
             logger.info("Starting agent processing with WAKEUP sequence...")
             processing_task = asyncio.create_task(
-                self.agent_processor.start_processing(num_rounds=max_rounds)
+                self.agent_processor.start_processing(num_rounds=num_rounds)
             )
             
             # Wait for either task to complete or error

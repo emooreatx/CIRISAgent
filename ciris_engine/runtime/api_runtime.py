@@ -142,7 +142,7 @@ class APIRuntime(CIRISRuntime):
             shutdown_callback=dependencies.shutdown_callback
         )
 
-    async def run(self, max_rounds: Optional[int] = None):
+    async def run(self, num_rounds: Optional[int] = None):
         if not self._initialized:
             await self.initialize()
 
@@ -151,7 +151,7 @@ class APIRuntime(CIRISRuntime):
         site = web.TCPSite(self.runner, self.host, self.port)
         await site.start()
         logger.info(f"API server started on {self.host}:{self.port}")
-        await super().run(max_rounds)
+        await super().run(num_rounds)
 
     async def shutdown(self):
         logger.info(f"Shutting down {self.__class__.__name__}...")

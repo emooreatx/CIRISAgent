@@ -14,6 +14,8 @@ from ciris_engine.processor import AgentProcessor
 from ciris_engine.adapters.base import Service
 from ciris_engine import persistence
 from ciris_engine.utils.profile_loader import load_profile
+from ciris_engine.utils.constants import DEFAULT_NUM_ROUNDS
+
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.adapters.openai_compatible_llm import OpenAICompatibleLLM
 from ciris_engine.adapters import AuditService
@@ -410,7 +412,7 @@ class CIRISRuntime(RuntimeInterface):
             memory_service=self.memory_service,
         )
         
-    async def run(self, max_rounds: Optional[int] = None):
+    async def run(self, num_rounds: Optional[int] = None):
         """Run the agent processing loop with shutdown monitoring."""
         if not self._initialized:
             await self.initialize()
@@ -424,8 +426,10 @@ class CIRISRuntime(RuntimeInterface):
             await self.io_adapter.start()
             
             # Start processing and monitor for shutdown requests
+            # Use the provided num_rounds, or fall back to DEFAULT_NUM_ROUNDS (None = infinite)
+            effective_num_rounds = num_rounds if num_rounds is not None else DEFAULT_NUM_ROUNDS
             processing_task = asyncio.create_task(
-                self.agent_processor.start_processing(num_rounds=max_rounds)
+                self.agent_processor.start_processing(effective_num_rounds)
             )
             shutdown_task = asyncio.create_task(self._shutdown_event.wait())
             global_shutdown_task = asyncio.create_task(wait_for_global_shutdown())

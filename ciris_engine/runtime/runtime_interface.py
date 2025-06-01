@@ -8,7 +8,7 @@ class RuntimeInterface(Protocol):
         """Initialize runtime and all services."""
         ...
 
-    async def run(self, max_rounds: Optional[int] = None) -> None:
+    async def run(self, num_rounds: Optional[int] = None) -> None:
         """Run the agent processing loop."""
         ...
 
