@@ -86,7 +86,7 @@ class PonderHandler(BaseActionHandler):
         else:
             new_ponder_count = current_ponder_count + 1
             logger.info(f"Thought ID {thought.thought_id} pondering (count: {new_ponder_count}). Questions: {questions_list}")
-            next_status = ThoughtStatus.PENDING
+            next_status = ThoughtStatus.COMPLETED
             if new_ponder_count >= self.max_rounds:
                 next_status = ThoughtStatus.DEFERRED
             success = persistence.update_thought_status(
