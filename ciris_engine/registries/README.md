@@ -13,10 +13,10 @@ The CIRIS Agent service registry provides a unified, resilient system for managi
 
 ### Service Types
 
-- **CommunicationService** - Discord, Veilid, etc.
-- **WiseAuthorityService** - CIRISNode, local WA, etc.
-- **MemoryService** - Local graph, remote storage, etc.
-- **ToolService** - Tool execution and result management
+- **CommunicationService** - CLI, API, Discord (TODO: Veilid)
+- **WiseAuthorityService** - CIRISNode, CLI, API, Discord
+- **MemoryService** - Local graph (TODO: Origintrail, API(GraphQL), Veilid)
+- **ToolService** - CLI, Discord (TODO: API, Veilid)
 
 ## Runtime Integration
 

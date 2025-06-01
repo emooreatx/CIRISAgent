@@ -68,17 +68,8 @@ class WakeupProcessor(BaseProcessor):
         """
         logger.info(f"Starting wakeup sequence (round {round_number}, non_blocking={non_blocking})")
         
-        # Run database maintenance only on round 0
-        if round_number == 0:
-            try:
-                from ciris_engine.persistence import maintenance as maintenance_service
-                if hasattr(maintenance_service, 'run_maintenance'):
-                    await maintenance_service.run_maintenance()
-                    logger.info("Database maintenance completed before wakeup")
-                else:
-                    logger.info("No maintenance function available, skipping")
-            except Exception as e:
-                logger.warning(f"Database maintenance failed: {e}")
+        # Note: Database maintenance is handled during runtime initialization
+        # No need to perform redundant maintenance checks here
         
         try:
             # Create wakeup tasks if they don't exist

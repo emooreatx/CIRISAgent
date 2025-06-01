@@ -124,28 +124,36 @@ class CIRISRuntime(RuntimeInterface):
             
         logger.info(f"Initializing CIRIS Runtime with profile '{self.profile_name}'...")
         
-        # 1. Initialize database
-        persistence.initialize_database()
-        
-        # 2. Load configuration
-        if not self.app_config:
-            from ciris_engine.config.config_manager import get_config_async
-            self.app_config = await get_config_async()
-        
-        # 3. Load profile
-        await self._load_profile()
-        
-        # 4. Initialize services
-        await self._initialize_services()
-        
-        # 5. Build components
-        await self._build_components()
-        
-        # 6. Perform startup maintenance
-        await self._perform_startup_maintenance()
-        
-        self._initialized = True
-        logger.info("CIRIS Runtime initialized successfully")
+        try:
+            # 1. Initialize database
+            persistence.initialize_database()
+            
+            # 2. Load configuration
+            if not self.app_config:
+                from ciris_engine.config.config_manager import get_config_async
+                self.app_config = await get_config_async()
+            
+            # 3. Load profile
+            await self._load_profile()
+            
+            # 4. Initialize services
+            await self._initialize_services()
+            
+            # 5. Build components
+            await self._build_components()
+            
+            # 6. Perform startup maintenance (CRITICAL - failure triggers shutdown)
+            await self._perform_startup_maintenance()
+            
+            self._initialized = True
+            logger.info("CIRIS Runtime initialized successfully")
+            
+        except Exception as e:
+            logger.critical(f"Runtime initialization failed: {e}")
+            if "maintenance" in str(e).lower():
+                logger.critical("Database maintenance failure during initialization - system cannot start safely")
+            # Re-raise to prevent the runtime from starting with an inconsistent state
+            raise
         
     async def _load_profile(self):
         """Load the agent profile."""
@@ -206,7 +214,20 @@ class CIRISRuntime(RuntimeInterface):
     async def _perform_startup_maintenance(self):
         """Perform database cleanup at startup."""
         if self.maintenance_service:
-            await self.maintenance_service.perform_startup_cleanup()
+            try:
+                logger.info("Starting critical database maintenance...")
+                await self.maintenance_service.perform_startup_cleanup()
+                logger.info("Database maintenance completed successfully")
+            except Exception as e:
+                logger.critical(f"CRITICAL ERROR: Database maintenance failed during startup: {e}")
+                logger.critical("Database integrity cannot be guaranteed - initiating graceful shutdown")
+                await self._request_shutdown(f"Critical database maintenance failure: {e}")
+                raise RuntimeError(f"Database maintenance failure: {e}") from e
+        else:
+            logger.critical("CRITICAL ERROR: No maintenance service available during startup")
+            logger.critical("Database integrity cannot be guaranteed - initiating graceful shutdown")
+            await self._request_shutdown("No maintenance service available")
+            raise RuntimeError("No maintenance service available")
             
     async def _build_components(self):
         """Build all processing components."""
