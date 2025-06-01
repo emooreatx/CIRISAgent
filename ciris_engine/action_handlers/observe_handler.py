@@ -26,6 +26,13 @@ logger = logging.getLogger(__name__)
 
 class ObserveHandler(BaseActionHandler):
 
+#TODO break into handler for active and passive observation, and break out handling thoughts from the guardrails/DMAs from handling thoughts from the runtime detecting incoming messages in the fetchmessage queue
+#We request observations by putting actions in the fetch message queue, but we also need to handle incoming messages that were put in the queue by different adapter observers
+#If the source is the DMAs/guardrails, we are creating an action request for an active observation to be handled by the adapters
+#If the source is the runtime, we are creating a task from the result to be processed (mark it PENDING)
+#No dicts, only schemas and ENUMs and models and dataclasses
+
+
     async def _recall_from_messages(
         self,
         memory_service: Optional[Any],

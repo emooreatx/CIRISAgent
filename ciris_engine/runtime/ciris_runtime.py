@@ -239,6 +239,9 @@ class CIRISRuntime(RuntimeInterface):
         logger.info(
             f"Observation received: {getattr(msg, 'content', '')} from {getattr(msg, 'author_name', 'unknown')}"
         )
+        #TODO: create the passive observation task by calling the observer handler with a thought with action type observe and a passive observation payload
+
+
             
     async def _build_components(self):
         """Build all processing components."""
