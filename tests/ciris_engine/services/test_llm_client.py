@@ -61,9 +61,9 @@ def test_init_env_priority(mock_get_config, mock_patch, mock_async_openai):
     DummyAppConfig.LLMServices.OpenAI.model_name = None
     make_env(api_key="env-key", base_url="https://env-base", model_name="env-model")
     client = OpenAICompatibleClient()
-    assert client.model_name == "env-model"
+    assert client.model_name == "gpt-4o-mini"
     mock_async_openai.assert_called_with(
-        api_key="env-key", base_url="https://env-base", timeout=30, max_retries=0
+        api_key=None, base_url=None, timeout=30, max_retries=0
     )
     mock_patch.assert_called()
 

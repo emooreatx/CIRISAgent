@@ -31,11 +31,10 @@ class DiscordObserver:
         self.multi_service_sink = multi_service_sink
         self._history: list[IncomingMessage] = []
 
-        from ciris_engine.config.env_utils import get_env_var
+        from ciris_engine.config.config_manager import get_config
 
-        env_id = get_env_var("DISCORD_CHANNEL_ID")
-        if monitored_channel_id is None and env_id:
-            monitored_channel_id = env_id.strip()
+        if monitored_channel_id is None:
+            monitored_channel_id = get_config().discord_channel_id
         self.monitored_channel_id: Optional[str] = monitored_channel_id
 
     async def start(self):
@@ -65,9 +64,15 @@ class DiscordObserver:
         await self._recall_context(msg)
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
-        default_channel_id = get_env_var("DISCORD_CHANNEL_ID")
-        deferral_channel_id = get_env_var("DISCORD_DEFERRAL_CHANNEL_ID")
-        wa_discord_user = get_env_var("WA_DISCORD_USER", DEFAULT_WA)
+        from ciris_engine.config.config_manager import get_config
+        from ciris_engine.utils.constants import (
+            DISCORD_DEFERRAL_CHANNEL_ID,
+            DEFAULT_WA,
+        )
+
+        default_channel_id = get_config().discord_channel_id
+        deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
+        wa_discord_user = DEFAULT_WA
         if msg.channel_id == default_channel_id and not self._is_agent_message(msg):
             await self._create_passive_observation_result(msg)
         elif msg.channel_id == deferral_channel_id and msg.author_name == wa_discord_user:

@@ -1,4 +1,3 @@
-import os
 import json
 import re
 import logging
@@ -41,25 +40,9 @@ class OpenAICompatibleClient(Service):
         }
         super().__init__(config=retry_config)
 
-        # Strict AppConfig > Env for all config values
-        from ciris_engine.config.env_utils import get_env_var
-
-        api_key_env_var = getattr(self.openai_config, 'api_key_env_var', 'OPENAI_API_KEY')
-        api_key = getattr(self.openai_config, 'api_key', None)
-        if not api_key:
-            api_key = get_env_var(api_key_env_var)
-
-        base_url = getattr(self.openai_config, 'base_url', None)
-        if not base_url:
-            base_url = get_env_var("OPENAI_BASE_URL")
-        if not base_url:
-            base_url = get_env_var("OPENAI_API_BASE")
-
-        model_name = getattr(self.openai_config, 'model_name', None)
-        if not model_name:
-            model_name = get_env_var("OPENAI_MODEL_NAME")
-        if not model_name:
-            model_name = 'gpt-4o-mini'
+        api_key = self.openai_config.api_key
+        base_url = self.openai_config.base_url
+        model_name = self.openai_config.model_name or 'gpt-4o-mini'
         self.model_name = model_name
 
         if not api_key and not base_url:
