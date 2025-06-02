@@ -1,6 +1,6 @@
 import os
 import tempfile
-from ciris_engine.persistence.db import (
+from ciris_engine.persistence import (
     initialize_database,
     get_db_connection,
     run_migrations,
@@ -48,10 +48,9 @@ def test_failed_migration_rolls_back(tmp_path):
             )
             conn.commit()
         original_dir = MIGRATIONS_DIR
+        # patch migrations dir
+        import ciris_engine.persistence.db.migration_runner as mr
         try:
-            # patch migrations dir
-            import ciris_engine.persistence.db.migration_runner as mr
-
             mr.MIGRATIONS_DIR = migrations_dir
             try:
                 run_migrations(db_path=db_path)

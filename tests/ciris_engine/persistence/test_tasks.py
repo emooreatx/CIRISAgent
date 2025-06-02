@@ -1,8 +1,17 @@
 import pytest
 import tempfile
 import os
-from ciris_engine.persistence.models import tasks
-from ciris_engine.persistence.db import initialize_database
+from ciris_engine.persistence import (
+    add_task,
+    get_task_by_id,
+    update_task_status,
+    task_exists,
+    get_tasks_by_status,
+    get_recent_completed_tasks,
+    get_top_tasks,
+    count_tasks,
+    initialize_database,
+)
 from ciris_engine.schemas.agent_core_schemas_v1 import Task
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
 from datetime import datetime, timedelta, timezone
@@ -28,8 +37,8 @@ def test_add_and_get_task():
     try:
         initialize_database(db_path=db_path)
         t = make_task("t1", status=TaskStatus.PENDING)
-        tasks.add_task(t, db_path=db_path)
-        fetched = tasks.get_task_by_id("t1", db_path=db_path)
+        add_task(t, db_path=db_path)
+        fetched = get_task_by_id("t1", db_path=db_path)
         assert fetched is not None
         assert fetched.task_id == "t1"
         assert fetched.status == TaskStatus.PENDING
@@ -41,10 +50,10 @@ def test_update_task_status():
     try:
         initialize_database(db_path=db_path)
         t = make_task("t2", status=TaskStatus.PENDING)
-        tasks.add_task(t, db_path=db_path)
-        ok = tasks.update_task_status("t2", TaskStatus.COMPLETED, db_path=db_path)
+        add_task(t, db_path=db_path)
+        ok = update_task_status("t2", TaskStatus.COMPLETED, db_path=db_path)
         assert ok
-        updated = tasks.get_task_by_id("t2", db_path=db_path)
+        updated = get_task_by_id("t2", db_path=db_path)
         assert updated.status == TaskStatus.COMPLETED
     finally:
         os.unlink(db_path)
@@ -54,9 +63,9 @@ def test_task_exists():
     try:
         initialize_database(db_path=db_path)
         t = make_task("t3", status=TaskStatus.PENDING)
-        tasks.add_task(t, db_path=db_path)
-        assert tasks.task_exists("t3", db_path=db_path)
-        assert not tasks.task_exists("notask", db_path=db_path)
+        add_task(t, db_path=db_path)
+        assert task_exists("t3", db_path=db_path)
+        assert not task_exists("notask", db_path=db_path)
     finally:
         os.unlink(db_path)
 
@@ -66,10 +75,10 @@ def test_get_tasks_by_status():
         initialize_database(db_path=db_path)
         t1 = make_task("t4", status=TaskStatus.PENDING)
         t2 = make_task("t5", status=TaskStatus.ACTIVE)
-        tasks.add_task(t1, db_path=db_path)
-        tasks.add_task(t2, db_path=db_path)
-        pending = tasks.get_tasks_by_status(TaskStatus.PENDING, db_path=db_path)
-        active = tasks.get_tasks_by_status(TaskStatus.ACTIVE, db_path=db_path)
+        add_task(t1, db_path=db_path)
+        add_task(t2, db_path=db_path)
+        pending = get_tasks_by_status(TaskStatus.PENDING, db_path=db_path)
+        active = get_tasks_by_status(TaskStatus.ACTIVE, db_path=db_path)
         assert any(t.task_id == "t4" for t in pending)
         assert any(t.task_id == "t5" for t in active)
     finally:
@@ -83,10 +92,10 @@ def test_get_recent_completed_tasks():
         t1 = make_task("t6", status=TaskStatus.COMPLETED, updated_at=(now - timedelta(days=1)).isoformat())
         t2 = make_task("t7", status=TaskStatus.COMPLETED, updated_at=now.isoformat())
         t3 = make_task("t8", status=TaskStatus.PENDING)
-        tasks.add_task(t1, db_path=db_path)
-        tasks.add_task(t2, db_path=db_path)
-        tasks.add_task(t3, db_path=db_path)
-        recent = tasks.get_recent_completed_tasks(limit=2, db_path=db_path)
+        add_task(t1, db_path=db_path)
+        add_task(t2, db_path=db_path)
+        add_task(t3, db_path=db_path)
+        recent = get_recent_completed_tasks(limit=2, db_path=db_path)
         assert len(recent) == 2
         assert recent[0].task_id == "t7"
         assert recent[1].task_id == "t6"
@@ -100,10 +109,10 @@ def test_get_top_tasks():
         t1 = make_task("t9", priority=5, created_at="2025-05-27T00:00:00Z")
         t2 = make_task("t10", priority=10, created_at="2025-05-28T00:00:00Z")
         t3 = make_task("t11", priority=1, created_at="2025-05-26T00:00:00Z")
-        tasks.add_task(t1, db_path=db_path)
-        tasks.add_task(t2, db_path=db_path)
-        tasks.add_task(t3, db_path=db_path)
-        top = tasks.get_top_tasks(limit=2, db_path=db_path)
+        add_task(t1, db_path=db_path)
+        add_task(t2, db_path=db_path)
+        add_task(t3, db_path=db_path)
+        top = get_top_tasks(limit=2, db_path=db_path)
         assert len(top) == 2
         assert top[0].task_id == "t10"
         assert top[1].task_id == "t9"
@@ -117,11 +126,11 @@ def test_count_tasks():
         t1 = make_task("t12", status=TaskStatus.PENDING)
         t2 = make_task("t13", status=TaskStatus.PENDING)
         t3 = make_task("t14", status=TaskStatus.ACTIVE)
-        tasks.add_task(t1, db_path=db_path)
-        tasks.add_task(t2, db_path=db_path)
-        tasks.add_task(t3, db_path=db_path)
-        assert tasks.count_tasks(db_path=db_path) == 3
-        assert tasks.count_tasks(TaskStatus.PENDING, db_path=db_path) == 2
-        assert tasks.count_tasks(TaskStatus.ACTIVE, db_path=db_path) == 1
+        add_task(t1, db_path=db_path)
+        add_task(t2, db_path=db_path)
+        add_task(t3, db_path=db_path)
+        assert count_tasks(db_path=db_path) == 3
+        assert count_tasks(TaskStatus.PENDING, db_path=db_path) == 2
+        assert count_tasks(TaskStatus.ACTIVE, db_path=db_path) == 1
     finally:
         os.unlink(db_path)

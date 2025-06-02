@@ -1,4 +1,3 @@
-import os
 import json
 import re
 import logging
@@ -41,26 +40,25 @@ class OpenAICompatibleClient(Service):
         }
         super().__init__(config=retry_config)
 
-        env_api_key = os.getenv("OPENAI_API_KEY") or os.getenv(self.openai_config.api_key_env_var)
-        env_base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_API_BASE")
-        final_base_url = env_base_url if env_base_url is not None else self.openai_config.base_url
-        env_model_name = os.getenv("OPENAI_MODEL_NAME")
-        self.model_name = env_model_name if env_model_name is not None else self.openai_config.model_name
+        api_key = self.openai_config.api_key
+        base_url = self.openai_config.base_url
+        model_name = self.openai_config.model_name or 'gpt-4o-mini'
+        self.model_name = model_name
 
-        if not env_api_key and not final_base_url:
+        if not api_key and not base_url:
             logger.warning(
                 "No API key or base URL configured for OpenAICompatibleClient. Calls may fail."
             )
-        elif not env_api_key and final_base_url:
+        elif not api_key and base_url:
             logger.info("API key not found; assuming local model or keyless auth")
-        elif env_api_key and not final_base_url:
+        elif api_key and not base_url:
             logger.info("Using OpenAI default base URL")
         else:
             logger.info("Using configured API key and base URL")
 
         self.client = AsyncOpenAI(
-            api_key=env_api_key,
-            base_url=final_base_url,
+            api_key=api_key,
+            base_url=base_url,
             timeout=self.openai_config.timeout_seconds,
             max_retries=0,  # Disable OpenAI client retries, we'll handle our own
         )

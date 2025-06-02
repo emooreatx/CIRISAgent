@@ -15,7 +15,7 @@ import os
 # Add the project root to sys.path to import modules
 sys.path.insert(0, '/home/emoore/CIRISAgent')
 
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.action_handlers.observe_handler import ObserveHandler
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
@@ -30,12 +30,12 @@ class MockMemoryService:
         self.recall_calls = []
         self.recall_errors = {}  # Dict to simulate recall failures for specific node_id/scope combinations
     
-    async def recall(self, node_id: str, scope: GraphScope):
+    async def recall(self, node: GraphNode):
         """Mock recall method that logs calls and can simulate failures"""
-        self.recall_calls.append((node_id, scope))
+        self.recall_calls.append((node.id, node.scope))
         
         # Check if we should simulate an error for this call
-        error_key = (node_id, scope)
+        error_key = (node.id, node.scope)
         if error_key in self.recall_errors:
             raise self.recall_errors[error_key]
     

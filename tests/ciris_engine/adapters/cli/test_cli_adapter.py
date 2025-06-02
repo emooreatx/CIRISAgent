@@ -3,7 +3,12 @@ from ciris_engine.adapters.cli.cli_adapter import CLIAdapter
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 
 @pytest.mark.asyncio
-async def test_cli_adapter_send_message(capsys):
+async def test_cli_adapter_send_message(capsys, monkeypatch):
+    # Mock the add_correlation call to avoid database dependency
+    monkeypatch.setattr(
+        "ciris_engine.persistence.add_correlation",
+        lambda corr: None,
+    )
     adapter = CLIAdapter()
     await adapter.send_message("cli", "hello")
     captured = capsys.readouterr()

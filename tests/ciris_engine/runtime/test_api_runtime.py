@@ -18,6 +18,10 @@ async def test_api_runtime_initialization_calls_register(monkeypatch):
         "ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components",
         AsyncMock(),
     )
+    # Mock service_registry.wait_ready() to prevent timeout
+    monkeypatch.setattr(
+        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
+    )
     register_mock = AsyncMock()
     monkeypatch.setattr(APIRuntime, "_register_api_services", register_mock)
 
@@ -42,6 +46,10 @@ async def test_api_routes_setup(monkeypatch):
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
     monkeypatch.setattr("ciris_engine.adapters.api.api_observer.APIObserver.start", AsyncMock())
+    # Mock service_registry.wait_ready() to prevent timeout
+    monkeypatch.setattr(
+        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
+    )
 
     runtime = APIRuntime(profile_name="default")
     await runtime.initialize()
@@ -62,6 +70,10 @@ async def test_handle_message(monkeypatch):
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
     monkeypatch.setattr("ciris_engine.adapters.api.api_observer.APIObserver.start", AsyncMock())
+    # Mock service_registry.wait_ready() to prevent timeout
+    monkeypatch.setattr(
+        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
+    )
 
     runtime = APIRuntime(profile_name="default")
     await runtime.initialize()

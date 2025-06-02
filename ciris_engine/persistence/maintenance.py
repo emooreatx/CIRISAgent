@@ -5,7 +5,7 @@ import json
 import asyncio
 from typing import Optional
 
-from ciris_engine.persistence.models.tasks import (
+from ciris_engine.persistence import (
     get_all_tasks,
     update_task_status,
     get_task_by_id,
@@ -13,13 +13,13 @@ from ciris_engine.persistence.models.tasks import (
     delete_tasks_by_ids,
     get_tasks_older_than,
 )
-from ciris_engine.persistence.models.thoughts import (
+from ciris_engine.persistence import (
     get_thoughts_by_status,
     get_thoughts_by_task_id,
     delete_thoughts_by_ids,
     update_thought_status,
 )
-from ciris_engine.persistence.db import (
+from ciris_engine.persistence import (
     get_thoughts_older_than,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus

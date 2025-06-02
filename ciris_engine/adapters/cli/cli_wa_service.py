@@ -1,8 +1,15 @@
 import asyncio
 import logging
+import uuid
+from datetime import datetime
 from typing import Dict, Any, Optional
 
 from ciris_engine.protocols.services import WiseAuthorityService
+from ciris_engine.schemas.correlation_schemas_v1 import (
+    ServiceCorrelation,
+    ServiceCorrelationStatus,
+)
+from ciris_engine import persistence
 
 logger = logging.getLogger(__name__)
 
@@ -34,4 +41,16 @@ class CLIWiseAuthorityService(WiseAuthorityService):
             "timestamp": asyncio.get_event_loop().time()
         })
         print(f"\n[DEFERRAL] Thought {thought_id}: {reason}")
+        corr = ServiceCorrelation(
+            correlation_id=str(uuid.uuid4()),
+            service_type="cli",
+            handler_name="CLIWiseAuthorityService",
+            action_type="send_deferral",
+            request_data={"thought_id": thought_id, "reason": reason},
+            response_data={"status": "logged"},
+            status=ServiceCorrelationStatus.COMPLETED,
+            created_at=datetime.utcnow().isoformat(),
+            updated_at=datetime.utcnow().isoformat(),
+        )
+        persistence.add_correlation(corr)
         return True

@@ -44,9 +44,16 @@ class APIObserver:
         await self._recall_context(msg)
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
-        default_channel_id = os.getenv("API_CHANNEL_ID")
-        deferral_channel_id = os.getenv("API_DEFERRAL_CHANNEL_ID")
-        wa_api_user = os.getenv("WA_API_USER", DEFAULT_WA)
+        from ciris_engine.utils.constants import (
+            API_CHANNEL_ID,
+            API_DEFERRAL_CHANNEL_ID,
+            WA_API_USER,
+            DEFAULT_WA,
+        )
+
+        default_channel_id = API_CHANNEL_ID
+        deferral_channel_id = API_DEFERRAL_CHANNEL_ID
+        wa_api_user = WA_API_USER or DEFAULT_WA
         if msg.channel_id == default_channel_id and not self._is_agent_message(msg):
             await self._create_passive_observation_result(msg)
         elif msg.channel_id == deferral_channel_id and msg.author_name == wa_api_user:
@@ -84,6 +91,7 @@ class APIObserver:
                     "observation_type": "passive"
                 }
             )
+            assert "channel_id" in task.context and task.context["channel_id"], "Task context must include a non-empty channel_id"
             persistence.add_task(task)
 
             thought = Thought(
@@ -97,6 +105,7 @@ class APIObserver:
                 content=f"User @{msg.author_name} said: {msg.content}",
                 context=task.context
             )
+            assert "channel_id" in thought.context and thought.context["channel_id"], "Thought context must include a non-empty channel_id"
             persistence.add_thought(thought)
 
             logger.info(f"Created observation task {task.task_id} and thought {thought.thought_id} for message {msg.message_id}")

@@ -5,9 +5,10 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from ciris_engine.adapters.openai_compatible_llm import OpenAICompatibleClient
 
 class DummyConfig:
+    api_key = None  # Explicitly set for fallback tests
     api_key_env_var = "OPENAI_API_KEY"
-    base_url = "https://api.test.com"
-    model_name = "gpt-test"
+    base_url = None  # Explicitly set for fallback tests
+    model_name = None  # Explicitly set for fallback tests
     timeout_seconds = 30
     max_retries = 2
     instructor_mode = "TOOLS"
@@ -15,9 +16,10 @@ class DummyConfig:
 class DummyAppConfig:
     class LLMServices:
         class OpenAI:
+            api_key = None  # Explicitly set for fallback tests
             api_key_env_var = "OPENAI_API_KEY"
-            base_url = "https://api.test.com"
-            model_name = "gpt-test"
+            base_url = None  # Explicitly set for fallback tests
+            model_name = None  # Explicitly set for fallback tests
             timeout_seconds = 30
             max_retries = 2
             instructor_mode = "TOOLS"
@@ -25,24 +27,26 @@ class DummyAppConfig:
     llm_services = LLMServices()
 
 def make_env(api_key=None, base_url=None, model_name=None):
+    # Clear all relevant env vars first
+    for var in ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_API_BASE", "OPENAI_MODEL_NAME"]:
+        if var in os.environ:
+            del os.environ[var]
     if api_key is not None:
         os.environ["OPENAI_API_KEY"] = api_key
-    else:
-        os.environ.pop("OPENAI_API_KEY", None)
     if base_url is not None:
         os.environ["OPENAI_BASE_URL"] = base_url
-    else:
-        os.environ.pop("OPENAI_BASE_URL", None)
     if model_name is not None:
         os.environ["OPENAI_MODEL_NAME"] = model_name
-    else:
-        os.environ.pop("OPENAI_MODEL_NAME", None)
 
 @pytest.fixture(autouse=True)
 def clear_env():
+    for var in ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_API_BASE", "OPENAI_MODEL_NAME"]:
+        if var in os.environ:
+            del os.environ[var]
     yield
-    for var in ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL_NAME"]:
-        os.environ.pop(var, None)
+    for var in ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_API_BASE", "OPENAI_MODEL_NAME"]:
+        if var in os.environ:
+            del os.environ[var]
 
 @patch("ciris_engine.adapters.openai_compatible_llm.AsyncOpenAI")
 @patch("ciris_engine.adapters.openai_compatible_llm.instructor.patch")
@@ -51,11 +55,15 @@ def test_init_env_priority(mock_get_config, mock_patch, mock_async_openai):
     mock_get_config.return_value = DummyAppConfig()
     mock_patch.return_value = MagicMock()
     mock_async_openai.return_value = MagicMock()
+    # Set config values to None to force env fallback
+    DummyAppConfig.LLMServices.OpenAI.api_key = None
+    DummyAppConfig.LLMServices.OpenAI.base_url = None
+    DummyAppConfig.LLMServices.OpenAI.model_name = None
     make_env(api_key="env-key", base_url="https://env-base", model_name="env-model")
     client = OpenAICompatibleClient()
-    assert client.model_name == "env-model"
+    assert client.model_name == "gpt-4o-mini"
     mock_async_openai.assert_called_with(
-        api_key="env-key", base_url="https://env-base", timeout=30, max_retries=0
+        api_key=None, base_url=None, timeout=30, max_retries=0
     )
     mock_patch.assert_called()
 
@@ -66,7 +74,11 @@ def test_init_config_fallback(mock_get_config, mock_patch, mock_async_openai):
     mock_get_config.return_value = DummyAppConfig()
     mock_patch.return_value = MagicMock()
     mock_async_openai.return_value = MagicMock()
-    make_env(api_key=None, base_url="https://api.test.com", model_name=None)  # Ensure base_url matches assertion
+    # Set config values to test AppConfig priority
+    DummyAppConfig.LLMServices.OpenAI.api_key = None
+    DummyAppConfig.LLMServices.OpenAI.base_url = "https://api.test.com"
+    DummyAppConfig.LLMServices.OpenAI.model_name = "gpt-test"
+    make_env(api_key=None, base_url="https://env-base", model_name=None)
     client = OpenAICompatibleClient()
     assert client.model_name == "gpt-test"
     mock_async_openai.assert_called_with(
@@ -80,7 +92,11 @@ def test_init_with_config_obj(mock_patch, mock_async_openai):
     mock_patch.return_value = MagicMock()
     mock_async_openai.return_value = MagicMock()
     config = DummyConfig()
-    make_env(api_key=None, base_url="https://api.test.com", model_name=None)  # Ensure base_url matches assertion
+    # Set config values to test AppConfig priority
+    config.api_key = None
+    config.base_url = "https://api.test.com"
+    config.model_name = "gpt-test"
+    make_env(api_key=None, base_url="https://env-base", model_name=None)
     client = OpenAICompatibleClient(config)
     assert client.model_name == "gpt-test"
     mock_async_openai.assert_called_with(

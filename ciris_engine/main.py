@@ -31,7 +31,9 @@ def create_runtime(
 ) -> CIRISRuntime:
     """Factory to create a runtime based on the mode."""
     if mode == "discord":
-        token = os.getenv("DISCORD_BOT_TOKEN")
+        from ciris_engine.config.env_utils import get_env_var
+
+        token = get_env_var("DISCORD_BOT_TOKEN")
         if not token:
             raise RuntimeError("DISCORD_BOT_TOKEN must be set for Discord mode")
         return DiscordRuntime(

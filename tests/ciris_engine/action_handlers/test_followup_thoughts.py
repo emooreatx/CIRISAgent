@@ -97,7 +97,6 @@ async def test_forget_handler_creates_followup():
     # Allow for any valid follow-up content, not just those mentioning 'complete'
     assert follow_up.content is not None and isinstance(follow_up.content, str)
 
-@pytest.mark.asyncio
 def test_memorize_handler_creates_followup(monkeypatch):
     add_thought_mock = MagicMock()
     monkeypatch.setattr('ciris_engine.action_handlers.memorize_handler.persistence.add_thought', add_thought_mock)
@@ -126,7 +125,6 @@ def test_memorize_handler_creates_followup(monkeypatch):
     # Only require that follow_up.content is a non-empty string
     assert follow_up.content is not None and isinstance(follow_up.content, str) and follow_up.content.strip() != ""
 
-@pytest.mark.asyncio
 def test_ponder_handler_creates_followup(monkeypatch):
     add_thought_mock = MagicMock()
     monkeypatch.setattr('ciris_engine.action_handlers.ponder_handler.persistence.add_thought', add_thought_mock)

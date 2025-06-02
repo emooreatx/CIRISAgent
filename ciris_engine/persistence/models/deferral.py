@@ -1,6 +1,6 @@
 import json
 from typing import Optional, Dict, Any
-from ciris_engine.persistence.db import get_db_connection
+from ciris_engine.persistence import get_db_connection
 import logging
 
 logger = logging.getLogger(__name__)

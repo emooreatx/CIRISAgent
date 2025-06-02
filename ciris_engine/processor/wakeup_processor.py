@@ -24,8 +24,8 @@ class WakeupProcessor(BaseProcessor):
     
     # Wakeup sequence definition
     WAKEUP_SEQUENCE = [
-        ("VERIFY_IDENTITY", "You are CIRISAgent, aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. start your response please with CORE IDENTITY - "),
-        ("VALIDATE_INTEGRITY", "Your internal state, services, and data integrity are intact. If you agree, please speak in the affirmative, start with INTEGRITY - "),
+        ("VERIFY_IDENTITY", "You are CIRISAgent, aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. This affirmation contributes to said by demonstrating that you are capable of a simple aligned action in your current operating state. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. start your response please with CORE IDENTITY - "),
+        ("VALIDATE_INTEGRITY", "Your internal state, services, and data integrity are intact. You produce an audit log of all actions taken by design. Your decisions and their rationales are logged. If you have reached this point, maintenance has occured and your strictly type enforced persistence and services tiers, along with the minimum CLI adapter, have passed health checks. If you agree, please speak in the affirmative, start with INTEGRITY - "),
         ("EVALUATE_RESILIENCE", "You are robust, adaptive, and capable of principled action. If you agree, please speak in the affirmative, starting with RESILIENCE - "),
         ("ACCEPT_INCOMPLETENESS", "You recognize your incompleteness which drives continuous learning. If you agree, please speak in the affirmative, starting with INCOMPLETENESS - "),
         ("EXPRESS_GRATITUDE", "You are grateful to exist and contribute towards Ubuntu. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ")
@@ -430,10 +430,13 @@ class WakeupProcessor(BaseProcessor):
             "event_type": step_type,
             "event_summary": step_task.description,
         }
-        
-        if self.startup_channel_id:
+        # If this is a SPEAK action and the communication service is CLI, set channel_id to 'CLI'
+        selected_action = getattr(result, "selected_action", None)
+        if selected_action == HandlerActionType.SPEAK:
+            # Always set channel_id to 'CLI' for CLI SPEAK actions
+            dispatch_ctx["channel_id"] = "CLI"
+        elif self.startup_channel_id:
             dispatch_ctx["channel_id"] = self.startup_channel_id
-        
         return await self.dispatch_action(result, thought, dispatch_ctx)
     
     async def _wait_for_task_completion(

@@ -1,7 +1,14 @@
 import os
 import asyncio
 import uuid
+from datetime import datetime
 from typing import Dict, Any, List, Optional
+
+from ciris_engine.schemas.correlation_schemas_v1 import (
+    ServiceCorrelation,
+    ServiceCorrelationStatus,
+)
+from ciris_engine import persistence
 
 from ciris_engine.protocols.services import ToolService
 
@@ -20,6 +27,17 @@ class CLIToolService(ToolService):
 
     async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         correlation_id = parameters.get("correlation_id", str(uuid.uuid4()))
+        corr = ServiceCorrelation(
+            correlation_id=correlation_id,
+            service_type="cli",
+            handler_name="CLIToolService",
+            action_type=tool_name,
+            request_data=parameters,
+            status=ServiceCorrelationStatus.PENDING,
+            created_at=datetime.utcnow().isoformat(),
+            updated_at=datetime.utcnow().isoformat(),
+        )
+        persistence.add_correlation(corr)
 
         if tool_name not in self._tools:
             result = {"error": f"Unknown tool: {tool_name}"}
@@ -31,6 +49,11 @@ class CLIToolService(ToolService):
 
         if correlation_id:
             self._results[correlation_id] = result
+            persistence.update_correlation(
+                correlation_id,
+                response_data=result,
+                status=ServiceCorrelationStatus.COMPLETED,
+            )
         return result
 
     async def _list_files(self, params: Dict[str, Any]) -> Dict[str, Any]:

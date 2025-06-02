@@ -37,8 +37,29 @@ class OpenAIConfig(BaseModel):
     base_url: Optional[str] = Field(default=None, description="Custom API base URL")
     timeout_seconds: float = Field(default=30.0, description="Request timeout")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
+    api_key: Optional[str] = Field(default=None, description="API key for OpenAI or compatible service")
     api_key_env_var: str = Field(default="OPENAI_API_KEY", description="Environment variable for API key")
     instructor_mode: str = Field(default="JSON", description="Instructor library mode")
+
+    def load_env_vars(self) -> None:
+        """Load configuration from environment variables if present."""
+        from ciris_engine.config.env_utils import get_env_var
+
+        # Load API key from environment variable
+        if not self.api_key:
+            self.api_key = get_env_var(self.api_key_env_var)
+        
+        # Load base URL - support both OPENAI_API_BASE and OPENAI_BASE_URL
+        if not self.base_url:
+            base_url = get_env_var("OPENAI_API_BASE") or get_env_var("OPENAI_BASE_URL")
+            if base_url:
+                self.base_url = base_url
+        
+        # Load model name
+        if not self.model_name or self.model_name == "gpt-4o-mini":  # Only override default
+            env_model = get_env_var("OPENAI_MODEL_NAME")
+            if env_model:
+                self.model_name = env_model
 
 class LLMServicesConfig(BaseModel):
     """LLM services configuration container."""
@@ -63,12 +84,12 @@ class CIRISNodeConfig(BaseModel):
 
     def load_env_vars(self) -> None:
         """Load configuration from environment variables if present."""
-        import os
+        from ciris_engine.config.env_utils import get_env_var
 
-        env_url = os.getenv("CIRISNODE_BASE_URL")
+        env_url = get_env_var("CIRISNODE_BASE_URL")
         if env_url:
             self.base_url = env_url
-        self.agent_secret_jwt = os.getenv("CIRISNODE_AGENT_SECRET_JWT")
+        self.agent_secret_jwt = get_env_var("CIRISNODE_AGENT_SECRET_JWT")
 
 class AppConfig(BaseModel):
     """Minimal v1 application configuration."""

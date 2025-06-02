@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 from typing import List, Optional
-from ciris_engine.persistence.db import get_db_connection
+from ciris_engine.persistence import get_db_connection
 from ciris_engine.persistence.utils import map_row_to_task
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
 from ciris_engine.schemas.agent_core_schemas_v1 import Task
@@ -10,17 +10,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 def get_tasks_by_status(status: TaskStatus, db_path=None) -> List[Task]:
+    """Returns all tasks with the given status from the tasks table as Task objects."""
+    if not isinstance(status, TaskStatus):
+        raise TypeError(f"Expected TaskStatus enum, got {type(status)}: {status}")
+    status_val = status.value
     sql = "SELECT * FROM tasks WHERE status = ? ORDER BY created_at ASC"
     tasks_list = []
     try:
         with get_db_connection(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute(sql, (status.value,))
+            cursor.execute(sql, (status_val,))
             rows = cursor.fetchall()
             for row in rows:
                 tasks_list.append(map_row_to_task(row))
     except Exception as e:
-        logger.exception(f"Failed to get tasks with status {status.value}: {e}")
+        logger.exception(f"Failed to get tasks with status {status_val}: {e}")
     return tasks_list
 
 def get_all_tasks(db_path=None) -> List[Task]:

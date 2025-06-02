@@ -84,15 +84,25 @@ class CLIObserver:
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
         """Handle passive observation routing based on channel ID and author filtering"""
         
-        # Get environment variables for channel filtering. When running in CLI
-        # mode the Discord variables may not be set, so fall back to 'cli'.
-        default_channel_id = os.getenv("DISCORD_CHANNEL_ID") or "cli"
-        deferral_channel_id = os.getenv("DISCORD_DEFERRAL_CHANNEL_ID")
-        wa_discord_user = os.getenv("WA_DISCORD_USER", DEFAULT_WA)
+        # Get environment variables for channel filtering
+        from ciris_engine.config.config_manager import get_config
+        from ciris_engine.utils.constants import (
+            DISCORD_DEFERRAL_CHANNEL_ID,
+            DEFAULT_WA,
+        )
+
+        config_discord_channel_id = get_config().discord_channel_id
+        deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
+        wa_discord_user = DEFAULT_WA
+        
+        logger.debug(f"Message channel_id: {msg.channel_id}")
+        logger.debug(f"Config discord_channel_id: {config_discord_channel_id}")
         
         # Route messages based on channel and author
-        if msg.channel_id == default_channel_id and not self._is_agent_message(msg):
-            # Create passive observation result for default channel
+        # For CLI messages (channel_id == "cli"), always process them
+        # For Discord messages, only process if they match the configured channel
+        if (msg.channel_id == "cli" or msg.channel_id == config_discord_channel_id) and not self._is_agent_message(msg):
+            # Create passive observation result for CLI or configured Discord channel
             await self._create_passive_observation_result(msg)
         elif msg.channel_id == deferral_channel_id and msg.author_name == wa_discord_user:
             # Add to fetch feedback queue for WA messages in deferral channel
@@ -132,6 +142,7 @@ class CLIObserver:
                     "observation_type": "passive"
                 }
             )
+            assert "channel_id" in task.context and task.context["channel_id"], "Task context must include a non-empty channel_id"
             persistence.add_task(task)
 
             thought = Thought(
@@ -145,6 +156,7 @@ class CLIObserver:
                 content=f"User @{msg.author_name} said: {msg.content}",
                 context=task.context
             )
+            assert "channel_id" in thought.context and thought.context["channel_id"], "Thought context must include a non-empty channel_id"
             persistence.add_thought(thought)
 
             logger.info(f"Created observation task {task.task_id} and thought {thought.thought_id} for message {msg.message_id}")
