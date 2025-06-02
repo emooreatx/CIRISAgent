@@ -127,6 +127,7 @@ class MemorizeHandler(BaseActionHandler):
             )
         else:  # Failed or Deferred
             follow_up_text = f"MEMORIZE action for thought {thought_id} resulted in status {final_thought_status.value}. Info: {follow_up_content_key_info}. Review and determine next steps."
+        #PROMPT_FOLLOW_UP_THOUGHT
 
         try:
             new_follow_up = create_follow_up_thought(

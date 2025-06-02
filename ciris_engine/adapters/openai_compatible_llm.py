@@ -104,7 +104,7 @@ class OpenAICompatibleClient(Service):
             try:
                 return json.loads(json_str.replace("'", '"'))
             except json.JSONDecodeError:
-                return {"error": f"Failed to parse JSON. Raw content snippet: {raw[:250]}..."}
+                return {"error": f"Failed to parse JSON. Raw content snippet: {raw}"}
 
     async def call_llm_raw(
         self,

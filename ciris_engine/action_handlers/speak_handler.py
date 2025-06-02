@@ -68,10 +68,10 @@ class SpeakHandler(BaseActionHandler):
         task_description = task.description if task else f"task {thought.source_task_id}"
         
         follow_up_content_key_info = (
-            f"YOU Spoke, as a result of your action: '{params.content[:50]}...' in channel #{params.channel_id} as a response to task: {task_description[:100]} this thought was created. The next action is probably TASK COMPLETE to mark the original task as handled. Any further user action will trigger a further observation thought automatically."
+            f"YOU Spoke, as a result of your action: '{params.content}' in channel #{params.channel_id} as a response to task: {task_description} this thought was created. The next action is probably TASK COMPLETE to mark the original task as handled. Any further user action will trigger a further observation thought automatically."
             if success
             else f"Failed to send message to {params.channel_id}"
-        )
+        )  #PROMPT_FOLLOW_UP_THOUGHT
 
         # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
@@ -81,10 +81,10 @@ class SpeakHandler(BaseActionHandler):
         )
 
         follow_up_text = (
-            f"Successfully spoke: '{params.content[:70]}...'"
+            f"Successfully spoke: '{params.content}'"
             if success
             else f"SPEAK action failed for thought {thought_id}. Reason: {follow_up_content_key_info}."
-        )
+        )  #PROMPT_FOLLOW_UP_THOUGHT
 
         try:
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)

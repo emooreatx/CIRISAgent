@@ -98,7 +98,7 @@ class DatabaseMaintenanceService:
 
         for step_task in wakeup_step_tasks:
             if step_task.status not in [TaskStatus.COMPLETED, TaskStatus.FAILED]: # Removed TaskStatus.ARCHIVED
-                logger.info(f"Found stale, non-terminal wakeup step task: {step_task.task_id} ('{step_task.description[:30]}...') with status {step_task.status}. Marking as FAILED.")
+                logger.info(f"Found stale, non-terminal wakeup step task: {step_task.task_id} ('{step_task.description}') with status {step_task.status}. Marking as FAILED.")
                 update_task_status(step_task.task_id, TaskStatus.FAILED)
                 stale_wakeup_steps_failed_count += 1
                 
@@ -137,11 +137,11 @@ class DatabaseMaintenanceService:
                 if not parent_task or parent_task.status not in [TaskStatus.ACTIVE, TaskStatus.COMPLETED]:
                     is_orphan = True
             elif task.task_id not in self.valid_root_task_ids:
-                logger.info(f"Task {task.task_id} ('{task.description[:30]}...') is active but not a recognized root task. Marking as orphaned.")
+                logger.info(f"Task {task.task_id} ('{task.description}') is active but not a recognized root task. Marking as orphaned.")
                 is_orphan = True
 
             if is_orphan:
-                logger.info(f"Orphaned active task found: {task.task_id} ('{task.description[:30]}...'). Parent missing or not active/completed. Marking for deletion.")
+                logger.info(f"Orphaned active task found: {task.task_id} ('{task.description}'). Parent missing or not active/completed. Marking for deletion.")
                 task_ids_to_delete.append(task.task_id)
 
         if task_ids_to_delete:

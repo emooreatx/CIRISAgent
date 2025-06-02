@@ -128,7 +128,7 @@ class CLIObserver:
 
             task = Task(
                 task_id=str(uuid.uuid4()),
-                description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content[:100]}...'",
+                description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content}'",
                 status=TaskStatus.PENDING,
                 priority=0,
                 created_at=datetime.now(timezone.utc).isoformat(),

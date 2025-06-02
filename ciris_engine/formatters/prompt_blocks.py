@@ -15,7 +15,7 @@ def format_parent_task_chain(parent_tasks: List[Dict[str, Any]]) -> str:
             prefix = "Direct Parent"
         else:
             prefix = f"Parent {i}"
-        desc = pt.get("description", "")[:150]
+        desc = pt.get("description", "")
         tid = pt.get("task_id", "N/A")
         lines.append(f"{prefix}: {desc} (Task ID: {tid})")
     return "\n".join(lines)
@@ -29,7 +29,7 @@ def format_thoughts_chain(thoughts: List[Dict[str, Any]]) -> str:
     for i, thought in enumerate(thoughts):
         is_active = i == len(thoughts) - 1
         label = "Active Thought" if is_active else f"Thought {i+1}"
-        content = str(thought.get("content", ""))[:500]
+        content = str(thought.get("content", ""))
         lines.append(f"{label}: {content}")
     return "\n".join(lines)
 

@@ -69,7 +69,7 @@ class TaskManager:
             except Exception:
                 pass
         persistence.add_task(task)
-        logger.info(f"Created task {task.task_id}: {description[:50]}...")
+        logger.info(f"Created task {task.task_id}: {description}")
         return task
     
     def activate_pending_tasks(self) -> int:

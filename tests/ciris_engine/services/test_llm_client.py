@@ -115,9 +115,9 @@ def test_instructor_patch_fallback(mock_patch, mock_async_openai):
 @pytest.mark.parametrize("raw,expected", [
     ("""{'foo': 1}""", {"foo": 1}),
     ('```json\n{"bar": 2}\n```', {"bar": 2}),
-    ("no json here", {"error": "Failed to parse JSON. Raw content snippet: no json here..."}),
+    ("no json here", {"error": "Failed to parse JSON. Raw content snippet: no json here"}),
     ("""{'baz': 3}""", {"baz": 3}),
-    ("""{'bad': 1,}""", {"error": "Failed to parse JSON. Raw content snippet: {'bad': 1,..."}),
+    ("""{'bad': 1,}""", {"error": "Failed to parse JSON. Raw content snippet: {'bad': 1,"}),
 ])
 def test_extract_json(raw, expected):
     result = OpenAICompatibleClient.extract_json(raw)

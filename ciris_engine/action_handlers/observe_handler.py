@@ -101,6 +101,7 @@ class ObserveHandler(BaseActionHandler):
                 final_action=result,
             )
             follow_up_text = f"OBSERVE action failed for thought {thought_id}. Reason: {e}"
+            #PROMPT_FOLLOW_UP_THOUGHT
             try:
                 fu = create_follow_up_thought(parent=thought, content=follow_up_text)
                 fu.context = {
@@ -171,7 +172,7 @@ class ObserveHandler(BaseActionHandler):
             f"OBSERVE action completed. Info: {follow_up_info}"
             if action_performed
             else f"OBSERVE action failed: {follow_up_info}"
-        )
+        )  #PROMPT_FOLLOW_UP_THOUGHT
         try:
             logger.info(f"ObserveHandler: Creating follow-up thought for {thought_id}")
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
