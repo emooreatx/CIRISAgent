@@ -41,19 +41,26 @@ class OpenAICompatibleClient(Service):
         }
         super().__init__(config=retry_config)
 
-        # Safely access attributes from self.openai_config, maintaining existing priority.
-        # AppConfig > Env for api_key and base_url. Env > AppConfig for model_name.
-        
+        # Strict AppConfig > Env for all config values
         from ciris_engine.config.env_utils import get_env_var
 
         api_key_env_var = getattr(self.openai_config, 'api_key_env_var', 'OPENAI_API_KEY')
-        api_key = getattr(self.openai_config, 'api_key', None) or get_env_var(api_key_env_var)
+        api_key = getattr(self.openai_config, 'api_key', None)
+        if not api_key:
+            api_key = get_env_var(api_key_env_var)
 
-        base_url = getattr(self.openai_config, 'base_url', None) or get_env_var("OPENAI_BASE_URL") or get_env_var("OPENAI_API_BASE")
+        base_url = getattr(self.openai_config, 'base_url', None)
+        if not base_url:
+            base_url = get_env_var("OPENAI_BASE_URL")
+        if not base_url:
+            base_url = get_env_var("OPENAI_API_BASE")
 
-        env_model_name = get_env_var("OPENAI_MODEL_NAME")
-        config_model_name = getattr(self.openai_config, 'model_name', 'gpt-4o-mini') # Pydantic default as fallback
-        self.model_name = env_model_name if env_model_name is not None else config_model_name
+        model_name = getattr(self.openai_config, 'model_name', None)
+        if not model_name:
+            model_name = get_env_var("OPENAI_MODEL_NAME")
+        if not model_name:
+            model_name = 'gpt-4o-mini'
+        self.model_name = model_name
 
         if not api_key and not base_url:
             logger.warning(
