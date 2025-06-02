@@ -23,6 +23,19 @@ from .thoughts import (
     pydantic_to_dict,
 )
 from .deferral import save_deferral_report_mapping, get_deferral_report_context
+from .graph import (
+    add_graph_node,
+    get_graph_node,
+    delete_graph_node,
+    add_graph_edge,
+    delete_graph_edge,
+    get_edges_for_node,
+)
+from .correlations import (
+    add_correlation,
+    update_correlation,
+    get_correlation,
+)
 
 __all__ = [
     "update_task_status",
@@ -47,4 +60,13 @@ __all__ = [
     "pydantic_to_dict",
     "save_deferral_report_mapping",
     "get_deferral_report_context",
+    "add_graph_node",
+    "get_graph_node",
+    "delete_graph_node",
+    "add_graph_edge",
+    "delete_graph_edge",
+    "get_edges_for_node",
+    "add_correlation",
+    "update_correlation",
+    "get_correlation",
 ]
