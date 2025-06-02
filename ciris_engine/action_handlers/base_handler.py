@@ -66,6 +66,19 @@ class ActionHandlerDependencies:
         """Check if a shutdown has been requested."""
         # Check both local and global shutdown states
         return self._shutdown_requested or is_global_shutdown_requested()
+
+    async def wait_registry_ready(
+        self, timeout: float = 30.0, service_types: Optional[list[str]] = None
+    ) -> bool:
+        """Wait until the service registry is ready or timeout expires."""
+        if not self.service_registry:
+            logger.warning("No service registry configured; assuming ready")
+            return True
+        try:
+            return await self.service_registry.wait_ready(timeout=timeout, service_types=service_types)
+        except Exception as exc:
+            logger.error(f"Error waiting for registry readiness: {exc}")
+            return False
     
     async def get_service(self, handler: str, service_type: str, **kwargs) -> Optional[Any]:
         """Get a service from the registry with automatic fallback to legacy services"""

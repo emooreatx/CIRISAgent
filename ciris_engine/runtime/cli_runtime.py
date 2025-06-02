@@ -48,6 +48,9 @@ class CLIRuntime(CIRISRuntime):
         # Register all services
         await self._register_cli_services()
 
+        if self.service_registry:
+            await self.service_registry.wait_ready()
+
         # Start all services
         await asyncio.gather(
             self.cli_observer.start(),

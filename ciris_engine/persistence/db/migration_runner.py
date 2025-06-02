@@ -4,7 +4,8 @@ import sqlite3
 
 logger = logging.getLogger(__name__)
 
-MIGRATIONS_DIR = Path(__file__).parent / "migrations"
+# Migrations live one directory above this package
+MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 
 
 def _ensure_tracking_table(conn: sqlite3.Connection) -> None:
@@ -20,7 +21,7 @@ def _ensure_tracking_table(conn: sqlite3.Connection) -> None:
 
 def run_migrations(db_path: str | None = None) -> None:
     """Apply pending migrations located in the migrations directory."""
-    from .db import get_db_connection
+    from .core import get_db_connection
 
     with get_db_connection(db_path) as conn:
         _ensure_tracking_table(conn)

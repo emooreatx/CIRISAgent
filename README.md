@@ -184,6 +184,11 @@ registered at `Priority.NORMAL` so the agent can fall back to the console if the
 Discord connection drops. Running without a token automatically selects the
 `CLIRuntime`.
 
+During startup each runtime waits for the service registry to report that core
+services are available. If communication, memory, audit logging, or the LLM
+service are missing for more than 30 seconds an error is logged but the runtime
+continues, allowing partial functionality in constrained environments.
+
 CLI communication acts as the lowest priority service on the bus. If the CLI
 adapter is unable to process incoming or outgoing messages for more than 30
 seconds the runtime will trigger a graceful shutdown to avoid a wedged state.

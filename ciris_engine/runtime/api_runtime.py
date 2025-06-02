@@ -34,6 +34,10 @@ class APIRuntime(CIRISRuntime):
         self._setup_routes()
         await self._register_api_services()
 
+        # Ensure required services are registered before starting observers
+        if self.service_registry:
+            await self.service_registry.wait_ready()
+
         self.api_observer = APIObserver(
             on_observe=self._handle_observe_event,
             memory_service=self.memory_service,

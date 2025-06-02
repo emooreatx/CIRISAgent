@@ -127,6 +127,10 @@ class CIRISRuntime(RuntimeInterface):
         
         # Also notify the global shutdown manager
         self._shutdown_manager.request_shutdown(f"Runtime: {reason}")
+
+    async def _request_shutdown(self, reason: str = "Shutdown requested"):
+        """Async wrapper used during initialization failures."""
+        self.request_shutdown(reason)
         
     async def initialize(self):
         """Initialize all components and services."""
