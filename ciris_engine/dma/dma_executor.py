@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from typing import Any, Dict, Optional, Callable, Awaitable
 
 from ..processor.thought_escalation import escalate_dma_failure
@@ -10,6 +11,7 @@ from .pdma import EthicalPDMAEvaluator
 from .csdma import CSDMAEvaluator
 from .dsdma_base import BaseDSDMA
 from .action_selection_pdma import ActionSelectionPDMAEvaluator
+from .exceptions import DMAFailure
 from ciris_engine.schemas.dma_results_v1 import (
     EthicalDMAResult,
     CSDMAResult,
@@ -26,6 +28,7 @@ async def run_dma_with_retries(
     run_fn: Callable[..., Awaitable[Any]],
     *args: Any,
     retry_limit: int = DMA_RETRY_LIMIT,
+    timeout_seconds: float = 30.0,
     **kwargs: Any,
 ) -> Any:
     """Run a DMA function with retry logic."""
@@ -33,7 +36,14 @@ async def run_dma_with_retries(
     last_error: Optional[Exception] = None
     while attempt < retry_limit:
         try:
-            return await run_fn(*args, **kwargs)
+            async with asyncio.timeout(timeout_seconds):
+                return await run_fn(*args, **kwargs)
+        except TimeoutError as e:
+            last_error = e
+            attempt += 1
+            logger.error(
+                "DMA %s timed out after %.1f seconds on attempt %s", run_fn.__name__, timeout_seconds, attempt
+            )
         except Exception as e:  # noqa: BLE001
             last_error = e
             attempt += 1
@@ -51,11 +61,9 @@ async def run_dma_with_retries(
     )
 
     if thought_arg is not None:
-        return escalate_dma_failure(
-            thought_arg, run_fn.__name__, last_error, retry_limit
-        )
+        escalate_dma_failure(thought_arg, run_fn.__name__, last_error, retry_limit)
 
-    raise last_error if last_error else RuntimeError("DMA failure")
+    raise DMAFailure(f"{run_fn.__name__} failed after {retry_limit} attempts: {last_error}")
 
 
 async def run_pdma(
