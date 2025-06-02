@@ -83,10 +83,7 @@ class CLIObserver:
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
         """Handle passive observation routing based on channel ID and author filtering"""
-        if not self.multi_service_sink:
-            logger.warning("No multi_service_sink available for passive observation")
-            return
-            
+        
         # Get environment variables for channel filtering. When running in CLI
         # mode the Discord variables may not be set, so fall back to 'cli'.
         default_channel_id = os.getenv("DISCORD_CHANNEL_ID") or "cli"
@@ -111,34 +108,49 @@ class CLIObserver:
         return msg.is_bot  # Additional check for bot messages
 
     async def _create_passive_observation_result(self, msg: IncomingMessage) -> None:
-        """Create passive observation result via the observation callback"""
+        """Create task and thought for passive observation."""
         try:
-            if self.on_observe:
-                # Create observation payload similar to Discord observer
-                payload = {
-                    "message": {
-                        "message_id": msg.message_id,
-                        "content": msg.content,
-                        "author_id": msg.author_id,
-                        "author_name": msg.author_name,
-                        "channel_id": msg.channel_id,
-                        "timestamp": msg.timestamp,
-                        "is_bot": msg.is_bot,
-                        "is_dm": msg.is_dm,
-                    },
-                    "task_description": (
-                        f"Observed user @{msg.author_name} (ID: {msg.author_id}) in channel #{msg.channel_id} (Msg ID: {msg.message_id}) say: '{msg.content}'. "
-                        "Evaluate and decide on the appropriate course of action."
-                    ),
+            from datetime import datetime, timezone
+            import uuid
+            from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+            from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+            from ciris_engine import persistence
+
+            task = Task(
+                task_id=str(uuid.uuid4()),
+                description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content[:100]}...'",
+                status=TaskStatus.PENDING,
+                priority=0,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                context={
+                    "channel_id": msg.channel_id,
+                    "author_id": msg.author_id,
+                    "author_name": msg.author_name,
+                    "message_id": msg.message_id,
+                    "origin_service": "cli",
+                    "observation_type": "passive"
                 }
-                
-                await self.on_observe(payload)
-                logger.info(f"Created passive observation for message {msg.message_id}")
-            else:
-                logger.warning("No observation callback available for passive observation")
-                
+            )
+            persistence.add_task(task)
+
+            thought = Thought(
+                thought_id=str(uuid.uuid4()),
+                source_task_id=task.task_id,
+                thought_type="observation",
+                status=ThoughtStatus.PENDING,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                round_number=0,
+                content=f"User @{msg.author_name} said: {msg.content}",
+                context=task.context
+            )
+            persistence.add_thought(thought)
+
+            logger.info(f"Created observation task {task.task_id} and thought {thought.thought_id} for message {msg.message_id}")
+
         except Exception as e:
-            logger.error(f"Error creating passive observation result for message {msg.message_id}: {e}")
+            logger.error(f"Error creating observation task: {e}", exc_info=True)
 
     async def _add_to_feedback_queue(self, msg: IncomingMessage) -> None:
         """Add WA message to fetch feedback queue via multi-service sink"""

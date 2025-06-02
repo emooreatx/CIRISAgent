@@ -33,15 +33,6 @@ from ciris_engine.utils.shutdown_manager import (
 from ciris_engine.registries.base import ServiceRegistry, Priority
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
-from ciris_engine.schemas.service_actions_v1 import ObserveMessageAction
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
-from ciris_engine.schemas.foundational_schemas_v1 import (
-    ThoughtStatus,
-    TaskStatus,
-    HandlerActionType,
-)
-from ciris_engine.schemas.action_params_v1 import ObserveParams
-from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 
 # Components
 from ciris_engine.processor.thought_processor import ThoughtProcessor
@@ -204,7 +195,6 @@ class CIRISRuntime(RuntimeInterface):
             service_registry=self.service_registry,
             max_queue_size=1000,
             fallback_channel_id=self.startup_channel_id,
-            observation_callback=self._process_observation_action
         )
         
         # LLM Service
@@ -245,70 +235,6 @@ class CIRISRuntime(RuntimeInterface):
             await self._request_shutdown("No maintenance service available")
             raise RuntimeError("No maintenance service available")
 
-    async def _process_observation_action(self, action: ObserveMessageAction) -> None:
-        """Default observation callback for OBSERVE_MESSAGE actions."""
-        msg = action.message
-        logger.info(
-            f"Observation received: {getattr(msg, 'content', '')} from {getattr(msg, 'author_name', 'unknown')}"
-        )
-        # Create passive observation task and thought
-        try:
-            from datetime import datetime, timezone
-            import uuid
-
-            task_desc = f"Passive observation from {msg.author_name}"
-            now_iso = datetime.now(timezone.utc).isoformat()
-            task_context = {
-                "channel_id": msg.channel_id,
-                "author_id": msg.author_id,
-                "author_name": msg.author_name,
-                "message_id": msg.message_id,
-            }
-
-            task = Task(
-                task_id=str(uuid.uuid4()),
-                description=task_desc,
-                status=TaskStatus.PENDING,
-                priority=0,
-                created_at=now_iso,
-                updated_at=now_iso,
-                context=task_context,
-            )
-
-            persistence.add_task(task)
-
-            thought = Thought(
-                thought_id=str(uuid.uuid4()),
-                source_task_id=task.task_id,
-                thought_type="observation",
-                status=ThoughtStatus.PENDING,
-                created_at=now_iso,
-                updated_at=now_iso,
-                round_number=0,
-                content=msg.content,
-                context=task_context,
-            )
-
-            persistence.add_thought(thought)
-
-            params = ObserveParams(active=False, channel_id=msg.channel_id)
-            result = ActionSelectionResult(
-                selected_action=HandlerActionType.OBSERVE,
-                action_parameters=params,
-                rationale="passive observation",
-            )
-
-            dispatcher = None
-            if self.agent_processor:
-                dispatcher = getattr(self.agent_processor, "action_dispatcher", None)
-
-            if dispatcher:
-                await dispatcher.dispatch(result, thought, {"channel_id": msg.channel_id})
-            else:
-                logger.warning("No action dispatcher available to process observation")
-
-        except Exception as e:
-            logger.error(f"Failed to process passive observation: {e}", exc_info=True)
 
 
             

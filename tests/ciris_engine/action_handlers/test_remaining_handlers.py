@@ -123,7 +123,7 @@ async def test_observe_handler_passive(monkeypatch):
     await handler.handle(action_result, thought, {})
 
     update_status.assert_called_once()
-    add_thought.assert_called_once()
+    add_thought.assert_not_called()
 
 
 @pytest.mark.asyncio

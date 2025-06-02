@@ -43,9 +43,6 @@ class APIObserver:
         await self._recall_context(msg)
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
-        if not self.multi_service_sink:
-            logger.warning("No multi_service_sink available for passive observation")
-            return
         default_channel_id = os.getenv("API_CHANNEL_ID")
         deferral_channel_id = os.getenv("API_DEFERRAL_CHANNEL_ID")
         wa_api_user = os.getenv("WA_API_USER", DEFAULT_WA)
@@ -62,30 +59,49 @@ class APIObserver:
         return getattr(msg, "is_bot", False)
 
     async def _create_passive_observation_result(self, msg: IncomingMessage) -> None:
+        """Create task and thought for passive observation."""
         try:
-            if self.on_observe:
-                payload = {
-                    "message": {
-                        "message_id": msg.message_id,
-                        "content": msg.content,
-                        "author_id": msg.author_id,
-                        "author_name": msg.author_name,
-                        "channel_id": msg.channel_id,
-                        "timestamp": getattr(msg, "timestamp", None),
-                        "is_bot": getattr(msg, "is_bot", False),
-                        "is_dm": getattr(msg, "is_dm", False),
-                    },
-                    "task_description": (
-                        f"Observed user @{msg.author_name} (ID: {msg.author_id}) in channel #{msg.channel_id} (Msg ID: {msg.message_id}) say: '{msg.content}'. "
-                        "Evaluate and decide on the appropriate course of action."
-                    ),
+            from datetime import datetime, timezone
+            import uuid
+            from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+            from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+            from ciris_engine import persistence
+
+            task = Task(
+                task_id=str(uuid.uuid4()),
+                description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content[:100]}...'",
+                status=TaskStatus.PENDING,
+                priority=0,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                context={
+                    "channel_id": msg.channel_id,
+                    "author_id": msg.author_id,
+                    "author_name": msg.author_name,
+                    "message_id": msg.message_id,
+                    "origin_service": "api",
+                    "observation_type": "passive"
                 }
-                await self.on_observe(payload)
-                logger.info(f"Created passive observation for message {msg.message_id}")
-            else:
-                logger.warning("No observation callback available for passive observation")
+            )
+            persistence.add_task(task)
+
+            thought = Thought(
+                thought_id=str(uuid.uuid4()),
+                source_task_id=task.task_id,
+                thought_type="observation",
+                status=ThoughtStatus.PENDING,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                round_number=0,
+                content=f"User @{msg.author_name} said: {msg.content}",
+                context=task.context
+            )
+            persistence.add_thought(thought)
+
+            logger.info(f"Created observation task {task.task_id} and thought {thought.thought_id} for message {msg.message_id}")
+
         except Exception as e:
-            logger.error(f"Error creating passive observation result for message {msg.message_id}: {e}")
+            logger.error(f"Error creating observation task: {e}", exc_info=True)
 
     async def _add_to_feedback_queue(self, msg: IncomingMessage) -> None:
         try:

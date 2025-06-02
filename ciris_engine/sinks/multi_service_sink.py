@@ -22,10 +22,8 @@ from ciris_engine.schemas.service_actions_v1 import (
     ForgetAction,
     SendToolAction,
     FetchToolAction,
-    ObserveMessageAction,  # Import ObserveMessageAction for passive observation
 )
 from ..protocols.services import CommunicationService, WiseAuthorityService, MemoryService, ToolService
-from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ..registries.circuit_breaker import CircuitBreakerError
 from .base_sink import BaseMultiServiceSink
 
@@ -41,12 +39,10 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     def __init__(self,
                  service_registry: Optional[Any] = None,
                  max_queue_size: int = 1000,
-                 fallback_channel_id: Optional[str] = None,
-                 observation_callback: Optional[Callable[[ObserveMessageAction], Awaitable[None]]] = None):
+                 fallback_channel_id: Optional[str] = None):
         super().__init__(service_registry, max_queue_size, fallback_channel_id)
         # Pending tool results for correlation
         self._pending_tool_results: Dict[str, asyncio.Future] = {}
-        self.observation_callback = observation_callback
     
     @property
     def service_routing(self) -> Dict[ActionType, str]:
@@ -89,9 +85,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         return True
 
     async def _process_action(self, action: ActionMessage):
-        if action.type == ActionType.OBSERVE_MESSAGE:
-            await self._handle_observe_message(action)
-            return
         if not await self._validate_action(action):
             logger.error(f"Invalid action payload: {asdict(action)}")
             return
@@ -120,8 +113,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 await self._handle_send_tool(service, action)
             elif action_type == ActionType.FETCH_TOOL:
                 await self._handle_fetch_tool(service, action)
-            elif action_type == ActionType.OBSERVE_MESSAGE:
-                await self._handle_observe_message(action)
             else:
                 logger.error(f"No handler for action type: {action_type}")
                 
@@ -210,20 +201,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error fetching tool result for {action.correlation_id}: {e}")
             raise
 
-    async def _handle_observe_message(self, action: ObserveMessageAction) -> None:
-        """Handle observe message action via callback."""
-        if self.observation_callback:
-            try:
-                await self.observation_callback(action)
-            except Exception as e:
-                logger.error(f"Observation callback error: {e}")
-        else:
-            msg = action.message
-            logger.info(
-                f"Observed message {getattr(msg, 'message_id', 'n/a')} from {getattr(msg, 'author_name', 'n/a')}"
-            )
-
-
     
     # Convenience methods for common actions
     async def send_message(self, handler_name: str, channel_id: str, content: str, metadata: Optional[Dict] = None) -> bool:
@@ -289,11 +266,3 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         )
         return await self.enqueue_action(action)
     
-    async def observe_message(self, handler_name: str, message, metadata: dict = None) -> bool:
-        """Convenience method to enqueue an observation message action for passive observation."""
-        action = ObserveMessageAction(
-            handler_name=handler_name,
-            metadata=metadata or {},
-            message=message,
-        )
-        return await self.enqueue_action(action)
