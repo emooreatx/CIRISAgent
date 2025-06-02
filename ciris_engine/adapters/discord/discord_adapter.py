@@ -2,10 +2,17 @@ import discord
 from discord.errors import Forbidden, NotFound, InvalidData, HTTPException, ConnectionClosed
 import logging
 import asyncio
+import uuid
+from datetime import datetime
 from typing import Callable, Awaitable, Optional, List, Dict, Any
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
 from ciris_engine.adapters.base import Service
+from ciris_engine.schemas.correlation_schemas_v1 import (
+    ServiceCorrelation,
+    ServiceCorrelationStatus,
+)
+from ciris_engine import persistence
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +54,22 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
     # --- CommunicationService ---
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Implementation of CommunicationService.send_message"""
+        correlation_id = str(uuid.uuid4())
         try:
             await self.send_output(channel_id, content)
+            persistence.add_correlation(
+                ServiceCorrelation(
+                    correlation_id=correlation_id,
+                    service_type="discord",
+                    handler_name="DiscordAdapter",
+                    action_type="send_message",
+                    request_data={"channel_id": channel_id, "content": content},
+                    response_data={"sent": True},
+                    status=ServiceCorrelationStatus.COMPLETED,
+                    created_at=datetime.utcnow().isoformat(),
+                    updated_at=datetime.utcnow().isoformat(),
+                )
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to send message via Discord: {e}")
@@ -99,14 +120,29 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         if not self.client or not self.guidance_channel_id:
             logger.error("DiscordAdapter: Guidance channel or client not configured.")
             raise RuntimeError("Guidance channel or client not configured.")
-        
+
         try:
-            return await self.retry_with_backoff(
+            correlation_id = str(uuid.uuid4())
+            guidance = await self.retry_with_backoff(
                 self._fetch_guidance_impl,
                 context,
                 operation_name="fetch_guidance",
                 config_key="discord_api"
             )
+            persistence.add_correlation(
+                ServiceCorrelation(
+                    correlation_id=correlation_id,
+                    service_type="discord",
+                    handler_name="DiscordAdapter",
+                    action_type="fetch_guidance",
+                    request_data=context,
+                    response_data=guidance,
+                    status=ServiceCorrelationStatus.COMPLETED,
+                    created_at=datetime.utcnow().isoformat(),
+                    updated_at=datetime.utcnow().isoformat(),
+                )
+            )
+            return guidance
         except Exception as e:
             logger.exception(f"Failed to fetch guidance from Discord: {e}")
             raise
@@ -144,11 +180,25 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             return False
         
         try:
+            correlation_id = str(uuid.uuid4())
             await self.retry_with_backoff(
                 self._send_deferral_impl,
                 thought_id, reason,
                 operation_name="send_deferral",
                 config_key="discord_api"
+            )
+            persistence.add_correlation(
+                ServiceCorrelation(
+                    correlation_id=correlation_id,
+                    service_type="discord",
+                    handler_name="DiscordAdapter",
+                    action_type="send_deferral",
+                    request_data={"thought_id": thought_id, "reason": reason},
+                    response_data={"status": "sent"},
+                    status=ServiceCorrelationStatus.COMPLETED,
+                    created_at=datetime.utcnow().isoformat(),
+                    updated_at=datetime.utcnow().isoformat(),
+                )
             )
             return True
         except Exception as e:
@@ -188,12 +238,28 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.error(f"DiscordAdapter: Tool handler for '{tool_name}' not found.")
             raise RuntimeError(f"Tool handler for '{tool_name}' not found.")
         
-        correlation_id = tool_args.get("correlation_id")
+        correlation_id = tool_args.get("correlation_id", str(uuid.uuid4()))
+        persistence.add_correlation(
+            ServiceCorrelation(
+                correlation_id=correlation_id,
+                service_type="discord",
+                handler_name="DiscordAdapter",
+                action_type=tool_name,
+                request_data=tool_args,
+                status=ServiceCorrelationStatus.PENDING,
+                created_at=datetime.utcnow().isoformat(),
+                updated_at=datetime.utcnow().isoformat(),
+            )
+        )
         result = await handler({**tool_args, "bot": self.client})
-        
-        # Store result for later retrieval
+
         if correlation_id:
             self._tool_results[correlation_id] = result if isinstance(result, dict) else result.__dict__
+            persistence.update_correlation(
+                correlation_id,
+                response_data=result if isinstance(result, dict) else result.__dict__,
+                status=ServiceCorrelationStatus.COMPLETED,
+            )
         return result if isinstance(result, dict) else result.__dict__
 
     async def get_tool_result(self, correlation_id: str, timeout: int = 10) -> dict:
