@@ -42,8 +42,10 @@ class DiscordRuntime(CIRISRuntime):
         # Create Discord components
         self.token = token
         self.discord_adapter = DiscordAdapter(token, on_message=self._handle_incoming_message)
-        self.monitored_channel_id = monitored_channel_id or os.getenv("DISCORD_CHANNEL_ID")
-        self.deferral_channel_id = deferral_channel_id or os.getenv("DISCORD_DEFERRAL_CHANNEL_ID")
+        from ciris_engine.config.env_utils import get_env_var
+
+        self.monitored_channel_id = monitored_channel_id or get_env_var("DISCORD_CHANNEL_ID")
+        self.deferral_channel_id = deferral_channel_id or get_env_var("DISCORD_DEFERRAL_CHANNEL_ID")
 
         # CLI fallback components  
         self.cli_adapter = CLIAdapter()

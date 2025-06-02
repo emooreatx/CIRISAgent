@@ -14,6 +14,7 @@ from .config_manager import (
 
 from .config_loader import ConfigLoader
 from .dynamic_config import ConfigManager
+from .env_utils import get_env_var, get_discord_channel_id
 
 __all__ = [
     "load_config_from_file",
@@ -29,4 +30,6 @@ __all__ = [
     "get_graph_memory_full_path",
     "ConfigLoader",
     "ConfigManager",
+    "get_env_var",
+    "get_discord_channel_id",
 ]

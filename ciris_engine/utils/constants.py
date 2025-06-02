@@ -1,11 +1,12 @@
 import os
 import logging
 from pathlib import Path
+from ciris_engine.config.env_utils import get_env_var
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_WA = os.getenv("WA_DISCORD_USER", "somecomputerguy")
-WA_USER_ID = os.getenv("WA_USER_ID")
+DEFAULT_WA = get_env_var("WA_DISCORD_USER", "somecomputerguy")
+WA_USER_ID = get_env_var("WA_USER_ID")
 
 # Load the CIRIS Covenant text for inclusion in prompts
 _COVENANT_PATH = Path(__file__).resolve().parents[2] / "covenant_1.0b.txt"

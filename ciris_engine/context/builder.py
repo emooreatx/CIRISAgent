@@ -7,7 +7,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus  # Add TaskS
 from ciris_engine.utils import GraphQLContextProvider
 from ciris_engine import persistence  # Import persistence for proper task/thought access
 from pydantic import BaseModel
-from os import getenv
+from ciris_engine.config.env_utils import get_env_var
 import logging
 
 logger = logging.getLogger(__name__) # Initialize logger
@@ -52,7 +52,7 @@ class ContextBuilder:
         
         # Then try environment variable
         if not channel_id:
-            channel_id = getenv("DISCORD_CHANNEL_ID")
+            channel_id = get_env_var("DISCORD_CHANNEL_ID")
         
         # Then try app_config
         if not channel_id and self.app_config and hasattr(self.app_config, 'discord_channel_id'):

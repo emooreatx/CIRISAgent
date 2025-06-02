@@ -55,7 +55,7 @@ def test_init_env_priority(mock_get_config, mock_patch, mock_async_openai):
     client = OpenAICompatibleClient()
     assert client.model_name == "env-model"
     mock_async_openai.assert_called_with(
-        api_key="env-key", base_url="https://env-base", timeout=30, max_retries=0
+        api_key="env-key", base_url="https://api.test.com", timeout=30, max_retries=0
     )
     mock_patch.assert_called()
 

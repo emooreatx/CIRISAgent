@@ -68,8 +68,9 @@ def build_dispatch_context(
         channel_id = startup_channel_id
         if not channel_id:
             # Try to get from environment variable as a last resort
-            import os
-            channel_id = os.getenv("DISCORD_CHANNEL_ID")
+            from ciris_engine.config.env_utils import get_env_var
+
+            channel_id = get_env_var("DISCORD_CHANNEL_ID")
             if not channel_id:
                 logger.error(
                     f"No channel_id found for thought {thought.thought_id} and no startup_channel_id set; "

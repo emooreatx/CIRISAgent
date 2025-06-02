@@ -1,4 +1,3 @@
-import os
 import logging
 import asyncio
 from typing import Dict, Any, List, Optional
@@ -8,9 +7,12 @@ from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeTyp
 
 logger = logging.getLogger(__name__)
 
+from ciris_engine.config.env_utils import get_env_var
+
+
 class GraphQLClient:
     def __init__(self, endpoint: str | None = None):
-        self.endpoint = endpoint or os.getenv("GRAPHQL_ENDPOINT", "https://localhost:8000/graphql")
+        self.endpoint = endpoint or get_env_var("GRAPHQL_ENDPOINT", "https://localhost:8000/graphql")
         # Use a short timeout per repository guidelines
         self._client = httpx.AsyncClient(timeout=3.0)
 

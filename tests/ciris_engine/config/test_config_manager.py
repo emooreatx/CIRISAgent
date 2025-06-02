@@ -23,10 +23,22 @@ def test_save_and_load_config(tmp_path):
     assert loaded.database.db_filename == "custom.db"
 
 def test_env_override(monkeypatch, tmp_path):
+    """Environment variables should not override explicit config values."""
     config_path = tmp_path / "test_config.json"
+    with open(config_path, "w") as f:
+        json.dump({"discord_channel_id": "file-val"}, f)
+
     monkeypatch.setenv("DISCORD_CHANNEL_ID", "env-override")
     config = config_manager.load_config_from_file(config_file_path=config_path)
-    assert config.discord_channel_id == "env-override"
+    assert config.discord_channel_id == "file-val"
+
+
+def test_env_fallback(monkeypatch, tmp_path):
+    """Environment variable used when value missing in config."""
+    config_path = tmp_path / "missing.json"
+    monkeypatch.setenv("DISCORD_CHANNEL_ID", "env-val")
+    config = config_manager.load_config_from_file(config_file_path=config_path)
+    assert config.discord_channel_id == "env-val"
 
 def test_get_config_file_path_and_root():
     path = config_manager.get_config_file_path()

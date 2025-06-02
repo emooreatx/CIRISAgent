@@ -16,7 +16,7 @@ from .forget_handler import ForgetHandler
 from .action_dispatcher import ActionDispatcher
 from .base_handler import ActionHandlerDependencies
 from .ponder_handler import PonderHandler
-import os
+from ciris_engine.config.env_utils import get_env_var
 
 # Add any required dependencies for handlers here, e.g., services, sinks, etc.
 def build_action_dispatcher(service_registry=None, max_rounds: int = 5, shutdown_callback=None, **kwargs):
@@ -31,7 +31,7 @@ def build_action_dispatcher(service_registry=None, max_rounds: int = 5, shutdown
     )
     handlers = {
         HandlerActionType.MEMORIZE: MemorizeHandler(deps),
-        HandlerActionType.SPEAK: SpeakHandler(deps, snore_channel_id=os.getenv("SNORE_CHANNEL_ID")),
+        HandlerActionType.SPEAK: SpeakHandler(deps, snore_channel_id=get_env_var("SNORE_CHANNEL_ID")),
         HandlerActionType.OBSERVE: ObserveHandler(deps),
         HandlerActionType.DEFER: DeferHandler(deps),
         HandlerActionType.REJECT: RejectHandler(deps),

@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 import yaml
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
+from .env_utils import get_env_var
 
 
 def _deep_merge(base: Dict[str, Any], update: Dict[str, Any]) -> Dict[str, Any]:
@@ -31,12 +32,12 @@ async def _load_yaml(path: Path) -> Dict[str, Any]:
     return await asyncio.to_thread(_loader, path)
 
 
-def _load_env_config() -> Dict[str, Any]:
-    env_config: Dict[str, Any] = {}
-    discord_id = os.getenv("DISCORD_CHANNEL_ID")
-    if discord_id:
-        env_config["discord_channel_id"] = discord_id
-    return env_config
+def _apply_env_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Fill missing config fields from environment variables."""
+    discord_id = get_env_var("DISCORD_CHANNEL_ID")
+    if discord_id and not config.get("discord_channel_id"):
+        config["discord_channel_id"] = discord_id
+    return config
 
 
 def _merge_configs(*configs: Dict[str, Any]) -> Dict[str, Any]:
@@ -61,7 +62,6 @@ class ConfigLoader:
 
         base_config = await _load_yaml(base_path)
         profile_config = await _load_yaml(profile_path)
-        env_config = _load_env_config()
-
-        merged = _merge_configs(base_config, profile_config, env_config)
+        merged = _merge_configs(base_config, profile_config)
+        merged = _apply_env_defaults(merged)
         return AppConfig(**merged)
