@@ -85,7 +85,21 @@ class ActionDispatcher:
                 logger.error(f"Failed to update thought {thought.thought_id} to FAILED after no handler found: {e_persist}")
             return
 
-        logger.info(f"Dispatching action {action_type.value} for thought {thought.thought_id} to handler {handler_instance.__class__.__name__}")
+        logger.info(
+            f"Dispatching action {action_type.value} for thought {thought.thought_id} to handler {handler_instance.__class__.__name__}"
+        )
+
+        # Wait for service registry readiness before invoking the handler
+        dependencies = getattr(handler_instance, "dependencies", None)
+        if dependencies and hasattr(dependencies, "wait_registry_ready"):
+            ready = await dependencies.wait_registry_ready(
+                timeout=dispatch_context.get("registry_timeout", 30.0)
+            )
+            if not ready:
+                logger.error(
+                    f"Service registry not ready for handler {handler_instance.__class__.__name__}; action aborted"
+                )
+                return
         print(f"[DISPATCHER] Dispatching action {action_type.value} for thought {thought.thought_id} to handler {handler_instance.__class__.__name__}")
         
         try:

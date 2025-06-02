@@ -26,6 +26,7 @@ The base `CIRISRuntime` automatically:
 1. Initializes the service registry
 2. Registers core services (memory, etc.)
 3. Passes registry to all handlers via `ActionHandlerDependencies`
+4. Waits for required services to be registered via `ServiceRegistry.wait_ready`
 
 ### Subclass Extension Example
 
@@ -125,6 +126,13 @@ tool_service = await self.get_tool_service()
 # Generic service access
 service = await self.get_service("service_type", required_capabilities=["capability"])
 ```
+
+### Waiting for Services
+
+Before handlers start processing, runtimes call `ServiceRegistry.wait_ready()`
+to ensure required service types are registered. The default timeout is 30
+seconds. If some services are still missing when the timeout expires, an error
+is logged and processing continues with any available services.
 
 ## Circuit Breaker Integration
 

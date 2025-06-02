@@ -123,7 +123,7 @@ def update_thought_status(thought_id, status, db_path=None, final_action=None, *
     Returns:
         bool: True if updated, False otherwise
     """
-    from .db import get_db_connection
+    from ..db import get_db_connection
     status_val = getattr(status, "value", status)
     
     try:

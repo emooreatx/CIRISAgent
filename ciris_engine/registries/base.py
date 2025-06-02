@@ -48,11 +48,18 @@ class ServiceRegistry:
     circuit breaker patterns for resilience.
     """
     
-    def __init__(self):
+    def __init__(self, required_services: Optional[List[str]] = None):
         # Handler -> Service Type -> List of providers sorted by priority
         self._providers: Dict[str, Dict[str, List[ServiceProvider]]] = {}
         self._circuit_breakers: Dict[str, CircuitBreaker] = {}
         self._global_services: Dict[str, List[ServiceProvider]] = {}
+        # Service types that must be available before processing can start
+        self._required_service_types: List[str] = required_services or [
+            "communication",
+            "memory",
+            "audit",
+            "llm",
+        ]
     
     def register(
         self, 
@@ -358,6 +365,49 @@ class ServiceRegistry:
         self._global_services.clear()
         self._circuit_breakers.clear()
         logger.info("Cleared all services from registry")
+
+    async def wait_ready(
+        self,
+        timeout: float = 30.0,
+        service_types: Optional[List[str]] = None,
+    ) -> bool:
+        """Wait for required services to be registered.
+
+        Args:
+            timeout: Maximum seconds to wait.
+            service_types: Optional override of required service types.
+
+        Returns:
+            True if all required services are present, False if timeout expired.
+        """
+        required = set(service_types or self._required_service_types)
+        if not required:
+            return True
+
+        start = asyncio.get_event_loop().time()
+        while True:
+            missing = {svc for svc in required if not self._has_service_type(svc)}
+            if not missing:
+                logger.info("Service registry ready: all services registered")
+                return True
+
+            if asyncio.get_event_loop().time() - start >= timeout:
+                logger.error(
+                    "Service registry readiness timeout. Missing services: %s",
+                    ", ".join(sorted(missing)),
+                )
+                return False
+
+            await asyncio.sleep(0.1)
+
+    def _has_service_type(self, service_type: str) -> bool:
+        """Check if any provider exists for the given service type."""
+        if self._global_services.get(service_type):
+            return True
+        for services in self._providers.values():
+            if services.get(service_type):
+                return True
+        return False
 
 # Global registry instance
 _global_registry: Optional[ServiceRegistry] = None

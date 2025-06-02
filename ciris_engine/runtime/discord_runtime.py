@@ -98,7 +98,10 @@ class DiscordRuntime(CIRISRuntime):
 
         # Register Discord-specific services before dispatcher is built
         await self._register_discord_services()
-        
+
+        if self.service_registry:
+            await self.service_registry.wait_ready()
+
         # Set up DiscordObserver with proper services after multi_service_sink is available
         if self.discord_observer:
             self.discord_observer.multi_service_sink = self.multi_service_sink
