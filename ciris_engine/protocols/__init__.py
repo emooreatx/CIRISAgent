@@ -1,6 +1,4 @@
-"""
-CIRIS Agent service protocols.
-"""
+"""CIRIS Agent service and subsystem protocols."""
 
 from .services import (
     CommunicationService,
@@ -10,12 +8,20 @@ from .services import (
     AuditService,
     LLMService,
 )
+from .processor_interface import ProcessorInterface
+from .dma_interface import DMAEvaluatorInterface
+from .guardrail_interface import GuardrailInterface
+from .persistence_interface import PersistenceInterface
 
 __all__ = [
     "CommunicationService",
-    "WiseAuthorityService", 
+    "WiseAuthorityService",
     "MemoryService",
     "ToolService",
     "AuditService",
     "LLMService",
+    "ProcessorInterface",
+    "DMAEvaluatorInterface",
+    "GuardrailInterface",
+    "PersistenceInterface",
 ]
