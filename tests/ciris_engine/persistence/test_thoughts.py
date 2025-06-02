@@ -2,13 +2,19 @@ import os
 import tempfile
 import pytest
 from ciris_engine.persistence.db import initialize_database
-from ciris_engine.persistence.thoughts import (
-    get_thoughts_by_status, add_thought, get_thought_by_id, get_thoughts_by_task_id,
-    delete_thoughts_by_ids, count_thoughts, update_thought_status, pydantic_to_dict
+from ciris_engine.persistence.models.thoughts import (
+    get_thoughts_by_status,
+    add_thought,
+    get_thought_by_id,
+    get_thoughts_by_task_id,
+    delete_thoughts_by_ids,
+    count_thoughts,
+    update_thought_status,
+    pydantic_to_dict,
 )
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
-from ciris_engine.persistence.tasks import add_task
+from ciris_engine.persistence.models.tasks import add_task
 from datetime import datetime, timezone
 
 def temp_db_file():

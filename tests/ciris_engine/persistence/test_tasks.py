@@ -1,7 +1,7 @@
 import pytest
 import tempfile
 import os
-from ciris_engine.persistence import tasks
+from ciris_engine.persistence.models import tasks
 from ciris_engine.persistence.db import initialize_database
 from ciris_engine.schemas.agent_core_schemas_v1 import Task
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus

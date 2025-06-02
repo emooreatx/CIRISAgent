@@ -8,8 +8,12 @@ import json
 from datetime import datetime, timezone
 
 from ciris_engine.persistence.db import initialize_database
-from ciris_engine.persistence.thoughts import update_thought_status, add_thought, get_thought_by_id
-from ciris_engine.persistence.tasks import add_task
+from ciris_engine.persistence.models.thoughts import (
+    update_thought_status,
+    add_thought,
+    get_thought_by_id,
+)
+from ciris_engine.persistence.models.tasks import add_task
 from ciris_engine.schemas import (
     Thought, Task, ActionSelectionResult, RejectParams, DeferParams,
     ThoughtStatus, TaskStatus, HandlerActionType

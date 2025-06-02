@@ -1,7 +1,11 @@
 import os
 import tempfile
-from ciris_engine.persistence.db import initialize_database, get_db_connection
-from ciris_engine.persistence.migration_runner import run_migrations, MIGRATIONS_DIR
+from ciris_engine.persistence.db import (
+    initialize_database,
+    get_db_connection,
+    run_migrations,
+    MIGRATIONS_DIR,
+)
 
 
 def temp_db_file():
@@ -46,7 +50,7 @@ def test_failed_migration_rolls_back(tmp_path):
         original_dir = MIGRATIONS_DIR
         try:
             # patch migrations dir
-            import ciris_engine.persistence.migration_runner as mr
+            import ciris_engine.persistence.db.migration_runner as mr
 
             mr.MIGRATIONS_DIR = migrations_dir
             try:

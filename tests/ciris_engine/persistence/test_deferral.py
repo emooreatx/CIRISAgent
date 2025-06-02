@@ -3,7 +3,10 @@ import tempfile
 import os
 import json
 from ciris_engine.persistence.db import initialize_database
-from ciris_engine.persistence.deferral import save_deferral_report_mapping, get_deferral_report_context
+from ciris_engine.persistence.models.deferral import (
+    save_deferral_report_mapping,
+    get_deferral_report_context,
+)
 
 def temp_db_file():
     f = tempfile.NamedTemporaryFile(delete=False)
