@@ -2,7 +2,6 @@ pytest_plugins = ("tests.fixtures",)
 import pytest
 
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
-from tests.fixtures import runtime
 
 
 @pytest.mark.asyncio

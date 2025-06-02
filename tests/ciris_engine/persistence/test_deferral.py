@@ -2,8 +2,8 @@ import pytest
 import tempfile
 import os
 import json
-from ciris_engine.persistence.db import initialize_database
-from ciris_engine.persistence.models.deferral import (
+from ciris_engine.persistence import initialize_database
+from ciris_engine.persistence import (
     save_deferral_report_mapping,
     get_deferral_report_context,
 )
@@ -14,7 +14,7 @@ def temp_db_file():
     return f.name
 
 def create_deferral_reports_table(db_path):
-    from ciris_engine.persistence.db import get_db_connection
+    from ciris_engine.persistence import get_db_connection
     sql = '''
     CREATE TABLE IF NOT EXISTS deferral_reports (
         message_id TEXT PRIMARY KEY,

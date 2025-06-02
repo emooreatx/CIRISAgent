@@ -37,6 +37,7 @@ class OpenAIConfig(BaseModel):
     base_url: Optional[str] = Field(default=None, description="Custom API base URL")
     timeout_seconds: float = Field(default=30.0, description="Request timeout")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
+    api_key: Optional[str] = Field(default=None, description="API key for OpenAI or compatible service")
     api_key_env_var: str = Field(default="OPENAI_API_KEY", description="Environment variable for API key")
     instructor_mode: str = Field(default="JSON", description="Instructor library mode")
 

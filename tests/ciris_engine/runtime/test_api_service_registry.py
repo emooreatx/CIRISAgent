@@ -20,6 +20,10 @@ async def test_api_service_registry(monkeypatch):
         AsyncMock(),
     )
     monkeypatch.setattr("ciris_engine.adapters.api.api_observer.APIObserver.start", AsyncMock())
+    # Mock service_registry.wait_ready() to prevent timeout
+    monkeypatch.setattr(
+        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
+    )
 
     runtime = APIRuntime(profile_name="default")
     runtime.api_tool_service = MagicMock()

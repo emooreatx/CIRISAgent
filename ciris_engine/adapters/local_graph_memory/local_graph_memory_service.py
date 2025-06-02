@@ -5,7 +5,7 @@ import asyncio
 import json
 
 from ciris_engine.config.config_manager import get_sqlite_db_full_path
-from ciris_engine.persistence.db import initialize_database, get_db_connection
+from ciris_engine.persistence import initialize_database, get_db_connection
 from ciris_engine import persistence
 
 from ciris_engine.schemas.graph_schemas_v1 import (

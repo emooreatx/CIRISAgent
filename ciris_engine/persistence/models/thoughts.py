@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from typing import List, Optional
-from ciris_engine.persistence.db import get_db_connection
+from ciris_engine.persistence import get_db_connection
 from ciris_engine.persistence.utils import map_row_to_thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
@@ -9,10 +9,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def get_thoughts_by_status(status, db_path=None):
-    """Returns all thoughts with the given status from the thoughts table as a list of dicts."""
-    # Accept both enums and strings
-    status_val = getattr(status, "value", status)
+def get_thoughts_by_status(status: ThoughtStatus, db_path=None):
+    """Returns all thoughts with the given status from the thoughts table as Thought objects."""
+    if not isinstance(status, ThoughtStatus):
+        raise TypeError(f"Expected ThoughtStatus enum, got {type(status)}: {status}")
+    status_val = status.value
     sql = "SELECT * FROM thoughts WHERE status = ? ORDER BY created_at ASC"
     thoughts = []
     try:
@@ -174,3 +175,18 @@ def pydantic_to_dict(obj):
         return [pydantic_to_dict(v) for v in obj]
     else:
         return obj
+
+def get_thoughts_older_than(older_than_timestamp: str, db_path=None) -> List[Thought]:
+    """Returns all thoughts with created_at older than the given ISO timestamp as Thought objects."""
+    sql = "SELECT * FROM thoughts WHERE created_at < ? ORDER BY created_at ASC"
+    thoughts = []
+    try:
+        with get_db_connection(db_path=db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (older_than_timestamp,))
+            rows = cursor.fetchall()
+            for row in rows:
+                thoughts.append(map_row_to_thought(row))
+    except Exception as e:
+        logger.exception(f"Failed to get thoughts older than {older_than_timestamp}: {e}")
+    return thoughts

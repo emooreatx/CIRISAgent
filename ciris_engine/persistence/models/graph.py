@@ -1,9 +1,9 @@
 import json
 import logging
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 
-from ciris_engine.persistence.db import get_db_connection
+from ciris_engine.persistence import get_db_connection
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphEdge, GraphScope
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ def add_graph_node(node: GraphNode, db_path: Optional[str] = None) -> str:
         "attributes_json": json.dumps(node.attributes),
         "version": node.version,
         "updated_by": node.updated_by,
-        "updated_at": node.updated_at or datetime.utcnow().isoformat(),
+        "updated_at": node.updated_at or datetime.now(timezone.utc).isoformat(),
     }
     try:
         with get_db_connection(db_path=db_path) as conn:

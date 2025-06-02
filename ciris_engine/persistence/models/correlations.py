@@ -1,9 +1,9 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
-from ciris_engine.persistence.db import get_db_connection
+from ciris_engine.persistence import get_db_connection
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
 
 logger = logging.getLogger(__name__)
@@ -24,8 +24,8 @@ def add_correlation(corr: ServiceCorrelation, db_path: Optional[str] = None) -> 
         json.dumps(corr.request_data) if corr.request_data is not None else None,
         json.dumps(corr.response_data) if corr.response_data is not None else None,
         corr.status.value,
-        corr.created_at or datetime.utcnow().isoformat(),
-        corr.updated_at or datetime.utcnow().isoformat(),
+        corr.created_at or datetime.now(timezone.utc).isoformat(),
+        corr.updated_at or datetime.now(timezone.utc).isoformat(),
     )
     try:
         with get_db_connection(db_path=db_path) as conn:
@@ -50,7 +50,7 @@ def update_correlation(correlation_id: str, *, response_data: Optional[Dict[str,
         updates.append("status = ?")
         params.append(status.value)
     updates.append("updated_at = ?")
-    params.append(datetime.utcnow().isoformat())
+    params.append(datetime.now(timezone.utc).isoformat())
     params.append(correlation_id)
 
     sql = f"UPDATE service_correlations SET {', '.join(updates)} WHERE correlation_id = ?"

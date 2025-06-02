@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from ciris_engine.protocols.services import CommunicationService
 from ciris_engine.schemas.correlation_schemas_v1 import (
     ServiceCorrelation,
@@ -36,8 +36,8 @@ class CLIAdapter(CommunicationService):
             request_data={"channel_id": channel_id, "content": content},
             response_data={"sent": True},
             status=ServiceCorrelationStatus.COMPLETED,
-            created_at=datetime.utcnow().isoformat(),
-            updated_at=datetime.utcnow().isoformat(),
+            created_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
         )
         persistence.add_correlation(corr)
         return True

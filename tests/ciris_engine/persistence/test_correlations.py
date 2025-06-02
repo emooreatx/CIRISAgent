@@ -1,7 +1,7 @@
 import os
 import tempfile
-from ciris_engine.persistence.db import initialize_database
-from ciris_engine.persistence.models.correlations import (
+from ciris_engine.persistence import initialize_database
+from ciris_engine.persistence import (
     add_correlation,
     update_correlation,
     get_correlation,
