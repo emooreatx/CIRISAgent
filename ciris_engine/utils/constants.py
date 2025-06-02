@@ -8,6 +8,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_WA = get_env_var("WA_DISCORD_USER", "somecomputerguy")
 WA_USER_ID = get_env_var("WA_USER_ID")
 
+# Common service channel/environment variables
+DISCORD_CHANNEL_ID = get_env_var("DISCORD_CHANNEL_ID")
+DISCORD_DEFERRAL_CHANNEL_ID = get_env_var("DISCORD_DEFERRAL_CHANNEL_ID")
+API_CHANNEL_ID = get_env_var("API_CHANNEL_ID")
+API_DEFERRAL_CHANNEL_ID = get_env_var("API_DEFERRAL_CHANNEL_ID")
+WA_API_USER = get_env_var("WA_API_USER", DEFAULT_WA)
+
 # Load the CIRIS Covenant text for inclusion in prompts
 _COVENANT_PATH = Path(__file__).resolve().parents[2] / "covenant_1.0b.txt"
 try:

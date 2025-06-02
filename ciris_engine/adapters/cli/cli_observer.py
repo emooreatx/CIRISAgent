@@ -86,11 +86,15 @@ class CLIObserver:
         
         # Get environment variables for channel filtering. When running in CLI
         # mode the Discord variables may not be set, so fall back to 'cli'.
-        from ciris_engine.config.env_utils import get_env_var
+        from ciris_engine.config.config_manager import get_config
+        from ciris_engine.utils.constants import (
+            DISCORD_DEFERRAL_CHANNEL_ID,
+            DEFAULT_WA,
+        )
 
-        default_channel_id = get_env_var("DISCORD_CHANNEL_ID") or "cli"
-        deferral_channel_id = get_env_var("DISCORD_DEFERRAL_CHANNEL_ID")
-        wa_discord_user = get_env_var("WA_DISCORD_USER", DEFAULT_WA)
+        default_channel_id = get_config().discord_channel_id or "cli"
+        deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
+        wa_discord_user = DEFAULT_WA
         
         # Route messages based on channel and author
         if msg.channel_id == default_channel_id and not self._is_agent_message(msg):

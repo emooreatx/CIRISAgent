@@ -44,11 +44,16 @@ class APIObserver:
         await self._recall_context(msg)
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
-        from ciris_engine.config.env_utils import get_env_var
+        from ciris_engine.utils.constants import (
+            API_CHANNEL_ID,
+            API_DEFERRAL_CHANNEL_ID,
+            WA_API_USER,
+            DEFAULT_WA,
+        )
 
-        default_channel_id = get_env_var("API_CHANNEL_ID")
-        deferral_channel_id = get_env_var("API_DEFERRAL_CHANNEL_ID")
-        wa_api_user = get_env_var("WA_API_USER", DEFAULT_WA)
+        default_channel_id = API_CHANNEL_ID
+        deferral_channel_id = API_DEFERRAL_CHANNEL_ID
+        wa_api_user = WA_API_USER or DEFAULT_WA
         if msg.channel_id == default_channel_id and not self._is_agent_message(msg):
             await self._create_passive_observation_result(msg)
         elif msg.channel_id == deferral_channel_id and msg.author_name == wa_api_user:
