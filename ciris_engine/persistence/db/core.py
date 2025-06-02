@@ -5,6 +5,9 @@ from ciris_engine.schemas.db_tables_v1 import (
     tasks_table_v1,
     thoughts_table_v1,
     feedback_mappings_table_v1,
+    graph_nodes_table_v1,
+    graph_edges_table_v1,
+    service_correlations_table_v1,
 )
 from .migration_runner import run_migrations
 
@@ -27,6 +30,15 @@ def get_thought_table_schema_sql() -> str:
 
 def get_feedback_mappings_table_schema_sql() -> str:
     return feedback_mappings_table_v1
+
+def get_graph_nodes_table_schema_sql() -> str:
+    return graph_nodes_table_v1
+
+def get_graph_edges_table_schema_sql() -> str:
+    return graph_edges_table_v1
+
+def get_service_correlations_table_schema_sql() -> str:
+    return service_correlations_table_v1
 
 def initialize_database(db_path=None):
     """Apply pending migrations to initialize or update the database."""

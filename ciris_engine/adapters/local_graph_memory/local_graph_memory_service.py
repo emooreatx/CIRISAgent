@@ -13,23 +13,10 @@ from ciris_engine.schemas.graph_schemas_v1 import (
     NodeType,
     GraphEdge,
 )
-from ciris_engine.schemas.foundational_schemas_v1 import CaseInsensitiveEnum, TaskStatus
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus, MemoryOpResult
 from ciris_engine.adapters.base import Service
-from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-
-
-class MemoryOpStatus(CaseInsensitiveEnum):
-    OK = "ok"
-    DEFERRED = "deferred"
-    DENIED = "denied"
-
-
-class MemoryOpResult(BaseModel):
-    status: MemoryOpStatus
-    reason: Optional[str] = None
-    data: Optional[Any] = None
 
 
 class LocalGraphMemoryService(Service):
