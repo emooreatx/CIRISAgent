@@ -5,7 +5,7 @@ based on action type, with circuit breaker patterns and fallback support.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Union, Callable, List
+from typing import Any, Dict, Optional, Union, Callable, List, Awaitable
 from dataclasses import asdict
 import json
 from abc import ABC, abstractmethod
@@ -26,10 +26,6 @@ from ciris_engine.schemas.service_actions_v1 import (
 from ..protocols.services import CommunicationService, WiseAuthorityService, MemoryService, ToolService
 from ..registries.circuit_breaker import CircuitBreakerError
 from .base_sink import BaseMultiServiceSink
-from .message_sink import MultiServiceMessageSink
-from .memory_sink import MultiServiceMemorySink
-from .tool_sink import MultiServiceToolSink
-from .deferral_sink import MultiServiceDeferralSink
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +36,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     Supports circuit breaker patterns, fallback mechanisms, and graceful degradation.
     """
     
-    def __init__(self, 
+    def __init__(self,
                  service_registry: Optional[Any] = None,
                  max_queue_size: int = 1000,
                  fallback_channel_id: Optional[str] = None):
@@ -61,6 +57,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FORGET: 'memory',
             ActionType.SEND_TOOL: 'tool',
             ActionType.FETCH_TOOL: 'tool',
+            # Note: OBSERVE_MESSAGE removed - observation handled at adapter level
         }
     
     @property
@@ -76,7 +73,22 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FORGET: ['forget'],
             ActionType.SEND_TOOL: ['execute_tool'],
             ActionType.FETCH_TOOL: ['get_tool_result'],
+            # Note: OBSERVE_MESSAGE capabilities removed - observation handled at adapter level
         }
+
+    async def _validate_action(self, action: ActionMessage) -> bool:
+        """Validate action has required fields for its type"""
+        if action.type == ActionType.SEND_MESSAGE:
+            return bool(getattr(action, 'channel_id', None) and getattr(action, 'content', None))
+        if action.type == ActionType.SEND_DEFERRAL:
+            return bool(getattr(action, 'thought_id', None) and getattr(action, 'reason', None))
+        return True
+
+    async def _process_action(self, action: ActionMessage):
+        if not await self._validate_action(action):
+            logger.error(f"Invalid action payload: {asdict(action)}")
+            return
+        await super()._process_action(action)
     
     async def _execute_action_on_service(self, service: Any, action: ActionMessage):
         """Execute action on the appropriate service"""
@@ -138,23 +150,23 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     
     async def _handle_memorize(self, service: MemoryService, action: MemorizeAction):
         """Handle memorize action"""
-        success = await service.memorize(action.key, action.value, action.scope)
+        success = await service.memorize(action.node)
         if success:
-            logger.info(f"Stored memory {action.key} via {type(service).__name__}")
+            logger.info(f"Stored memory {action.node.id} via {type(service).__name__}")
         else:
             logger.warning(f"Failed to store memory via {type(service).__name__}")
     
     async def _handle_recall(self, service: MemoryService, action: RecallAction):
         """Handle recall action"""
-        value = await service.recall(action.key, action.scope)
-        logger.info(f"Retrieved memory {action.key} via {type(service).__name__}")
+        value = await service.recall(action.node)
+        logger.info(f"Retrieved memory {action.node.id} via {type(service).__name__}")
         return value
     
     async def _handle_forget(self, service: MemoryService, action: ForgetAction):
         """Handle forget action"""
-        success = await service.forget(action.key, action.scope)
+        success = await service.forget(action.node)
         if success:
-            logger.info(f"Deleted memory {action.key} via {type(service).__name__}")
+            logger.info(f"Deleted memory {action.node.id} via {type(service).__name__}")
         else:
             logger.warning(f"Failed to delete memory via {type(service).__name__}")
     
@@ -188,6 +200,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         except Exception as e:
             logger.error(f"Error fetching tool result for {action.correlation_id}: {e}")
             raise
+
     
     # Convenience methods for common actions
     async def send_message(self, handler_name: str, channel_id: str, content: str, metadata: Optional[Dict] = None) -> bool:
@@ -200,6 +213,37 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         )
         return await self.enqueue_action(action)
     
+    async def fetch_messages(self, handler_name: str, channel_id: str, limit: int = 10, metadata: Optional[Dict] = None) -> bool:
+        """Convenience method to fetch messages"""
+        action = FetchMessagesAction(
+            handler_name=handler_name,
+            metadata=metadata or {},
+            channel_id=channel_id,
+            limit=limit
+        )
+        return await self.enqueue_action(action)
+    
+    async def fetch_messages_sync(self, handler_name: str, channel_id: str, limit: int = 10, metadata: Optional[Dict] = None) -> Optional[List[Dict[str, Any]]]:
+        """Convenience method to fetch messages synchronously and return the actual messages"""
+        try:
+            action = FetchMessagesAction(
+                handler_name=handler_name,
+                metadata=metadata or {},
+                channel_id=channel_id,
+                limit=limit
+            )
+            
+            # Get service directly and call fetch_messages
+            service = await self._get_service('communication', action)
+            if service:
+                messages = await self._handle_fetch_messages(service, action)
+                return messages
+            else:
+                logger.warning(f"No communication service available for fetch_messages_sync")
+                return None
+        except Exception as e:
+            logger.error(f"Error in fetch_messages_sync: {e}")
+            return None
     async def submit_deferral(self, handler_name: str, thought_id: str, reason: str, metadata: Optional[Dict] = None) -> bool:
         """Convenience method to submit a deferral"""
         action = SendDeferralAction(
@@ -209,7 +253,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             reason=reason
         )
         return await self.enqueue_action(action)
-    
+
     async def execute_tool(self, handler_name: str, tool_name: str, tool_args: Dict[str, Any], 
                           correlation_id: Optional[str] = None, metadata: Optional[Dict] = None) -> bool:
         """Convenience method to execute a tool"""
@@ -221,3 +265,4 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             correlation_id=correlation_id
         )
         return await self.enqueue_action(action)
+    

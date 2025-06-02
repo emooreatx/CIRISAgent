@@ -31,11 +31,9 @@ class ProcessingQueueItem(BaseModel):
         """
         Creates a ProcessingQueueItem from a Thought instance.
         """
-        # Ensure initial_context is a dict
+        # Keep initial_context as-is - it will be handled properly by persistence
         raw_initial_ctx = initial_ctx if initial_ctx is not None else thought_instance.context
-        if hasattr(raw_initial_ctx, 'model_dump'):
-            final_initial_ctx = raw_initial_ctx.model_dump()
-        elif isinstance(raw_initial_ctx, dict):
+        if hasattr(raw_initial_ctx, 'model_dump') or isinstance(raw_initial_ctx, dict):
             final_initial_ctx = raw_initial_ctx
         else:
             final_initial_ctx = {} # Default to empty dict if unexpected type

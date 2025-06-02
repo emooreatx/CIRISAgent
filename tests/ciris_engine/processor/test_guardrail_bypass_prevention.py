@@ -50,7 +50,6 @@ class TestGuardrailBypassPrevention:
     def mock_dependencies(self):
         """Create mock dependencies for testing."""
         deps = MagicMock(spec=ActionHandlerDependencies)
-        deps.action_sink = AsyncMock()
         deps.llm_client = AsyncMock()
         deps.memory_system = AsyncMock()
         return deps

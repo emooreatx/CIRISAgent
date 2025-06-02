@@ -19,12 +19,13 @@ async def test_memory_operations():
     assert result.status.value == "ok"
     
     # Test recall
-    result = await memory.recall("test_key", GraphScope.LOCAL)
+    recall_node = GraphNode(id="test_key", type=NodeType.CONCEPT, scope=GraphScope.LOCAL)
+    result = await memory.recall(recall_node)
     assert result.status.value == "ok"
     assert result.data["value"] == "test_data"
     
     # Test forget
-    result = await memory.forget("test_key", GraphScope.LOCAL)
+    result = await memory.forget(recall_node)
     assert result.status.value == "ok"
     
     await memory.stop()

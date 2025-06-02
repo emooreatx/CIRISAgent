@@ -19,10 +19,7 @@ async def test_cli_runtime_initialization(monkeypatch):
         "ciris_engine.runtime.cli_runtime.CLIAdapter.start", AsyncMock()
     )
     monkeypatch.setattr(
-        "ciris_engine.runtime.cli_runtime.MultiServiceActionSink.start", AsyncMock()
-    )
-    monkeypatch.setattr(
-        "ciris_engine.runtime.cli_runtime.MultiServiceDeferralSink.start", AsyncMock()
+        "ciris_engine.sinks.multi_service_sink.MultiServiceActionSink.start", AsyncMock()
     )
 
     runtime = CLIRuntime(profile_name="test_profile", interactive=False)
@@ -41,11 +38,7 @@ async def test_cli_message_processing(monkeypatch):
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
     monkeypatch.setattr("ciris_engine.runtime.cli_runtime.CLIObserver.start", AsyncMock())
     monkeypatch.setattr("ciris_engine.runtime.cli_runtime.CLIAdapter.start", AsyncMock())
-    monkeypatch.setattr("ciris_engine.runtime.cli_runtime.MultiServiceActionSink.start", AsyncMock())
-    monkeypatch.setattr("ciris_engine.runtime.cli_runtime.MultiServiceDeferralSink.start", AsyncMock())
-
-    observe_mock = AsyncMock()
-    monkeypatch.setattr(CLIRuntime, "_handle_observe_event", observe_mock)
+    monkeypatch.setattr("ciris_engine.sinks.multi_service_sink.MultiServiceActionSink.start", AsyncMock())
 
     runtime = CLIRuntime(profile_name="default", interactive=False)
     await runtime.initialize()
@@ -61,6 +54,5 @@ async def test_cli_message_processing(monkeypatch):
     )
 
     await runtime.cli_observer.handle_incoming_message(msg)
-
-    observe_mock.assert_awaited_once()
+    assert runtime.cli_observer._history and runtime.cli_observer._history[-1].message_id == "test_1"
     await runtime.shutdown()

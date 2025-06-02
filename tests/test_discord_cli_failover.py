@@ -49,20 +49,12 @@ async def test_discord_runtime_cli_fallback(monkeypatch):
         "ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components",
         AsyncMock(),
     )
-    monkeypatch.setattr(
-        "ciris_engine.runtime.discord_runtime.DiscordObserver.start", AsyncMock()
-    )
-    monkeypatch.setattr(
-        "ciris_engine.runtime.discord_runtime.CLIObserver.start", AsyncMock()
-    )
+    # Observers have been removed; no start methods to patch
     monkeypatch.setattr(
         "ciris_engine.runtime.discord_runtime.CLIAdapter.start", AsyncMock()
     )
     monkeypatch.setattr(
-        "ciris_engine.runtime.discord_runtime.MultiServiceActionSink.start", AsyncMock()
-    )
-    monkeypatch.setattr(
-        "ciris_engine.runtime.discord_runtime.MultiServiceDeferralSink.start", AsyncMock()
+        "ciris_engine.sinks.multi_service_sink.MultiServiceActionSink.start", AsyncMock()
     )
 
     runtime = DiscordRuntime(token="tok", profile_name="p", startup_channel_id="chan")

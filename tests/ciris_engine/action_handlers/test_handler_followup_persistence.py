@@ -3,14 +3,19 @@ import tempfile
 import pytest
 from datetime import datetime, timezone
 from ciris_engine.persistence.db import initialize_database
-from ciris_engine.persistence.thoughts import get_thoughts_by_task_id, add_thought, get_thought_by_id
-from ciris_engine.persistence.tasks import add_task
+from ciris_engine.persistence.models.thoughts import (
+    get_thoughts_by_task_id,
+    add_thought,
+    get_thought_by_id,
+)
+from ciris_engine.persistence.models.tasks import add_task
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.action_params_v1 import (
     SpeakParams, RecallParams, ForgetParams, MemorizeParams, PonderParams, ObserveParams
 )
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
 from ciris_engine.action_handlers.speak_handler import SpeakHandler
 from ciris_engine.action_handlers.recall_handler import RecallHandler
 from ciris_engine.action_handlers.forget_handler import ForgetHandler
@@ -62,11 +67,11 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("handler_cls,params,result_action,extra_setup", [
     (SpeakHandler, SpeakParams(content="hello", channel_id="c1"), HandlerActionType.SPEAK, None),
-    (RecallHandler, RecallParams(query="q", scope="identity"), HandlerActionType.RECALL, None),
-    (ForgetHandler, ForgetParams(key="k", scope="identity", reason="r"), HandlerActionType.FORGET, None),
-    (MemorizeHandler, MemorizeParams(key="k", value="v", scope="identity"), HandlerActionType.MEMORIZE, None),
+    (RecallHandler, RecallParams(node=GraphNode(id="q", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)), HandlerActionType.RECALL, None),
+    (ForgetHandler, ForgetParams(node=GraphNode(id="k", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY), reason="r"), HandlerActionType.FORGET, None),
+    (MemorizeHandler, MemorizeParams(node=GraphNode(id="k", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY, attributes={"value": "v"})), HandlerActionType.MEMORIZE, None),
     (PonderHandler, PonderParams(questions=["q1", "q2"]), HandlerActionType.PONDER, None),
-    (ObserveHandler, ObserveParams(active=False, channel_id="c1"), HandlerActionType.OBSERVE, None),
+    (ObserveHandler, ObserveParams(active=True, channel_id="c1"), HandlerActionType.OBSERVE, None),
     (RejectHandler, {"reason": "bad"}, HandlerActionType.REJECT, None),
 ])
 async def test_handler_creates_followup_persistence(handler_cls, params, result_action, extra_setup):
@@ -81,7 +86,6 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
         deps.memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
         deps.memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
         deps.memory_service.memorize = AsyncMock(return_value=MagicMock(status="SAVED"))
-        deps.action_sink = AsyncMock()
         audit_service = MagicMock()
         audit_service.log_action = AsyncMock()
         async def get_service(handler, service_type, **kwargs):

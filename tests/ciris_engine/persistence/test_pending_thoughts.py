@@ -26,8 +26,13 @@ def test_get_pending_thoughts_for_active_tasks_basic():
     ]
     def patched_get_thoughts_by_status(status):
         return [th for th in thoughts if th.status == status]
-    with patch("ciris_engine.persistence.get_tasks_by_status", return_value=tasks), \
-         patch("ciris_engine.persistence.get_thoughts_by_status", side_effect=patched_get_thoughts_by_status):
+    with patch(
+        "ciris_engine.persistence.models.tasks.get_tasks_by_status",
+        return_value=tasks,
+    ), patch(
+        "ciris_engine.persistence.models.thoughts.get_thoughts_by_status",
+        side_effect=patched_get_thoughts_by_status,
+    ):
         result = get_pending_thoughts_for_active_tasks()
         assert len(result) == 2
         assert all(th.source_task_id == "t1" for th in result)
@@ -41,15 +46,25 @@ def test_count_pending_thoughts_for_active_tasks():
     ]
     def patched_get_thoughts_by_status(status):
         return [th for th in thoughts if th.status == status]
-    with patch("ciris_engine.persistence.get_tasks_by_status", return_value=tasks), \
-         patch("ciris_engine.persistence.get_thoughts_by_status", side_effect=patched_get_thoughts_by_status):
+    with patch(
+        "ciris_engine.persistence.models.tasks.get_tasks_by_status",
+        return_value=tasks,
+    ), patch(
+        "ciris_engine.persistence.models.thoughts.get_thoughts_by_status",
+        side_effect=patched_get_thoughts_by_status,
+    ):
         count = count_pending_thoughts_for_active_tasks()
         assert count == 2
 
 def test_get_pending_thoughts_for_active_tasks_limit():
     tasks = [make_task("t1")]
     thoughts = [make_thought(f"th{i}", "t1", status=ThoughtStatus.PENDING) for i in range(5)]
-    with patch("ciris_engine.persistence.get_tasks_by_status", return_value=tasks), \
-         patch("ciris_engine.persistence.get_thoughts_by_status", side_effect=lambda s: [th for th in thoughts if th.status == s]):
+    with patch(
+        "ciris_engine.persistence.models.tasks.get_tasks_by_status",
+        return_value=tasks,
+    ), patch(
+        "ciris_engine.persistence.models.thoughts.get_thoughts_by_status",
+        side_effect=lambda s: [th for th in thoughts if th.status == s],
+    ):
         result = get_pending_thoughts_for_active_tasks(limit=3)
         assert len(result) == 3

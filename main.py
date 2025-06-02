@@ -1,7 +1,14 @@
+# Load environment variables from .env if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv is optional; skip if not installed
+import os
+
 import asyncio
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -49,7 +56,7 @@ async def _execute_handler(runtime, handler: str, params: Optional[str]) -> None
     await handler_instance.handle(result, thought, {"channel_id": runtime.startup_channel_id})
 
 
-async def _run_runtime(runtime, timeout: Optional[int]) -> None:
+async def _run_runtime(runtime, timeout: Optional[int], num_rounds: Optional[int] = None) -> None:
     """Run the runtime with optional timeout and graceful shutdown."""
     timeout_task = None
     shutdown_manager = get_shutdown_manager()
@@ -65,7 +72,7 @@ async def _run_runtime(runtime, timeout: Optional[int]) -> None:
             timeout_task = asyncio.create_task(timeout_handler())
             
         # Run the runtime (this will handle global shutdown internally)
-        await runtime.run()
+        await runtime.run(num_rounds=num_rounds)
             
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received, requesting shutdown...")
@@ -102,6 +109,7 @@ async def _run_runtime(runtime, timeout: Optional[int]) -> None:
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
 @click.option("--no-interactive/--interactive", default=False, help="Disable interactive CLI input (start agent automatically)")
 @click.option("--mock-llm/--no-mock-llm", default=False, help="Use the mock LLM service for offline testing")
+@click.option("--num-rounds", type=int, help="Maximum number of processing rounds (default: infinite)")
 def main(
     mode: str,
     profile: str,
@@ -115,6 +123,7 @@ def main(
     debug: bool,
     no_interactive: bool,
     mock_llm: bool,
+    num_rounds: Optional[int],
 ) -> None:
     """Unified CIRIS agent entry point."""
     setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
@@ -164,7 +173,12 @@ def main(
             await runtime.shutdown()
             return
 
-        await _run_runtime(runtime, timeout)
+        # Use CLI num_rounds if provided, otherwise fall back to config
+        effective_num_rounds = num_rounds
+        if effective_num_rounds is None and hasattr(app_config, 'workflow') and hasattr(app_config.workflow, 'num_rounds'):
+            effective_num_rounds = app_config.workflow.num_rounds
+
+        await _run_runtime(runtime, timeout, effective_num_rounds)
 
     asyncio.run(_async_main())
 

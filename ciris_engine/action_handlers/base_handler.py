@@ -7,8 +7,7 @@ import asyncio
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.sinks import MultiServiceActionSink, MultiServiceDeferralSink
-from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
+
 from ciris_engine import persistence
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
@@ -27,20 +26,12 @@ class ActionHandlerDependencies:
     def __init__(
         self,
         service_registry: Optional[ServiceRegistry] = None,
-        # Legacy services for backward compatibility
-        action_sink: Optional[MultiServiceActionSink] = None,
-        memory_service: Optional[LocalGraphMemoryService] = None,
-        deferral_sink: Optional[MultiServiceDeferralSink] = None,
-        io_adapter: Optional[Any] = None,  # General type, can be cast in handler
+        io_adapter: Optional[Any] = None,
         # Shutdown signal mechanism
         shutdown_callback: Optional[Callable[[], None]] = None,
         **legacy_services  # For additional backward compatibility
     ):
         self.service_registry = service_registry
-        # Keep legacy services for backward compatibility
-        self.action_sink = action_sink
-        self.memory_service = memory_service
-        self.deferral_sink = deferral_sink
         self.io_adapter = io_adapter
         # Shutdown signal mechanism
         self.shutdown_callback = shutdown_callback
@@ -75,6 +66,19 @@ class ActionHandlerDependencies:
         """Check if a shutdown has been requested."""
         # Check both local and global shutdown states
         return self._shutdown_requested or is_global_shutdown_requested()
+
+    async def wait_registry_ready(
+        self, timeout: float = 30.0, service_types: Optional[list[str]] = None
+    ) -> bool:
+        """Wait until the service registry is ready or timeout expires."""
+        if not self.service_registry:
+            logger.warning("No service registry configured; assuming ready")
+            return True
+        try:
+            return await self.service_registry.wait_ready(timeout=timeout, service_types=service_types)
+        except Exception as exc:
+            logger.error(f"Error waiting for registry readiness: {exc}")
+            return False
     
     async def get_service(self, handler: str, service_type: str, **kwargs) -> Optional[Any]:
         """Get a service from the registry with automatic fallback to legacy services"""
@@ -150,13 +154,7 @@ class BaseActionHandler(ABC):
             "llm"
         )
 
-    async def get_observer_service(self) -> Optional[Any]:
-        """Get best available observer service"""
-        return await self.dependencies.get_service(
-            self.__class__.__name__,
-            "observer",
-            required_capabilities=["observe_messages"],
-        )
+
 
     async def get_tool_service(self) -> Optional[Any]:
         """Get best available tool service"""
@@ -166,15 +164,18 @@ class BaseActionHandler(ABC):
             required_capabilities=["execute_tool"]
         )
 
+    def get_multi_service_sink(self) -> Optional[Any]:
+        """Get multi-service sink from dependencies."""
+        return getattr(self.dependencies, 'multi_service_sink', None)
+
     async def _get_channel_id(self, thought: Thought, dispatch_context: Dict[str, Any]) -> Optional[str]:
         """Get channel ID from dispatch or thought context."""
         channel_id = dispatch_context.get("channel_id")
         if not channel_id and getattr(thought, "context", None):
             channel_id = thought.context.get("channel_id")
         if not channel_id:
-            observer_service = await self.get_observer_service()
-            if observer_service:
-                channel_id = getattr(observer_service, "monitored_channel_id", None)
+            # No fallback needed since observer functionality is at adapter level
+            pass
         return channel_id
 
     async def _send_notification(self, channel_id: str, content: str) -> bool:
@@ -182,7 +183,7 @@ class BaseActionHandler(ABC):
         if not channel_id or not content:
             self.logger.error(f"_send_notification failed: missing channel_id ({channel_id}) or content ({bool(content)})")
             return False
-        
+
         # Log the attempt for debugging
         self.logger.debug(f"_send_notification: attempting to send to channel_id={channel_id}, content_length={len(content)}")
         
@@ -222,13 +223,11 @@ class BaseActionHandler(ABC):
                 self.logger.error(f"Communication service failed to send message to channel {channel_id}: {e}")
         else:
             self.logger.error("No communication service available - this indicates a service registry lookup failure")
-            
-        # DEPRECATED: Removing action_sink fallback as it's deprecated
-        # The action_sink pattern is being phased out in favor of the service registry
-        self.logger.debug("_send_notification: action_sink fallback is deprecated and has been removed")
-            
+
         self.logger.error(f"_send_notification: all notification methods failed for channel_id={channel_id}")
-        self.logger.error(f"_send_notification: Available services debug - handler='{self.__class__.__name__}', service_type='communication'")
+        self.logger.error(
+            f"_send_notification: Available services debug - handler='{self.__class__.__name__}', service_type='communication'"
+        )
         if self.dependencies.service_registry:
             available_services = await self.dependencies.service_registry.get_provider_info(
                 handler=self.__class__.__name__,

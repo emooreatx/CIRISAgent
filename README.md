@@ -184,6 +184,15 @@ registered at `Priority.NORMAL` so the agent can fall back to the console if the
 Discord connection drops. Running without a token automatically selects the
 `CLIRuntime`.
 
+During startup each runtime waits for the service registry to report that core
+services are available. If communication, memory, audit logging, or the LLM
+service are missing for more than 30 seconds an error is logged but the runtime
+continues, allowing partial functionality in constrained environments.
+
+CLI communication acts as the lowest priority service on the bus. If the CLI
+adapter is unable to process incoming or outgoing messages for more than 30
+seconds the runtime will trigger a graceful shutdown to avoid a wedged state.
+
 Use `--mode cli` for a local command-line interface or `--mode api` for the API runtime. When running the API, you can set `--host` and `--port` to control the listen address. Disable interactive CLI input with `--no-interactive`. Enable debug logging with `--debug`.
 For offline testing you can pass `--mock-llm` to use the bundled mock LLM service.
 

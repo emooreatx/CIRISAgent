@@ -4,10 +4,7 @@ from typing import Dict, Any
 from pydantic import BaseModel
 
 # Updated imports for v1 schemas
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ciris_engine.schemas.action_params_v1 import ToolParams  # v1 uses ToolParams instead of ActParams
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
-from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas import Thought, ToolParams, ThoughtStatus, HandlerActionType, ActionSelectionResult
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
@@ -81,12 +78,11 @@ class ToolHandler(BaseActionHandler):
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = f"TOOL {params.name} execution failed: {str(e_tool)}"
 
-        # v1 uses 'final_action' instead of 'final_action_result'
-        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
+        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result_data,  # v1 field
+            final_action=result,  # Pass the ActionSelectionResult object directly
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after TOOL attempt.")
 
@@ -103,9 +99,8 @@ class ToolHandler(BaseActionHandler):
             context_for_follow_up = {"action_performed": HandlerActionType.TOOL.value}
             if final_thought_status == ThoughtStatus.FAILED:
                 context_for_follow_up["error_details"] = follow_up_content_key_info
-            # When serializing for follow-up, convert to dict
-            action_params_dump = params.model_dump(mode="json") if hasattr(params, "model_dump") else params
-            context_for_follow_up["action_params"] = action_params_dump
+            # Pass params directly - persistence will handle serialization
+            context_for_follow_up["action_params"] = params
             new_follow_up.context = context_for_follow_up
             persistence.add_thought(new_follow_up)
             self.logger.info(

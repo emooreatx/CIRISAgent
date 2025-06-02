@@ -4,7 +4,11 @@ These protocols define clear contracts for different types of services.
 """
 from typing import Protocol, Optional, Dict, Any, List
 from abc import abstractmethod
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import (
+    HandlerActionType,
+    IncomingMessage,
+)
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode
 
 class CommunicationService(Protocol):
     """Protocol for communication services (Discord, Veilid, etc)"""
@@ -94,46 +98,18 @@ class MemoryService(Protocol):
     """Protocol for memory services"""
     
     @abstractmethod
-    async def memorize(self, key: str, value: Any, scope: str = "default") -> bool:
-        """
-        Store a memory.
-        
-        Args:
-            key: The memory key
-            value: The value to store
-            scope: The memory scope (default, session, permanent, etc.)
-            
-        Returns:
-            True if memory was stored successfully
-        """
+    async def memorize(self, node: GraphNode) -> bool:
+        """Store a graph node."""
         ...
     
     @abstractmethod
-    async def recall(self, key: str, scope: str = "default") -> Optional[Any]:
-        """
-        Retrieve a memory.
-        
-        Args:
-            key: The memory key
-            scope: The memory scope
-            
-        Returns:
-            The stored value if found, None otherwise
-        """
+    async def recall(self, node: GraphNode) -> Optional[Any]:
+        """Retrieve a node from memory."""
         ...
     
     @abstractmethod
-    async def forget(self, key: str, scope: str = "default") -> bool:
-        """
-        Delete a memory.
-        
-        Args:
-            key: The memory key
-            scope: The memory scope
-            
-        Returns:
-            True if memory was deleted successfully
-        """
+    async def forget(self, node: GraphNode) -> bool:
+        """Delete a node from memory."""
         ...
     
     async def search_memories(self, query: str, scope: str = "default", limit: int = 10) -> List[Dict[str, Any]]:
@@ -157,6 +133,9 @@ class MemoryService(Protocol):
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
         return ["memorize", "recall", "forget"]
+
+
+
 
 
 class ToolService(Protocol):

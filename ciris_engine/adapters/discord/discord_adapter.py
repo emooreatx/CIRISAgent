@@ -2,40 +2,24 @@ import discord
 from discord.errors import Forbidden, NotFound, InvalidData, HTTPException, ConnectionClosed
 import logging
 import asyncio
-from typing import TypeVar, Generic, List, Dict, Any
+from typing import Callable, Awaitable, Optional, List, Dict, Any
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
 from ciris_engine.adapters.base import Service
 
 logger = logging.getLogger(__name__)
 
-T_Event = TypeVar('T_Event')
 
-class DiscordEventQueue(Generic[T_Event]):
-    """Simple generic async queue for events/messages."""
-    def __init__(self, maxsize: int = 100):
-        self._queue: asyncio.Queue[T_Event] = asyncio.Queue(maxsize=maxsize)
-    
-    async def enqueue(self, event: T_Event) -> None:
-        await self._queue.put(event)
-    
-    def enqueue_nowait(self, event: T_Event) -> None:
-        self._queue.put_nowait(event)
-    
-    async def dequeue(self) -> T_Event:
-        return await self._queue.get()
-    
-    def empty(self) -> bool:
-        return self._queue.empty()
 
 class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolService):
     """
     Discord adapter implementing CommunicationService, WiseAuthorityService, and ToolService protocols.
-    Wraps the event queue and provides communication, guidance/deferral, and tool functionality.
+    Provides communication, guidance/deferral, and tool functionality without an internal event queue.
     """
-    def __init__(self, token: str, message_queue: DiscordEventQueue, 
-                 guidance_channel_id: str = None, deferral_channel_id: str = None, 
-                 tool_registry: Any = None, bot: discord.Client = None):
+    def __init__(self, token: str,
+                 guidance_channel_id: str = None, deferral_channel_id: str = None,
+                 tool_registry: Any = None, bot: discord.Client = None,
+                 on_message: Optional[Callable[[IncomingMessage], Awaitable[None]]] = None):
         # Configure retry settings for Discord API operations
         retry_config = {
             "retry": {
@@ -53,11 +37,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         super().__init__(config=retry_config)
         
         self.token = token
-        self.message_queue = message_queue
         self.client = bot  # Discord client instance
         self.guidance_channel_id = guidance_channel_id
         self.deferral_channel_id = deferral_channel_id
         self.tool_registry = tool_registry
+        self.on_message_callback = on_message
         self._tool_results = {}  # correlation_id -> ToolResult
 
     # --- CommunicationService ---
@@ -285,7 +269,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             channel_id=str(message.channel.id),
             _raw_message=message
         )
-        await self.message_queue.enqueue(incoming)
+        if self.on_message_callback:
+            await self.on_message_callback(incoming)
 
     def attach_to_client(self, client):
         # Attach the on_message event to the Discord client

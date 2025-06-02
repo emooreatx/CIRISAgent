@@ -16,9 +16,10 @@ def setup_basic_logging(level: int = logging.INFO,
                         logger_instance: Optional[logging.Logger] = None,
                         prefix: Optional[str] = None,
                         log_to_file: bool = True,
-                        log_dir: str = "logs"):
+                        log_dir: str = "logs",
+                        console_output: bool = False):
     """
-    Sets up basic logging configuration with both console and file output.
+    Sets up basic logging configuration with file output and optional console output.
 
     Args:
         level: The logging level (e.g., logging.INFO, logging.DEBUG)
@@ -28,6 +29,7 @@ def setup_basic_logging(level: int = logging.INFO,
         prefix: An optional prefix to add to log messages
         log_to_file: Whether to also log to a file
         log_dir: Directory for log files
+        console_output: Whether to also output to console (default: False for clean log-file-only operation)
     """
     
     env_level = os.getenv("LOG_LEVEL")
@@ -49,10 +51,11 @@ def setup_basic_logging(level: int = logging.INFO,
     # Clear any existing handlers to avoid duplicates
     target_logger.handlers = []
     
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    target_logger.addHandler(console_handler)
+    # Console handler (only if explicitly requested)
+    if console_output:
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        target_logger.addHandler(console_handler)
     
     # File handler
     if log_to_file:

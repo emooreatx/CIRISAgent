@@ -4,10 +4,7 @@ from typing import Dict, Any
 from pydantic import ValidationError
 
 # Updated imports for v1 schemas
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ciris_engine.schemas.action_params_v1 import SpeakParams
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
-from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas import Thought, SpeakParams, ThoughtStatus, HandlerActionType, ActionSelectionResult
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
@@ -33,11 +30,10 @@ class SpeakHandler(BaseActionHandler):
             params = await self._validate_and_convert_params(result.action_parameters, SpeakParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, e)
-            result_data = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
             persistence.update_thought_status(
                 thought_id=thought_id,
                 status=ThoughtStatus.FAILED,
-                final_action=result_data,
+                final_action=result,
             )
             follow_up_text = f"SPEAK action failed for thought {thought_id}. Reason: {e}"
             try:
@@ -45,7 +41,7 @@ class SpeakHandler(BaseActionHandler):
                 fu.context = {
                     "action_performed": HandlerActionType.SPEAK.value,
                     "error_details": str(e),
-                    "action_params": result_data.get("action_parameters") if isinstance(result_data, dict) else str(result_data),
+                    "action_params": result.action_parameters,
                 }
                 persistence.add_thought(fu)
             except Exception as fe:
@@ -66,17 +62,22 @@ class SpeakHandler(BaseActionHandler):
         success = await self._send_notification(params.channel_id, params.content)
 
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
+        
+        # Get the actual task content instead of just the ID
+        task = persistence.get_task_by_id(thought.source_task_id)
+        task_description = task.description if task else f"task {thought.source_task_id}"
+        
         follow_up_content_key_info = (
-            f"Spoke: '{params.content[:50]}...' in channel #{params.channel_id}"
+            f"YOU Spoke, as a result of your action: '{params.content[:50]}...' in channel #{params.channel_id} as a response to task: {task_description[:100]} this thought was created. The next action is probably TASK COMPLETE to mark the original task as handled. Any further user action will trigger a further observation thought automatically."
             if success
             else f"Failed to send message to {params.channel_id}"
         )
 
-        result_data = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
+        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result_data,
+            final_action=result,
         )
 
         follow_up_text = (
@@ -89,7 +90,7 @@ class SpeakHandler(BaseActionHandler):
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
             ctx = {
                 "action_performed": HandlerActionType.SPEAK.value,
-                "action_params": params.model_dump(mode="json"),
+                "action_params": params,
             }
             if not success:
                 ctx["error_details"] = follow_up_content_key_info

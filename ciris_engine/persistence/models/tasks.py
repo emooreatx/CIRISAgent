@@ -169,3 +169,18 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
         logger.exception(f"Failed to delete tasks with IDs {task_ids}: {e}")
         # Rollback is handled automatically by the context manager if an exception occurs
         return False
+
+def get_tasks_older_than(older_than_timestamp: str, db_path=None) -> List[Task]:
+    """Get all tasks with created_at older than the given ISO timestamp, returning Task objects."""
+    sql = "SELECT * FROM tasks WHERE created_at < ?"
+    tasks_list = []
+    try:
+        with get_db_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (older_than_timestamp,))
+            rows = cursor.fetchall()
+            for row in rows:
+                tasks_list.append(map_row_to_task(row))
+    except Exception as e:
+        logger.exception(f"Failed to get tasks older than {older_than_timestamp}: {e}")
+    return tasks_list

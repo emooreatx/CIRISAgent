@@ -26,6 +26,9 @@ from .play_processor import PlayProcessor
 from .dream_processor import DreamProcessor
 from .solitude_processor import SolitudeProcessor
 
+# Import global shutdown functionality
+from ciris_engine.utils.shutdown_manager import request_global_shutdown
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,8 +102,8 @@ class AgentProcessor:
             AgentState.WORK: self.work_processor,
             AgentState.PLAY: self.play_processor,
             AgentState.SOLITUDE: self.solitude_processor,
-            # DREAM is handled separately
-            # SHUTDOWN has no processor
+            # DREAM is handled separately TODO: Integrate DREAM state with processor
+            # SHUTDOWN has no processor TODO: Turn graceful shutdown into a processor
         }
         
         # Processing control
@@ -154,9 +157,8 @@ class AgentProcessor:
         # Process WAKEUP in non-blocking mode
         wakeup_complete = False
         wakeup_round = 0
-        max_wakeup_rounds = 30  # Safety limit
         
-        while not wakeup_complete and not self._stop_event.is_set() and wakeup_round < max_wakeup_rounds:
+        while not wakeup_complete and not self._stop_event.is_set() and (num_rounds is None or self.current_round_number < num_rounds):
             logger.info(f"=== WAKEUP Round {wakeup_round} ===")
             
             # 1. Run wakeup processor in non-blocking mode
@@ -179,7 +181,7 @@ class AgentProcessor:
             self.current_round_number += 1
         
         if not wakeup_complete:
-            logger.error(f"Wakeup did not complete within {max_wakeup_rounds} rounds")
+            logger.error(f"Wakeup did not complete within {num_rounds or 'infinite'} rounds")
             await self.stop_processing()
             return
         
@@ -188,10 +190,19 @@ class AgentProcessor:
             logger.error("Failed to transition to WORK state after wakeup")
             await self.stop_processing()
             return
-        
+
         # Mark wakeup as complete in state metadata
         self.state_manager.update_state_metadata("wakeup_complete", True)
-        
+
+        # --- Initialize interactive console if available (for CLI, etc.) ---
+        # This is the hook for starting the interactive console after entering WORK
+        if hasattr(self, "runtime") and hasattr(self.runtime, "start_interactive_console"):
+            print("[STATE] Initializing interactive console for user input...")
+            try:
+                await self.runtime.start_interactive_console()
+            except Exception as e:
+                logger.error(f"Error initializing interactive console: {e}")
+
         # Initialize work processor
         await self.work_processor.initialize()
         
@@ -355,7 +366,8 @@ class AgentProcessor:
         
         while not self._stop_event.is_set():
             if num_rounds is not None and round_count >= num_rounds:
-                logger.info(f"Reached target rounds ({num_rounds})")
+                logger.info(f"Reached target rounds ({num_rounds}), requesting graceful shutdown")
+                request_global_shutdown(f"Processing completed after {num_rounds} rounds")
                 break
             
             # Update round number

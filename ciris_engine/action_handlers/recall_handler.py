@@ -1,7 +1,7 @@
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import RecallParams
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode
 from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpStatus
 from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
@@ -45,14 +45,8 @@ class RecallHandler(BaseActionHandler):
             )
             return
 
-        scope = GraphScope(params.scope)
-
-        node = GraphNode(
-            id=params.query,
-            type=NodeType.CONCEPT if scope == GraphScope.IDENTITY else NodeType.USER,
-            scope=scope,
-            attributes={}
-        )
+        node = params.node
+        scope = node.scope
 
         memory_result = await memory_service.recall(node)
         success = False
@@ -67,9 +61,9 @@ class RecallHandler(BaseActionHandler):
             data = memory_result if success else None
 
         if success and data:
-            follow_up_content = f"Memory query '{params.query}' returned: {data}"
+            follow_up_content = f"Memory query '{node.id}' returned: {data}"
         else:
-            follow_up_content = f"No memories found for query '{params.query}' in scope {params.scope}"
+            follow_up_content = f"No memories found for query '{node.id}' in scope {node.scope.value}"
         follow_up = create_follow_up_thought(
             parent=thought,
             content=follow_up_content,

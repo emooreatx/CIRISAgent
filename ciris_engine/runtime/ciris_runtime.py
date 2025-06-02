@@ -14,6 +14,8 @@ from ciris_engine.processor import AgentProcessor
 from ciris_engine.adapters.base import Service
 from ciris_engine import persistence
 from ciris_engine.utils.profile_loader import load_profile
+from ciris_engine.utils.constants import DEFAULT_NUM_ROUNDS
+
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.adapters.openai_compatible_llm import OpenAICompatibleLLM
 from ciris_engine.adapters import AuditService
@@ -116,6 +118,10 @@ class CIRISRuntime(RuntimeInterface):
         
         # Also notify the global shutdown manager
         self._shutdown_manager.request_shutdown(f"Runtime: {reason}")
+
+    async def _request_shutdown(self, reason: str = "Shutdown requested"):
+        """Async wrapper used during initialization failures."""
+        self.request_shutdown(reason)
         
     async def initialize(self):
         """Initialize all components and services."""
@@ -124,28 +130,36 @@ class CIRISRuntime(RuntimeInterface):
             
         logger.info(f"Initializing CIRIS Runtime with profile '{self.profile_name}'...")
         
-        # 1. Initialize database
-        persistence.initialize_database()
-        
-        # 2. Load configuration
-        if not self.app_config:
-            from ciris_engine.config.config_manager import get_config_async
-            self.app_config = await get_config_async()
-        
-        # 3. Load profile
-        await self._load_profile()
-        
-        # 4. Initialize services
-        await self._initialize_services()
-        
-        # 5. Build components
-        await self._build_components()
-        
-        # 6. Perform startup maintenance
-        await self._perform_startup_maintenance()
-        
-        self._initialized = True
-        logger.info("CIRIS Runtime initialized successfully")
+        try:
+            # 1. Initialize database
+            persistence.initialize_database()
+            
+            # 2. Load configuration
+            if not self.app_config:
+                from ciris_engine.config.config_manager import get_config_async
+                self.app_config = await get_config_async()
+            
+            # 3. Load profile
+            await self._load_profile()
+            
+            # 4. Initialize services
+            await self._initialize_services()
+            
+            # 5. Build components
+            await self._build_components()
+            
+            # 6. Perform startup maintenance (CRITICAL - failure triggers shutdown)
+            await self._perform_startup_maintenance()
+            
+            self._initialized = True
+            logger.info("CIRIS Runtime initialized successfully")
+            
+        except Exception as e:
+            logger.critical(f"Runtime initialization failed: {e}")
+            if "maintenance" in str(e).lower():
+                logger.critical("Database maintenance failure during initialization - system cannot start safely")
+            # Re-raise to prevent the runtime from starting with an inconsistent state
+            raise
         
     async def _load_profile(self):
         """Load the agent profile."""
@@ -180,7 +194,7 @@ class CIRISRuntime(RuntimeInterface):
         self.multi_service_sink = MultiServiceActionSink(
             service_registry=self.service_registry,
             max_queue_size=1000,
-            fallback_channel_id=self.startup_channel_id
+            fallback_channel_id=self.startup_channel_id,
         )
         
         # LLM Service
@@ -206,7 +220,23 @@ class CIRISRuntime(RuntimeInterface):
     async def _perform_startup_maintenance(self):
         """Perform database cleanup at startup."""
         if self.maintenance_service:
-            await self.maintenance_service.perform_startup_cleanup()
+            try:
+                logger.info("Starting critical database maintenance...")
+                await self.maintenance_service.perform_startup_cleanup()
+                logger.info("Database maintenance completed successfully")
+            except Exception as e:
+                logger.critical(f"CRITICAL ERROR: Database maintenance failed during startup: {e}")
+                logger.critical("Database integrity cannot be guaranteed - initiating graceful shutdown")
+                await self._request_shutdown(f"Critical database maintenance failure: {e}")
+                raise RuntimeError(f"Database maintenance failure: {e}") from e
+        else:
+            logger.critical("CRITICAL ERROR: No maintenance service available during startup")
+            logger.critical("Database integrity cannot be guaranteed - initiating graceful shutdown")
+            await self._request_shutdown("No maintenance service available")
+            raise RuntimeError("No maintenance service available")
+
+
+
             
     async def _build_components(self):
         """Build all processing components."""
@@ -317,8 +347,7 @@ class CIRISRuntime(RuntimeInterface):
         # Build action dispatcher - this needs to be customized per IO adapter
         action_dispatcher = await self._build_action_dispatcher(dependencies)
         
-        # Update dependencies with action_sink from the action dispatcher
-        # The action_sink should be set by the subclass implementation of _build_action_dispatcher
+
         
         # Build agent processor
         self.agent_processor = AgentProcessor(
@@ -346,7 +375,7 @@ class CIRISRuntime(RuntimeInterface):
             # Register for all major handlers
             handler_names = [
                 "MemorizeHandler", "RecallHandler", "ForgetHandler",
-                "SpeakHandler", "ToolHandler", "ObserveHandler"
+                "SpeakHandler", "ToolHandler", "ObserveHandler", "TaskCompleteHandler"
             ]
             
             for handler_name in handler_names:
@@ -382,32 +411,35 @@ class CIRISRuntime(RuntimeInterface):
     async def _build_action_dispatcher(self, dependencies):
         """Build action dispatcher. Override in subclasses for custom sinks."""
         # This is a basic implementation - subclasses should override
-        # to provide proper action_sink, deferral_sink, etc.
         return build_action_dispatcher(
             service_registry=self.service_registry,
             shutdown_callback=dependencies.shutdown_callback,
             max_rounds=self.app_config.workflow.max_rounds,
             audit_service=self.audit_service,
-            action_sink=None,  # Override in subclass
             memory_service=self.memory_service,
         )
         
-    async def run(self, max_rounds: Optional[int] = None):
+    async def run(self, num_rounds: Optional[int] = None):
         """Run the agent processing loop with shutdown monitoring."""
         if not self._initialized:
             await self.initialize()
             
         try:
-            # Start multi-service sink processing
+            # Start multi-service sink processing as background task
             if self.multi_service_sink:
-                await self.multi_service_sink.start()
+                sink_task = asyncio.create_task(self.multi_service_sink.start())
+                logger.info("Started multi-service sink as background task")
+
             
             # Start IO adapter
             await self.io_adapter.start()
-            
+            logger.info("Started IO adapter")
             # Start processing and monitor for shutdown requests
+            # Use the provided num_rounds, or fall back to DEFAULT_NUM_ROUNDS (None = infinite)
+            effective_num_rounds = num_rounds if num_rounds is not None else DEFAULT_NUM_ROUNDS
+            logger.info("Starting agent processing with WAKEUP sequence...")
             processing_task = asyncio.create_task(
-                self.agent_processor.start_processing(num_rounds=max_rounds)
+                self.agent_processor.start_processing(effective_num_rounds)
             )
             shutdown_task = asyncio.create_task(self._shutdown_event.wait())
             global_shutdown_task = asyncio.create_task(wait_for_global_shutdown())

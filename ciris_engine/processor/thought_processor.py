@@ -7,9 +7,15 @@ from typing import Optional, Dict, Any
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
-from ciris_engine.schemas.agent_core_schemas_v1 import ActionSelectionResult, Thought
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType # Added imports
-from ciris_engine.schemas.action_params_v1 import PonderParams # Ensure this import is present
+from ciris_engine.schemas import (
+    ActionSelectionResult,
+    Thought,
+    ThoughtStatus,
+    HandlerActionType,
+    PonderParams,
+    DeferParams,
+)
+from ciris_engine.dma.exceptions import DMAFailure
 from ciris_engine.action_handlers.ponder_handler import PonderHandler # Ensure this import is present
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies # Add this import
 
@@ -53,9 +59,24 @@ class ThoughtProcessor:
         # or run_initial_dmas and its sub-runners would need to be updated.
         # For now, removing profile_name to fix TypeError.
         # The dsdma_context argument is optional and defaults to None if not provided.
-        dma_results = await self.dma_orchestrator.run_initial_dmas(
-            thought_item=thought_item
-        )
+        try:
+            dma_results = await self.dma_orchestrator.run_initial_dmas(
+                thought_item=thought_item
+            )
+        except DMAFailure as dma_err:
+            logger.error(
+                f"DMA failure during initial processing for {thought_item.thought_id}: {dma_err}",
+                exc_info=True,
+            )
+            defer_params = DeferParams(
+                reason="DMA timeout",
+                context={"error": str(dma_err)},
+            )
+            return ActionSelectionResult(
+                selected_action=HandlerActionType.DEFER,
+                action_parameters=defer_params,
+                rationale="DMA timeout",
+            )
 
         # 4. Check for failures/escalations
         if self._has_critical_failure(dma_results):
@@ -63,13 +84,28 @@ class ThoughtProcessor:
 
         # 5. Run action selection
         profile_name = self._get_profile_name(thought)
-        action_result = await self.dma_orchestrator.run_action_selection(
-            thought_item=thought_item,
-            actual_thought=thought,
-            processing_context=context, # This is the ThoughtContext
-            dma_results=dma_results,
-            profile_name=profile_name
-        )
+        try:
+            action_result = await self.dma_orchestrator.run_action_selection(
+                thought_item=thought_item,
+                actual_thought=thought,
+                processing_context=context,  # This is the ThoughtContext
+                dma_results=dma_results,
+                profile_name=profile_name,
+            )
+        except DMAFailure as dma_err:
+            logger.error(
+                f"DMA failure during action selection for {thought_item.thought_id}: {dma_err}",
+                exc_info=True,
+            )
+            defer_params = DeferParams(
+                reason="DMA timeout",
+                context={"error": str(dma_err)},
+            )
+            return ActionSelectionResult(
+                selected_action=HandlerActionType.DEFER,
+                action_parameters=defer_params,
+                rationale="DMA timeout",
+            )
         
         # CRITICAL DEBUG: Check action_result details immediately
         if action_result:
@@ -92,6 +128,12 @@ class ThoughtProcessor:
         guardrail_result = await self.guardrail_orchestrator.apply_guardrails(
             action_result, thought, dma_results
         )
+
+        if action_result.selected_action == HandlerActionType.OBSERVE:
+            logger.debug(
+                "ThoughtProcessor: OBSERVE action after guardrails for thought %s", 
+                thought.thought_id,
+            )
         
         # DEBUG: Log guardrail result details
         if guardrail_result:
@@ -118,7 +160,13 @@ class ThoughtProcessor:
                 final_result = guardrail_result.final_action
                 logger.debug(f"ThoughtProcessor using guardrail final_action for thought {thought.thought_id}")
             else:
-                logger.warning(f"ThoughtProcessor: No final result for thought {thought.thought_id}")
+                logger.warning(f"ThoughtProcessor: No final result for thought {thought.thought_id} - defaulting to PONDER")
+                ponder_params = PonderParams(questions=["No guardrail result"])
+                final_result = ActionSelectionResult(
+                    selected_action=HandlerActionType.PONDER,
+                    action_parameters=ponder_params,
+                    rationale="No guardrail result",
+                )
 
         return final_result
 
@@ -158,28 +206,19 @@ class ThoughtProcessor:
         return getattr(dma_results, 'critical_failure', False)
 
     def _create_deferral_result(self, dma_results: Dict[str, Any], thought: Thought) -> ActionSelectionResult:
-        from ciris_engine.schemas.action_params_v1 import DeferParams
-        from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
         from ciris_engine.utils.constants import DEFAULT_WA
 
         defer_reason = "Critical DMA failure or guardrail override."
-        # Ensure dma_results are serializable if they contain Pydantic models
-        serializable_dma_results = {}
-        for k, v in dma_results.items():
-            if hasattr(v, 'model_dump'):
-                serializable_dma_results[k] = v.model_dump(mode='json')
-            else:
-                serializable_dma_results[k] = v
-
+        # Keep dma_results as-is - persistence will handle serialization
         defer_params = DeferParams(
             reason=defer_reason,
             target_wa_ual=DEFAULT_WA, # Or a more specific UAL if available
-            context={"original_thought_id": thought.thought_id, "dma_results_summary": serializable_dma_results}
+            context={"original_thought_id": thought.thought_id, "dma_results_summary": dma_results}
         )
         
         return ActionSelectionResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=defer_params.model_dump(mode='json'), # Pass as dict
+            action_parameters=defer_params, # Pass Pydantic object directly
             rationale=defer_reason
             # Confidence and raw_llm_response can be None/omitted for system-generated deferrals
         )
@@ -193,20 +232,43 @@ class ThoughtProcessor:
         final_result = result
         
         if result is None:
-            logger.error(f"ThoughtProcessor: No result provided for thought {thought.thought_id}")
-            return None
+            logger.error(
+                "ThoughtProcessor: Guardrail result missing for thought %s - defaulting to PONDER",
+                thought.thought_id,
+            )
+            ponder_params = PonderParams(questions=["Guardrail result missing"])
+            return ActionSelectionResult(
+                selected_action=HandlerActionType.PONDER,
+                action_parameters=ponder_params,
+                rationale="Guardrail result missing",
+            )
 
         if hasattr(result, 'selected_action'):
             # This is an ActionSelectionResult
             selected_action = result.selected_action
             final_result = result
-        elif hasattr(result, 'final_action') and result.final_action and hasattr(result.final_action, 'selected_action'):
-            # This is a GuardrailResult - extract the final_action
-            selected_action = result.final_action.selected_action
-            final_result = result.final_action  # Use the final_action ActionSelectionResult
-            logger.debug(
-                f"ThoughtProcessor: Extracted final_action from GuardrailResult for thought {thought.thought_id}"
-            )
+        elif hasattr(result, 'final_action'):
+            if result.final_action and hasattr(result.final_action, 'selected_action'):
+                # This is a GuardrailResult - extract the final_action
+                selected_action = result.final_action.selected_action
+                final_result = result.final_action
+                logger.debug(
+                    "ThoughtProcessor: Extracted final_action %s from GuardrailResult for thought %s",
+                    selected_action,
+                    thought.thought_id,
+                )
+            else:
+                logger.warning(
+                    "ThoughtProcessor: GuardrailResult missing final_action for thought %s - defaulting to PONDER",
+                    thought.thought_id,
+                )
+                ponder_params = PonderParams(questions=["Guardrail result empty"])
+                selected_action = HandlerActionType.PONDER
+                final_result = ActionSelectionResult(
+                    selected_action=selected_action,
+                    action_parameters=ponder_params,
+                    rationale="Guardrail result empty",
+                )
         else:
             logger.warning(
                 f"ThoughtProcessor: Unknown result type for thought {thought.thought_id}: {type(result)}. Returning result as-is."
@@ -215,13 +277,20 @@ class ThoughtProcessor:
         
         # Log the action being handled
         if selected_action:
-            logger.debug(f"ThoughtProcessor handling special case for action: {selected_action}")
+            logger.debug(
+                "ThoughtProcessor handling special case for action: %s",
+                selected_action,
+            )
+            if selected_action == HandlerActionType.OBSERVE:
+                logger.debug(
+                    "ThoughtProcessor: final OBSERVE action for thought %s",
+                    thought.thought_id,
+                )
         else:
             logger.warning(f"ThoughtProcessor: No selected_action found for thought {thought.thought_id}")
             return final_result  # Return what we have instead of None
         
         # TASK_COMPLETE actions should be returned as-is for proper dispatch
-        from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
         if selected_action == HandlerActionType.TASK_COMPLETE:
             logger.debug(f"ThoughtProcessor: Returning TASK_COMPLETE result for thought {thought.thought_id}")
             return final_result
@@ -261,7 +330,7 @@ class ThoughtProcessor:
         # Other actions might imply ThoughtStatus.COMPLETED if they are terminal for the thought.
         final_action_details = {
             "action_type": selected_action.value if selected_action else None,
-            "parameters": action_parameters.model_dump(mode="json") if hasattr(action_parameters, "model_dump") else action_parameters,
+            "parameters": action_parameters,  # Pass Pydantic object directly
             "rationale": rationale
         }
         persistence.update_thought_status(

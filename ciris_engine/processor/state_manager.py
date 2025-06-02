@@ -125,6 +125,7 @@ class StateManager:
         self._record_state_change(target_state, old_state)
         
         logger.info(f"State transition: {old_state.value} -> {target_state.value}")
+        print(f"[STATE] Transition: {old_state.value} -> {target_state.value}")  # Print to console
         
         # Initialize metadata for new state if needed
         if target_state not in self.state_metadata:

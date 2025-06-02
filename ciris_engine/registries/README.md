@@ -13,10 +13,10 @@ The CIRIS Agent service registry provides a unified, resilient system for managi
 
 ### Service Types
 
-- **CommunicationService** - Discord, Veilid, etc.
-- **WiseAuthorityService** - CIRISNode, local WA, etc.
-- **MemoryService** - Local graph, remote storage, etc.
-- **ToolService** - Tool execution and result management
+- **CommunicationService** - CLI, API, Discord (TODO: Veilid)
+- **WiseAuthorityService** - CIRISNode, CLI, API, Discord
+- **MemoryService** - Local graph (TODO: Origintrail, API(GraphQL), Veilid)
+- **ToolService** - CLI, Discord (TODO: API, Veilid)
 
 ## Runtime Integration
 
@@ -26,6 +26,7 @@ The base `CIRISRuntime` automatically:
 1. Initializes the service registry
 2. Registers core services (memory, etc.)
 3. Passes registry to all handlers via `ActionHandlerDependencies`
+4. Waits for required services to be registered via `ServiceRegistry.wait_ready`
 
 ### Subclass Extension Example
 
@@ -125,6 +126,13 @@ tool_service = await self.get_tool_service()
 # Generic service access
 service = await self.get_service("service_type", required_capabilities=["capability"])
 ```
+
+### Waiting for Services
+
+Before handlers start processing, runtimes call `ServiceRegistry.wait_ready()`
+to ensure required service types are registered. The default timeout is 30
+seconds. If some services are still missing when the timeout expires, an error
+is logged and processing continues with any available services.
 
 ## Circuit Breaker Integration
 

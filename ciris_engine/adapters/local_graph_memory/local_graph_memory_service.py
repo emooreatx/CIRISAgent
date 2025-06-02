@@ -13,23 +13,10 @@ from ciris_engine.schemas.graph_schemas_v1 import (
     NodeType,
     GraphEdge,
 )
-from ciris_engine.schemas.foundational_schemas_v1 import CaseInsensitiveEnum, TaskStatus
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus, MemoryOpResult
 from ciris_engine.adapters.base import Service
-from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-
-
-class MemoryOpStatus(CaseInsensitiveEnum):
-    OK = "ok"
-    DEFERRED = "deferred"
-    DENIED = "denied"
-
-
-class MemoryOpResult(BaseModel):
-    status: MemoryOpStatus
-    reason: Optional[str] = None
-    data: Optional[Any] = None
 
 
 class LocalGraphMemoryService(Service):
@@ -86,18 +73,18 @@ class LocalGraphMemoryService(Service):
         await asyncio.to_thread(self._persist)
         return MemoryOpResult(status=MemoryOpStatus.OK)
 
-    async def recall(self, node_id: str, scope: GraphScope) -> MemoryOpResult:
-        g = self._graphs[scope]
-        if g.has_node(node_id):
+    async def recall(self, node: GraphNode) -> MemoryOpResult:
+        g = self._graphs[node.scope]
+        if g.has_node(node.id):
             return MemoryOpResult(
-                status=MemoryOpStatus.OK, data=dict(g.nodes[node_id])
+                status=MemoryOpStatus.OK, data=dict(g.nodes[node.id])
             )
         return MemoryOpResult(status=MemoryOpStatus.OK, data=None)
 
-    async def forget(self, node_id: str, scope: GraphScope) -> MemoryOpResult:
-        g = self._graphs[scope]
-        if g.has_node(node_id):
-            g.remove_node(node_id)
+    async def forget(self, node: GraphNode) -> MemoryOpResult:
+        g = self._graphs[node.scope]
+        if g.has_node(node.id):
+            g.remove_node(node.id)
             await asyncio.to_thread(self._persist)
         return MemoryOpResult(status=MemoryOpStatus.OK)
 

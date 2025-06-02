@@ -4,6 +4,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.action_params_v1 import SpeakParams, RecallParams, ForgetParams, MemorizeParams, PonderParams
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from ciris_engine.action_handlers.speak_handler import SpeakHandler
 from ciris_engine.action_handlers.recall_handler import RecallHandler
 from ciris_engine.action_handlers.forget_handler import ForgetHandler
@@ -17,7 +18,6 @@ async def test_speak_handler_creates_followup(monkeypatch):
     add_thought_mock = MagicMock()
     monkeypatch.setattr('ciris_engine.action_handlers.speak_handler.persistence.add_thought', add_thought_mock)
     deps = MagicMock()
-    deps.action_sink = AsyncMock()
     deps.persistence = MagicMock()
     deps.persistence.add_thought = add_thought_mock
     audit_service = MagicMock()
@@ -58,7 +58,8 @@ async def test_recall_handler_creates_followup():
     deps.get_service = AsyncMock(side_effect=get_service)
     handler = RecallHandler(deps)
     thought = Thought(thought_id="t2", source_task_id="parent2", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
-    params = RecallParams(query="q", scope="identity")
+    node = GraphNode(id="q", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
+    params = RecallParams(node=node)
     result = ActionSelectionResult(selected_action=HandlerActionType.RECALL, action_parameters=params, rationale="r")
     await handler.handle(result, thought, {"wa_authorized": True})
     follow_up = deps.persistence.add_thought.call_args[0][0]
@@ -85,7 +86,8 @@ async def test_forget_handler_creates_followup():
     deps.get_service = AsyncMock(side_effect=get_service)
     handler = ForgetHandler(deps)
     thought = Thought(thought_id="t3", source_task_id="parent3", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
-    params = ForgetParams(key="k", scope="identity", reason="r")
+    node = GraphNode(id="k", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
+    params = ForgetParams(node=node, reason="r")
     result = ActionSelectionResult(selected_action=HandlerActionType.FORGET, action_parameters=params, rationale="r")
     await handler.handle(result, thought, {"wa_authorized": True})
     follow_up = deps.persistence.add_thought.call_args[0][0]
@@ -115,7 +117,8 @@ def test_memorize_handler_creates_followup(monkeypatch):
     deps.get_service = AsyncMock(side_effect=get_service)
     handler = MemorizeHandler(deps)
     thought = Thought(thought_id="t4", source_task_id="parent4", content="test content", context={}, status="PENDING", created_at="now", updated_at="now", round_number=1)
-    params = MemorizeParams(key="k", value="v", scope="identity")
+    node = GraphNode(id="k", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY, attributes={"value": "v"})
+    params = MemorizeParams(node=node)
     result = ActionSelectionResult(selected_action=HandlerActionType.MEMORIZE, action_parameters=params, rationale="r")
     import asyncio; asyncio.run(handler.handle(result, thought, {"wa_authorized": True}))
     follow_up = add_thought_mock.call_args[0][0]
@@ -154,7 +157,6 @@ def test_ponder_handler_creates_followup(monkeypatch):
 async def test_task_complete_handler_no_followup():
     deps = MagicMock()
     deps.persistence = MagicMock()
-    deps.action_sink = AsyncMock()
     audit_service = MagicMock()
     audit_service.log_action = AsyncMock()
     async def get_service(handler, service_type, **kwargs):

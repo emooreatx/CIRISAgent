@@ -9,6 +9,7 @@ from dataclasses import asdict
 from abc import ABC, abstractmethod
 from ciris_engine.schemas.service_actions_v1 import ActionType, ActionMessage
 from ..registries.circuit_breaker import CircuitBreakerError
+from ..utils.shutdown_manager import is_global_shutdown_requested
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ class BaseMultiServiceSink(ABC):
 
     async def _start_processing(self):
         logger.info(f"Starting {self.__class__.__name__} processing")
-        while self._processing:
+        while self._processing and not is_global_shutdown_requested():
             try:
                 action_task = asyncio.create_task(self._queue.get())
                 stop_task = asyncio.create_task(self._stop_event.wait())
@@ -85,9 +86,17 @@ class BaseMultiServiceSink(ABC):
                     except Exception as e:
                         logger.error(f"Error processing action {action.type}: {e}", exc_info=True)
             except asyncio.TimeoutError:
+                # Check for shutdown during timeout
+                if is_global_shutdown_requested():
+                    logger.info(f"Global shutdown requested for {self.__class__.__name__}")
+                    break
                 continue
             except Exception as e:
                 logger.error(f"Unexpected error in {self.__class__.__name__} processing loop: {e}", exc_info=True)
+                # Also check for shutdown on unexpected errors
+                if is_global_shutdown_requested():
+                    logger.info(f"Global shutdown requested for {self.__class__.__name__} after error")
+                    break
         logger.info(f"Stopped {self.__class__.__name__} processing")
 
     async def _process_action(self, action: ActionMessage):

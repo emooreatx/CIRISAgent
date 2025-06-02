@@ -90,7 +90,7 @@ async def main(
     debug: bool,
 ) -> None:
     """Unified CIRIS Engine entry point."""
-    setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
+    # Note: Logging setup is handled by the root main.py entry point
     app_config = await load_config(config)
     runtime = create_runtime(
         mode,

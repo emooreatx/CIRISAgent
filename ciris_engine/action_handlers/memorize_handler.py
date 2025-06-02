@@ -37,21 +37,24 @@ class MemorizeHandler(BaseActionHandler):
             params = await self._validate_and_convert_params(raw_params, MemorizeParams)
         except Exception as e:
             if isinstance(raw_params, dict) and "knowledge_unit_description" in raw_params:
-                params = MemorizeParams(
-                    key=raw_params.get("knowledge_unit_description", "memory"),
-                    value=raw_params.get("knowledge_data", {}),
-                    scope=raw_params.get("scope", "local")
+                from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+                scope = GraphScope(raw_params.get("scope", "local"))
+                node = GraphNode(
+                    id=raw_params.get("knowledge_unit_description", "memory"),
+                    type=NodeType.CONCEPT if scope == GraphScope.IDENTITY else NodeType.USER,
+                    scope=scope,
+                    attributes={"value": raw_params.get("knowledge_data", {})}
                 )
+                params = MemorizeParams(node=node)
             else:
                 logger.error(f"Invalid memorize params: {e}")
                 await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e)
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = f"MEMORIZE action failed: {e}"
-                result_data = result.model_dump() if hasattr(result, 'model_dump') else result
                 persistence.update_thought_status(
                     thought_id=thought_id,
                     status=final_thought_status,
-                    final_action=result_data,
+                    final_action=result,
                 )
                 return
 
@@ -73,7 +76,7 @@ class MemorizeHandler(BaseActionHandler):
                 outcome="failed_no_memory_service",
             )
         else:
-            scope = GraphScope(params.scope)
+            scope = params.node.scope
             if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not dispatch_context.get("wa_authorized"):
                 self.logger.warning(
                     f"WA authorization required for MEMORIZE in scope {scope}. Thought {thought_id} denied."
@@ -81,12 +84,8 @@ class MemorizeHandler(BaseActionHandler):
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = "WA authorization missing"
             else:
-                node = GraphNode(
-                    id=params.key,
-                    type=NodeType.CONCEPT if scope == GraphScope.IDENTITY else NodeType.USER,
-                    scope=scope,
-                    attributes={"value": params.value, "source": thought.source_task_id},
-                )
+                node = params.node
+                node.attributes.setdefault("source", thought.source_task_id)
                 try:
                     mem_op = await memory_service.memorize(node)
                     success = False
@@ -101,7 +100,7 @@ class MemorizeHandler(BaseActionHandler):
 
                     if success:
                         action_performed_successfully = True
-                        follow_up_content_key_info = f"Memorization successful. Key: '{params.key}'"
+                        follow_up_content_key_info = f"Memorization successful. Key: '{node.id}'"
                     else:
                         final_thought_status = ThoughtStatus.DEFERRED
                         follow_up_content_key_info = reason or "Memory operation failed"
@@ -110,12 +109,11 @@ class MemorizeHandler(BaseActionHandler):
                     final_thought_status = ThoughtStatus.FAILED
                     follow_up_content_key_info = f"Exception during memory operation: {e_mem}"
 
-        # v1 uses 'final_action' instead of 'final_action_result'
-        result_data = result.model_dump() if hasattr(result, 'model_dump') else result
+        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result_data,  # v1 field
+            final_action=result,  # Pass the ActionSelectionResult object directly
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after MEMORIZE attempt.")
 
@@ -143,10 +141,8 @@ class MemorizeHandler(BaseActionHandler):
             if final_thought_status != ThoughtStatus.COMPLETED:
                 context_for_follow_up["error_details"] = follow_up_content_key_info
 
-            action_params_dump = result.action_parameters
-            if hasattr(action_params_dump, 'model_dump'):
-                action_params_dump = action_params_dump.model_dump(mode="json")
-            context_for_follow_up["action_params"] = action_params_dump
+            # Pass action parameters directly - persistence will handle serialization
+            context_for_follow_up["action_params"] = result.action_parameters
 
             new_follow_up.context = context_for_follow_up  # v1 uses 'context'
             persistence.add_thought(new_follow_up)

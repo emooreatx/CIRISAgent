@@ -1,6 +1,4 @@
 """API runtime implementation for REST interfaces."""
-import asyncio
-import json
 import logging
 import uuid
 from typing import Optional, Dict, Any
@@ -8,9 +6,8 @@ from typing import Optional, Dict, Any
 from aiohttp import web
 
 from .ciris_runtime import CIRISRuntime
-from ciris_engine.adapters.api import APIAdapter, APIEventQueue, APIObserver
+from ciris_engine.adapters.api import APIAdapter, APIObserver
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.action_handlers.discord_observe_handler import handle_discord_observe_event
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.registries.base import Priority
 
@@ -23,8 +20,7 @@ class APIRuntime(CIRISRuntime):
     def __init__(self, profile_name: str = "default", port: int = 8080, host: str = "0.0.0.0"):
         self.port = port
         self.host = host
-        self.message_queue = APIEventQueue[IncomingMessage]()
-        self.api_adapter = APIAdapter(self.message_queue)
+        self.api_adapter = APIAdapter()
 
         super().__init__(profile_name=profile_name, io_adapter=self.api_adapter, startup_channel_id="api")
 
@@ -38,7 +34,15 @@ class APIRuntime(CIRISRuntime):
         self._setup_routes()
         await self._register_api_services()
 
-        self.api_observer = APIObserver(on_observe=self._handle_observe_event, message_queue=self.message_queue)
+        # Ensure required services are registered before starting observers
+        if self.service_registry:
+            await self.service_registry.wait_ready()
+
+        self.api_observer = APIObserver(
+            on_observe=self._handle_observe_event,
+            memory_service=self.memory_service,
+            multi_service_sink=self.multi_service_sink
+        )
         await self.api_observer.start()
 
     def _setup_routes(self) -> None:
@@ -58,8 +62,10 @@ class APIRuntime(CIRISRuntime):
                 author_name=data.get("author_name", "API User"),
                 channel_id=data.get("channel_id", "api"),
             )
-            await self.message_queue.enqueue(message)
-            return web.json_response({"status": "queued", "id": message.message_id})
+            # Directly handle the message via the observer instead of queuing
+            if self.api_observer:
+                await self.api_observer.handle_incoming_message(message)
+            return web.json_response({"status": "processed", "id": message.message_id})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 
@@ -92,11 +98,27 @@ class APIRuntime(CIRISRuntime):
         return web.json_response(result)
 
     async def _handle_observe_event(self, payload: Dict[str, Any]):
-        context = {
-            "agent_mode": "api",
-            "default_channel_id": "api",
-        }
-        return await handle_discord_observe_event(payload=payload, mode="passive", context=context)
+        logger.debug("API runtime received observe event: %s", payload)
+
+        sink = self.multi_service_sink
+        if not sink:
+            logger.warning("No action sink available for API observe payload")
+            return None
+
+        channel_id = payload.get("context", {}).get("channel_id", "api")
+        content = payload.get("content", "")
+        metadata = {"observer_payload": payload}
+
+        message = IncomingMessage(
+            message_id=str(payload.get("message_id")),
+            author_id=str(payload.get("context", {}).get("author_id", "unknown")),
+            author_name=str(payload.get("context", {}).get("author_name", "unknown")),
+            content=content,
+            channel_id=str(channel_id),
+        )
+
+        await sink.observe_message("ObserveHandler", message, metadata)
+        return None
 
     async def _register_api_services(self):
         if not self.service_registry:
@@ -133,10 +155,11 @@ class APIRuntime(CIRISRuntime):
     async def _build_action_dispatcher(self, dependencies):
         return build_action_dispatcher(
             service_registry=self.service_registry,
-            max_rounds=self.app_config.workflow.max_rounds
+            max_rounds=self.app_config.workflow.max_rounds,
+            shutdown_callback=dependencies.shutdown_callback
         )
 
-    async def run(self, max_rounds: Optional[int] = None):
+    async def run(self, num_rounds: Optional[int] = None):
         if not self._initialized:
             await self.initialize()
 
@@ -145,7 +168,7 @@ class APIRuntime(CIRISRuntime):
         site = web.TCPSite(self.runner, self.host, self.port)
         await site.start()
         logger.info(f"API server started on {self.host}:{self.port}")
-        await super().run(max_rounds)
+        await super().run(num_rounds)
 
     async def shutdown(self):
         logger.info(f"Shutting down {self.__class__.__name__}...")
@@ -160,3 +183,7 @@ class APIRuntime(CIRISRuntime):
             await self.runner.cleanup()
             self.runner = None
         await super().shutdown()
+
+    async def start_interactive_console(self):
+        """API does not use a local interactive console, so this is a no-op."""
+        pass

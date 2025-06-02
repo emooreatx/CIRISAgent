@@ -4,7 +4,7 @@ import asyncio
 from typing import Dict, Any, List, Optional
 import httpx
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class GraphQLContextProvider:
         missing = [name for name in authors if name not in enriched]
         if self.memory_service and missing:
             memory_results = await asyncio.gather(
-                *(self.memory_service.recall(n, GraphScope.LOCAL) for n in missing)
+                *(self.memory_service.recall(GraphNode(id=n, type=NodeType.USER, scope=GraphScope.LOCAL)) for n in missing)
             )
             for name, result in zip(missing, memory_results):
                 if result and result.data:

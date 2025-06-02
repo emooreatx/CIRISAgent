@@ -19,7 +19,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, TaskStatus
-from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpStatus
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult, MemoryOpStatus
 
 
 DEFAULT_THOUGHT_KWARGS = dict(
@@ -49,9 +49,10 @@ async def test_forget_handler_schema_driven(monkeypatch):
     deps.persistence = MagicMock()
     handler = ForgetHandler(deps)
 
+    node = GraphNode(id="user1", type=NodeType.USER, scope=GraphScope.LOCAL)
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.FORGET,
-        action_parameters=ForgetParams(key="user1", scope="local", reason="r"),
+        action_parameters=ForgetParams(node=node, reason="r"),
         rationale="r",
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
@@ -80,9 +81,10 @@ async def test_recall_handler_schema_driven(monkeypatch):
     deps.persistence = MagicMock()
     handler = RecallHandler(deps)
 
+    node = GraphNode(id="user1", type=NodeType.USER, scope=GraphScope.LOCAL)
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.RECALL,
-        action_parameters=RecallParams(query="user1", scope="local"),
+        action_parameters=RecallParams(node=node),
         rationale="r",
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
@@ -106,11 +108,8 @@ async def test_observe_handler_passive(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
-    mock_observer = AsyncMock()
-    mock_observer.handle_incoming_message = AsyncMock()
-
+    # Passive observation is now handled at the adapter/observer level, not by calling handle_incoming_message
     deps = ActionHandlerDependencies()
-    deps.get_service = AsyncMock(return_value=mock_observer)
     handler = ObserveHandler(deps)
 
     params = ObserveParams(active=False, context={})
@@ -123,20 +122,25 @@ async def test_observe_handler_passive(monkeypatch):
 
     await handler.handle(action_result, thought, {})
 
-    mock_observer.handle_incoming_message.assert_awaited()
     update_status.assert_called_once()
-    add_thought.assert_called_once()
+    add_thought.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_reject_handler_schema_driven(monkeypatch):
-    action_sink = AsyncMock()
     update_status = MagicMock()
     add_thought = MagicMock()
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
-    deps = ActionHandlerDependencies(action_sink=action_sink)
+    comm_service = AsyncMock()
+    async def get_service(handler, service_type, **kwargs):
+        if service_type == "communication":
+            return comm_service
+        return None
+
+    deps = ActionHandlerDependencies()
+    deps.get_service = AsyncMock(side_effect=get_service)
     handler = RejectHandler(deps)
 
     action_result = ActionSelectionResult.model_construct(
@@ -148,9 +152,7 @@ async def test_reject_handler_schema_driven(monkeypatch):
 
     await handler.handle(action_result, thought, {"channel_id": "chan"})
 
-    action_sink.send_message.assert_awaited_with(
-        "RejectHandler", "chan", "Unable to proceed: bad"
-    )
+    comm_service.send_message.assert_awaited_with("chan", "Unable to proceed: bad")
     update_status.assert_called_once()
     add_thought.assert_called_once()
     assert update_status.call_args.kwargs["status"] == ThoughtStatus.FAILED
@@ -158,7 +160,6 @@ async def test_reject_handler_schema_driven(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_task_complete_handler_schema_driven(monkeypatch):
-    action_sink = AsyncMock()
     update_thought_status = MagicMock()
     update_task_status = MagicMock(return_value=True)
     get_task_by_id = MagicMock(return_value=Task(
@@ -175,7 +176,7 @@ async def test_task_complete_handler_schema_driven(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_task_status", update_task_status)
     monkeypatch.setattr("ciris_engine.persistence.get_task_by_id", get_task_by_id)
 
-    deps = ActionHandlerDependencies(action_sink=action_sink)
+    deps = ActionHandlerDependencies()
     handler = TaskCompleteHandler(deps)
 
     action_result = ActionSelectionResult(
@@ -189,12 +190,10 @@ async def test_task_complete_handler_schema_driven(monkeypatch):
 
     update_thought_status.assert_called_once()
     update_task_status.assert_called_once_with("task1", TaskStatus.COMPLETED)
-    action_sink.send_message.assert_awaited()
 
 
 @pytest.mark.asyncio
 async def test_tool_handler_schema_driven(monkeypatch):
-    action_sink = AsyncMock()
     update_status = MagicMock()
     add_thought = MagicMock()
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)

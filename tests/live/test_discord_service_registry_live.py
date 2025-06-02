@@ -1,5 +1,9 @@
 import os
 import pytest
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from ciris_engine.runtime.discord_runtime import DiscordRuntime
 

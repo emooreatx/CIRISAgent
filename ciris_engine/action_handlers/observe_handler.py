@@ -11,17 +11,27 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     HandlerActionType,
     IncomingMessage,
 )
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
+from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
 from ciris_engine import persistence
-from ciris_engine.protocols.services import CommunicationService
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
+
+PASSIVE_OBSERVE_LIMIT = 10  # number of messages to fetch for passive context
+ACTIVE_OBSERVE_LIMIT = 50   # number of messages to fetch for active context
 
 logger = logging.getLogger(__name__)
 
 
 class ObserveHandler(BaseActionHandler):
+
+#TODO break into handler for active and passive observation, and break out handling thoughts from the guardrails/DMAs from handling thoughts from the runtime detecting incoming messages in the fetchmessage queue
+#We request observations by putting actions in the fetch message queue, but we also need to handle incoming messages that were put in the queue by different adapter observers
+#If the source is the DMAs/guardrails, we are creating an action request for an active observation to be handled by the adapters
+#If the source is the runtime, we are creating a task from the result to be processed (mark it PENDING)
+#No dicts, only schemas and ENUMs and models and dataclasses
+
 
     async def _recall_from_messages(
         self,
@@ -45,7 +55,16 @@ class ObserveHandler(BaseActionHandler):
                 GraphScope.LOCAL,
             ):
                 try:
-                    await memory_service.recall(rid, scope)
+                    # Determine node type based on ID prefix
+                    if rid.startswith("channel/"):
+                        node_type = NodeType.CHANNEL
+                    elif rid.startswith("user/"):
+                        node_type = NodeType.USER
+                    else:
+                        node_type = NodeType.CONCEPT
+                    
+                    node = GraphNode(id=rid, type=node_type, scope=scope)
+                    await memory_service.recall(node)
                 except Exception:
                     continue
 
@@ -72,33 +91,38 @@ class ObserveHandler(BaseActionHandler):
         action_performed = False
         follow_up_info = f"OBSERVE action for thought {thought_id}"
 
-        if isinstance(params, dict):
-            try:
-                params = ObserveParams(**params)
-            except ValidationError as e:
-                logger.error(
-                    "OBSERVE params invalid for %s: %s", thought_id, e
-                )
-                final_status = ThoughtStatus.FAILED
-                follow_up_info = str(e)
-                persistence.update_thought_status(
-                    thought_id=thought_id,
-                    status=final_status,
-                    final_action=None,
-                )
-                raise FollowUpCreationError from e
-        elif not isinstance(params, ObserveParams):
-            logger.error(
-                "OBSERVE params wrong type %s for thought %s", type(params), thought_id
-            )
-            final_status = ThoughtStatus.FAILED
-            follow_up_info = "invalid params"
+        try:
+            params = await self._validate_and_convert_params(params, ObserveParams)
+        except Exception as e:
+            await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, e)
             persistence.update_thought_status(
                 thought_id=thought_id,
-                status=final_status,
-                final_action=None,
+                status=ThoughtStatus.FAILED,
+                final_action=result,
             )
-            raise FollowUpCreationError("Invalid params type")
+            follow_up_text = f"OBSERVE action failed for thought {thought_id}. Reason: {e}"
+            try:
+                fu = create_follow_up_thought(parent=thought, content=follow_up_text)
+                fu.context = {
+                    "action_performed": HandlerActionType.OBSERVE.value,
+                    "error_details": str(e),
+                    "action_params": result.action_parameters,
+                }
+                persistence.add_thought(fu)
+            except Exception as fe:
+                await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, fe)
+                raise FollowUpCreationError from fe
+            return
+
+        # Passive observations are already handled at the adapter level
+        if not params.active:
+            logger.debug(f"Passive observation for thought {thought_id} - no action needed")
+            persistence.update_thought_status(
+                thought_id=thought_id,
+                status=ThoughtStatus.COMPLETED,
+                final_action=result,
+            )
+            return
 
         channel_id = (
             params.channel_id
@@ -108,62 +132,39 @@ class ObserveHandler(BaseActionHandler):
         params.channel_id = channel_id
 
         # Get services with better logging
-        comm_service = await self.get_communication_service(["fetch_messages"])
-        logger.debug(f"ObserveHandler: Got communication service: {type(comm_service).__name__ if comm_service else 'None'}")
-        
-        observer_service = await self.get_observer_service()
-        logger.debug(f"ObserveHandler: Got observer service: {type(observer_service).__name__ if observer_service else 'None'}")
-        
+        multi_service_sink = self.get_multi_service_sink()
+        logger.debug(f"ObserveHandler: Got multi-service sink: {type(multi_service_sink).__name__ if multi_service_sink else 'None'}")
         
         memory_service = await self.get_memory_service()
         logger.debug(f"ObserveHandler: Got memory service: {type(memory_service).__name__ if memory_service else 'None'}")
 
         try:
-            if params.active:
-                logger.info(f"ObserveHandler: Performing active observation for channel {channel_id}")
-                if not comm_service or not channel_id:
-                    raise RuntimeError(f"No communication service ({comm_service}) or channel_id ({channel_id})")
-                messages = await comm_service.fetch_messages(
-                    str(channel_id).lstrip("#"), getattr(params, "limit", 10)
-                )
-                if not messages and observer_service and hasattr(observer_service, "get_recent_messages"):
-                    messages = await observer_service.get_recent_messages(getattr(params, "limit", 10))
-                await self._recall_from_messages(memory_service, channel_id, messages)
-                action_performed = True
-                follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"
-                logger.info(f"ObserveHandler: Active observation complete - {follow_up_info}")
-            else:
-                logger.info(f"ObserveHandler: Performing passive observation")
-                if not observer_service:
-                    logger.error(f"ObserveHandler: Observer service unavailable for passive observation")
-                    raise RuntimeError("Observer service unavailable")
-                incoming = IncomingMessage(
-                    message_id=thought.thought_id,
-                    author_id=thought.context.get("author_id", "unknown"),
-                    author_name=thought.context.get("author_name", "unknown"),
-                    content=thought.content,
-                    channel_id=channel_id,
-                )
-                if hasattr(observer_service, "handle_incoming_message"):
-                    await observer_service.handle_incoming_message(incoming)
-                elif hasattr(observer_service, "observe"):
-                    await observer_service.observe({"message": incoming})
-                else:
-                    raise RuntimeError("Observer service missing method")
-                action_performed = True
-                follow_up_info = "Observation forwarded"
+            logger.info(f"ObserveHandler: Performing active observation for channel {channel_id}")
+            if not multi_service_sink or not channel_id:
+                raise RuntimeError(f"No multi-service sink ({multi_service_sink}) or channel_id ({channel_id})")
+            messages = await multi_service_sink.fetch_messages_sync(
+                handler_name="ObserveHandler",
+                channel_id=str(channel_id).lstrip("#"),
+                limit=ACTIVE_OBSERVE_LIMIT,
+                metadata={"active_observation": True}
+            )
+            if messages is None:
+                raise RuntimeError("Failed to fetch messages via multi-service sink")
+            # Note: Observer adapters handle observation at adapter level, not service level
+            await self._recall_from_messages(memory_service, channel_id, messages)
+            action_performed = True
+            follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"
+            logger.info(f"ObserveHandler: Active observation complete - {follow_up_info}")
         except Exception as e:
             logger.exception(f"ObserveHandler error for {thought_id}: {e}")
             final_status = ThoughtStatus.FAILED
             follow_up_info = str(e)
 
-        final_action_dump = (
-            result.model_dump(mode="json") if hasattr(result, "model_dump") else result
-        )
+        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_status,
-            final_action=final_action_dump,
+            final_action=result,
         )
 
         follow_up_text = (
@@ -172,20 +173,24 @@ class ObserveHandler(BaseActionHandler):
             else f"OBSERVE action failed: {follow_up_info}"
         )
         try:
+            logger.info(f"ObserveHandler: Creating follow-up thought for {thought_id}")
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
             ctx = {
                 "action_performed": HandlerActionType.OBSERVE.value,
-                "action_params": params.model_dump(mode="json"),
+                "action_params": params,
             }
             if final_status == ThoughtStatus.FAILED:
                 ctx["error_details"] = follow_up_info
             new_follow_up.context = ctx
             persistence.add_thought(new_follow_up)
-            await self._audit_log(
-                HandlerActionType.OBSERVE,
-                {**dispatch_context, "thought_id": thought_id},
-                outcome="success" if action_performed else "failed",
-            )
+            logger.info(f"ObserveHandler: Follow-up thought created for {thought_id}")
+            #TODO: Fix auditing
+#            await self._audit_log(
+#                HandlerActionType.OBSERVE,
+#                {**dispatch_context, "thought_id": thought_id},
+#                outcome="success" if action_performed else "failed",
+#            )
+
         except Exception as e:
             logger.critical(
                 "Failed to create follow-up for %s: %s", thought_id, e, exc_info=e
