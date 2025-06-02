@@ -3,6 +3,8 @@ from .action_params_v1 import *
 from .dma_results_v1 import *
 from .foundational_schemas_v1 import *
 from .service_actions_v1 import *
+from .memory_schemas_v1 import *
+from .correlation_schemas_v1 import *
 
 __all__ = [
     'Task', 'Thought',
@@ -15,5 +17,9 @@ __all__ = [
     'ActionType', 'ActionMessage', 'SendMessageAction', 'FetchMessagesAction',
     'FetchGuidanceAction', 'SendDeferralAction', 'MemorizeAction', 'RecallAction',
     'ForgetAction', 'SendToolAction', 'FetchToolAction', 'ObserveMessageAction',
+    # Memory operation schemas
+    'MemoryOpStatus', 'MemoryOpAction', 'MemoryOpResult',
+    # Service correlation schemas
+    'ServiceCorrelationStatus', 'ServiceCorrelation',
 ]
 

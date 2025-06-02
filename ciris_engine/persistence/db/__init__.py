@@ -5,6 +5,9 @@ from .core import (
     get_thoughts_by_status,
     get_tasks_older_than,
     get_thoughts_older_than,
+    get_graph_nodes_table_schema_sql,
+    get_graph_edges_table_schema_sql,
+    get_service_correlations_table_schema_sql,
 )
 from ciris_engine.config.config_manager import get_sqlite_db_full_path
 from .setup import initialize_database
@@ -21,4 +24,7 @@ __all__ = [
     "run_migrations",
     "MIGRATIONS_DIR",
     "get_sqlite_db_full_path",
+    "get_graph_nodes_table_schema_sql",
+    "get_graph_edges_table_schema_sql",
+    "get_service_correlations_table_schema_sql",
 ]

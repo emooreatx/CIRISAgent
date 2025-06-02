@@ -5,6 +5,9 @@ from .db import (
     initialize_database,
     get_tasks_older_than,
     get_thoughts_older_than,
+    get_graph_nodes_table_schema_sql,
+    get_graph_edges_table_schema_sql,
+    get_service_correlations_table_schema_sql,
     run_migrations,
     MIGRATIONS_DIR,
 )
@@ -76,4 +79,7 @@ __all__ = [
     "pending_thoughts",
     "thought_exists_for",
     "count_thoughts_by_status",
+    "get_graph_nodes_table_schema_sql",
+    "get_graph_edges_table_schema_sql",
+    "get_service_correlations_table_schema_sql",
 ]

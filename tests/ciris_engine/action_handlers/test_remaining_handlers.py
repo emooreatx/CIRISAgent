@@ -19,7 +19,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, TaskStatus
-from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpStatus
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult, MemoryOpStatus
 
 
 DEFAULT_THOUGHT_KWARGS = dict(
