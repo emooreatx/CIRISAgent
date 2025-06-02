@@ -22,3 +22,4 @@ def test_workflow_config_defaults():
     assert config.max_rounds == 5
     assert config.DMA_RETRY_LIMIT == 3
     assert config.GUARDRAIL_RETRY_LIMIT == 2
+    assert config.DMA_TIMEOUT_SECONDS == 30.0

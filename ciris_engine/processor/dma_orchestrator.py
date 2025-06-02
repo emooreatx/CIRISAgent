@@ -6,7 +6,13 @@ from ciris_engine.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.dsdma_base import BaseDSDMA
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
-from ciris_engine.dma.dma_executor import run_pdma, run_csdma, run_dsdma, run_action_selection_pdma
+from ciris_engine.dma.dma_executor import (
+    run_pdma,
+    run_csdma,
+    run_dsdma,
+    run_action_selection_pdma,
+    run_dma_with_retries,
+)
 from ciris_engine.schemas.dma_results_v1 import (
     EthicalDMAResult,
     CSDMAResult,
@@ -38,6 +44,13 @@ class DMAOrchestrator:
         self.llm_service = llm_service
         self.memory_service = memory_service
 
+        self.retry_limit = (
+            getattr(app_config.workflow, "DMA_RETRY_LIMIT", 3) if app_config else 3
+        )
+        self.timeout_seconds = (
+            getattr(app_config.workflow, "DMA_TIMEOUT_SECONDS", 30.0) if app_config else 30.0
+        )
+
         # Circuit breakers for each DMA to prevent cascading failures
         self._circuit_breakers: Dict[str, CircuitBreaker] = {
             "ethical_pdma": CircuitBreaker("ethical_pdma"),
@@ -53,11 +66,36 @@ class DMAOrchestrator:
         results = {}
         errors = {}
         tasks = {
-            "ethical_pdma": asyncio.create_task(run_pdma(self.ethical_pdma_evaluator, thought_item)),
-            "csdma": asyncio.create_task(run_csdma(self.csdma_evaluator, thought_item)),
+            "ethical_pdma": asyncio.create_task(
+                run_dma_with_retries(
+                    run_pdma,
+                    self.ethical_pdma_evaluator,
+                    thought_item,
+                    retry_limit=self.retry_limit,
+                    timeout_seconds=self.timeout_seconds,
+                )
+            ),
+            "csdma": asyncio.create_task(
+                run_dma_with_retries(
+                    run_csdma,
+                    self.csdma_evaluator,
+                    thought_item,
+                    retry_limit=self.retry_limit,
+                    timeout_seconds=self.timeout_seconds,
+                )
+            ),
         }
         if self.dsdma:
-            tasks["dsdma"] = asyncio.create_task(run_dsdma(self.dsdma, thought_item, dsdma_context or {}))
+            tasks["dsdma"] = asyncio.create_task(
+                run_dma_with_retries(
+                    run_dsdma,
+                    self.dsdma,
+                    thought_item,
+                    dsdma_context or {},
+                    retry_limit=self.retry_limit,
+                    timeout_seconds=self.timeout_seconds,
+                )
+            )
         else:
             results["dsdma"] = None
 
@@ -90,7 +128,13 @@ class DMAOrchestrator:
         cb = self._circuit_breakers.get("ethical_pdma")
         if cb and cb.is_available():
             tasks["ethical_pdma"] = asyncio.create_task(
-                run_pdma(self.ethical_pdma_evaluator, thought_item)
+                run_dma_with_retries(
+                    run_pdma,
+                    self.ethical_pdma_evaluator,
+                    thought_item,
+                    retry_limit=self.retry_limit,
+                    timeout_seconds=self.timeout_seconds,
+                )
             )
         else:
             results.errors.append("ethical_pdma circuit open")
@@ -99,7 +143,13 @@ class DMAOrchestrator:
         cb = self._circuit_breakers.get("csdma")
         if cb and cb.is_available():
             tasks["csdma"] = asyncio.create_task(
-                run_csdma(self.csdma_evaluator, thought_item)
+                run_dma_with_retries(
+                    run_csdma,
+                    self.csdma_evaluator,
+                    thought_item,
+                    retry_limit=self.retry_limit,
+                    timeout_seconds=self.timeout_seconds,
+                )
             )
         else:
             results.errors.append("csdma circuit open")
@@ -109,7 +159,14 @@ class DMAOrchestrator:
             cb = self._circuit_breakers.get("dsdma")
             if cb and cb.is_available():
                 tasks["dsdma"] = asyncio.create_task(
-                    run_dsdma(self.dsdma, thought_item, dsdma_context or {})
+                    run_dma_with_retries(
+                        run_dsdma,
+                        self.dsdma,
+                        thought_item,
+                        dsdma_context or {},
+                        retry_limit=self.retry_limit,
+                        timeout_seconds=self.timeout_seconds,
+                    )
                 )
             elif cb:
                 results.errors.append("dsdma circuit open")
@@ -221,10 +278,14 @@ class DMAOrchestrator:
             logger.warning(f"DMAOrchestrator: Agent profile '{profile_name}' or its permitted_actions not found. Using default permitted_actions.")
 
         try:
-            result = await run_action_selection_pdma(self.action_selection_pdma_evaluator, triaged)
+            result = await run_dma_with_retries(
+                run_action_selection_pdma,
+                self.action_selection_pdma_evaluator,
+                triaged,
+                retry_limit=self.retry_limit,
+                timeout_seconds=self.timeout_seconds,
+            )
         except Exception as e:
             logger.error(f"ActionSelectionPDMA failed: {e}", exc_info=True)
-            # The error is re-raised here, so the caller (ThoughtProcessor) will handle it.
-            # No need to create a fallback ActionSelectionResult here as ThoughtProcessor does that.
             raise
         return result

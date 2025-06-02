@@ -7,7 +7,15 @@ from typing import Optional, Dict, Any
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
-from ciris_engine.schemas import ActionSelectionResult, Thought, ThoughtStatus, HandlerActionType, PonderParams, DeferParams
+from ciris_engine.schemas import (
+    ActionSelectionResult,
+    Thought,
+    ThoughtStatus,
+    HandlerActionType,
+    PonderParams,
+    DeferParams,
+)
+from ciris_engine.dma.exceptions import DMAFailure
 from ciris_engine.action_handlers.ponder_handler import PonderHandler # Ensure this import is present
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies # Add this import
 
@@ -51,9 +59,24 @@ class ThoughtProcessor:
         # or run_initial_dmas and its sub-runners would need to be updated.
         # For now, removing profile_name to fix TypeError.
         # The dsdma_context argument is optional and defaults to None if not provided.
-        dma_results = await self.dma_orchestrator.run_initial_dmas(
-            thought_item=thought_item
-        )
+        try:
+            dma_results = await self.dma_orchestrator.run_initial_dmas(
+                thought_item=thought_item
+            )
+        except DMAFailure as dma_err:
+            logger.error(
+                f"DMA failure during initial processing for {thought_item.thought_id}: {dma_err}",
+                exc_info=True,
+            )
+            defer_params = DeferParams(
+                reason="DMA timeout",
+                context={"error": str(dma_err)},
+            )
+            return ActionSelectionResult(
+                selected_action=HandlerActionType.DEFER,
+                action_parameters=defer_params,
+                rationale="DMA timeout",
+            )
 
         # 4. Check for failures/escalations
         if self._has_critical_failure(dma_results):
@@ -61,13 +84,28 @@ class ThoughtProcessor:
 
         # 5. Run action selection
         profile_name = self._get_profile_name(thought)
-        action_result = await self.dma_orchestrator.run_action_selection(
-            thought_item=thought_item,
-            actual_thought=thought,
-            processing_context=context, # This is the ThoughtContext
-            dma_results=dma_results,
-            profile_name=profile_name
-        )
+        try:
+            action_result = await self.dma_orchestrator.run_action_selection(
+                thought_item=thought_item,
+                actual_thought=thought,
+                processing_context=context,  # This is the ThoughtContext
+                dma_results=dma_results,
+                profile_name=profile_name,
+            )
+        except DMAFailure as dma_err:
+            logger.error(
+                f"DMA failure during action selection for {thought_item.thought_id}: {dma_err}",
+                exc_info=True,
+            )
+            defer_params = DeferParams(
+                reason="DMA timeout",
+                context={"error": str(dma_err)},
+            )
+            return ActionSelectionResult(
+                selected_action=HandlerActionType.DEFER,
+                action_parameters=defer_params,
+                rationale="DMA timeout",
+            )
         
         # CRITICAL DEBUG: Check action_result details immediately
         if action_result:
