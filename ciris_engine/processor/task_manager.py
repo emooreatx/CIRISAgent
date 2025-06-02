@@ -37,8 +37,9 @@ class TaskManager:
         # Ensure channel_id is in context
         if 'channel_id' not in context:
             # Try to get from environment
-            import os
-            channel_id = os.getenv('DISCORD_CHANNEL_ID')
+            from ciris_engine.config.env_utils import get_env_var
+
+            channel_id = get_env_var('DISCORD_CHANNEL_ID')
             if channel_id:
                 context['channel_id'] = channel_id
         

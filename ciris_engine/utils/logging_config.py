@@ -32,7 +32,9 @@ def setup_basic_logging(level: int = logging.INFO,
         console_output: Whether to also output to console (default: False for clean log-file-only operation)
     """
     
-    env_level = os.getenv("LOG_LEVEL")
+    from ciris_engine.config.env_utils import get_env_var
+
+    env_level = get_env_var("LOG_LEVEL")
     if env_level:
         level_from_env = logging.getLevelName(env_level.upper())
         if isinstance(level_from_env, int):

@@ -64,12 +64,12 @@ class CIRISNodeConfig(BaseModel):
 
     def load_env_vars(self) -> None:
         """Load configuration from environment variables if present."""
-        import os
+        from ciris_engine.config.env_utils import get_env_var
 
-        env_url = os.getenv("CIRISNODE_BASE_URL")
+        env_url = get_env_var("CIRISNODE_BASE_URL")
         if env_url:
             self.base_url = env_url
-        self.agent_secret_jwt = os.getenv("CIRISNODE_AGENT_SECRET_JWT")
+        self.agent_secret_jwt = get_env_var("CIRISNODE_AGENT_SECRET_JWT")
 
 class AppConfig(BaseModel):
     """Minimal v1 application configuration."""

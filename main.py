@@ -129,7 +129,9 @@ def main(
     setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
 
     async def _async_main():
-        if not os.getenv("OPENAI_API_KEY"):
+        from ciris_engine.config.env_utils import get_env_var
+
+        if not get_env_var("OPENAI_API_KEY"):
             click.echo(
                 "OPENAI_API_KEY not set. The agent requires an OpenAI-compatible LLM. "
                 "For a local model set OPENAI_API_BASE, OPENAI_MODEL_NAME and provide any OPENAI_API_KEY."
@@ -139,9 +141,9 @@ def main(
 
         selected_mode = mode
         if mode == "auto":
-            selected_mode = "discord" if os.getenv("DISCORD_BOT_TOKEN") else "cli"
+            selected_mode = "discord" if get_env_var("DISCORD_BOT_TOKEN") else "cli"
 
-        if selected_mode == "discord" and not os.getenv("DISCORD_BOT_TOKEN"):
+        if selected_mode == "discord" and not get_env_var("DISCORD_BOT_TOKEN"):
             click.echo("DISCORD_BOT_TOKEN not set, falling back to CLI mode")
             selected_mode = "cli"
 
