@@ -71,7 +71,7 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING):
     (ForgetHandler, ForgetParams(node=GraphNode(id="k", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY), reason="r"), HandlerActionType.FORGET, None),
     (MemorizeHandler, MemorizeParams(node=GraphNode(id="k", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY, attributes={"value": "v"})), HandlerActionType.MEMORIZE, None),
     (PonderHandler, PonderParams(questions=["q1", "q2"]), HandlerActionType.PONDER, None),
-    (ObserveHandler, ObserveParams(active=False, channel_id="c1"), HandlerActionType.OBSERVE, None),
+    (ObserveHandler, ObserveParams(active=True, channel_id="c1"), HandlerActionType.OBSERVE, None),
     (RejectHandler, {"reason": "bad"}, HandlerActionType.REJECT, None),
 ])
 async def test_handler_creates_followup_persistence(handler_cls, params, result_action, extra_setup):

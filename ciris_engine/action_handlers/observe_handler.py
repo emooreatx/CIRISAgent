@@ -105,6 +105,16 @@ class ObserveHandler(BaseActionHandler):
                 raise FollowUpCreationError from fe
             return
 
+        # Passive observations are already handled at the adapter level
+        if not params.active:
+            logger.debug(f"Passive observation for thought {thought_id} - no action needed")
+            persistence.update_thought_status(
+                thought_id=thought_id,
+                status=ThoughtStatus.COMPLETED,
+                final_action=result,
+            )
+            return
+
         channel_id = (
             params.channel_id
             or dispatch_context.get("channel_id")
@@ -120,27 +130,22 @@ class ObserveHandler(BaseActionHandler):
         logger.debug(f"ObserveHandler: Got memory service: {type(memory_service).__name__ if memory_service else 'None'}")
 
         try:
-            if params.active:
-                logger.info(f"ObserveHandler: Performing active observation for channel {channel_id}")
-                if not multi_service_sink or not channel_id:
-                    raise RuntimeError(f"No multi-service sink ({multi_service_sink}) or channel_id ({channel_id})")
-                messages = await multi_service_sink.fetch_messages_sync(
-                    handler_name="ObserveHandler",
-                    channel_id=str(channel_id).lstrip("#"),
-                    limit=ACTIVE_OBSERVE_LIMIT,
-                    metadata={"active_observation": True}
-                )
-                if messages is None:
-                    raise RuntimeError("Failed to fetch messages via multi-service sink")
-                # Note: Observer adapters handle observation at adapter level, not service level
-                await self._recall_from_messages(memory_service, channel_id, messages)
-                action_performed = True
-                follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"
-                logger.info(f"ObserveHandler: Active observation complete - {follow_up_info}")
-            else:
-                logger.info(f"ObserveHandler: Passive observation received from service bus - task creation from adapter observation")
-                action_performed = True
-                follow_up_info = dispatch_context.get("task_description")
+            logger.info(f"ObserveHandler: Performing active observation for channel {channel_id}")
+            if not multi_service_sink or not channel_id:
+                raise RuntimeError(f"No multi-service sink ({multi_service_sink}) or channel_id ({channel_id})")
+            messages = await multi_service_sink.fetch_messages_sync(
+                handler_name="ObserveHandler",
+                channel_id=str(channel_id).lstrip("#"),
+                limit=ACTIVE_OBSERVE_LIMIT,
+                metadata={"active_observation": True}
+            )
+            if messages is None:
+                raise RuntimeError("Failed to fetch messages via multi-service sink")
+            # Note: Observer adapters handle observation at adapter level, not service level
+            await self._recall_from_messages(memory_service, channel_id, messages)
+            action_performed = True
+            follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"
+            logger.info(f"ObserveHandler: Active observation complete - {follow_up_info}")
         except Exception as e:
             logger.exception(f"ObserveHandler error for {thought_id}: {e}")
             final_status = ThoughtStatus.FAILED
