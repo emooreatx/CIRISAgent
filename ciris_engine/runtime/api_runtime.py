@@ -35,7 +35,11 @@ class APIRuntime(CIRISRuntime):
         self._setup_routes()
         await self._register_api_services()
 
-        self.api_observer = APIObserver(on_observe=self._handle_observe_event, message_queue=self.message_queue)
+        self.api_observer = APIObserver(
+            on_observe=self._handle_observe_event,
+            memory_service=self.memory_service,
+            multi_service_sink=self.multi_service_sink
+        )
         await self.api_observer.start()
 
     def _setup_routes(self) -> None:
@@ -55,8 +59,10 @@ class APIRuntime(CIRISRuntime):
                 author_name=data.get("author_name", "API User"),
                 channel_id=data.get("channel_id", "api"),
             )
-            await self.message_queue.enqueue(message)
-            return web.json_response({"status": "queued", "id": message.message_id})
+            # Directly handle the message via the observer instead of queuing
+            if self.api_observer:
+                await self.api_observer.handle_incoming_message(message)
+            return web.json_response({"status": "processed", "id": message.message_id})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 

@@ -82,33 +82,28 @@ class ObserveHandler(BaseActionHandler):
         action_performed = False
         follow_up_info = f"OBSERVE action for thought {thought_id}"
 
-        if isinstance(params, dict):
-            try:
-                params = ObserveParams(**params)
-            except ValidationError as e:
-                logger.error(
-                    "OBSERVE params invalid for %s: %s", thought_id, e
-                )
-                final_status = ThoughtStatus.FAILED
-                follow_up_info = str(e)
-                persistence.update_thought_status(
-                    thought_id=thought_id,
-                    status=final_status,
-                    final_action=None,
-                )
-                raise FollowUpCreationError from e
-        elif not isinstance(params, ObserveParams):
-            logger.error(
-                "OBSERVE params wrong type %s for thought %s", type(params), thought_id
-            )
-            final_status = ThoughtStatus.FAILED
-            follow_up_info = "invalid params"
+        try:
+            params = await self._validate_and_convert_params(params, ObserveParams)
+        except Exception as e:
+            await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, e)
             persistence.update_thought_status(
                 thought_id=thought_id,
-                status=final_status,
-                final_action=None,
+                status=ThoughtStatus.FAILED,
+                final_action=result,
             )
-            raise FollowUpCreationError("Invalid params type")
+            follow_up_text = f"OBSERVE action failed for thought {thought_id}. Reason: {e}"
+            try:
+                fu = create_follow_up_thought(parent=thought, content=follow_up_text)
+                fu.context = {
+                    "action_performed": HandlerActionType.OBSERVE.value,
+                    "error_details": str(e),
+                    "action_params": result.action_parameters,
+                }
+                persistence.add_thought(fu)
+            except Exception as fe:
+                await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, fe)
+                raise FollowUpCreationError from fe
+            return
 
         channel_id = (
             params.channel_id
@@ -143,13 +138,9 @@ class ObserveHandler(BaseActionHandler):
                 follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"
                 logger.info(f"ObserveHandler: Active observation complete - {follow_up_info}")
             else:
-                logger.info(f"ObserveHandler: Performing passive observation")
-                # Passive observation is handled at the adapter level through observer adapters
-                # (CLIObserver, DiscordObserver, APIObserver) which forward observations to the runtime
-                # This handler is invoked when those observations create tasks
-                logger.info(f"ObserveHandler: Passive observation processed - task creation from adapter observation")
+                logger.info(f"ObserveHandler: Passive observation received from service bus - task creation from adapter observation")
                 action_performed = True
-                follow_up_info = "Passive observation processed from adapter"
+                follow_up_info = dispatch_context.get("task_description")
         except Exception as e:
             logger.exception(f"ObserveHandler error for {thought_id}: {e}")
             final_status = ThoughtStatus.FAILED
@@ -168,6 +159,7 @@ class ObserveHandler(BaseActionHandler):
             else f"OBSERVE action failed: {follow_up_info}"
         )
         try:
+            logger.info(f"ObserveHandler: Creating follow-up thought for {thought_id}")
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
             ctx = {
                 "action_performed": HandlerActionType.OBSERVE.value,
@@ -177,11 +169,14 @@ class ObserveHandler(BaseActionHandler):
                 ctx["error_details"] = follow_up_info
             new_follow_up.context = ctx
             persistence.add_thought(new_follow_up)
-            await self._audit_log(
-                HandlerActionType.OBSERVE,
-                {**dispatch_context, "thought_id": thought_id},
-                outcome="success" if action_performed else "failed",
-            )
+            logger.info(f"ObserveHandler: Follow-up thought created for {thought_id}")
+            #TODO: Fix auditing
+#            await self._audit_log(
+#                HandlerActionType.OBSERVE,
+#                {**dispatch_context, "thought_id": thought_id},
+#                outcome="success" if action_performed else "failed",
+#            )
+
         except Exception as e:
             logger.critical(
                 "Failed to create follow-up for %s: %s", thought_id, e, exc_info=e

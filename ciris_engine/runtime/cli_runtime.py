@@ -6,7 +6,6 @@ from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.registries.base import Priority
-from ..adapters.cli.cli_event_queues import CLIEventQueue
 from ..adapters.cli.cli_adapter import CLIAdapter
 from ..adapters.cli.cli_observer import CLIObserver
 from ..adapters.cli.cli_tools import CLIToolService
@@ -19,8 +18,7 @@ class CLIRuntime(CIRISRuntime):
     """Runtime for running the agent via the command line."""
 
     def __init__(self, profile_name: str = "default", interactive: bool = True):
-        self.cli_queue = CLIEventQueue[IncomingMessage]()
-        self.cli_adapter = CLIAdapter(self.cli_queue, interactive=interactive)
+        self.cli_adapter = CLIAdapter(interactive=interactive)
         super().__init__(profile_name=profile_name, io_adapter=self.cli_adapter, startup_channel_id="cli")
 
         self.cli_observer: Optional[CLIObserver] = None
@@ -39,7 +37,6 @@ class CLIRuntime(CIRISRuntime):
         # Ensure observer has proper event handling
         self.cli_observer = CLIObserver(
             on_observe=self._handle_observe_event,
-            message_queue=self.cli_queue,
             memory_service=self.memory_service,
             multi_service_sink=self.multi_service_sink,
         )

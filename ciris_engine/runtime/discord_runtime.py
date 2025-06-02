@@ -13,11 +13,11 @@ import discord
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
+from ciris_engine.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.adapters.discord.discord_tools import register_discord_tools
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.adapters import ToolRegistry
 from ciris_engine.action_handlers.tool_handler import ToolHandler
-from ciris_engine.adapters.cli.cli_event_queues import CLIEventQueue
 from ciris_engine.adapters.cli.cli_adapter import CLIAdapter
 from ciris_engine.adapters.cli.cli_tools import CLIToolService
 
@@ -45,9 +45,16 @@ class DiscordRuntime(CIRISRuntime):
         self.monitored_channel_id = monitored_channel_id or os.getenv("DISCORD_CHANNEL_ID")
         self.deferral_channel_id = deferral_channel_id or os.getenv("DISCORD_DEFERRAL_CHANNEL_ID")
 
-        # CLI fallback components
-        self.cli_adapter = CLIAdapter(CLIEventQueue[IncomingMessage](), interactive=False)
+        # CLI fallback components  
+        self.cli_adapter = CLIAdapter(interactive=False)
         self.cli_tool_service: Optional[CLIToolService] = None
+        
+        # Create DiscordObserver to handle message processing
+        self.discord_observer = DiscordObserver(
+            monitored_channel_id=self.monitored_channel_id,
+            agent_id=None,  # Will be set during initialization
+            multi_service_sink=None  # Will be set during initialization
+        )
         
         # Initialize base runtime
         super().__init__(
@@ -91,6 +98,15 @@ class DiscordRuntime(CIRISRuntime):
 
         # Register Discord-specific services before dispatcher is built
         await self._register_discord_services()
+        
+        # Set up DiscordObserver with proper services after multi_service_sink is available
+        if self.discord_observer:
+            self.discord_observer.multi_service_sink = self.multi_service_sink
+            self.discord_observer.memory_service = self.memory_service  
+            self.discord_observer.agent_id = getattr(self, 'agent_id', None)
+            # Start the DiscordObserver to handle incoming messages
+            await self.discord_observer.start()
+            logger.info("DiscordObserver configured and started with runtime services")
 
         # Update agent processor services with Discord client
         if self.agent_processor:
@@ -125,47 +141,11 @@ class DiscordRuntime(CIRISRuntime):
 
 
     async def _handle_incoming_message(self, msg: IncomingMessage) -> None:
-        """Convert an incoming Discord message to an observation payload."""
-        payload = {
-            "type": "OBSERVATION",
-            "message_id": msg.message_id,
-            "content": msg.content,
-            "context": {
-                "origin_service": "discord",
-                "author_id": msg.author_id,
-                "author_name": msg.author_name,
-                "channel_id": msg.channel_id,
-            },
-            "task_description": (
-                f"Observed user @{msg.author_name} (ID: {msg.author_id}) in channel #{msg.channel_id} "
-                f"(Msg ID: {msg.message_id}) say: '{msg.content}'. Evaluate and decide on the appropriate course of action."
-            ),
-        }
-        await self._handle_observe_event(payload)
-
-    async def _handle_observe_event(self, payload: Dict[str, Any]):
-        """Forward observation payload through the multi service sink."""
-        logger.debug("Discord runtime received observe event: %s", payload)
-
-        sink = self.multi_service_sink
-        if not sink:
-            logger.warning("No action sink available for observe payload")
-            return None
-
-        channel_id = payload.get("context", {}).get("channel_id", self.monitored_channel_id)
-        content = payload.get("content", "")
-        metadata = {"observer_payload": payload}
-
-        message = IncomingMessage(
-            message_id=str(payload.get("message_id")),
-            author_id=str(payload.get("context", {}).get("author_id", "unknown")),
-            author_name=str(payload.get("context", {}).get("author_name", "unknown")),
-            content=content,
-            channel_id=str(channel_id),
-        )
-
-        await sink.observe_message("ObserveHandler", message, metadata)
-        return None
+        """Delegate incoming Discord message handling to DiscordObserver."""
+        if self.discord_observer:
+            await self.discord_observer.handle_incoming_message(msg)
+        else:
+            logger.warning("No DiscordObserver available to handle incoming message")
         
     async def _build_action_dispatcher(self, dependencies):
         """Build Discord-specific action dispatcher."""

@@ -7,7 +7,6 @@ from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
 from ciris_engine.utils.constants import DEFAULT_WA
-from .cli_event_queues import CLIEventQueue
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 
 
@@ -19,37 +18,23 @@ class CLIObserver:
     def __init__(
         self,
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]],
-        message_queue: CLIEventQueue[IncomingMessage],
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
         multi_service_sink: Optional[MultiServiceActionSink] = None,
     ):
         self.on_observe = on_observe
-        self.message_queue = message_queue
         self.memory_service = memory_service
         self.agent_id = agent_id
         self.multi_service_sink = multi_service_sink
-        self._poll_task: Optional[asyncio.Task] = None
-        self._stop_event = asyncio.Event()
         self._history: list[IncomingMessage] = []
 
     async def start(self):
-        self._poll_task = asyncio.create_task(self._poll_events())
+        # CLI Observer doesn't need polling since we receive messages directly
+        logger.info("CLIObserver started - ready to receive messages directly")
 
     async def stop(self):
-        if self._poll_task:
-            self._stop_event.set()
-            await self._poll_task
-            self._poll_task = None
-            self._stop_event.clear()
-
-    async def _poll_events(self):
-        while not self._stop_event.is_set():
-            try:
-                msg = await asyncio.wait_for(self.message_queue.dequeue(), timeout=0.1)
-            except asyncio.TimeoutError:
-                continue
-            await self.handle_incoming_message(msg)
+        # CLI Observer doesn't have background tasks to clean up
+        logger.info("CLIObserver stopped")
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:
         if not isinstance(msg, IncomingMessage):

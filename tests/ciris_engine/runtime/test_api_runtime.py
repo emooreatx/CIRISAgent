@@ -66,7 +66,8 @@ async def test_handle_message(monkeypatch):
     runtime = APIRuntime(profile_name="default")
     await runtime.initialize()
 
-    runtime.message_queue.enqueue = AsyncMock()
+    # Mock the api_observer.handle_incoming_message method instead of message_queue.enqueue
+    runtime.api_observer.handle_incoming_message = AsyncMock()
 
     class DummyRequest:
         def __init__(self, data):
@@ -77,5 +78,5 @@ async def test_handle_message(monkeypatch):
     req = DummyRequest({"content": "hi"})
     resp = await runtime._handle_message(req)
     assert resp.status == 200
-    runtime.message_queue.enqueue.assert_awaited_once()
+    runtime.api_observer.handle_incoming_message.assert_awaited_once()
     await runtime.shutdown()

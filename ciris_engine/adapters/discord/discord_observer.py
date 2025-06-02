@@ -7,7 +7,6 @@ from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
 from ciris_engine.utils.constants import DEFAULT_WA
-from ciris_engine.adapters.discord.discord_adapter import DiscordEventQueue
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 
 logger = logging.getLogger(__name__)
@@ -15,26 +14,21 @@ logger = logging.getLogger(__name__)
 
 class DiscordObserver:
     """
-    Observes IncomingMessage objects from a DiscordEventQueue, converts them into an OBSERVATION
-    payload, and forwards it to the agent via `on_observe` for task creation.
+    Observes IncomingMessage objects directly from Discord adapter, converts them into OBSERVATION
+    payloads, and forwards them to the agent via MultiServiceSink. Uses only MultiServiceSink 
+    architecture without event queues.
     """
 
     def __init__(
         self,
-        on_observe: Callable[[Dict[str, Any]], Awaitable[None]],
-        message_queue: DiscordEventQueue,
         monitored_channel_id: Optional[str] = None,
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
         multi_service_sink: Optional[MultiServiceActionSink] = None,
     ):
-        self.on_observe = on_observe
-        self.message_queue = message_queue
         self.memory_service = memory_service
         self.agent_id = agent_id
         self.multi_service_sink = multi_service_sink
-        self._poll_task: Optional[asyncio.Task] = None
-        self._stop_event = asyncio.Event()
         self._history: list[IncomingMessage] = []
 
         env_id = os.getenv("DISCORD_CHANNEL_ID")
@@ -43,28 +37,12 @@ class DiscordObserver:
         self.monitored_channel_id: Optional[str] = monitored_channel_id
 
     async def start(self):
-        if self.message_queue:
-            self._poll_task = asyncio.create_task(self._poll_events())
+        """Start the observer - no polling needed since we receive messages directly."""
+        logger.info("DiscordObserver started - ready to receive messages directly from Discord adapter")
 
     async def stop(self):
-        if self._poll_task:
-            self._stop_event.set()
-            try:
-                await asyncio.wait_for(self._poll_task, timeout=1.0)
-            except asyncio.TimeoutError:
-                logger.warning("DiscordObserver poll_task did not finish in time.")
-                self._poll_task.cancel()
-            except Exception as e:
-                logger.error(f"Error stopping DiscordObserver poll_task: {e}")
-            self._poll_task = None
-
-    async def _poll_events(self) -> None:
-        while not self._stop_event.is_set():
-            try:
-                msg = await asyncio.wait_for(self.message_queue.dequeue(), timeout=0.1)
-            except asyncio.TimeoutError:
-                continue
-            await self.handle_incoming_message(msg)
+        """Stop the observer - no background tasks to clean up."""
+        logger.info("DiscordObserver stopped")
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:
         if not isinstance(msg, IncomingMessage):
@@ -105,27 +83,30 @@ class DiscordObserver:
 
     async def _create_passive_observation_result(self, msg: IncomingMessage) -> None:
         try:
-            if self.on_observe:
-                payload = {
-                    "message": {
+            if self.multi_service_sink:
+                # Use MultiServiceSink to send observation directly
+                metadata = {
+                    "observer_payload": {
+                        "type": "OBSERVATION",
                         "message_id": msg.message_id,
                         "content": msg.content,
-                        "author_id": msg.author_id,
-                        "author_name": msg.author_name,
-                        "channel_id": msg.channel_id,
-                        "timestamp": getattr(msg, "timestamp", None),
-                        "is_bot": getattr(msg, "is_bot", False),
-                        "is_dm": getattr(msg, "is_dm", False),
-                    },
-                    "task_description": (
-                        f"Observed user @{msg.author_name} (ID: {msg.author_id}) in channel #{msg.channel_id} (Msg ID: {msg.message_id}) say: '{msg.content}'. "
-                        "Evaluate and decide on the appropriate course of action."
-                    ),
+                        "context": {
+                            "origin_service": "discord",
+                            "author_id": msg.author_id,
+                            "author_name": msg.author_name,
+                            "channel_id": msg.channel_id,
+                        },
+                        "task_description": (
+                            f"Observed user @{msg.author_name} (ID: {msg.author_id}) in channel #{msg.channel_id} "
+                            f"(Msg ID: {msg.message_id}) say: '{msg.content}'. "
+                            "SPEAK to respond or choose other actions based on this observation."
+                        ),
+                    }
                 }
-                await self.on_observe(payload)
+                await self.multi_service_sink.observe_message("ObserveHandler", msg, metadata)
                 logger.info(f"Created passive observation for message {msg.message_id}")
             else:
-                logger.warning("No observation callback available for passive observation")
+                logger.warning("No multi_service_sink available for passive observation")
         except Exception as e:
             logger.error(f"Error creating passive observation result for message {msg.message_id}: {e}")
 

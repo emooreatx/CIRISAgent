@@ -4,7 +4,6 @@ from typing import Optional
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.protocols.services import CommunicationService
-from .cli_event_queues import CLIEventQueue
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +11,7 @@ logger = logging.getLogger(__name__)
 class CLIAdapter(CommunicationService):
     """Simple CLI adapter implementing CommunicationService."""
 
-    def __init__(self, message_queue: CLIEventQueue[IncomingMessage], interactive: bool = True):
-        self.message_queue = message_queue
+    def __init__(self, interactive: bool = True):
         self.interactive = interactive
         self._input_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
@@ -37,14 +35,9 @@ class CLIAdapter(CommunicationService):
             if line.lower() in {"exit", "quit", "bye"}:
                 self._stop_event.set()
                 break
-            msg = IncomingMessage(
-                message_id=f"cli_{asyncio.get_event_loop().time()}",
-                content=line,
-                author_id="local_user",
-                author_name="User",
-                channel_id="cli",
-            )
-            await self.message_queue.enqueue(msg)
+            # CLI adapter in MultiServiceSink architecture just logs input
+            # Message handling is done by observers/processors
+            logger.info(f"CLI input received: {line}")
 
     async def send_message(self, channel_id: str, content: str) -> bool:
         print(f"[CLI][{channel_id}] {content}")
