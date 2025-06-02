@@ -123,6 +123,7 @@ class PonderHandler(BaseActionHandler):
                     f"Pondered questions: {questions_list}. "
                     "If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 )
+                #PROMPT_FOLLOW_UP_THOUGHT
                 from .helpers import create_follow_up_thought
                 follow_up = create_follow_up_thought(
                     parent=thought,
@@ -161,6 +162,7 @@ class PonderHandler(BaseActionHandler):
                     f"Pondered questions: {questions_list}. "
                     "The update failed. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 )
+                #PROMPT_FOLLOW_UP_THOUGHT
                 from .helpers import create_follow_up_thought
                 follow_up = create_follow_up_thought(
                     parent=thought,

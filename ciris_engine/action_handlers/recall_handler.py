@@ -24,7 +24,7 @@ class RecallHandler(BaseActionHandler):
             follow_up = create_follow_up_thought(
                 parent=thought,
                 content=f"RECALL action failed: {e}"
-            )
+            )  #PROMPT_FOLLOW_UP_THOUGHT
             self.dependencies.persistence.add_thought(follow_up)
             return
         memory_service: Optional[MemoryService] = await self.get_memory_service()
@@ -36,7 +36,7 @@ class RecallHandler(BaseActionHandler):
             follow_up = create_follow_up_thought(
                 parent=thought,
                 content=f"RECALL action failed: MemoryService unavailable for thought {thought_id}"
-            )
+            )  #PROMPT_FOLLOW_UP_THOUGHT
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.RECALL,
@@ -64,6 +64,7 @@ class RecallHandler(BaseActionHandler):
             follow_up_content = f"Memory query '{node.id}' returned: {data}"
         else:
             follow_up_content = f"No memories found for query '{node.id}' in scope {node.scope.value}"
+        #PROMPT_FOLLOW_UP_THOUGHT
         follow_up = create_follow_up_thought(
             parent=thought,
             content=follow_up_content,

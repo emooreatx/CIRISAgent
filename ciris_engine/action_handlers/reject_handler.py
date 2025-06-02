@@ -33,6 +33,7 @@ class RejectHandler(BaseActionHandler):
             follow_up_content_key_info = f"REJECT action failed: {e}"
             final_thought_status = ThoughtStatus.FAILED
             follow_up_text = f"REJECT action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. This path of reasoning is terminated. Review and determine if a new approach or task is needed."
+            #PROMPT_FOLLOW_UP_THOUGHT
             try:
                 new_follow_up = create_follow_up_thought(
                     parent=thought,
@@ -90,6 +91,7 @@ class RejectHandler(BaseActionHandler):
 
         # Create a follow-up thought indicating failure and reason
         follow_up_text = f"REJECT action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. This path of reasoning is terminated. Review and determine if a new approach or task is needed."
+        #PROMPT_FOLLOW_UP_THOUGHT
         try:
             new_follow_up = create_follow_up_thought(
                 parent=thought,
