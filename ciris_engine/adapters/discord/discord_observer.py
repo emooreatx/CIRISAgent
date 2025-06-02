@@ -2,7 +2,7 @@ import logging
 import os
 import asyncio
 from typing import Callable, Awaitable, Dict, Any, Optional
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
@@ -162,7 +162,16 @@ class DiscordObserver:
                 GraphScope.LOCAL,
             ):
                 try:
-                    await self.memory_service.recall(rid, scope)
+                    # Determine node type based on ID prefix
+                    if rid.startswith("channel/"):
+                        node_type = NodeType.CHANNEL
+                    elif rid.startswith("user/"):
+                        node_type = NodeType.USER
+                    else:
+                        node_type = NodeType.CONCEPT
+                    
+                    node = GraphNode(id=rid, type=node_type, scope=scope)
+                    await self.memory_service.recall(node)
                 except Exception:
                     continue
 

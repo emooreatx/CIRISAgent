@@ -11,6 +11,7 @@ from ciris_engine.persistence.models.tasks import (
     get_task_by_id,
     get_tasks_by_status,
     delete_tasks_by_ids,
+    get_tasks_older_than,
 )
 from ciris_engine.persistence.models.thoughts import (
     get_thoughts_by_status,
@@ -19,7 +20,6 @@ from ciris_engine.persistence.models.thoughts import (
     update_thought_status,
 )
 from ciris_engine.persistence.db import (
-    get_tasks_older_than,
     get_thoughts_older_than,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus

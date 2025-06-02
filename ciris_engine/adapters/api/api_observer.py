@@ -4,6 +4,7 @@ import os
 import logging
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.utils.constants import DEFAULT_WA
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 
@@ -135,12 +136,21 @@ class APIObserver:
                 recall_ids.add(f"user/{m.author_id}")
         for rid in recall_ids:
             for scope in (
-                "IDENTITY",
-                "ENVIRONMENT",
-                "LOCAL",
+                GraphScope.IDENTITY,
+                GraphScope.ENVIRONMENT,
+                GraphScope.LOCAL,
             ):
                 try:
-                    await self.memory_service.recall(rid, scope)
+                    # Determine node type based on ID prefix
+                    if rid.startswith("channel/"):
+                        node_type = NodeType.CHANNEL
+                    elif rid.startswith("user/"):
+                        node_type = NodeType.USER
+                    else:
+                        node_type = NodeType.CONCEPT
+                    
+                    node = GraphNode(id=rid, type=node_type, scope=scope)
+                    await self.memory_service.recall(node)
                 except Exception:
                     continue
 

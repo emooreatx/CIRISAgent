@@ -2,7 +2,7 @@ from typing import Optional, Dict, Any
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope # Corrected import for GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType # Corrected import for GraphScope
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus  # Add TaskStatus import
 from ciris_engine.utils import GraphQLContextProvider
 from ciris_engine import persistence  # Import persistence for proper task/thought access
@@ -111,7 +111,12 @@ class ContextBuilder:
         
         if channel_id and self.memory_service:
             logger.warning(f"DEBUG: Looking up channel {channel_id} in memory")
-            channel_info = await self.memory_service.recall(f"channel/{channel_id}", GraphScope.LOCAL)
+            channel_node = GraphNode(
+                id=f"channel/{channel_id}",
+                type=NodeType.CHANNEL,
+                scope=GraphScope.LOCAL
+            )
+            channel_info = await self.memory_service.recall(channel_node)
             logger.warning(f"DEBUG: Channel memory result: {channel_info}")
 
         # Recent and top tasks

@@ -11,7 +11,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     HandlerActionType,
     IncomingMessage,
 )
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
@@ -55,7 +55,16 @@ class ObserveHandler(BaseActionHandler):
                 GraphScope.LOCAL,
             ):
                 try:
-                    await memory_service.recall(rid, scope)
+                    # Determine node type based on ID prefix
+                    if rid.startswith("channel/"):
+                        node_type = NodeType.CHANNEL
+                    elif rid.startswith("user/"):
+                        node_type = NodeType.USER
+                    else:
+                        node_type = NodeType.CONCEPT
+                    
+                    node = GraphNode(id=rid, type=node_type, scope=scope)
+                    await memory_service.recall(node)
                 except Exception:
                     continue
 

@@ -10,6 +10,7 @@ from .tasks import (
     get_pending_tasks_for_activation,
     count_tasks,
     delete_tasks_by_ids,
+    get_tasks_older_than,
 )
 from .thoughts import (
     add_thought,
@@ -35,6 +36,7 @@ __all__ = [
     "get_pending_tasks_for_activation",
     "count_tasks",
     "delete_tasks_by_ids",
+    "get_tasks_older_than",
     "add_thought",
     "get_thought_by_id",
     "update_thought_status",
