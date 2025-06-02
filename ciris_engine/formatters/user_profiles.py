@@ -17,7 +17,7 @@ def format_user_profiles(profiles: Optional[Dict[str, Any]], max_profiles: int =
 
             interest = profile_data.get('interest')
             if interest:
-                profile_summary += f", Interest: '{str(interest)[:50]}...'"  # Truncate for brevity
+                profile_summary += f", Interest: '{str(interest)}'"
 
             channel = profile_data.get('channel')
             if channel:

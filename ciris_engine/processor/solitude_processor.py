@@ -109,7 +109,7 @@ class SolitudeProcessor(BaseProcessor):
                 critical_count += 1
                 logger.info(
                     f"Critical task found: {task.task_id} "
-                    f"(Priority: {task.priority}) - {task.description[:50]}..."
+                    f"(Priority: {task.priority}) - {task.description}"
                 )
         
         return critical_count
