@@ -3,13 +3,14 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService
-from .api_event_queue import APIEventQueue
-
 class APIAdapter(CommunicationService, WiseAuthorityService):
-    """Adapter for HTTP API communication and WA interactions."""
+    """Adapter for HTTP API communication and WA interactions.
 
-    def __init__(self, message_queue: APIEventQueue):
-        self.message_queue = message_queue
+    Incoming messages are delegated to ``APIObserver`` for processing. This
+    adapter simply stores outgoing responses for retrieval by the API layer.
+    """
+
+    def __init__(self):
         self.responses: Dict[str, Any] = {}
 
     async def start(self):

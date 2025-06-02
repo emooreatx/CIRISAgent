@@ -27,7 +27,6 @@ async def test_main_invokes_runtime(monkeypatch):
         "cli",
         "test",
         mock_config,
-        interactive=True,
         host="0.0.0.0",
         port=8080,
     )

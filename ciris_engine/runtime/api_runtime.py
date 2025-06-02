@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any
 from aiohttp import web
 
 from .ciris_runtime import CIRISRuntime
-from ciris_engine.adapters.api import APIAdapter, APIEventQueue, APIObserver
+from ciris_engine.adapters.api import APIAdapter, APIObserver
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.registries.base import Priority
@@ -20,8 +20,7 @@ class APIRuntime(CIRISRuntime):
     def __init__(self, profile_name: str = "default", port: int = 8080, host: str = "0.0.0.0"):
         self.port = port
         self.host = host
-        self.message_queue = APIEventQueue[IncomingMessage]()
-        self.api_adapter = APIAdapter(self.message_queue)
+        self.api_adapter = APIAdapter()
 
         super().__init__(profile_name=profile_name, io_adapter=self.api_adapter, startup_channel_id="api")
 

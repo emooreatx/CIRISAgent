@@ -156,7 +156,6 @@ def main(
             selected_mode,
             profile,
             app_config,
-            interactive=interactive,
             host=host,
             port=port,
         )

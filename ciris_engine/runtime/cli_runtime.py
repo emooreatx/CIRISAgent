@@ -17,15 +17,14 @@ logger = logging.getLogger(__name__)
 class CLIRuntime(CIRISRuntime):
     """Runtime for running the agent via the command line."""
 
-    def __init__(self, profile_name: str = "default", interactive: bool = True):
-        self.cli_adapter = CLIAdapter(interactive=interactive)
+    def __init__(self, profile_name: str = "default"):
+        self.cli_adapter = CLIAdapter()
         super().__init__(profile_name=profile_name, io_adapter=self.cli_adapter, startup_channel_id="cli")
 
         self.cli_observer: Optional[CLIObserver] = None
         self.cli_tool_service: Optional[CLIToolService] = None
         self.cli_wa_service: Optional[CLIWiseAuthorityService] = None
 
-        self.interactive = interactive
 
     async def initialize(self):
         await super().initialize()
@@ -158,7 +157,7 @@ class CLIRuntime(CIRISRuntime):
         await super().run(num_rounds=num_rounds)
 
     async def start_interactive_console(self):
-        """Start the interactive console for user input if in interactive mode."""
-        if self.interactive and self.cli_observer:
+        """Start the interactive console for user input."""
+        if self.cli_observer:
             print("[CLI] Interactive console is now active. Type your messages below.")
             await self.cli_observer.start()

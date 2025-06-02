@@ -45,8 +45,8 @@ class DiscordRuntime(CIRISRuntime):
         self.monitored_channel_id = monitored_channel_id or os.getenv("DISCORD_CHANNEL_ID")
         self.deferral_channel_id = deferral_channel_id or os.getenv("DISCORD_DEFERRAL_CHANNEL_ID")
 
-        # CLI fallback components  
-        self.cli_adapter = CLIAdapter(interactive=False)
+        # CLI fallback components
+        self.cli_adapter = CLIAdapter()
         self.cli_tool_service: Optional[CLIToolService] = None
         
         # Create DiscordObserver to handle message processing

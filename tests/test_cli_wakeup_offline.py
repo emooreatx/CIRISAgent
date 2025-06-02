@@ -90,7 +90,7 @@ def create_test_runtime(monkeypatch):
     monkeypatch.setenv('OPENAI_API_KEY', 'x')
     monkeypatch.setattr('ciris_engine.runtime.ciris_runtime.OpenAICompatibleLLM', MockLLMService)
     config = AppConfig(workflow=WorkflowConfig(max_rounds=1), llm_services=LLMServicesConfig(openai=OpenAIConfig(model_name='mock-model')))
-    runtime = CLIRuntime(profile_name='default', interactive=False)
+    runtime = CLIRuntime(profile_name='default')
     return runtime, config
 
 @pytest.mark.asyncio

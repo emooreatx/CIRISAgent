@@ -23,7 +23,7 @@ async def test_cli_service_registry(monkeypatch):
     monkeypatch.setattr("ciris_engine.runtime.cli_runtime.CLIAdapter.start", AsyncMock())
     monkeypatch.setattr("ciris_engine.sinks.multi_service_sink.MultiServiceActionSink.start", AsyncMock())
 
-    runtime = CLIRuntime(profile_name="default", interactive=False)
+    runtime = CLIRuntime(profile_name="default")
     await runtime.initialize()
 
     info = runtime.service_registry.get_provider_info()

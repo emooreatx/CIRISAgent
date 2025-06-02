@@ -25,7 +25,6 @@ def create_runtime(
     profile: str,
     config: AppConfig,
     *,
-    interactive: bool = True,
     host: str = "0.0.0.0",
     port: int = 8080,
 ) -> CIRISRuntime:
@@ -40,7 +39,7 @@ def create_runtime(
             startup_channel_id=config.discord_channel_id,
         )
     if mode == "cli":
-        return CLIRuntime(profile_name=profile, interactive=interactive)
+        return CLIRuntime(profile_name=profile)
     if mode == "api":
         return APIRuntime(profile_name=profile, port=port, host=host)
     raise ValueError(f"Unsupported mode: {mode}")
@@ -96,7 +95,6 @@ async def main(
         mode,
         profile,
         app_config,
-        interactive=not no_interactive,
         host=host,
         port=port,
     )
