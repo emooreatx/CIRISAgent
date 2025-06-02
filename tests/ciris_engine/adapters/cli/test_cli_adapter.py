@@ -4,7 +4,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 
 @pytest.mark.asyncio
 async def test_cli_adapter_send_message(capsys):
-    adapter = CLIAdapter(interactive=False)
+    adapter = CLIAdapter()
     await adapter.send_message("cli", "hello")
     captured = capsys.readouterr()
     assert "[CLI][cli] hello" in captured.out
@@ -57,7 +57,7 @@ async def test_cli_observer_get_recent_messages():
 
 @pytest.mark.asyncio
 async def test_cli_adapter_capabilities():
-    adapter = CLIAdapter(interactive=False)
+    adapter = CLIAdapter()
     caps = adapter.get_capabilities()
     assert "send_message" in caps
     assert "fetch_messages" in caps
