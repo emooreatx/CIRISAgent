@@ -21,20 +21,51 @@ class CLIObserver:
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
         multi_service_sink: Optional[MultiServiceActionSink] = None,
+        *,
+        interactive: bool = True,
     ):
         self.on_observe = on_observe
         self.memory_service = memory_service
         self.agent_id = agent_id
         self.multi_service_sink = multi_service_sink
+        self.interactive = interactive
+        self._input_task: Optional[asyncio.Task] = None
+        self._stop_event = asyncio.Event()
         self._history: list[IncomingMessage] = []
 
     async def start(self):
-        # CLI Observer doesn't need polling since we receive messages directly
-        logger.info("CLIObserver started - ready to receive messages directly")
+        """Start the observer and optional input loop."""
+        logger.info("CLIObserver started")
+        if self.interactive and self._input_task is None:
+            self._input_task = asyncio.create_task(self._input_loop())
 
     async def stop(self):
-        # CLI Observer doesn't have background tasks to clean up
+        """Stop the observer and background input loop."""
+        if self._input_task:
+            self._stop_event.set()
+            await self._input_task
+            self._input_task = None
+            self._stop_event.clear()
         logger.info("CLIObserver stopped")
+
+    async def _input_loop(self) -> None:
+        """Read lines from stdin and handle them as messages."""
+        while not self._stop_event.is_set():
+            line = await asyncio.to_thread(input, ">>> ")
+            if not line:
+                continue
+            if line.lower() in {"exit", "quit", "bye"}:
+                self._stop_event.set()
+                break
+
+            msg = IncomingMessage(
+                message_id=f"cli_{asyncio.get_event_loop().time()}",
+                content=line,
+                author_id="local_user",
+                author_name="User",
+                channel_id="cli",
+            )
+            await self.handle_incoming_message(msg)
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:
         if not isinstance(msg, IncomingMessage):

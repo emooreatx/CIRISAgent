@@ -18,7 +18,7 @@ class CLIRuntime(CIRISRuntime):
     """Runtime for running the agent via the command line."""
 
     def __init__(self, profile_name: str = "default", interactive: bool = True):
-        self.cli_adapter = CLIAdapter(interactive=interactive)
+        self.cli_adapter = CLIAdapter()
         super().__init__(profile_name=profile_name, io_adapter=self.cli_adapter, startup_channel_id="cli")
 
         self.cli_observer: Optional[CLIObserver] = None
@@ -39,6 +39,7 @@ class CLIRuntime(CIRISRuntime):
             on_observe=self._handle_observe_event,
             memory_service=self.memory_service,
             multi_service_sink=self.multi_service_sink,
+            interactive=self.interactive,
         )
 
         # Create tool service
