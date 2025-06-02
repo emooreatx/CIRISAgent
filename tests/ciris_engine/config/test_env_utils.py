@@ -12,6 +12,13 @@ def test_env_file_precedence(tmp_path, monkeypatch):
 
     load_env_file(env_path, force=True)
 
+    # Environment variable should win over .env now
+    assert get_env_var("MYVAR") == "env"
+    assert get_discord_channel_id(None) == "env-id"
+
+    # Unset env, .env should win
+    monkeypatch.delenv("MYVAR", raising=False)
+    monkeypatch.delenv("DISCORD_CHANNEL_ID", raising=False)
     assert get_env_var("MYVAR") == "file"
     assert get_discord_channel_id(None) == "file-id"
     # Reset

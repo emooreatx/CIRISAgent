@@ -57,17 +57,23 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
             if discord_channel_id_env and not config_data.get("discord_channel_id"):
                 config_data["discord_channel_id"] = discord_channel_id_env
             _app_config = AppConfig(**config_data)
+            # Load environment variables for OpenAI config
+            _app_config.llm_services.openai.load_env_vars()
             # print(f"Configuration loaded from {actual_path}") # For debugging
             return _app_config
         except Exception as e:
             # print(f"Error loading configuration from {actual_path}: {e}. Using default configuration.") # For debugging
             _app_config = AppConfig() # Instantiate with defaults
+            # Load environment variables for OpenAI config
+            _app_config.llm_services.openai.load_env_vars()
             return _app_config
     else:
         _app_config = AppConfig()
         discord_channel_id_env = get_env_var("DISCORD_CHANNEL_ID")
         if discord_channel_id_env and not _app_config.discord_channel_id:
             _app_config.discord_channel_id = discord_channel_id_env
+        # Load environment variables for OpenAI config
+        _app_config.llm_services.openai.load_env_vars()
         if create_if_not_exists:
             # print(f"Configuration file not found at {actual_path}. Creating with default values.") # For debugging
             try:

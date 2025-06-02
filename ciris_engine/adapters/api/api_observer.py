@@ -91,6 +91,7 @@ class APIObserver:
                     "observation_type": "passive"
                 }
             )
+            assert "channel_id" in task.context and task.context["channel_id"], "Task context must include a non-empty channel_id"
             persistence.add_task(task)
 
             thought = Thought(
@@ -104,6 +105,7 @@ class APIObserver:
                 content=f"User @{msg.author_name} said: {msg.content}",
                 context=task.context
             )
+            assert "channel_id" in thought.context and thought.context["channel_id"], "Thought context must include a non-empty channel_id"
             persistence.add_thought(thought)
 
             logger.info(f"Created observation task {task.task_id} and thought {thought.thought_id} for message {msg.message_id}")

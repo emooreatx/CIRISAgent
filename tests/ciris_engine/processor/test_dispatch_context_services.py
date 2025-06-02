@@ -20,7 +20,7 @@ def make_thought():
         updated_at="now",
         round_number=1,
         content="content",
-        context={},
+        context={"channel_id": "test_channel"},
         ponder_count=0,
         ponder_notes=None,
         parent_thought_id=None,

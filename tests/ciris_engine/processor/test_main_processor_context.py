@@ -7,67 +7,20 @@ from ciris_engine.schemas.states import AgentState
 from ciris_engine.utils.context_utils import build_dispatch_context
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("agent_mode,startup_channel_id,task_channel_id,expected_channel_id,expected_origin_service", [
-    ("cli", None, None, "CLI", "CLI"),
-    ("cli", "cli_startup", None, "cli_startup", "CLI"),
-    ("discord", None, None, "default", "discord"),
-    ("discord", "discord_startup", None, "discord_startup", "discord"),
-    ("discord", None, "12345", "12345", "discord"),
-    ("cli", None, "67890", "67890", "CLI"),
+@pytest.mark.parametrize("agent_mode,task_channel_id,expected_channel_id,expected_origin_service", [
+    ("cli", "CLI", "CLI", "CLI"),
+    ("cli", "cli_startup", "cli_startup", "CLI"),
+    ("discord", "default", "default", "discord"),
+    ("discord", "discord_startup", "discord_startup", "discord"),
+    ("discord", "12345", "12345", "discord"),
+    ("cli", "67890", "67890", "CLI"),
 ])
-async def test_build_dispatch_context_modes(agent_mode, startup_channel_id, task_channel_id, expected_channel_id, expected_origin_service, monkeypatch):
+async def test_build_dispatch_context_modes(agent_mode, task_channel_id, expected_channel_id, expected_origin_service, monkeypatch):
     from ciris_engine.schemas.config_schemas_v1 import AgentProfile
-    
-    # Clear environment variable to ensure clean test state
-    monkeypatch.delenv("DISCORD_CHANNEL_ID", raising=False)
     
     # Minimal AppConfig mock
     app_config = MagicMock()
     app_config.agent_mode = agent_mode
-    # Create active profile
-    active_profile = AgentProfile(name="test_profile")
-    # Minimal dispatcher and services
-    dispatcher = MagicMock()
-    services = {}
-    processor = AgentProcessor(
-        app_config=app_config,
-        active_profile=active_profile,  # Pass active profile
-        thought_processor=MagicMock(),
-        action_dispatcher=dispatcher,
-        services=services,
-        startup_channel_id=startup_channel_id
-    )
-    # Create a fake thought and task
-    thought = MagicMock(spec=Thought)
-    thought.thought_id = "th1"
-    thought.source_task_id = "task1"
-    task = MagicMock(spec=Task)
-    task.context = {}
-    if task_channel_id is not None:
-        task.context["channel_id"] = task_channel_id
-    # Build context using centralized utility
-    context = build_dispatch_context(
-        thought=thought, 
-        task=task, 
-        app_config=app_config, 
-        startup_channel_id=startup_channel_id, 
-        round_number=0
-    )
-    assert context["channel_id"] == str(expected_channel_id)
-    assert context["origin_service"] == expected_origin_service
-    assert context["thought_id"] == "th1"
-    assert context["source_task_id"] == "task1"
-    assert "round_number" in context
-
-@pytest.mark.asyncio
-async def test_build_dispatch_context_missing_everything_logs_error(caplog, monkeypatch):
-    from ciris_engine.schemas.config_schemas_v1 import AgentProfile
-    
-    # Clear environment variable to ensure clean test state
-    monkeypatch.delenv("DISCORD_CHANNEL_ID", raising=False)
-    
-    app_config = MagicMock()
-    app_config.agent_mode = "discord"
     active_profile = AgentProfile(name="test_profile")
     dispatcher = MagicMock()
     services = {}
@@ -79,18 +32,22 @@ async def test_build_dispatch_context_missing_everything_logs_error(caplog, monk
         services=services,
         startup_channel_id=None
     )
+    # Create a fake thought and task
     thought = MagicMock(spec=Thought)
-    thought.thought_id = "th2"
-    thought.source_task_id = "task2"
+    thought.thought_id = "th1"
+    thought.source_task_id = "task1"
     task = MagicMock(spec=Task)
-    task.context = {}
-    with caplog.at_level("ERROR"):
-        context = build_dispatch_context(
-            thought=thought, 
-            task=task, 
-            app_config=app_config, 
-            startup_channel_id=None, 
-            round_number=0
-        )
-    assert context["channel_id"] == "default"
-    assert "No channel_id found for thought th2 and no startup_channel_id set" in caplog.text
+    task.context = {"channel_id": task_channel_id}
+    # Build context using centralized utility
+    context = build_dispatch_context(
+        thought=thought, 
+        task=task, 
+        app_config=app_config, 
+        startup_channel_id=None, 
+        round_number=0
+    )
+    assert context["channel_id"] == str(expected_channel_id)
+    assert context["origin_service"] == expected_origin_service
+    assert context["thought_id"] == "th1"
+    assert context["source_task_id"] == "task1"
+    assert "round_number" in context

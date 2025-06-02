@@ -27,12 +27,16 @@ def load_env_file(path: Path | str = Path(".env"), *, force: bool = False) -> No
 
 
 def get_env_var(name: str, default: Optional[str] = None) -> Optional[str]:
-    """Retrieve a variable with .env overriding environment variables."""
+    """Retrieve a variable with environment variable overriding .env values."""
     if not _ENV_LOADED:
         load_env_file()
+    # Standard precedence: environment variable > .env > default
+    val = os.getenv(name)
+    if val is not None:
+        return val
     if name in _ENV_VALUES:
         return _ENV_VALUES[name]
-    return os.getenv(name, default)
+    return default
 
 
 def get_discord_channel_id(config: Optional["AppConfig"] = None) -> Optional[str]:

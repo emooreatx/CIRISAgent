@@ -64,4 +64,11 @@ class ConfigLoader:
         profile_config = await _load_yaml(profile_path)
         merged = _merge_configs(base_config, profile_config)
         merged = _apply_env_defaults(merged)
-        return AppConfig(**merged)
+        
+        # Create AppConfig instance and load environment variables
+        app_config = AppConfig(**merged)
+        
+        # Load environment variables for OpenAI config
+        app_config.llm_services.openai.load_env_vars()
+        
+        return app_config

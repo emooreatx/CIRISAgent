@@ -63,21 +63,9 @@ def build_dispatch_context(
                 if getattr(thought.context, "channel_id", None) is None:
                     thought.context = thought.context.model_copy(update={"channel_id": task.context["channel_id"]})
     
-    # Handle channel_id fallback logic
-    if not channel_id:
-        channel_id = startup_channel_id
-        if not channel_id:
-            # Try to get from environment variable as a last resort
-            from ciris_engine.config.env_utils import get_env_var
-
-            channel_id = get_env_var("DISCORD_CHANNEL_ID")
-            if not channel_id:
-                logger.error(
-                    f"No channel_id found for thought {thought.thought_id} and no startup_channel_id set; "
-                    f"DISCORD_CHANNEL_ID environment variable not found. This may cause downstream errors."
-                )
-                channel_id = "CLI" if origin_service == "CLI" else "default"
-    
+    # Channel ID must be provided by adapters - no fallback needed
+    if channel_id is None:
+        raise ValueError(f"No channel_id found for thought {thought.thought_id}. Adapters must provide channel_id in task context.")
     context["channel_id"] = str(channel_id)
     
     # Merge any extra context
