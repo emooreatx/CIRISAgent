@@ -25,7 +25,7 @@ class Task(BaseModel):
     created_at: str  # ISO8601
     updated_at: str  # ISO8601
     parent_task_id: Optional[str] = None
-    context: Dict[str, Any] = Field(default_factory=dict)
+    context: Optional[Any] = Field(default=None, description="Context object, can be a ThoughtContext or dict for legacy support.")
     outcome: Dict[str, Any] = Field(default_factory=dict)
 
 class Thought(BaseModel):
@@ -38,7 +38,7 @@ class Thought(BaseModel):
     updated_at: str
     round_number: int = 0
     content: str
-    context: Dict[str, Any] = Field(default_factory=dict)
+    context: Optional[Any] = Field(default=None, description="Context object, can be a ThoughtContext or dict for legacy support.")
     ponder_count: int = 0
     ponder_notes: Optional[List[str]] = None
     parent_thought_id: Optional[str] = None

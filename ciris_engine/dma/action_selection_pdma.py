@@ -446,7 +446,7 @@ Adhere strictly to the schema for your JSON output.
             ponder_params = PonderParams(questions=["Forced ponder: What are the key ambiguities?", "Forced ponder: How can this be clarified?"])
             return ActionSelectionResult(
                 selected_action=HandlerActionType.PONDER,
-                action_parameters=ponder_params.model_dump(mode='json'),
+                action_parameters=ponder_params,
                 rationale="Forced PONDER for testing ponder loop.",
                 confidence=None,
                 raw_llm_response=None
@@ -593,7 +593,7 @@ Adhere strictly to the schema for your JSON output.
             # Fallback should only populate fields of ActionSelectionResult.
             return ActionSelectionResult(
                 selected_action=HandlerActionType.PONDER, 
-                action_parameters=fallback_params.model_dump(mode='json'),
+                action_parameters=fallback_params,
                 rationale=f"Fallback due to InstructorRetryException: {error_detail}",
                 raw_llm_response=f"InstructorRetryException: {error_detail}"
             )
@@ -604,7 +604,7 @@ Adhere strictly to the schema for your JSON output.
             # input_snapshot_for_decision logic removed as it's not part of ActionSelectionResult
             return ActionSelectionResult(
                 selected_action=HandlerActionType.PONDER,
-                action_parameters=fallback_params.model_dump(mode='json'),
+                action_parameters=fallback_params,
                 rationale=f"Fallback due to General Exception: {str(e)}",
                 raw_llm_response=f"Exception: {str(e)}"
             )
