@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 
 const API = process.env.NEXT_PUBLIC_CIRIS_API_URL;

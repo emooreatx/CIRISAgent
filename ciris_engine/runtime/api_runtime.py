@@ -28,6 +28,11 @@ class APIRuntime(CIRISRuntime):
         self.runner: Optional[web.AppRunner] = None
         self.api_observer: Optional[APIObserver] = None
 
+        # Wire up APIAdapter as the tool, WA, and memory service
+        self.api_tool_service = self.api_adapter
+        self.api_wa_service = self.api_adapter
+        self.memory_service = self.api_adapter
+
     async def initialize(self) -> None:
         await super().initialize()
 
@@ -55,6 +60,13 @@ class APIRuntime(CIRISRuntime):
         self.app.router.add_post('/v1/tools/{tool_name}', self._handle_tool)
         self.app.router.add_get('/v1/tools', self._handle_list_tools)  # NEW
         self.app.router.add_post('/v1/guidance', self._handle_guidance)  # NEW
+        self.app.router.add_get('/v1/logs/{filename}', self._handle_logs)  # NEW
+        self.app.router.add_get('/v1/memory/scopes', self._handle_memory_scopes)
+        self.app.router.add_get('/v1/memory/{scope}/entries', self._handle_memory_entries)
+        self.app.router.add_post('/v1/memory/{scope}/store', self._handle_memory_store)
+        self.app.router.add_get('/v1/wa/deferrals', self._handle_wa_deferrals)
+        self.app.router.add_get('/v1/wa/deferrals/{deferral_id}', self._handle_wa_deferral_detail)
+        self.app.router.add_post('/v1/wa/feedback', self._handle_wa_feedback)
 
     async def _handle_message(self, request: web.Request) -> web.Response:
         try:
@@ -104,29 +116,34 @@ class APIRuntime(CIRISRuntime):
             data = await request.json()
             thought_id = data.get("thought_id")
             reason = data.get("reason", "")
-            await self.api_adapter.send_deferral(thought_id or "unknown", reason)
-            return web.json_response({"status": "deferred"})
+            await self.api_wa_service.send_deferral(thought_id or "unknown", reason)
+            return web.json_response({"result": "deferred"})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 
     async def _handle_audit(self, request: web.Request) -> web.Response:
-        return web.json_response({"entries": []})
+        # Return last 100 audit log entries if available
+        try:
+            from ciris_engine.adapters.local_audit_log import AuditService
+            log_path = getattr(self.audit_service, 'log_path', None)
+            if log_path and log_path.exists():
+                with log_path.open('r', encoding='utf-8') as f:
+                    lines = f.readlines()[-100:]
+                    entries = [line.strip() for line in lines if line.strip()]
+                    import json
+                    entries = [json.loads(e) for e in entries]
+                    return web.json_response(entries)
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+        return web.json_response([])
 
     async def _handle_list_tools(self, request: web.Request) -> web.Response:
-        # List available tools using ToolService protocol
-        if hasattr(self, 'api_tool_service'):
-            try:
-                # Try ADK/Protocol method names
-                if hasattr(self.api_tool_service, 'list_tools'):
-                    tools = await self.api_tool_service.list_tools()
-                elif hasattr(self.api_tool_service, 'get_available_tools'):
-                    tools = await self.api_tool_service.get_available_tools()
-                else:
-                    tools = []
-                return web.json_response({"tools": tools})
-            except Exception as e:
-                return web.json_response({"error": str(e)}, status=500)
-        return web.json_response({"tools": []})
+        try:
+            tools = await self.api_tool_service.get_available_tools()
+            # Return as list of dicts for GUI compatibility
+            return web.json_response([{"name": t} for t in tools])
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
 
     async def _handle_tool(self, request: web.Request) -> web.Response:
         tool_name = request.match_info.get('tool_name')
@@ -134,32 +151,124 @@ class APIRuntime(CIRISRuntime):
             data = await request.json()
         except Exception:
             data = {}
-        if hasattr(self, 'api_tool_service'):
-            # Try ADK/Protocol method names
-            if hasattr(self.api_tool_service, 'call_tool'):
-                result = await self.api_tool_service.call_tool(tool_name, arguments=data)
-            elif hasattr(self.api_tool_service, 'execute_tool'):
-                result = await self.api_tool_service.execute_tool(tool_name, data)
-            else:
-                result = {"error": "no tool method"}
-        else:
-            result = {"error": "no tool service"}
+        result = await self.api_tool_service.execute_tool(tool_name, data)
         return web.json_response(result)
 
     async def _handle_guidance(self, request: web.Request) -> web.Response:
-        # Fetch guidance from WiseAuthorityService
         try:
             data = await request.json()
         except Exception:
             data = {}
-        if hasattr(self, 'api_wa_service'):
-            # Try ADK/Protocol method names
-            if hasattr(self.api_wa_service, 'fetch_guidance'):
-                guidance = await self.api_wa_service.fetch_guidance(data)
-            else:
-                guidance = None
-            return web.json_response({"guidance": guidance})
+        guidance = await self.api_wa_service.fetch_guidance(data)
+        return web.json_response({"guidance": guidance})
         return web.json_response({"guidance": None, "error": "no wise authority service"}, status=404)
+
+    async def _handle_logs(self, request: web.Request) -> web.Response:
+        import os
+        from pathlib import Path
+        filename = request.match_info.get('filename')
+        tail = int(request.query.get('tail', 100))
+        log_dir = Path('logs')
+        log_path = log_dir / filename
+        if not log_path.exists() or not log_path.is_file():
+            return web.Response(status=404, text=f"Log file not found: {filename}")
+        try:
+            # Efficiently read last N lines
+            with log_path.open('rb') as f:
+                f.seek(0, os.SEEK_END)
+                filesize = f.tell()
+                blocksize = 4096
+                data = b''
+                lines_found = 0
+                pos = filesize
+                while pos > 0 and lines_found <= tail:
+                    read_size = min(blocksize, pos)
+                    pos -= read_size
+                    f.seek(pos)
+                    block = f.read(read_size)
+                    data = block + data
+                    lines_found = data.count(b'\n')
+                lines = data.split(b'\n')
+                if len(lines) > tail:
+                    lines = lines[-tail:]
+                text = b'\n'.join(lines).decode('utf-8', errors='replace')
+            return web.Response(text=text, content_type='text/plain')
+        except Exception as e:
+            return web.Response(status=500, text=f"Error reading log: {e}")
+
+    async def _handle_memory_scopes(self, request: web.Request) -> web.Response:
+        """Handle request to list memory scopes."""
+        try:
+            # Assuming memory_service has a method to list scopes
+            if hasattr(self.memory_service, 'list_scopes'):
+                scopes = await self.memory_service.list_scopes()
+            else:
+                scopes = []  # Fallback if no such method
+            return web.json_response({"scopes": scopes})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def _handle_memory_entries(self, request: web.Request) -> web.Response:
+        """Handle request to list memory entries for a given scope."""
+        scope = request.match_info.get('scope')
+        try:
+            # Assuming memory_service has a method to list entries in a scope
+            if hasattr(self.memory_service, 'list_entries'):
+                entries = await self.memory_service.list_entries(scope)
+            else:
+                entries = []  # Fallback if no such method
+            return web.json_response({"entries": entries})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def _handle_memory_store(self, request: web.Request) -> web.Response:
+        """Handle request to store a memory entry in a given scope."""
+        scope = request.match_info.get('scope')
+        try:
+            data = await request.json()
+            # Assuming memory_service has a method to store an entry in a scope
+            if hasattr(self.memory_service, 'store_entry'):
+                await self.memory_service.store_entry(scope, data)
+                return web.json_response({"status": "stored"})
+            else:
+                return web.json_response({"error": "store_entry method not available"}, status=500)
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def _handle_wa_deferrals(self, request: web.Request) -> web.Response:
+        """Handle request to list deferrals from Wise Authority."""
+        try:
+            # Fetch deferrals from the multi_service_sink if available
+            if self.multi_service_sink and hasattr(self.multi_service_sink, 'get_deferrals'):
+                deferrals = await self.multi_service_sink.get_deferrals()
+                return web.json_response(deferrals)
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+        return web.json_response([])
+
+    async def _handle_wa_deferral_detail(self, request: web.Request) -> web.Response:
+        """Handle request to get details of a specific deferral."""
+        deferral_id = request.match_info.get('deferral_id')
+        try:
+            # Assuming api_wa_service has a method to get deferral details
+            if self.multi_service_sink and hasattr(self.multi_service_sink, 'get_deferral_detail'):
+                detail = await self.multi_service_sink.get_deferral_detail(deferral_id)
+                return web.json_response(detail)
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+        return web.json_response({"id": deferral_id, "detail": "Not found"})
+
+    async def _handle_wa_feedback(self, request: web.Request) -> web.Response:
+        """Handle feedback submission to Wise Authority."""
+        try:
+            data = await request.json()
+            # Assuming api_wa_service has a method to submit feedback
+            if self.multi_service_sink and hasattr(self.multi_service_sink, 'submit_feedback'):
+                result = await self.multi_service_sink.submit_feedback(data)
+                return web.json_response({"result": result or "ok"})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+        return web.json_response({"result": "ok"})
 
     async def _handle_observe_event(self, payload: Dict[str, Any]):
         logger.debug("API runtime received observe event: %s", payload)

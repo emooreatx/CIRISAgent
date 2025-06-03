@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 
 // Fetch deferrals from the API (assume /v1/deferrals or /v1/audit?event_type=defer)

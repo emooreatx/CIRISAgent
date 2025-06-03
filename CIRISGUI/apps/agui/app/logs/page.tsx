@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 
 async function fetchLogs(filename: string, lines: number = 100) {
