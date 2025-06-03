@@ -24,7 +24,8 @@ if ! command -v pnpm >/dev/null 2>&1; then
 fi
 
 # Start CIRISAgent API with correct Python path
-cd "$ROOT_DIR" && PYTHONPATH="$ROOT_DIR:$PYTHONPATH" python CIRISGUI/apps/ciris-api/main.py &
+cd "$ROOT_DIR"
+PYTHONPATH="$ROOT_DIR:$PYTHONPATH" python3 CIRISGUI/apps/ciris-api/main.py &
 API_PID=$!
 
 # Wait for API to be available
@@ -38,7 +39,7 @@ while ! curl -s --max-time 2 "$API_URL/v1/status" | grep -q '"status"'; do
     printf "."
     if [ $WAITED -ge $MAX_WAIT ]; then
         echo "\n[ERROR] CIRIS API backend did not start within $MAX_WAIT seconds."
-        kill $API_PID
+        kill $API_PID 2>/dev/null || true
         exit 1
     fi
     # Check if API process died
@@ -49,7 +50,6 @@ while ! curl -s --max-time 2 "$API_URL/v1/status" | grep -q '"status"'; do
     # Optionally print logs here for debugging
     # tail -n 10 "$ROOT_DIR/logs/latest.log" 2>/dev/null
     # Uncomment above if you want log tailing
-    
     # (spinner dots already printed)
 done
 printf " done!\n"
@@ -59,4 +59,4 @@ cd "$(dirname "$0")/../apps/agui" && pnpm dev --port 3000 &
 WEB_PID=$!
 
 trap "echo 'Stopping…'; kill $API_PID $WEB_PID" INT
-wait
+wait $API_PID $WEB_PID

@@ -1,16 +1,13 @@
-from ciris_engine.runtime.api_runtime import APIRuntime
+import sys
+from ciris_engine.main import main as ciris_main
 import asyncio
 
-
-def run_api(profile: str = "default", port: int = 8080) -> None:
-    """Start the CIRIS API runtime."""
-
-    async def _start() -> None:
-        runtime = APIRuntime(profile_name=profile, port=port)
-        await runtime.run()
-
-    asyncio.run(_start())
-
-
 if __name__ == "__main__":
-    run_api()
+    # Simulate CLI: --mode api --profile default --port 8080
+    sys.argv = [
+        "main.py",
+        "--mode", "api",
+        "--profile", "default",
+        "--port", "8080"
+    ]
+    asyncio.run(ciris_main()) 
