@@ -48,7 +48,10 @@ async def test_forced_ponder(monkeypatch):
     assert result.selected_action == HandlerActionType.PONDER
     assert "Forced" in result.rationale
     # Schema-driven assertion
-    ponder_params = PonderParams(**result.action_parameters)
+    if isinstance(result.action_parameters, PonderParams):
+        ponder_params = result.action_parameters
+    else:
+        ponder_params = PonderParams(**result.action_parameters)
     assert isinstance(ponder_params.questions, list)
     assert any("Forced" in q for q in ponder_params.questions)
 
@@ -129,7 +132,10 @@ async def test_instructor_retry(monkeypatch):
     assert result.selected_action == HandlerActionType.PONDER
     assert "InstructorRetryException" in result.rationale or "Fallback" in result.rationale
     # Schema-driven assertion
-    ponder_params = PonderParams(**result.action_parameters)
+    if isinstance(result.action_parameters, PonderParams):
+        ponder_params = result.action_parameters
+    else:
+        ponder_params = PonderParams(**result.action_parameters)
     assert any("System error" in q or "err" in q for q in ponder_params.questions)
 
 @pytest.mark.asyncio
@@ -158,7 +164,10 @@ async def test_general_exception(monkeypatch):
     assert result.selected_action == HandlerActionType.PONDER
     assert "General Exception" in result.rationale or "Fallback" in result.rationale
     # Schema-driven assertion
-    ponder_params = PonderParams(**result.action_parameters)
+    if isinstance(result.action_parameters, PonderParams):
+        ponder_params = result.action_parameters
+    else:
+        ponder_params = PonderParams(**result.action_parameters)
     assert any("System error" in q or "fail" in q for q in ponder_params.questions)
 
 # Optionally, add a negative test to ensure invalid action_parameters raise ValidationError

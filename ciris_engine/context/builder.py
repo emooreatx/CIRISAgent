@@ -42,11 +42,17 @@ class ContextBuilder:
         # --- Add Discord channel context ---
         channel_id = None
         # Try to get channel_id from task context first
-        if task and hasattr(task, 'context') and isinstance(task.context, BaseModel):
-            channel_id = getattr(task.context, 'channel_id', None)
+        if task and hasattr(task, 'context'):
+            if isinstance(task.context, BaseModel):
+                channel_id = getattr(task.context, 'channel_id', None)
+            elif isinstance(task.context, dict):
+                channel_id = task.context.get('channel_id')
         # Then try from thought context
-        if not channel_id and hasattr(thought, 'context') and isinstance(thought.context, BaseModel):
-            channel_id = getattr(thought.context, 'channel_id', None)
+        if not channel_id and hasattr(thought, 'context'):
+            if isinstance(thought.context, BaseModel):
+                channel_id = getattr(thought.context, 'channel_id', None)
+            elif isinstance(thought.context, dict):
+                channel_id = thought.context.get('channel_id')
         # Then try environment variable
         if not channel_id:
             channel_id = get_env_var("DISCORD_CHANNEL_ID")
@@ -106,10 +112,16 @@ class ContextBuilder:
 
         # Add channel memory lookup for debugging
         channel_id = None
-        if task and hasattr(task, 'context') and isinstance(task.context, BaseModel) and getattr(task.context, 'channel_id', None):
-            channel_id = getattr(task.context, 'channel_id', None)
-        elif thought and hasattr(thought, 'context') and isinstance(thought.context, BaseModel) and getattr(thought.context, 'channel_id', None):
-            channel_id = getattr(thought.context, 'channel_id', None)
+        if task and hasattr(task, 'context'):
+            if isinstance(task.context, BaseModel) and getattr(task.context, 'channel_id', None):
+                channel_id = getattr(task.context, 'channel_id', None)
+            elif isinstance(task.context, dict):
+                channel_id = task.context.get('channel_id')
+        if not channel_id and thought and hasattr(thought, 'context'):
+            if isinstance(thought.context, BaseModel) and getattr(thought.context, 'channel_id', None):
+                channel_id = getattr(thought.context, 'channel_id', None)
+            elif isinstance(thought.context, dict):
+                channel_id = thought.context.get('channel_id')
         
         if channel_id and self.memory_service:
             logger.warning(f"DEBUG: Looking up channel {channel_id} in memory")
@@ -141,8 +153,19 @@ class ContextBuilder:
                 top_tasks_list.append(TaskSummary(**t_obj.model_dump()))
             elif isinstance(t_obj, dict):
                 top_tasks_list.append(TaskSummary(**t_obj))
+        current_task_summary = None
+        if task:
+            from ciris_engine.schemas.context_schemas_v1 import TaskSummary
+            if isinstance(task, TaskSummary):
+                current_task_summary = task
+            elif isinstance(task, BaseModel):
+                current_task_summary = TaskSummary(**task.model_dump())
+            elif isinstance(task, dict):
+                # Ideally task should never be a plain dict but handle defensively
+                current_task_summary = TaskSummary(**task)
+
         context_data = {
-            "current_task_details": task if task and isinstance(task, BaseModel) else None,
+            "current_task_details": current_task_summary,
             "current_thought_summary": thought_summary,
             "system_counts": {
                 "total_tasks": persistence.count_tasks(),
