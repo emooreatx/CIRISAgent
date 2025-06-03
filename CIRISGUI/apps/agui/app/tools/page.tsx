@@ -1,19 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { CIRISClient } from "../../lib/cirisClient";
+
+const client = new CIRISClient();
 
 async function fetchTools() {
-  const res = await fetch(process.env.NEXT_PUBLIC_CIRIS_API_URL + '/v1/tools');
-  return res.json();
+  return { tools: await client.toolsList() };
 }
 
 async function callTool(tool: string, args: any) {
-  const res = await fetch(process.env.NEXT_PUBLIC_CIRIS_API_URL + `/v1/tools/${tool}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(args),
-  });
-  return res.json();
+  return await client.toolExecute(tool, args);
 }
 
 export default function ToolsPage() {

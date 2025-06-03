@@ -4,7 +4,7 @@ This sub-project provides a unified user interface and API runtime for the CIRIS
 
 ## Structure
 
-- **apps/agui** – Next.js 14 frontend
+- **apps/agui** – Next.js 14 frontend using the CIRIS SDK
 - **apps/ciris-api** – Wrapper around the Python API runtime
 - **docker/** – Dockerfiles and compose setup
 - **scripts/start.sh** – Local development bootstrap
