@@ -18,6 +18,9 @@ from .runtime.ciris_runtime import CIRISRuntime
 from .runtime.discord_runtime import DiscordRuntime
 from .runtime.cli_runtime import CLIRuntime
 from .runtime.api.api_runtime_entrypoint import APIRuntimeEntrypoint
+
+# Backwards compatibility alias used by some tests and external scripts
+APIRuntime = APIRuntimeEntrypoint
 from ciris_engine.adapters.api import APIAdapter, APIObserver
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.adapters.local_audit_log import AuditService
@@ -47,8 +50,8 @@ def create_runtime(
     if mode == "cli":
         return CLIRuntime(profile_name=profile, interactive=interactive)
     if mode == "api":
-        # The APIRuntimeEntrypoint will handle all service creation and registration
-        return APIRuntimeEntrypoint(
+        # The APIRuntime entrypoint will handle all service creation and registration
+        return APIRuntime(
             service_registry=None,  # Let APIRuntimeEntrypoint create it
             multi_service_sink=None,  # Let APIRuntimeEntrypoint create it
             audit_service=None,  # Let APIRuntimeEntrypoint create it
@@ -130,9 +133,16 @@ def main(
     port: int,
     no_interactive: bool,
     debug: bool,
-) -> None:
-    """Unified CIRIS Engine entry point."""
-    asyncio.run(async_main(
+) -> Optional[asyncio.Task]:
+    """Unified CIRIS Engine entry point.
+
+    When invoked in an environment with an active event loop, the async
+    implementation is scheduled as a task and returned so callers can await it
+    (useful for tests). Otherwise the coroutine is executed via
+    :func:`asyncio.run` for CLI usage.
+    """
+
+    coro = async_main(
         mode=mode,
         profile=profile,
         config=config,
@@ -140,7 +150,15 @@ def main(
         port=port,
         no_interactive=no_interactive,
         debug=debug,
-    ))
+    )
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(coro)
+        return None
+    else:
+        return loop.create_task(coro)
 
 
 if __name__ == "__main__":
