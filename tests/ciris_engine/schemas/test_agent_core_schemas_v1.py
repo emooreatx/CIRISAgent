@@ -19,7 +19,7 @@ def test_task_minimal():
     )
     assert t.status == fs.TaskStatus.PENDING
     assert t.priority == 0
-    assert t.context == {}
+    assert t.context is None
     assert t.outcome == {}
     assert t.parent_task_id is None
 
@@ -40,7 +40,7 @@ def test_thought_minimal():
     )
     assert th.status == fs.ThoughtStatus.PENDING
     assert th.thought_type == "standard"
-    assert th.context == {}
+    assert th.context is None
     assert th.ponder_count == 0
     assert th.ponder_notes is None
     assert th.parent_thought_id is None

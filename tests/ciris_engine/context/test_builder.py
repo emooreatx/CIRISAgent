@@ -100,3 +100,14 @@ async def test_followup_thought_channel_context():
     task = make_task()
     ctx = await builder.build_thought_context(child, task)
     assert ctx.system_snapshot.channel_id == "chan-123"
+
+
+@pytest.mark.asyncio
+async def test_current_task_details_is_summary():
+    builder = ContextBuilder()
+    thought = make_thought()
+    task = make_task()
+    ctx = await builder.build_thought_context(thought, task)
+    assert ctx.system_snapshot.current_task_details.task_id == task.task_id
+    from ciris_engine.schemas.context_schemas_v1 import TaskSummary
+    assert isinstance(ctx.system_snapshot.current_task_details, TaskSummary)
