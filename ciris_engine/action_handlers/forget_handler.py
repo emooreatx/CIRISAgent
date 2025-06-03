@@ -27,12 +27,16 @@ class ForgetHandler(BaseActionHandler):
                     parent=thought,
                     content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 )
-                follow_up.context = {
+                ctx = {
                     "action_performed": HandlerActionType.FORGET.name,
                     "parent_task_id": thought.source_task_id,
                     "is_follow_up": True,
                     "error": str(e)
                 }
+                if isinstance(follow_up.context, dict):
+                    follow_up.context.update(ctx)
+                else:
+                    follow_up.context = ctx
                 self.dependencies.persistence.add_thought(follow_up)
                 await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
                 return
@@ -42,12 +46,16 @@ class ForgetHandler(BaseActionHandler):
                 parent=thought,
                 content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters type: {type(raw_params)}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-            follow_up.context = {
+            ctx = {
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "error": f"Invalid params type: {type(raw_params)}"
             }
+            if isinstance(follow_up.context, dict):
+                follow_up.context.update(ctx)
+            else:
+                follow_up.context = ctx
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             return
@@ -57,12 +65,16 @@ class ForgetHandler(BaseActionHandler):
                 parent=thought,
                 content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action was not permitted. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-            follow_up.context = {
+            ctx = {
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "error": "Permission denied or WA required"
             }
+            if isinstance(follow_up.context, dict):
+                follow_up.context.update(ctx)
+            else:
+                follow_up.context = ctx
             self.dependencies.persistence.add_thought(follow_up)
             return
         memory_service: Optional[MemoryService] = await self.get_memory_service()
@@ -88,12 +100,16 @@ class ForgetHandler(BaseActionHandler):
                 parent=thought,
                 content="FORGET action denied: WA authorization required"
             )
-            follow_up.context = {
+            ctx = {
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "error": "wa_denied",
             }
+            if isinstance(follow_up.context, dict):
+                follow_up.context.update(ctx)
+            else:
+                follow_up.context = ctx
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.FORGET,
@@ -125,7 +141,7 @@ class ForgetHandler(BaseActionHandler):
             parent=thought,
             content=follow_up_content,
         )
-        follow_up.context = {
+        ctx_final = {
             "action_performed": HandlerActionType.FORGET.name,
             "parent_task_id": thought.source_task_id,
             "is_follow_up": True,
@@ -133,6 +149,10 @@ class ForgetHandler(BaseActionHandler):
             "forget_scope": node.scope.value,
             "forget_status": str(getattr(forget_result, "status", forget_result))
         }
+        if isinstance(follow_up.context, dict):
+            follow_up.context.update(ctx_final)
+        else:
+            follow_up.context = ctx_final
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.FORGET,

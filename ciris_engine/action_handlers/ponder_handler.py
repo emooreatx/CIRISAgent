@@ -159,12 +159,16 @@ class PonderHandler(BaseActionHandler):
                 parent=thought,
                 content=follow_up_content,
             )
-            follow_up.context = {
+            ctx = {
                 "action_performed": HandlerActionType.PONDER.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "ponder_notes": questions_list,
             }
+            if isinstance(follow_up.context, dict):
+                follow_up.context.update(ctx)
+            else:
+                follow_up.context = ctx
             persistence.add_thought(follow_up)
             # Note: The thought is already set to PENDING status, so it will be automatically
             # picked up in the next processing round when the queue is populated from the database
@@ -198,12 +202,16 @@ class PonderHandler(BaseActionHandler):
                 parent=thought,
                 content=follow_up_content,
             )
-            follow_up.context = {
+            ctx2 = {
                 "action_performed": HandlerActionType.PONDER.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "ponder_notes": questions_list,
                 "error": "Failed to update for re-processing"
             }
+            if isinstance(follow_up.context, dict):
+                follow_up.context.update(ctx2)
+            else:
+                follow_up.context = ctx2
             persistence.add_thought(follow_up)
             return None

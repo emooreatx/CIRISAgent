@@ -184,7 +184,10 @@ class ObserveHandler(BaseActionHandler):
             }
             if final_status == ThoughtStatus.FAILED:
                 ctx["error_details"] = follow_up_info
-            new_follow_up.context = ctx
+            if isinstance(new_follow_up.context, dict):
+                new_follow_up.context.update(ctx)
+            else:
+                new_follow_up.context = ctx
             persistence.add_thought(new_follow_up)
             logger.info(f"ObserveHandler: Follow-up thought created for {thought_id}")
             #TODO: Fix auditing
