@@ -130,6 +130,8 @@ class ObserveHandler(BaseActionHandler):
             or dispatch_context.get("channel_id")
             or getattr(thought, "context", {}).get("channel_id")
         )
+        if channel_id and isinstance(channel_id, str) and channel_id.startswith("@"):  # likely user mention
+            channel_id = None
         params.channel_id = channel_id
 
         # Get services with better logging
