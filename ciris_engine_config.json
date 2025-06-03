@@ -21,7 +21,7 @@
     "max_active_tasks": 10,
     "max_active_thoughts": 50,
     "round_delay_seconds": 1.0,
-    "max_rounds": 5,
+    "max_rounds": 7,
     "DMA_RETRY_LIMIT": 3,
     "GUARDRAIL_RETRY_LIMIT": 2
   },

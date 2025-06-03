@@ -17,7 +17,15 @@ class DummyLLMResponse:
 @pytest.mark.asyncio
 async def test_forced_ponder(monkeypatch):
     service_registry = ServiceRegistry()
-    dummy_client = SimpleNamespace(client=MagicMock())
+    # Create a mock client structure that matches what the ActionSelectionPDMA expects
+    mock_chat_completions = AsyncMock()
+    mock_chat_completions.create = AsyncMock()
+    
+    # Create the actual client mock that instructor.patch will work with
+    mock_client = MagicMock()
+    mock_client.chat = SimpleNamespace(completions=mock_chat_completions)
+    
+    dummy_client = SimpleNamespace(client=mock_client)
     dummy_service = SimpleNamespace(get_client=lambda: dummy_client)
     service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
     monkeypatch.setattr("instructor.patch", lambda c, mode: c)
@@ -33,7 +41,7 @@ async def test_forced_ponder(monkeypatch):
         'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
         'current_ponder_count': 0,
         'max_rounds': 3,
-        'processing_context': {'initial_task_context': {'content': 'ponder'}}
+        'processing_context': SimpleNamespace(initial_task_context=SimpleNamespace(content='ponder'))
     }
     result = await evaluator.evaluate(triaged_inputs)
     assert isinstance(result, ActionSelectionResult)

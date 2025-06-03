@@ -1,7 +1,7 @@
-from typing import Dict
+from ciris_engine.schemas.context_schemas_v1 import SystemSnapshot
 
 
-def format_system_snapshot(system_snapshot: Dict) -> str:
+def format_system_snapshot(system_snapshot: SystemSnapshot) -> str:
     """Summarize core system counters for LLM prompt context.
 
     Parameters
@@ -27,8 +27,9 @@ def format_system_snapshot(system_snapshot: Dict) -> str:
     ]
 
     for key, label in fields:
-        if key in system_snapshot:
-            val = system_snapshot[key]
-            lines.append(f"{label}: {val}")
+        if hasattr(system_snapshot.system_counts, key) or key in system_snapshot.system_counts:
+            val = system_snapshot.system_counts.get(key)
+            if val is not None:
+                lines.append(f"{label}: {val}")
 
     return "\n".join(lines)

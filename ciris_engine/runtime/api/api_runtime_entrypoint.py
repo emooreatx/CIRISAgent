@@ -158,6 +158,9 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         # First, do the parent CIRISRuntime initialization
         # This includes _register_core_services() which now registers API services
         await super().initialize()
+        
+        # Call _register_api_services for backward compatibility with tests
+        await self._register_api_services()
             
         logger.info("Initializing API-specific components...")
         

@@ -1,4 +1,5 @@
-from ciris_engine.schemas.processing_schemas_v1 import DMAResults, ThoughtContext, GuardrailResult
+from ciris_engine.schemas.processing_schemas_v1 import DMAResults, GuardrailResult
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
@@ -10,8 +11,10 @@ def test_dma_results_defaults():
     assert res.errors == []
 
 def test_thought_context_minimal():
-    ctx = ThoughtContext(system_snapshot={}, user_profiles={}, task_history=[])
-    assert ctx.system_snapshot == {}
+    from ciris_engine.schemas.context_schemas_v1 import SystemSnapshot
+    snapshot = SystemSnapshot()
+    ctx = ThoughtContext(system_snapshot=snapshot, user_profiles={}, task_history=[])
+    assert isinstance(ctx.system_snapshot, SystemSnapshot)
     assert ctx.user_profiles == {}
     assert ctx.task_history == []
     assert ctx.identity_context is None

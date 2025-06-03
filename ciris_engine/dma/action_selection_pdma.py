@@ -240,11 +240,10 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         
         # Access processing_context from triaged_inputs
         processing_context_data = triaged_inputs.get('processing_context')
-        if not agent_name_from_thought and processing_context_data and isinstance(processing_context_data, dict):
+        if not agent_name_from_thought and processing_context_data:
             # Fallback to environment_context within the thought if agent_profile not passed or no name
-            environment_context = processing_context_data.get('environment_context') # Use processing_context_data
-            if isinstance(environment_context, dict):
-                agent_name_from_thought = environment_context.get('agent_name')
+            if hasattr(processing_context_data, 'environment_context') and processing_context_data.environment_context:
+                agent_name_from_thought = getattr(processing_context_data.environment_context, 'agent_name', None)
                 if agent_name_from_thought:
                     logger.debug(f"Using agent name '{agent_name_from_thought}' from thought's environment_context.")
         
@@ -360,12 +359,11 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         other_processing_context_str = ""
 
         # Use processing_context_data obtained from triaged_inputs
-        if processing_context_data and isinstance(processing_context_data, dict):
-            system_snapshot = processing_context_data.get("system_snapshot")
-            if system_snapshot and isinstance(system_snapshot, dict):
-                user_profiles_data = system_snapshot.get("user_profiles")
+        if processing_context_data:
+            if hasattr(processing_context_data, 'system_snapshot') and processing_context_data.system_snapshot:
+                user_profiles_data = getattr(processing_context_data.system_snapshot, 'user_profiles', None)
                 user_profile_context_str = format_user_profiles(user_profiles_data)
-                system_snapshot_context_str = format_system_snapshot(system_snapshot)
+                system_snapshot_context_str = format_system_snapshot(processing_context_data.system_snapshot)
         
         # The format_system_snapshot_for_prompt already includes a section for "Original Thought Full Processing Context"
         # so we don't need to add it separately here if we pass original_thought.processing_context to it.
@@ -440,9 +438,8 @@ Adhere strictly to the schema for your JSON output.
         # Check the original message content from the task context stored in the processing_context
         original_message_content = None
         # Use processing_context_data defined above
-        if processing_context_data and isinstance(processing_context_data, dict) and \
-           isinstance(processing_context_data.get("initial_task_context"), dict):
-            original_message_content = processing_context_data["initial_task_context"].get("content")
+        if processing_context_data and hasattr(processing_context_data, 'initial_task_context') and processing_context_data.initial_task_context:
+            original_message_content = getattr(processing_context_data.initial_task_context, 'content', None)
 
         if original_message_content and original_message_content.strip().lower() == "ponder":
             logger.info(f"ActionSelectionPDMA: Detected 'ponder' keyword in original message for thought ID {original_thought.thought_id}. Forcing PONDER action.")
@@ -540,12 +537,24 @@ Adhere strictly to the schema for your JSON output.
                 channel_id = None
                 processing_context = triaged_inputs.get('processing_context')
                 if processing_context:
+                    # Handle ThoughtContext schema
                     if hasattr(processing_context, 'identity_context') and processing_context.identity_context:
                         if isinstance(processing_context.identity_context, str) and 'channel' in processing_context.identity_context:
                             import re
                             match = re.search(r"channel is (\S+)", processing_context.identity_context)
                             if match:
                                 channel_id = match.group(1)
+                    
+                    # Try initial_task_context field
+                    if not channel_id and hasattr(processing_context, 'initial_task_context') and processing_context.initial_task_context:
+                        if isinstance(processing_context.initial_task_context, dict):
+                            channel_id = processing_context.initial_task_context.get('channel_id')
+                    
+                    # Try system_snapshot.channel_id
+                    if not channel_id and hasattr(processing_context, 'system_snapshot') and processing_context.system_snapshot:
+                        channel_id = getattr(processing_context.system_snapshot, 'channel_id', None)
+                    
+                    # Fallback to dict access for backward compatibility
                     elif isinstance(processing_context, dict):
                         channel_id = (
                             (processing_context.get('identity_context', {}) or {}).get('channel_id')

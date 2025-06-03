@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from ciris_engine.runtime.api_runtime import APIRuntime
+from ciris_engine.runtime.api.api_runtime_entrypoint import APIRuntimeEntrypoint as APIRuntime
 from ciris_engine.runtime.runtime_interface import RuntimeInterface
 
 @pytest.mark.asyncio

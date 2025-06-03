@@ -19,6 +19,8 @@ from ciris_engine.schemas.dma_results_v1 import (
     DSDMAResult,
     ActionSelectionResult,
 )
+from ciris_engine.schemas.processing_schemas_v1 import DMAResults
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.registries.circuit_breaker import CircuitBreaker
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought # Added import
@@ -198,7 +200,7 @@ class DMAOrchestrator:
         self,
         thought_item: ProcessingQueueItem,
         actual_thought: Thought,
-        processing_context: Dict[str, Any],
+        processing_context: ThoughtContext,
         dma_results: Dict[str, Any],
         profile_name: str,
         triaged_inputs: Optional[Dict[str, Any]] = None
@@ -221,20 +223,14 @@ class DMAOrchestrator:
             channel_id = actual_thought.context.get('channel_id')
         
         # From processing_context system_snapshot
-        if not channel_id and isinstance(processing_context, dict):
-            system_snapshot = processing_context.get('system_snapshot', {})
-            if isinstance(system_snapshot, dict):
-                channel_id = system_snapshot.get('channel_id')
+        if not channel_id and processing_context.system_snapshot:
+            channel_id = processing_context.system_snapshot.channel_id
         
         # From initial task context
-        if not channel_id and isinstance(processing_context, dict):
-            initial_task_context = processing_context.get('initial_task_context', {})
-            if isinstance(initial_task_context, dict):
-                channel_id = initial_task_context.get('channel_id')
+        if not channel_id and processing_context.initial_task_context:
+            channel_id = getattr(processing_context.initial_task_context, 'channel_id', None)
         
-        # Add channel_id to processing_context if found
-        if channel_id and isinstance(processing_context, dict):
-            processing_context['channel_id'] = channel_id
+        # Note: ThoughtContext is immutable, channel_id should be set at creation time
         
         # ... rest of the method remains the same
         # Get ponder_count from the actual Thought model

@@ -70,7 +70,7 @@ async def run_pdma(
     evaluator: EthicalPDMAEvaluator, thought: ProcessingQueueItem
 ) -> EthicalDMAResult:
     """Run the Ethical PDMA for the given thought."""
-    return await evaluator.evaluate(thought)
+    return await evaluator.evaluate(thought, context=thought.context)
 
 
 async def run_csdma(

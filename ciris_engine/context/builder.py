@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
-from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType # Corrected import for GraphScope
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus  # Add TaskStatus import
@@ -32,10 +32,10 @@ class ContextBuilder:
         system_snapshot_data = await self.build_system_snapshot(task, thought)
         
         # Extract user_profiles for the top-level field
-        user_profiles_data = system_snapshot_data.get("user_profiles", {})
+        user_profiles_data = getattr(system_snapshot_data, 'user_profiles', None) or {}
         
         # Use recently_completed_tasks_summary from the snapshot as task_history
-        task_history_data = system_snapshot_data.get("recently_completed_tasks_summary", [])
+        task_history_data = getattr(system_snapshot_data, 'recently_completed_tasks_summary', None) or []
         
         identity_context_str = self.memory_service.export_identity_context() if self.memory_service else None
         
@@ -61,8 +61,6 @@ class ContextBuilder:
         channel_context_str = None
         if channel_id:
             channel_context_str = f"Our assigned channel is {channel_id}"
-            # Also add to system_snapshot_data for downstream use
-            system_snapshot_data['channel_id'] = channel_id
         
         # Combine identity and channel context
         if identity_context_str and channel_context_str:
@@ -70,36 +68,47 @@ class ContextBuilder:
         elif channel_context_str:
             identity_context_str = channel_context_str
         
+        # Extract initial_task_context from task if available
+        initial_task_context = None
+        if task and hasattr(task, 'context') and isinstance(task.context, dict):
+            initial_task_context = task.context.copy()
+        
+        # Create SystemSnapshot object from the data
+        system_snapshot = system_snapshot_data
+        
         return ThoughtContext(
-            system_snapshot=system_snapshot_data,
+            system_snapshot=system_snapshot,
             user_profiles=user_profiles_data,
             task_history=task_history_data,
-            identity_context=identity_context_str
+            identity_context=identity_context_str,
+            initial_task_context=initial_task_context
         )
 
     async def build_system_snapshot(
         self,
         task: Optional[Task],
-        thought: Thought
-    ) -> Dict[str, Any]:
+        thought: Any  # Accept Thought or ProcessingQueueItem
+    ) -> SystemSnapshot:
         """Build system snapshot for the thought."""
         # This is the logic from WorkflowCoordinator.build_context
         thought_summary = None
         if thought:
             status_val = None
-            if thought.status:
-                if hasattr(thought.status, 'value'):
-                    status_val = thought.status.value
-                else:
-                    status_val = str(thought.status)
-            thought_type_val = thought.thought_type
+            # Only set status_val if the object has a 'status' attribute
+            if hasattr(thought, 'status'):
+                if thought.status:
+                    if hasattr(thought.status, 'value'):
+                        status_val = thought.status.value
+                    else:
+                        status_val = str(thought.status)
+            thought_type_val = getattr(thought, 'thought_type', None)
             thought_summary = {
-                "thought_id": thought.thought_id,
-                "content": thought.content,
+                "thought_id": getattr(thought, 'thought_id', None),
+                "content": getattr(thought, 'content', None),
                 "status": status_val,
-                "source_task_id": thought.source_task_id,
+                "source_task_id": getattr(thought, 'source_task_id', None),
                 "thought_type": thought_type_val,
-                "ponder_count": thought.ponder_count
+                "ponder_count": getattr(thought, 'ponder_count', None)
             }
 
         # Add channel memory lookup for debugging
@@ -138,7 +147,7 @@ class ContextBuilder:
             else:
                 top_tasks_list.append(t_obj)
         
-        context = {
+        context_data = {
             "current_task_details": task.model_dump(mode='json', exclude_none=True) if task and isinstance(task, BaseModel) else None,
             "current_thought_summary": thought_summary,
             "system_counts": {
@@ -148,7 +157,8 @@ class ContextBuilder:
                 "pending_thoughts": persistence.count_thoughts(),  # Already counts PENDING + PROCESSING
             },
             "top_pending_tasks_summary": top_tasks_list,
-            "recently_completed_tasks_summary": recent_tasks_list
+            "recently_completed_tasks_summary": recent_tasks_list,
+            "channel_id": channel_id  # Add channel_id to the SystemSnapshot
         }
         # Enrich with GraphQL context if available
         if self.graphql_provider:
@@ -169,5 +179,6 @@ class ContextBuilder:
                         graphql_extra_processed[key] = [item.model_dump(mode='json', exclude_none=True) for item in value]
                     else:
                         graphql_extra_processed[key] = value
-            context.update(graphql_extra_processed)
-        return context
+            context_data.update(graphql_extra_processed)
+        
+        return SystemSnapshot(**context_data)
