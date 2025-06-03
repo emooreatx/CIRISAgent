@@ -41,12 +41,14 @@ class APIRuntime(CIRISRuntime):
         self.api_observer = APIObserver(
             on_observe=self._handle_observe_event,
             memory_service=self.memory_service,
-            multi_service_sink=self.multi_service_sink
+            multi_service_sink=self.multi_service_sink,
+            api_adapter=self.api_adapter
         )
         await self.api_observer.start()
 
     def _setup_routes(self) -> None:
         self.app.router.add_post('/v1/messages', self._handle_message)
+        self.app.router.add_get('/v1/messages', self._handle_get_messages)
         self.app.router.add_get('/v1/status', self._handle_status)
         self.app.router.add_post('/v1/defer', self._handle_defer)
         self.app.router.add_get('/v1/audit', self._handle_audit)
@@ -69,8 +71,31 @@ class APIRuntime(CIRISRuntime):
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 
+    async def _handle_get_messages(self, request: web.Request) -> web.Response:
+        try:
+            limit = int(request.query.get('limit', 20))
+            if self.api_observer:
+                messages = await self.api_observer.get_recent_messages(limit)
+                return web.json_response({"messages": messages})
+            else:
+                return web.json_response({"messages": []})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
     async def _handle_status(self, request: web.Request) -> web.Response:
-        return web.json_response({"status": "ok"})
+        status_data = {"status": "ok"}
+        
+        # Include latest response for CIRISVoice compatibility
+        if self.api_adapter and hasattr(self.api_adapter, 'responses') and self.api_adapter.responses:
+            # Get the most recent response
+            latest_response_id = max(self.api_adapter.responses.keys())
+            latest_response = self.api_adapter.responses[latest_response_id]
+            status_data["last_response"] = {
+                "content": latest_response["content"],
+                "timestamp": latest_response["timestamp"]
+            }
+        
+        return web.json_response(status_data)
 
     async def _handle_defer(self, request: web.Request) -> web.Response:
         try:

@@ -14,7 +14,8 @@ class APIAdapter(CommunicationService, WiseAuthorityService):
     """Adapter for HTTP API communication and WA interactions."""
 
     def __init__(self):
-        self.responses: Dict[str, Any] = {}
+        self.responses: Dict[str, Any] = {}  # response_id -> response_data
+        self.channel_messages: Dict[str, List[Dict[str, Any]]] = {}  # channel_id -> list of messages
 
     async def start(self):
         pass
@@ -24,11 +25,28 @@ class APIAdapter(CommunicationService, WiseAuthorityService):
 
     async def send_message(self, channel_id: str, content: str) -> bool:
         response_id = str(uuid.uuid4())
-        self.responses[response_id] = {
+        timestamp = datetime.utcnow().isoformat()
+        
+        response_data = {
             "channel_id": channel_id,
             "content": content,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": timestamp,
         }
+        
+        # Store by response ID (for compatibility)
+        self.responses[response_id] = response_data
+        
+        # Store by channel ID for easy retrieval
+        if channel_id not in self.channel_messages:
+            self.channel_messages[channel_id] = []
+        
+        self.channel_messages[channel_id].append({
+            "id": response_id,
+            "content": content,
+            "author_id": "ciris_agent",
+            "timestamp": timestamp,
+        })
+        
         persistence.add_correlation(
             ServiceCorrelation(
                 correlation_id=response_id,
@@ -36,10 +54,10 @@ class APIAdapter(CommunicationService, WiseAuthorityService):
                 handler_name="APIAdapter",
                 action_type="send_message",
                 request_data={"channel_id": channel_id, "content": content},
-                response_data=self.responses[response_id],
+                response_data=response_data,
                 status=ServiceCorrelationStatus.COMPLETED,
-                created_at=self.responses[response_id]["timestamp"],
-                updated_at=self.responses[response_id]["timestamp"],
+                created_at=timestamp,
+                updated_at=timestamp,
             )
         )
         return True
