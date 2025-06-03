@@ -84,13 +84,19 @@ class APIRuntimeEntrypoint(CIRISRuntime):
                     capabilities=["send_message", "fetch_messages"]
                 )
             
-            # Register as tool service
+            # Register as tool service. Allow overriding the provider for tests.
+            tool_provider = getattr(self, "api_tool_service", self.api_adapter)
             self.service_registry.register(
                 handler="ToolHandler",
                 service_type="tool",
-                provider=self.api_adapter,
+                provider=tool_provider,
                 priority=Priority.HIGH,
-                capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
+                capabilities=[
+                    "execute_tool",
+                    "get_available_tools",
+                    "get_tool_result",
+                    "validate_parameters",
+                ],
             )
             
             # Register as wise authority service
@@ -117,7 +123,9 @@ class APIRuntimeEntrypoint(CIRISRuntime):
 
     def _register_routes(self):
         """Register all API routes after services are initialized."""
-        APICommsRoutes(self.api_observer, self.api_adapter).register(self.app)
+        # Store comms routes so tests can invoke handlers directly
+        self._comms_routes = APICommsRoutes(self.api_observer, self.api_adapter)
+        self._comms_routes.register(self.app)
         APIMemoryRoutes(self.multi_service_sink).register(self.app)
         APIToolsRoutes(self.multi_service_sink).register(self.app)
         APIWARoutes(self.multi_service_sink).register(self.app)
@@ -125,10 +133,30 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         APILogsRoutes().register(self.app)
         logger.info("Registered all API routes")
 
+    async def _register_api_services(self) -> None:
+        """Hook for registering API specific services.
+
+        Historically this method exposed registration logic separate from core
+        services. It now simply calls :meth:`_register_core_services` but is kept
+        for backward compatibility with older tests and extensions."""
+
+        await self._register_core_services()
+
+    async def _handle_message(self, request: web.Request) -> web.Response:
+        """Legacy handler shim used by older tests."""
+        if hasattr(self, "_comms_routes"):
+            return await self._comms_routes._handle_message(request)
+        # Fallback if routes haven't been registered yet
+        routes = APICommsRoutes(self.api_observer, self.api_adapter)
+        return await routes._handle_message(request)
+
     async def initialize(self) -> None:
         """Initialize the API runtime, extending parent initialization."""
         # First, do the parent CIRISRuntime initialization
         await super().initialize()
+
+        # Register any API specific services (legacy hook)
+        await self._register_api_services()
             
         logger.info("Initializing API-specific components...")
         

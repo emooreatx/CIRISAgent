@@ -1,5 +1,25 @@
-"""Legacy entrypoint for CIRISAgent API runtime. This file is now a stub and will raise an error if used directly.
+"""Backward compatibility shim for the old ``APIRuntime`` entrypoint.
 
-Please use ciris_engine.runtime.api.api_runtime_entrypoint.APIRuntimeEntrypoint instead."""
+Historically the API runtime was provided as ``ciris_engine.runtime.api_runtime``
+under the class ``APIRuntime``. The implementation now lives in
+``ciris_engine.runtime.api.api_runtime_entrypoint.APIRuntimeEntrypoint``. This
+module re-exports that class under the old name so that existing imports
+continue to function while emitting a deprecation warning."""
 
-raise ImportError("The API runtime has moved. Use ciris_engine.runtime.api.api_runtime_entrypoint.APIRuntimeEntrypoint.")
+from __future__ import annotations
+
+import warnings
+
+from .api.api_runtime_entrypoint import APIRuntimeEntrypoint
+
+warnings.warn(
+    "APIRuntime has moved to ciris_engine.runtime.api.api_runtime_entrypoint."
+    " Importing from ciris_engine.runtime.api_runtime is deprecated and will be"
+    " removed in a future release.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+APIRuntime = APIRuntimeEntrypoint
+
+__all__ = ["APIRuntime"]
