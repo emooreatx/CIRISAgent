@@ -17,7 +17,10 @@ from .config.config_manager import load_config_from_file_async, AppConfig
 from .runtime.ciris_runtime import CIRISRuntime
 from .runtime.discord_runtime import DiscordRuntime
 from .runtime.cli_runtime import CLIRuntime
-from .runtime.api_runtime import APIRuntime
+from .runtime.api.api_runtime_entrypoint import APIRuntimeEntrypoint
+from ciris_engine.adapters.api import APIAdapter, APIObserver
+from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+from ciris_engine.adapters.local_audit_log import AuditService
 
 
 def create_runtime(
@@ -44,8 +47,22 @@ def create_runtime(
     if mode == "cli":
         return CLIRuntime(profile_name=profile, interactive=interactive)
     if mode == "api":
-        return APIRuntime(profile_name=profile, port=port, host=host)
+        # The APIRuntimeEntrypoint will handle all service creation and registration
+        return APIRuntimeEntrypoint(
+            service_registry=None,  # Let APIRuntimeEntrypoint create it
+            multi_service_sink=None,  # Let APIRuntimeEntrypoint create it
+            audit_service=None,  # Let APIRuntimeEntrypoint create it
+            api_observer=None,  # Let APIRuntimeEntrypoint create it
+            api_adapter=None,  # Let APIRuntimeEntrypoint create it
+            host=host,
+            port=port,
+            profile_name=profile,
+            app_config=config,
+        )
     raise ValueError(f"Unsupported mode: {mode}")
+
+
+
 
 
 async def run_with_shutdown_handler(runtime: CIRISRuntime) -> None:
@@ -74,15 +91,7 @@ async def load_config(config_path: Optional[str]) -> AppConfig:
     return await load_config_from_file_async(Path(config_path) if config_path else None)
 
 
-@click.command()
-@click.option("--mode", type=click.Choice(["discord", "cli", "api"]), default="discord")
-@click.option("--profile", default="default")
-@click.option("--config", type=click.Path(exists=True))
-@click.option("--host", default="0.0.0.0", help="API host")
-@click.option("--port", default=8080, type=int, help="API port")
-@click.option("--no-interactive/--interactive", default=False, help="Disable interactive CLI input")
-@click.option("--debug/--no-debug", default=False)
-async def main(
+async def async_main(
     mode: str,
     profile: str,
     config: Optional[str],
@@ -91,7 +100,7 @@ async def main(
     no_interactive: bool,
     debug: bool,
 ) -> None:
-    """Unified CIRIS Engine entry point."""
+    """Unified CIRIS Engine entry point async implementation."""
     # Note: Logging setup is handled by the root main.py entry point
     app_config = await load_config(config)
     runtime = create_runtime(
@@ -105,6 +114,35 @@ async def main(
     await run_with_shutdown_handler(runtime)
 
 
+@click.command()
+@click.option("--mode", type=click.Choice(["discord", "cli", "api"]), default="discord")
+@click.option("--profile", default="default")
+@click.option("--config", type=click.Path(exists=True))
+@click.option("--host", default="0.0.0.0", help="API host")
+@click.option("--port", default=8080, type=int, help="API port")
+@click.option("--no-interactive/--interactive", default=False, help="Disable interactive CLI input")
+@click.option("--debug/--no-debug", default=False)
+def main(
+    mode: str,
+    profile: str,
+    config: Optional[str],
+    host: str,
+    port: int,
+    no_interactive: bool,
+    debug: bool,
+) -> None:
+    """Unified CIRIS Engine entry point."""
+    asyncio.run(async_main(
+        mode=mode,
+        profile=profile,
+        config=config,
+        host=host,
+        port=port,
+        no_interactive=no_interactive,
+        debug=debug,
+    ))
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
 

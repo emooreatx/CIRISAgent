@@ -8,14 +8,17 @@ from ciris_engine.schemas.correlation_schemas_v1 import (
 )
 from ciris_engine import persistence
 
-from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService
+from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService, MemoryService
 
-class APIAdapter(CommunicationService, WiseAuthorityService):
-    """Adapter for HTTP API communication and WA interactions."""
+class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, MemoryService):
+    """Adapter for HTTP API communication, WA, tools, and memory interactions."""
 
     def __init__(self):
         self.responses: Dict[str, Any] = {}  # response_id -> response_data
         self.channel_messages: Dict[str, List[Dict[str, Any]]] = {}  # channel_id -> list of messages
+        self.tool_results: Dict[str, Any] = {}
+        self.memory: Dict[str, Dict[str, Any]] = {}
+        self.tools: Dict[str, Any] = {"echo": lambda args: {"result": args}}
 
     async def start(self):
         pass
@@ -102,3 +105,35 @@ class APIAdapter(CommunicationService, WiseAuthorityService):
             )
         )
         return True
+
+    # --- ToolService ---
+    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        if tool_name in self.tools:
+            result = self.tools[tool_name](parameters)
+            correlation_id = str(uuid.uuid4())
+            self.tool_results[correlation_id] = result
+            return {"correlation_id": correlation_id, **result}
+        return {"error": f"Tool '{tool_name}' not found"}
+
+    async def get_available_tools(self) -> List[str]:
+        return list(self.tools.keys())
+
+    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
+        return self.tool_results.get(correlation_id)
+
+    async def validate_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
+        return True
+
+    # --- MemoryService ---
+    async def memorize(self, node):
+        self.memory[node.id] = node.__dict__
+        return True
+
+    async def recall(self, node):
+        return self.memory.get(node.id)
+
+    async def forget(self, node):
+        return self.memory.pop(node.id, None) is not None
+
+    async def search_memories(self, query: str, scope: str = "default", limit: int = 10) -> List[Dict[str, Any]]:
+        return [v for v in self.memory.values() if query in str(v)]

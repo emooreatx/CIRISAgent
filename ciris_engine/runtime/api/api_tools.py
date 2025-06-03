@@ -1,0 +1,38 @@
+"""API tools endpoints for CIRISAgent, using the multi_service_sink for real tool service."""
+import logging
+from aiohttp import web
+
+logger = logging.getLogger(__name__)
+
+class APIToolsRoutes:
+    def __init__(self, multi_service_sink):
+        self.multi_service_sink = multi_service_sink
+
+    def register(self, app: web.Application):
+        app.router.add_get('/v1/tools', self._handle_list_tools)
+        app.router.add_post('/v1/tools/{tool_name}', self._handle_tool)
+
+    async def _handle_list_tools(self, request: web.Request) -> web.Response:
+        try:
+            tool_service = getattr(self.multi_service_sink, 'tool_service', None)
+            if tool_service and hasattr(tool_service, 'get_available_tools'):
+                tools = await tool_service.get_available_tools()
+            else:
+                tools = []
+            return web.json_response([{"name": t} for t in tools])
+        except Exception as e:
+            logger.error(f"Error listing tools: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def _handle_tool(self, request: web.Request) -> web.Response:
+        tool_name = request.match_info.get('tool_name')
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        try:
+            result = await self.multi_service_sink.execute_tool(tool_name, data)
+            return web.json_response(result)
+        except Exception as e:
+            logger.error(f"Error executing tool {tool_name}: {e}")
+            return web.json_response({"error": str(e)}, status=500)
