@@ -90,25 +90,23 @@ class ContextBuilder:
     ) -> SystemSnapshot:
         """Build system snapshot for the thought."""
         # This is the logic from WorkflowCoordinator.build_context
+        from ciris_engine.schemas.context_schemas_v1 import ThoughtSummary
         thought_summary = None
         if thought:
-            status_val = None
-            # Use getattr to avoid Pydantic ValueError for missing fields
-            status_attr = getattr(thought, 'status', None)
-            if status_attr:
-                if hasattr(status_attr, 'value'):
-                    status_val = status_attr.value
-                else:
-                    status_val = str(status_attr)
+            status_val = getattr(thought, 'status', None)
+            if status_val is not None and hasattr(status_val, 'value'):
+                status_val = status_val.value
+            elif status_val is not None:
+                status_val = str(status_val)
             thought_type_val = getattr(thought, 'thought_type', None)
-            thought_summary = {
-                "thought_id": getattr(thought, 'thought_id', None),
-                "content": getattr(thought, 'content', None),
-                "status": status_val,
-                "source_task_id": getattr(thought, 'source_task_id', None),
-                "thought_type": thought_type_val,
-                "ponder_count": getattr(thought, 'ponder_count', None)
-            }
+            thought_summary = ThoughtSummary(
+                thought_id=getattr(thought, 'thought_id', None),
+                content=getattr(thought, 'content', None),
+                status=status_val,
+                source_task_id=getattr(thought, 'source_task_id', None),
+                thought_type=thought_type_val,
+                ponder_count=getattr(thought, 'ponder_count', None)
+            )
 
         # Add channel memory lookup for debugging
         channel_id = None

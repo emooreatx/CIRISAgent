@@ -79,9 +79,10 @@ class DeferHandler(BaseActionHandler):
 
         # If this is an observation (not a root/system task), defer the parent task as well
         # Fixed: Use TaskStatus.DEFERRED not ThoughtStatus.DEFERRED for tasks
-        if thought.source_task_id not in ["WAKEUP_ROOT", "SYSTEM_TASK", "job-discord-monitor", "DREAM_TASK"]:
-            persistence.update_task_status(thought.source_task_id, TaskStatus.DEFERRED)
-            self.logger.info(f"Marked parent task {thought.source_task_id} as DEFERRED due to child thought deferral.")
+        parent_task_id = thought.source_task_id
+        if parent_task_id not in ["WAKEUP_ROOT", "SYSTEM_TASK", "job-discord-monitor", "DREAM_TASK"]:
+            persistence.update_task_status(parent_task_id, TaskStatus.DEFERRED)
+            self.logger.info(f"Marked parent task {parent_task_id} as DEFERRED due to child thought deferral.")
 
         # DEFER actions typically don't create a standard "next step" follow-up thought
         # because the deferral itself is a terminal state for this thought's processing round.
