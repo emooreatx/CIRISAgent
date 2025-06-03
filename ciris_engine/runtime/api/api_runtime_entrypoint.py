@@ -20,6 +20,7 @@ class APIRuntimeEntrypoint(CIRISRuntime):
     
     def __init__(
         self, 
+        service_registry, 
         multi_service_sink, 
         audit_service, 
         api_observer, 
@@ -35,13 +36,17 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             io_adapter=api_adapter,
             app_config=app_config,
             startup_channel_id="api",
+            service_registry=service_registry,
+            audit_service=audit_service,
+            multi_service_sink=multi_service_sink,
+
         )
         
         # Override services with pre-built ones
-        self.multi_service_sink = multi_service_sink
-        self.audit_service = audit_service
+        #self.multi_service_sink = multi_service_sink
+        #self.audit_service = audit_service
         self.api_observer = api_observer
-        self.api_adapter = api_adapter
+        #self.api_adapter = api_adapter
         
         # Web server configuration
         self.host = host
@@ -49,7 +54,9 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         self.app = web.Application()
         self.runner = None
         self.site = None
-        
+        self._web_server_stopped = False # For idempotency
+
+
         # Register all service routes
         APICommsRoutes(self.api_observer, self.api_adapter).register(self.app)
         APIMemoryRoutes(self.multi_service_sink).register(self.app)
@@ -77,44 +84,58 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             logger.critical(f"API Runtime initialization failed: {e}")
             raise
 
+    async def _shutdown_web_server(self) -> None:
+        """Shutdown the web server components idempotently."""
+        if self._web_server_stopped:
+            logger.debug("Web server already stopped or stopping.")
+            return
+        
+        logger.info("Shutting down web server...")
+        self._web_server_stopped = True # Set flag early
+
+        # Stop web server
+        if self.site:
+            try:
+                await self.site.stop()
+                logger.info("Web server site stopped")
+            except RuntimeError as e:
+                logger.warning(f"Error stopping web server site (may already be stopped): {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error stopping web server site: {e}")
+            self.site = None # Clear it after trying to stop
+        
+        if self.runner:
+            try:
+                await self.runner.cleanup()
+                logger.info("Web runner cleaned up")
+            except Exception as e:
+                logger.error(f"Error cleaning up web runner: {e}")
+            self.runner = None # Clear it
+        logger.info("Web server shutdown sequence complete.")
+
     async def run(self, num_rounds: Optional[int] = None) -> None:
         """Run the API server alongside the parent runtime processing."""
-        if not self._initialized:
+        if not self._initialized: # _initialized should be set by super().initialize()
             await self.initialize()
         
         logger.info(f"Starting API server on {self.host}:{self.port}")
         
         try:
-            # Create and start the web server
             self.runner = web.AppRunner(self.app)
             await self.runner.setup()
             self.site = web.TCPSite(self.runner, self.host, self.port)
             await self.site.start()
             
             logger.info(f"API server running on http://{self.host}:{self.port}")
-            
-            # Run the parent runtime processing alongside the web server
-            # The parent run method will handle agent processing and shutdown monitoring
             await super().run(num_rounds=num_rounds)
             
+        except asyncio.CancelledError:
+            logger.info("API Runtime run task cancelled.")
+            # Let the main shutdown handler deal with cleanup via self.shutdown()
+            raise # Re-raise CancelledError so run_with_shutdown_handler can see it
         except Exception as e:
-            logger.error(f"API server error: {e}")
-            raise
-        finally:
-            await self._shutdown_web_server()
-
-    async def _shutdown_web_server(self) -> None:
-        """Shutdown the web server components."""
-        logger.info("Shutting down web server...")
-        
-        # Stop web server
-        if self.site:
-            await self.site.stop()
-            logger.info("Web server stopped")
-        
-        if self.runner:
-            await self.runner.cleanup()
-            logger.info("Web runner cleaned up")
+            logger.error(f"API server error during run: {e}")
+            raise # Re-raise for higher level handling
 
     async def shutdown(self) -> None:
         """Gracefully shutdown the API runtime and all services."""
@@ -135,7 +156,3 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         await super().shutdown()
         
         logger.info("API Runtime shutdown complete")
-
-    def get_app(self):
-        """Get the aiohttp web application (for testing)."""
-        return self.app

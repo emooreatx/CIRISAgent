@@ -48,13 +48,24 @@ def create_runtime(
         return CLIRuntime(profile_name=profile, interactive=interactive)
     if mode == "api":
         # Build all dependencies for the API runtime entrypoint
+        from ciris_engine.registries.base import ServiceRegistry
+        from ciris_engine.adapters.local_audit_log import AuditService
+        from ciris_engine.protocols.services import CommunicationService, ToolService, WiseAuthorityService, MemoryService
+        
+        # Create shared service registry
+        service_registry = ServiceRegistry()
+        
+        # Create core services
         api_adapter = APIAdapter()
         audit_service = AuditService()
-        # Service registry and sink setup
-        from ciris_engine.registries.base import ServiceRegistry
-
-        service_registry = ServiceRegistry()
         multi_service_sink = MultiServiceActionSink(service_registry=service_registry)
+        
+        # Register APIAdapter for all service protocols it implements
+        service_registry.register_service(CommunicationService, api_adapter)
+        service_registry.register_service(ToolService, api_adapter)
+        service_registry.register_service(WiseAuthorityService, api_adapter)
+        service_registry.register_service(MemoryService, api_adapter)
+        
         # Observer setup
         api_observer = APIObserver(
             on_observe=None,  # Set up as needed
@@ -62,9 +73,9 @@ def create_runtime(
             multi_service_sink=multi_service_sink,
             api_adapter=api_adapter,
         )
-        # Register services as needed (mimic what the old APIRuntime did)
-        # ...register communication/tool/wa/memory services here if needed...
+        
         return APIRuntimeEntrypoint(
+            service_registry=service_registry,
             multi_service_sink=multi_service_sink,
             audit_service=audit_service,
             api_observer=api_observer,

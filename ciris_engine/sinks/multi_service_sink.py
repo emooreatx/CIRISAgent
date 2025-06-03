@@ -150,25 +150,45 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     
     async def _handle_memorize(self, service: MemoryService, action: MemorizeAction):
         """Handle memorize action"""
-        success = await service.memorize(action.node)
-        if success:
-            logger.info(f"Stored memory {action.node.id} via {type(service).__name__}")
+        result = await service.memorize(action.node)
+        if hasattr(result, 'status'):
+            # Return MemoryOpResult object
+            if result.status == 'ok' or result.status == 'OK':
+                logger.info(f"Stored memory {action.node.id} via {type(service).__name__}")
+            else:
+                logger.warning(f"Failed to store memory {action.node.id} via {type(service).__name__}: {result.reason}")
+            return result
         else:
-            logger.warning(f"Failed to store memory via {type(service).__name__}")
+            # Handle legacy boolean return
+            if result:
+                logger.info(f"Stored memory {action.node.id} via {type(service).__name__}")
+            else:
+                logger.warning(f"Failed to store memory via {type(service).__name__}")
+            return result
     
     async def _handle_recall(self, service: MemoryService, action: RecallAction):
         """Handle recall action"""
-        value = await service.recall(action.node)
+        result = await service.recall(action.node)
         logger.info(f"Retrieved memory {action.node.id} via {type(service).__name__}")
-        return value
+        return result
     
     async def _handle_forget(self, service: MemoryService, action: ForgetAction):
         """Handle forget action"""
-        success = await service.forget(action.node)
-        if success:
-            logger.info(f"Deleted memory {action.node.id} via {type(service).__name__}")
+        result = await service.forget(action.node)
+        if hasattr(result, 'status'):
+            # Return MemoryOpResult object
+            if result.status == 'ok' or result.status == 'OK':
+                logger.info(f"Deleted memory {action.node.id} via {type(service).__name__}")
+            else:
+                logger.warning(f"Failed to delete memory {action.node.id} via {type(service).__name__}: {result.reason}")
+            return result
         else:
-            logger.warning(f"Failed to delete memory via {type(service).__name__}")
+            # Handle legacy boolean return
+            if result:
+                logger.info(f"Deleted memory {action.node.id} via {type(service).__name__}")
+            else:
+                logger.warning(f"Failed to delete memory via {type(service).__name__}")
+            return result
     
     async def _handle_send_tool(self, service: ToolService, action: SendToolAction):
         """Handle send tool action"""
@@ -265,4 +285,124 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             correlation_id=correlation_id
         )
         return await self.enqueue_action(action)
-    
+
+    # Memory convenience methods
+    async def memorize(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None):
+        """Convenience method to memorize a node synchronously"""
+        try:
+            from ciris_engine.schemas.service_actions_v1 import MemorizeAction
+            action = MemorizeAction(
+                handler_name=handler_name,
+                metadata=metadata or {},
+                node=node
+            )
+            
+            # Get service directly and call memorize
+            service = await self._get_service('memory', action)
+            if service:
+                result = await self._handle_memorize(service, action)
+                return result
+            else:
+                logger.warning(f"No memory service available for memorize")
+                return None
+        except Exception as e:
+            logger.error(f"Error in memorize: {e}")
+            raise
+
+    async def recall(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None):
+        """Convenience method to recall a node synchronously"""
+        try:
+            from ciris_engine.schemas.service_actions_v1 import RecallAction
+            action = RecallAction(
+                handler_name=handler_name,
+                metadata=metadata or {},
+                node=node
+            )
+            
+            # Get service directly and call recall
+            service = await self._get_service('memory', action)
+            if service:
+                result = await self._handle_recall(service, action)
+                return result
+            else:
+                logger.warning(f"No memory service available for recall")
+                return None
+        except Exception as e:
+            logger.error(f"Error in recall: {e}")
+            raise
+
+    async def forget(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None):
+        """Convenience method to forget a node synchronously"""
+        try:
+            from ciris_engine.schemas.service_actions_v1 import ForgetAction
+            action = ForgetAction(
+                handler_name=handler_name,
+                metadata=metadata or {},
+                node=node
+            )
+            
+            # Get service directly and call forget
+            service = await self._get_service('memory', action)
+            if service:
+                result = await self._handle_forget(service, action)
+                return result
+            else:
+                logger.warning(f"No memory service available for forget")
+                return None
+        except Exception as e:
+            logger.error(f"Error in forget: {e}")
+            raise
+
+    # Tool convenience methods
+    async def execute_tool_sync(self, tool_name: str, tool_args: Dict[str, Any], 
+                               correlation_id: Optional[str] = None, handler_name: str = "tool", 
+                               metadata: Optional[Dict] = None):
+        """Convenience method to execute a tool synchronously"""
+        try:
+            from ciris_engine.schemas.service_actions_v1 import SendToolAction
+            action = SendToolAction(
+                handler_name=handler_name,
+                metadata=metadata or {},
+                tool_name=tool_name,
+                tool_args=tool_args,
+                correlation_id=correlation_id
+            )
+            
+            # Get service directly and call execute
+            service = await self._get_service('tool', action)
+            if service:
+                result = await self._handle_send_tool(service, action)
+                return result
+            else:
+                logger.warning(f"No tool service available for execute_tool_sync")
+                return None
+        except Exception as e:
+            logger.error(f"Error in execute_tool_sync: {e}")
+            raise
+
+    async def get_tool_result_sync(self, correlation_id: str, timeout: Optional[float] = None,
+                                  handler_name: str = "tool", metadata: Optional[Dict] = None):
+        """Convenience method to get tool result synchronously"""
+        try:
+            from ciris_engine.schemas.service_actions_v1 import FetchToolAction
+            action = FetchToolAction(
+                handler_name=handler_name,
+                metadata=metadata or {},
+                correlation_id=correlation_id,
+                timeout=timeout
+            )
+            
+            # Get service directly and call fetch
+            service = await self._get_service('tool', action)
+            if service:
+                result = await self._handle_fetch_tool(service, action)
+                return result
+            else:
+                logger.warning(f"No tool service available for get_tool_result_sync")
+                return None
+        except Exception as e:
+            logger.error(f"Error in get_tool_result_sync: {e}")
+            raise
+
+    # Existing convenience methods...
+
