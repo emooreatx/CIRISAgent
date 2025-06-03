@@ -16,8 +16,7 @@ __all__ = [
     "escalate_due_to_guardrail",
     "escalate_due_to_failure",
     "escalate_dma_failure",
-    "escalate_due_to_depth_limit",
-    "escalate_due_to_ponder_limit",
+    "escalate_due_to_max_thought_rounds",
 ]
 
 
@@ -86,23 +85,12 @@ def escalate_dma_failure(
     return _append_escalation(thought, event)
 
 
-def escalate_due_to_depth_limit(thought: Thought, max_depth: int) -> Thought:
-    """Escalate when a thought exceeds the allowed depth."""
+def escalate_due_to_max_thought_rounds(thought: Thought, max_rounds: int) -> Thought:
+    """Escalate when a thought exceeds the allowed action rounds per thought."""
     now = datetime.now(timezone.utc).isoformat()
     event = {
         "timestamp": now,
-        "reason": f"Thought depth exceeded maximum of {max_depth}",
-        "type": "depth_limit",
-    }
-    return _append_escalation(thought, event)
-
-
-def escalate_due_to_ponder_limit(thought: Thought, max_ponder: int) -> Thought:
-    """Escalate when a thought exceeds the allowed ponder count."""
-    now = datetime.now(timezone.utc).isoformat()
-    event = {
-        "timestamp": now,
-        "reason": f"Ponder count exceeded maximum of {max_ponder}",
-        "type": "ponder_limit",
+        "reason": f"Thought action count exceeded maximum rounds of {max_rounds}",
+        "type": "max_thought_rounds",
     }
     return _append_escalation(thought, event)

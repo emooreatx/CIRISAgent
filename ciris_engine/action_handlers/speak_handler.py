@@ -13,6 +13,20 @@ from .exceptions import FollowUpCreationError
 logger = logging.getLogger(__name__)
 
 
+def _build_speak_error_context(params: SpeakParams, thought_id: str, error_type: str = "notification_failed") -> str:
+    """Build a descriptive error context string for speak failures."""
+    error_contexts = {
+        "notification_failed": f"Failed to send notification to channel '{params.channel_id}' with content: '{params.content[:100]}{'...' if len(params.content) > 100 else ''}'",
+        "channel_unavailable": f"Channel '{params.channel_id}' is not available or accessible",
+        "content_rejected": f"Content was rejected by the communication service: '{params.content[:100]}{'...' if len(params.content) > 100 else ''}'",
+        "service_timeout": f"Communication service timed out while sending to channel '{params.channel_id}'",
+        "unknown": f"Unknown error occurred while speaking to channel '{params.channel_id}'"
+    }
+    
+    base_context = error_contexts.get(error_type, error_contexts["unknown"])
+    return f"Thought {thought_id}: {base_context}"
+
+
 class SpeakHandler(BaseActionHandler):
     def __init__(self, dependencies: ActionHandlerDependencies, snore_channel_id: str = None):
         super().__init__(dependencies)
@@ -63,15 +77,13 @@ class SpeakHandler(BaseActionHandler):
 
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
         
+        # Build error context if needed
+        follow_up_error_context = None if success else _build_speak_error_context(params, thought_id)
+        
         # Get the actual task content instead of just the ID
         task = persistence.get_task_by_id(thought.source_task_id)
         task_description = task.description if task else f"task {thought.source_task_id}"
-        
-        follow_up_content_key_info = (
-            f"YOU Spoke, as a result of your action: '{params.content}' in channel #{params.channel_id} as a response to task: {task_description} this thought was created. The next action is probably TASK COMPLETE to mark the original task as handled. Any further user action will trigger a further observation thought automatically."
-            if success
-            else f"Failed to send message to {params.channel_id}"
-        )  #PROMPT_FOLLOW_UP_THOUGHT
+
 
         # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
@@ -81,9 +93,14 @@ class SpeakHandler(BaseActionHandler):
         )
 
         follow_up_text = (
-            f"Successfully spoke: '{params.content}'"
+            f"""
+            YOU Spoke, as a result of your action: '{params.content}' in channel 
+            {params.channel_id} as a response to task: {task_description}. The next 
+            action is probably TASK COMPLETE to mark the original task as handled.
+            Do NOT speak again unless DRASTICALLY necessary.
+            """
             if success
-            else f"SPEAK action failed for thought {thought_id}. Reason: {follow_up_content_key_info}."
+            else f"SPEAK action failed for thought {thought_id}."
         )  #PROMPT_FOLLOW_UP_THOUGHT
 
         try:
@@ -93,7 +110,7 @@ class SpeakHandler(BaseActionHandler):
                 "action_params": params,
             }
             if not success:
-                ctx["error_details"] = follow_up_content_key_info
+                ctx["error_details"] = follow_up_error_context
             new_follow_up.context = ctx
             persistence.add_thought(new_follow_up)
             await self._audit_log(

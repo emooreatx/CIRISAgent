@@ -41,4 +41,9 @@ def build_action_dispatcher(service_registry=None, max_rounds: int = 5, shutdown
         HandlerActionType.FORGET: ForgetHandler(deps),
         HandlerActionType.PONDER: PonderHandler(deps, max_rounds=max_rounds),
     }
-    return ActionDispatcher(handlers)
+    dispatcher = ActionDispatcher(handlers)
+    
+    # Inject the dispatcher back into dependencies for cross-handler communication
+    deps.action_dispatcher = dispatcher
+    
+    return dispatcher

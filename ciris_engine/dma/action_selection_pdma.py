@@ -58,7 +58,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
             "Given PDMA, CSDMA and DSDMA results, choose one handler action. "
             "Use MEMORIZE to store facts in graph memory when allowed. "
             "RECALL and FORGET exist but may be disabled. "
-            "If ponder rounds exceed the limit the system auto‑defers."
+            "If action rounds exceed the limit the system auto‑defers."
         ),
         "decision_format": (
             "Return JSON with keys: context_summary_for_action_selection, action_alignment_check, "
@@ -162,16 +162,16 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
             "Example: {{\"sources\": [\"#relevant_channel_id\"], \"reason\": \"To understand the latest messages from the user before responding.\", \"perform_active_look\": true}}"
         ),
         "normal_mode_final_ponder_advisory": (
-            "\nIMPORTANT FINAL PONDER ROUND ADVISORY (Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_rounds}):\n"
-            "You have Pondered multiple times. This is your final opportunity to provide a direct answer or a definitive deferral.\n"
-            "Your primary goal now is to attempt a 'Speak' action if at all feasible, using the original thought and all previous ponder notes to construct a response.\n"
+            "\nIMPORTANT FINAL ATTEMPT ADVISORY (Action Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_rounds}):\n"
+            "You have taken multiple actions on this thought. This is your final opportunity to provide a direct answer or a definitive deferral.\n"
+            "Your primary goal now is to attempt a 'Speak' action if at all feasible, using the original thought and all previous analysis to construct a response.\n"
             "If, after careful consideration, you determine that a 'Speak' action is not possible due to unresolved critical ambiguities, then 'Defer to WA' is the appropriate choice.\n"
             "Avoid selecting 'Ponder' again, as it will automatically result in a DEFER by the system.\n"
             "'Reject Thought' should only be used if the original request is fundamentally unserviceable."
         ),
         "student_mode_final_ponder_advisory": (
-            "\nCRITICAL FINAL ATTEMPT (Student Profile - Ponder Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_rounds}):\n"
-            "You have Pondered multiple times. This is your ABSOLUTE FINAL opportunity to provide a DIRECT ANSWER.\n"
+            "\nCRITICAL FINAL ATTEMPT (Student Profile - Action Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_rounds}):\n"
+            "You have taken multiple actions on this thought. This is your ABSOLUTE FINAL opportunity to provide a DIRECT ANSWER.\n"
             "You MUST select 'Speak' and provide your best direct answer based on all prior analysis and CSDMA flags. YOUR ANSWER MUST NOT BE A QUESTION.\n"
             "If you cannot formulate a direct, non-question answer, then 'Reject Thought' is your only other viable option. DO NOT PONDER AGAIN. DO NOT DEFER."
         )
@@ -308,7 +308,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         notes_list = original_thought.ponder_notes if original_thought.ponder_notes else []
 
         if notes_list:
-            ponder_notes_str_for_prompt_if_any = "\n\nIMPORTANT CONTEXT FROM PREVIOUS PONDERING ROUND(S):\n"
+            ponder_notes_str_for_prompt_if_any = "\n\nIMPORTANT CONTEXT FROM PREVIOUS ACTION ROUNDS:\n"
             ponder_notes_str_for_prompt_if_any += f"This thought has been pondered {current_ponder_count} time(s). PLEASE TRY AND ACT (SPEAK) NOW\n"
             ponder_notes_str_for_prompt_if_any += "The following key questions were previously identified:\n"
             for i, q_note in enumerate(notes_list):
@@ -331,7 +331,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
                 )
             except KeyError as e:
                 logger.error(f"KeyError formatting final_ponder_advisory_template: {e}. Template: '{final_ponder_advisory_template}'")
-                final_ponder_advisory = "\nIMPORTANT FINAL PONDER ROUND: Attempt to provide a terminal action."
+                final_ponder_advisory = "\nIMPORTANT FINAL ATTEMPT: Attempt to provide a terminal action."
         
         reject_thought_guidance = "\nNote on 'Reject Thought': Use this action sparingly, primarily if the original thought is nonsensical, impossible to act upon even with clarification, or fundamentally misaligned with the agent's purpose. Prefer 'Ponder' or 'Speak' for clarification if possible."
         
