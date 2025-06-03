@@ -145,7 +145,10 @@ class MemorizeHandler(BaseActionHandler):
             # Pass action parameters directly - persistence will handle serialization
             context_for_follow_up["action_params"] = result.action_parameters
 
-            new_follow_up.context = context_for_follow_up  # v1 uses 'context'
+            if isinstance(new_follow_up.context, dict):
+                new_follow_up.context.update(context_for_follow_up)  # v1 uses 'context'
+            else:
+                new_follow_up.context = context_for_follow_up
             persistence.add_thought(new_follow_up)
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after MEMORIZE action."

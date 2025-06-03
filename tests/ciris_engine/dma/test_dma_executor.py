@@ -36,7 +36,19 @@ async def test_run_dma_with_retries_timeout():
 async def test_run_pdma():
     evaluator = MagicMock()
     evaluator.evaluate = AsyncMock(return_value="ok")
-    result = await run_pdma(evaluator, "item")
+    from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+    item = Thought(
+        thought_id="t1",
+        source_task_id="task1",
+        thought_type="test",
+        status="pending",
+        created_at="now",
+        updated_at="now",
+        round_number=1,
+        content="c",
+        context={},
+    )
+    result = await run_pdma(evaluator, item)
     assert result == "ok"
 
 @pytest.mark.asyncio

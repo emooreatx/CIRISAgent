@@ -46,7 +46,10 @@ class RejectHandler(BaseActionHandler):
                     "error_details": follow_up_content_key_info,
                 }
                 context_for_follow_up["action_params"] = params
-                new_follow_up.context = context_for_follow_up
+                if isinstance(new_follow_up.context, dict):
+                    new_follow_up.context.update(context_for_follow_up)
+                else:
+                    new_follow_up.context = context_for_follow_up
                 persistence.add_thought(new_follow_up)
                 await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             except Exception as e2:
@@ -109,7 +112,10 @@ class RejectHandler(BaseActionHandler):
             # Pass params directly - persistence will handle serialization
             context_for_follow_up["action_params"] = params
 
-            new_follow_up.context = context_for_follow_up  # v1 uses 'context'
+            if isinstance(new_follow_up.context, dict):
+                new_follow_up.context.update(context_for_follow_up)  # v1 uses 'context'
+            else:
+                new_follow_up.context = context_for_follow_up
 
             persistence.add_thought(new_follow_up)
             self.logger.info(
