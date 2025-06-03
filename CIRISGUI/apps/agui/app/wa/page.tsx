@@ -1,24 +1,17 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { CIRISClient } from "../../lib/cirisClient";
 
-// Fetch deferrals from the API (assume /v1/deferrals or /v1/audit?event_type=defer)
+const client = new CIRISClient();
+
+// Fetch deferrals from the API (audit endpoint)
 async function fetchDeferrals() {
-  // Try /v1/audit?event_type=defer for now
-  const res = await fetch(process.env.NEXT_PUBLIC_CIRIS_API_URL + '/v1/audit?event_type=defer');
-  if (!res.ok) return [];
-  const data = await res.json();
-  // Assume entries is an array of deferral audit log entries
-  return data.entries || [];
+  return await client.auditList('defer');
 }
 
 async function fetchGuidance(context: any = {}) {
-  const res = await fetch(process.env.NEXT_PUBLIC_CIRIS_API_URL + '/v1/guidance', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(context),
-  });
-  return res.json();
+  return await client.toolExecute('guidance', context);
 }
 
 export default function WAPage() {

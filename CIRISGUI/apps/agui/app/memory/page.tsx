@@ -1,31 +1,29 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { CIRISClient } from "../../lib/cirisClient";
 
-const API = process.env.NEXT_PUBLIC_CIRIS_API_URL;
+const client = new CIRISClient();
 
 async function fetchScopes() {
-  const res = await fetch(API + '/v1/memory/scopes');
-  return res.json();
+  return { scopes: await client.memoryScopes() };
 }
 
 async function fetchEntry(scope: string, key: string) {
-  const res = await fetch(`${API}/v1/memory/fetch?scope=${encodeURIComponent(scope)}&key=${encodeURIComponent(key)}`);
-  return res.json();
+  const entries = await client.memoryEntries(scope);
+  const match = entries.find((e: any) => e.key === key);
+  return { value: match?.value };
 }
 
 async function storeEntry(scope: string, key: string, value: any) {
-  const res = await fetch(`${API}/v1/memory/store`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ scope, entry: { key, value } }),
-  });
-  return res.json();
+  await client.memoryStore(scope, key, value);
+  return { result: 'ok' };
 }
 
 async function queryEntries(scope: string, prefix: string, limit: number) {
-  const res = await fetch(`${API}/v1/memory/query?scope=${encodeURIComponent(scope)}&prefix=${encodeURIComponent(prefix)}&limit=${limit}`);
-  return res.json();
+  const entries = await client.memoryEntries(scope);
+  const filtered = entries.filter((e: any) => e.key.startsWith(prefix)).slice(0, limit);
+  return { entries: filtered };
 }
 
 export default function MemoryPage() {

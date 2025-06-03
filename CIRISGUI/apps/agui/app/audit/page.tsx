@@ -1,15 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { CIRISClient } from "../../lib/cirisClient";
+
+const client = new CIRISClient();
 
 async function fetchAuditEntries() {
   try {
-    const res = await fetch(process.env.NEXT_PUBLIC_CIRIS_API_URL + '/v1/audit');
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    }
-    const data = await res.json();
-    return data.entries || [];
+    return await client.auditList();
   } catch (error) {
     console.error('Failed to fetch audit log:', error);
     return [];

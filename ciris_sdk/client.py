@@ -8,6 +8,8 @@ from .resources.messages import MessagesResource
 from .resources.memory import MemoryResource
 from .resources.tools import ToolsResource
 from .resources.guidance import GuidanceResource
+from .resources.audit import AuditResource
+from .resources.logs import LogsResource
 from .exceptions import CIRISTimeoutError, CIRISConnectionError
 
 class CIRISClient:
@@ -28,6 +30,8 @@ class CIRISClient:
         self.memory = MemoryResource(self._transport)
         self.tools = ToolsResource(self._transport)
         self.guidance = GuidanceResource(self._transport)
+        self.audit = AuditResource(self._transport)
+        self.logs = LogsResource(self._transport)
 
     async def __aenter__(self) -> "CIRISClient":
         await self._transport.__aenter__()
