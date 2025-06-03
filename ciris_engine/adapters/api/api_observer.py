@@ -17,11 +17,13 @@ class APIObserver:
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
         multi_service_sink: Optional[MultiServiceActionSink] = None,
+        api_adapter: Optional[Any] = None,
     ):
         self.on_observe = on_observe
         self.memory_service = memory_service
         self.agent_id = agent_id
         self.multi_service_sink = multi_service_sink
+        self.api_adapter = api_adapter
         self._history: list[IncomingMessage] = []
 
     async def start(self):
@@ -164,13 +166,35 @@ class APIObserver:
                     continue
 
     async def get_recent_messages(self, limit: int = 20) -> list[Dict[str, Any]]:
-        msgs = self._history[-limit:]
-        return [
-            {
-                "id": m.message_id,
-                "content": m.content,
-                "author_id": m.author_id,
-                "timestamp": getattr(m, "timestamp", "n/a"),
-            }
-            for m in msgs
-        ]
+        all_messages = []
+        
+        # Get recent input messages from history
+        recent_history = self._history[-limit*2:]  # Get more history to account for responses
+        
+        for msg in recent_history:
+            # Add the user's input message
+            all_messages.append({
+                "id": msg.message_id,
+                "content": msg.content,
+                "author_id": msg.author_id,
+                "timestamp": getattr(msg, "timestamp", "n/a"),
+            })
+            
+            # Add any agent responses for this channel
+            if self.api_adapter and hasattr(self.api_adapter, 'channel_messages'):
+                channel_responses = self.api_adapter.channel_messages.get(msg.channel_id, [])
+                
+                # Add responses that came after this message (simple approach for now)
+                for response in channel_responses:
+                    all_messages.append(response)
+        
+        # Remove duplicates and sort by timestamp if available
+        seen_ids = set()
+        unique_messages = []
+        for msg in all_messages:
+            if msg["id"] not in seen_ids:
+                seen_ids.add(msg["id"])
+                unique_messages.append(msg)
+        
+        # Return the most recent messages up to the limit
+        return unique_messages[-limit:]

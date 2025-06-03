@@ -57,6 +57,8 @@ class AuditService(Service):
         )
 
     async def stop(self):
+        # Flush any remaining buffered entries before stopping
+        await self._flush_buffer()
         await super().stop()
 
     async def log_action(

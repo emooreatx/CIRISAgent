@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "ciris-api"
+version = "0.1.0"
+description = "Wrapper to run CIRISAgent API runtime"
+authors = ["CIRIS Team"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+ciris_engine = {path = "../../..", develop = true}
+uvicorn = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -17,3 +17,11 @@ audit_logs.jsonl
 data_archive/
 :memory:
 .env
+
+# CIRISGUI artifacts
+CIRISGUI/apps/agui/.next/
+CIRISGUI/apps/agui/node_modules/
+CIRISGUI/apps/agui/dist/
+CIRISGUI/apps/ciris-api/__pycache__/
+
+node_modules

@@ -41,16 +41,20 @@ class APIRuntime(CIRISRuntime):
         self.api_observer = APIObserver(
             on_observe=self._handle_observe_event,
             memory_service=self.memory_service,
-            multi_service_sink=self.multi_service_sink
+            multi_service_sink=self.multi_service_sink,
+            api_adapter=self.api_adapter
         )
         await self.api_observer.start()
 
     def _setup_routes(self) -> None:
         self.app.router.add_post('/v1/messages', self._handle_message)
+        self.app.router.add_get('/v1/messages', self._handle_get_messages)
         self.app.router.add_get('/v1/status', self._handle_status)
         self.app.router.add_post('/v1/defer', self._handle_defer)
         self.app.router.add_get('/v1/audit', self._handle_audit)
         self.app.router.add_post('/v1/tools/{tool_name}', self._handle_tool)
+        self.app.router.add_get('/v1/tools', self._handle_list_tools)  # NEW
+        self.app.router.add_post('/v1/guidance', self._handle_guidance)  # NEW
 
     async def _handle_message(self, request: web.Request) -> web.Response:
         try:
@@ -69,8 +73,31 @@ class APIRuntime(CIRISRuntime):
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 
+    async def _handle_get_messages(self, request: web.Request) -> web.Response:
+        try:
+            limit = int(request.query.get('limit', 20))
+            if self.api_observer:
+                messages = await self.api_observer.get_recent_messages(limit)
+                return web.json_response({"messages": messages})
+            else:
+                return web.json_response({"messages": []})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
     async def _handle_status(self, request: web.Request) -> web.Response:
-        return web.json_response({"status": "ok"})
+        status_data = {"status": "ok"}
+        
+        # Include latest response for CIRISVoice compatibility
+        if self.api_adapter and hasattr(self.api_adapter, 'responses') and self.api_adapter.responses:
+            # Get the most recent response
+            latest_response_id = max(self.api_adapter.responses.keys())
+            latest_response = self.api_adapter.responses[latest_response_id]
+            status_data["last_response"] = {
+                "content": latest_response["content"],
+                "timestamp": latest_response["timestamp"]
+            }
+        
+        return web.json_response(status_data)
 
     async def _handle_defer(self, request: web.Request) -> web.Response:
         try:
@@ -85,6 +112,22 @@ class APIRuntime(CIRISRuntime):
     async def _handle_audit(self, request: web.Request) -> web.Response:
         return web.json_response({"entries": []})
 
+    async def _handle_list_tools(self, request: web.Request) -> web.Response:
+        # List available tools using ToolService protocol
+        if hasattr(self, 'api_tool_service'):
+            try:
+                # Try ADK/Protocol method names
+                if hasattr(self.api_tool_service, 'list_tools'):
+                    tools = await self.api_tool_service.list_tools()
+                elif hasattr(self.api_tool_service, 'get_available_tools'):
+                    tools = await self.api_tool_service.get_available_tools()
+                else:
+                    tools = []
+                return web.json_response({"tools": tools})
+            except Exception as e:
+                return web.json_response({"error": str(e)}, status=500)
+        return web.json_response({"tools": []})
+
     async def _handle_tool(self, request: web.Request) -> web.Response:
         tool_name = request.match_info.get('tool_name')
         try:
@@ -92,10 +135,31 @@ class APIRuntime(CIRISRuntime):
         except Exception:
             data = {}
         if hasattr(self, 'api_tool_service'):
-            result = await self.api_tool_service.execute_tool(tool_name, data)
+            # Try ADK/Protocol method names
+            if hasattr(self.api_tool_service, 'call_tool'):
+                result = await self.api_tool_service.call_tool(tool_name, arguments=data)
+            elif hasattr(self.api_tool_service, 'execute_tool'):
+                result = await self.api_tool_service.execute_tool(tool_name, data)
+            else:
+                result = {"error": "no tool method"}
         else:
             result = {"error": "no tool service"}
         return web.json_response(result)
+
+    async def _handle_guidance(self, request: web.Request) -> web.Response:
+        # Fetch guidance from WiseAuthorityService
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        if hasattr(self, 'api_wa_service'):
+            # Try ADK/Protocol method names
+            if hasattr(self.api_wa_service, 'fetch_guidance'):
+                guidance = await self.api_wa_service.fetch_guidance(data)
+            else:
+                guidance = None
+            return web.json_response({"guidance": guidance})
+        return web.json_response({"guidance": None, "error": "no wise authority service"}, status=404)
 
     async def _handle_observe_event(self, payload: Dict[str, Any]):
         logger.debug("API runtime received observe event: %s", payload)

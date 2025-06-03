@@ -1,0 +1,7 @@
+FROM node:20-alpine
+WORKDIR /app
+COPY apps/agui/package.json apps/agui/tsconfig.json apps/agui/next.config.js ./
+RUN npm install
+COPY apps/agui ./app
+RUN npm run build
+CMD ["npm", "run", "start"]
