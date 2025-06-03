@@ -47,72 +47,22 @@ def create_runtime(
     if mode == "cli":
         return CLIRuntime(profile_name=profile, interactive=interactive)
     if mode == "api":
-        # Build all dependencies for the API runtime entrypoint
-        from ciris_engine.registries.base import ServiceRegistry, Priority
-        from ciris_engine.adapters.local_audit_log import AuditService
-        from ciris_engine.protocols.services import CommunicationService, ToolService, WiseAuthorityService, MemoryService
-        
-        # Create shared service registry
-        service_registry = ServiceRegistry()
-        
-        # Create core services
-        api_adapter = APIAdapter()
-        audit_service = AuditService()
-        multi_service_sink = MultiServiceActionSink(service_registry=service_registry)
-        
-        # Register APIAdapter for all service protocols it implements
-        service_registry.register(
-            handler="SpeakHandler",
-            service_type="communication",
-            provider=api_adapter,
-            priority=Priority.HIGH,
-            capabilities=["send_message", "fetch_messages"]
-        )
-        
-        service_registry.register(
-            handler="ToolHandler", 
-            service_type="tool",
-            provider=api_adapter,
-            priority=Priority.HIGH,
-            capabilities=["execute_tool", "get_available_tools", "get_tool_result"]
-        )
-        
-        service_registry.register(
-            handler="DeferHandler",
-            service_type="wise_authority",
-            provider=api_adapter,
-            priority=Priority.HIGH,
-            capabilities=["fetch_guidance", "send_deferral"]
-        )
-        
-        service_registry.register(
-            handler="MemorizeHandler",
-            service_type="memory",
-            provider=api_adapter,
-            priority=Priority.HIGH,
-            capabilities=["memorize", "recall", "forget"]
-        )
-        
-        # Observer setup
-        api_observer = APIObserver(
-            on_observe=None,  # Set up as needed
-            memory_service=api_adapter,  # Or use a real memory service if desired
-            multi_service_sink=multi_service_sink,
-            api_adapter=api_adapter,
-        )
-        
+        # The APIRuntimeEntrypoint will handle all service creation and registration
         return APIRuntimeEntrypoint(
-            service_registry=service_registry,
-            multi_service_sink=multi_service_sink,
-            audit_service=audit_service,
-            api_observer=api_observer,
-            api_adapter=api_adapter,
+            service_registry=None,  # Let APIRuntimeEntrypoint create it
+            multi_service_sink=None,  # Let APIRuntimeEntrypoint create it
+            audit_service=None,  # Let APIRuntimeEntrypoint create it
+            api_observer=None,  # Let APIRuntimeEntrypoint create it
+            api_adapter=None,  # Let APIRuntimeEntrypoint create it
             host=host,
             port=port,
             profile_name=profile,
             app_config=config,
         )
     raise ValueError(f"Unsupported mode: {mode}")
+
+
+
 
 
 async def run_with_shutdown_handler(runtime: CIRISRuntime) -> None:

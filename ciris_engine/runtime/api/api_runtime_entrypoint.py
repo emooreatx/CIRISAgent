@@ -20,16 +20,21 @@ class APIRuntimeEntrypoint(CIRISRuntime):
     
     def __init__(
         self, 
-        service_registry, 
-        multi_service_sink, 
-        audit_service, 
-        api_observer, 
-        api_adapter, 
+        service_registry=None, 
+        multi_service_sink=None, 
+        audit_service=None, 
+        api_observer=None, 
+        api_adapter=None, 
         host="0.0.0.0", 
         port=8080,
         profile_name: str = "default",
         app_config: Optional[AppConfig] = None,
     ):
+        # Create API adapter if not provided
+        if api_adapter is None:
+            from ciris_engine.adapters.api import APIAdapter
+            api_adapter = APIAdapter()
+        
         # Initialize parent CIRISRuntime with API adapter as io_adapter
         super().__init__(
             profile_name=profile_name,
@@ -38,12 +43,19 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             startup_channel_id="api",
         )
         
-        # Override services with pre-built ones
-        self.service_registry = service_registry
-        self.multi_service_sink = multi_service_sink
-        self.audit_service = audit_service
-        self.api_observer = api_observer
+        # Store the API adapter
         self.api_adapter = api_adapter
+        
+        # Initialize api_observer to None first
+        self.api_observer = api_observer
+        
+        # Override services with pre-built ones if provided
+        if service_registry:
+            self.service_registry = service_registry
+        if multi_service_sink:
+            self.multi_service_sink = multi_service_sink
+        if audit_service:
+            self.audit_service = audit_service
         
         # Web server configuration
         self.host = host
@@ -53,14 +65,65 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         self.site = None
         self._web_server_stopped = False # For idempotency
 
+    async def _register_core_services(self):
+        """Register core services including API-specific ones."""
+        # First, call parent to register standard services
+        await super()._register_core_services()
+        
+        # Now register API adapter for all communication needs
+        if self.api_adapter and self.service_registry:
+            from ciris_engine.registries.base import Priority
+            
+            # Register for all handlers that need communication
+            for handler in ["SpeakHandler", "ObserveHandler", "ToolHandler"]:
+                self.service_registry.register(
+                    handler=handler,
+                    service_type="communication",
+                    provider=self.api_adapter,
+                    priority=Priority.HIGH,
+                    capabilities=["send_message", "fetch_messages"]
+                )
+            
+            # Register as tool service
+            self.service_registry.register(
+                handler="ToolHandler",
+                service_type="tool",
+                provider=self.api_adapter,
+                priority=Priority.HIGH,
+                capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
+            )
+            
+            # Register as wise authority service
+            for handler in ["DeferHandler", "SpeakHandler"]:
+                self.service_registry.register(
+                    handler=handler,
+                    service_type="wise_authority",
+                    provider=self.api_adapter,
+                    priority=Priority.HIGH,
+                    capabilities=["fetch_guidance", "send_deferral"]
+                )
+            
+            # Register as memory service for handlers that need it
+            for handler in ["MemorizeHandler", "RecallHandler", "ForgetHandler"]:
+                self.service_registry.register(
+                    handler=handler,
+                    service_type="memory",
+                    provider=self.api_adapter,
+                    priority=Priority.HIGH,
+                    capabilities=["memorize", "recall", "forget"]
+                )
+            
+            logger.info("Registered APIAdapter for all service types")
 
-        # Register all service routes
+    def _register_routes(self):
+        """Register all API routes after services are initialized."""
         APICommsRoutes(self.api_observer, self.api_adapter).register(self.app)
         APIMemoryRoutes(self.multi_service_sink).register(self.app)
         APIToolsRoutes(self.multi_service_sink).register(self.app)
         APIWARoutes(self.multi_service_sink).register(self.app)
         APIAuditRoutes(self.audit_service).register(self.app)
         APILogsRoutes().register(self.app)
+        logger.info("Registered all API routes")
 
     async def initialize(self) -> None:
         """Initialize the API runtime, extending parent initialization."""
@@ -70,10 +133,23 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         logger.info("Initializing API-specific components...")
         
         try:
+            # Create API observer if not provided
+            if self.api_observer is None:
+                from ciris_engine.adapters.api import APIObserver
+                self.api_observer = APIObserver(
+                    on_observe=None,  # Will be set later if needed
+                    memory_service=self.memory_service,
+                    multi_service_sink=self.multi_service_sink,
+                    api_adapter=self.api_adapter,
+                )
+            
             # Start the API observer
             if self.api_observer:
                 await self.api_observer.start()
                 logger.info("API observer started")
+            
+            # Register all API routes after observer is created
+            self._register_routes()
             
             logger.info("API Runtime initialization complete")
             

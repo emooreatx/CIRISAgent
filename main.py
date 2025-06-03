@@ -147,6 +147,8 @@ def main(
             click.echo("DISCORD_BOT_TOKEN not set, falling back to CLI mode")
             selected_mode = "cli"
 
+
+
         interactive = not no_interactive if selected_mode == "cli" else True
 
         if mock_llm:
