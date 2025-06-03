@@ -1,14 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { CIRISClient } from "../../lib/cirisClient";
+
+const client = new CIRISClient();
 
 async function fetchLogs(filename: string, lines: number = 100) {
-  // Use the backend API endpoint for logs
-  const baseUrl = process.env.NEXT_PUBLIC_CIRIS_API_URL || '';
-  const url = `${baseUrl}/v1/logs/${filename}?tail=${lines}`;
-  const res = await fetch(url);
-  if (!res.ok) return `Failed to fetch logs: ${res.statusText}`;
-  return res.text();
+  try {
+    return await client.logFetch(filename, lines);
+  } catch (e: any) {
+    return `Failed to fetch logs: ${e.message}`;
+  }
 }
 
 const LOG_FILES = [
