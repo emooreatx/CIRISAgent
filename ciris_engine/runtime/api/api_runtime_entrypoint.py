@@ -36,17 +36,14 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             io_adapter=api_adapter,
             app_config=app_config,
             startup_channel_id="api",
-            service_registry=service_registry,
-            audit_service=audit_service,
-            multi_service_sink=multi_service_sink,
-
         )
         
         # Override services with pre-built ones
-        #self.multi_service_sink = multi_service_sink
-        #self.audit_service = audit_service
+        self.service_registry = service_registry
+        self.multi_service_sink = multi_service_sink
+        self.audit_service = audit_service
         self.api_observer = api_observer
-        #self.api_adapter = api_adapter
+        self.api_adapter = api_adapter
         
         # Web server configuration
         self.host = host

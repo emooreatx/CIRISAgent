@@ -48,7 +48,7 @@ def create_runtime(
         return CLIRuntime(profile_name=profile, interactive=interactive)
     if mode == "api":
         # Build all dependencies for the API runtime entrypoint
-        from ciris_engine.registries.base import ServiceRegistry
+        from ciris_engine.registries.base import ServiceRegistry, Priority
         from ciris_engine.adapters.local_audit_log import AuditService
         from ciris_engine.protocols.services import CommunicationService, ToolService, WiseAuthorityService, MemoryService
         
@@ -61,10 +61,37 @@ def create_runtime(
         multi_service_sink = MultiServiceActionSink(service_registry=service_registry)
         
         # Register APIAdapter for all service protocols it implements
-        service_registry.register_service(CommunicationService, api_adapter)
-        service_registry.register_service(ToolService, api_adapter)
-        service_registry.register_service(WiseAuthorityService, api_adapter)
-        service_registry.register_service(MemoryService, api_adapter)
+        service_registry.register(
+            handler="SpeakHandler",
+            service_type="communication",
+            provider=api_adapter,
+            priority=Priority.HIGH,
+            capabilities=["send_message", "fetch_messages"]
+        )
+        
+        service_registry.register(
+            handler="ToolHandler", 
+            service_type="tool",
+            provider=api_adapter,
+            priority=Priority.HIGH,
+            capabilities=["execute_tool", "get_available_tools", "get_tool_result"]
+        )
+        
+        service_registry.register(
+            handler="DeferHandler",
+            service_type="wise_authority",
+            provider=api_adapter,
+            priority=Priority.HIGH,
+            capabilities=["fetch_guidance", "send_deferral"]
+        )
+        
+        service_registry.register(
+            handler="MemorizeHandler",
+            service_type="memory",
+            provider=api_adapter,
+            priority=Priority.HIGH,
+            capabilities=["memorize", "recall", "forget"]
+        )
         
         # Observer setup
         api_observer = APIObserver(
