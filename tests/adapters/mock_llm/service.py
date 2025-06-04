@@ -1,26 +1,107 @@
 from types import SimpleNamespace
 from typing import Any, Optional
+import instructor
 
 from ciris_engine.adapters.base import Service
 
 from .responses import create_response
 
 
+class MockInstructorClient:
+    """Mock instructor-patched client that properly handles response_model parameter."""
+    
+    def __init__(self, base_client) -> None:
+        self.base_client = base_client
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+    
+    async def _create(self, *args, response_model=None, **kwargs) -> Any:
+        # This is the instructor-patched version that should always receive response_model
+        if response_model is None:
+            # This should NOT happen - instructor always passes response_model
+            print(f"[MOCK_LLM_ERROR] MockInstructorClient received response_model=None - this indicates a bug!")
+            raise ValueError("Instructor client should always receive response_model")
+        
+        # Forward to base client with response_model preserved
+        return await self.base_client._create(*args, response_model=response_model, **kwargs)
+
+
+class MockPatchedClient:
+    """A client that mimics instructor.patch() behavior for our mock."""
+    
+    def __init__(self, original_client, mode=None):
+        self.original_client = original_client
+        self.mode = mode
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._patched_create))
+    
+    async def _patched_create(self, *args, **kwargs):
+        """Intercept instructor-patched calls and route to our mock."""
+        print(f"[MOCK_LLM_DEBUG] Patched client _create called with kwargs: {list(kwargs.keys())}")
+        
+        # Extract the response_model from kwargs
+        response_model = kwargs.get('response_model')
+        print(f"[MOCK_LLM_DEBUG] Patched client response_model: {response_model}")
+        
+        # Route to the original mock client's _create method
+        return await self.original_client._create(*args, **kwargs)
+
+
 class MockLLMClient:
-    """Lightweight stand-in for an OpenAI-compatible client."""
+    """Lightweight stand-in for an OpenAI-compatible client that supports instructor patching."""
 
     def __init__(self) -> None:
         self.model_name = "mock-model"
         self.client = self
-        self.instruct_client = self
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+        # Create a proper instructor client that enforces response_model
+        self.instruct_client = MockInstructorClient(self)
+        
+        # Create the chat.completions interface that instructor expects
+        self.chat = SimpleNamespace(
+            completions=SimpleNamespace(create=self._create)
+        )
+        
+        # Store original for debugging
+        self._original_create = self._create
+        
+        # Hook into instructor.patch to return our mock patched client
+        self._original_instructor_patch = instructor.patch
+        instructor.patch = self._mock_instructor_patch
 
-    async def _create(self, *args, response_model=None, **kwargs) -> Any:  # noqa: D401
+    def _mock_instructor_patch(self, client, mode=None, **kwargs):
+        """Override instructor.patch to return our mock patched client."""
+        print(f"[MOCK_LLM_DEBUG] instructor.patch called on {type(client)} with mode {mode}")
+        
+        # If they're trying to patch our mock client, return our special patched version
+        if client is self or client is self.client:
+            return MockPatchedClient(self, mode)
+        
+        # Otherwise, use the original instructor.patch (for real clients)
+        return self._original_instructor_patch(client, mode=mode, **kwargs)
+
+    async def _create(self, *args, response_model=None, **kwargs) -> Any:
+        """
+        Create method that instructor.patch() will call.
+        Must return responses in OpenAI API format for instructor to parse correctly.
+        """
+        print(f"[MOCK_LLM_DEBUG] _create called with response_model: {response_model}")
+        
         # Extract messages for context analysis  
         messages = kwargs.get('messages', [])
-        # Remove messages from kwargs to avoid duplicate parameter
+        
+        # Remove messages from kwargs to avoid duplicate parameter error
         filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'messages'}
-        return create_response(response_model, messages=messages, **filtered_kwargs)
+        
+        # Call our response generator with messages as explicit parameter
+        response = create_response(response_model, messages=messages, **filtered_kwargs)
+        
+        print(f"[MOCK_LLM_DEBUG] Generated response type: {type(response)}")
+        return response
+    
+    def __getattr__(self, name):
+        """Support dynamic attribute access for instructor compatibility."""
+        if name in ['_acreate']:
+            # instructor sometimes looks for _acreate - redirect to our _create
+            return self._create
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
 
 class MockLLMService(Service):

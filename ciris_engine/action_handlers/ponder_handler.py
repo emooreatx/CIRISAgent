@@ -149,7 +149,7 @@ class PonderHandler(BaseActionHandler):
             
             # Create a follow-up thought for the ponder action
             follow_up_content = (
-                f"This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
+                f"CIRIS_FOLLOW_UP_THOUGHT: This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
                 f"Pondered questions: {questions_list}. "
                 "If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )

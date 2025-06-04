@@ -88,9 +88,9 @@ class ToolHandler(BaseActionHandler):
 
         follow_up_text = ""
         if action_performed_successfully:
-            follow_up_text = f"TOOL action {params.name} executed for thought {thought_id}. Info: {follow_up_content_key_info}. Awaiting tool results or next steps. If task complete, use TASK_COMPLETE."
+            follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: TOOL action {params.name} executed for thought {thought_id}. Info: {follow_up_content_key_info}. Awaiting tool results or next steps. If task complete, use TASK_COMPLETE."
         else:
-            follow_up_text = f"TOOL action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. Review and determine next steps."
+            follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: TOOL action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. Review and determine next steps."
         #PROMPT_FOLLOW_UP_THOUGHT
         try:
             new_follow_up = create_follow_up_thought(

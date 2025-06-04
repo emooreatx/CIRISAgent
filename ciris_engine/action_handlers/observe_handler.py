@@ -172,9 +172,9 @@ class ObserveHandler(BaseActionHandler):
         )
 
         follow_up_text = (
-            f"OBSERVE action completed. Info: {follow_up_info}"
+            f"CIRIS_FOLLOW_UP_THOUGHT: OBSERVE action completed. Info: {follow_up_info}"
             if action_performed
-            else f"OBSERVE action failed: {follow_up_info}"
+            else f"CIRIS_FOLLOW_UP_THOUGHT: OBSERVE action failed: {follow_up_info}"
         )  #PROMPT_FOLLOW_UP_THOUGHT
         try:
             logger.info(f"ObserveHandler: Creating follow-up thought for {thought_id}")

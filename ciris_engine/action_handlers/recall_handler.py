@@ -53,9 +53,9 @@ class RecallHandler(BaseActionHandler):
         data = memory_result.data
 
         if success and data:
-            follow_up_content = f"Memory query '{node.id}' returned: {data}"
+            follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{node.id}' returned: {data}"
         else:
-            follow_up_content = f"No memories found for query '{node.id}' in scope {node.scope.value}"
+            follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: No memories found for query '{node.id}' in scope {node.scope.value}"
         #PROMPT_FOLLOW_UP_THOUGHT
         follow_up = create_follow_up_thought(
             parent=thought,

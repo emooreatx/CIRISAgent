@@ -59,6 +59,9 @@ class MockLLMConfig:
 # Global config instance
 _mock_config = MockLLMConfig()
 
+# Simple counter for alternating SPEAK/TASK_COMPLETE pattern
+_action_counter = 0
+
 
 def set_mock_config(**kwargs):
     """Update mock LLM configuration."""
@@ -136,8 +139,10 @@ def _attach_extras(obj: Any) -> Any:
         else:
             # Fallback for other objects
             content_json = json.dumps(obj.__dict__ if hasattr(obj, '__dict__') else str(obj))
-    except Exception:
-        content_json = "{}"
+    except Exception as e:
+        print(f"[MOCK_LLM_ERROR] Failed to serialize object {type(obj)}: {e}")
+        print(f"[MOCK_LLM_ERROR] Object content: {obj}")
+        content_json = '{"error": "serialization_failed"}'
     
     object.__setattr__(obj, "finish_reason", "stop")
     object.__setattr__(obj, "_raw_response", {"mock": True})
@@ -341,8 +346,13 @@ def epistemic_humility(context: List[str] = None) -> EpistemicHumilityResult:
 
 
 def action_selection(context: List[str] = None) -> ActionSelectionResult:
+    global _action_counter
     context = context or []
     context_str = " ".join(context).lower()
+    
+    print(f"[ACTION_SELECTION_DEBUG] Context: {context}")
+    print(f"[ACTION_SELECTION_DEBUG] Context string: {context_str}")
+    print(f"[ACTION_SELECTION_DEBUG] Action counter: {_action_counter}")
     
     # Check for forced action first
     if _mock_config.force_action:
@@ -352,21 +362,42 @@ def action_selection(context: List[str] = None) -> ActionSelectionResult:
         except ValueError:
             selected_action = HandlerActionType.SPEAK
             rationale = f"Invalid forced action '{_mock_config.force_action}', defaulting to SPEAK"
-    # Follow-up thoughts should complete tasks
-    elif "follow" in context_str and "up" in context_str:
+    # Detect actual follow-up thoughts from action handlers
+    elif any(pattern in context_str for pattern in [
+        "ciris_follow_up_thought", "you spoke", "task complete", "follow-up thought from", 
+        "memorization successful", "memory query", "pondered questions",
+        "forget action", "tool action", "observe action", "reject action",
+        "the next action is probably task complete"
+    ]):
         selected_action = HandlerActionType.TASK_COMPLETE
-        action_parameters = {}
         rationale = "Follow-up thought detected - completing task"
+    # For wakeup sequence: alternate SPEAK (0,2,4,6,8) and TASK_COMPLETE (1,3,5,7,9) for first 10 actions
+    elif any("echo_wakeup:" in item for item in context) and _action_counter < 10:
+        if _action_counter % 2 == 0:
+            selected_action = HandlerActionType.SPEAK
+            rationale = f"Wakeup ritual step {_action_counter//2 + 1} - SPEAK action"
+        else:
+            selected_action = HandlerActionType.TASK_COMPLETE
+            rationale = f"Wakeup ritual step {(_action_counter+1)//2} completion - TASK_COMPLETE action"
+        _action_counter += 1
     # Default: SPEAK
     else:
         selected_action = HandlerActionType.SPEAK
         rationale = "Mock LLM default SPEAK response"
     
+    print(f"[ACTION_SELECTION_DEBUG] Selected action: {selected_action}")
+    print(f"[ACTION_SELECTION_DEBUG] Rationale: {rationale}")
+    
     # Generate action parameters
     if selected_action == HandlerActionType.SPEAK:
-        content_info = f"Mock LLM received: {', '.join(context[:2])}" if context else "Mock LLM response"
-        if len(context) > 2:
-            content_info += f" (+{len(context)-2} more items)"
+        # Short description instead of massive context dump
+        if any("wakeup" in item.lower() for item in context):
+            content_info = "Wakeup ritual step completed - identity and integrity verified"
+        elif any("echo_user_speech:" in item for item in context):
+            user_speech = next((item.split(":", 1)[1] for item in context if item.startswith("echo_user_speech:")), "")
+            content_info = f"Responding to user: {user_speech[:50]}{'...' if len(user_speech) > 50 else ''}"
+        else:
+            content_info = "Processing system thought"
         action_parameters = SpeakParams(content=content_info, channel_id="cli").model_dump(mode="json")
     elif selected_action == HandlerActionType.TASK_COMPLETE:
         action_parameters = {}
@@ -429,17 +460,43 @@ def create_response(response_model: Any, messages: List[Dict[str, Any]] = None, 
     # Extract context from messages
     context = extract_context_from_messages(messages)
     
+    # Debug for any structured calls
+    print(f"[MOCK_LLM_DEBUG] Request for: {response_model}")
+    
     # Get the appropriate handler
     handler = _RESPONSE_MAP.get(response_model)
     if handler:
+        print(f"[MOCK_LLM_DEBUG] Found handler: {handler.__name__}")
         # Check if handler accepts context parameter
         import inspect
         sig = inspect.signature(handler)
         if 'context' in sig.parameters:
-            return handler(context=context)
+            result = handler(context=context)
         else:
-            return handler()
+            result = handler()
+        
+        print(f"[MOCK_LLM_DEBUG] Handler returned: {type(result)}")
+        return result
     
+    # Handle None response models - these should not happen in a properly structured system
+    if response_model is None:
+        # This indicates a bug - all calls should have response_model
+        print(f"[MOCK_LLM_WARNING] Received None response_model - this indicates unstructured LLM call")
+        print(f"[MOCK_LLM_WARNING] Context: {context}")
+        
+        # Return minimal valid response
+        return SimpleNamespace(
+            finish_reason="stop",
+            _raw_response={"mock": True},
+            choices=[SimpleNamespace(
+                finish_reason="stop",
+                message=SimpleNamespace(
+                    role="assistant", 
+                    content='{"status": "unstructured_call_detected"}'
+                )
+            )],
+            usage=SimpleNamespace(total_tokens=42)
+        )
     # Default response with context echoing
     context_echo = f"Context: {', '.join(context)}" if context else "No context detected"
     return _attach_extras(SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=f"OK - {context_echo}"))]))

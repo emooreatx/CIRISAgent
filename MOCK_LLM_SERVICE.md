@@ -4,16 +4,32 @@
 
 The Mock LLM Service is a comprehensive testing framework that replaces the real LLM with a controllable, predictable service for end-to-end system testing. It enables testing of the complete CIRIS pipeline from wakeup through work mode without external LLM dependencies.
 
+## Current Status: Task 1 - Instructor Patching Compatibility
+
+🚧 **ACTIVE DEVELOPMENT**: Making mock LLM 100% compatible with instructor patching for full system testing
+
+### Issue Identified
+The mock LLM currently fails when `instructor.patch()` is applied to the base client (used by Action Selection DMA), causing:
+- Action Selection to fall back to PONDER instead of SPEAK
+- Incomplete wakeup sequences (should be 5 SPEAK + 5 TASK_COMPLETE)
+- System stuck in wakeup mode instead of transitioning to work mode
+
+### Solution In Progress
+Implementing full instructor patching compatibility to support both LLM call patterns:
+1. **Pre-patched Pattern**: `llm.get_client().instruct_client` (✅ Working - Guardrails/Faculties)
+2. **Dynamic Patching**: `instructor.patch(llm.get_client().client, ...)` (🚧 Fixing - Action Selection)
+
 ## Purpose and Goals
 
 ### Primary Use Cases
-1. **End-to-End Testing**: Test complete agent workflows without real LLM costs
-2. **Pipeline Validation**: Verify DMA pipeline, guardrails, and action handlers
-3. **Development Testing**: Rapid iteration during development
-4. **CI/CD Integration**: Automated testing in build pipelines
-5. **Handler Testing**: Test all 10 action handlers with controlled inputs
+1. **Full System Testing**: Test complete agent workflows in all modes (CLI, API, Discord)
+2. **Instructor Compatibility**: Support both pre-patched and dynamically-patched instructor clients
+3. **Pipeline Validation**: Verify DMA pipeline, guardrails, and action handlers work correctly
+4. **CI/CD Integration**: Automated testing in build pipelines without external dependencies
+5. **Handler Coverage**: Test all 10 action handlers with controlled, deterministic inputs
 
 ### Key Benefits
+- **100% Instructor Compatible**: Works with all instructor patching patterns used in CIRIS
 - **Deterministic**: Predictable responses for consistent testing
 - **Fast**: No network calls or LLM inference delays
 - **Controllable**: Force specific actions and responses via commands

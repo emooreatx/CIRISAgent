@@ -93,7 +93,7 @@ class RejectHandler(BaseActionHandler):
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for REJECT action. Info: {follow_up_content_key_info}")
 
         # Create a follow-up thought indicating failure and reason
-        follow_up_text = f"REJECT action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. This path of reasoning is terminated. Review and determine if a new approach or task is needed."
+        follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: REJECT action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. This path of reasoning is terminated. Review and determine if a new approach or task is needed."
         #PROMPT_FOLLOW_UP_THOUGHT
         try:
             new_follow_up = create_follow_up_thought(

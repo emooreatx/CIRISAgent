@@ -113,12 +113,12 @@ class MemorizeHandler(BaseActionHandler):
         follow_up_text = ""
         if action_performed_successfully:
             follow_up_text = (
-                f"Memorization successful for original thought {thought_id} (Task: {thought.source_task_id}). "
+                f"CIRIS_FOLLOW_UP_THOUGHT: Memorization successful for original thought {thought_id} (Task: {thought.source_task_id}). "
                 f"Info: {follow_up_content_key_info}. "
                 "Consider informing the user with SPEAK or select TASK_COMPLETE if the overall task is finished."
             )
         else:  # Failed or Deferred
-            follow_up_text = f"MEMORIZE action for thought {thought_id} resulted in status {final_thought_status.value}. Info: {follow_up_content_key_info}. Review and determine next steps."
+            follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: MEMORIZE action for thought {thought_id} resulted in status {final_thought_status.value}. Info: {follow_up_content_key_info}. Review and determine next steps."
         #PROMPT_FOLLOW_UP_THOUGHT
 
         try:
