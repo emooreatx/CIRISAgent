@@ -61,7 +61,12 @@ class DMAOrchestrator:
         if self.dsdma is not None:
             self._circuit_breakers["dsdma"] = CircuitBreaker("dsdma")
 
-    async def run_initial_dmas(self, thought_item: ProcessingQueueItem, dsdma_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def run_initial_dmas(
+        self,
+        thought_item: ProcessingQueueItem,
+        processing_context: Optional[ThoughtContext] = None,
+        dsdma_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Run EthicalPDMA, CSDMA, and DSDMA in parallel (async). Returns a dict with results or escalates on error.
         """
@@ -73,6 +78,7 @@ class DMAOrchestrator:
                     run_pdma,
                     self.ethical_pdma_evaluator,
                     thought_item,
+                    processing_context,
                     retry_limit=self.retry_limit,
                     timeout_seconds=self.timeout_seconds,
                 )
@@ -117,6 +123,7 @@ class DMAOrchestrator:
     async def run_dmas(
         self,
         thought_item: ProcessingQueueItem,
+        processing_context: Optional[ThoughtContext] = None,
         dsdma_context: Optional[Dict[str, Any]] = None,
     ) -> "DMAResults":
         """Run all DMAs with circuit breaker protection."""
@@ -134,6 +141,7 @@ class DMAOrchestrator:
                     run_pdma,
                     self.ethical_pdma_evaluator,
                     thought_item,
+                    processing_context,
                     retry_limit=self.retry_limit,
                     timeout_seconds=self.timeout_seconds,
                 )

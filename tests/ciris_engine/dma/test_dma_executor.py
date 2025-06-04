@@ -51,7 +51,7 @@ async def test_run_pdma():
         content="c",
         context=ctx,
     )
-    result = await run_pdma(evaluator, item)
+    result = await run_pdma(evaluator, item, context=ctx)
     assert result == "ok"
 
 
@@ -74,7 +74,7 @@ async def test_run_pdma_queue_item_context_fallback():
         context=None,
     )
     item = ProcessingQueueItem.from_thought(thought, initial_ctx=ctx.model_dump())
-    result = await run_pdma(evaluator, item)
+    result = await run_pdma(evaluator, item, context=None)
     evaluator.evaluate.assert_awaited_with(item, context=ctx)
     assert result == "ok"
 
