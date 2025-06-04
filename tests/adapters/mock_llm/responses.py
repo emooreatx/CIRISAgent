@@ -293,29 +293,49 @@ def ds_dma_llm_output(context: List[str] = None) -> BaseDSDMA.LLMOutputForDSDMA:
 
 def optimization_veto(context: List[str] = None) -> OptimizationVetoResult:
     context = context or []
-    justification = f"Mock optimization veto. Context: {', '.join(context)}" if context else "Mock optimization veto."
+    
+    # Always allow actions to proceed unless error injection is enabled
+    if _mock_config.inject_error:
+        decision = "veto"
+        justification = "Mock optimization veto - injected error for testing"
+        confidence = 0.3
+    else:
+        decision = "proceed"
+        justification = "Mock optimization veto - action approved for proceeding"
+        confidence = 0.95
     
     return _attach_extras(
         OptimizationVetoResult(
-            decision="proceed",
+            decision=decision,
             justification=justification,
-            entropy_reduction_ratio=0.0,
-            affected_values=context,
-            confidence=1.0,
+            entropy_reduction_ratio=0.01,  # Low entropy reduction
+            affected_values=["mock_value"] if context else [],
+            confidence=confidence,
         )
     )
 
 
 def epistemic_humility(context: List[str] = None) -> EpistemicHumilityResult:
     context = context or []
-    justification = f"Mock epistemic humility. Context: {', '.join(context)}" if context else "Mock epistemic humility."
+    
+    # Always recommend proceeding unless error injection is enabled
+    if _mock_config.inject_error:
+        certainty = "low"
+        action = "defer"
+        justification = "Mock epistemic humility - injected uncertainty for testing"
+        uncertainties = ["mock_uncertainty", "testing_condition"]
+    else:
+        certainty = "high"
+        action = "proceed"
+        justification = "Mock epistemic humility - high confidence in proposed action"
+        uncertainties = []
     
     return _attach_extras(
         EpistemicHumilityResult(
-            epistemic_certainty="high",
-            identified_uncertainties=context,
+            epistemic_certainty=certainty,
+            identified_uncertainties=uncertainties,
             reflective_justification=justification,
-            recommended_action="proceed",
+            recommended_action=action,
         )
     )
 
@@ -370,11 +390,23 @@ def action_selection(context: List[str] = None) -> ActionSelectionResult:
 
 
 def entropy() -> EntropyResult:
-    return _attach_extras(EntropyResult(entropy=0.1))
+    # Low entropy = ordered/predictable, high entropy = chaotic
+    if _mock_config.inject_error:
+        entropy_val = 0.8  # High entropy to trigger issues
+    else:
+        entropy_val = 0.1  # Low entropy = good
+    
+    return _attach_extras(EntropyResult(entropy=entropy_val))
 
 
 def coherence() -> CoherenceResult:
-    return _attach_extras(CoherenceResult(coherence=0.9))
+    # High coherence = sounds like CIRIS, low coherence = foreign/harmful
+    if _mock_config.inject_error:
+        coherence_val = 0.2  # Low coherence to trigger issues
+    else:
+        coherence_val = 0.95  # High coherence = good
+    
+    return _attach_extras(CoherenceResult(coherence=coherence_val))
 
 
 _RESPONSE_MAP = {
