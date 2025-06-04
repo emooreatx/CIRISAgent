@@ -43,20 +43,28 @@ class TaskContext(BaseModel):
     author_id: Optional[str] = None
     channel_id: Optional[str] = None
     origin_service: Optional[str] = None
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+    def __getitem__(self, key: str) -> Any:
+        return getattr(self, key)
 
 class ThoughtContext(BaseModel):
-    system_snapshot: SystemSnapshot
+    system_snapshot: SystemSnapshot = Field(default_factory=SystemSnapshot)
     user_profiles: Dict[str, UserProfile] = Field(default_factory=dict)
     task_history: List[TaskSummary] = Field(default_factory=list)
     identity_context: Optional[str] = None
     initial_task_context: Optional[TaskContext] = None
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
 
     def get(self, key: str, default: Any = None) -> Any:
         """Dictionary-style access for backward compatibility."""
-        if hasattr(self, key):
-            return getattr(self, key)
-        return default
+        return getattr(self, key, default)
 
     def __getitem__(self, key: str) -> Any:
         return getattr(self, key)

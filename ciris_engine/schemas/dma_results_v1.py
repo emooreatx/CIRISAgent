@@ -47,7 +47,6 @@ class ActionSelectionResult(BaseModel):
         RecallParams,
         ForgetParams,
         Dict[str, Any],
-        Any,
     ]:
         """Return action_parameters cast to the appropriate params model."""
         if isinstance(self.action_parameters, BaseModel):

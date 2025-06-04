@@ -69,17 +69,17 @@ class RecallHandler(BaseActionHandler):
             parent=thought,
             content=follow_up_content,
         )
-        # Always set action_performed and is_follow_up in context
-        follow_up_context = follow_up.context if isinstance(follow_up.context, dict) else {}
-        follow_up_context["action_performed"] = HandlerActionType.RECALL.name
-        follow_up_context["is_follow_up"] = True
-        # Optionally add error or memory details if available
+        follow_up_context = {
+            "action_performed": HandlerActionType.RECALL.name,
+            "is_follow_up": True,
+        }
         if not success:
             if isinstance(memory_result, MemoryOpResult):
                 follow_up_context["error_details"] = str(memory_result.status)
             else:
                 follow_up_context["error_details"] = "recall_failed"
-        follow_up.context = follow_up_context
+        for k, v in follow_up_context.items():
+            setattr(follow_up.context, k, v)
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.RECALL,

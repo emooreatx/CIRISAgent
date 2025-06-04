@@ -172,7 +172,7 @@ class BaseActionHandler(ABC):
         """Get channel ID from dispatch or thought context."""
         channel_id = dispatch_context.get("channel_id")
         if not channel_id and getattr(thought, "context", None):
-            channel_id = thought.context.get("channel_id")
+            channel_id = getattr(thought.context.system_snapshot, "channel_id", None)
         if not channel_id:
             # No fallback needed since observer functionality is at adapter level
             pass

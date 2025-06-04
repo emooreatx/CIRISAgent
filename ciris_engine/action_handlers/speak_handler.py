@@ -52,11 +52,13 @@ class SpeakHandler(BaseActionHandler):
             follow_up_text = f"SPEAK action failed for thought {thought_id}. Reason: {e}"
             try:
                 fu = create_follow_up_thought(parent=thought, content=follow_up_text)
-                fu.context = {
+                fu_context = {
                     "action_performed": HandlerActionType.SPEAK.value,
                     "error_details": str(e),
                     "action_params": result.action_parameters,
                 }
+                for k, v in fu_context.items():
+                    setattr(fu.context, k, v)
                 persistence.add_thought(fu)
             except Exception as fe:
                 await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, fe)
@@ -111,10 +113,8 @@ class SpeakHandler(BaseActionHandler):
             }
             if not success:
                 ctx["error_details"] = follow_up_error_context
-            if isinstance(new_follow_up.context, dict):
-                new_follow_up.context.update(ctx)
-            else:
-                new_follow_up.context = ctx
+            for k, v in ctx.items():
+                setattr(new_follow_up.context, k, v)
             persistence.add_thought(new_follow_up)
             await self._audit_log(
                 HandlerActionType.SPEAK,
@@ -127,7 +127,8 @@ class SpeakHandler(BaseActionHandler):
 
         if hasattr(thought, "context"):
             if not thought.context:
-                thought.context = {}
-            if not thought.context.get("channel_id"):
-                thought.context["channel_id"] = params.channel_id
+                from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+                thought.context = ThoughtContext(system_snapshot=SystemSnapshot(channel_id=params.channel_id))
+            if not getattr(thought.context.system_snapshot, "channel_id", None):
+                thought.context.system_snapshot.channel_id = params.channel_id
 

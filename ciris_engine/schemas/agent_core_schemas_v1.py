@@ -15,6 +15,7 @@ from .action_params_v1 import (
     ForgetParams,
 )
 from .dma_results_v1 import ActionSelectionResult
+from .context_schemas_v1 import ThoughtContext
 
 class Task(BaseModel):
     """Core task object - minimal v1"""
@@ -25,7 +26,7 @@ class Task(BaseModel):
     created_at: str  # ISO8601
     updated_at: str  # ISO8601
     parent_task_id: Optional[str] = None
-    context: Optional[Any] = Field(default=None, description="Context object, can be a ThoughtContext or dict for legacy support.")
+    context: Optional[ThoughtContext] = Field(default=None, description="Context object")
     outcome: Dict[str, Any] = Field(default_factory=dict)
 
 class Thought(BaseModel):
@@ -38,7 +39,7 @@ class Thought(BaseModel):
     updated_at: str
     round_number: int = 0
     content: str
-    context: Optional[Any] = Field(default=None, description="Context object, can be a ThoughtContext or dict for legacy support.")
+    context: Optional[ThoughtContext] = Field(default=None, description="Context object")
     ponder_count: int = 0
     ponder_notes: Optional[List[str]] = None
     parent_thought_id: Optional[str] = None

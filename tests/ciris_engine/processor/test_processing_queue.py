@@ -33,7 +33,7 @@ def test_from_thought_with_overrides():
     assert item.thought_id == t.thought_id
     assert item.raw_input_string == "raw"
     assert item.initial_context == {"x": 1}
-    assert item.content == "override"
+    assert item.content.text == "override"
     assert item.ponder_notes is None
 
 
@@ -42,4 +42,4 @@ def test_from_thought_defaults():
     item = ProcessingQueueItem.from_thought(t)
     assert item.raw_input_string == str(t.content)
     assert item.initial_context == t.context
-    assert item.content == t.content
+    assert item.content.text == t.content
