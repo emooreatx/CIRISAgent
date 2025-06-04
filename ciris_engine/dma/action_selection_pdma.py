@@ -457,6 +457,31 @@ Adhere strictly to the schema for your JSON output.
             )
         # --- End special case ---
         
+        # --- Wakeup task SPEAK requirement ---
+        # Check if this is a wakeup task and if TASK_COMPLETE is being attempted without prior SPEAK
+        task_id = original_thought.source_task_id
+        if task_id and self._is_wakeup_task(task_id):
+            logger.debug(f"ActionSelectionPDMA: Processing wakeup task {task_id}")
+            
+            # If LLM selected TASK_COMPLETE, check if this task has had a successful SPEAK action
+            if hasattr(triaged_inputs.get('llm_response_internal'), 'selected_action'):
+                selected_action = triaged_inputs['llm_response_internal'].selected_action
+                if selected_action == HandlerActionType.TASK_COMPLETE:
+                    if not self._task_has_successful_speak(task_id):
+                        logger.info(f"ActionSelectionPDMA: Wakeup task {task_id} attempted TASK_COMPLETE without prior SPEAK. Converting to PONDER.")
+                        ponder_params = PonderParams(questions=[
+                            "This wakeup step requires a SPEAK action before task completion.",
+                            "What affirmation should I speak for this wakeup ritual step?"
+                        ])
+                        return ActionSelectionResult(
+                            selected_action=HandlerActionType.PONDER,
+                            action_parameters=ponder_params,
+                            rationale="Wakeup task requires SPEAK action before TASK_COMPLETE",
+                            confidence=0.95,
+                            raw_llm_response="Converted TASK_COMPLETE to PONDER due to missing SPEAK requirement"
+                        )
+        # --- End wakeup task logic ---
+        
         main_user_content = self._prepare_main_user_content(triaged_inputs)
 
         system_snapshot_block = ""
@@ -612,6 +637,58 @@ Adhere strictly to the schema for your JSON output.
                 rationale=f"Fallback due to General Exception: {str(e)}",
                 raw_llm_response=f"Exception: {str(e)}"
             )
+
+    def _is_wakeup_task(self, task_id: str) -> bool:
+        """
+        Check if a task is a wakeup task by verifying:
+        1. It has a parent task with ID "WAKEUP_ROOT"
+        2. It has step_type in context (secure database field)
+        """
+        try:
+            from ciris_engine import persistence
+            task = persistence.get_task_by_id(task_id)
+            if not task:
+                return False
+            
+            # Check if parent task is WAKEUP_ROOT (secure check)
+            if task.parent_task_id == "WAKEUP_ROOT":
+                return True
+                
+            # Also check if the task context has step_type (wakeup tasks have this)
+            if task.context and task.context.get("step_type"):
+                return True
+                
+            return False
+        except Exception:
+            return False
+    
+    def _task_has_successful_speak(self, task_id: str) -> bool:
+        """
+        Check if a task has had a successful SPEAK action by querying:
+        1. All thoughts for this task
+        2. Check if any thought has a final_action with SPEAK
+        3. Verify the thought status is COMPLETED
+        """
+        try:
+            from ciris_engine import persistence
+            from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
+            
+            thoughts = persistence.get_thoughts_by_task_id(task_id)
+            if not thoughts:
+                return False
+            
+            for thought in thoughts:
+                # Check if thought is completed and has a SPEAK action
+                if (thought.status == ThoughtStatus.COMPLETED and 
+                    hasattr(thought, 'final_action') and 
+                    thought.final_action and
+                    hasattr(thought.final_action, 'selected_action') and
+                    thought.final_action.selected_action == HandlerActionType.SPEAK):
+                    return True
+            
+            return False
+        except Exception:
+            return False
 
     def __repr__(self) -> str:
         return f"<ActionSelectionPDMAEvaluator model='{self.model_name}' (using instructor)>"
