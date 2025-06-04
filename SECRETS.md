@@ -12,6 +12,8 @@ The CIRIS Agent Secrets Management System provides automated detection, secure s
 4. **Contextual Access**: Secrets are decapsulated only when needed for specific actions
 5. **Audit Trail**: All secret access is logged with full traceability
 6. **Fail Secure**: Any failure defaults to keeping secrets protected
+7. **Native Memory Integration**: RECALL, MEMORIZE, and FORGET work natively with secrets via graph memory
+8. **Auto-Forget**: Secrets automatically FORGET after task completion unless explicitly MEMORIZEd
 
 ## Architecture
 
@@ -154,6 +156,36 @@ class SecretPattern(BaseModel):
 ```
 
 ## Agent Tools
+
+### Native Memory Operations
+
+Secrets integrate natively with CIRIS graph memory operations:
+
+- **RECALL**: Can recall previously stored secrets by UUID or semantic search
+- **MEMORIZE**: Explicitly stores secrets in long-term memory across task boundaries  
+- **FORGET**: Removes secrets from storage (also happens automatically after task completion)
+
+#### Automatic FORGET Behavior
+
+By default, all secrets detected during a task are automatically removed from storage when the task completes, unless:
+
+1. The agent explicitly performs a **MEMORIZE** action on the secret
+2. The secret is marked with `long_term_storage: true` in its metadata
+3. The secret is referenced in a **MEMORIZE** action for related information
+
+This ensures secrets have minimal exposure time while allowing the agent to explicitly retain important secrets for future use.
+
+```python
+# Example: Agent explicitly memorizes an important secret
+{
+    "selected_action": "memorize",
+    "action_parameters": {
+        "content": "SECRET_550e8400-e29b-41d4-a716-446655440000 is the production API key for the primary service",
+        "tags": ["api_key", "production", "primary_service"],
+        "importance": "HIGH"
+    }
+}
+```
 
 ### RECALL_SECRET Tool
 
