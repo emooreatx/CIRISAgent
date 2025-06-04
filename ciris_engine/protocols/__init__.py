@@ -12,6 +12,12 @@ from .processor_interface import ProcessorInterface
 from .dma_interface import DMAEvaluatorInterface
 from .guardrail_interface import GuardrailInterface
 from .persistence_interface import PersistenceInterface
+from .secrets_interface import (
+    SecretsFilterInterface,
+    SecretsStoreInterface,
+    SecretsServiceInterface,
+    SecretsEncryptionInterface
+)
 
 __all__ = [
     "CommunicationService",
@@ -24,4 +30,8 @@ __all__ = [
     "DMAEvaluatorInterface",
     "GuardrailInterface",
     "PersistenceInterface",
+    "SecretsFilterInterface",
+    "SecretsStoreInterface",
+    "SecretsServiceInterface",
+    "SecretsEncryptionInterface",
 ]

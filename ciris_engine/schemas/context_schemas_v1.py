@@ -1,5 +1,6 @@
 from typing import Optional, Dict, Any, List, Union
 from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime
 
 class TaskSummary(BaseModel):
     """Summary of a task for context."""
@@ -27,6 +28,16 @@ class UserProfile(BaseModel):
     display_name: Optional[str] = None
     model_config = ConfigDict(extra="allow")
 
+class SecretReference(BaseModel):
+    """Non-sensitive reference to a stored secret for agent introspection"""
+    uuid: str
+    description: str
+    context_hint: str
+    sensitivity: str
+    auto_decapsulate_actions: List[str]
+    created_at: datetime
+    last_accessed: Optional[datetime]
+
 class SystemSnapshot(BaseModel):
     current_task_details: Optional[TaskSummary] = None
     current_thought_summary: Optional[ThoughtSummary] = None
@@ -35,6 +46,12 @@ class SystemSnapshot(BaseModel):
     recently_completed_tasks_summary: List[TaskSummary] = Field(default_factory=list)
     user_profiles: Optional[Dict[str, UserProfile]] = None
     channel_id: Optional[str] = None
+    
+    # Secrets management information
+    detected_secrets: List[SecretReference] = Field(default_factory=list)
+    secrets_filter_version: int = 0
+    total_secrets_stored: int = 0
+    
     model_config = ConfigDict(extra="allow")
 
 class TaskContext(BaseModel):
