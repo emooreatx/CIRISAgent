@@ -221,7 +221,7 @@ async def test_tool_handler_schema_driven(monkeypatch):
     deps.get_service = AsyncMock(side_effect=get_service)
     handler = ToolHandler(deps)
 
-    params = ToolParams(name="echo", args={})
+    params = ToolParams(name="echo", parameters={})
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.TOOL,
         action_parameters=params,

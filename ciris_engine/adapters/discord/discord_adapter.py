@@ -5,7 +5,7 @@ import asyncio
 import uuid
 from datetime import datetime
 from typing import Callable, Awaitable, Optional, List, Dict, Any
-from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage
+from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, FetchedMessage
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.correlation_schemas_v1 import (
@@ -75,7 +75,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.error(f"Failed to send message via Discord: {e}")
             return False
 
-    async def fetch_messages(self, channel_id: str, limit: int) -> List[Dict[str, Any]]:
+    async def fetch_messages(self, channel_id: str, limit: int) -> List[FetchedMessage]:
         """Implementation of CommunicationService.fetch_messages"""
         if not self.client:
             logger.error("Discord client is not initialized.")
@@ -92,23 +92,25 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to fetch messages from Discord channel {channel_id}: {e}")
             return []
 
-    async def _fetch_messages_impl(self, channel_id: str, limit: int, **kwargs) -> List[Dict[str, Any]]:
+    async def _fetch_messages_impl(self, channel_id: str, limit: int, **kwargs) -> List[FetchedMessage]:
         """Internal implementation of fetch_messages for retry wrapping"""
         channel = self.client.get_channel(int(channel_id))
         if channel is None:
             channel = await self.client.fetch_channel(int(channel_id))
         
         if channel:
-            messages = []
+            messages: List[FetchedMessage] = []
             async for message in channel.history(limit=limit):
-                messages.append({
-                    "id": str(message.id),
-                    "content": message.content,
-                    "author_id": str(message.author.id),
-                    "author_name": message.author.display_name,
-                    "timestamp": message.created_at.isoformat(),
-                    "is_bot": message.author.bot
-                })
+                messages.append(
+                    FetchedMessage(
+                        id=str(message.id),
+                        content=message.content,
+                        author_id=str(message.author.id),
+                        author_name=message.author.display_name,
+                        timestamp=message.created_at.isoformat(),
+                        is_bot=message.author.bot,
+                    )
+                )
             return messages
         else:
             logger.error(f"Could not find Discord channel with ID {channel_id}")

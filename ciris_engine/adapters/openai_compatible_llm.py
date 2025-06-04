@@ -1,7 +1,7 @@
 import json
 import re
 import logging
-from typing import Dict, Any, Optional, Type, List
+from typing import Dict, Any, Optional, Type, List, Tuple
 
 from pydantic import BaseModel
 from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusError
@@ -10,6 +10,7 @@ import instructor
 from ciris_engine.adapters.base import Service
 from ciris_engine.config.config_manager import get_config
 from ciris_engine.schemas.config_schemas_v1 import OpenAIConfig, LLMServicesConfig
+from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ class OpenAICompatibleClient(Service):
         max_tokens: int = 1024,
         temperature: float = 0.7,
         **kwargs,
-    ) -> str:
+    ) -> Tuple[str, ResourceUsage]:
         logger.debug(f"Raw LLM call with messages: {messages}")
         
         async def _make_raw_call():
@@ -123,8 +124,12 @@ class OpenAICompatibleClient(Service):
                 temperature=temperature,
                 **kwargs,
             )
+            usage = getattr(response, "usage", None)
+            usage_obj = ResourceUsage(
+                tokens=getattr(usage, "total_tokens", 0)
+            )
             content = response.choices[0].message.content
-            return content.strip() if content else ""
+            return (content.strip() if content else "", usage_obj)
             
         # Use base class retry with OpenAI-specific error handling
         return await self.retry_with_backoff(
@@ -139,7 +144,7 @@ class OpenAICompatibleClient(Service):
         max_tokens: int = 1024,
         temperature: float = 0.0,
         **kwargs,
-    ) -> BaseModel:
+    ) -> Tuple[BaseModel, ResourceUsage]:
         logger.debug(f"Structured LLM call for {response_model.__name__}")
         
         async def _make_structured_call():
@@ -152,7 +157,11 @@ class OpenAICompatibleClient(Service):
                 temperature=temperature,
                 **kwargs,
             )
-            return response
+            usage = getattr(response, "usage", None)
+            usage_obj = ResourceUsage(
+                tokens=getattr(usage, "total_tokens", 0)
+            )
+            return response, usage_obj
             
         # Use base class retry with OpenAI-specific error handling
         return await self.retry_with_backoff(

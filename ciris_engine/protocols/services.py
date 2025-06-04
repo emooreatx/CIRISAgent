@@ -7,6 +7,7 @@ from abc import abstractmethod
 from ciris_engine.schemas.foundational_schemas_v1 import (
     HandlerActionType,
     IncomingMessage,
+    FetchedMessage,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
 
@@ -28,7 +29,7 @@ class CommunicationService(Protocol):
         ...
     
     @abstractmethod
-    async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
         """
         Fetch recent messages from a channel.
         
@@ -37,7 +38,7 @@ class CommunicationService(Protocol):
             limit: Maximum number of messages to fetch
             
         Returns:
-            List of message dictionaries
+            List of fetched messages
         """
         ...
     

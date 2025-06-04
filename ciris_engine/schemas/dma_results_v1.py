@@ -12,7 +12,7 @@ from .action_params_v1 import (
     RecallParams,
     ForgetParams,
 )
-from .foundational_schemas_v1 import HandlerActionType
+from .foundational_schemas_v1 import HandlerActionType, ResourceUsage
 
 class ActionSelectionResult(BaseModel):
     """Minimal v1 result from action selection DMA."""
@@ -32,6 +32,7 @@ class ActionSelectionResult(BaseModel):
     rationale: str
     confidence: Optional[float] = None
     raw_llm_response: Optional[str] = None
+    resource_usage: Optional[ResourceUsage] = None
 
     @property
     def typed_parameters(
@@ -78,6 +79,7 @@ class EthicalDMAResult(BaseModel):
     decision: str
     rationale: Optional[str] = None
     raw_llm_response: Optional[str] = None
+    resource_usage: Optional[ResourceUsage] = None
 
 class CSDMAResult(BaseModel):
     """Minimal v1 result from common sense DMA."""
@@ -85,6 +87,7 @@ class CSDMAResult(BaseModel):
     flags: List[str] = Field(default_factory=list)
     reasoning: Optional[str] = None
     raw_llm_response: Optional[str] = None
+    resource_usage: Optional[ResourceUsage] = None
 
 class DSDMAResult(BaseModel):
     """Minimal v1 result from domain-specific DMA."""
@@ -94,4 +97,5 @@ class DSDMAResult(BaseModel):
     reasoning: Optional[str] = None
     recommended_action: Optional[str] = None
     raw_llm_response: Optional[str] = None
+    resource_usage: Optional[ResourceUsage] = None
 

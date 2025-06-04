@@ -36,3 +36,4 @@
   lowest numbered incomplete task in that file and update its status when you
   work on it.
 
+- Follow the ECHO refactor tasks aggressively: delete outdated code and tests rather than adapting them. Each commit should clearly reference the task being advanced.

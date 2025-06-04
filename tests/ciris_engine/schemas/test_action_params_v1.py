@@ -19,7 +19,7 @@ def test_speak_params_required():
 def test_tool_params_defaults():
     params = action_params_v1.ToolParams(name="mytool")
     assert params.name == "mytool"
-    assert isinstance(params.args, dict)
+    assert isinstance(params.parameters, dict)
 
 def test_ponder_params():
     params = action_params_v1.PonderParams(questions=["Q1"])

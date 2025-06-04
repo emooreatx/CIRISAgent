@@ -17,7 +17,7 @@ Remember: Every schema decision affects the agent's ability to operate ethically
 
 ### 1. Decouple Platform-Specific Fields from Core Schemas
 
-**Status**: [ ] Not Started / [x] In Progress / [ ] Complete
+**Status**: [ ] Not Started / [ ] In Progress / [x] Complete
 
 **Description**: Remove Discord-specific fields from `IncomingMessage` and create platform-agnostic base schema.
 
@@ -38,7 +38,7 @@ _Team notes here_
 
 ### 2. Create Message Schema for Communication Protocol
 
-**Status**: [ ] Not Started / [ ] In Progress / [ ] Complete
+**Status**: [ ] Not Started / [ ] In Progress / [x] Complete
 
 **Description**: Define proper schema for messages returned by `CommunicationService.fetch_messages()`.
 
@@ -59,7 +59,7 @@ _Team notes here_
 
 ### 3. Add Resource Usage Tracking Schema
 
-**Status**: [ ] Not Started / [ ] In Progress / [ ] Complete
+**Status**: [ ] Not Started / [ ] In Progress / [x] Complete
 
 **Description**: Create schema to track LLM token usage, costs, and environmental metrics.
 
@@ -80,7 +80,7 @@ _Team notes here_
 
 ### 4. Standardize Action Parameter Schema Pattern
 
-**Status**: [ ] Not Started / [ ] In Progress / [ ] Complete
+**Status**: [x] Complete
 
 **Description**: Ensure all action parameter schemas follow consistent pattern and naming.
 
