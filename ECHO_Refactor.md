@@ -17,7 +17,7 @@ Remember: Every schema decision affects the agent's ability to operate ethically
 
 ### 1. Decouple Platform-Specific Fields from Core Schemas
 
-**Status**: [ ] Not Started / [ ] In Progress / [ ] Complete
+**Status**: [ ] Not Started / [x] In Progress / [ ] Complete
 
 **Description**: Remove Discord-specific fields from `IncomingMessage` and create platform-agnostic base schema.
 
