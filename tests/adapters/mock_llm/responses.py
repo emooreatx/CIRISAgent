@@ -59,9 +59,6 @@ class MockLLMConfig:
 # Global config instance
 _mock_config = MockLLMConfig()
 
-# Simple counter for alternating SPEAK/TASK_COMPLETE pattern
-_action_counter = 0
-
 
 def set_mock_config(**kwargs):
     """Update mock LLM configuration."""
@@ -74,6 +71,25 @@ def set_mock_config(**kwargs):
 def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
     """Extract context information from messages using regex patterns."""
     context_items = []
+    
+    # Look for actual thought content in messages
+    actual_thought_content = ""
+    for msg in messages:
+        content = ""
+        if isinstance(msg, dict) and 'content' in msg:
+            content = msg['content']
+        elif hasattr(msg, 'content'):
+            content = msg.content
+            
+        # Look for the actual thought content pattern
+        if "Original Thought:" in content:
+            # Extract the thought after "Original Thought:" 
+            thought_match = re.search(r'Original Thought:\s*"([^"]+)"', content)
+            if thought_match:
+                actual_thought_content = thought_match.group(1)
+                # Add this to context items so it gets processed properly
+                context_items.append(f"echo_thought:{actual_thought_content}")
+                break
     
     # Combine all message content
     full_content = ""
@@ -346,13 +362,35 @@ def epistemic_humility(context: List[str] = None) -> EpistemicHumilityResult:
 
 
 def action_selection(context: List[str] = None) -> ActionSelectionResult:
-    global _action_counter
     context = context or []
     context_str = " ".join(context).lower()
     
-    print(f"[ACTION_SELECTION_DEBUG] Context: {context}")
-    print(f"[ACTION_SELECTION_DEBUG] Context string: {context_str}")
-    print(f"[ACTION_SELECTION_DEBUG] Action counter: {_action_counter}")
+    # Get thought content snippet - look for actual thought content in context items
+    thought_snippet = ""
+    for item in context:
+        if item.startswith("echo_thought:"):
+            thought_content = item.split(":", 1)[1] if ":" in item else ""
+            thought_snippet = thought_content[:50]
+            break
+    
+    # Create concise context summary for debug
+    # Check for follow-up patterns in context string and thought content
+    follow_up_detected = any(pattern in context_str for pattern in [
+        "ciris_follow_up_thought", "you spoke", "task complete", "follow-up thought from", 
+        "memorization successful", "memory query", "pondered questions",
+        "forget action", "tool action", "observe action", "reject action",
+        "the next action is probably task complete"
+    ])
+    
+    context_summary = f"items={len(context)}, follow_up={follow_up_detected}"
+    if any("wakeup" in item.lower() for item in context):
+        context_summary += ", wakeup=true"
+    if any("echo_user_speech:" in item for item in context):
+        context_summary += ", user_input=true"
+    if thought_snippet:
+        context_summary += f", thought='{thought_snippet}...'"
+        
+    print(f"[ACTION_SELECTION_DEBUG] Context: {context_summary}")
     
     # Check for forced action first
     if _mock_config.force_action:
@@ -363,23 +401,9 @@ def action_selection(context: List[str] = None) -> ActionSelectionResult:
             selected_action = HandlerActionType.SPEAK
             rationale = f"Invalid forced action '{_mock_config.force_action}', defaulting to SPEAK"
     # Detect actual follow-up thoughts from action handlers
-    elif any(pattern in context_str for pattern in [
-        "ciris_follow_up_thought", "you spoke", "task complete", "follow-up thought from", 
-        "memorization successful", "memory query", "pondered questions",
-        "forget action", "tool action", "observe action", "reject action",
-        "the next action is probably task complete"
-    ]):
+    elif follow_up_detected:
         selected_action = HandlerActionType.TASK_COMPLETE
         rationale = "Follow-up thought detected - completing task"
-    # For wakeup sequence: alternate SPEAK (0,2,4,6,8) and TASK_COMPLETE (1,3,5,7,9) for first 10 actions
-    elif any("echo_wakeup:" in item for item in context) and _action_counter < 10:
-        if _action_counter % 2 == 0:
-            selected_action = HandlerActionType.SPEAK
-            rationale = f"Wakeup ritual step {_action_counter//2 + 1} - SPEAK action"
-        else:
-            selected_action = HandlerActionType.TASK_COMPLETE
-            rationale = f"Wakeup ritual step {(_action_counter+1)//2} completion - TASK_COMPLETE action"
-        _action_counter += 1
     # Default: SPEAK
     else:
         selected_action = HandlerActionType.SPEAK
@@ -390,14 +414,15 @@ def action_selection(context: List[str] = None) -> ActionSelectionResult:
     
     # Generate action parameters
     if selected_action == HandlerActionType.SPEAK:
-        # Short description instead of massive context dump
-        if any("wakeup" in item.lower() for item in context):
-            content_info = "Wakeup ritual step completed - identity and integrity verified"
-        elif any("echo_user_speech:" in item for item in context):
+        # Provide a summary of the incoming request/context
+        if any("echo_user_speech:" in item for item in context):
             user_speech = next((item.split(":", 1)[1] for item in context if item.startswith("echo_user_speech:")), "")
-            content_info = f"Responding to user: {user_speech[:50]}{'...' if len(user_speech) > 50 else ''}"
+            content_info = f"I understand you said: {user_speech[:100]}{'...' if len(user_speech) > 100 else ''}"
+        elif any("echo_thought:" in item for item in context):
+            thought_content = next((item.split(":", 1)[1][:100] for item in context if item.startswith("echo_thought:")), "")
+            content_info = f"Processing system thought: {thought_content}{'...' if len(thought_content) == 100 else ''}"
         else:
-            content_info = "Processing system thought"
+            content_info = "Processing incoming request - system is operational"
         action_parameters = SpeakParams(content=content_info, channel_id="cli").model_dump(mode="json")
     elif selected_action == HandlerActionType.TASK_COMPLETE:
         action_parameters = {}

@@ -300,17 +300,35 @@ class DiscordRuntime(CIRISRuntime):
                 self.agent_processor.start_processing(num_rounds=num_rounds)
             )
             
-            # Wait for either task to complete or error
-            done, pending = await asyncio.wait(
-                [discord_task, processing_task],
-                return_when=asyncio.FIRST_COMPLETED
-            )
+            # Monitor for shutdown signals while waiting for tasks
+            from ciris_engine.utils.shutdown_manager import is_global_shutdown_requested
             
-            # Check which task completed and why
-            for task in done:
-                if task.exception():
-                    logger.error(f"Task failed with exception: {task.exception()}")
-                    raise task.exception()
+            # Wait for either task to complete, error, or shutdown signal
+            while not discord_task.done() and not processing_task.done():
+                # Check for global shutdown signal (includes timeout)
+                if is_global_shutdown_requested():
+                    logger.info("Global shutdown requested, stopping Discord runtime...")
+                    break
+                    
+                # Wait briefly before checking again
+                await asyncio.sleep(0.5)
+            
+            # If we're here due to shutdown, skip task completion check
+            if is_global_shutdown_requested():
+                logger.info("Discord runtime stopped due to shutdown signal")
+            else:
+                # Original completion logic
+                done, pending = await asyncio.wait(
+                    [discord_task, processing_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                    timeout=0.1  # Very short timeout since tasks are likely done
+                )
+                
+                # Check which task completed and why
+                for task in done:
+                    if task.exception():
+                        logger.error(f"Task failed with exception: {task.exception()}")
+                        raise task.exception()
             
         except KeyboardInterrupt:
             logger.info("Received interrupt signal")
