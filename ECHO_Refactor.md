@@ -100,7 +100,7 @@ _Team notes here_
 
 ### 5. Align Memory Protocol with Schema Usage
 
-**Status**: [ ] Not Started / [ ] In Progress / [ ] Complete
+**Status**: [ ] Not Started / [ ] In Progress / [x] Complete
 
 **Description**: Fix mismatch between `MemoryService` protocol and actual usage patterns.
 
@@ -121,7 +121,7 @@ _Team notes here_
 
 ### 6. Global Search/Replace for Schema Consistency
 
-**Status**: [ ] Not Started / [ ] In Progress / [ ] Complete
+**Status**: [x] Complete
 
 **Description**: Fix naming inconsistencies across the codebase.
 
@@ -138,7 +138,8 @@ alignment_score -> score (in DSDMA contexts)
 ```
 
 **Notes**:
-_Team notes here_
+Renamed `alignment_score` to `score` in DSDMA results and tests.
+Ensured timestamp fields use ISO8601 strings.
 
 ---
 

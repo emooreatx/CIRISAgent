@@ -17,9 +17,11 @@ class MemoryOpAction(str, Enum):
 
 class MemoryOpResult(BaseModel):
     """Result of a memory operation."""
+
     status: MemoryOpStatus
     reason: Optional[str] = None
     data: Optional[Any] = None
+    error: Optional[str] = None
 
 __all__ = [
     "MemoryOpStatus",

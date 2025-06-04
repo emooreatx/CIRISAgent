@@ -49,16 +49,8 @@ class RecallHandler(BaseActionHandler):
         scope = node.scope
 
         memory_result = await memory_service.recall(node)
-        success = False
-        data = None
-        if isinstance(memory_result, bool):
-            success = memory_result
-        elif hasattr(memory_result, "status"):
-            success = memory_result.status == MemoryOpStatus.OK
-            data = getattr(memory_result, "data", None)
-        else:
-            success = bool(memory_result)
-            data = memory_result if success else None
+        success = memory_result.status == MemoryOpStatus.OK
+        data = memory_result.data
 
         if success and data:
             follow_up_content = f"Memory query '{node.id}' returned: {data}"
@@ -74,10 +66,7 @@ class RecallHandler(BaseActionHandler):
             "is_follow_up": True,
         }
         if not success:
-            if isinstance(memory_result, MemoryOpResult):
-                follow_up_context["error_details"] = str(memory_result.status)
-            else:
-                follow_up_context["error_details"] = "recall_failed"
+            follow_up_context["error_details"] = str(memory_result.status)
         for k, v in follow_up_context.items():
             setattr(follow_up.context, k, v)
         self.dependencies.persistence.add_thought(follow_up)

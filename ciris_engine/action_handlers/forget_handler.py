@@ -112,13 +112,7 @@ class ForgetHandler(BaseActionHandler):
 
         forget_result = await memory_service.forget(node)
         await self._audit_forget_operation(params, dispatch_context, forget_result)
-        success = False
-        if isinstance(forget_result, bool):
-            success = forget_result
-        elif hasattr(forget_result, "status"):
-            success = forget_result.status == MemoryOpStatus.OK
-        else:
-            success = bool(forget_result)
+        success = forget_result.status == MemoryOpStatus.OK
 
         if success:
             follow_up_content = (
