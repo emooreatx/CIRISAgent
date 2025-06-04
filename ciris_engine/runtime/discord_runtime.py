@@ -158,10 +158,6 @@ class DiscordRuntime(CIRISRuntime):
             service_registry=self.service_registry,
             shutdown_callback=dependencies.shutdown_callback,
             max_rounds=self.app_config.workflow.max_rounds,
-            audit_service=self.audit_service,
-            memory_service=self.memory_service,
-            multi_service_sink=self.multi_service_sink,
-            io_adapter=self.discord_adapter,
         )
         
     async def _register_discord_services(self):

@@ -131,10 +131,6 @@ class CLIRuntime(CIRISRuntime):
             service_registry=self.service_registry,
             max_rounds=self.app_config.workflow.max_rounds,
             shutdown_callback=dependencies.shutdown_callback,
-            audit_service=self.audit_service,
-            memory_service=self.memory_service,
-            multi_service_sink=self.multi_service_sink,
-            io_adapter=self.cli_adapter,
         )
 
     async def shutdown(self):

@@ -330,10 +330,11 @@ class CIRISRuntime(RuntimeInterface):
             shutdown_callback=lambda: self.request_shutdown(
                 "Handler requested shutdown due to critical service failure"
             ),
-            multi_service_sink=self.multi_service_sink,
-            memory_service=self.memory_service,
-            audit_service=self.audit_service,
         )
+        # Set additional services as attributes (previously handled by **legacy_services)
+        dependencies.multi_service_sink = self.multi_service_sink
+        dependencies.memory_service = self.memory_service
+        dependencies.audit_service = self.audit_service
         
         # Register runtime shutdown with global manager
         register_global_shutdown_handler(
@@ -421,10 +422,6 @@ class CIRISRuntime(RuntimeInterface):
             service_registry=self.service_registry,
             shutdown_callback=dependencies.shutdown_callback,
             max_rounds=self.app_config.workflow.max_rounds,
-            audit_service=self.audit_service,
-            memory_service=self.memory_service,
-            multi_service_sink=self.multi_service_sink,
-            io_adapter=self.io_adapter,
         )
         
     async def run(self, num_rounds: Optional[int] = None):

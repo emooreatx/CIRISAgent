@@ -15,8 +15,10 @@ class MockLLMClient:
         self.instruct_client = self
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
-    async def _create(self, *_, response_model=None, **__) -> Any:  # noqa: D401
-        return create_response(response_model)
+    async def _create(self, *args, response_model=None, **kwargs) -> Any:  # noqa: D401
+        # Extract messages for context analysis  
+        messages = kwargs.get('messages', [])
+        return create_response(response_model, messages=messages, **kwargs)
 
 
 class MockLLMService(Service):
