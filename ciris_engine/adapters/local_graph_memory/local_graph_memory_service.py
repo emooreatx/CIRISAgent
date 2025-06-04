@@ -36,18 +36,30 @@ class LocalGraphMemoryService(Service):
 
     async def memorize(self, node: GraphNode, *args, **kwargs) -> MemoryOpResult:
         """Store a node. Only accepts GraphNode as input."""
-        persistence.add_graph_node(node, db_path=self.db_path)
-        return MemoryOpResult(status=MemoryOpStatus.OK)
+        try:
+            persistence.add_graph_node(node, db_path=self.db_path)
+            return MemoryOpResult(status=MemoryOpStatus.OK)
+        except Exception as e:  # pragma: no cover - log and return error
+            logger.exception("Error storing node %s: %s", node.id, e)
+            return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
     async def recall(self, node: GraphNode) -> MemoryOpResult:
-        stored = persistence.get_graph_node(node.id, node.scope, db_path=self.db_path)
-        if stored:
-            return MemoryOpResult(status=MemoryOpStatus.OK, data=stored.attributes)
-        return MemoryOpResult(status=MemoryOpStatus.OK, data=None)
+        try:
+            stored = persistence.get_graph_node(node.id, node.scope, db_path=self.db_path)
+            if stored:
+                return MemoryOpResult(status=MemoryOpStatus.OK, data=stored.attributes)
+            return MemoryOpResult(status=MemoryOpStatus.OK, data=None)
+        except Exception as e:  # pragma: no cover - log and return error
+            logger.exception("Error recalling node %s: %s", node.id, e)
+            return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
     async def forget(self, node: GraphNode) -> MemoryOpResult:
-        persistence.delete_graph_node(node.id, node.scope, db_path=self.db_path)
-        return MemoryOpResult(status=MemoryOpStatus.OK)
+        try:
+            persistence.delete_graph_node(node.id, node.scope, db_path=self.db_path)
+            return MemoryOpResult(status=MemoryOpStatus.OK)
+        except Exception as e:  # pragma: no cover - log and return error
+            logger.exception("Error forgetting node %s: %s", node.id, e)
+            return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
     def export_identity_context(self) -> str:
         lines = []

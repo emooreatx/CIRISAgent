@@ -300,8 +300,12 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         
         dsdma_summary_str = "DSDMA did not apply or did not run for this thought."
         if dsdma_result:
-            # Accessing dsdma_result.domain and dsdma_result.alignment_score as per schema
-            dsdma_summary_str = f"DSDMA ({dsdma_result.domain}) Output: Score {dsdma_result.alignment_score:.2f}, Recommended Domain Action: {dsdma_result.recommended_action or 'None'}, Flags: {', '.join(dsdma_result.flags) if dsdma_result.flags else 'None'}. Reasoning: {dsdma_result.reasoning}"
+            dsdma_summary_str = (
+                f"DSDMA ({dsdma_result.domain}) Output: Score {dsdma_result.score:.2f}, "
+                f"Recommended Domain Action: {dsdma_result.recommended_action or 'None'}, "
+                f"Flags: {', '.join(dsdma_result.flags) if dsdma_result.flags else 'None'}. "
+                f"Reasoning: {dsdma_result.reasoning}"
+            )
 
         ponder_notes_str_for_prompt_if_any = ""
         notes_list = original_thought.ponder_notes if original_thought.ponder_notes else []

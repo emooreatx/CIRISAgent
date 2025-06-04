@@ -10,7 +10,13 @@ from ciris_engine.schemas.correlation_schemas_v1 import (
 )
 from ciris_engine import persistence
 
-from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService, MemoryService
+from ciris_engine.protocols.services import (
+    CommunicationService,
+    WiseAuthorityService,
+    ToolService,
+    MemoryService,
+)
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult, MemoryOpStatus
 
 class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, MemoryService):
     """Adapter for HTTP API communication, WA, tools, and memory interactions."""
@@ -127,15 +133,28 @@ class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, Memory
         return True
 
     # --- MemoryService ---
-    async def memorize(self, node):
-        self.memory[node.id] = node.__dict__
-        return True
+    async def memorize(self, node) -> MemoryOpResult:
+        try:
+            self.memory[node.id] = node.__dict__
+            return MemoryOpResult(status=MemoryOpStatus.OK)
+        except Exception as e:  # pragma: no cover - shouldn't happen in tests
+            return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
-    async def recall(self, node):
-        return self.memory.get(node.id)
+    async def recall(self, node) -> MemoryOpResult:
+        try:
+            data = self.memory.get(node.id)
+            return MemoryOpResult(status=MemoryOpStatus.OK, data=data)
+        except Exception as e:  # pragma: no cover - shouldn't happen in tests
+            return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
-    async def forget(self, node):
-        return self.memory.pop(node.id, None) is not None
+    async def forget(self, node) -> MemoryOpResult:
+        try:
+            existed = self.memory.pop(node.id, None) is not None
+            status = MemoryOpStatus.OK if existed else MemoryOpStatus.DENIED
+            reason = None if existed else "Not found"
+            return MemoryOpResult(status=status, reason=reason)
+        except Exception as e:  # pragma: no cover - shouldn't happen in tests
+            return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
     async def search_memories(self, query: str, scope: str = "default", limit: int = 10) -> List[Dict[str, Any]]:
         return [v for v in self.memory.values() if query in str(v)]

@@ -88,22 +88,14 @@ class MemorizeHandler(BaseActionHandler):
                 node.attributes.setdefault("source", thought.source_task_id)
                 try:
                     mem_op = await memory_service.memorize(node)
-                    success = False
-                    reason = None
-                    if isinstance(mem_op, bool):
-                        success = mem_op
-                    elif hasattr(mem_op, "status"):
-                        success = str(getattr(mem_op, "status")) in {"ok", "OK", "saved", "SAVED"}
-                        reason = getattr(mem_op, "reason", None)
-                    else:
-                        success = bool(mem_op)
-
-                    if success:
+                    if mem_op.status == MemoryOpStatus.OK:
                         action_performed_successfully = True
-                        follow_up_content_key_info = f"Memorization successful. Key: '{node.id}'"
+                        follow_up_content_key_info = (
+                            f"Memorization successful. Key: '{node.id}'"
+                        )
                     else:
                         final_thought_status = ThoughtStatus.DEFERRED
-                        follow_up_content_key_info = reason or "Memory operation failed"
+                        follow_up_content_key_info = mem_op.reason or mem_op.error or "Memory operation failed"
                 except Exception as e_mem:
                     await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e_mem)
                     final_thought_status = ThoughtStatus.FAILED

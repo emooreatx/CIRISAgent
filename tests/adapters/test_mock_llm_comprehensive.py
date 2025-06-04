@@ -63,7 +63,7 @@ class TestMockLLMComprehensive:
         
         # Verify the response has expected fields
         assert hasattr(response, 'domain')
-        assert hasattr(response, 'alignment_score')
+        assert hasattr(response, 'score')
     
     @pytest.mark.asyncio
     async def test_action_selection_result(self, mock_client):

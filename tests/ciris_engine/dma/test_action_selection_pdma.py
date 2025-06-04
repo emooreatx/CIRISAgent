@@ -38,7 +38,7 @@ async def test_forced_ponder(monkeypatch):
         'original_thought': Thought(thought_id="t1", content="irrelevant", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
-        'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
+        'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
         'current_ponder_count': 0,
         'max_rounds': 3,
         'processing_context': SimpleNamespace(initial_task_context=SimpleNamespace(content='ponder'))
@@ -87,7 +87,7 @@ async def test_llm_success(monkeypatch):
         'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
-        'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
+        'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
         'current_ponder_count': 0,
         'max_rounds': 3,
         'processing_context': {}
@@ -123,7 +123,7 @@ async def test_instructor_retry(monkeypatch):
         'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
-        'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
+        'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
         'current_ponder_count': 0,
         'max_rounds': 3,
         'processing_context': {}
@@ -155,7 +155,7 @@ async def test_general_exception(monkeypatch):
         'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
-        'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
+        'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
         'current_ponder_count': 0,
         'max_rounds': 3,
         'processing_context': {}

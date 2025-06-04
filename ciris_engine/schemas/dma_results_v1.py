@@ -92,7 +92,7 @@ class CSDMAResult(BaseModel):
 class DSDMAResult(BaseModel):
     """Minimal v1 result from domain-specific DMA."""
     domain: str
-    alignment_score: float = Field(..., ge=0.0, le=1.0)
+    score: float = Field(..., ge=0.0, le=1.0)
     flags: List[str] = Field(default_factory=list)
     reasoning: Optional[str] = None
     recommended_action: Optional[str] = None

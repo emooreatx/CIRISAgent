@@ -8,7 +8,7 @@ from ciris_engine.registries.base import ServiceRegistry, Priority
 
 class DummyDSDMA(BaseDSDMA):
     async def evaluate_thought(self, thought_item, current_context):
-        return DSDMAResult(domain="d", alignment_score=1.0, recommended_action="a", flags=["f"], reasoning="r")
+        return DSDMAResult(domain="d", score=1.0, recommended_action="a", flags=["f"], reasoning="r")
 
 def test_dsdma_init(monkeypatch):
     service_registry = ServiceRegistry()

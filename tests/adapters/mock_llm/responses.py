@@ -53,12 +53,12 @@ def cs_dma() -> CSDMAResult:
 
 
 def ds_dma() -> DSDMAResult:
-    return _attach_extras(DSDMAResult(domain="mock", alignment_score=0.9, flags=[]))
+    return _attach_extras(DSDMAResult(domain="mock", score=0.9, flags=[]))
 
 
 def ds_dma_llm_output() -> BaseDSDMA.LLMOutputForDSDMA:
     result = BaseDSDMA.LLMOutputForDSDMA(
-        domain_alignment_score=1.0,
+        score=1.0,
         recommended_action="proceed",
         flags=[],
         reasoning="mock",

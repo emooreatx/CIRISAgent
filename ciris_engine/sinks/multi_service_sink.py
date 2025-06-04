@@ -24,7 +24,13 @@ from ciris_engine.schemas.service_actions_v1 import (
     FetchToolAction,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
-from ..protocols.services import CommunicationService, WiseAuthorityService, MemoryService, ToolService
+from ..protocols.services import (
+    CommunicationService,
+    WiseAuthorityService,
+    MemoryService,
+    ToolService,
+)
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
 from ..registries.circuit_breaker import CircuitBreakerError
 from .base_sink import BaseMultiServiceSink
 
@@ -152,44 +158,36 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     async def _handle_memorize(self, service: MemoryService, action: MemorizeAction):
         """Handle memorize action"""
         result = await service.memorize(action.node)
-        if hasattr(result, 'status'):
-            # Return MemoryOpResult object
-            if result.status == 'ok' or result.status == 'OK':
-                logger.info(f"Stored memory {action.node.id} via {type(service).__name__}")
-            else:
-                logger.warning(f"Failed to store memory {action.node.id} via {type(service).__name__}: {result.reason}")
-            return result
+        if result.status == MemoryOpStatus.OK:
+            logger.info(
+                f"Stored memory {action.node.id} via {type(service).__name__}"
+            )
         else:
-            # Handle legacy boolean return
-            if result:
-                logger.info(f"Stored memory {action.node.id} via {type(service).__name__}")
-            else:
-                logger.warning(f"Failed to store memory via {type(service).__name__}")
-            return result
+            logger.warning(
+                f"Failed to store memory {action.node.id} via {type(service).__name__}: {result.reason or result.error}"
+            )
+        return result
     
     async def _handle_recall(self, service: MemoryService, action: RecallAction):
         """Handle recall action"""
         result = await service.recall(action.node)
-        logger.info(f"Retrieved memory {action.node.id} via {type(service).__name__}")
+        logger.info(
+            f"Retrieved memory {action.node.id} via {type(service).__name__}"
+        )
         return result
     
     async def _handle_forget(self, service: MemoryService, action: ForgetAction):
         """Handle forget action"""
         result = await service.forget(action.node)
-        if hasattr(result, 'status'):
-            # Return MemoryOpResult object
-            if result.status == 'ok' or result.status == 'OK':
-                logger.info(f"Deleted memory {action.node.id} via {type(service).__name__}")
-            else:
-                logger.warning(f"Failed to delete memory {action.node.id} via {type(service).__name__}: {result.reason}")
-            return result
+        if result.status == MemoryOpStatus.OK:
+            logger.info(
+                f"Deleted memory {action.node.id} via {type(service).__name__}"
+            )
         else:
-            # Handle legacy boolean return
-            if result:
-                logger.info(f"Deleted memory {action.node.id} via {type(service).__name__}")
-            else:
-                logger.warning(f"Failed to delete memory via {type(service).__name__}")
-            return result
+            logger.warning(
+                f"Failed to delete memory {action.node.id} via {type(service).__name__}: {result.reason or result.error}"
+            )
+        return result
     
     async def _handle_send_tool(self, service: ToolService, action: SendToolAction):
         """Handle send tool action"""

@@ -10,6 +10,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     FetchedMessage,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult
 
 class CommunicationService(Protocol):
     """Protocol for communication services (Discord, Veilid, etc)"""
@@ -99,17 +100,17 @@ class MemoryService(Protocol):
     """Protocol for memory services"""
     
     @abstractmethod
-    async def memorize(self, node: GraphNode) -> bool:
-        """Store a graph node."""
+    async def memorize(self, node: GraphNode) -> MemoryOpResult:
+        """Store a graph node and return operation result."""
         ...
     
     @abstractmethod
-    async def recall(self, node: GraphNode) -> Optional[Any]:
+    async def recall(self, node: GraphNode) -> MemoryOpResult:
         """Retrieve a node from memory."""
         ...
     
     @abstractmethod
-    async def forget(self, node: GraphNode) -> bool:
+    async def forget(self, node: GraphNode) -> MemoryOpResult:
         """Delete a node from memory."""
         ...
     
