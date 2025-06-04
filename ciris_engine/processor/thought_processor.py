@@ -52,6 +52,11 @@ class ThoughtProcessor:
 
         # 2. Build context
         context = await self.context_builder.build_thought_context(thought)
+        # Store the fresh context on the queue item so DMA executor can use it
+        if hasattr(context, "model_dump"):
+            thought_item.initial_context = context.model_dump()
+        else:
+            thought_item.initial_context = context
 
         # 3. Run DMAs
         # profile_name is not an accepted argument by run_initial_dmas.
@@ -61,7 +66,8 @@ class ThoughtProcessor:
         # The dsdma_context argument is optional and defaults to None if not provided.
         try:
             dma_results = await self.dma_orchestrator.run_initial_dmas(
-                thought_item=thought_item
+                thought_item=thought_item,
+                processing_context=context,
             )
         except DMAFailure as dma_err:
             logger.error(

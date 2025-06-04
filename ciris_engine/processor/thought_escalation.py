@@ -2,7 +2,7 @@
 # See main_processor.py and thought_manager.py for usage.
 
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -71,18 +71,37 @@ def escalate_due_to_failure(thought: Thought, reason: str) -> Thought:
 
 
 def escalate_dma_failure(
-    thought: Thought, dma_name: str, error: Exception, retry_limit: int
-) -> Thought:
-    """Escalate when a DMA repeatedly fails."""
+    thought: Any, dma_name: str, error: Exception, retry_limit: int
+) -> None:
+    """Escalate when a DMA repeatedly fails.
+
+    Supports both ``Thought`` objects and ``ProcessingQueueItem``s. When a queue
+    item is provided we update the persisted ``Thought`` directly via the
+    persistence layer.
+    """
+
+    from ciris_engine import persistence
+    from ciris_engine.processor.processing_queue import ProcessingQueueItem
+
     now = datetime.now(timezone.utc).isoformat()
+    reason = f"DMA failed after {retry_limit} attempts: {error}"
     event = {
         "timestamp": now,
         "dma": dma_name,
-        "reason": f"DMA failed after {retry_limit} attempts: {error}",
+        "reason": reason,
         "type": "dma_failure",
     }
+
+    if isinstance(thought, ProcessingQueueItem):
+        persistence.update_thought_status(
+            thought_id=thought.thought_id,
+            status=ThoughtStatus.DEFERRED,
+            final_action={"error": reason},
+        )
+        return
+
     thought.status = ThoughtStatus.DEFERRED
-    return _append_escalation(thought, event)
+    _append_escalation(thought, event)
 
 
 def escalate_due_to_max_thought_rounds(thought: Thought, max_rounds: int) -> Thought:
