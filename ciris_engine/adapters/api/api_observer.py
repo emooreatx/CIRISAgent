@@ -106,7 +106,12 @@ class APIObserver:
                     ],
                 }
             )
-            assert "channel_id" in task.context and task.context["channel_id"], "Task context must include a non-empty channel_id"
+            channel_id = (
+                task.context.get("channel_id")
+                if isinstance(task.context, dict)
+                else getattr(task.context, "channel_id", None)
+            )
+            assert channel_id, "Task context must include a non-empty channel_id"
             persistence.add_task(task)
 
             thought = Thought(
@@ -118,9 +123,18 @@ class APIObserver:
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 round_number=0,
                 content=f"User @{msg.author_name} said: {msg.content}",
-                context=dict(task.context)
+                context=(
+                    task.context
+                    if isinstance(task.context, dict)
+                    else task.context.model_dump()
+                )
             )
-            assert "channel_id" in thought.context and thought.context["channel_id"], "Thought context must include a non-empty channel_id"
+            thought_channel_id = (
+                thought.context.get("channel_id")
+                if isinstance(thought.context, dict)
+                else getattr(thought.context, "channel_id", None)
+            )
+            assert thought_channel_id, "Thought context must include a non-empty channel_id"
             persistence.add_thought(thought)
 
             logger.info(f"Created observation task {task.task_id} and thought {thought.thought_id} for message {msg.message_id}")

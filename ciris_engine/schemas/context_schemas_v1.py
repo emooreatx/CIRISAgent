@@ -51,3 +51,15 @@ class ThoughtContext(BaseModel):
     task_history: List[TaskSummary] = Field(default_factory=list)
     identity_context: Optional[str] = None
     initial_task_context: Optional[TaskContext] = None
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Dictionary-style access for backward compatibility."""
+        if hasattr(self, key):
+            return getattr(self, key)
+        return default
+
+    def __getitem__(self, key: str) -> Any:
+        return getattr(self, key)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key)
