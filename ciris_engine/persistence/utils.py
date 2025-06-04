@@ -1,5 +1,6 @@
 import json
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 import logging
 
@@ -10,12 +11,17 @@ def map_row_to_task(row):
     # Map DB columns to Task fields as per v1 schema
     if row_dict.get("context_json"):
         try:
-            row_dict["context"] = json.loads(row_dict["context_json"])
+            ctx_data = json.loads(row_dict["context_json"])
+            if isinstance(ctx_data, dict):
+                ctx_data.setdefault("system_snapshot", {})
+                row_dict["context"] = ThoughtContext.model_validate(ctx_data)
+            else:
+                row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
         except Exception:
             logger.warning(f"Failed to decode context_json for task {row_dict.get('task_id')}")
-            row_dict["context"] = {}
+            row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
     else:
-        row_dict["context"] = {}
+        row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
     if row_dict.get("outcome_json"):
         try:
             row_dict["outcome"] = json.loads(row_dict["outcome_json"])
@@ -42,12 +48,17 @@ def map_row_to_thought(row):
     # Map DB columns to Thought fields as per v1 schema
     if row_dict.get("context_json"):
         try:
-            row_dict["context"] = json.loads(row_dict["context_json"])
+            ctx_data = json.loads(row_dict["context_json"])
+            if isinstance(ctx_data, dict):
+                ctx_data.setdefault("system_snapshot", {})
+                row_dict["context"] = ThoughtContext.model_validate(ctx_data)
+            else:
+                row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
         except Exception:
             logger.warning(f"Failed to decode context_json for thought {row_dict.get('thought_id')}")
-            row_dict["context"] = {}
+            row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
     else:
-        row_dict["context"] = {}
+        row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
     if row_dict.get("ponder_notes_json"):
         try:
             row_dict["ponder_notes"] = json.loads(row_dict["ponder_notes_json"])

@@ -83,11 +83,12 @@ async def test_run_pdma_queue_item_context_fallback():
 async def test_run_pdma_invalid_context_raises():
     evaluator = MagicMock()
     evaluator.evaluate = AsyncMock(return_value="ok")
+    from ciris_engine.processor.processing_queue import ThoughtContent
     item = ProcessingQueueItem(
         thought_id="t3",
         source_task_id="task3",
         thought_type="test",
-        content="c",
+        content=ThoughtContent(text="c"),
     )
     with pytest.raises(DMAFailure):
         await run_pdma(evaluator, item)

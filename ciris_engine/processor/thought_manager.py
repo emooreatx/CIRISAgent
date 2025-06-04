@@ -9,6 +9,7 @@ from typing import List, Optional, Dict, Any, Deque
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 from ciris_engine import persistence
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
@@ -33,13 +34,15 @@ class ThoughtManager:
         now_iso = datetime.now(timezone.utc).isoformat()
         
         # Build context from task
-        context = {}
+        context_dict = {}
         if task.context:
-            context = {"initial_task_context": task.context.copy()}
-            # Copy relevant fields to top level for dispatch
+            context_dict = {"initial_task_context": task.context.model_dump()}
             for key in ["author_name", "author_id", "channel_id", "origin_service"]:
                 if key in task.context:
-                    context[key] = task.context.get(key)
+                    context_dict[key] = task.context.get(key)
+            context = ThoughtContext.model_validate(context_dict)
+        else:
+            context = ThoughtContext()
         
         thought = Thought(
             thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",
@@ -85,7 +88,7 @@ class ThoughtManager:
         job_task = persistence.get_task_by_id(job_task_id)
         channel_id = None
         if job_task and job_task.context:
-            channel_id = job_task.context.get("channel_id")
+            channel_id = job_task.context.system_snapshot.channel_id
         if not channel_id:
             channel_id = self.default_channel_id
 

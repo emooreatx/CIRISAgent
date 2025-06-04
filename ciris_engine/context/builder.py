@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
-from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext, SystemSnapshot
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType # Corrected import for GraphScope
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus  # Add TaskStatus import
@@ -69,8 +69,12 @@ class ContextBuilder:
             identity_context_str = channel_context_str
         # Extract initial_task_context from task if available
         initial_task_context = None
-        if task and hasattr(task, 'context') and isinstance(task.context, BaseModel):
-            initial_task_context = task.context
+        if task and hasattr(task, 'context'):
+            ctx = task.context
+            if isinstance(ctx, ThoughtContext):
+                initial_task_context = ctx.initial_task_context
+            elif isinstance(ctx, TaskContext):
+                initial_task_context = ctx
         
         # Create SystemSnapshot object from the data
         system_snapshot = system_snapshot_data

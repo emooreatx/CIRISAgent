@@ -66,11 +66,12 @@ async def test_process_thought_item_updates_metrics():
     tp = AsyncMock()
     proc = DummyProcessor(AppConfig(), tp, ad, {})
 
+    from ciris_engine.processor.processing_queue import ThoughtContent
     item = ProcessingQueueItem(
         thought_id="th1",
         source_task_id="t1",
         thought_type="test",
-        content="hello",
+        content=ThoughtContent(text="hello"),
     )
 
     tp.process_thought = AsyncMock(return_value="r")
@@ -87,11 +88,12 @@ async def test_process_thought_item_error(monkeypatch):
     tp.process_thought = AsyncMock(side_effect=Exception("err"))
     proc = DummyProcessor(AppConfig(), tp, ad, {})
 
+    from ciris_engine.processor.processing_queue import ThoughtContent
     item = ProcessingQueueItem(
         thought_id="th1",
         source_task_id="t1",
         thought_type="test",
-        content="hello",
+        content=ThoughtContent(text="hello"),
     )
 
     with pytest.raises(Exception):
@@ -115,11 +117,12 @@ async def test_process_thought_item_dma_failure_fallback(monkeypatch):
     # Simulate DMA failure
     tp.process_thought = AsyncMock(side_effect=DMAFailure("dma fail"))
 
+    from ciris_engine.processor.processing_queue import ThoughtContent
     item = ProcessingQueueItem(
         thought_id="th1",
         source_task_id="t1",
         thought_type="test",
-        content="hello",
+        content=ThoughtContent(text="hello"),
     )
 
     # Should call force_ponder and return its result

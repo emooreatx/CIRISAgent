@@ -33,10 +33,8 @@ class ForgetHandler(BaseActionHandler):
                     "is_follow_up": True,
                     "error": str(e)
                 }
-                if isinstance(follow_up.context, dict):
-                    follow_up.context.update(ctx)
-                else:
-                    follow_up.context = ctx
+                for k, v in ctx.items():
+                    setattr(follow_up.context, k, v)
                 self.dependencies.persistence.add_thought(follow_up)
                 await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
                 return
@@ -52,10 +50,8 @@ class ForgetHandler(BaseActionHandler):
                 "is_follow_up": True,
                 "error": f"Invalid params type: {type(raw_params)}"
             }
-            if isinstance(follow_up.context, dict):
-                follow_up.context.update(ctx)
-            else:
-                follow_up.context = ctx
+            for k, v in ctx.items():
+                setattr(follow_up.context, k, v)
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             return
@@ -71,10 +67,8 @@ class ForgetHandler(BaseActionHandler):
                 "is_follow_up": True,
                 "error": "Permission denied or WA required"
             }
-            if isinstance(follow_up.context, dict):
-                follow_up.context.update(ctx)
-            else:
-                follow_up.context = ctx
+            for k, v in ctx.items():
+                setattr(follow_up.context, k, v)
             self.dependencies.persistence.add_thought(follow_up)
             return
         memory_service: Optional[MemoryService] = await self.get_memory_service()
@@ -106,10 +100,8 @@ class ForgetHandler(BaseActionHandler):
                 "is_follow_up": True,
                 "error": "wa_denied",
             }
-            if isinstance(follow_up.context, dict):
-                follow_up.context.update(ctx)
-            else:
-                follow_up.context = ctx
+            for k, v in ctx.items():
+                setattr(follow_up.context, k, v)
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.FORGET,
@@ -149,10 +141,8 @@ class ForgetHandler(BaseActionHandler):
             "forget_scope": node.scope.value,
             "forget_status": str(getattr(forget_result, "status", forget_result))
         }
-        if isinstance(follow_up.context, dict):
-            follow_up.context.update(ctx_final)
-        else:
-            follow_up.context = ctx_final
+        for k, v in ctx_final.items():
+            setattr(follow_up.context, k, v)
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.FORGET,
