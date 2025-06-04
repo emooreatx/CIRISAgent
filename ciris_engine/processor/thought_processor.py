@@ -173,7 +173,7 @@ class ThoughtProcessor:
     async def _fetch_thought(self, thought_id: str) -> Optional[Thought]:
         # Import here to avoid circular import
         from ciris_engine import persistence
-        return persistence.get_thought_by_id(thought_id)
+        return await persistence.async_get_thought_by_id(thought_id)
 
     def _get_profile_name(self, thought: Thought) -> str:
         """Extract profile name from thought context or use default."""

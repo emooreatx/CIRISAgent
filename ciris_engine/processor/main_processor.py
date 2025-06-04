@@ -313,7 +313,7 @@ class AgentProcessor:
                 return True
             else:
                 # Check if the thought was already handled (e.g., TASK_COMPLETE)
-                updated_thought = persistence.get_thought_by_id(thought.thought_id)
+                updated_thought = await persistence.async_get_thought_by_id(thought.thought_id)
                 if updated_thought and updated_thought.status in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED]:
                     logger.debug(f"Thought {thought.thought_id} was already handled with status {updated_thought.status.value}")
                     return True

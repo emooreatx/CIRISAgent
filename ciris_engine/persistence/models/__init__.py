@@ -15,6 +15,8 @@ from .tasks import (
 from .thoughts import (
     add_thought,
     get_thought_by_id,
+    async_get_thought_by_id,
+    async_get_thought_status,
     update_thought_status,
     get_thoughts_by_status,
     get_thoughts_older_than,
@@ -53,6 +55,8 @@ __all__ = [
     "get_tasks_older_than",
     "add_thought",
     "get_thought_by_id",
+    "async_get_thought_by_id",
+    "async_get_thought_status",
     "update_thought_status",
     "get_thoughts_by_status",
     "get_thoughts_older_than",
