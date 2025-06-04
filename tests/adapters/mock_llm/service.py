@@ -18,7 +18,9 @@ class MockLLMClient:
     async def _create(self, *args, response_model=None, **kwargs) -> Any:  # noqa: D401
         # Extract messages for context analysis  
         messages = kwargs.get('messages', [])
-        return create_response(response_model, messages=messages, **kwargs)
+        # Remove messages from kwargs to avoid duplicate parameter
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'messages'}
+        return create_response(response_model, messages=messages, **filtered_kwargs)
 
 
 class MockLLMService(Service):
