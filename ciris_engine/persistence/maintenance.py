@@ -221,22 +221,3 @@ class DatabaseMaintenanceService:
         logger.info("--- Finished Startup Database Cleanup ---")
 
 
-# Module-level function for backward compatibility
-async def run_maintenance():
-    """
-    DEPRECATED: Module-level maintenance function.
-    
-    This function exists for backward compatibility but should not be used.
-    Database maintenance is now properly handled by the CIRISRuntime during initialization
-    via the DatabaseMaintenanceService class.
-    
-    Raises:
-        RuntimeError: Always raised with guidance on proper usage.
-    """
-    logger.error("DEPRECATED: run_maintenance() called - this function should not be used")
-    logger.error("Database maintenance is handled by CIRISRuntime during initialization")
-    logger.error("Use DatabaseMaintenanceService.perform_startup_cleanup() via runtime instead")
-    raise RuntimeError(
-        "run_maintenance() is deprecated. Database maintenance is handled by CIRISRuntime "
-        "during initialization. This indicates a design error in the calling code."
-    )

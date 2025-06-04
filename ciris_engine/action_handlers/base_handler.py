@@ -29,16 +29,12 @@ class ActionHandlerDependencies:
         io_adapter: Optional[Any] = None,
         # Shutdown signal mechanism
         shutdown_callback: Optional[Callable[[], None]] = None,
-        **legacy_services  # For additional backward compatibility
     ):
         self.service_registry = service_registry
         self.io_adapter = io_adapter
         # Shutdown signal mechanism
         self.shutdown_callback = shutdown_callback
         self._shutdown_requested = False
-        # Store any additional legacy services
-        for name, service in legacy_services.items():
-            setattr(self, name, service)
     
     def request_graceful_shutdown(self, reason: str = "Handler requested shutdown"):
         """Request a graceful shutdown of the agent runtime."""
