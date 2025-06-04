@@ -422,7 +422,7 @@ _RESPONSE_MAP = {
 }
 
 
-def create_response(model: Any, messages: List[Dict[str, Any]] = None, **kwargs) -> Any:
+def create_response(response_model: Any, messages: List[Dict[str, Any]] = None, **kwargs) -> Any:
     """Create a mock LLM response with context analysis."""
     messages = messages or []
     
@@ -430,7 +430,7 @@ def create_response(model: Any, messages: List[Dict[str, Any]] = None, **kwargs)
     context = extract_context_from_messages(messages)
     
     # Get the appropriate handler
-    handler = _RESPONSE_MAP.get(model)
+    handler = _RESPONSE_MAP.get(response_model)
     if handler:
         # Check if handler accepts context parameter
         import inspect
