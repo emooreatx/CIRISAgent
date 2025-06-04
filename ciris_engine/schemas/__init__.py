@@ -9,7 +9,7 @@ from .correlation_schemas_v1 import *
 __all__ = [
     'Task', 'Thought',
     'ActionSelectionResult', 'EthicalDMAResult', 'CSDMAResult', 'DSDMAResult',
-    'HandlerActionType', 'TaskStatus', 'ThoughtStatus', 'ObservationSourceType', 'IncomingMessage',
+    'HandlerActionType', 'TaskStatus', 'ThoughtStatus', 'ObservationSourceType', 'IncomingMessage', 'DiscordMessage',
     # Action params
     'ObserveParams', 'SpeakParams', 'ToolParams', 'PonderParams', 'RejectParams',
     'DeferParams', 'MemorizeParams', 'RecallParams', 'ForgetParams',

@@ -25,3 +25,4 @@ pytest
 pytest-asyncio
 click
 streamlit-shadcn-ui
+mypy

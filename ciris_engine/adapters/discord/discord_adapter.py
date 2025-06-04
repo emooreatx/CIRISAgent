@@ -5,7 +5,7 @@ import asyncio
 import uuid
 from datetime import datetime
 from typing import Callable, Awaitable, Optional, List, Dict, Any
-from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.correlation_schemas_v1 import (
@@ -26,7 +26,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
     def __init__(self, token: str,
                  guidance_channel_id: str = None, deferral_channel_id: str = None,
                  tool_registry: Any = None, bot: discord.Client = None,
-                 on_message: Optional[Callable[[IncomingMessage], Awaitable[None]]] = None):
+                 on_message: Optional[Callable[[DiscordMessage], Awaitable[None]]] = None):
         # Configure retry settings for Discord API operations
         retry_config = {
             "retry": {
@@ -326,13 +326,15 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         # Only process messages from users (not bots)
         if message.author.bot:
             return
-        # Build IncomingMessage object
-        incoming = IncomingMessage(
+        # Build DiscordMessage object
+        incoming = DiscordMessage(
             message_id=str(message.id),
             content=message.content,
             author_id=str(message.author.id),
             author_name=message.author.display_name,
             channel_id=str(message.channel.id),
+            is_bot=message.author.bot,
+            is_dm=isinstance(message.channel, discord.DMChannel),
             _raw_message=message
         )
         if self.on_message_callback:

@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 from .versioning import SchemaVersion
 from typing import Optional
 
@@ -46,7 +46,7 @@ class ThoughtStatus(CaseInsensitiveEnum):
     DEFERRED = "deferred"
 
 class ObservationSourceType(CaseInsensitiveEnum):
-    DISCORD_MESSAGE = "discord_message"
+    CHAT_MESSAGE = "chat_message"  # Renamed from DISCORD_MESSAGE
     FEEDBACK_PACKAGE = "feedback_package"  # Renamed from CORRECTION_PACKAGE
     USER_REQUEST = "user_request"
     AGENT_MESSAGE = "agent_message"
@@ -54,15 +54,34 @@ class ObservationSourceType(CaseInsensitiveEnum):
 
 class IncomingMessage(BaseModel):
     """Schema for incoming messages from various sources."""
+
     message_id: str
     author_id: str
     author_name: str
     content: str
-    channel_id: Optional[str] = None
+    destination_id: Optional[str] = Field(default=None, alias="channel_id")
     reference_message_id: Optional[str] = None
     timestamp: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    @property
+    def channel_id(self) -> Optional[str]:
+        """Backward compatibility alias for destination_id."""
+        return self.destination_id
+
+
+class DiscordMessage(IncomingMessage):
+    """Incoming message specific to the Discord platform."""
+
+    channel_id: str
     is_bot: bool = False
     is_dm: bool = False
+
+    def __init__(self, **data):
+        if "destination_id" not in data and "channel_id" in data:
+            data["destination_id"] = data.get("channel_id")
+        super().__init__(**data)
 
 
 # Backwards-compatible alias for SchemaVersion
@@ -76,6 +95,7 @@ __all__ = [
     "ThoughtStatus",
     "ObservationSourceType",
     "IncomingMessage",
+    "DiscordMessage",
     "SchemaVersion",
     "CIRISSchemaVersion",
 ]

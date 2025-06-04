@@ -32,4 +32,7 @@
 - Use `python main.py --help` to see the unified runtime options. The same flags
   map directly to runtime arguments (e.g., `--host`, `--port`, `--no-interactive`).
   For offline tests pass `--mock-llm` to run without network access.
+- The ongoing refactor is tracked in `ECHO_Refactor.md`. Begin or continue the
+  lowest numbered incomplete task in that file and update its status when you
+  work on it.
 

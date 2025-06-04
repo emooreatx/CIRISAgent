@@ -117,7 +117,7 @@ class CLIObserver:
         """Check if message is from the agent itself"""
         if self.agent_id and msg.author_id == self.agent_id:
             return True
-        return msg.is_bot  # Additional check for bot messages
+        return getattr(msg, "is_bot", False)  # Additional check for bot messages
 
     async def _create_passive_observation_result(self, msg: IncomingMessage) -> None:
         """Create task and thought for passive observation."""
