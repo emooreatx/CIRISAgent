@@ -52,7 +52,7 @@ class ToolHandler(BaseActionHandler):
             self.logger.error("No ToolService available")
             final_thought_status = ThoughtStatus.FAILED
             follow_up_content_key_info = "Tool service unavailable"
-        elif not await tool_service.validate_parameters(params.name, params.args):
+        elif not await tool_service.validate_parameters(params.name, params.parameters):
             self.logger.error(
                 f"Arguments for tool '{params.name}' failed validation. Thought ID: {thought_id}")
             final_thought_status = ThoughtStatus.FAILED
@@ -60,7 +60,7 @@ class ToolHandler(BaseActionHandler):
         else:
             correlation_id = str(uuid.uuid4())
             try:
-                await tool_service.execute_tool(params.name, {**params.args, "correlation_id": correlation_id})
+                await tool_service.execute_tool(params.name, {**params.parameters, "correlation_id": correlation_id})
                 tool_result = await tool_service.get_tool_result(
                     correlation_id, timeout=self.TOOL_RESULT_TIMEOUT
                 )

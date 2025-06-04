@@ -137,14 +137,20 @@ async def test_call_llm_raw_and_structured(mock_patch, mock_async_openai):
     client = OpenAICompatibleClient(config)
     # Mock chat.completions.create for raw
     mock_client.chat.completions.create = AsyncMock(return_value=types.SimpleNamespace(
-        choices=[types.SimpleNamespace(message=types.SimpleNamespace(content="hello world"))]
+        choices=[types.SimpleNamespace(message=types.SimpleNamespace(content="hello world"))],
+        usage=types.SimpleNamespace(total_tokens=5)
     ))
-    out = await client.call_llm_raw([{"role": "user", "content": "hi"}])
+    out, usage = await client.call_llm_raw([{"role": "user", "content": "hi"}])
     assert out == "hello world"
+    assert usage.tokens == 5
     # Mock for structured
     class DummyModel:
         __name__ = "DummyModel"
-    mock_client.chat.completions.create = AsyncMock(return_value="model-out")
+    structured_response = types.SimpleNamespace(
+        usage=types.SimpleNamespace(total_tokens=6)
+    )
+    mock_client.chat.completions.create = AsyncMock(return_value=structured_response)
     client.instruct_client = mock_client
-    out2 = await client.call_llm_structured([{"role": "user", "content": "hi"}], DummyModel)
-    assert out2 == "model-out"
+    out2, usage2 = await client.call_llm_structured([{"role": "user", "content": "hi"}], DummyModel)
+    assert out2 == structured_response
+    assert usage2.tokens == 6

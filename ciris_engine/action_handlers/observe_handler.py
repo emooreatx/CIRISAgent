@@ -10,6 +10,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     ThoughtStatus,
     HandlerActionType,
     IncomingMessage,
+    FetchedMessage,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
@@ -37,7 +38,7 @@ class ObserveHandler(BaseActionHandler):
         self,
         memory_service: Optional[Any],
         channel_id: Optional[str],
-        messages: List[Dict[str, Any]],
+        messages: List[FetchedMessage],
     ) -> None:
         if not memory_service:
             return
@@ -45,7 +46,7 @@ class ObserveHandler(BaseActionHandler):
         if channel_id:
             recall_ids.add(f"channel/{channel_id}")
         for msg in messages or []:
-            aid = msg.get("author_id")
+            aid = msg.author_id
             if aid:
                 recall_ids.add(f"user/{aid}")
         for rid in recall_ids:

@@ -82,6 +82,12 @@ def test_incoming_message_required_fields():
         fs.IncomingMessage(author_id="u1", author_name="Bob", content="Hi")
 
 
+def test_fetched_message_alias_and_optional_fields():
+    msg = fs.FetchedMessage(id="123", content="hi")
+    assert msg.message_id == "123"
+    assert msg.author_id is None
+
+
 @pytest.mark.parametrize("enum_cls, val, expected", [
     (fs.SchemaVersion, "1.0", fs.SchemaVersion.V1_0),
 ])

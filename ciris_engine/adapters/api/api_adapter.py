@@ -2,6 +2,8 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
+from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+
 from ciris_engine.schemas.correlation_schemas_v1 import (
     ServiceCorrelation,
     ServiceCorrelationStatus,
@@ -65,7 +67,7 @@ class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, Memory
         )
         return True
 
-    async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
         return []
 
     async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:

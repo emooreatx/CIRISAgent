@@ -38,6 +38,7 @@ def _attach_extras(obj: Any) -> Any:
         finish_reason="stop",
         message=SimpleNamespace(role="assistant", content=content_json)
     )])
+    object.__setattr__(obj, "usage", SimpleNamespace(total_tokens=42))
     return obj
 
 

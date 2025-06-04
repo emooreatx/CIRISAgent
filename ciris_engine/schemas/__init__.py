@@ -10,6 +10,7 @@ __all__ = [
     'Task', 'Thought',
     'ActionSelectionResult', 'EthicalDMAResult', 'CSDMAResult', 'DSDMAResult',
     'HandlerActionType', 'TaskStatus', 'ThoughtStatus', 'ObservationSourceType', 'IncomingMessage', 'DiscordMessage',
+    'FetchedMessage', 'ResourceUsage',
     # Action params
     'ObserveParams', 'SpeakParams', 'ToolParams', 'PonderParams', 'RejectParams',
     'DeferParams', 'MemorizeParams', 'RecallParams', 'ForgetParams',

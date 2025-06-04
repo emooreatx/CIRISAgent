@@ -84,6 +84,29 @@ class DiscordMessage(IncomingMessage):
         super().__init__(**data)
 
 
+class FetchedMessage(BaseModel):
+    """Message returned by CommunicationService.fetch_messages."""
+
+    message_id: Optional[str] = Field(default=None, alias="id")
+    content: Optional[str] = None
+    author_id: Optional[str] = None
+    author_name: Optional[str] = None
+    timestamp: Optional[str] = None
+    is_bot: Optional[bool] = False
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class ResourceUsage(BaseModel):
+    """Track LLM resource utilization."""
+
+    tokens: int = 0
+    estimated_cost: Optional[float] = None
+    energy_kwh: Optional[float] = None
+
+    model_config = ConfigDict(extra="allow")
+
+
 # Backwards-compatible alias for SchemaVersion
 CIRISSchemaVersion = SchemaVersion
 
@@ -96,6 +119,8 @@ __all__ = [
     "ObservationSourceType",
     "IncomingMessage",
     "DiscordMessage",
+    "FetchedMessage",
+    "ResourceUsage",
     "SchemaVersion",
     "CIRISSchemaVersion",
 ]

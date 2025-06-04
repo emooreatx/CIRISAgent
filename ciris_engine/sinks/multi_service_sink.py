@@ -23,6 +23,7 @@ from ciris_engine.schemas.service_actions_v1 import (
     SendToolAction,
     FetchToolAction,
 )
+from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
 from ..protocols.services import CommunicationService, WiseAuthorityService, MemoryService, ToolService
 from ..registries.circuit_breaker import CircuitBreakerError
 from .base_sink import BaseMultiServiceSink
@@ -128,7 +129,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         else:
             logger.warning(f"Failed to send message via {type(service).__name__}")
     
-    async def _handle_fetch_messages(self, service: CommunicationService, action: FetchMessagesAction):
+    async def _handle_fetch_messages(self, service: CommunicationService, action: FetchMessagesAction) -> List[FetchedMessage]:
         """Handle fetch messages action"""
         messages = await service.fetch_messages(action.channel_id, action.limit)
         logger.info(f"Fetched {len(messages) if messages else 0} messages from {action.channel_id}")
@@ -243,7 +244,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         )
         return await self.enqueue_action(action)
     
-    async def fetch_messages_sync(self, handler_name: str, channel_id: str, limit: int = 10, metadata: Optional[Dict] = None) -> Optional[List[Dict[str, Any]]]:
+    async def fetch_messages_sync(self, handler_name: str, channel_id: str, limit: int = 10, metadata: Optional[Dict] = None) -> Optional[List[FetchedMessage]]:
         """Convenience method to fetch messages synchronously and return the actual messages"""
         try:
             action = FetchMessagesAction(
