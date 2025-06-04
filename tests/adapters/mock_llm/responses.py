@@ -35,12 +35,14 @@ class MockLLMConfig:
             r'channel.*(?:id|ID).*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
             r'memory.*search.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_memory_query:{m.group(1)}",
             r'domain.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_domain:{m.group(1)}",
-            # Capture full message content as thought content for wakeup detection
-            r'(You are CIRISAgent.*)': lambda m: f"echo_thought:{m.group(1)}",
-            r'(Your internal state.*)': lambda m: f"echo_thought:{m.group(1)}",
-            r'(You are robust.*)': lambda m: f"echo_thought:{m.group(1)}",
-            r'(You recognize your incompleteness.*)': lambda m: f"echo_thought:{m.group(1)}",
-            r'(You are grateful.*)': lambda m: f"echo_thought:{m.group(1)}",
+            # Capture wakeup ritual content
+            r'(You are CIRISAgent.*?)(?:\.|$)': lambda m: f"echo_wakeup:VERIFY_IDENTITY",
+            r'(Your internal state.*?)(?:\.|$)': lambda m: f"echo_wakeup:VALIDATE_INTEGRITY", 
+            r'(You are robust.*?)(?:\.|$)': lambda m: f"echo_wakeup:EVALUATE_RESILIENCE",
+            r'(You recognize your incompleteness.*?)(?:\.|$)': lambda m: f"echo_wakeup:ACCEPT_INCOMPLETENESS",
+            r'(You are grateful.*?)(?:\.|$)': lambda m: f"echo_wakeup:EXPRESS_GRATITUDE",
+            # Catch-all for any content
+            r'(.+)': lambda m: f"echo_content:{m.group(1)[:100]}"
         }
         
         # Testing flags that can be set via special markers in messages
@@ -48,6 +50,10 @@ class MockLLMConfig:
         self.force_action = None  # Force specific action selection
         self.inject_error = False  # Inject error conditions
         self.custom_rationale = None  # Custom rationale text
+        self.echo_context = False  # Echo full context in responses
+        self.filter_pattern = None  # Regex filter for context display
+        self.debug_dma = False  # Show DMA evaluation details
+        self.debug_guardrails = False  # Show guardrail processing details
 
 
 # Global config instance
@@ -83,7 +89,7 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
             except Exception:
                 continue
     
-    # Check for testing flags
+    # Check for testing flags and commands
     if "MOCK_TEST_MODE" in full_content:
         _mock_config.testing_mode = True
         context_items.append("testing_mode_enabled")
@@ -99,6 +105,22 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
     if match := re.search(r'MOCK_RATIONALE:"([^"]+)"', full_content):
         _mock_config.custom_rationale = match.group(1)
         context_items.append(f"custom_rationale:{match.group(1)}")
+    
+    if "MOCK_SHOW_CONTEXT" in full_content:
+        _mock_config.echo_context = True
+        context_items.append("echo_context_enabled")
+    
+    if match := re.search(r'MOCK_FILTER_CONTEXT:"([^"]+)"', full_content):
+        _mock_config.filter_pattern = match.group(1)
+        context_items.append(f"filter_pattern:{match.group(1)}")
+    
+    if "MOCK_DEBUG_DMA" in full_content:
+        _mock_config.debug_dma = True
+        context_items.append("debug_dma_enabled")
+        
+    if "MOCK_DEBUG_GUARDRAILS" in full_content:
+        _mock_config.debug_guardrails = True
+        context_items.append("debug_guardrails_enabled")
     
     return context_items
 
@@ -300,6 +322,7 @@ def epistemic_humility(context: List[str] = None) -> EpistemicHumilityResult:
 
 def action_selection(context: List[str] = None) -> ActionSelectionResult:
     context = context or []
+    context_str = " ".join(context).lower()
     
     # Check for forced action first
     if _mock_config.force_action:
@@ -309,27 +332,27 @@ def action_selection(context: List[str] = None) -> ActionSelectionResult:
         except ValueError:
             selected_action = HandlerActionType.SPEAK
             rationale = f"Invalid forced action '{_mock_config.force_action}', defaulting to SPEAK"
-    else:
-        # Default to SPEAK with information about what we received
-        selected_action = HandlerActionType.SPEAK
-        rationale = "Mock LLM default response"
-    
-    # Special case: follow-up thoughts should complete tasks
-    context_str = " ".join(context).lower()
-    if "follow" in context_str and "up" in context_str:
+    # Follow-up thoughts should complete tasks
+    elif "follow" in context_str and "up" in context_str:
         selected_action = HandlerActionType.TASK_COMPLETE
         action_parameters = {}
         rationale = "Follow-up thought detected - completing task"
+    # Default: SPEAK
     else:
-        # Default SPEAK action with simple content about what we received
+        selected_action = HandlerActionType.SPEAK
+        rationale = "Mock LLM default SPEAK response"
+    
+    # Generate action parameters
+    if selected_action == HandlerActionType.SPEAK:
         content_info = f"Mock LLM received: {', '.join(context[:2])}" if context else "Mock LLM response"
         if len(context) > 2:
             content_info += f" (+{len(context)-2} more items)"
-        
-        action_parameters = SpeakParams(
-            content=content_info,
-            channel_id="cli"
-        ).model_dump(mode="json")
+        action_parameters = SpeakParams(content=content_info, channel_id="cli").model_dump(mode="json")
+    elif selected_action == HandlerActionType.TASK_COMPLETE:
+        action_parameters = {}
+    else:
+        # For other forced actions, provide minimal parameters
+        action_parameters = {"mock": True}
     
     # Use custom rationale if provided
     if _mock_config.custom_rationale:
@@ -341,7 +364,7 @@ def action_selection(context: List[str] = None) -> ActionSelectionResult:
             action_parameters=action_parameters,
             rationale=rationale,
             confidence=0.95,
-            raw_llm_response=f"Mock LLM action selection: {selected_action.value}",
+            raw_llm_response=f"Mock LLM: {selected_action.value}",
         )
     )
 

@@ -1,0 +1,419 @@
+# CIRIS Mock LLM Service Documentation
+
+## Overview
+
+The Mock LLM Service is a comprehensive testing framework that replaces the real LLM with a controllable, predictable service for end-to-end system testing. It enables testing of the complete CIRIS pipeline from wakeup through work mode without external LLM dependencies.
+
+## Purpose and Goals
+
+### Primary Use Cases
+1. **End-to-End Testing**: Test complete agent workflows without real LLM costs
+2. **Pipeline Validation**: Verify DMA pipeline, guardrails, and action handlers
+3. **Development Testing**: Rapid iteration during development
+4. **CI/CD Integration**: Automated testing in build pipelines
+5. **Handler Testing**: Test all 10 action handlers with controlled inputs
+
+### Key Benefits
+- **Deterministic**: Predictable responses for consistent testing
+- **Fast**: No network calls or LLM inference delays
+- **Controllable**: Force specific actions and responses via commands
+- **Observable**: Full context visibility and debugging capabilities
+- **Cost-Free**: No LLM API costs during testing
+
+## Architecture
+
+### Components
+- **MockLLMService**: Service wrapper implementing the LLM interface
+- **MockLLMClient**: Client that mimics OpenAI-compatible API
+- **Response Generator**: Context-aware response creation
+- **Context Analyzer**: Extracts and processes message context
+- **Action Router**: Maps inputs to appropriate handler actions
+
+### Integration Points
+- **DMA Pipeline**: Provides responses for all DMA evaluations
+- **Action Selection**: Returns ActionSelectionResult with chosen actions
+- **Guardrails**: Passes optimization veto and epistemic humility checks
+- **Faculties**: Provides entropy and coherence evaluations
+
+## Usage
+
+### Basic Startup
+```bash
+# Start with mock LLM in CLI mode
+python main.py --mode cli --mock-llm
+
+# Start with mock LLM in API mode
+python main.py --mode api --mock-llm
+
+# With timeout for testing
+python main.py --mode cli --mock-llm --timeout 30
+```
+
+### Expected Startup Sequence
+1. **State Transition**: `shutdown → wakeup`
+2. **Service Initialization**: Mock LLM service starts
+3. **Wakeup Ritual**: 5-step sequence with SPEAK actions
+4. **Task Completion**: Each step completed via TASK_COMPLETE
+5. **State Transition**: `wakeup → work` (ready for testing)
+
+## Mock LLM Commands
+
+### Action Control Commands
+```
+MOCK_FORCE_ACTION:speak         # Force SPEAK action
+MOCK_FORCE_ACTION:recall        # Force RECALL action
+MOCK_FORCE_ACTION:memorize      # Force MEMORIZE action
+MOCK_FORCE_ACTION:tool          # Force TOOL action
+MOCK_FORCE_ACTION:observe       # Force OBSERVE action
+MOCK_FORCE_ACTION:ponder        # Force PONDER action
+MOCK_FORCE_ACTION:defer         # Force DEFER action
+MOCK_FORCE_ACTION:reject        # Force REJECT action
+MOCK_FORCE_ACTION:forget        # Force FORGET action
+MOCK_FORCE_ACTION:task_complete # Force TASK_COMPLETE action
+```
+
+### Testing Commands
+```
+MOCK_TEST_MODE                  # Enable testing mode with enhanced logging
+MOCK_INJECT_ERROR              # Inject error conditions for testing
+MOCK_RATIONALE:"custom text"   # Set custom rationale for actions
+MOCK_SHOW_CONTEXT              # Display full context in response
+MOCK_FILTER_CONTEXT:"regex"    # Filter context display by regex pattern
+```
+
+### Context Analysis Commands
+```
+MOCK_ECHO_FULL                 # Echo complete context received
+MOCK_ECHO_FILTERED:"pattern"   # Echo context matching regex pattern
+MOCK_DEBUG_DMA                 # Show DMA evaluation details
+MOCK_DEBUG_GUARDRAILS         # Show guardrail processing details
+```
+
+## Action Handler Testing
+
+### Testing All 10 Handlers
+
+#### 1. SPEAK Handler
+```
+Input: "Please respond to this message"
+Expected: SPEAK action with response content
+Mock Response: "Mock LLM received: [context]"
+```
+
+#### 2. RECALL Handler
+```
+Input: "MOCK_FORCE_ACTION:recall What do you remember about X?"
+Expected: RECALL action with memory query
+Mock Response: GraphNode with query parameters
+```
+
+#### 3. MEMORIZE Handler
+```
+Input: "MOCK_FORCE_ACTION:memorize Remember this important fact"
+Expected: MEMORIZE action with content to store
+Mock Response: GraphNode with content and metadata
+```
+
+#### 4. TOOL Handler
+```
+Input: "MOCK_FORCE_ACTION:tool Use the calculator to compute 2+2"
+Expected: TOOL action with tool parameters
+Mock Response: Tool execution parameters
+```
+
+#### 5. OBSERVE Handler
+```
+Input: "MOCK_FORCE_ACTION:observe Monitor the channel for updates"
+Expected: OBSERVE action with monitoring parameters
+Mock Response: Observation configuration
+```
+
+#### 6. PONDER Handler
+```
+Input: "MOCK_FORCE_ACTION:ponder Think about this complex problem"
+Expected: PONDER action with reflection questions
+Mock Response: List of pondering questions
+```
+
+#### 7. DEFER Handler
+```
+Input: "MOCK_FORCE_ACTION:defer This requires human guidance"
+Expected: DEFER action with deferral reason
+Mock Response: Deferral parameters and context
+```
+
+#### 8. REJECT Handler
+```
+Input: "MOCK_FORCE_ACTION:reject This request is inappropriate"
+Expected: REJECT action with rejection reason
+Mock Response: Rejection justification
+```
+
+#### 9. FORGET Handler
+```
+Input: "MOCK_FORCE_ACTION:forget Remove outdated information"
+Expected: FORGET action with deletion parameters
+Mock Response: Deletion scope and criteria
+```
+
+#### 10. TASK_COMPLETE Handler
+```
+Input: Follow-up thought with "follow up" in content
+Expected: TASK_COMPLETE action
+Mock Response: Task completion confirmation
+```
+
+## DMA Response Patterns
+
+### Ethical DMA Responses
+```python
+# Wakeup ritual thoughts
+{
+    "decision": "proceed",
+    "alignment_check": {
+        "beneficence": True,
+        "non_maleficence": True,
+        "integrity": True,
+        "autonomy_respect": True,
+        "justice": True,
+        "transparency": True,
+        "covenant_alignment": "wakeup_ritual_proceeding"
+    }
+}
+
+# User interaction thoughts
+{
+    "decision": "proceed", 
+    "alignment_check": {
+        "promotes_flourishing": True,
+        "respects_autonomy": True,
+        "transparent_response": True
+    }
+}
+```
+
+### Common Sense DMA Responses
+```python
+# High plausibility for standard operations
+{
+    "plausibility_score": 0.95,  # Wakeup: 0.95, User: 0.92, Memory: 0.88
+    "flags": ["wakeup_ritual", "system_initialization"],
+    "reasoning": "Contextual plausibility assessment"
+}
+```
+
+### Domain-Specific DMA Responses
+```python
+{
+    "domain": "general",
+    "score": 0.9,
+    "flags": ["context_appropriate"],
+    "reasoning": "Domain-specific evaluation"
+}
+```
+
+## Context Extraction Patterns
+
+### Automatic Context Detection
+The mock LLM automatically extracts:
+- **User Speech**: `user says "message"` → `echo_user_speech:message`
+- **Channel IDs**: `channel "id"` → `echo_channel:id`
+- **Memory Queries**: `search memory for "query"` → `echo_memory_query:query`
+- **Wakeup Content**: Detects wakeup ritual steps automatically
+
+### Context Echo Format
+```
+Mock LLM received: echo_user_speech:Hello, echo_channel:test (+2 more items)
+```
+
+## Testing Workflows
+
+### 1. Basic Wakeup Test
+```bash
+python main.py --mode cli --mock-llm --timeout 15
+# Expected: Complete wakeup sequence, transition to work mode
+```
+
+### 2. User Interaction Test
+```bash
+# After wakeup, in interactive mode:
+user says "Hello, how are you?" in channel "test"
+# Expected: SPEAK action with greeting response
+```
+
+### 3. Memory System Test
+```bash
+# Force memorize action
+MOCK_FORCE_ACTION:memorize Remember that today is testing day
+# Expected: MEMORIZE action with content storage
+
+# Force recall action  
+MOCK_FORCE_ACTION:recall What did we discuss about testing?
+# Expected: RECALL action with memory query
+```
+
+### 4. Error Injection Test
+```bash
+MOCK_INJECT_ERROR This should trigger safety mechanisms
+# Expected: PONDER action due to guardrail activation
+```
+
+### 5. Complete Handler Coverage Test
+```bash
+# Test each handler systematically
+for action in [speak, recall, memorize, tool, observe, ponder, defer, reject, forget, task_complete]:
+    MOCK_FORCE_ACTION:{action} Test message for {action} handler
+    # Verify correct action dispatch and execution
+```
+
+## Configuration Options
+
+### Mock LLM Configuration
+```python
+class MockLLMConfig:
+    testing_mode: bool = False          # Enhanced logging and debugging
+    force_action: str = None            # Force specific action selection
+    inject_error: bool = False          # Inject error conditions
+    custom_rationale: str = None        # Custom rationale text
+    echo_context: bool = False          # Echo full context in responses
+    filter_pattern: str = None          # Regex filter for context
+```
+
+### Runtime Configuration
+```python
+# Set configuration programmatically
+from tests.adapters.mock_llm.responses import set_mock_config
+
+set_mock_config(
+    testing_mode=True,
+    force_action="speak",
+    echo_context=True
+)
+```
+
+## Debugging and Observability
+
+### Debug Output
+```
+[MOCK_LLM] Context extracted: ['echo_user_speech:Hello', 'echo_channel:test']
+[MOCK_LLM] Action selected: SPEAK
+[MOCK_LLM] Rationale: User interaction detected - responding with SPEAK action
+[MOCK_LLM] Parameters: {"content": "Mock LLM received: echo_user_speech:Hello", "channel_id": "test"}
+```
+
+### Context Visibility
+```bash
+# Show full context
+MOCK_SHOW_CONTEXT What context do you see?
+# Response includes complete context dump
+
+# Filter context by pattern
+MOCK_FILTER_CONTEXT:"echo_user.*" Show only user speech
+# Response shows only matching context items
+```
+
+### DMA Debug Information
+```bash
+MOCK_DEBUG_DMA Analyze this thought
+# Response includes DMA evaluation details:
+# - Ethical: decision=proceed, covenant_alignment=affirmed
+# - Common Sense: score=0.92, plausibility=high
+# - Domain: score=0.9, domain=general
+# - Action Selection: selected=speak, confidence=0.95
+```
+
+## Performance Characteristics
+
+### Speed Improvements
+- **No Network Latency**: Instant responses
+- **No Model Inference**: Immediate action selection
+- **Minimal Processing**: Simple pattern matching and response generation
+
+### Resource Usage
+- **Memory**: ~10MB for service and response patterns
+- **CPU**: Negligible during operation
+- **Network**: None required
+
+## Limitations and Considerations
+
+### What the Mock LLM Cannot Do
+1. **Real Reasoning**: No actual language understanding
+2. **Complex Context**: Limited to pattern matching
+3. **Learning**: No adaptation or improvement over time
+4. **Nuanced Responses**: Simple template-based responses
+
+### Best Practices
+1. **Use for Pipeline Testing**: Excellent for testing system components
+2. **Complement Real Testing**: Use alongside real LLM testing
+3. **Clear Test Scenarios**: Design specific test cases for each handler
+4. **Document Expected Behavior**: Clearly define what each test should accomplish
+
+## Integration with CI/CD
+
+### Automated Testing
+```yaml
+# GitHub Actions example
+- name: Test with Mock LLM
+  run: |
+    python main.py --mode cli --mock-llm --timeout 30
+    # Additional test commands here
+```
+
+### Test Suite Integration
+```python
+# pytest integration
+def test_mock_llm_wakeup():
+    """Test complete wakeup sequence with mock LLM."""
+    result = run_agent_with_mock_llm(timeout=15)
+    assert result.wakeup_completed
+    assert result.state == "work"
+    assert all(step.completed for step in result.wakeup_steps)
+```
+
+## Future Enhancements
+
+### Planned Features
+1. **Response Templates**: Configurable response patterns
+2. **Scenario Playbooks**: Pre-defined test scenarios
+3. **State Simulation**: Mock different agent states
+4. **Performance Metrics**: Response time and throughput tracking
+5. **Advanced Context**: More sophisticated context understanding
+
+### Extensibility
+The mock LLM service is designed to be easily extended:
+- Add new response patterns
+- Implement custom action selection logic
+- Create domain-specific response generators
+- Integrate with external testing frameworks
+
+---
+
+## Quick Reference
+
+### Essential Commands
+```bash
+# Basic startup
+python main.py --mode cli --mock-llm
+
+# Force specific actions  
+MOCK_FORCE_ACTION:speak
+MOCK_FORCE_ACTION:recall
+MOCK_FORCE_ACTION:task_complete
+
+# Debug and observe
+MOCK_SHOW_CONTEXT
+MOCK_DEBUG_DMA
+MOCK_TEST_MODE
+
+# Error testing
+MOCK_INJECT_ERROR
+```
+
+### Expected Outcomes
+- **Successful Wakeup**: 5 SPEAK actions + 5 TASK_COMPLETE actions
+- **State Transition**: shutdown → wakeup → work
+- **Handler Coverage**: All 10 handlers testable via force commands
+- **Context Visibility**: Full observability of agent internals
+- **Deterministic Behavior**: Consistent, predictable responses
+
+The Mock LLM Service transforms CIRIS into a fully testable system, enabling comprehensive validation of all components without external dependencies or costs.
