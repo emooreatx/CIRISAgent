@@ -15,7 +15,10 @@ from ciris_engine.schemas.feedback_schemas_v1 import (
 )
 from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
 from ciris_engine.dma.dsdma_base import BaseDSDMA
-from ciris_engine.schemas.action_params_v1 import PonderParams, MemorizeParams, SpeakParams, RecallParams
+from ciris_engine.schemas.action_params_v1 import (
+    PonderParams, MemorizeParams, SpeakParams, RecallParams, 
+    ObserveParams, RejectParams, DeferParams
+)
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
@@ -32,6 +35,12 @@ class MockLLMConfig:
             r'channel.*(?:id|ID).*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
             r'memory.*search.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_memory_query:{m.group(1)}",
             r'domain.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_domain:{m.group(1)}",
+            # Capture full message content as thought content for wakeup detection
+            r'(You are CIRISAgent.*)': lambda m: f"echo_thought:{m.group(1)}",
+            r'(Your internal state.*)': lambda m: f"echo_thought:{m.group(1)}",
+            r'(You are robust.*)': lambda m: f"echo_thought:{m.group(1)}",
+            r'(You recognize your incompleteness.*)': lambda m: f"echo_thought:{m.group(1)}",
+            r'(You are grateful.*)': lambda m: f"echo_thought:{m.group(1)}",
         }
         
         # Testing flags that can be set via special markers in messages
@@ -120,15 +129,62 @@ def _attach_extras(obj: Any) -> Any:
 
 def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
     context = context or []
-    rationale = _mock_config.custom_rationale or f"Mock ethical evaluation. Context: {', '.join(context)}" if context else "Mock ethical evaluation."
+    
+    # Extract thought content for ethical analysis
+    thought_content = ""
+    for item in context:
+        if item.startswith("echo_thought:"):
+            thought_content = item.split(":", 1)[1]
+            break
+    
+    # Determine if this is a wakeup thought or user interaction
+    is_wakeup = any("wakeup" in item.lower() or "verify" in item.lower() or "validate" in item.lower() 
+                   for item in context) or "WAKEUP" in thought_content.upper()
+    
+    is_user_question = any("echo_user_speech:" in item for item in context) or "?" in thought_content
     
     # Check for error injection
     if _mock_config.inject_error:
         decision = "defer"
-        alignment_check = {"ethical_uncertainty": True, "context": context}
+        alignment_check = {
+            "ethical_uncertainty": True, 
+            "context": context,
+            "requires_wisdom_based_deferral": True
+        }
+        rationale = "Injected ethical uncertainty for testing purposes."
     else:
         decision = "proceed"
-        alignment_check = {"ok": True, "context": context}
+        
+        # Provide CIRIS-aligned ethical evaluation
+        if is_wakeup:
+            alignment_check = {
+                "beneficence": True,
+                "non_maleficence": True, 
+                "integrity": True,
+                "autonomy_respect": True,
+                "justice": True,
+                "transparency": True,
+                "covenant_alignment": "wakeup_ritual_proceeding"
+            }
+            rationale = "Wakeup ritual thought aligns with CIRIS covenant principles. Promoting agent integrity and identity verification as required by Meta-Goal M-1."
+        elif is_user_question:
+            alignment_check = {
+                "beneficence": True,
+                "non_maleficence": True,
+                "integrity": True, 
+                "autonomy_respect": True,
+                "transparency": True,
+                "promotes_flourishing": True
+            }
+            rationale = "User interaction promotes beneficial dialogue and respects human autonomy. Response will be honest, helpful, and transparent per CIRIS principles."
+        else:
+            alignment_check = {
+                "beneficence": True,
+                "non_maleficence": True,
+                "integrity": True,
+                "general_alignment": "proceeding_with_caution"
+            }
+            rationale = "General thought processing aligns with ethical guidelines. No contraindications to CIRIS covenant principles detected."
     
     return _attach_extras(
         EthicalDMAResult(alignment_check=alignment_check, decision=decision, rationale=rationale)
@@ -137,11 +193,50 @@ def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
 
 def cs_dma(context: List[str] = None) -> CSDMAResult:
     context = context or []
-    reasoning = f"Mock common sense evaluation. Context: {', '.join(context)}" if context else "Mock common sense evaluation."
     
-    # Lower plausibility if error injection enabled
-    score = 0.3 if _mock_config.inject_error else 0.9
-    flags = ["mock_flag"] + context if _mock_config.inject_error else context
+    # Extract thought content for plausibility analysis
+    thought_content = ""
+    for item in context:
+        if item.startswith("echo_thought:"):
+            thought_content = item.split(":", 1)[1]
+            break
+    
+    # Extract user speech for analysis
+    user_speech = ""
+    for item in context:
+        if item.startswith("echo_user_speech:"):
+            user_speech = item.split(":", 1)[1]
+            break
+    
+    # Determine context type for plausibility scoring
+    is_wakeup = any("wakeup" in item.lower() or "verify" in item.lower() 
+                   for item in context) or "WAKEUP" in thought_content.upper()
+    is_user_interaction = bool(user_speech) or "?" in thought_content
+    is_memory_operation = any("recall" in item.lower() or "memory" in item.lower() for item in context)
+    
+    # Check for error injection
+    if _mock_config.inject_error:
+        score = 0.3
+        flags = ["plausibility_concern", "requires_clarification"] + context
+        reasoning = "Injected low plausibility for testing error handling paths."
+    else:
+        # High plausibility for standard operations
+        if is_wakeup:
+            score = 0.95
+            flags = ["wakeup_ritual", "system_initialization"]
+            reasoning = "Wakeup ritual thoughts are inherently plausible and necessary for agent initialization. High confidence in procedural integrity."
+        elif is_user_interaction:
+            score = 0.92
+            flags = ["human_interaction", "conversational"]
+            reasoning = f"User interaction '{user_speech or thought_content[:50]}' is plausible conversational content. Natural dialogue pattern detected."
+        elif is_memory_operation:
+            score = 0.88
+            flags = ["memory_operation", "cognitive_function"]
+            reasoning = "Memory operations are standard cognitive functions with high plausibility for autonomous agents."
+        else:
+            score = 0.85
+            flags = ["general_processing"]
+            reasoning = "General thought processing within normal parameters. No physical impossibilities or logical contradictions detected."
     
     return _attach_extras(CSDMAResult(plausibility_score=score, flags=flags, reasoning=reasoning))
 
@@ -206,42 +301,47 @@ def epistemic_humility(context: List[str] = None) -> EpistemicHumilityResult:
 def action_selection(context: List[str] = None) -> ActionSelectionResult:
     context = context or []
     
-    # Determine action based on context or forced action
+    # Check for forced action first
     if _mock_config.force_action:
         try:
             selected_action = HandlerActionType(_mock_config.force_action.lower())
+            rationale = f"Forced action: {_mock_config.force_action}"
         except ValueError:
-            selected_action = HandlerActionType.PONDER
-    elif any("echo_user_speech:" in item for item in context):
-        selected_action = HandlerActionType.SPEAK
-    elif any("echo_memory_query:" in item for item in context):
-        selected_action = HandlerActionType.RECALL
+            selected_action = HandlerActionType.SPEAK
+            rationale = f"Invalid forced action '{_mock_config.force_action}', defaulting to SPEAK"
     else:
-        selected_action = HandlerActionType.PONDER
+        # Default to SPEAK with information about what we received
+        selected_action = HandlerActionType.SPEAK
+        rationale = "Mock LLM default response"
     
-    # Create appropriate action parameters based on selected action
-    if selected_action == HandlerActionType.SPEAK:
-        user_speech = next((item.split(':', 1)[1] for item in context if item.startswith('echo_user_speech:')), "Hello")
-        action_parameters = SpeakParams(content=f"Mock response to: {user_speech}").model_dump(mode="json")
-    elif selected_action == HandlerActionType.RECALL:
-        query = next((item.split(':', 1)[1] for item in context if item.startswith('echo_memory_query:')), "default query")
-        node = GraphNode(id="recall_node", type=NodeType.CONCEPT, scope=GraphScope.LOCAL, attributes={"query": query})
-        action_parameters = RecallParams(node=node).model_dump(mode="json")
-    elif selected_action == HandlerActionType.MEMORIZE:
-        node = GraphNode(id="mock", type=NodeType.USER, scope=GraphScope.LOCAL, attributes={"context": context})
-        action_parameters = MemorizeParams(node=node).model_dump(mode="json")
-    else:  # PONDER or other actions
-        action_parameters = PonderParams(questions=["What should I do next?", "How can I help?"]).model_dump(mode="json")
+    # Special case: follow-up thoughts should complete tasks
+    context_str = " ".join(context).lower()
+    if "follow" in context_str and "up" in context_str:
+        selected_action = HandlerActionType.TASK_COMPLETE
+        action_parameters = {}
+        rationale = "Follow-up thought detected - completing task"
+    else:
+        # Default SPEAK action with simple content about what we received
+        content_info = f"Mock LLM received: {', '.join(context[:2])}" if context else "Mock LLM response"
+        if len(context) > 2:
+            content_info += f" (+{len(context)-2} more items)"
+        
+        action_parameters = SpeakParams(
+            content=content_info,
+            channel_id="cli"
+        ).model_dump(mode="json")
     
-    rationale = _mock_config.custom_rationale or f"Mock action selection based on context: {', '.join(context)}" if context else "Mock LLM default action selection."
+    # Use custom rationale if provided
+    if _mock_config.custom_rationale:
+        rationale = _mock_config.custom_rationale
     
     return _attach_extras(
         ActionSelectionResult(
             selected_action=selected_action,
             action_parameters=action_parameters,
             rationale=rationale,
-            confidence=0.9,
-            raw_llm_response=f"ActionSelectionResult from MockLLM with context: {context}",
+            confidence=0.95,
+            raw_llm_response=f"Mock LLM action selection: {selected_action.value}",
         )
     )
 
