@@ -30,7 +30,7 @@ async def test_defer_handler_schema_driven(monkeypatch):
 
     action_result = ActionSelectionResult(
         selected_action=HandlerActionType.DEFER,
-        action_parameters=DeferParams(reason=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY), context={"foo": "bar"}),
+        action_parameters=DeferParams(reason="Need more information", context={"foo": "bar"}),
         rationale="r",
     )
     thought = Thought(

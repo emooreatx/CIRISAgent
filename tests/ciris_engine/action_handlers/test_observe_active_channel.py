@@ -41,9 +41,7 @@ async def test_observe_handler_active_injects_channel(monkeypatch):
     handler = ObserveHandler(deps)
     handler.get_multi_service_sink = lambda: mock_sink
 
-    active_node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
-    context_node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
-    params = ObserveParams(active=active_node, channel_id=None, context=context_node)
+    params = ObserveParams(active=True, channel_id=None, context={"source": "test"})
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.OBSERVE,
         action_parameters=params,

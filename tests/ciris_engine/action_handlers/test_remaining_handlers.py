@@ -49,19 +49,17 @@ async def test_forget_handler_schema_driven(monkeypatch):
     deps.persistence = MagicMock()
     handler = ForgetHandler(deps)
 
-    node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
-    reason_node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
+    node = GraphNode(id="USER".lower(), type=NodeType.USER, scope=GraphScope.LOCAL)
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.FORGET,
-        action_parameters=ForgetParams(node=node, reason=reason_node),
-        rationale=reason_node,
+        action_parameters=ForgetParams(node=node, reason="No longer needed"),
+        rationale="r",
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
 
     await handler.handle(action_result, thought, {})
 
-    expected_node = GraphNode(
-        id=NodeType.USER,
+    expected_node = GraphNode(id="USER".lower(),
         type=NodeType.USER,
         scope=GraphScope.LOCAL,
         attributes={},
@@ -82,7 +80,7 @@ async def test_recall_handler_schema_driven(monkeypatch):
     deps.persistence = MagicMock()
     handler = RecallHandler(deps)
 
-    node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
+    node = GraphNode(id="USER".lower(), type=NodeType.USER, scope=GraphScope.LOCAL)
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.RECALL,
         action_parameters=RecallParams(node=node),
@@ -92,8 +90,7 @@ async def test_recall_handler_schema_driven(monkeypatch):
 
     await handler.handle(action_result, thought, {})
 
-    expected_node = GraphNode(
-        id=NodeType.USER,
+    expected_node = GraphNode(id="USER".lower(),
         type=NodeType.USER,
         scope=GraphScope.LOCAL,
         attributes={},
@@ -110,9 +107,7 @@ async def test_observe_handler_passive(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
     from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
-    active_node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
-    context_node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
-    params = ObserveParams(active=active_node, context=context_node)
+    params = ObserveParams(active=True, context={"source": "test"})
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.OBSERVE,
         action_parameters=params,
@@ -150,16 +145,15 @@ async def test_reject_handler_schema_driven(monkeypatch):
 
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.REJECT,
-        action_parameters=RejectParams(reason=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL, attributes={"reason": "bad"})),
+        action_parameters=RejectParams(reason="Not relevant to the task"),
         rationale="r",
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
 
     await handler.handle(action_result, thought, {"channel_id": "chan"})
 
-    # Update expected message to match actual GraphNode string
-    expected_reason = "id=<NodeType.USER: 'user'> type=<NodeType.USER: 'user'> scope=<GraphScope.LOCAL: 'local'> attributes={'reason': 'bad'}"
-    comm_service.send_message.assert_awaited_with("chan", f"Unable to proceed: {expected_reason} version=1 updated_by=None updated_at=None")
+    # Update expected message to match actual reason string
+    comm_service.send_message.assert_awaited_with("chan", "Unable to proceed: Not relevant to the task")
     update_status.assert_called_once()
     add_thought.assert_called_once()
     assert update_status.call_args.kwargs["status"] == ThoughtStatus.FAILED
@@ -228,7 +222,7 @@ async def test_tool_handler_schema_driven(monkeypatch):
     deps.get_service = AsyncMock(side_effect=get_service)
     handler = ToolHandler(deps)
 
-    params = ToolParams(name=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL, attributes={"name": "echo"}), parameters={})
+    params = ToolParams(name="test_tool", parameters={})
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.TOOL,
         action_parameters=params,

@@ -42,7 +42,7 @@ async def test_speak_handler_creates_followup(monkeypatch):
         parent_thought_id=None,
         final_action={}
     )
-    params = SpeakParams(content=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY), channel_id="c1")
+    params = SpeakParams(content="Hello, world!", channel_id="c1")
     result = ActionSelectionResult(selected_action=HandlerActionType.SPEAK, action_parameters=params, rationale="r")
     await handler.handle(result, thought, {"channel_id": "c1"})
     follow_up = add_thought_mock.call_args[0][0]
@@ -83,7 +83,7 @@ async def test_recall_handler_creates_followup():
         parent_thought_id=None,
         final_action={}
     )
-    node = GraphNode(id=NodeType.CONCEPT, type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
+    node = GraphNode(id="CONCEPT".lower(), type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
     params = RecallParams(node=node)
     result = ActionSelectionResult(selected_action=HandlerActionType.RECALL, action_parameters=params, rationale="r")
     await handler.handle(result, thought, {"wa_authorized": True})
@@ -127,8 +127,8 @@ async def test_forget_handler_creates_followup():
         parent_thought_id=None,
         final_action={}
     )
-    node = GraphNode(id=NodeType.CONCEPT, type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
-    params = ForgetParams(node=node, reason=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL))
+    node = GraphNode(id="CONCEPT".lower(), type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
+    params = ForgetParams(node=node, reason="No longer needed")
     result = ActionSelectionResult(selected_action=HandlerActionType.FORGET, action_parameters=params, rationale="r")
     await handler.handle(result, thought, {"wa_authorized": True})
     follow_up = deps.persistence.add_thought.call_args[0][0]
@@ -173,7 +173,7 @@ def test_memorize_handler_creates_followup(monkeypatch):
         parent_thought_id=None,
         final_action={}
     )
-    node = GraphNode(id=NodeType.CONCEPT, type=NodeType.CONCEPT, scope=GraphScope.IDENTITY, attributes={"value": "v"})
+    node = GraphNode(id="CONCEPT".lower(), type=NodeType.CONCEPT, scope=GraphScope.IDENTITY, attributes={"value": "v"})
     params = MemorizeParams(node=node)
     result = ActionSelectionResult(selected_action=HandlerActionType.MEMORIZE, action_parameters=params, rationale="r")
     import asyncio; asyncio.run(handler.handle(result, thought, base_ctx))
@@ -213,7 +213,7 @@ def test_ponder_handler_creates_followup(monkeypatch):
         parent_thought_id=None,
         final_action={}
     )
-    node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY)
+    node = GraphNode(id="USER".lower(), type=NodeType.USER, scope=GraphScope.IDENTITY)
     params = PonderParams(questions=["q1", "q2"])
     result = ActionSelectionResult(selected_action=HandlerActionType.PONDER, action_parameters=params, rationale="r")
     deps.persistence.update_thought_status.return_value = True
@@ -254,7 +254,7 @@ async def test_task_complete_handler_no_followup():
         parent_thought_id=None,
         final_action={}
     )
-    node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY)
+    node = GraphNode(id="USER".lower(), type=NodeType.USER, scope=GraphScope.IDENTITY)
     result = ActionSelectionResult(selected_action=HandlerActionType.TASK_COMPLETE, action_parameters={}, rationale="Task complete.")
     await handler.handle(result, thought, {"channel_id": "c1"})
     add_thought_calls = deps.persistence.add_thought.call_args_list

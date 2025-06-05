@@ -27,7 +27,7 @@ async def test_speak_handler_schema_driven(monkeypatch):
 
     action_result = ActionSelectionResult(
         selected_action=HandlerActionType.SPEAK,
-        action_parameters=SpeakParams(content=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL, attributes={"text": "Hello world!"}), channel_id="123"),
+        action_parameters=SpeakParams(content="Hello world!", channel_id="123"),
         rationale="r",
     )
     thought = Thought(
