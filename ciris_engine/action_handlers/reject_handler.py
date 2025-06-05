@@ -40,7 +40,7 @@ class RejectHandler(BaseActionHandler):
                     content=follow_up_text,
                 )
                 # Update context using Pydantic model_copy with additional fields
-                context_data = new_follow_up.context.model_dump()
+                context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
                 context_for_follow_up = {
                     "action_performed": HandlerActionType.REJECT.value,
                     "parent_task_id": parent_task_id,
@@ -103,7 +103,7 @@ class RejectHandler(BaseActionHandler):
             )
 
             # Update context using Pydantic model_copy with additional fields
-            context_data = new_follow_up.context.model_dump()
+            context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
             context_for_follow_up = {
                 "action_performed": HandlerActionType.REJECT.value,
                 "parent_task_id": parent_task_id,

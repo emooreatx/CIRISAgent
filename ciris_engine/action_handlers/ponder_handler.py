@@ -160,7 +160,7 @@ class PonderHandler(BaseActionHandler):
                 content=follow_up_content,
             )
             # Update context using Pydantic model_copy with additional fields
-            context_data = follow_up.context.model_dump()
+            context_data = follow_up.context.model_dump() if follow_up.context else {}
             context_data.update({
                 "action_performed": HandlerActionType.PONDER.name,
                 "parent_task_id": thought.source_task_id,

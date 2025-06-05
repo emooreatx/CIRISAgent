@@ -62,7 +62,7 @@ class RecallHandler(BaseActionHandler):
             content=follow_up_content,
         )
         # Update context using Pydantic model_copy with additional fields
-        context_data = follow_up.context.model_dump()
+        context_data = follow_up.context.model_dump() if follow_up.context else {}
         follow_up_context = {
             "action_performed": HandlerActionType.RECALL.name,
             "is_follow_up": True,

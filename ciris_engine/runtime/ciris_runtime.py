@@ -106,6 +106,12 @@ class CIRISRuntime(RuntimeInterface):
         # Track initialization state
         self._initialized = False
     
+    def _ensure_config(self) -> AppConfig:
+        """Ensure app_config is available, raise if not."""
+        if not self.app_config:
+            raise RuntimeError("App config not initialized")
+        return self.app_config
+    
     def request_shutdown(self, reason: str = "Shutdown requested") -> None:
         """Request a graceful shutdown of the runtime."""
         if self._shutdown_event.is_set():
@@ -163,27 +169,29 @@ class CIRISRuntime(RuntimeInterface):
         
     async def _load_profile(self) -> None:
         """Load the agent profile."""
-        profile_path = Path(self.app_config.profile_directory) / f"{self.profile_name}.yaml"
+        config = self._ensure_config()
+            
+        profile_path = Path(config.profile_directory) / f"{self.profile_name}.yaml"
         self.profile = await load_profile(profile_path)
         
         if not self.profile:
             # Try default profile
             logger.warning(f"Profile '{self.profile_name}' not found, loading default profile")
-            default_path = Path(self.app_config.profile_directory) / "default.yaml"
+            default_path = Path(config.profile_directory) / "default.yaml"
             self.profile = await load_profile(default_path)
             
         if not self.profile:
             raise RuntimeError("No profile could be loaded")
             
         # Register profile in app_config
-        self.app_config.agent_profiles[self.profile.name.lower()] = self.profile
+        config.agent_profiles[self.profile.name.lower()] = self.profile
         
         # Also load default as fallback if not already loaded
-        if "default" not in self.app_config.agent_profiles:
-            default_path = Path(self.app_config.profile_directory) / "default.yaml"
+        if "default" not in config.agent_profiles:
+            default_path = Path(config.profile_directory) / "default.yaml"
             default_profile = await load_profile(default_path)
             if default_profile:
-                self.app_config.agent_profiles["default"] = default_profile
+                config.agent_profiles["default"] = default_profile
                 
     async def _initialize_services(self) -> None:
         """Initialize all core services."""
@@ -198,7 +206,8 @@ class CIRISRuntime(RuntimeInterface):
         )
         
         # LLM Service
-        self.llm_service = OpenAICompatibleLLM(self.app_config.llm_services)
+        config = self._ensure_config()
+        self.llm_service = OpenAICompatibleLLM(config.llm_services)
         await self.llm_service.start()
         
         # Memory Service
@@ -210,8 +219,8 @@ class CIRISRuntime(RuntimeInterface):
         await self.audit_service.start()
         
         # Maintenance Service
-        archive_dir = getattr(self.app_config, "data_archive_dir", "data_archive")
-        archive_hours = getattr(self.app_config, "archive_older_than_hours", 24)
+        archive_dir = getattr(config, "data_archive_dir", "data_archive")
+        archive_hours = getattr(config, "archive_older_than_hours", 24)
         self.maintenance_service = DatabaseMaintenanceService(
             archive_dir_path=archive_dir,
             archive_older_than_hours=archive_hours
@@ -240,28 +249,32 @@ class CIRISRuntime(RuntimeInterface):
             
     async def _build_components(self) -> None:
         """Build all processing components."""
+        if not self.llm_service:
+            raise RuntimeError("LLM service not initialized")
+            
+        config = self._ensure_config()
         llm_client = self.llm_service.get_client()
 
         # Build DMAs using service registry
         ethical_pdma = EthicalPDMAEvaluator(
             service_registry=self.service_registry,
             model_name=llm_client.model_name,
-            max_retries=self.app_config.llm_services.openai.max_retries,
+            max_retries=config.llm_services.openai.max_retries,
         )
 
         csdma = CSDMAEvaluator(
             service_registry=self.service_registry,
             model_name=llm_client.model_name,
-            max_retries=self.app_config.llm_services.openai.max_retries,
+            max_retries=config.llm_services.openai.max_retries,
             prompt_overrides=self.profile.csdma_overrides if self.profile else None,
         )
 
         action_pdma = ActionSelectionPDMAEvaluator(
             service_registry=self.service_registry,
             model_name=llm_client.model_name,
-            max_retries=self.app_config.llm_services.openai.max_retries,
+            max_retries=config.llm_services.openai.max_retries,
             prompt_overrides=self.profile.action_selection_pdma_overrides if self.profile else None,
-            instructor_mode=instructor.Mode[self.app_config.llm_services.openai.instructor_mode.upper()],
+            instructor_mode=instructor.Mode[config.llm_services.openai.instructor_mode.upper()],
         )
 
         # Create DSDMA
@@ -275,30 +288,30 @@ class CIRISRuntime(RuntimeInterface):
         guardrail_registry = GuardrailRegistry()
         guardrail_registry.register_guardrail(
             "entropy",
-            EntropyGuardrail(self.service_registry, self.app_config.guardrails, llm_client.model_name),
+            EntropyGuardrail(self.service_registry, config.guardrails, llm_client.model_name),
             priority=0,
         )
         guardrail_registry.register_guardrail(
             "coherence",
-            CoherenceGuardrail(self.service_registry, self.app_config.guardrails, llm_client.model_name),
+            CoherenceGuardrail(self.service_registry, config.guardrails, llm_client.model_name),
             priority=1,
         )
         guardrail_registry.register_guardrail(
             "optimization_veto",
-            OptimizationVetoGuardrail(self.service_registry, self.app_config.guardrails, llm_client.model_name),
+            OptimizationVetoGuardrail(self.service_registry, config.guardrails, llm_client.model_name),
             priority=2,
         )
         guardrail_registry.register_guardrail(
             "epistemic_humility",
-            EpistemicHumilityGuardrail(self.service_registry, self.app_config.guardrails, llm_client.model_name),
+            EpistemicHumilityGuardrail(self.service_registry, config.guardrails, llm_client.model_name),
             priority=3,
         )
         
         # Build context provider
         graphql_provider = GraphQLContextProvider(
-            graphql_client=GraphQLClient() if self.app_config.guardrails.enable_remote_graphql else None,
+            graphql_client=GraphQLClient() if config.guardrails.enable_remote_graphql else None,
             memory_service=self.memory_service,
-            enable_remote_graphql=self.app_config.guardrails.enable_remote_graphql
+            enable_remote_graphql=config.guardrails.enable_remote_graphql
         )
         
         # Build orchestrators
@@ -418,10 +431,11 @@ class CIRISRuntime(RuntimeInterface):
     async def _build_action_dispatcher(self, dependencies: Any) -> Any:
         """Build action dispatcher. Override in subclasses for custom sinks."""
         # This is a basic implementation - subclasses should override
+        config = self._ensure_config()
         return build_action_dispatcher(
             service_registry=self.service_registry,
             shutdown_callback=dependencies.shutdown_callback,
-            max_rounds=self.app_config.workflow.max_rounds,
+            max_rounds=config.workflow.max_rounds,
         )
         
     async def run(self, num_rounds: Optional[int] = None) -> None:
@@ -437,9 +451,14 @@ class CIRISRuntime(RuntimeInterface):
 
             
             # Start IO adapter
-            await self.io_adapter.start()
-            logger.info("Started IO adapter")
+            if self.io_adapter:
+                await self.io_adapter.start()
+                logger.info("Started IO adapter")
+            
             # Start processing and monitor for shutdown requests
+            if not self.agent_processor:
+                raise RuntimeError("Agent processor not initialized")
+                
             # Use the provided num_rounds, or fall back to DEFAULT_NUM_ROUNDS (None = infinite)
             effective_num_rounds = num_rounds if num_rounds is not None else DEFAULT_NUM_ROUNDS
             logger.info("Starting agent processing with WAKEUP sequence...")

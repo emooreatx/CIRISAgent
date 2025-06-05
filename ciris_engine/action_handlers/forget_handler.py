@@ -28,7 +28,7 @@ class ForgetHandler(BaseActionHandler):
                     content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 )
                 # Update context using Pydantic model_copy with additional fields
-                context_data = follow_up.context.model_dump()
+                context_data = follow_up.context.model_dump() if follow_up.context else {}
                 context_data.update({
                     "action_performed": HandlerActionType.FORGET.name,
                     "parent_task_id": thought.source_task_id,
@@ -47,7 +47,7 @@ class ForgetHandler(BaseActionHandler):
                 content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters type: {type(raw_params)}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
             # Update context using Pydantic model_copy with additional fields
-            context_data = follow_up.context.model_dump()
+            context_data = follow_up.context.model_dump() if follow_up.context else {}
             context_data.update({
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
@@ -66,7 +66,7 @@ class ForgetHandler(BaseActionHandler):
                 content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action was not permitted. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
             # Update context using Pydantic model_copy with additional fields
-            context_data = follow_up.context.model_dump()
+            context_data = follow_up.context.model_dump() if follow_up.context else {}
             context_data.update({
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
@@ -101,7 +101,7 @@ class ForgetHandler(BaseActionHandler):
                 content="FORGET action denied: WA authorization required"
             )
             # Update context using Pydantic model_copy with additional fields
-            context_data = follow_up.context.model_dump()
+            context_data = follow_up.context.model_dump() if follow_up.context else {}
             context_data.update({
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
@@ -136,7 +136,7 @@ class ForgetHandler(BaseActionHandler):
             content=follow_up_content,
         )
         # Update context using Pydantic model_copy with additional fields
-        context_data = follow_up.context.model_dump()
+        context_data = follow_up.context.model_dump() if follow_up.context else {}
         context_data.update({
             "action_performed": HandlerActionType.FORGET.name,
             "parent_task_id": thought.source_task_id,

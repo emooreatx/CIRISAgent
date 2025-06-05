@@ -162,7 +162,7 @@ class TaskManager:
         tasks = [root_task]
         
         # Propagate channel_id to step tasks if present in root_task context
-        channel_id = root_task.context.get("channel_id")
+        channel_id = root_task.context.get("channel_id") if root_task.context else None
         
         for step_type, content in wakeup_steps:
             step_context = {"step_type": step_type}

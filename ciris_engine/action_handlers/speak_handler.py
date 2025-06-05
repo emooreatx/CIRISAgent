@@ -53,7 +53,7 @@ class SpeakHandler(BaseActionHandler):
             try:
                 fu = create_follow_up_thought(parent=thought, content=follow_up_text)
                 # Update context using Pydantic model_copy with additional fields
-                context_data = fu.context.model_dump()
+                context_data = fu.context.model_dump() if fu.context else {}
                 context_data.update({
                     "action_performed": HandlerActionType.SPEAK.value,
                     "error_details": str(e),
@@ -110,7 +110,7 @@ class SpeakHandler(BaseActionHandler):
         try:
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
             # Update context using Pydantic model_copy with additional fields
-            context_data = new_follow_up.context.model_dump()
+            context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
             ctx = {
                 "action_performed": HandlerActionType.SPEAK.value,
                 "action_params": params,

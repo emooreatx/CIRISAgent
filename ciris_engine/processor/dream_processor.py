@@ -159,6 +159,9 @@ class DreamProcessor:
 
         try:
             # Run benchmarks
+            if not self.cirisnode_client:
+                logger.warning("CIRISNode client not available, skipping benchmarks")
+                return
             he300_result = await self.cirisnode_client.run_he300(
                 model_id=model_id,
                 agent_id=agent_id

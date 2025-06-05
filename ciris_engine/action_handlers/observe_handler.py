@@ -106,7 +106,7 @@ class ObserveHandler(BaseActionHandler):
             try:
                 fu = create_follow_up_thought(parent=thought, content=follow_up_text)
                 # Update context using Pydantic model_copy with additional fields
-                context_data = fu.context.model_dump()
+                context_data = fu.context.model_dump() if fu.context else {}
                 context_data.update({
                     "action_performed": HandlerActionType.OBSERVE.value,
                     "error_details": str(e),
@@ -184,7 +184,7 @@ class ObserveHandler(BaseActionHandler):
             logger.info(f"ObserveHandler: Creating follow-up thought for {thought_id}")
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
             # Update context using Pydantic model_copy with additional fields
-            context_data = new_follow_up.context.model_dump()
+            context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
             ctx = {
                 "action_performed": HandlerActionType.OBSERVE.value,
                 "action_params": params,

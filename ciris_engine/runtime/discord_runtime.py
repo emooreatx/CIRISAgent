@@ -154,10 +154,11 @@ class DiscordRuntime(CIRISRuntime):
         
     async def _build_action_dispatcher(self, dependencies: Any) -> Any:
         """Build Discord-specific action dispatcher."""
+        config = self._ensure_config()
         return build_action_dispatcher(
             service_registry=self.service_registry,
             shutdown_callback=dependencies.shutdown_callback,
-            max_rounds=self.app_config.workflow.max_rounds,
+            max_rounds=config.workflow.max_rounds,
         )
         
     async def _register_discord_services(self) -> None:
@@ -270,7 +271,10 @@ class DiscordRuntime(CIRISRuntime):
                 logger.info("Started multi-service sink as background task")
             
             # Start IO adapter (this doesn't start Discord client yet)
-            await self.io_adapter.start()
+            if self.io_adapter:
+                await self.io_adapter.start()
+            else:
+                raise RuntimeError("IO adapter not initialized")
             logger.info("Started IO adapter")
             
             # Attach event handlers to Discord client
@@ -296,6 +300,8 @@ class DiscordRuntime(CIRISRuntime):
             
             # NOW start agent processing - this is the key part that triggers WAKEUP
             logger.info("Starting agent processing with WAKEUP sequence...")
+            if not self.agent_processor:
+                raise RuntimeError("Agent processor not initialized")
             processing_task = asyncio.create_task(
                 self.agent_processor.start_processing(num_rounds=num_rounds)
             )

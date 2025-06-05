@@ -210,6 +210,13 @@ class SignedAuditService(AuditService):
     
     def _init_components_sync(self) -> None:
         """Synchronous initialization of audit components."""
+        if not self.hash_chain:
+            raise RuntimeError("Hash chain not initialized")
+        if not self.signature_manager:
+            raise RuntimeError("Signature manager not initialized")
+        if not self.verifier:
+            raise RuntimeError("Verifier not initialized")
+            
         self.hash_chain.initialize()
         self.signature_manager.initialize()
         self.verifier.initialize()
@@ -311,12 +318,18 @@ class SignedAuditService(AuditService):
             }
             
             # Prepare entry with hash chain
+            if not self.hash_chain:
+                raise RuntimeError("Hash chain not available")
             prepared = self.hash_chain.prepare_entry(entry_dict)
             
             # Sign the entry hash
+            if not self.signature_manager:
+                raise RuntimeError("Signature manager not available")
             signature = self.signature_manager.sign_entry(prepared["entry_hash"])
             
             # Insert into database
+            if not self._db_connection:
+                raise RuntimeError("Database connection not available")
             cursor = self._db_connection.cursor()
             cursor.execute("""
                 INSERT INTO audit_log_v2 
@@ -341,10 +354,11 @@ class SignedAuditService(AuditService):
                 prepared["previous_hash"],
                 prepared["entry_hash"],
                 signature,
-                self.signature_manager.key_id
+                self.signature_manager.key_id if self.signature_manager else "unknown"
             ))
             
-            self._db_connection.commit()
+            if self._db_connection:
+                self._db_connection.commit()
         
         try:
             await asyncio.to_thread(_write_to_db)
@@ -400,6 +414,8 @@ class SignedAuditService(AuditService):
         
         try:
             # Get current chain summary
+            if not self.hash_chain:
+                return {"error": "Hash chain not available"}
             summary = await asyncio.to_thread(self.hash_chain.get_chain_summary)
             
             if summary["total_entries"] == 0:
@@ -407,6 +423,8 @@ class SignedAuditService(AuditService):
             
             # Create root anchor entry
             def _create_anchor():
+                if not self._db_connection:
+                    raise RuntimeError("Database connection not available")
                 cursor = self._db_connection.cursor()
                 cursor.execute("""
                     INSERT INTO audit_roots 

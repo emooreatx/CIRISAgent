@@ -174,7 +174,7 @@ class SolitudeProcessor(BaseProcessor):
             # Look for patterns (simplified example)
             task_types = {}
             for task in recent_completed:
-                task_type = task.context.get("type", "unknown")
+                task_type = task.context.get("type", "unknown") if task.context else "unknown"
                 task_types[task_type] = task_types.get(task_type, 0) + 1
             
             if task_types:

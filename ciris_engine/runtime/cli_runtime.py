@@ -127,9 +127,10 @@ class CLIRuntime(CIRISRuntime):
                 )
 
     async def _build_action_dispatcher(self, dependencies: Any) -> Any:
+        config = self._ensure_config()
         return build_action_dispatcher(
             service_registry=self.service_registry,
-            max_rounds=self.app_config.workflow.max_rounds,
+            max_rounds=config.workflow.max_rounds,
             shutdown_callback=dependencies.shutdown_callback,
         )
 

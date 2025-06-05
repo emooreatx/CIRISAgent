@@ -126,7 +126,7 @@ class APIObserver:
                 context=(
                     task.context
                     if isinstance(task.context, dict)
-                    else task.context.model_dump()
+                    else task.context.model_dump() if task.context else {}
                 )
             )
             thought_channel_id = (
