@@ -291,7 +291,7 @@ class AuditVerifier:
         # Check for recent tampering
         first_tampered = self.find_tampering_fast()
         
-        report = {
+        report: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "verification_result": verification_result,
             "chain_summary": chain_summary,

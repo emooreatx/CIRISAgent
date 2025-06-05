@@ -17,6 +17,7 @@ from .action_dispatcher import ActionDispatcher
 from .base_handler import ActionHandlerDependencies
 from .ponder_handler import PonderHandler
 from ciris_engine.config.env_utils import get_env_var
+from typing import Optional
 
 # Add any required dependencies for handlers here, e.g., services, sinks, etc.
 def build_action_dispatcher(service_registry=None, max_rounds: int = 5, shutdown_callback: Optional[str] = None):

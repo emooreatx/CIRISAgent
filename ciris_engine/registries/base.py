@@ -263,7 +263,7 @@ class ServiceRegistry:
         
         return None
     
-    def get_provider_info(self, handler: str = None, service_type: str = None) -> Dict[str, Any]:
+    def get_provider_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> Dict[str, Any]:
         """
         Get information about registered providers.
         
@@ -274,7 +274,7 @@ class ServiceRegistry:
         Returns:
             Dictionary containing provider information
         """
-        info = {
+        info: Dict[str, Any] = {
             "handlers": {},
             "global_services": {},
             "circuit_breaker_stats": {}

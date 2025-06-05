@@ -75,7 +75,7 @@ class BaseDSDMA(BaseDMA):
 
     class LLMOutputForDSDMA(BaseModel):
         score: float = Field(..., ge=0.0, le=1.0)
-        recommended_action: Optional[str] = Field(default: Optional[str] = None)
+        recommended_action: Optional[str] = Field(default=None)
         flags: List[str] = Field(default_factory=list)
         reasoning: str
 

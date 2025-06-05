@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-Automated mypy error fixer - speeds up type safety improvements by 10x!
+Smart mypy error fixer - works WITH AI to fix type errors safely
 """
 import re
 import subprocess
 import sys
+import argparse
 from pathlib import Path
 from collections import defaultdict
 from typing import Dict, List, Tuple, Set, Optional
 
-class MypyErrorFixer:
+class SmartMypyFixer:
     def __init__(self, target_dir: str = "ciris_engine"):
         self.target_dir = target_dir
         self.fixes_applied = 0
@@ -25,14 +26,14 @@ class MypyErrorFixer:
         for line in output.splitlines():
             if "error:" in line and "[" in line and "]" in line:
                 # More flexible regex to handle multiline errors
-                match = re.search(r'^(.+?):(\d+):(\d+):\s*error:\s*(.+?)\s*\[(.+?)\]', line)
+                match = re.search(r'^([^:]+):(\d+):(\d+):\s*error:\s*(.+?)\s*\[([^\]]+)\]', line)
                 if match:
                     errors.append({
                         'file': match.group(1),
                         'line': int(match.group(2)),
                         'col': int(match.group(3)),
-                        'message': match.group(4),
-                        'code': match.group(5)
+                        'message': match.group(4).strip(),
+                        'code': match.group(5).strip()
                     })
         return errors
 
@@ -161,28 +162,163 @@ class MypyErrorFixer:
         
         print(f"Modified {files_modified} files with pattern fixes")
 
-def main():
-    fixer = MypyErrorFixer()
+    def analyze_specific_errors(self, error_type: str, file_pattern: Optional[str] = None, limit: int = 10):
+        """Analyze specific error types and propose fixes."""
+        print(f"🔍 Analyzing {error_type} errors...")
+        errors = self.get_mypy_errors()
+        
+        # Filter by error type and file pattern
+        filtered_errors = [e for e in errors if e['code'] == error_type]
+        if file_pattern:
+            filtered_errors = [e for e in filtered_errors if file_pattern in e['file']]
+        
+        if not filtered_errors:
+            print(f"No {error_type} errors found!")
+            return
+        
+        print(f"Found {len(filtered_errors)} {error_type} errors")
+        
+        # Show first few errors with context
+        for i, error in enumerate(filtered_errors[:limit]):
+            print(f"\n📍 Error {i+1}: {error['file']}:{error['line']}")
+            print(f"   Message: {error['message']}")
+            
+            # Show file context
+            try:
+                with open(error['file'], 'r') as f:
+                    lines = f.readlines()
+                
+                line_num = error['line']
+                start = max(0, line_num - 3)
+                end = min(len(lines), line_num + 2)
+                
+                print("   Context:")
+                for j in range(start, end):
+                    marker = " ➤ " if j == line_num - 1 else "   "
+                    print(f"{marker}{j+1:3}: {lines[j].rstrip()}")
+                    
+            except Exception as e:
+                print(f"   Could not read file: {e}")
     
-    print("🚀 Mypy Error Auto-Fixer v1.0")
+    def propose_fix(self, file_path: str, line_num: int, error_code: str, error_msg: str) -> Optional[str]:
+        """Propose a specific fix for an error."""
+        try:
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+            
+            if line_num > len(lines):
+                return None
+            
+            line = lines[line_num - 1]
+            
+            if error_code == "no-untyped-def":
+                if "missing a return type annotation" in error_msg:
+                    if re.search(r'def\s+\w+\([^)]*\)\s*:\s*$', line):
+                        return line.replace('):', ') -> None:')
+            
+            elif error_code == "assignment":
+                if "default has type \"None\"" in error_msg:
+                    match = re.search(r'(\w+): (\w+) = None', line)
+                    if match:
+                        param_name, param_type = match.groups()
+                        return line.replace(f'{param_name}: {param_type} = None', 
+                                          f'{param_name}: Optional[{param_type}] = None')
+            
+            elif error_code == "attr-defined":
+                if "append" in error_msg and '"object"' in error_msg:
+                    if ' = {' in line and ':' not in line.split('=')[0]:
+                        var_part = line.split('=')[0].strip()
+                        return line.replace(var_part, f'{var_part}: Dict[str, Any]')
+            
+            return None
+        except Exception:
+            return None
+    
+    def apply_fix(self, file_path: str, line_num: int, old_line: str, new_line: str) -> bool:
+        """Apply a specific fix with verification."""
+        try:
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+            
+            if lines[line_num - 1].strip() != old_line.strip():
+                print(f"❌ Line changed since analysis: {file_path}:{line_num}")
+                return False
+            
+            lines[line_num - 1] = new_line
+            
+            with open(file_path, 'w') as f:
+                f.writelines(lines)
+            
+            print(f"✅ Applied fix to {file_path}:{line_num}")
+            self.fixes_applied += 1
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error applying fix: {e}")
+            return False
+
+def main():
+    parser = argparse.ArgumentParser(description="Smart mypy error fixer")
+    parser.add_argument("command", choices=["analyze", "count", "fix"], help="Command to run")
+    parser.add_argument("--type", help="Error type to focus on (e.g., no-untyped-def, assignment)")
+    parser.add_argument("--file", help="File pattern to filter")
+    parser.add_argument("--limit", type=int, default=10, help="Limit number of errors to show")
+    parser.add_argument("--apply", action="store_true", help="Apply proposed fixes")
+    
+    args = parser.parse_args()
+    
+    fixer = SmartMypyFixer()
+    
+    print("🤖 Smart Mypy Fixer - AI Collaborative Edition")
     print("=" * 50)
     
-    # First apply pattern-based fixes
-    fixer.auto_fix_common_patterns()
-    
-    # Then fix specific errors
-    total_fixed = 0
-    for i in range(3):  # Run up to 3 iterations
-        print(f"\n🔄 Iteration {i+1}")
-        fixed = fixer.batch_fix_errors()
-        total_fixed += fixed
+    if args.command == "count":
+        errors = fixer.get_mypy_errors()
+        error_groups = defaultdict(list)
+        for error in errors:
+            error_groups[error['code']].append(error)
         
-        if fixed == 0:
-            print("\n✨ No more auto-fixable errors found!")
-            break
+        print(f"📊 Found {len(errors)} total errors:")
+        for code, group in sorted(error_groups.items(), key=lambda x: -len(x[1])):
+            print(f"  {code}: {len(group)} errors")
     
-    print(f"\n🎉 Total fixes applied: {total_fixed}")
-    print("\n💡 Tip: Run 'python -m mypy ciris_engine/ --ignore-missing-imports' to see remaining errors")
+    elif args.command == "analyze":
+        if not args.type:
+            print("❌ --type required for analyze command")
+            sys.exit(1)
+        
+        fixer.analyze_specific_errors(args.type, args.file, args.limit)
+        
+        if args.apply:
+            print(f"\n🔧 Proposing fixes for {args.type} errors...")
+            errors = fixer.get_mypy_errors()
+            filtered_errors = [e for e in errors if e['code'] == args.type]
+            if args.file:
+                filtered_errors = [e for e in filtered_errors if args.file in e['file']]
+            
+            for error in filtered_errors[:args.limit]:
+                proposed = fixer.propose_fix(error['file'], error['line'], error['code'], error['message'])
+                if proposed:
+                    try:
+                        with open(error['file'], 'r') as f:
+                            lines = f.readlines()
+                        original = lines[error['line'] - 1]
+                        
+                        print(f"\n📝 {error['file']}:{error['line']}")
+                        print(f"   Original: {original.strip()}")
+                        print(f"   Proposed: {proposed.strip()}")
+                        
+                        response = input("   Apply this fix? (y/n/q): ").lower()
+                        if response == 'y':
+                            fixer.apply_fix(error['file'], error['line'], original, proposed)
+                        elif response == 'q':
+                            break
+                    except Exception as e:
+                        print(f"   Error: {e}")
+    
+    elif args.command == "fix":
+        print("🔧 Running batch fixes...")
+        fixer.batch_fix_errors()
 
 if __name__ == "__main__":
     main()

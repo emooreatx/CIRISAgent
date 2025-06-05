@@ -27,7 +27,7 @@ class SecretsFilterInterface(ABC):
     """Interface for detecting and filtering secrets from content"""
     
     @abstractmethod
-    async def filter_content(self, content: str, source_id: str = None) -> SecretsFilterResult:
+    async def filter_content(self, content: str, source_id: Optional[str] = None) -> SecretsFilterResult:
         """
         Scan content for secrets and replace them with UUID references
         
