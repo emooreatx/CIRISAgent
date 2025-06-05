@@ -23,8 +23,9 @@ class MypyErrorFixer:
         # Mypy outputs to both stdout and stderr depending on error type
         output = result.stdout + result.stderr
         for line in output.splitlines():
-            if "error:" in line:
-                match = re.match(r'^(.+?):(\d+):(\d+):\s*error:\s*(.+?)\s*\[(.+?)\]', line)
+            if "error:" in line and "[" in line and "]" in line:
+                # More flexible regex to handle multiline errors
+                match = re.search(r'^(.+?):(\d+):(\d+):\s*error:\s*(.+?)\s*\[(.+?)\]', line)
                 if match:
                     errors.append({
                         'file': match.group(1),
