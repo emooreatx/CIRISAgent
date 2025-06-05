@@ -24,12 +24,12 @@ logger = logging.getLogger(__name__)
 class ThoughtProcessor:
     def __init__(
         self,
-        dma_orchestrator,
-        context_builder,
-        guardrail_orchestrator,
+        dma_orchestrator: Any,
+        context_builder: Any,
+        guardrail_orchestrator: Any,
         app_config: AppConfig,
         dependencies: ActionHandlerDependencies # Add dependencies
-    ):
+    ) -> None:
         self.dma_orchestrator = dma_orchestrator
         self.context_builder = context_builder
         self.guardrail_orchestrator = guardrail_orchestrator

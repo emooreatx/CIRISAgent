@@ -356,6 +356,8 @@ class CIRISRuntime(RuntimeInterface):
         )
         
         # Build thought processor
+        if not self.app_config:
+            raise RuntimeError("AppConfig is required for ThoughtProcessor initialization")
         thought_processor = ThoughtProcessor(
             dma_orchestrator,
             context_builder,
@@ -370,6 +372,10 @@ class CIRISRuntime(RuntimeInterface):
 
         
         # Build agent processor
+        if not self.app_config:
+            raise RuntimeError("AppConfig is required for AgentProcessor initialization")
+        if not self.profile:
+            raise RuntimeError("Profile is required for AgentProcessor initialization")
         self.agent_processor = AgentProcessor(
             app_config=self.app_config,
             active_profile=self.profile,  # Pass the active profile
