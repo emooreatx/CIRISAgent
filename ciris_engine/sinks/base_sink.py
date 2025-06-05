@@ -24,7 +24,7 @@ class BaseMultiServiceSink(ABC):
                  fallback_channel_id: Optional[str] = None) -> None:
         self.service_registry = service_registry
         self.fallback_channel_id = fallback_channel_id
-        self._queue = asyncio.Queue(maxsize=max_queue_size)
+        self._queue: asyncio.Queue[ActionMessage] = asyncio.Queue(maxsize=max_queue_size)
         self._processing = False
         self._stop_event = asyncio.Event()
 

@@ -24,7 +24,7 @@ class SolitudeProcessor(BaseProcessor):
     - Conserves resources
     """
     
-    def __init__(self, *args, critical_priority_threshold: int = 8, **kwargs):
+    def __init__(self, *args, critical_priority_threshold: int = 8, **kwargs) -> None:
         """
         Initialize solitude processor.
         

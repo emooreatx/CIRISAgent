@@ -116,7 +116,7 @@ class OpenAICompatibleClient(Service):
     ) -> Tuple[str, ResourceUsage]:
         logger.debug(f"Raw LLM call with messages: {messages}")
         
-        async def _make_raw_call():
+        async def _make_raw_call() -> Tuple[str, ResourceUsage]:
             response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
@@ -147,7 +147,7 @@ class OpenAICompatibleClient(Service):
     ) -> Tuple[BaseModel, ResourceUsage]:
         logger.debug(f"Structured LLM call for {response_model.__name__}")
         
-        async def _make_structured_call():
+        async def _make_structured_call() -> Tuple[Any, ResourceUsage]:
             response = await self.instruct_client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,

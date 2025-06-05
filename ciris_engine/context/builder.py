@@ -170,7 +170,7 @@ class ContextBuilder:
         # Enrich with GraphQL context if available
         if self.graphql_provider:
             graphql_extra_raw = await self.graphql_provider.enrich_context(task, thought)
-            graphql_extra_processed = {}
+            graphql_extra_processed: Dict[str, Any] = {}
             if "user_profiles" in graphql_extra_raw and isinstance(graphql_extra_raw["user_profiles"], dict):
                 graphql_extra_processed["user_profiles"] = {}
                 for key, profile_obj in graphql_extra_raw["user_profiles"].items():
