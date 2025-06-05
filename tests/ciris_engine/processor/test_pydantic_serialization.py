@@ -8,6 +8,7 @@ from ciris_engine.schemas import (
     ActionSelectionResult, 
     Thought, 
     ThoughtStatus, 
+    ThoughtType,
     HandlerActionType, 
     RejectParams,
     DeferParams
@@ -58,7 +59,7 @@ class TestProcessorPydanticSerialization:
         thought = Thought(
             thought_id="proc-test-123",
             source_task_id="proc-task-456",
-            thought_type="human_interaction",
+            thought_type=ThoughtType.STANDARD,
             status=ThoughtStatus.PENDING,
             created_at=now,
             updated_at=now,

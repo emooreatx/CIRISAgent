@@ -10,7 +10,7 @@ import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 from typing import Dict, Any, Optional
 
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, ThoughtType
 from ciris_engine.schemas.agent_core_schemas_v1 import ActionSelectionResult, Thought
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.processor.thought_processor import ThoughtProcessor
@@ -115,7 +115,7 @@ class TestGuardrailBypassPrevention:
         return Thought(
             thought_id=thought_id,
             source_task_id="test-task-456",
-            thought_type="standard",
+            thought_type=ThoughtType.STANDARD,
             status=ThoughtStatus.PENDING,
             created_at=now,
             updated_at=now,
