@@ -111,6 +111,7 @@ class ThoughtType(str, Enum):
     MEMORY = "memory"
     DEFERRED = "deferred"
     PONDER = "ponder"
+    GRATITUDE = "gratitude"  # Acknowledging help received
     # Feedback and guidance types
     FEEDBACK = "feedback"           # Processing WA feedback
     GUIDANCE = "guidance"           # Incorporating WA guidance

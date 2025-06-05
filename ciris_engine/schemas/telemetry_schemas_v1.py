@@ -31,6 +31,8 @@ class CompactTelemetry(BaseModel):
     
     messages_processed_24h: int = 0
     helpful_actions_24h: int = 0
+    gratitude_expressed_24h: int = 0
+    gratitude_received_24h: int = 0
     community_health_delta: int = 0
     
     wa_available: bool = True
