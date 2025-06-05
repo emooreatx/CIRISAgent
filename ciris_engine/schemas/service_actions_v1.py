@@ -27,15 +27,15 @@ class ActionType(Enum):
 class ActionMessage:
     """Base action message for service sinks"""
     type: ActionType
-    handler_name: IncomingMessage
+    handler_name: str
     metadata: Dict[str, Any]
 
 
 @dataclass
 class SendMessageAction(ActionMessage):
     """Action to send a message via communication service"""
-    channel_id: IncomingMessage
-    content: IncomingMessage
+    channel_id: str
+    content: str
     
     def __init__(self, handler_name: str, metadata: Dict[str, Any], channel_id: str, content: str) -> None:
         super().__init__(ActionType.SEND_MESSAGE, handler_name, metadata)
@@ -46,8 +46,8 @@ class SendMessageAction(ActionMessage):
 @dataclass
 class FetchMessagesAction(ActionMessage):
     """Action to fetch messages via communication service"""
-    channel_id: IncomingMessage
-    limit: IncomingMessage = 10
+    channel_id: str
+    limit: int = 10
     
     def __init__(self, handler_name: str, metadata: Dict[str, Any], channel_id: str, limit: int = 10) -> None:
         super().__init__(ActionType.FETCH_MESSAGES, handler_name, metadata)
@@ -68,8 +68,8 @@ class FetchGuidanceAction(ActionMessage):
 @dataclass
 class SendDeferralAction(ActionMessage):
     """Action to send deferral to WA service"""
-    thought_id: IncomingMessage
-    reason: IncomingMessage
+    thought_id: str
+    reason: str
     
     def __init__(self, handler_name: str, metadata: Dict[str, Any], thought_id: str, reason: str) -> None:
         super().__init__(ActionType.SEND_DEFERRAL, handler_name, metadata)
@@ -110,7 +110,7 @@ class ForgetAction(ActionMessage):
 @dataclass
 class SendToolAction(ActionMessage):
     """Action to send tool result via tool service"""
-    tool_name: IncomingMessage
+    tool_name: str
     tool_args: Dict[str, Any]
     correlation_id: Optional[str] = None
     
@@ -124,9 +124,9 @@ class SendToolAction(ActionMessage):
 @dataclass
 class FetchToolAction(ActionMessage):
     """Action to fetch tool via tool service"""
-    tool_name: IncomingMessage
-    correlation_id: IncomingMessage
-    timeout: IncomingMessage = 30.0
+    tool_name: str
+    correlation_id: str
+    timeout: float = 30.0
     
     def __init__(self, handler_name: str, metadata: Dict[str, Any], tool_name: str, correlation_id: str, timeout: float = 30.0) -> None:
         super().__init__(ActionType.FETCH_TOOL, handler_name, metadata)

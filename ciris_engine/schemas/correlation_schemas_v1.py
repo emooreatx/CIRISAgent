@@ -10,10 +10,10 @@ class ServiceCorrelationStatus(str, Enum):
 
 class ServiceCorrelation(BaseModel):
     """Record correlating service requests and responses."""
-    correlation_id: ServiceCorrelationStatus
-    service_type: ServiceCorrelationStatus
-    handler_name: ServiceCorrelationStatus
-    action_type: ServiceCorrelationStatus
+    correlation_id: str
+    service_type: str
+    handler_name: str
+    action_type: str
     request_data: Optional[Dict[str, Any]] = None
     response_data: Optional[Dict[str, Any]] = None
     status: ServiceCorrelationStatus = ServiceCorrelationStatus.PENDING
