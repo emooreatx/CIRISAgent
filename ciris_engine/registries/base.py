@@ -356,13 +356,13 @@ class ServiceRegistry:
         
         return False
     
-    def reset_circuit_breakers(self):
+    def reset_circuit_breakers(self) -> None:
         """Reset all circuit breakers to closed state"""
         for cb in self._circuit_breakers.values():
             cb.reset()
         logger.info("Reset all circuit breakers")
     
-    def clear_all(self):
+    def clear_all(self) -> None:
         """Clear all registered services and circuit breakers"""
         self._providers.clear()
         self._global_services.clear()

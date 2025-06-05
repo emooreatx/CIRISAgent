@@ -143,7 +143,7 @@ def get_shutdown_manager() -> ShutdownManager:
             logger.debug("Created global shutdown manager")
         return _global_shutdown_manager
 
-def request_global_shutdown(reason: str = "Global shutdown requested"):
+def request_global_shutdown(reason: str = "Global shutdown requested") -> None:
     """
     Request a graceful shutdown from anywhere in the codebase.
     
@@ -155,7 +155,7 @@ def request_global_shutdown(reason: str = "Global shutdown requested"):
     manager = get_shutdown_manager()
     manager.request_shutdown(reason)
 
-def register_global_shutdown_handler(handler: Callable[[], None], is_async: bool = False):
+def register_global_shutdown_handler(handler: Callable[[], None], is_async: bool = False) -> None:
     """
     Register a global shutdown handler.
     
@@ -171,7 +171,7 @@ def is_global_shutdown_requested() -> bool:
     manager = get_shutdown_manager()
     return manager.is_shutdown_requested()
 
-async def wait_for_global_shutdown():
+async def wait_for_global_shutdown() -> None:
     """Wait for a global shutdown request (async context only)."""
     manager = get_shutdown_manager()
     await manager.wait_for_shutdown()
@@ -182,7 +182,7 @@ def get_global_shutdown_reason() -> Optional[str]:
     return manager.get_shutdown_reason()
 
 # Convenience function for critical service failures
-def request_shutdown_critical_service_failure(service_name: str, error: str = ""):
+def request_shutdown_critical_service_failure(service_name: str, error: str = "") -> None:
     """
     Request shutdown due to critical service failure.
     
@@ -197,7 +197,7 @@ def request_shutdown_critical_service_failure(service_name: str, error: str = ""
     request_global_shutdown(reason)
 
 # Convenience function for communication failures
-def request_shutdown_communication_failure(details: str = ""):
+def request_shutdown_communication_failure(details: str = "") -> None:
     """
     Request shutdown due to communication service failure.
     
@@ -211,7 +211,7 @@ def request_shutdown_communication_failure(details: str = ""):
     request_global_shutdown(reason)
 
 # Convenience function for unrecoverable errors
-def request_shutdown_unrecoverable_error(error_type: str, details: str = ""):
+def request_shutdown_unrecoverable_error(error_type: str, details: str = "") -> None:
     """
     Request shutdown due to unrecoverable error.
     

@@ -91,13 +91,13 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             return bool(getattr(action, 'thought_id', None) and getattr(action, 'reason', None))
         return True
 
-    async def _process_action(self, action: ActionMessage):
+    async def _process_action(self, action: ActionMessage) -> None:
         if not await self._validate_action(action):
             logger.error(f"Invalid action payload: {asdict(action)}")
             return
         await super()._process_action(action)
     
-    async def _execute_action_on_service(self, service: Any, action: ActionMessage):
+    async def _execute_action_on_service(self, service: Any, action: ActionMessage) -> None:
         """Execute action on the appropriate service"""
         action_type = action.type
         
@@ -127,7 +127,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error executing {action_type} on service {type(service).__name__}: {e}")
             raise
     
-    async def _handle_send_message(self, service: CommunicationService, action: SendMessageAction):
+    async def _handle_send_message(self, service: CommunicationService, action: SendMessageAction) -> None:
         """Handle send message action"""
         success = await service.send_message(action.channel_id, action.content)
         if success:
@@ -141,13 +141,13 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         logger.info(f"Fetched {len(messages) if messages else 0} messages from {action.channel_id}")
         return messages
     
-    async def _handle_fetch_guidance(self, service: WiseAuthorityService, action: FetchGuidanceAction):
+    async def _handle_fetch_guidance(self, service: WiseAuthorityService, action: FetchGuidanceAction) -> Optional[str]:
         """Handle fetch guidance action"""
         guidance = await service.fetch_guidance(action.context)
         logger.info(f"Received guidance from {type(service).__name__}")
         return guidance
     
-    async def _handle_send_deferral(self, service: WiseAuthorityService, action: SendDeferralAction):
+    async def _handle_send_deferral(self, service: WiseAuthorityService, action: SendDeferralAction) -> None:
         """Handle submit deferral action"""
         success = await service.send_deferral(action.thought_id, action.reason)
         if success:
@@ -155,7 +155,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         else:
             logger.warning(f"Failed to send deferral via {type(service).__name__}")
     
-    async def _handle_memorize(self, service: MemoryService, action: MemorizeAction):
+    async def _handle_memorize(self, service: MemoryService, action: MemorizeAction) -> Any:
         """Handle memorize action"""
         result = await service.memorize(action.node)
         if result.status == MemoryOpStatus.OK:
@@ -168,7 +168,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             )
         return result
     
-    async def _handle_recall(self, service: MemoryService, action: RecallAction):
+    async def _handle_recall(self, service: MemoryService, action: RecallAction) -> Any:
         """Handle recall action"""
         result = await service.recall(action.node)
         logger.info(
@@ -176,7 +176,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         )
         return result
     
-    async def _handle_forget(self, service: MemoryService, action: ForgetAction):
+    async def _handle_forget(self, service: MemoryService, action: ForgetAction) -> Any:
         """Handle forget action"""
         result = await service.forget(action.node)
         if result.status == MemoryOpStatus.OK:
@@ -189,7 +189,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             )
         return result
     
-    async def _handle_send_tool(self, service: ToolService, action: SendToolAction):
+    async def _handle_send_tool(self, service: ToolService, action: SendToolAction) -> Any:
         """Handle send tool action"""
         # Execute tool using the ToolService
         try:
@@ -207,7 +207,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error executing tool {action.tool_name}: {e}")
             raise
     
-    async def _handle_fetch_tool(self, service: ToolService, action: FetchToolAction):
+    async def _handle_fetch_tool(self, service: ToolService, action: FetchToolAction) -> Any:
         """Handle fetch tool result action"""
         try:
             result = await service.get_tool_result(action.correlation_id, action.timeout)
@@ -286,7 +286,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         return await self.enqueue_action(action)
 
     # Memory convenience methods
-    async def memorize(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None):
+    async def memorize(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None) -> Any:
         """Convenience method to memorize a node synchronously"""
         try:
             from ciris_engine.schemas.service_actions_v1 import MemorizeAction
@@ -308,7 +308,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error in memorize: {e}")
             raise
 
-    async def recall(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None):
+    async def recall(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None) -> Any:
         """Convenience method to recall a node synchronously"""
         try:
             from ciris_engine.schemas.service_actions_v1 import RecallAction
@@ -330,7 +330,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error in recall: {e}")
             raise
 
-    async def forget(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None):
+    async def forget(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None) -> Any:
         """Convenience method to forget a node synchronously"""
         try:
             from ciris_engine.schemas.service_actions_v1 import ForgetAction
@@ -355,7 +355,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     # Tool convenience methods
     async def execute_tool_sync(self, tool_name: str, tool_args: Dict[str, Any], 
                                correlation_id: Optional[str] = None, handler_name: str = "tool", 
-                               metadata: Optional[Dict] = None):
+                               metadata: Optional[Dict] = None) -> Any:
         """Convenience method to execute a tool synchronously"""
         try:
             from ciris_engine.schemas.service_actions_v1 import SendToolAction
@@ -380,7 +380,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             raise
 
     async def get_tool_result_sync(self, correlation_id: str, timeout: Optional[float] = None,
-                                  handler_name: str = "tool", metadata: Optional[Dict] = None):
+                                  handler_name: str = "tool", metadata: Optional[Dict] = None) -> Any:
         """Convenience method to get tool result synchronously"""
         try:
             from ciris_engine.schemas.service_actions_v1 import FetchToolAction

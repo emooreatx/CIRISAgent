@@ -9,7 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def get_tasks_by_status(status: TaskStatus, db_path=None) -> List[Task]:
+def get_tasks_by_status(status: TaskStatus, db_path: Optional[str] = None) -> List[Task]:
     """Returns all tasks with the given status from the tasks table as Task objects."""
     if not isinstance(status, TaskStatus):
         raise TypeError(f"Expected TaskStatus enum, got {type(status)}: {status}")
@@ -27,7 +27,7 @@ def get_tasks_by_status(status: TaskStatus, db_path=None) -> List[Task]:
         logger.exception(f"Failed to get tasks with status {status_val}: {e}")
     return tasks_list
 
-def get_all_tasks(db_path=None) -> List[Task]:
+def get_all_tasks(db_path: Optional[str] = None) -> List[Task]:
     sql = "SELECT * FROM tasks ORDER BY created_at ASC"
     tasks_list = []
     try:
@@ -41,7 +41,7 @@ def get_all_tasks(db_path=None) -> List[Task]:
         logger.exception(f"Failed to get all tasks: {e}")
     return tasks_list
 
-def add_task(task: Task, db_path=None) -> str:
+def add_task(task: Task, db_path: Optional[str] = None) -> str:
     task_dict = task.model_dump(mode='json')
     sql = """
         INSERT INTO tasks (task_id, description, status, priority, created_at, updated_at,
@@ -65,7 +65,7 @@ def add_task(task: Task, db_path=None) -> str:
         logger.exception(f"Failed to add task {task.task_id}: {e}")
         raise
 
-def get_task_by_id(task_id: str, db_path=None) -> Optional[Task]:
+def get_task_by_id(task_id: str, db_path: Optional[str] = None) -> Optional[Task]:
     sql = "SELECT * FROM tasks WHERE task_id = ?"
     try:
         with get_db_connection(db_path) as conn:
@@ -95,16 +95,16 @@ def update_task_status(task_id: str, new_status: TaskStatus, db_path: Optional[s
         logger.exception(f"Failed to update task status for {task_id}: {e}")
         return False
 
-def task_exists(task_id: str, db_path=None) -> bool:
+def task_exists(task_id: str, db_path: Optional[str] = None) -> bool:
     return get_task_by_id(task_id, db_path=db_path) is not None
 
-def get_recent_completed_tasks(limit: int = 10, db_path=None) -> list[Task]:
+def get_recent_completed_tasks(limit: int = 10, db_path: Optional[str] = None) -> list[Task]:
     tasks_list = get_all_tasks(db_path=db_path)
     completed = [t for t in tasks_list if getattr(t, 'status', None) == TaskStatus.COMPLETED]
     completed_sorted = sorted(completed, key=lambda t: getattr(t, 'updated_at', ''), reverse=True)
     return completed_sorted[:limit]
 
-def get_top_tasks(limit: int = 10, db_path=None) -> list[Task]:
+def get_top_tasks(limit: int = 10, db_path: Optional[str] = None) -> list[Task]:
     tasks_list = get_all_tasks(db_path=db_path)
     sorted_tasks = sorted(tasks_list, key=lambda t: (-getattr(t, 'priority', 0), getattr(t, 'created_at', '')))
     return sorted_tasks[:limit]

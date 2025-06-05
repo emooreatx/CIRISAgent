@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+from typing import Optional
 from ciris_engine.config.config_manager import get_sqlite_db_full_path
 from ciris_engine.schemas.db_tables_v1 import (
     tasks_table_v1,
@@ -13,7 +14,7 @@ from .migration_runner import run_migrations
 
 logger = logging.getLogger(__name__)
 
-def get_db_connection(db_path=None) -> sqlite3.Connection:
+def get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     """Establishes a connection to the SQLite database with foreign key support."""
     if db_path is None:
         db_path = get_sqlite_db_full_path()
@@ -40,7 +41,7 @@ def get_graph_edges_table_schema_sql() -> str:
 def get_service_correlations_table_schema_sql() -> str:
     return service_correlations_table_v1
 
-def initialize_database(db_path=None):
+def initialize_database(db_path: Optional[str] = None) -> None:
     """Apply pending migrations to initialize or update the database."""
     try:
         run_migrations(db_path)
