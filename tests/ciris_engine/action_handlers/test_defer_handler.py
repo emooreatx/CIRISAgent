@@ -11,14 +11,17 @@ from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 @pytest.mark.asyncio
 async def test_defer_handler_schema_driven(monkeypatch):
     wa_service = AsyncMock()
-    deps = ActionHandlerDependencies(
-        memory_service=MagicMock(),
-    )
+    service_registry = AsyncMock()
+    
     async def get_service(handler, service_type, **kwargs):
         if service_type == "wise_authority":
             return wa_service
         return None
-    deps.get_service = AsyncMock(side_effect=get_service)
+    
+    service_registry.get_service = AsyncMock(side_effect=get_service)
+    deps = ActionHandlerDependencies(
+        service_registry=service_registry
+    )
     handler = DeferHandler(deps)
 
     action_result = ActionSelectionResult(

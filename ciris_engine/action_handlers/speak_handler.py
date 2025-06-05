@@ -52,13 +52,15 @@ class SpeakHandler(BaseActionHandler):
             follow_up_text = f"SPEAK action failed for thought {thought_id}. Reason: {e}"
             try:
                 fu = create_follow_up_thought(parent=thought, content=follow_up_text)
-                fu_context = {
+                # Update context using Pydantic model_copy with additional fields
+                context_data = fu.context.model_dump()
+                context_data.update({
                     "action_performed": HandlerActionType.SPEAK.value,
                     "error_details": str(e),
                     "action_params": result.action_parameters,
-                }
-                for k, v in fu_context.items():
-                    setattr(fu.context, k, v)
+                })
+                from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+                fu.context = ThoughtContext.model_validate(context_data)
                 persistence.add_thought(fu)
             except Exception as fe:
                 await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, fe)
@@ -107,14 +109,17 @@ class SpeakHandler(BaseActionHandler):
 
         try:
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
+            # Update context using Pydantic model_copy with additional fields
+            context_data = new_follow_up.context.model_dump()
             ctx = {
                 "action_performed": HandlerActionType.SPEAK.value,
                 "action_params": params,
             }
             if not success:
                 ctx["error_details"] = follow_up_error_context
-            for k, v in ctx.items():
-                setattr(new_follow_up.context, k, v)
+            context_data.update(ctx)
+            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+            new_follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(new_follow_up)
             await self._audit_log(
                 HandlerActionType.SPEAK,

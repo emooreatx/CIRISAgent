@@ -127,7 +127,8 @@ class MemorizeHandler(BaseActionHandler):
                 content=follow_up_text,
             )
 
-            # v1 uses 'context' instead of 'processing_context'
+            # Update context using Pydantic model_copy with additional fields
+            context_data = new_follow_up.context.model_dump()
             context_for_follow_up = {
                 "action_performed": HandlerActionType.MEMORIZE.value
             }
@@ -135,9 +136,9 @@ class MemorizeHandler(BaseActionHandler):
                 context_for_follow_up["error_details"] = follow_up_content_key_info
 
             context_for_follow_up["action_params"] = result.action_parameters
-
-            for k, v in context_for_follow_up.items():
-                setattr(new_follow_up.context, k, v)
+            context_data.update(context_for_follow_up)
+            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+            new_follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(new_follow_up)
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after MEMORIZE action."

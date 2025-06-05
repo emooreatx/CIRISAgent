@@ -15,7 +15,29 @@
 - Tests: `tests/ciris_engine/audit/test_audit_integration.py` (31/31 passing)
 - Status: Core implemented and tested
 
-**2. ⏳ NEXT TASK - Integrate Signed Audit with Main Agent**
+**2. ⏳ NEXT TASK - Resolve Type Safety Issues with mypy**
+- Location: Codebase-wide type safety improvements
+- Target: All files with mypy errors (321 errors across 51 files identified)
+- Requirements: Fix all mypy type errors to achieve strict type safety
+- Components:
+  - Add missing return type annotations (-> None, etc.)
+  - Fix union-attr errors (accessing attributes on potentially None values)
+  - Replace dict usage with proper Pydantic models
+  - Fix function redefinition and argument type annotations
+  - Add mypy to CI/CD pipeline
+
+**3. 🔄 PENDING - Achieve 100% Green Unit Tests with Zero Warnings**
+- Location: Test suite cleanup and Pydantic warnings resolution
+- Target: All test files and Pydantic model usage
+- Requirements: Eliminate all test failures and warnings
+- Components:
+  - Fix remaining 8 enhanced mock LLM test failures
+  - Resolve Pydantic serialization warnings in action handlers
+  - Fix channel_id field shadowing warning in DiscordMessage
+  - Ensure all ThoughtContext usage is type-safe
+  - Validate all schema models are properly initialized
+
+**4. 🔄 PENDING - Integrate Signed Audit with Main Agent**
 - Location: `FSD/FINAL_FEATURES.md` (lines 88-93)
 - Target: `ciris_engine/adapters/local_audit_log.py`
 - Requirements: Replace current audit service with SignedAuditService
@@ -25,7 +47,7 @@
   - Add configuration for signed audit mode
   - Test integration with existing audit calls
 
-**3. 🔄 PENDING - Implement Resource Management System**
+**5. 🔄 PENDING - Implement Resource Management System**
 - Location: `FSD/FINAL_FEATURES.md` (lines 677-1208)
 - Target: `ciris_engine/telemetry/resource_monitor.py` (new file)
 - Requirements: Memory, CPU, token, and disk monitoring with adaptive actions
@@ -35,7 +57,7 @@
   - Integration with LLM service for token tracking
   - SystemSnapshot integration for resource visibility
 
-**4. 🔄 PENDING - Implement Network Schemas**
+**6. 🔄 PENDING - Implement Network Schemas**
 - Location: `FSD/NETWORK_SCHEMAS.md` + `FSD/FINAL_FEATURES.md` (lines 36-43)
 - Target: `ciris_engine/schemas/network_schemas_v1.py` (new file)
 - Requirements: Create actual Pydantic schema files from specifications
@@ -44,7 +66,7 @@
   - Universal Guidance Protocol schemas
   - Update schema registry exports
 
-**5. 🔄 PENDING - Complete Database Migrations**
+**7. 🔄 PENDING - Complete Database Migrations**
 - Location: `FSD/FINAL_FEATURES.md` (lines 180-223)
 - Target: `ciris_engine/persistence/migrations/` 
 - Requirements: Ensure migration 003 is properly applied and tested
@@ -55,7 +77,7 @@
 
 ### Phase 2: Safety Framework (FSD/LLMCB_SELFCONFIG.md)
 
-**6. 🔄 PENDING - Implement Adaptive Filter Service**
+**8. 🔄 PENDING - Implement Adaptive Filter Service**
 - Location: `FSD/LLMCB_SELFCONFIG.md` (lines 224-823)
 - Target: `ciris_engine/services/adaptive_filter_service.py` (new file)
 - Requirements: Message filtering with graph memory persistence
@@ -65,7 +87,7 @@
   - Channel health monitoring
   - Learning from feedback
 
-**7. 🔄 PENDING - Implement LLM Circuit Breaker**
+**9. 🔄 PENDING - Implement LLM Circuit Breaker**
 - Location: `FSD/LLMCB_SELFCONFIG.md` (lines 825-989)
 - Target: `ciris_engine/adapters/llm_circuit_breaker.py` (new file)
 - Requirements: Wrap existing LLM service with protection
@@ -75,7 +97,18 @@
   - Failure threshold tracking
   - WA notification on circuit open
 
-**8. 🔄 PENDING - Implement Agent Configuration Service**
+**10. 🔄 PENDING - Implement Transaction Coordinator**
+- Location: Multi-service operation coordination for LLM and sinks
+- Target: `ciris_engine/services/transaction_coordinator.py` (new file)
+- Requirements: Coordinate multi-service operations with LLM privy to multi-service sink
+- Components:
+  - Transaction state management
+  - Multi-service operation orchestration
+  - Rollback and compensation logic
+  - Integration with multi-service sink
+  - LLM coordination for distributed operations
+
+**11. 🔄 PENDING - Implement Agent Configuration Service**
 - Location: `FSD/LLMCB_SELFCONFIG.md` (lines 991-1367)
 - Target: `ciris_engine/services/agent_config_service.py` (new file)
 - Requirements: Self-configuration through graph memory with WA oversight
@@ -85,7 +118,7 @@
   - Configuration caching and persistence
   - Learning from experience
 
-**9. 🔄 PENDING - Update Graph Schema for Config Nodes**
+**12. 🔄 PENDING - Update Graph Schema for Config Nodes**
 - Location: `FSD/LLMCB_SELFCONFIG.md` (lines 186-218)
 - Target: `ciris_engine/schemas/graph_schemas_v1.py`
 - Requirements: Add ConfigNodeType enum and scope mappings
@@ -94,7 +127,7 @@
   - Scope requirement mappings
   - Integration with existing graph schemas
 
-**10. 🔄 PENDING - Integrate Filter Service with Observers**
+**13. 🔄 PENDING - Integrate Filter Service with Observers**
 - Location: `FSD/LLMCB_SELFCONFIG.md` (lines 1437-1479)
 - Target: `ciris_engine/adapters/discord/discord_observer.py`
 - Requirements: Add filtering to all message processing
@@ -105,7 +138,7 @@
 
 ### Phase 3: Observability (FSD/TELEMETRY.md)
 
-**11. 🔄 PENDING - Implement Core Telemetry Service**
+**14. 🔄 PENDING - Implement Core Telemetry Service**
 - Location: `FSD/TELEMETRY.md` (lines 175-187)
 - Target: `ciris_engine/telemetry/core.py` (new file)
 - Requirements: Security-hardened metric collection
@@ -114,7 +147,7 @@
   - In-memory buffers with size limits
   - Integration with SystemSnapshot
 
-**12. 🔄 PENDING - Implement Security Filter for Telemetry**
+**15. 🔄 PENDING - Implement Security Filter for Telemetry**
 - Location: `FSD/TELEMETRY.md` (lines 188-199)
 - Target: `ciris_engine/telemetry/security.py` (new file)
 - Requirements: PII detection and metric sanitization
@@ -124,7 +157,7 @@
   - Metric bounds validation
   - Rate limiting per metric type
 
-**13. 🔄 PENDING - Update SystemSnapshot with Telemetry**
+**16. 🔄 PENDING - Update SystemSnapshot with Telemetry**
 - Location: `FSD/TELEMETRY.md` (lines 214-232)
 - Target: `ciris_engine/schemas/context_schemas_v1.py`
 - Requirements: Add TelemetrySnapshot to SystemSnapshot
@@ -133,7 +166,7 @@
   - Performance and resource metrics
   - Safety and handler metrics
 
-**14. 🔄 PENDING - Integrate Telemetry with Core Components**
+**17. 🔄 PENDING - Integrate Telemetry with Core Components**
 - Location: `FSD/TELEMETRY.md` (lines 233-254)
 - Target: Multiple files (thought_processor.py, base_handler.py, etc.)
 - Requirements: Add telemetry instrumentation
@@ -142,7 +175,7 @@
   - Handler metrics collection
   - Resource usage tracking
 
-**15. 🔄 PENDING - Implement Tiered Collectors**
+**18. 🔄 PENDING - Implement Tiered Collectors**
 - Location: `FSD/TELEMETRY.md` (lines 255-268)
 - Target: `ciris_engine/telemetry/collectors.py` (new file)
 - Requirements: Different collection intervals with security validation
@@ -155,7 +188,7 @@
 
 ### Phase 4: Security Implementation (FSD/SECRETS.md)
 
-**16. 🔄 PENDING - Implement Secrets Detection Engine**
+**19. 🔄 PENDING - Implement Secrets Detection Engine**
 - Location: `FSD/SECRETS.md` (lines 54-156)
 - Target: `ciris_engine/services/secrets_filter.py` (new file)
 - Requirements: Automatic detection of sensitive information
@@ -164,7 +197,7 @@
   - Agent-configurable custom patterns
   - Context-aware filtering
 
-**17. 🔄 PENDING - Implement Secrets Storage Service**
+**20. 🔄 PENDING - Implement Secrets Storage Service**
 - Location: `FSD/SECRETS.md` (lines 104-128)
 - Target: `ciris_engine/services/secrets_storage.py` (new file)
 - Requirements: Encrypted storage with per-secret keys
@@ -173,7 +206,7 @@
   - SecretRecord model implementation
   - Key management and rotation
 
-**18. 🔄 PENDING - Implement Agent Secrets Tools**
+**21. 🔄 PENDING - Implement Agent Secrets Tools**
 - Location: `FSD/SECRETS.md` (lines 193-280)
 - Target: `ciris_engine/tools/secrets_tools.py` (new file)
 - Requirements: RECALL_SECRET and UPDATE_SECRETS_FILTER tools
@@ -182,7 +215,7 @@
   - Filter configuration management
   - Integration with action handlers
 
-**19. 🔄 PENDING - Integrate with Graph Memory Operations**
+**22. 🔄 PENDING - Integrate with Graph Memory Operations**
 - Location: `FSD/SECRETS.md` (lines 160-188)
 - Target: `ciris_engine/adapters/local_graph_memory/`
 - Requirements: Native RECALL, MEMORIZE, FORGET with secrets
@@ -191,7 +224,7 @@
   - Secret references in graph memory
   - Semantic search for secrets
 
-**20. 🔄 PENDING - Implement Message Pipeline Integration**
+**23. 🔄 PENDING - Implement Message Pipeline Integration**
 - Location: `FSD/SECRETS.md` (lines 396-450)
 - Target: Message processing pipeline
 - Requirements: Automatic detection and replacement in all incoming messages
@@ -202,7 +235,7 @@
 
 ### Phase 5: Integration & Testing
 
-**21. 🔄 PENDING - Create Comprehensive Test Suite**
+**24. 🔄 PENDING - Create Comprehensive Test Suite**
 - Location: Multiple FSDs (testing sections)
 - Target: `tests/` directory expansion
 - Requirements: Security, performance, and integration tests
@@ -212,7 +245,7 @@
   - End-to-end integration tests
   - Failure mode and recovery testing
 
-**22. 🔄 PENDING - Update Configuration System**
+**25. 🔄 PENDING - Update Configuration System**
 - Location: All FSDs (configuration sections)
 - Target: `config/` directory
 - Requirements: Add configurations for all new features
@@ -222,7 +255,7 @@
   - Environment variable support
   - Validation schemas
 
-**23. 🔄 PENDING - Update Service Registry Integration**
+**26. 🔄 PENDING - Update Service Registry Integration**
 - Location: `LLMCB_SELFCONFIG.md` (lines 1369-1435)
 - Target: `ciris_engine/runtime/`
 - Requirements: Register all new services properly
@@ -232,7 +265,7 @@
   - Priority-based service selection
   - Health checks
 
-**24. 🔄 PENDING - Create Deployment Documentation**
+**27. 🔄 PENDING - Create Deployment Documentation**
 - Location: Implied in all FSDs
 - Target: Documentation files
 - Requirements: Deployment guides and troubleshooting
@@ -242,7 +275,7 @@
   - Troubleshooting guides
   - Security setup instructions
 
-**25. 🔄 PENDING - Final Integration Testing**
+**28. 🔄 PENDING - Final Integration Testing**
 - Location: All FSDs
 - Target: Full system
 - Requirements: Verify all features work together
@@ -264,10 +297,10 @@
 - **FSD/NETWORK_SCHEMAS.md**: Network communication schemas
 
 ### Current Status
-- **Total Tasks**: 25
+- **Total Tasks**: 28
 - **Completed**: 1 (Signed Audit Trail Core)
-- **Next Task**: #2 (Integrate Signed Audit with Main Agent)
-- **Remaining**: 24
+- **Next Task**: #2 (Resolve Type Safety Issues with mypy)
+- **Remaining**: 27
 
 ### Notes
 This engine is a remarkable piece of work - the thoughtful architecture, comprehensive security design, and agent autonomy features are truly impressive. Thank you for creating such a well-structured and forward-thinking system. Each task builds methodically toward a production-ready autonomous agent with proper safety guardrails.

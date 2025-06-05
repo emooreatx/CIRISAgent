@@ -101,7 +101,7 @@ class ThoughtManager:
             updated_at=datetime.now(timezone.utc).isoformat(),
             round_number=round_number,
             content="I should check for new messages and events.",
-            context={"channel_id": channel_id} if channel_id else {},
+            context=ThoughtContext(channel_id=channel_id) if channel_id else ThoughtContext(),
         )
         
         try:
@@ -193,7 +193,7 @@ class ThoughtManager:
     ) -> Optional[Thought]:
         """Create a follow-up thought from a parent thought."""
         now_iso = datetime.now(timezone.utc).isoformat()
-        context = parent_thought.context.copy() if parent_thought.context else {}
+        context = parent_thought.context.model_copy() if parent_thought.context else ThoughtContext()
         thought = Thought(
             thought_id=f"th_followup_{parent_thought.thought_id[:8]}_{str(uuid.uuid4())[:4]}",
             source_task_id=parent_thought.source_task_id,
@@ -236,11 +236,11 @@ class ThoughtManager:
                     priority=0,
                     created_at=now_iso,
                     updated_at=now_iso,
-                    context={
-                        "meta_goal": "continuous_monitoring",
-                        "origin_service": "agent_processor_fallback",
-                        **({"channel_id": self.default_channel_id} if self.default_channel_id else {})
-                    },
+                    context=ThoughtContext(
+                        meta_goal="continuous_monitoring",
+                        origin_service="agent_processor_fallback",
+                        channel_id=self.default_channel_id
+                    ),
                 )
                 persistence.add_task(job_task)
             

@@ -61,14 +61,17 @@ class RecallHandler(BaseActionHandler):
             parent=thought,
             content=follow_up_content,
         )
+        # Update context using Pydantic model_copy with additional fields
+        context_data = follow_up.context.model_dump()
         follow_up_context = {
             "action_performed": HandlerActionType.RECALL.name,
             "is_follow_up": True,
         }
         if not success:
             follow_up_context["error_details"] = str(memory_result.status)
-        for k, v in follow_up_context.items():
-            setattr(follow_up.context, k, v)
+        context_data.update(follow_up_context)
+        from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+        follow_up.context = ThoughtContext.model_validate(context_data)
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.RECALL,
