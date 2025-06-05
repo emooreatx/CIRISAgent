@@ -103,13 +103,13 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         
         try:
             if action_type == ActionType.SEND_MESSAGE:
-                await self._handle_send_message(service, action)
+                await self._handle_send_message(service, action)  # type: ignore
             elif action_type == ActionType.FETCH_MESSAGES:
-                await self._handle_fetch_messages(service, action)
+                await self._handle_fetch_messages(service, action)  # type: ignore
             elif action_type == ActionType.FETCH_GUIDANCE:
-                await self._handle_fetch_guidance(service, action)
+                await self._handle_fetch_guidance(service, action)  # type: ignore
             elif action_type == ActionType.SEND_DEFERRAL:
-                await self._handle_send_deferral(service, action)
+                await self._handle_send_deferral(service, action)  # type: ignore
             elif action_type == ActionType.MEMORIZE:
                 await self._handle_memorize(service, action)
             elif action_type == ActionType.RECALL:

@@ -12,8 +12,11 @@ from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 async def discord_delete_message(bot: discord.Client, channel_id: int, message_id: int, **kwargs) -> ToolResult:
     try:
         channel = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
-        msg = await channel.fetch_message(message_id)
-        await msg.delete()
+        if hasattr(channel, 'fetch_message'):
+            msg = await channel.fetch_message(message_id)  # type: ignore
+            await msg.delete()
+        else:
+            raise ValueError(f"Channel {channel_id} does not support message fetching")
         return ToolResult(
             tool_name="discord_delete_message",
             execution_status=ToolExecutionStatus.SUCCESS,
