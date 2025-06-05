@@ -3,6 +3,7 @@ from ciris_engine.action_handlers.memorize_handler import MemorizeHandler
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 
 def test_memorize_handler_with_new_schema(monkeypatch):
     # Setup
@@ -17,9 +18,16 @@ def test_memorize_handler_with_new_schema(monkeypatch):
     # Patch persistence functions and helper
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", Mock())
     monkeypatch.setattr("ciris_engine.persistence.add_thought", Mock())
+    def mock_create_follow_up_thought(parent, content):
+        mock_thought = Mock()
+        mock_thought.thought_id = "follow_up_test"
+        # Create a real ThoughtContext object that can be dumped and validated
+        mock_thought.context = ThoughtContext(system_snapshot=SystemSnapshot())
+        return mock_thought
+    
     monkeypatch.setattr(
         "ciris_engine.action_handlers.memorize_handler.create_follow_up_thought",
-        lambda parent, content: Mock()
+        mock_create_follow_up_thought
     )
     
     handler = MemorizeHandler(deps)
@@ -52,9 +60,16 @@ def test_memorize_handler_with_old_schema(monkeypatch):
     deps.get_service = AsyncMock(side_effect=get_service)
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", Mock())
     monkeypatch.setattr("ciris_engine.persistence.add_thought", Mock())
+    def mock_create_follow_up_thought(parent, content):
+        mock_thought = Mock()
+        mock_thought.thought_id = "follow_up_test"
+        # Create a real ThoughtContext object that can be dumped and validated
+        mock_thought.context = ThoughtContext(system_snapshot=SystemSnapshot())
+        return mock_thought
+    
     monkeypatch.setattr(
         "ciris_engine.action_handlers.memorize_handler.create_follow_up_thought",
-        lambda parent, content: Mock()
+        mock_create_follow_up_thought
     )
     handler = MemorizeHandler(deps)
     result = ActionSelectionResult(
