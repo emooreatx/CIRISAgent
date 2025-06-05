@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, ThoughtType
 from ciris_engine import persistence
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 
@@ -46,7 +46,7 @@ class ThoughtManager:
         thought = Thought(
             thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",
             source_task_id=task.task_id,
-            thought_type="seed",
+            thought_type=ThoughtType.STANDARD,
             status=ThoughtStatus.PENDING,
             created_at=now_iso,
             updated_at=now_iso,
@@ -94,7 +94,7 @@ class ThoughtManager:
         thought = Thought(
             thought_id=str(uuid.uuid4()),
             source_task_id=job_task_id,
-            thought_type="job",
+            thought_type=ThoughtType.STANDARD,
             status=ThoughtStatus.PENDING,
             created_at=datetime.now(timezone.utc).isoformat(),
             updated_at=datetime.now(timezone.utc).isoformat(),
@@ -126,7 +126,7 @@ class ThoughtManager:
             limit=self.max_active_thoughts
         )
         
-        memory_meta = [t for t in pending_thoughts if t.thought_type == "memory_meta"]
+        memory_meta = [t for t in pending_thoughts if t.thought_type == ThoughtType.MEMORY]
         if memory_meta:
             pending_thoughts = memory_meta
             logger.info("Memory meta-thoughts detected; processing them exclusively")
@@ -184,7 +184,7 @@ class ThoughtManager:
         self,
         parent_thought: Thought,
         content: str,
-        thought_type: str = "follow_up",
+        thought_type: ThoughtType = ThoughtType.FOLLOW_UP,
         round_number: int = 0
     ) -> Optional[Thought]:
         """Create a follow-up thought from a parent thought."""
