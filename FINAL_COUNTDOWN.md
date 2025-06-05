@@ -97,16 +97,19 @@
   - Failure threshold tracking
   - WA notification on circuit open
 
-**10. 🔄 PENDING - Implement Transaction Coordinator**
-- Location: Multi-service operation coordination for LLM and sinks
-- Target: `ciris_engine/services/transaction_coordinator.py` (new file)
-- Requirements: Coordinate multi-service operations with LLM privy to multi-service sink
+**10. 🔄 PENDING - Implement Multi-Service Transaction Orchestrator**
+- Location: Universal protocol orchestration through multi-service sink
+- Target: `ciris_engine/services/multi_service_transaction_orchestrator.py` (new file)
+- Requirements: Orchestrate ALL protocols passing through multi-service sink with intelligent routing
 - Components:
-  - Transaction state management
-  - Multi-service operation orchestration
-  - Rollback and compensation logic
-  - Integration with multi-service sink
-  - LLM coordination for distributed operations
+  - Protocol-agnostic transaction state management
+  - Health-based adapter selection and routing
+  - Priority-based service degradation handling
+  - Condition-driven failover and load balancing
+  - Circuit breaker integration for service health
+  - Rollback and compensation orchestration across services
+  - Real-time service health monitoring and scoring
+  - Dynamic routing based on service capabilities and load
 
 **11. 🔄 PENDING - Implement Agent Configuration Service**
 - Location: `FSD/LLMCB_SELFCONFIG.md` (lines 991-1367)
