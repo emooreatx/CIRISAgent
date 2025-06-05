@@ -7,7 +7,7 @@ Implements secure key derivation, rotation, and forward secrecy.
 
 import os
 import secrets
-from typing import Tuple
+from typing import Tuple, Optional
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class SecretsEncryption:
     """Handles encryption/decryption of secrets using AES-256-GCM"""
     
-    def __init__(self, master_key: bytes = None):
+    def __init__(self, master_key: Optional[bytes] = None):
         """
         Initialize with a master key. If not provided, generates a new one.
         
@@ -105,7 +105,7 @@ class SecretsEncryption:
         logger.debug("Successfully decrypted secret")
         return decrypted_bytes.decode('utf-8')
     
-    def rotate_master_key(self, new_master_key: bytes = None) -> bytes:
+    def rotate_master_key(self, new_master_key: Optional[bytes] = None) -> bytes:
         """
         Rotate the master key. This should be used with SecretsStore.reencrypt_all()
         
@@ -132,7 +132,7 @@ class SecretsEncryption:
         return self.master_key
     
     @staticmethod
-    def generate_key_from_password(password: str, salt: bytes = None) -> Tuple[bytes, bytes]:
+    def generate_key_from_password(password: str, salt: Optional[bytes] = None) -> Tuple[bytes, bytes]:
         """
         Generate a master key from a password (for human-memorable keys)
         

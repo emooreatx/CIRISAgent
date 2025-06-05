@@ -11,11 +11,12 @@ import sqlite3
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from datetime import datetime, timedelta
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes, PublicKeyTypes
 from cryptography.exceptions import InvalidSignature
 
 logger = logging.getLogger(__name__)
@@ -26,9 +27,9 @@ class AuditSignatureManager:
     def __init__(self, key_path: str, db_path: str):
         self.key_path = Path(key_path)
         self.db_path = db_path
-        self._private_key = None
-        self._public_key = None
-        self._key_id = None
+        self._private_key: Optional[PrivateKeyTypes] = None
+        self._public_key: Optional[PublicKeyTypes] = None
+        self._key_id: Optional[str] = None
         
         # Ensure key directory exists
         self.key_path.mkdir(parents=True, exist_ok=True)
@@ -89,6 +90,9 @@ class AuditSignatureManager:
     
     def _save_keys(self) -> None:
         """Save the key pair to disk"""
+        if not self._private_key or not self._public_key:
+            raise RuntimeError("Keys not initialized")
+            
         private_key_path = self.key_path / "audit_private.pem"
         public_key_path = self.key_path / "audit_public.pem"
         
@@ -118,6 +122,9 @@ class AuditSignatureManager:
     
     def _compute_key_id(self) -> str:
         """Compute a unique identifier for the public key"""
+        if not self._public_key:
+            raise RuntimeError("Public key not initialized")
+            
         public_pem = self._public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -129,6 +136,9 @@ class AuditSignatureManager:
     
     def _register_public_key(self) -> None:
         """Register the public key in the database"""
+        if not self._public_key or not self._key_id:
+            raise RuntimeError("Keys not initialized for registration")
+            
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -175,6 +185,10 @@ class AuditSignatureManager:
         if not self._private_key:
             raise RuntimeError("Signature manager not initialized")
         
+        # Ensure we have an RSA key for signing
+        if not isinstance(self._private_key, rsa.RSAPrivateKey):
+            raise RuntimeError("Only RSA keys are supported for signing")
+        
         try:
             # Sign the hash using RSA-PSS
             signature = self._private_key.sign(
@@ -206,6 +220,15 @@ class AuditSignatureManager:
                     logger.error(f"Public key not found: {key_id}")
                     return False
             
+            if not public_key:
+                logger.error("No public key available for verification")
+                return False
+                
+            # Ensure we have an RSA key for verification
+            if not isinstance(public_key, rsa.RSAPublicKey):
+                logger.error("Only RSA keys are supported for verification")
+                return False
+            
             # Decode signature
             signature_bytes = base64.b64decode(signature.encode('ascii'))
             
@@ -229,7 +252,7 @@ class AuditSignatureManager:
             logger.error(f"Signature verification error: {e}")
             return False
     
-    def _load_public_key(self, key_id: str):
+    def _load_public_key(self, key_id: str) -> Optional[PublicKeyTypes]:
         """Load a public key from the database by key ID"""
         try:
             conn = sqlite3.connect(self.db_path)
