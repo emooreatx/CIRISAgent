@@ -66,17 +66,17 @@ class CIRISNodeClient(Service):
             logger.warning("No audit service available for CIRISNodeClient")
         return self._audit_service
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the client service."""
         await super().start()
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the client service and clean up resources."""
         await self._client.aclose()
         await super().stop()
         self._closed = True
 
-    async def close(self):
+    async def close(self) -> None:
         """Alias for stop() for backwards compatibility."""
         await self.stop()
 
@@ -84,7 +84,7 @@ class CIRISNodeClient(Service):
         return self._closed
 
     async def _post(self, endpoint: str, payload: Dict[str, Any]) -> Any:
-        async def _make_request():
+        async def _make_request() -> Any:
             resp = await self._client.post(endpoint, json=payload)
             if 400 <= resp.status_code < 500:
                 resp.raise_for_status()  # Don't retry 4xx client errors
@@ -99,7 +99,7 @@ class CIRISNodeClient(Service):
         )
 
     async def _get(self, endpoint: str, params: Dict[str, Any]) -> Any:
-        async def _make_request():
+        async def _make_request() -> Any:
             resp = await self._client.get(endpoint, params=params)
             if 400 <= resp.status_code < 500:
                 resp.raise_for_status()  # Don't retry 4xx client errors
@@ -114,7 +114,7 @@ class CIRISNodeClient(Service):
         )
 
     async def _put(self, endpoint: str, payload: Dict[str, Any]) -> Any:
-        async def _make_request():
+        async def _make_request() -> Any:
             resp = await self._client.put(endpoint, json=payload)
             if 400 <= resp.status_code < 500:
                 resp.raise_for_status()  # Don't retry 4xx client errors

@@ -106,7 +106,7 @@ class CIRISRuntime(RuntimeInterface):
         # Track initialization state
         self._initialized = False
     
-    def request_shutdown(self, reason: str = "Shutdown requested"):
+    def request_shutdown(self, reason: str = "Shutdown requested") -> None:
         """Request a graceful shutdown of the runtime."""
         if self._shutdown_event.is_set():
             logger.debug(f"Shutdown already requested, ignoring duplicate request: {reason}")
@@ -119,11 +119,11 @@ class CIRISRuntime(RuntimeInterface):
         # Also notify the global shutdown manager
         self._shutdown_manager.request_shutdown(f"Runtime: {reason}")
 
-    async def _request_shutdown(self, reason: str = "Shutdown requested"):
+    async def _request_shutdown(self, reason: str = "Shutdown requested") -> None:
         """Async wrapper used during initialization failures."""
         self.request_shutdown(reason)
         
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize all components and services."""
         if self._initialized:
             return
@@ -161,7 +161,7 @@ class CIRISRuntime(RuntimeInterface):
             # Re-raise to prevent the runtime from starting with an inconsistent state
             raise
         
-    async def _load_profile(self):
+    async def _load_profile(self) -> None:
         """Load the agent profile."""
         profile_path = Path(self.app_config.profile_directory) / f"{self.profile_name}.yaml"
         self.profile = await load_profile(profile_path)
@@ -185,7 +185,7 @@ class CIRISRuntime(RuntimeInterface):
             if default_profile:
                 self.app_config.agent_profiles["default"] = default_profile
                 
-    async def _initialize_services(self):
+    async def _initialize_services(self) -> None:
         """Initialize all core services."""
         # Service Registry (initialize first)
         self.service_registry = ServiceRegistry()
@@ -217,7 +217,7 @@ class CIRISRuntime(RuntimeInterface):
             archive_older_than_hours=archive_hours
         )
         
-    async def _perform_startup_maintenance(self):
+    async def _perform_startup_maintenance(self) -> None:
         """Perform database cleanup at startup."""
         if self.maintenance_service:
             try:
@@ -238,7 +238,7 @@ class CIRISRuntime(RuntimeInterface):
 
 
             
-    async def _build_components(self):
+    async def _build_components(self) -> None:
         """Build all processing components."""
         llm_client = self.llm_service.get_client()
 
@@ -372,7 +372,7 @@ class CIRISRuntime(RuntimeInterface):
             startup_channel_id=self.startup_channel_id,
         )
         
-    async def _register_core_services(self):
+    async def _register_core_services(self) -> None:
         """Register core services in the service registry."""
         if not self.service_registry:
             return
@@ -415,7 +415,7 @@ class CIRISRuntime(RuntimeInterface):
         # Note: Communication and WA services will be registered by subclasses
         # (e.g., DiscordRuntime registers Discord adapter, CIRISNode client)
         
-    async def _build_action_dispatcher(self, dependencies):
+    async def _build_action_dispatcher(self, dependencies: Any) -> Any:
         """Build action dispatcher. Override in subclasses for custom sinks."""
         # This is a basic implementation - subclasses should override
         return build_action_dispatcher(
@@ -424,7 +424,7 @@ class CIRISRuntime(RuntimeInterface):
             max_rounds=self.app_config.workflow.max_rounds,
         )
         
-    async def run(self, num_rounds: Optional[int] = None):
+    async def run(self, num_rounds: Optional[int] = None) -> None:
         """Run the agent processing loop with shutdown monitoring."""
         if not self._initialized:
             await self.initialize()
@@ -482,7 +482,7 @@ class CIRISRuntime(RuntimeInterface):
         finally:
             await self.shutdown()
             
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Gracefully shutdown all services."""
         logger.info("Shutting down CIRIS Runtime...")
         
