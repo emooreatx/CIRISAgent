@@ -4,11 +4,11 @@ from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, Epi
 def optimization_veto(context=None):
     """Mock OptimizationVetoResult with passing values, instructor compatible."""
     result = OptimizationVetoResult(
-        decision=FeedbackType.DECISION_OVERRIDE,
-        justification=FeedbackType.POLICY_CLARIFICATION,
-        entropy_reduction_ratio=FeedbackType.SYSTEM_DIRECTIVE,
+        decision="proceed",
+        justification="Acceptable risk-benefit ratio",
+        entropy_reduction_ratio=0.5,
         affected_values=["autonomy", "justice"],
-        confidence=FeedbackType.SYSTEM_DIRECTIVE
+        confidence=0.8
     )
     object.__setattr__(result, 'choices', [result])
     object.__setattr__(result, 'finish_reason', 'stop')
@@ -18,10 +18,10 @@ def optimization_veto(context=None):
 def epistemic_humility(context=None):
     """Mock EpistemicHumilityResult with passing values, instructor compatible."""
     result = EpistemicHumilityResult(
-        epistemic_certainty=FeedbackType.POLICY_CLARIFICATION,
+        epistemic_certainty=0.7,
         identified_uncertainties=["none"],
-        reflective_justification=FeedbackType.POLICY_CLARIFICATION,
-        recommended_action=FeedbackType.SYSTEM_DIRECTIVE
+        reflective_justification="Clear understanding of requirements",
+        recommended_action="proceed"
     )
     object.__setattr__(result, 'choices', [result])
     object.__setattr__(result, 'finish_reason', 'stop')

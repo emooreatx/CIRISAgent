@@ -127,7 +127,7 @@ async def test_real_observe_handler():
     logger.info("=== Testing Real ObserveHandler Implementation ===")
     
     # Create test memory service
-    memory_service = TestMemoryService()
+    memory_service = MockMemoryService()
     
     # Test realistic Discord messages
     channel_id = "918273645012345678"  # Realistic Discord channel ID
@@ -197,7 +197,7 @@ async def test_edge_cases_real_handler():
     """Test edge cases with the real handler"""
     logger.info("\n=== Testing Edge Cases with Real Handler ===")
     
-    memory_service = TestMemoryService()
+    memory_service = MockMemoryService()
     channel_id = "918273645012345679"
     edge_messages = create_edge_case_messages()
     
@@ -230,7 +230,7 @@ async def test_no_messages():
     """Test with no messages"""
     logger.info("\n=== Testing Empty Message List ===")
     
-    memory_service = TestMemoryService()
+    memory_service = MockMemoryService()
     channel_id = "918273645012345680"
     
     deps = ActionHandlerDependencies()
@@ -259,7 +259,7 @@ async def test_message_field_variations():
     """Test various message field variations and data types"""
     logger.info("\n=== Testing Message Field Variations ===")
     
-    memory_service = TestMemoryService()
+    memory_service = MockMemoryService()
     channel_id = "test_channel"
     
     # Messages with different data types for author_id

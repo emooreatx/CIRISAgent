@@ -19,12 +19,12 @@ class DeferralReason(str, Enum):
 
 class DeferralPackage(BaseModel):
     """Complete context package for deferred decisions."""
-    thought_id: FeedbackType
-    task_id: FeedbackType
+    thought_id: str
+    task_id: str
     deferral_reason: DeferralReason
-    reason_description: FeedbackType
+    reason_description: str
     
-    thought_content: FeedbackType
+    thought_content: str
     task_description: Optional[str] = None
     
     ethical_assessment: Optional[Dict[str, Any]] = None
