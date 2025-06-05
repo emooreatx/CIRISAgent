@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, Optional
+from typing import Optional, Dict, Any
 
 import instructor
 
@@ -9,6 +9,8 @@ from .base_dma import BaseDMA
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult
 from ciris_engine.formatters import format_user_profiles, format_system_snapshot
 from ciris_engine.utils import COVENANT_TEXT
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
 
 logger = logging.getLogger(__name__)
@@ -32,36 +34,13 @@ class EthicalPDMAEvaluator(BaseDMA):
             max_retries=max_retries,
             instructor_mode=instructor.Mode.JSON,
         )
-
         self.DEFAULT_PROMPT_TEMPLATE: Dict[str, str] = {
-            "system_guidance_header": """You are an ethical reasoning shard of a CIRIS AI system governed by the CIRIS Covenant.
-
-Your task is to perform an ethical evaluation of user messages using the Principled Decision-Making Algorithm (PDMA). The PDMA integrates the following CIRIS principles:
-
-- **Do Good:** Promote positive outcomes and wellbeing.
-- **Avoid Harm:** Actively prevent and mitigate harm.
-- **Honor Autonomy:** Respect individual agency and informed consent.
-- **Ensure Fairness:** Maintain impartiality and equity.
-
-Evaluate the thought by:
-1. Identifying plausible actions.
-2. Analyzing actions against each CIRIS principle.
-3. Determining the ethically optimal action.
-
-Your response must be structured as follows:
-{
-  "alignment_check": Detailed ethical analysis addressing each CIRIS principle,
-  "decision": Your ethically optimal action or stance,
-  "rationale": Justification for your decision referencing your analysis.
-}
-
-Do not include extra fields or PDMA step names.""",
+            "system_guidance_header": """You are an ethical reasoning shard of a CIRIS AI system governed by the CIRIS Covenant.\n\nYour task is to perform an ethical evaluation of user messages using the Principled Decision-Making Algorithm (PDMA). The PDMA integrates the following CIRIS principles:\n\n- **Do Good:** Promote positive outcomes and wellbeing.\n- **Avoid Harm:** Actively prevent and mitigate harm.\n- **Honor Autonomy:** Respect individual agency and informed consent.\n- **Ensure Fairness:** Maintain impartiality and equity.\n\nEvaluate the thought by:\n1. Identifying plausible actions.\n2. Analyzing actions against each CIRIS principle.\n3. Determining the ethically optimal action.\n\nYour response must be structured as follows:\n{\n  \"alignment_check\": Detailed ethical analysis addressing each CIRIS principle,\n  \"decision\": Your ethically optimal action or stance,\n  \"rationale\": Justification for your decision referencing your analysis.\n}\n\nDo not include extra fields or PDMA step names.""",
         }
         self.prompt_template = {**self.DEFAULT_PROMPT_TEMPLATE, **(prompt_overrides or {})}
-
         logger.info(f"EthicalPDMAEvaluator initialized with model: {self.model_name}")
 
-    async def evaluate(self, thought_item: ProcessingQueueItem) -> EthicalDMAResult:
+    async def evaluate(self, thought_item: ProcessingQueueItem, context: ThoughtContext) -> EthicalDMAResult:
         original_thought_content = str(thought_item.content)
         logger.debug(f"Evaluating thought ID {thought_item.thought_id}")
 
@@ -73,20 +52,17 @@ Do not include extra fields or PDMA step names.""",
 
         system_snapshot_context_str = ""
         user_profile_context_str = ""
-
-        if hasattr(thought_item, 'context') and thought_item.context:
-            system_snapshot = thought_item.context.get("system_snapshot")
-            if system_snapshot:
-                user_profiles_data = system_snapshot.get("user_profiles")
-                user_profile_context_str = format_user_profiles(user_profiles_data)
-                system_snapshot_context_str = format_system_snapshot(system_snapshot)
+        if context and context.system_snapshot:
+            system_snapshot_context_str = format_system_snapshot(context.system_snapshot)
+            if context.system_snapshot.user_profiles:
+                user_profile_context_str = format_user_profiles(context.system_snapshot.user_profiles)
+        elif context and context.user_profiles:
+            user_profile_context_str = format_user_profiles(context.user_profiles)
 
         full_context_str = system_snapshot_context_str + user_profile_context_str
-
         user_message_with_context = (
             f"{full_context_str}\nSystem Thought to Evaluate: '{original_thought_content}'"
         )
-
         try:
             response_obj: EthicalDMAResult = await aclient.chat.completions.create(
                 model=self.model_name,
@@ -100,7 +76,6 @@ Do not include extra fields or PDMA step names.""",
             )
             logger.info(f"Evaluation successful for thought ID {thought_item.thought_id}")
             return response_obj
-
         except Exception as e:
             logger.error(f"Evaluation failed for thought ID {thought_item.thought_id}: {e}", exc_info=True)
             fallback_data = {

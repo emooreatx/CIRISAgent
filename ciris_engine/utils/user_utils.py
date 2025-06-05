@@ -38,7 +38,7 @@ async def extract_user_nick(
     # 4. Fallback to parent task via thought_id
     if thought_id:
         try:
-            current_thought = persistence.get_thought_by_id(thought_id)
+            current_thought = await persistence.async_get_thought_by_id(thought_id)
             if current_thought and current_thought.source_task_id:
                 parent_task = persistence.get_task_by_id(current_thought.source_task_id)
                 if parent_task and isinstance(parent_task.context, dict):

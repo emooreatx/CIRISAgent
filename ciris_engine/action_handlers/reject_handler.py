@@ -46,7 +46,10 @@ class RejectHandler(BaseActionHandler):
                     "error_details": follow_up_content_key_info,
                 }
                 context_for_follow_up["action_params"] = params
-                new_follow_up.context = context_for_follow_up
+                if isinstance(new_follow_up.context, dict):
+                    new_follow_up.context.update(context_for_follow_up)
+                else:
+                    new_follow_up.context = context_for_follow_up
                 persistence.add_thought(new_follow_up)
                 await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             except Exception as e2:
@@ -90,7 +93,7 @@ class RejectHandler(BaseActionHandler):
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for REJECT action. Info: {follow_up_content_key_info}")
 
         # Create a follow-up thought indicating failure and reason
-        follow_up_text = f"REJECT action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. This path of reasoning is terminated. Review and determine if a new approach or task is needed."
+        follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: REJECT action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. This path of reasoning is terminated. Review and determine if a new approach or task is needed."
         #PROMPT_FOLLOW_UP_THOUGHT
         try:
             new_follow_up = create_follow_up_thought(
@@ -109,7 +112,10 @@ class RejectHandler(BaseActionHandler):
             # Pass params directly - persistence will handle serialization
             context_for_follow_up["action_params"] = params
 
-            new_follow_up.context = context_for_follow_up  # v1 uses 'context'
+            if isinstance(new_follow_up.context, dict):
+                new_follow_up.context.update(context_for_follow_up)  # v1 uses 'context'
+            else:
+                new_follow_up.context = context_for_follow_up
 
             persistence.add_thought(new_follow_up)
             self.logger.info(

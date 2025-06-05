@@ -1,7 +1,9 @@
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import List
 from ciris_engine.protocols.services import CommunicationService
+from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
 from ciris_engine.schemas.correlation_schemas_v1 import (
     ServiceCorrelation,
     ServiceCorrelationStatus,
@@ -42,7 +44,7 @@ class CLIAdapter(CommunicationService):
         persistence.add_correlation(corr)
         return True
 
-    async def fetch_messages(self, channel_id: str, limit: int = 100):
+    async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
         # CLI adapter does not maintain history; return empty list
         return []
 

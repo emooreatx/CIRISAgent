@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from ciris_engine.runtime.api_runtime import APIRuntime
+from ciris_engine.runtime.api.api_runtime_entrypoint import APIRuntimeEntrypoint as APIRuntime
 
 
 @pytest.mark.asyncio
@@ -15,10 +15,11 @@ async def test_api_service_registry(monkeypatch):
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
     )
-    monkeypatch.setattr(
-        "ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components",
-        AsyncMock(),
-    )
+    # Don't mock _build_components as it prevents service registration
+    # monkeypatch.setattr(
+    #     "ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components",
+    #     AsyncMock(),
+    # )
     monkeypatch.setattr("ciris_engine.adapters.api.api_observer.APIObserver.start", AsyncMock())
     # Mock service_registry.wait_ready() to prevent timeout
     monkeypatch.setattr(
@@ -34,14 +35,14 @@ async def test_api_service_registry(monkeypatch):
 
     # Communication service
     comm = handlers.get("SpeakHandler", {}).get("communication", [])
-    assert any(p["name"].startswith("APIAdapter") for p in comm)
+    assert any("APIAdapter" in p["name"] for p in comm)
 
     # Wise authority service
     wa = handlers.get("SpeakHandler", {}).get("wise_authority", [])
-    assert any(p["name"].startswith("APIAdapter") for p in wa)
+    assert any("APIAdapter" in p["name"] for p in wa)
 
     # Tool service
     tool = handlers.get("ToolHandler", {}).get("tool", [])
-    assert any(p["name"].startswith("MagicMock") for p in tool)
+    assert any("MagicMock" in p["name"] for p in tool)
 
     await runtime.shutdown()

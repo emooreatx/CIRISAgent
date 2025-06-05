@@ -10,6 +10,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     ThoughtStatus,
     HandlerActionType,
     IncomingMessage,
+    FetchedMessage,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
@@ -37,7 +38,7 @@ class ObserveHandler(BaseActionHandler):
         self,
         memory_service: Optional[Any],
         channel_id: Optional[str],
-        messages: List[Dict[str, Any]],
+        messages: List[FetchedMessage],
     ) -> None:
         if not memory_service:
             return
@@ -45,7 +46,7 @@ class ObserveHandler(BaseActionHandler):
         if channel_id:
             recall_ids.add(f"channel/{channel_id}")
         for msg in messages or []:
-            aid = msg.get("author_id")
+            aid = msg.author_id
             if aid:
                 recall_ids.add(f"user/{aid}")
         for rid in recall_ids:
@@ -130,6 +131,8 @@ class ObserveHandler(BaseActionHandler):
             or dispatch_context.get("channel_id")
             or getattr(thought, "context", {}).get("channel_id")
         )
+        if channel_id and isinstance(channel_id, str) and channel_id.startswith("@"):  # likely user mention
+            channel_id = None
         params.channel_id = channel_id
 
         # Get services with better logging
@@ -169,9 +172,9 @@ class ObserveHandler(BaseActionHandler):
         )
 
         follow_up_text = (
-            f"OBSERVE action completed. Info: {follow_up_info}"
+            f"CIRIS_FOLLOW_UP_THOUGHT: OBSERVE action completed. Info: {follow_up_info}"
             if action_performed
-            else f"OBSERVE action failed: {follow_up_info}"
+            else f"CIRIS_FOLLOW_UP_THOUGHT: OBSERVE action failed: {follow_up_info}"
         )  #PROMPT_FOLLOW_UP_THOUGHT
         try:
             logger.info(f"ObserveHandler: Creating follow-up thought for {thought_id}")
@@ -182,7 +185,10 @@ class ObserveHandler(BaseActionHandler):
             }
             if final_status == ThoughtStatus.FAILED:
                 ctx["error_details"] = follow_up_info
-            new_follow_up.context = ctx
+            if isinstance(new_follow_up.context, dict):
+                new_follow_up.context.update(ctx)
+            else:
+                new_follow_up.context = ctx
             persistence.add_thought(new_follow_up)
             logger.info(f"ObserveHandler: Follow-up thought created for {thought_id}")
             #TODO: Fix auditing

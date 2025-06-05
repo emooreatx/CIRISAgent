@@ -49,37 +49,26 @@ class RecallHandler(BaseActionHandler):
         scope = node.scope
 
         memory_result = await memory_service.recall(node)
-        success = False
-        data = None
-        if isinstance(memory_result, bool):
-            success = memory_result
-        elif hasattr(memory_result, "status"):
-            success = memory_result.status == MemoryOpStatus.OK
-            data = getattr(memory_result, "data", None)
-        else:
-            success = bool(memory_result)
-            data = memory_result if success else None
+        success = memory_result.status == MemoryOpStatus.OK
+        data = memory_result.data
 
         if success and data:
-            follow_up_content = f"Memory query '{node.id}' returned: {data}"
+            follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{node.id}' returned: {data}"
         else:
-            follow_up_content = f"No memories found for query '{node.id}' in scope {node.scope.value}"
+            follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: No memories found for query '{node.id}' in scope {node.scope.value}"
         #PROMPT_FOLLOW_UP_THOUGHT
         follow_up = create_follow_up_thought(
             parent=thought,
             content=follow_up_content,
         )
-        # Always set action_performed and is_follow_up in context
-        follow_up_context = follow_up.context if isinstance(follow_up.context, dict) else {}
-        follow_up_context["action_performed"] = HandlerActionType.RECALL.name
-        follow_up_context["is_follow_up"] = True
-        # Optionally add error or memory details if available
+        follow_up_context = {
+            "action_performed": HandlerActionType.RECALL.name,
+            "is_follow_up": True,
+        }
         if not success:
-            if isinstance(memory_result, MemoryOpResult):
-                follow_up_context["error_details"] = str(memory_result.status)
-            else:
-                follow_up_context["error_details"] = "recall_failed"
-        follow_up.context = follow_up_context
+            follow_up_context["error_details"] = str(memory_result.status)
+        for k, v in follow_up_context.items():
+            setattr(follow_up.context, k, v)
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.RECALL,

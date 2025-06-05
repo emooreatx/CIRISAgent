@@ -18,7 +18,7 @@ def test_csdma_result():
     assert res.flags == []
 
 def test_dsdma_result():
-    res = DSDMAResult(domain="test", alignment_score=1.0)
+    res = DSDMAResult(domain="test", score=1.0)
     assert res.domain == "test"
-    assert res.alignment_score == 1.0
+    assert res.score == 1.0
     assert res.flags == []

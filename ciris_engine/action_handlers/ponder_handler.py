@@ -26,12 +26,12 @@ class PonderHandler(BaseActionHandler):
                 max_rounds = 5
         self.max_rounds = max_rounds
 
-    def should_defer_for_max_ponder(
+    def should_defer_for_max_rounds(
         self,
         thought: Thought,
         current_ponder_count: int
     ) -> bool:
-        """Check if thought has exceeded ponder limits."""
+        """Check if thought has exceeded action round limits."""
         return current_ponder_count >= self.max_rounds
 
     async def handle(
@@ -60,120 +60,154 @@ class PonderHandler(BaseActionHandler):
                 questions_list.append(h_note)
         
         current_ponder_count = thought.ponder_count
+        new_ponder_count = current_ponder_count + 1
         
-        # Normal ponder logic
-        if self.should_defer_for_max_ponder(thought, current_ponder_count):
-            logger.warning(
-                f"Thought ID {thought.thought_id} has reached max ponder rounds ({self.max_rounds}). Marking as DEFERRED."
+        logger.info(f"Thought ID {thought.thought_id} pondering (count: {new_ponder_count}). Questions: {questions_list}")
+        
+        # Check if we've reached max rounds after this ponder
+        if new_ponder_count >= self.max_rounds:
+            logger.warning(f"Thought ID {thought.thought_id} has reached max rounds ({self.max_rounds}) after this ponder. Deferring to defer handler.")
+            
+            # Update the thought with the ponder results first
+            thought.ponder_count = new_ponder_count
+            existing_notes = thought.ponder_notes or []
+            thought.ponder_notes = existing_notes + questions_list
+            
+            # Create a defer action result and pass to defer handler
+            from ciris_engine.schemas.action_params_v1 import DeferParams
+            
+            defer_params = DeferParams(
+                reason=f"Maximum action rounds ({self.max_rounds}) reached after {new_ponder_count} actions"
             )
-            persistence.update_thought_status(
-                thought_id=thought.thought_id,
-                status=ThoughtStatus.DEFERRED,
-                final_action={
-                    "action": HandlerActionType.DEFER.value,
-                    "reason": f"Maximum ponder rounds ({self.max_rounds}) reached",
-                    "ponder_notes": questions_list,
-                    "ponder_count": current_ponder_count,
-                },
+            defer_result = ActionSelectionResult(
+                selected_action=HandlerActionType.DEFER,
+                action_parameters=defer_params.model_dump(mode='json'),
+                rationale=f"Auto-defer after reaching max ponder count of {new_ponder_count}",
+                raw_llm_response=None
             )
-            thought.status = ThoughtStatus.DEFERRED
+            
+            # Get the defer handler and pass the thought to it
+            defer_handler = self.dependencies.action_dispatcher.get_handler(HandlerActionType.DEFER)
+            if defer_handler:
+                await defer_handler.handle(defer_result, thought, dispatch_context)
+                return None
+            else:
+                # Fallback if defer handler not available - mark as DEFERRED directly
+                logger.error("Defer handler not available. Setting status to DEFERRED directly.")
+                persistence.update_thought_status(
+                    thought_id=thought.thought_id,
+                    status=ThoughtStatus.DEFERRED,
+                    final_action={
+                        "action": HandlerActionType.DEFER.value,
+                        "reason": f"Maximum action rounds ({self.max_rounds}) reached",
+                        "ponder_notes": questions_list,
+                        "ponder_count": new_ponder_count,
+                    },
+                )
+                thought.status = ThoughtStatus.DEFERRED
+                await self._audit_log(
+                    HandlerActionType.PONDER,
+                    dispatch_context,
+                    {"thought_id": thought.thought_id, "status": ThoughtStatus.DEFERRED.value, "ponder_type": "max_rounds_defer_fallback"},
+                )
+                return None
+        else:
+            # Normal ponder completion - mark as COMPLETED for re-processing
+            next_status = ThoughtStatus.COMPLETED
+        
+        # Normal ponder completion - update thought and create follow-up
+        success = persistence.update_thought_status(
+            thought_id=thought.thought_id,
+            status=next_status,
+            final_action={
+                "action": HandlerActionType.PONDER.value,
+                "ponder_count": new_ponder_count,
+                "ponder_notes": questions_list,
+            },
+        )
+        
+        if success:
+            thought.ponder_count = new_ponder_count
+            existing_notes = thought.ponder_notes or []
+            thought.ponder_notes = existing_notes + questions_list
+            thought.status = next_status
+            logger.info(
+                f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for {next_status.value}."
+            )
+            
+            # Log audit for successful ponder
             await self._audit_log(
                 HandlerActionType.PONDER,
                 dispatch_context,
-                {"thought_id": thought.thought_id, "status": ThoughtStatus.DEFERRED.value, "ponder_type": "max_rounds_defer"},
-            )
-            return None
-        else:
-            new_ponder_count = current_ponder_count + 1
-            logger.info(f"Thought ID {thought.thought_id} pondering (count: {new_ponder_count}). Questions: {questions_list}")
-            next_status = ThoughtStatus.COMPLETED
-            if new_ponder_count >= self.max_rounds:
-                next_status = ThoughtStatus.DEFERRED
-            success = persistence.update_thought_status(
-                thought_id=thought.thought_id,
-                status=next_status,
-                final_action={
-                    "action": HandlerActionType.PONDER.value if next_status == ThoughtStatus.PENDING else HandlerActionType.DEFER.value,
-                    "ponder_count": new_ponder_count,
-                    "ponder_notes": questions_list,
+                {
+                    "thought_id": thought.thought_id,
+                    "status": next_status.value,
+                    "new_ponder_count": new_ponder_count,
+                    "ponder_type": "reprocess",
                 },
             )
-            if success:
-                thought.ponder_count = new_ponder_count
-                existing_notes = thought.ponder_notes or []
-                thought.ponder_notes = existing_notes + questions_list
-                thought.status = next_status
-                logger.info(
-                    f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for {next_status.value}."
-                )
-                # Log audit for successful ponder
-                await self._audit_log(
-                    HandlerActionType.PONDER,
-                    dispatch_context,
-                    {
-                        "thought_id": thought.thought_id,
-                        "status": next_status.value,
-                        "new_ponder_count": new_ponder_count,
-                        "ponder_type": "reprocess" if next_status == ThoughtStatus.PENDING else "auto_defer",
-                    },
-                )
-                # Create a follow-up thought for the ponder action
-                follow_up_content = (
-                    f"This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
-                    f"Pondered questions: {questions_list}. "
-                    "If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
-                )
-                #PROMPT_FOLLOW_UP_THOUGHT
-                from .helpers import create_follow_up_thought
-                follow_up = create_follow_up_thought(
-                    parent=thought,
-                    content=follow_up_content,
-                )
-                follow_up.context = {
-                    "action_performed": HandlerActionType.PONDER.name,
-                    "parent_task_id": thought.source_task_id,
-                    "is_follow_up": True,
-                    "ponder_notes": questions_list,
+            
+            # Create a follow-up thought for the ponder action
+            follow_up_content = (
+                f"CIRIS_FOLLOW_UP_THOUGHT: This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
+                f"Pondered questions: {questions_list}. "
+                "If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            )
+            #PROMPT_FOLLOW_UP_THOUGHT
+            from .helpers import create_follow_up_thought
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                content=follow_up_content,
+            )
+            ctx = {
+                "action_performed": HandlerActionType.PONDER.name,
+                "parent_task_id": thought.source_task_id,
+                "is_follow_up": True,
+                "ponder_notes": questions_list,
+            }
+            for k, v in ctx.items():
+                setattr(follow_up.context, k, v)
+            persistence.add_thought(follow_up)
+            # Note: The thought is already set to PENDING status, so it will be automatically
+            # picked up in the next processing round when the queue is populated from the database
+            return None
+        else:
+            logger.error(f"Failed to update thought ID {thought.thought_id} for re-processing Ponder.")
+            persistence.update_thought_status(
+                thought_id=thought.thought_id,
+                status=ThoughtStatus.FAILED,
+                final_action={
+                    "action": HandlerActionType.PONDER.value,
+                    "error": "Failed to update for re-processing",
+                    "ponder_count": current_ponder_count # Reverted to current_ponder_count as update failed
                 }
-                persistence.add_thought(follow_up)
-                # Note: The thought is already set to PENDING status, so it will be automatically
-                # picked up in the next processing round when the queue is populated from the database
-                return None
-            else:
-                logger.error(f"Failed to update thought ID {thought.thought_id} for re-processing Ponder.")
-                persistence.update_thought_status(
-                    thought_id=thought.thought_id,
-                    status=ThoughtStatus.FAILED,
-                    final_action={
-                        "action": HandlerActionType.PONDER.value,
-                        "error": "Failed to update for re-processing",
-                        "ponder_count": current_ponder_count # Reverted to current_ponder_count as update failed
-                    }
-                )
-                # Log audit for failed ponder update
-                await self._audit_log(
-                    HandlerActionType.PONDER,
-                    dispatch_context,
-                    {"thought_id": thought.thought_id, "status": ThoughtStatus.FAILED.value, "ponder_type": "update_failed"},
-                )
-                # Create a follow-up thought for the failed ponder action
-                follow_up_content = (
-                    f"This is a follow-up thought from a FAILED PONDER action performed on parent task {thought.source_task_id}. "
-                    f"Pondered questions: {questions_list}. "
-                    "The update failed. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
-                )
-                #PROMPT_FOLLOW_UP_THOUGHT
-                from .helpers import create_follow_up_thought
-                follow_up = create_follow_up_thought(
-                    parent=thought,
-                    content=follow_up_content,
-                )
-                follow_up.context = {
-                    "action_performed": HandlerActionType.PONDER.name,
-                    "parent_task_id": thought.source_task_id,
-                    "is_follow_up": True,
-                    "ponder_notes": questions_list,
-                    "error": "Failed to update for re-processing"
-                }
-                persistence.add_thought(follow_up)
-                return None
+            )
+            # Log audit for failed ponder update
+            await self._audit_log(
+                HandlerActionType.PONDER,
+                dispatch_context,
+                {"thought_id": thought.thought_id, "status": ThoughtStatus.FAILED.value, "ponder_type": "update_failed"},
+            )
+            # Create a follow-up thought for the failed ponder action
+            follow_up_content = (
+                f"This is a follow-up thought from a FAILED PONDER action performed on parent task {thought.source_task_id}. "
+                f"Pondered questions: {questions_list}. "
+                "The update failed. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            )
+            #PROMPT_FOLLOW_UP_THOUGHT
+            from .helpers import create_follow_up_thought
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                content=follow_up_content,
+            )
+            ctx2 = {
+                "action_performed": HandlerActionType.PONDER.name,
+                "parent_task_id": thought.source_task_id,
+                "is_follow_up": True,
+                "ponder_notes": questions_list,
+                "error": "Failed to update for re-processing"
+            }
+            for k, v in ctx2.items():
+                setattr(follow_up.context, k, v)
+            persistence.add_thought(follow_up)
+            return None

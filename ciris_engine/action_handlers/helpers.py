@@ -25,6 +25,17 @@ def create_follow_up_thought(
     parent_round = parent.round_number if hasattr(parent, 'round_number') else 0
 
     # Create follow-up thought with v1 schema
+    from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+
+    if isinstance(parent.context, ThoughtContext):
+        ctx = parent.context.model_copy()
+    elif isinstance(parent.context, dict):
+        ctx_data = parent.context.copy()
+        ctx_data.setdefault("system_snapshot", {})
+        ctx = ThoughtContext.model_validate(ctx_data)
+    else:
+        ctx = ThoughtContext(system_snapshot=SystemSnapshot())
+
     follow_up = Thought(
         thought_id=str(uuid.uuid4()),
         source_task_id=parent.source_task_id,
@@ -35,7 +46,7 @@ def create_follow_up_thought(
         round_number=parent_round,
         content=content,
         parent_thought_id=parent.thought_id,
-        context=parent.context.model_copy() if hasattr(parent.context, 'model_copy') else (dict(parent.context) if parent.context else {}),  # propagate context as dict
+        context=ctx,
         ponder_count=0,
         ponder_notes=None,
         final_action={},

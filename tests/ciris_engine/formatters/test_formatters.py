@@ -10,14 +10,16 @@ from ciris_engine.formatters import (
 )
 
 def test_format_system_snapshot():
-    snap = {"pending_tasks": 2, "active_thoughts": 1, "completed_tasks": 5, "recent_errors": 0}
+    from ciris_engine.schemas.context_schemas_v1 import SystemSnapshot
+    snap = SystemSnapshot(system_counts={"pending_tasks": 2, "active_thoughts": 1, "completed_tasks": 5, "recent_errors": 0})
     out = format_system_snapshot(snap)
     assert "Pending Tasks: 2" in out
     assert "Active Thoughts: 1" in out
     assert "Completed Tasks: 5" in out
     assert "Recent Errors: 0" in out
     # Test missing fields
-    out2 = format_system_snapshot({})
+    snap2 = SystemSnapshot()
+    out2 = format_system_snapshot(snap2)
     assert "Pending Tasks" not in out2
 
 def test_format_user_profiles():

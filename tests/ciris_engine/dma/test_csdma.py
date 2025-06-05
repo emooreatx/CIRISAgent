@@ -24,11 +24,12 @@ async def test_csdma_evaluate_thought(monkeypatch):
     mock_result = CSDMAResult(plausibility_score=0.8, flags=["f1"], reasoning="r")
     monkeypatch.setattr("instructor.patch", lambda c, mode: c)
     dummy_client.client.chat.completions.create = AsyncMock(return_value=mock_result)
+    from ciris_engine.processor.processing_queue import ThoughtContent
     item = ProcessingQueueItem(
         thought_id="t1",
         source_task_id="s1",
         thought_type="test",
-        content="test",
+        content=ThoughtContent(text="test"),
     )
     result = await evaluator.evaluate_thought(item)
     assert isinstance(result, CSDMAResult)

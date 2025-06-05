@@ -22,7 +22,7 @@ async def test_extract_user_nick_dispatch_context():
     assert nick == "n"
 
 @pytest.mark.asyncio
-@patch("ciris_engine.utils.user_utils.persistence.get_thought_by_id")
+@patch("ciris_engine.utils.user_utils.persistence.async_get_thought_by_id")
 @patch("ciris_engine.utils.user_utils.persistence.get_task_by_id")
 async def test_extract_user_nick_thought_id(mock_get_task, mock_get_thought):
     mock_get_thought.return_value = MagicMock(source_task_id="tid")

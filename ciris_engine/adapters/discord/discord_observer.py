@@ -4,17 +4,19 @@ import asyncio
 from typing import Callable, Awaitable, Dict, Any, Optional
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 
-from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage
 from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
 from ciris_engine.utils.constants import DEFAULT_WA
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 
 logger = logging.getLogger(__name__)
 
+PASSIVE_CONTEXT_LIMIT = 10
+
 
 class DiscordObserver:
     """
-    Observes IncomingMessage objects directly from Discord adapter, converts them into OBSERVATION
+    Observes DiscordMessage objects directly from Discord adapter, converts them into OBSERVATION
     payloads, and forwards them to the agent via MultiServiceSink. Uses only MultiServiceSink 
     architecture without event queues.
     """
@@ -29,7 +31,7 @@ class DiscordObserver:
         self.memory_service = memory_service
         self.agent_id = agent_id
         self.multi_service_sink = multi_service_sink
-        self._history: list[IncomingMessage] = []
+        self._history: list[DiscordMessage] = []
 
         from ciris_engine.config.config_manager import get_config
 
@@ -45,9 +47,9 @@ class DiscordObserver:
         """Stop the observer - no background tasks to clean up."""
         logger.info("DiscordObserver stopped")
 
-    async def handle_incoming_message(self, msg: IncomingMessage) -> None:
-        if not isinstance(msg, IncomingMessage):
-            logger.warning("DiscordObserver received non-IncomingMessage")
+    async def handle_incoming_message(self, msg: DiscordMessage) -> None:
+        if not isinstance(msg, DiscordMessage):
+            logger.warning("DiscordObserver received non-DiscordMessage")
             return
         if self.agent_id and msg.author_id == self.agent_id:
             logger.debug("Ignoring self message %s", msg.message_id)
@@ -63,7 +65,7 @@ class DiscordObserver:
         # Memory recall
         await self._recall_context(msg)
 
-    async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
+    async def _handle_passive_observation(self, msg: DiscordMessage) -> None:
         from ciris_engine.config.config_manager import get_config
         from ciris_engine.utils.constants import (
             DISCORD_DEFERRAL_CHANNEL_ID,
@@ -80,12 +82,12 @@ class DiscordObserver:
         else:
             logger.debug("Ignoring message from channel %s, author %s", msg.channel_id, msg.author_name)
 
-    def _is_agent_message(self, msg: IncomingMessage) -> bool:
+    def _is_agent_message(self, msg: DiscordMessage) -> bool:
         if self.agent_id and msg.author_id == self.agent_id:
             return True
         return msg.is_bot
 
-    async def _create_passive_observation_result(self, msg: IncomingMessage) -> None:
+    async def _create_passive_observation_result(self, msg: DiscordMessage) -> None:
         """Create task and thought for passive observation."""
         try:
             from datetime import datetime, timezone
@@ -108,10 +110,26 @@ class DiscordObserver:
                     "author_name": msg.author_name,
                     "message_id": msg.message_id,
                     "origin_service": "discord",
-                    "observation_type": "passive"
+                    "observation_type": "passive",
+                    "recent_messages": [
+                        {
+                            "id": m.message_id,
+                            "content": m.content,
+                            "author_id": m.author_id,
+                            "author_name": m.author_name,
+                            "channel_id": m.channel_id,
+                            "timestamp": getattr(m, "timestamp", "n/a"),
+                        }
+                        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
+                    ],
                 }
             )
-            assert "channel_id" in task.context and task.context["channel_id"], "Task context must include a non-empty channel_id"
+            channel_id = (
+                task.context.get("channel_id")
+                if isinstance(task.context, dict)
+                else getattr(task.context, "channel_id", None)
+            )
+            assert channel_id, "Task context must include a non-empty channel_id"
             persistence.add_task(task)
 
             # Create thought for this task
@@ -124,9 +142,18 @@ class DiscordObserver:
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 round_number=0,
                 content=f"User @{msg.author_name} said: {msg.content}",
-                context=task.context
+                context=(
+                    task.context
+                    if isinstance(task.context, dict)
+                    else task.context.model_dump()
+                )
             )
-            assert "channel_id" in thought.context and thought.context["channel_id"], "Thought context must include a non-empty channel_id"
+            thought_channel_id = (
+                thought.context.get("channel_id")
+                if isinstance(thought.context, dict)
+                else getattr(thought.context, "channel_id", None)
+            )
+            assert thought_channel_id, "Thought context must include a non-empty channel_id"
             persistence.add_thought(thought)
 
             logger.info(f"Created observation task {task.task_id} and thought {thought.thought_id} for message {msg.message_id}")
@@ -134,7 +161,7 @@ class DiscordObserver:
         except Exception as e:
             logger.error(f"Error creating observation task: {e}", exc_info=True)
 
-    async def _add_to_feedback_queue(self, msg: IncomingMessage) -> None:
+    async def _add_to_feedback_queue(self, msg: DiscordMessage) -> None:
         try:
             if self.multi_service_sink:
                 success = await self.multi_service_sink.send_message(
@@ -157,11 +184,11 @@ class DiscordObserver:
         except Exception as e:
             logger.error(f"Error adding WA feedback message {msg.message_id} to queue: {e}")
 
-    async def _recall_context(self, msg: IncomingMessage) -> None:
+    async def _recall_context(self, msg: DiscordMessage) -> None:
         if not self.memory_service:
             return
         recall_ids = {f"channel/{msg.channel_id}"}
-        for m in self._history[-10:]:
+        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]:
             if m.author_id:
                 recall_ids.add(f"user/{m.author_id}")
         for rid in recall_ids:

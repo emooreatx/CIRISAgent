@@ -17,7 +17,15 @@ class DummyLLMResponse:
 @pytest.mark.asyncio
 async def test_forced_ponder(monkeypatch):
     service_registry = ServiceRegistry()
-    dummy_client = SimpleNamespace(client=MagicMock())
+    # Create a mock client structure that matches what the ActionSelectionPDMA expects
+    mock_chat_completions = AsyncMock()
+    mock_chat_completions.create = AsyncMock()
+    
+    # Create the actual client mock that instructor.patch will work with
+    mock_client = MagicMock()
+    mock_client.chat = SimpleNamespace(completions=mock_chat_completions)
+    
+    dummy_client = SimpleNamespace(client=mock_client)
     dummy_service = SimpleNamespace(get_client=lambda: dummy_client)
     service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
     monkeypatch.setattr("instructor.patch", lambda c, mode: c)
@@ -30,17 +38,20 @@ async def test_forced_ponder(monkeypatch):
         'original_thought': Thought(thought_id="t1", content="irrelevant", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
-        'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
+        'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
         'current_ponder_count': 0,
         'max_rounds': 3,
-        'processing_context': {'initial_task_context': {'content': 'ponder'}}
+        'processing_context': SimpleNamespace(initial_task_context=SimpleNamespace(content='ponder'))
     }
     result = await evaluator.evaluate(triaged_inputs)
     assert isinstance(result, ActionSelectionResult)
     assert result.selected_action == HandlerActionType.PONDER
     assert "Forced" in result.rationale
     # Schema-driven assertion
-    ponder_params = PonderParams(**result.action_parameters)
+    if isinstance(result.action_parameters, PonderParams):
+        ponder_params = result.action_parameters
+    else:
+        ponder_params = PonderParams(**result.action_parameters)
     assert isinstance(ponder_params.questions, list)
     assert any("Forced" in q for q in ponder_params.questions)
 
@@ -76,7 +87,7 @@ async def test_llm_success(monkeypatch):
         'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
-        'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
+        'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
         'current_ponder_count': 0,
         'max_rounds': 3,
         'processing_context': {}
@@ -112,7 +123,7 @@ async def test_instructor_retry(monkeypatch):
         'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
-        'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
+        'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
         'current_ponder_count': 0,
         'max_rounds': 3,
         'processing_context': {}
@@ -121,7 +132,10 @@ async def test_instructor_retry(monkeypatch):
     assert result.selected_action == HandlerActionType.PONDER
     assert "InstructorRetryException" in result.rationale or "Fallback" in result.rationale
     # Schema-driven assertion
-    ponder_params = PonderParams(**result.action_parameters)
+    if isinstance(result.action_parameters, PonderParams):
+        ponder_params = result.action_parameters
+    else:
+        ponder_params = PonderParams(**result.action_parameters)
     assert any("System error" in q or "err" in q for q in ponder_params.questions)
 
 @pytest.mark.asyncio
@@ -141,7 +155,7 @@ async def test_general_exception(monkeypatch):
         'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
-        'dsdma_result': DSDMAResult.model_construct(domain="test", alignment_score=1.0),
+        'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
         'current_ponder_count': 0,
         'max_rounds': 3,
         'processing_context': {}
@@ -150,7 +164,10 @@ async def test_general_exception(monkeypatch):
     assert result.selected_action == HandlerActionType.PONDER
     assert "General Exception" in result.rationale or "Fallback" in result.rationale
     # Schema-driven assertion
-    ponder_params = PonderParams(**result.action_parameters)
+    if isinstance(result.action_parameters, PonderParams):
+        ponder_params = result.action_parameters
+    else:
+        ponder_params = PonderParams(**result.action_parameters)
     assert any("System error" in q or "fail" in q for q in ponder_params.questions)
 
 # Optionally, add a negative test to ensure invalid action_parameters raise ValidationError

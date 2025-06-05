@@ -30,6 +30,10 @@ class ActionDispatcher:
         for action_type, handler_instance in self.handlers.items():
             logger.info(f"ActionDispatcher: Registered handler for {action_type.value}: {handler_instance.__class__.__name__}")
 
+    def get_handler(self, action_type: HandlerActionType) -> Optional[BaseActionHandler]:
+        """Get a handler by action type."""
+        return self.handlers.get(action_type)
+
     async def dispatch(
         self,
         action_selection_result: ActionSelectionResult,

@@ -5,6 +5,7 @@ from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapsh
 from pydantic import BaseModel
 import types
 import asyncio
+from ciris_engine.action_handlers.helpers import create_follow_up_thought
 
 class DummyMemoryService:
     def __init__(self):
@@ -51,7 +52,7 @@ async def test_build_thought_context_minimal():
     thought = make_thought()
     ctx = await builder.build_thought_context(thought)
     assert isinstance(ctx, ThoughtContext)
-    assert isinstance(ctx.system_snapshot, dict) or isinstance(ctx.system_snapshot, SystemSnapshot)
+    assert isinstance(ctx.system_snapshot, SystemSnapshot)
     assert isinstance(ctx.user_profiles, dict)
     assert isinstance(ctx.task_history, list)
 
@@ -62,7 +63,7 @@ async def test_build_thought_context_with_memory_and_graphql():
     task = make_task()
     ctx = await builder.build_thought_context(thought, task)
     # Should have user_profiles from GraphQL
-    assert ctx.user_profiles["u1"]["name"] == "Alice"
+    assert ctx.user_profiles["u1"].name == "Alice"
     # Should have identity_context from DummyMemoryService
     assert "Agent identity string" in ctx.identity_context
     # Should have task_history from recently_completed_tasks_summary
@@ -88,3 +89,25 @@ async def test_build_context_includes_task_summaries():
     snap = ctx.system_snapshot
     assert isinstance(snap.recently_completed_tasks_summary, list)
     assert isinstance(snap.top_pending_tasks_summary, list)
+
+
+@pytest.mark.asyncio
+async def test_followup_thought_channel_context():
+    builder = ContextBuilder()
+    parent = make_thought()
+    parent.context = {"channel_id": "chan-123"}
+    child = create_follow_up_thought(parent, content="child")
+    task = make_task()
+    ctx = await builder.build_thought_context(child, task)
+    assert ctx.system_snapshot.channel_id == "chan-123"
+
+
+@pytest.mark.asyncio
+async def test_current_task_details_is_summary():
+    builder = ContextBuilder()
+    thought = make_thought()
+    task = make_task()
+    ctx = await builder.build_thought_context(thought, task)
+    assert ctx.system_snapshot.current_task_details.task_id == task.task_id
+    from ciris_engine.schemas.context_schemas_v1 import TaskSummary
+    assert isinstance(ctx.system_snapshot.current_task_details, TaskSummary)

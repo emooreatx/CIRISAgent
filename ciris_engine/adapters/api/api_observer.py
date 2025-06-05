@@ -10,6 +10,8 @@ from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 
 logger = logging.getLogger(__name__)
 
+PASSIVE_CONTEXT_LIMIT = 10
+
 class APIObserver:
     def __init__(
         self,
@@ -90,10 +92,26 @@ class APIObserver:
                     "author_name": msg.author_name,
                     "message_id": msg.message_id,
                     "origin_service": "api",
-                    "observation_type": "passive"
+                    "observation_type": "passive",
+                    "recent_messages": [
+                        {
+                            "id": m.message_id,
+                            "content": m.content,
+                            "author_id": m.author_id,
+                            "author_name": m.author_name,
+                            "channel_id": m.channel_id,
+                            "timestamp": getattr(m, "timestamp", "n/a"),
+                        }
+                        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
+                    ],
                 }
             )
-            assert "channel_id" in task.context and task.context["channel_id"], "Task context must include a non-empty channel_id"
+            channel_id = (
+                task.context.get("channel_id")
+                if isinstance(task.context, dict)
+                else getattr(task.context, "channel_id", None)
+            )
+            assert channel_id, "Task context must include a non-empty channel_id"
             persistence.add_task(task)
 
             thought = Thought(
@@ -105,9 +123,18 @@ class APIObserver:
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 round_number=0,
                 content=f"User @{msg.author_name} said: {msg.content}",
-                context=task.context
+                context=(
+                    task.context
+                    if isinstance(task.context, dict)
+                    else task.context.model_dump()
+                )
             )
-            assert "channel_id" in thought.context and thought.context["channel_id"], "Thought context must include a non-empty channel_id"
+            thought_channel_id = (
+                thought.context.get("channel_id")
+                if isinstance(thought.context, dict)
+                else getattr(thought.context, "channel_id", None)
+            )
+            assert thought_channel_id, "Thought context must include a non-empty channel_id"
             persistence.add_thought(thought)
 
             logger.info(f"Created observation task {task.task_id} and thought {thought.thought_id} for message {msg.message_id}")
@@ -142,7 +169,7 @@ class APIObserver:
         if not self.memory_service:
             return
         recall_ids = {f"channel/{msg.channel_id}"}
-        for m in self._history[-10:]:
+        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]:
             if m.author_id:
                 recall_ids.add(f"user/{m.author_id}")
         for rid in recall_ids:

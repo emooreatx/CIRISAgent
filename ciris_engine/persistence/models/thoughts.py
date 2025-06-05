@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from typing import List, Optional
 from ciris_engine.persistence import get_db_connection
+import asyncio
 from ciris_engine.persistence.utils import map_row_to_thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
@@ -66,6 +67,30 @@ def get_thought_by_id(thought_id: str, db_path=None) -> Optional[Thought]:
     except Exception as e:
         logger.exception(f"Failed to get thought {thought_id}: {e}")
         return None
+
+
+async def async_get_thought_by_id(thought_id: str, db_path=None) -> Optional[Thought]:
+    """Asynchronous wrapper for get_thought_by_id using asyncio.to_thread."""
+    return await asyncio.to_thread(get_thought_by_id, thought_id, db_path)
+
+
+async def async_get_thought_status(thought_id: str, db_path=None) -> Optional[ThoughtStatus]:
+    """Retrieve just the status of a thought asynchronously."""
+
+    def _query() -> Optional[ThoughtStatus]:
+        sql = "SELECT status FROM thoughts WHERE thought_id = ?"
+        try:
+            with get_db_connection(db_path=db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(sql, (thought_id,))
+                row = cursor.fetchone()
+                if row:
+                    return ThoughtStatus(row[0])
+        except Exception as exc:
+            logger.exception(f"Failed to fetch status for thought {thought_id}: {exc}")
+        return None
+
+    return await asyncio.to_thread(_query)
 
 def get_thoughts_by_task_id(task_id: str, db_path=None) -> list[Thought]:
     """Return all thoughts for a given source_task_id as Thought objects."""

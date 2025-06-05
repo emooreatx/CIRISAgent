@@ -165,7 +165,7 @@ class WorkProcessor(BaseProcessor):
         )
         
         # Get full thought object
-        thought_obj = persistence.get_thought_by_id(thought_id)
+        thought_obj = await persistence.async_get_thought_by_id(thought_id)
         if not thought_obj:
             logger.error(f"Could not retrieve thought {thought_id} for dispatch")
             return

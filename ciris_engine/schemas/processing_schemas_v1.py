@@ -9,13 +9,6 @@ class DMAResults(BaseModel):
     dsdma: Optional[DSDMAResult] = None
     errors: List[str] = Field(default_factory=list)
     
-class ThoughtContext(BaseModel):
-    """Complete context for thought processing."""
-    system_snapshot: Dict[str, Any]
-    user_profiles: Dict[str, Any]
-    task_history: List[Dict[str, Any]]
-    identity_context: Optional[str] = None
-    
 class GuardrailResult(BaseModel):
     """Result from guardrail application."""
     original_action: ActionSelectionResult

@@ -8,6 +8,8 @@ class GraphScope(str, Enum):
     LOCAL = "local"
     IDENTITY = "identity"
     ENVIRONMENT = "environment"
+    COMMUNITY = "community"    # NEW - for community-specific knowledge
+    NETWORK = "network"        # NEW - for network/peer information
 
 
 class NodeType(str, Enum):

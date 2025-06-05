@@ -52,6 +52,11 @@ class ThoughtProcessor:
 
         # 2. Build context
         context = await self.context_builder.build_thought_context(thought)
+        # Store the fresh context on the queue item so DMA executor can use it
+        if hasattr(context, "model_dump"):
+            thought_item.initial_context = context.model_dump()
+        else:
+            thought_item.initial_context = context
 
         # 3. Run DMAs
         # profile_name is not an accepted argument by run_initial_dmas.
@@ -61,7 +66,8 @@ class ThoughtProcessor:
         # The dsdma_context argument is optional and defaults to None if not provided.
         try:
             dma_results = await self.dma_orchestrator.run_initial_dmas(
-                thought_item=thought_item
+                thought_item=thought_item,
+                processing_context=context,
             )
         except DMAFailure as dma_err:
             logger.error(
@@ -173,7 +179,7 @@ class ThoughtProcessor:
     async def _fetch_thought(self, thought_id: str) -> Optional[Thought]:
         # Import here to avoid circular import
         from ciris_engine import persistence
-        return persistence.get_thought_by_id(thought_id)
+        return await persistence.async_get_thought_by_id(thought_id)
 
     def _get_profile_name(self, thought: Thought) -> str:
         """Extract profile name from thought context or use default."""

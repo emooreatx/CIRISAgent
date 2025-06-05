@@ -7,8 +7,12 @@ from abc import abstractmethod
 from ciris_engine.schemas.foundational_schemas_v1 import (
     HandlerActionType,
     IncomingMessage,
+    FetchedMessage,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult
+from ciris_engine.schemas.network_schemas_v1 import AgentIdentity, NetworkPresence
+from ciris_engine.schemas.community_schemas_v1 import MinimalCommunityContext
 
 class CommunicationService(Protocol):
     """Protocol for communication services (Discord, Veilid, etc)"""
@@ -28,7 +32,7 @@ class CommunicationService(Protocol):
         ...
     
     @abstractmethod
-    async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
         """
         Fetch recent messages from a channel.
         
@@ -37,7 +41,7 @@ class CommunicationService(Protocol):
             limit: Maximum number of messages to fetch
             
         Returns:
-            List of message dictionaries
+            List of fetched messages
         """
         ...
     
@@ -98,17 +102,17 @@ class MemoryService(Protocol):
     """Protocol for memory services"""
     
     @abstractmethod
-    async def memorize(self, node: GraphNode) -> bool:
-        """Store a graph node."""
+    async def memorize(self, node: GraphNode) -> MemoryOpResult:
+        """Store a graph node and return operation result."""
         ...
     
     @abstractmethod
-    async def recall(self, node: GraphNode) -> Optional[Any]:
+    async def recall(self, node: GraphNode) -> MemoryOpResult:
         """Retrieve a node from memory."""
         ...
     
     @abstractmethod
-    async def forget(self, node: GraphNode) -> bool:
+    async def forget(self, node: GraphNode) -> MemoryOpResult:
         """Delete a node from memory."""
         ...
     
@@ -321,3 +325,40 @@ class LLMService(Protocol):
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
         return ["generate_response", "generate_structured_response"]
+
+
+class NetworkService(Protocol):
+    """Protocol for network participation services"""
+    
+    @abstractmethod
+    async def register_agent(self, identity: AgentIdentity) -> bool:
+        """Register agent on network"""
+        ...
+    
+    @abstractmethod
+    async def discover_peers(self, capabilities: List[str] = None) -> List[NetworkPresence]:
+        """Discover other agents/services"""
+        ...
+    
+    @abstractmethod
+    async def check_wa_availability(self) -> bool:
+        """Check if any Wise Authority is reachable"""
+        ...
+    
+    @abstractmethod
+    async def query_network(self, query_type: str, params: Dict[str, Any]) -> Any:
+        """Query network for information"""
+        ...
+
+class CommunityService(Protocol):
+    """Protocol for community-aware services"""
+    
+    @abstractmethod
+    async def get_community_context(self, community_id: str) -> MinimalCommunityContext:
+        """Get current community context"""
+        ...
+    
+    @abstractmethod
+    async def report_community_metric(self, metric: str, value: int) -> bool:
+        """Report a community health metric (0-100 scale)"""
+        ...

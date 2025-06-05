@@ -1,5 +1,5 @@
 # --- v1 Action Params Schemas ---
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Dict, Any, Optional
 from .graph_schemas_v1 import GraphScope, GraphNode
 
@@ -7,6 +7,8 @@ class ObserveParams(BaseModel):
     channel_id: Optional[str] = None
     active: bool = False
     context: dict = Field(default_factory=dict)
+
+    model_config = ConfigDict(extra="forbid")
 
     def __init__(self, **data):
         if 'context' not in data or data['context'] is None:
@@ -17,24 +19,36 @@ class SpeakParams(BaseModel):
     channel_id: Optional[str] = None
     content: str
 
+    model_config = ConfigDict(extra="forbid")
+
 class ToolParams(BaseModel):  # Renamed from ActParams
     name: str
-    args: Dict[str, Any] = Field(default_factory=dict)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(extra="forbid")
 
 class PonderParams(BaseModel):
     questions: List[str]
 
+    model_config = ConfigDict(extra="forbid")
+
 class RejectParams(BaseModel):
     reason: str
+
+    model_config = ConfigDict(extra="forbid")
 
 class DeferParams(BaseModel):
     reason: str
     context: Dict[str, Any] = Field(default_factory=dict)
 
+    model_config = ConfigDict(extra="forbid")
+
 class MemorizeParams(BaseModel):
     """Parameters for MEMORIZE action."""
 
     node: GraphNode
+
+    model_config = ConfigDict(extra="forbid")
 
     @property
     def scope(self) -> GraphScope:
@@ -45,6 +59,8 @@ class RecallParams(BaseModel):
 
     node: GraphNode
 
+    model_config = ConfigDict(extra="forbid")
+
     @property
     def scope(self) -> GraphScope:
         return self.node.scope
@@ -54,6 +70,8 @@ class ForgetParams(BaseModel):
 
     node: GraphNode
     reason: str
+
+    model_config = ConfigDict(extra="forbid")
 
     @property
     def scope(self) -> GraphScope:

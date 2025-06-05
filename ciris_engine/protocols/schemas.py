@@ -9,8 +9,8 @@ from ciris_engine.schemas.guardrails_schemas_v1 import GuardrailCheckResult
 from ciris_engine.schemas.processing_schemas_v1 import (
     DMAResults,
     GuardrailResult,
-    ThoughtContext,
 )
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.schemas.foundational_schemas_v1 import (
     HandlerActionType,
     TaskStatus,

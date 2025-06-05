@@ -37,10 +37,6 @@ ENGINE_OVERVIEW_TEMPLATE = (
     "no new Thought is generated."
 )
 
-# Depth and ponder safeguards
-MAX_THOUGHT_DEPTH = 7
-MAX_PONDER_COUNT = 7
-
 # Processing rounds control
 DEFAULT_NUM_ROUNDS = None  # None means infinite rounds (no limit)
 

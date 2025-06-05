@@ -88,22 +88,14 @@ class MemorizeHandler(BaseActionHandler):
                 node.attributes.setdefault("source", thought.source_task_id)
                 try:
                     mem_op = await memory_service.memorize(node)
-                    success = False
-                    reason = None
-                    if isinstance(mem_op, bool):
-                        success = mem_op
-                    elif hasattr(mem_op, "status"):
-                        success = str(getattr(mem_op, "status")) in {"ok", "OK", "saved", "SAVED"}
-                        reason = getattr(mem_op, "reason", None)
-                    else:
-                        success = bool(mem_op)
-
-                    if success:
+                    if mem_op.status == MemoryOpStatus.OK:
                         action_performed_successfully = True
-                        follow_up_content_key_info = f"Memorization successful. Key: '{node.id}'"
+                        follow_up_content_key_info = (
+                            f"Memorization successful. Key: '{node.id}'"
+                        )
                     else:
                         final_thought_status = ThoughtStatus.DEFERRED
-                        follow_up_content_key_info = reason or "Memory operation failed"
+                        follow_up_content_key_info = mem_op.reason or mem_op.error or "Memory operation failed"
                 except Exception as e_mem:
                     await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e_mem)
                     final_thought_status = ThoughtStatus.FAILED
@@ -121,12 +113,12 @@ class MemorizeHandler(BaseActionHandler):
         follow_up_text = ""
         if action_performed_successfully:
             follow_up_text = (
-                f"Memorization successful for original thought {thought_id} (Task: {thought.source_task_id}). "
+                f"CIRIS_FOLLOW_UP_THOUGHT: Memorization successful for original thought {thought_id} (Task: {thought.source_task_id}). "
                 f"Info: {follow_up_content_key_info}. "
                 "Consider informing the user with SPEAK or select TASK_COMPLETE if the overall task is finished."
             )
         else:  # Failed or Deferred
-            follow_up_text = f"MEMORIZE action for thought {thought_id} resulted in status {final_thought_status.value}. Info: {follow_up_content_key_info}. Review and determine next steps."
+            follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: MEMORIZE action for thought {thought_id} resulted in status {final_thought_status.value}. Info: {follow_up_content_key_info}. Review and determine next steps."
         #PROMPT_FOLLOW_UP_THOUGHT
 
         try:
@@ -142,10 +134,10 @@ class MemorizeHandler(BaseActionHandler):
             if final_thought_status != ThoughtStatus.COMPLETED:
                 context_for_follow_up["error_details"] = follow_up_content_key_info
 
-            # Pass action parameters directly - persistence will handle serialization
             context_for_follow_up["action_params"] = result.action_parameters
 
-            new_follow_up.context = context_for_follow_up  # v1 uses 'context'
+            for k, v in context_for_follow_up.items():
+                setattr(new_follow_up.context, k, v)
             persistence.add_thought(new_follow_up)
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after MEMORIZE action."

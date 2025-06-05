@@ -21,13 +21,16 @@ async def test_pdma_init_and_evaluate(monkeypatch):
     )
     dummy_client.instruct_client.chat.completions.create = AsyncMock(return_value=mock_result)
     dummy_client.instruct_client.chat.completions.create = AsyncMock(return_value=mock_result)
+    from ciris_engine.processor.processing_queue import ThoughtContent
     item = ProcessingQueueItem(
         thought_id="t1",
         source_task_id="s1",
         thought_type="test",
-        content="test",
+        content=ThoughtContent(text="test"),
     )
-    result = await evaluator.evaluate(item)
+    from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+    ctx = ThoughtContext(system_snapshot=SystemSnapshot(system_counts={}))
+    result = await evaluator.evaluate(item, ctx)
     assert isinstance(result, EthicalDMAResult)
     assert result.alignment_check == {"SPEAK": "ok"}
     assert result.decision == "Allow"

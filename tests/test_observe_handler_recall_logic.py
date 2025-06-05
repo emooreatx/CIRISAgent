@@ -68,81 +68,86 @@ def observe_handler():
 @pytest.fixture
 def sample_messages():
     """Fixture providing sample messages that match Discord adapter structure"""
+    from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+
     return [
-        {
-            "id": "1234567890123456789",
-            "content": "Hello, this is a test message",
-            "author_id": "987654321098765432", 
-            "author_name": "TestUser1",
-            "timestamp": "2025-06-01T19:36:02.661000",
-            "is_bot": False
-        },
-        {
-            "id": "1234567890123456790",
-            "content": "Another test message",
-            "author_id": "987654321098765433",
-            "author_name": "TestUser2", 
-            "timestamp": "2025-06-01T19:36:03.661000",
-            "is_bot": False
-        },
-        {
-            "id": "1234567890123456791",
-            "content": "Bot message should be recalled too",
-            "author_id": "987654321098765434",
-            "author_name": "TestBot",
-            "timestamp": "2025-06-01T19:36:04.661000",
-            "is_bot": True
-        },
-        {
-            "id": "1234567890123456792",
-            "content": "Message with no author_id",
-            "author_name": "SystemMessage",
-            "timestamp": "2025-06-01T19:36:05.661000",
-            "is_bot": False
-            # Note: missing author_id to test edge case
-        }
+        FetchedMessage(
+            id="1234567890123456789",
+            content="Hello, this is a test message",
+            author_id="987654321098765432",
+            author_name="TestUser1",
+            timestamp="2025-06-01T19:36:02.661000",
+            is_bot=False,
+        ),
+        FetchedMessage(
+            id="1234567890123456790",
+            content="Another test message",
+            author_id="987654321098765433",
+            author_name="TestUser2",
+            timestamp="2025-06-01T19:36:03.661000",
+            is_bot=False,
+        ),
+        FetchedMessage(
+            id="1234567890123456791",
+            content="Bot message should be recalled too",
+            author_id="987654321098765434",
+            author_name="TestBot",
+            timestamp="2025-06-01T19:36:04.661000",
+            is_bot=True,
+        ),
+        FetchedMessage(
+            id="1234567890123456792",
+            content="Message with no author_id",
+            author_name="SystemMessage",
+            timestamp="2025-06-01T19:36:05.661000",
+            is_bot=False,
+        ),
     ]
 
 
 @pytest.fixture
 def malformed_messages():
     """Fixture providing malformed messages to test edge cases"""
+    from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+
     return [
-        {},  # Empty message
-        {"content": "Message with only content"},  # Missing author info
-        {"author_id": "", "content": "Empty author_id"},  # Empty author_id
-        {"author_id": None, "content": "None author_id"},  # None author_id
+        FetchedMessage(),  # Empty message
+        FetchedMessage(content="Message with only content"),
+        FetchedMessage(author_id="", content="Empty author_id"),
+        FetchedMessage(author_id=None, content="None author_id"),
     ]
 
 
 @pytest.fixture
 def duplicate_author_messages():
     """Fixture providing messages with duplicate author IDs"""
+    from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+
     return [
-        {
-            "id": "msg1",
-            "content": "First message",
-            "author_id": "user123",
-            "author_name": "TestUser",
-            "timestamp": "2025-06-01T19:36:02.661000",
-            "is_bot": False
-        },
-        {
-            "id": "msg2", 
-            "content": "Second message from same user",
-            "author_id": "user123",  # Same author
-            "author_name": "TestUser",
-            "timestamp": "2025-06-01T19:36:03.661000",
-            "is_bot": False
-        },
-        {
-            "id": "msg3",
-            "content": "Third message from same user", 
-            "author_id": "user123",  # Same author again
-            "author_name": "TestUser",
-            "timestamp": "2025-06-01T19:36:04.661000",
-            "is_bot": False
-        }
+        FetchedMessage(
+            id="msg1",
+            content="First message",
+            author_id="user123",
+            author_name="TestUser",
+            timestamp="2025-06-01T19:36:02.661000",
+            is_bot=False,
+        ),
+        FetchedMessage(
+            id="msg2",
+            content="Second message from same user",
+            author_id="user123",
+            author_name="TestUser",
+            timestamp="2025-06-01T19:36:03.661000",
+            is_bot=False,
+        ),
+        FetchedMessage(
+            id="msg3",
+            content="Third message from same user",
+            author_id="user123",
+            author_name="TestUser",
+            timestamp="2025-06-01T19:36:04.661000",
+            is_bot=False,
+        ),
     ]
 
 
@@ -294,15 +299,16 @@ class TestObserveHandlerRecallLogic:
     async def test_recall_error_handling(self, observe_handler, mock_memory_service):
         """Test handling of recall errors"""
         channel_id = "test_channel"
+        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
         messages = [
-            {
-                "id": "test_msg",
-                "content": "Test message",
-                "author_id": "test_user",
-                "author_name": "TestUser",
-                "timestamp": "2025-06-01T19:36:02.661000",
-                "is_bot": False
-            }
+            FetchedMessage(
+                id="test_msg",
+                content="Test message",
+                author_id="test_user",
+                author_name="TestUser",
+                timestamp="2025-06-01T19:36:02.661000",
+                is_bot=False,
+            )
         ]
         
         # Set up some recall errors
@@ -319,34 +325,33 @@ class TestObserveHandlerRecallLogic:
     async def test_message_structure_validation(self, sample_messages):
         """Test that sample messages have the expected structure"""
         required_fields = ["id", "content", "author_name", "timestamp", "is_bot"]
-        
+
         for i, msg in enumerate(sample_messages):
+            data = msg.model_dump(by_alias=True)
             for field in required_fields:
-                assert field in msg, f"Message {i+1} missing required field '{field}'"
-            
+                assert field in data, f"Message {i+1} missing required field '{field}'"
+
             # Most messages should have author_id (except test message 4)
             if i < 3:
-                assert "author_id" in msg
-                assert isinstance(msg["author_id"], str)
-                assert len(msg["author_id"]) > 0
-            
-            # Verify field types
-            assert isinstance(msg["content"], str)
-            assert isinstance(msg["is_bot"], bool)
+                assert data.get("author_id")
+
+            assert isinstance(data.get("content"), str)
+            assert isinstance(data.get("is_bot"), bool)
 
     @pytest.mark.asyncio
     async def test_id_format_consistency(self, observe_handler, mock_memory_service):
         """Test that recall IDs follow consistent format"""
         channel_id = "123456789"
+        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
         messages = [
-            {
-                "id": "msg1",
-                "content": "Test",
-                "author_id": "user456",
-                "author_name": "Test",
-                "timestamp": "2025-06-01T19:36:02.661000",
-                "is_bot": False
-            }
+            FetchedMessage(
+                id="msg1",
+                content="Test",
+                author_id="user456",
+                author_name="Test",
+                timestamp="2025-06-01T19:36:02.661000",
+                is_bot=False,
+            )
         ]
         
         await observe_handler._recall_from_messages(mock_memory_service, channel_id, messages)
@@ -364,15 +369,16 @@ class TestObserveHandlerRecallLogic:
     async def test_scope_coverage(self, observe_handler, mock_memory_service):
         """Test that all GraphScope values are used in recalls"""
         channel_id = "test_channel"
+        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
         messages = [
-            {
-                "id": "msg1",
-                "content": "Test",
-                "author_id": "test_user",
-                "author_name": "Test",
-                "timestamp": "2025-06-01T19:36:02.661000",
-                "is_bot": False
-            }
+            FetchedMessage(
+                id="msg1",
+                content="Test",
+                author_id="test_user",
+                author_name="Test",
+                timestamp="2025-06-01T19:36:02.661000",
+                is_bot=False,
+            )
         ]
         
         await observe_handler._recall_from_messages(mock_memory_service, channel_id, messages)
@@ -394,15 +400,16 @@ class TestObserveHandlerRecallLogic:
     @pytest.mark.asyncio
     async def test_channel_id_variations(self, observe_handler, mock_memory_service, channel_id, expected_channel_recalls):
         """Test various channel_id values"""
+        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
         messages = [
-            {
-                "id": "msg1",
-                "content": "Test",
-                "author_id": "test_user",
-                "author_name": "Test",
-                "timestamp": "2025-06-01T19:36:02.661000",
-                "is_bot": False
-            }
+            FetchedMessage(
+                id="msg1",
+                content="Test",
+                author_id="test_user",
+                author_name="Test",
+                timestamp="2025-06-01T19:36:02.661000",
+                is_bot=False,
+            )
         ]
         
         await observe_handler._recall_from_messages(mock_memory_service, channel_id, messages)
@@ -421,17 +428,18 @@ class TestObserveHandlerRecallLogic:
     @pytest.mark.asyncio
     async def test_author_id_variations(self, observe_handler, mock_memory_service, author_id, should_recall):
         """Test various author_id values"""
-        message = {
-            "id": "msg1",
-            "content": "Test",
-            "author_name": "Test",
-            "timestamp": "2025-06-01T19:36:02.661000",
-            "is_bot": False
-        }
-        
+        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+        message = FetchedMessage(
+            id="msg1",
+            content="Test",
+            author_name="Test",
+            timestamp="2025-06-01T19:36:02.661000",
+            is_bot=False,
+        )
+
         if author_id is not None:
-            message["author_id"] = author_id
-        
+            message.author_id = author_id
+
         await observe_handler._recall_from_messages(mock_memory_service, "test_channel", [message])
         
         # Count user recalls

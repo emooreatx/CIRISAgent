@@ -43,7 +43,7 @@ def test_status_enums(enum_cls, val, expected):
 
 # Test ObservationSourceType
 @pytest.mark.parametrize("val,expected", [
-    ("discord_message", fs.ObservationSourceType.DISCORD_MESSAGE),
+    ("chat_message", fs.ObservationSourceType.CHAT_MESSAGE),
     ("feedback_package", fs.ObservationSourceType.FEEDBACK_PACKAGE),
     ("user_request", fs.ObservationSourceType.USER_REQUEST),
 ])
@@ -53,7 +53,7 @@ def test_observation_source_type(val, expected):
 # Test IncomingMessage model
 
 def test_incoming_message_valid():
-    msg = fs.IncomingMessage(
+    msg = fs.DiscordMessage(
         message_id="1",
         author_id="u1",
         author_name="Alice",
@@ -67,9 +67,25 @@ def test_incoming_message_valid():
     assert msg.author_name == "Alice"
     assert msg.is_dm is True
 
+def test_incoming_message_alias():
+    msg = fs.IncomingMessage(
+        message_id="2",
+        author_id="u2",
+        author_name="Bob",
+        content="Hi",
+        channel_id="c2",
+    )
+    assert msg.destination_id == "c2"
+
 def test_incoming_message_required_fields():
     with pytest.raises(ValidationError):
         fs.IncomingMessage(author_id="u1", author_name="Bob", content="Hi")
+
+
+def test_fetched_message_alias_and_optional_fields():
+    msg = fs.FetchedMessage(id="123", content="hi")
+    assert msg.message_id == "123"
+    assert msg.author_id is None
 
 
 @pytest.mark.parametrize("enum_cls, val, expected", [

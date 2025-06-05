@@ -74,7 +74,7 @@ class BaseDSDMA(BaseDMA):
         )
 
     class LLMOutputForDSDMA(BaseModel):
-        domain_alignment_score: float = Field(..., ge=0.0, le=1.0)
+        score: float = Field(..., ge=0.0, le=1.0)
         recommended_action: Optional[str] = Field(default=None)
         flags: List[str] = Field(default_factory=list)
         reasoning: str
@@ -185,8 +185,8 @@ class BaseDSDMA(BaseDMA):
             )
 
             result = DSDMAResult(
-                domain=self.domain_name, # Corrected field name
-                alignment_score=min(max(llm_eval_data.domain_alignment_score, 0.0), 1.0), # Corrected field name
+                domain=self.domain_name,
+                score=min(max(llm_eval_data.score, 0.0), 1.0),
                 recommended_action=llm_eval_data.recommended_action,
                 flags=llm_eval_data.flags,
                 reasoning=llm_eval_data.reasoning
@@ -194,7 +194,7 @@ class BaseDSDMA(BaseDMA):
             )
             logger.info(
                 f"DSDMA '{self.domain_name}' (instructor) evaluation successful for thought ID {thought_item.thought_id}: "
-                f"Score {result.alignment_score}, Recommended Action: {result.recommended_action}" # Corrected field name
+                f"Score {result.score}, Recommended Action: {result.recommended_action}"
             )
             if hasattr(llm_eval_data, "_raw_response"):
                 result.raw_llm_response = str(llm_eval_data._raw_response)
@@ -206,8 +206,8 @@ class BaseDSDMA(BaseDMA):
                 exc_info=True,
             )
             return DSDMAResult(
-                domain=self.domain_name, # Corrected field name
-                alignment_score=0.0,   # Corrected field name
+                domain=self.domain_name,
+                score=0.0,
                 recommended_action=None,
                 flags=["Instructor_ValidationError"],
                 reasoning=f"Failed DSDMA evaluation via instructor due to validation error: {error_detail}",
@@ -219,8 +219,8 @@ class BaseDSDMA(BaseDMA):
                 exc_info=True,
             )
             return DSDMAResult(
-                domain=self.domain_name, # Corrected field name
-                alignment_score=0.0,   # Corrected field name
+                domain=self.domain_name,
+                score=0.0,
                 recommended_action=None,
                 flags=["LLM_Error_Instructor"],
                 reasoning=f"Failed DSDMA evaluation via instructor: {str(e)}",

@@ -119,7 +119,7 @@ class APIRuntimeEntrypoint(CIRISRuntime):
                     capabilities=["memorize", "recall", "forget"]
                 )
             
-            logger.info("Registered APIAdapter for all service types")
+            logger.info("Registered APIAdapter for all service types during core service registration")
 
     def _register_routes(self):
         """Register all API routes after services are initialized."""
@@ -137,10 +137,13 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         """Hook for registering API specific services.
 
         Historically this method exposed registration logic separate from core
-        services. It now simply calls :meth:`_register_core_services` but is kept
-        for backward compatibility with older tests and extensions."""
-
-        await self._register_core_services()
+        services. Services are now registered during _register_core_services(),
+        but this method is kept for backward compatibility with older tests and extensions.
+        It's a no-op since services are already registered during core registration."""
+        
+        # Services are now registered in _register_core_services() 
+        # This method is kept for backward compatibility
+        logger.debug("_register_api_services called - services already registered during core registration")
 
     async def _handle_message(self, request: web.Request) -> web.Response:
         """Legacy handler shim used by older tests."""
@@ -153,9 +156,10 @@ class APIRuntimeEntrypoint(CIRISRuntime):
     async def initialize(self) -> None:
         """Initialize the API runtime, extending parent initialization."""
         # First, do the parent CIRISRuntime initialization
+        # This includes _register_core_services() which now registers API services
         await super().initialize()
-
-        # Register any API specific services (legacy hook)
+        
+        # Call _register_api_services for backward compatibility with tests
         await self._register_api_services()
             
         logger.info("Initializing API-specific components...")

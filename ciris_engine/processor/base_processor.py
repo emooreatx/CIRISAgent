@@ -126,7 +126,7 @@ class BaseProcessor(ABC):
             self.metrics["errors"] += 1
             # DMA failure fallback logic
             if hasattr(e, "is_dma_failure") and getattr(e, "is_dma_failure", False):
-                # Check for ponder rounds remaining (stub: always force ponder if possible)
+                # Check for action rounds remaining (stub: always force ponder if possible)
                 if hasattr(self, "force_ponder"):
                     logger.warning(f"DMA failure for {item.thought_id}, forcing PONDER fallback.")
                     return await self.force_ponder(item, context)

@@ -6,6 +6,7 @@ from ciris_engine.persistence import (
     get_thoughts_by_status,
     add_thought,
     get_thought_by_id,
+    async_get_thought_status,
     get_thoughts_by_task_id,
     delete_thoughts_by_ids,
     count_thoughts,
@@ -143,3 +144,17 @@ def test_pydantic_to_dict():
     d = pydantic_to_dict(th)
     assert isinstance(d, dict)
     assert d["thought_id"] == "th12"
+
+
+@pytest.mark.asyncio
+async def test_async_get_thought_status():
+    db_path = temp_db_file()
+    try:
+        initialize_database(db_path=db_path)
+        add_task(make_task("task_async"), db_path=db_path)
+        th = make_thought("th_async", status=ThoughtStatus.PROCESSING, source_task_id="task_async")
+        add_thought(th, db_path=db_path)
+        status = await async_get_thought_status("th_async", db_path=db_path)
+        assert status == ThoughtStatus.PROCESSING
+    finally:
+        os.unlink(db_path)

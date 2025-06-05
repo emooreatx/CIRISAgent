@@ -9,7 +9,7 @@ from .feedback_schemas_v1 import FeedbackType, FeedbackSource, FeedbackDirective
 class DeferralReason(str, Enum):
     """Standard deferral reason codes."""
     GUARDRAIL_FAILURE = "guardrail_failure"
-    MAX_PONDER_REACHED = "max_ponder_reached" 
+    MAX_ROUNDS_REACHED = "max_rounds_reached" 
     CHANNEL_POLICY_UPDATE = "channel_policy_update"
     INSUFFICIENT_CONTEXT = "insufficient_context"
     ETHICAL_CONCERN = "ethical_concern"

@@ -6,6 +6,7 @@ from ..processor.thought_escalation import escalate_dma_failure
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 
 from .pdma import EthicalPDMAEvaluator
 from .csdma import CSDMAEvaluator
@@ -67,10 +68,37 @@ async def run_dma_with_retries(
 
 
 async def run_pdma(
-    evaluator: EthicalPDMAEvaluator, thought: ProcessingQueueItem
+    evaluator: EthicalPDMAEvaluator,
+    thought: ProcessingQueueItem,
+    context: Optional[ThoughtContext] = None,
 ) -> EthicalDMAResult:
     """Run the Ethical PDMA for the given thought."""
-    return await evaluator.evaluate(thought)
+    ctx = context
+    if ctx is None:
+        context_data = getattr(thought, "context", None)
+        if context_data is None:
+            context_data = getattr(thought, "initial_context", None)
+
+        if context_data is None:
+            raise DMAFailure(
+                f"No context available for thought {thought.thought_id}"
+            )
+
+        if isinstance(context_data, ThoughtContext):
+            ctx = context_data
+        elif isinstance(context_data, dict):
+            try:
+                ctx = ThoughtContext.model_validate(context_data)
+            except Exception as e:  # noqa: BLE001
+                raise DMAFailure(
+                    f"Invalid context for thought {thought.thought_id}: {e}"
+                ) from e
+        else:
+            raise DMAFailure(
+                f"Unsupported context type {type(context_data)} for thought {thought.thought_id}"
+            )
+
+    return await evaluator.evaluate(thought, context=ctx)
 
 
 async def run_csdma(
