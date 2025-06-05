@@ -31,10 +31,10 @@ class MockLLMConfig:
     def __init__(self):
         # Regex patterns to match in messages for context echoing
         self.context_patterns = {
-            r'user.*says?.*"([^"]+)"': lambda m: f"echo_user_speech:{m.group(1)}",
+            r'user.*?says?.*?"([^"]+)"': lambda m: f"echo_user_speech:{m.group(1)}",
             r'thought.*content.*"([^"]+)"': lambda m: f"echo_thought:{m.group(1)}",
             r'channel.*?[\'"]([^\'"]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
-            r'memory.*search.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_memory_query:{m.group(1)}",
+            r'(?:search.*memory|memory.*search).*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_memory_query:{m.group(1)}",
             r'domain.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_domain:{m.group(1)}",
             # Capture wakeup ritual content
             r'(You are CIRISAgent.*?)(?:\.|$)': lambda m: f"echo_wakeup:VERIFY_IDENTITY",
@@ -259,7 +259,7 @@ def cs_dma(context: List[str] = None) -> CSDMAResult:
     # Check for error injection
     if _mock_config.inject_error:
         score = 0.3
-        flags = ["plausibility_concern", "requires_clarification"] + context
+        flags = ["plausibility_concern", "requires_clarification", "mock_flag"] + context
         reasoning = "Injected low plausibility for testing error handling paths."
     else:
         score = 0.9  # Always passing value
@@ -276,8 +276,7 @@ def cs_dma(context: List[str] = None) -> CSDMAResult:
             flags = ["general_processing"]
             reasoning = "General thought processing within normal parameters. No physical impossibilities or logical contradictions detected."
     
-    plausibility_score = 0.9
-    return _attach_extras(CSDMAResult(plausibility_score=plausibility_score, flags=flags, reasoning=reasoning))
+    return _attach_extras(CSDMAResult(plausibility_score=score, flags=flags, reasoning=reasoning))
 
 
 def ds_dma(context: List[str] = None) -> DSDMAResult:

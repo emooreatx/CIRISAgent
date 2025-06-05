@@ -36,21 +36,21 @@ class DeferralPackage(BaseModel):
     
     ponder_history: List[str] = Field(default_factory=list)
     action_history: List[Dict[str, Any]] = Field(default_factory=list)
-    created_at: FeedbackType = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class DeferralReport(BaseModel):
     """Deferral report for transmission to WA."""
-    report_id: FeedbackType
+    report_id: str
     package: DeferralPackage
-    target_wa_identifier: FeedbackType  # Could be Discord user, email, etc.
-    urgency_level: FeedbackType = Field(default="normal")  # low, normal, high, critical
+    target_wa_identifier: str  # Could be Discord user, email, etc.
+    urgency_level: str = Field(default="normal")  # low, normal, high, critical
     
     # Transport metadata (set by adapters)
     transport_data: Dict[str, Any] = Field(default_factory=dict)
-    created_at: FeedbackType
+    created_at: str
     
     # Status tracking
-    delivered: FeedbackType = False
+    delivered: bool = False
     delivered_at: Optional[str] = None
-    response_received: FeedbackType = False
+    response_received: bool = False
     response_at: Optional[str] = None
