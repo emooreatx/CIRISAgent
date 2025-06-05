@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+MANUAL TEST SCRIPT - OpenAI Connection Testing
+
+This is a manual debugging script for verifying OpenAI API connectivity.
+It is NOT part of the automated test suite and should be run manually for debugging.
+
 Direct test script for OpenAI API connection using environment variables.
 This tests the same configuration that CIRIS Engine should be using.
 """
