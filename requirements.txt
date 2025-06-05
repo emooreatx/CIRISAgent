@@ -26,3 +26,5 @@ pytest-asyncio
 click
 streamlit-shadcn-ui
 mypy
+# CIRIS MyPy Toolkit dependencies
+astunparse
