@@ -48,15 +48,12 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[AgentProfile]:
             logger.error(f"Profile file is empty or invalid YAML: {profile_path}")
             return None
             
-        # Ensure 'name' is present, as it's key for SerializableAgentProfile
         if 'name' not in profile_data:
-            # Try to infer name from filename if not in YAML content
             profile_data['name'] = profile_path.stem 
             logger.warning(f"Profile 'name' not found in YAML, inferred as '{profile_data['name']}' from filename: {profile_path}")
 
 
 
-        # Convert permitted_actions from string to HandlerActionType robustly
         if "permitted_actions" in profile_data:
             from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
             converted_actions: List[Any] = []
@@ -65,16 +62,13 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[AgentProfile]:
                     converted_actions.append(action)
                 elif isinstance(action, str):
                     try:
-                        # Try to convert string to enum (case-insensitive value)
                         enum_action = HandlerActionType(action)
                         converted_actions.append(enum_action)
                     except ValueError:
                         try:
-                            # Try by name (case-insensitive)
                             enum_action = HandlerActionType[action.upper()]
                             converted_actions.append(enum_action)
                         except KeyError:
-                            # Try matching by lowercased value
                             matched = False
                             for member in HandlerActionType:
                                 if member.value.lower() == action.lower():
@@ -85,10 +79,8 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[AgentProfile]:
                                 logger.warning(f"Unknown action '{action}' in permitted_actions, skipping")
                 else:
                     logger.warning(f"Invalid action type {type(action)} in permitted_actions")
-            # Ensure all are HandlerActionType, filter out any str
             profile_data["permitted_actions"] = [a for a in converted_actions if isinstance(a, HandlerActionType)]
 
-        # The profile_data should directly map to SerializableAgentProfile fields
         profile = AgentProfile(**profile_data)
         logger.info(f"Successfully loaded profile '{profile.name}' from {profile_path}")
         return profile

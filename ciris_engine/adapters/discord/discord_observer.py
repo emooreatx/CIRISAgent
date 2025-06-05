@@ -54,15 +54,11 @@ class DiscordObserver:
         if self.agent_id and msg.author_id == self.agent_id:
             logger.debug("Ignoring self message %s", msg.message_id)
             return
-        # Only observe messages from the monitored channel
         if self.monitored_channel_id and msg.channel_id != self.monitored_channel_id:
             logger.debug("Ignoring message from channel %s (not monitored)", msg.channel_id)
             return
-        # Store in history
         self._history.append(msg)
-        # Passive observation routing
         await self._handle_passive_observation(msg)
-        # Memory recall
         await self._recall_context(msg)
 
     async def _handle_passive_observation(self, msg: DiscordMessage) -> None:

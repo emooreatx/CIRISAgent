@@ -32,7 +32,7 @@ class BaseDMA(ABC):
             handler=self.__class__.__name__,
             service_type="llm",
         )
-        return service  # type: ignore[return-value]
+        return service
 
     @abstractmethod
     async def evaluate(self, *args: Any, **kwargs: Any) -> BaseModel:

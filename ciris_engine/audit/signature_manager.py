@@ -77,7 +77,6 @@ class AuditSignatureManager:
     
     def _generate_new_keypair(self) -> None:
         """Generate a new RSA key pair"""
-        # Generate private key (2048 bits for embedded devices)
         self._private_key = rsa.generate_private_key(
             public_exponent=65537,
             key_size=2048
@@ -85,7 +84,6 @@ class AuditSignatureManager:
         
         self._public_key = self._private_key.public_key()
         
-        # Save keys to disk
         self._save_keys()
     
     def _save_keys(self) -> None:
@@ -130,9 +128,8 @@ class AuditSignatureManager:
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
         
-        # Use SHA-256 hash of public key as ID
         hash_bytes = hashlib.sha256(public_pem).digest()
-        return base64.b64encode(hash_bytes[:16]).decode('ascii')  # First 16 bytes
+        return base64.b64encode(hash_bytes[:16]).decode('ascii')
     
     def _register_public_key(self) -> None:
         """Register the public key in the database"""
@@ -210,11 +207,9 @@ class AuditSignatureManager:
     def verify_signature(self, entry_hash: str, signature: str, key_id: Optional[str] = None) -> bool:
         """Verify a signature against an entry hash"""
         try:
-            # Use current key if none specified
             if key_id is None or key_id == self._key_id:
                 public_key = self._public_key
             else:
-                # Load public key from database
                 public_key = self._load_public_key(key_id)
                 if not public_key:
                     logger.error(f"Public key not found: {key_id}")
@@ -224,15 +219,12 @@ class AuditSignatureManager:
                 logger.error("No public key available for verification")
                 return False
                 
-            # Ensure we have an RSA key for verification
             if not isinstance(public_key, rsa.RSAPublicKey):
                 logger.error("Only RSA keys are supported for verification")
                 return False
             
-            # Decode signature
             signature_bytes = base64.b64decode(signature.encode('ascii'))
             
-            # Verify signature
             public_key.verify(
                 signature_bytes,
                 entry_hash.encode('utf-8'),
@@ -280,15 +272,12 @@ class AuditSignatureManager:
         """Rotate to a new key pair and return the new key ID"""
         logger.info("Rotating audit signing keys")
         
-        # Mark current key as revoked
         if self._key_id:
             self._revoke_key(self._key_id)
         
-        # Generate new key pair
         self._generate_new_keypair()
         self._key_id = self._compute_key_id()
         
-        # Register new public key
         self._register_public_key()
         
         logger.info(f"Key rotation complete, new key ID: {self._key_id}")

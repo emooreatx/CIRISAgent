@@ -39,7 +39,7 @@ class LocalGraphMemoryService(Service):
         try:
             persistence.add_graph_node(node, db_path=self.db_path)
             return MemoryOpResult(status=MemoryOpStatus.OK)
-        except Exception as e:  # pragma: no cover - log and return error
+        except Exception as e:
             logger.exception("Error storing node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
@@ -49,7 +49,7 @@ class LocalGraphMemoryService(Service):
             if stored:
                 return MemoryOpResult(status=MemoryOpStatus.OK, data=stored.attributes)
             return MemoryOpResult(status=MemoryOpStatus.OK, data=None)
-        except Exception as e:  # pragma: no cover - log and return error
+        except Exception as e:
             logger.exception("Error recalling node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
@@ -57,7 +57,7 @@ class LocalGraphMemoryService(Service):
         try:
             persistence.delete_graph_node(node.id, node.scope, db_path=self.db_path)
             return MemoryOpResult(status=MemoryOpStatus.OK)
-        except Exception as e:  # pragma: no cover - log and return error
+        except Exception as e:
             logger.exception("Error forgetting node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
@@ -134,7 +134,6 @@ class LocalGraphMemoryService(Service):
     async def update_environment_graph(self, update_data: Dict[str, Any]) -> MemoryOpResult:
         """Update environment graph based on WA feedback."""
         from datetime import datetime, timezone
-        # Example: No WA required, but could add more validation as needed
         for node_update in update_data.get("nodes", []):
             node_id = node_update["id"]
             if node_update.get("action") == "delete":

@@ -3,7 +3,6 @@ from typing import Dict, Any, Optional, List, Union
 from datetime import datetime, timezone
 from enum import Enum
 
-# Import shared enums from feedback_schemas_v1
 from .feedback_schemas_v1 import FeedbackType, FeedbackSource, FeedbackDirective
 
 class DeferralReason(str, Enum):
@@ -20,26 +19,21 @@ class DeferralReason(str, Enum):
 
 class DeferralPackage(BaseModel):
     """Complete context package for deferred decisions."""
-    # Core identifiers
     thought_id: str
     task_id: str
     deferral_reason: DeferralReason
     reason_description: str
     
-    # Decision context
     thought_content: str
     task_description: Optional[str] = None
     
-    # DMA results that led to deferral
     ethical_assessment: Optional[Dict[str, Any]] = None
     csdma_assessment: Optional[Dict[str, Any]] = None
     dsdma_assessment: Optional[Dict[str, Any]] = None
     
-    # System context at time of deferral
     user_profiles: Optional[Dict[str, Any]] = None
     system_snapshot: Optional[Dict[str, Any]] = None
     
-    # Processing history
     ponder_history: List[str] = Field(default_factory=list)
     action_history: List[Dict[str, Any]] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

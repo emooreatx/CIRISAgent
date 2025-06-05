@@ -25,20 +25,15 @@ class SchemaAlignmentFixer:
         self.schemas_dir = Path(schemas_dir)
         self.fixes_applied = 0
         
-    def fix_schema_violations(self) -> int:
-        """Fix all schema violations across the codebase."""
-        logger.info("🏗️ Fixing schema alignment issues...")
-        
-        initial_fixes = self.fixes_applied
-        
-        self._fix_schema_imports()
-        self._fix_legacy_field_usage()
-        self._add_schema_todos()
-        
-        total_fixes = self.fixes_applied - initial_fixes
-        logger.info(f"Applied {total_fixes} schema alignment fixes")
-        
-        return total_fixes
+    def propose_schema_fixes(self) -> Dict[str, Any]:
+        """Propose schema alignment fixes for agent review."""
+        logger.info("🔍 Analyzing schema alignment issues for agent review...")
+        return {"total_proposed": 0, "changes": []}  # Stub for now
+    
+    def apply_approved_fixes(self, approved_changes: Dict[str, Any]) -> int:
+        """Apply agent-approved schema fixes."""
+        logger.info("🎯 Applying agent-approved schema fixes...")
+        return 0  # Stub for now
     
     def _fix_schema_imports(self) -> int:
         """Update non-v1 schema imports to v1 versions."""

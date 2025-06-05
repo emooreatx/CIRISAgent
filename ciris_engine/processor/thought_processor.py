@@ -16,8 +16,8 @@ from ciris_engine.schemas import (
     DeferParams,
 )
 from ciris_engine.dma.exceptions import DMAFailure
-from ciris_engine.action_handlers.ponder_handler import PonderHandler # Ensure this import is present
-from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies # Add this import
+from ciris_engine.action_handlers.ponder_handler import PonderHandler
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +28,14 @@ class ThoughtProcessor:
         context_builder: Any,
         guardrail_orchestrator: Any,
         app_config: AppConfig,
-        dependencies: ActionHandlerDependencies # Add dependencies
+        dependencies: ActionHandlerDependencies
     ) -> None:
         self.dma_orchestrator = dma_orchestrator
         self.context_builder = context_builder
         self.guardrail_orchestrator = guardrail_orchestrator
         self.app_config = app_config
-        self.dependencies = dependencies # Store dependencies
-        self.settings = app_config.workflow # New: Point to the workflow config directly
+        self.dependencies = dependencies
+        self.settings = app_config.workflow
 
     async def process_thought(
         self,
@@ -184,49 +184,40 @@ class ThoughtProcessor:
     def _get_profile_name(self, thought: Thought) -> str:
         """Extract profile name from thought context or use default."""
         profile_name = None
-        # Method 1: From thought context (if it was set during task creation)
         if hasattr(thought, 'context') and isinstance(thought.context, dict):
             profile_name = thought.context.get('agent_profile_name')
-        # Method 2: Check if we have a primary profile loaded
-        # Look for non-default profiles first
         if not profile_name and hasattr(self.app_config, 'agent_profiles'):
             for name, profile in self.app_config.agent_profiles.items():
                 if name != "default" and profile:
                     profile_name = name
                     break
-        # Method 3: Use configured default profile
         if not profile_name and hasattr(self.app_config, 'default_profile'):
             profile_name = self.app_config.default_profile
-        # Final fallback
         if not profile_name:
             profile_name = "default"
         logger.debug(f"Determined profile name '{profile_name}' for thought {thought.thought_id}")
         return profile_name
 
     def _get_permitted_actions(self, thought: Thought) -> Any:
-        # Example: extract permitted actions from context or config
         return getattr(thought, 'permitted_actions', None)
 
     def _has_critical_failure(self, dma_results: Any) -> bool:
-        # Placeholder: implement logic to detect critical DMA failures
         return getattr(dma_results, 'critical_failure', False)
 
     def _create_deferral_result(self, dma_results: Dict[str, Any], thought: Thought) -> ActionSelectionResult:
         from ciris_engine.utils.constants import DEFAULT_WA
 
         defer_reason = "Critical DMA failure or guardrail override."
-        # Keep dma_results as-is - persistence will handle serialization
         defer_params = DeferParams(
             reason=defer_reason,
-            target_wa_ual=DEFAULT_WA, # Or a more specific UAL if available
+            target_wa_ual=DEFAULT_WA,
             context={"original_thought_id": thought.thought_id, "dma_results_summary": dma_results}
         )
         
         return ActionSelectionResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=defer_params, # Pass Pydantic object directly
+            action_parameters=defer_params,
             rationale=defer_reason
-            # Confidence and raw_llm_response can be None/omitted for system-generated deferrals
         )
 
 
@@ -349,7 +340,6 @@ class ThoughtProcessor:
         self, thought: Thought, action_selection: ActionSelectionResult, context: Dict[str, Any]
     ) -> None:
         """Handles the selected action by dispatching to the appropriate handler."""
-        # ...existing code...
         if action_selection.action == HandlerActionType.PONDER:
             ponder_questions: List[Any] = []
             if action_selection.action_parameters:
@@ -367,7 +357,6 @@ class ThoughtProcessor:
             
             ponder_params = PonderParams(questions=ponder_questions)
             
-            # max_rounds is now directly on self.settings (which is app_config.workflow)
             max_rounds = getattr(self.settings, 'max_rounds', 5) 
             ponder_handler = PonderHandler(dependencies=self.dependencies, max_rounds=max_rounds)
             
@@ -377,13 +366,9 @@ class ThoughtProcessor:
                 context=context
             )
             
-            # After PonderHandler.handle, the thought's status and ponder_count are updated.
-            # If status is PENDING, it means it should be re-processed in the next round.
-            # No need to manually re-queue - the processing loop will pick up PENDING thoughts naturally.
             if thought.status == ThoughtStatus.PENDING:
                 logger.info(f"Thought ID {thought.thought_id} marked as PENDING after PONDER action - will be processed in next round.")
         
-        # Special handling for OBSERVE action in CLI mode
         if action_selection.action == HandlerActionType.OBSERVE:
             agent_mode = getattr(self.app_config, "agent_mode", "").lower()
             if agent_mode == "cli":
@@ -395,7 +380,6 @@ class ThoughtProcessor:
                     observation = f"[CLI MODE] Agent working directory: {cwd}\n\nDirectory contents:\n{file_list}\n\nNote: CIRISAgent is running in CLI mode."
                 except Exception as e:
                     observation = f"[CLI MODE] Error listing working directory: {e}"
-                # Attach the observation to the action_parameters
                 obs_result = locals().get('final_result', None)
                 if obs_result and hasattr(obs_result, "action_parameters"):
                     if isinstance(obs_result.action_parameters, dict):
@@ -407,4 +391,3 @@ class ThoughtProcessor:
                             pass
                 logger.info(f"[OBSERVE] CLI observation attached for thought {thought.thought_id}")
                 return obs_result
-        # ...existing code...

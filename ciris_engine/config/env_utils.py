@@ -6,11 +6,10 @@ from dotenv import dotenv_values
 
 _ENV_VALUES: Dict[str, str] = {}
 _ENV_LOADED = False
-_ENV_PATH: Path | None = None
+_ENV_PATH: Optional[Path] = None
 
 
 def load_env_file(path: Path | str = Path(".env"), *, force: bool = False) -> None:
-    """Load .env values without modifying os.environ."""
     global _ENV_LOADED, _ENV_VALUES, _ENV_PATH
     if _ENV_LOADED and not force and Path(path) == _ENV_PATH:
         return
@@ -30,7 +29,6 @@ def get_env_var(name: str, default: Optional[str] = None) -> Optional[str]:
     """Retrieve a variable with environment variable overriding .env values."""
     if not _ENV_LOADED:
         load_env_file()
-    # Standard precedence: environment variable > .env > default
     val = os.getenv(name)
     if val is not None:
         return val

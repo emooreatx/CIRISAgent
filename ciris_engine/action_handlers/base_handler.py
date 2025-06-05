@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional, Type, Callable
 from abc import ABC, abstractmethod
 import asyncio
 
-# Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
@@ -45,10 +44,8 @@ class ActionHandlerDependencies:
         self._shutdown_requested = True
         logger.critical(f"GRACEFUL SHUTDOWN REQUESTED: {reason}")
         
-        # Use global shutdown manager as primary mechanism
         request_global_shutdown(reason)
         
-        # Also execute local callback if available (for backwards compatibility)
         if self.shutdown_callback:
             try:
                 self.shutdown_callback()
@@ -166,12 +163,11 @@ class BaseActionHandler(ABC):
 
     async def _get_channel_id(self, thought: Thought, dispatch_context: Dict[str, Any]) -> Optional[str]:
         """Get channel ID from dispatch or thought context."""
-        channel_id = dispatch_context.get("channel_id")  # type: ignore[union-attr]
+        channel_id = dispatch_context.get("channel_id")
         if not channel_id and getattr(thought, "context", None):
             system_snapshot = getattr(thought.context, "system_snapshot", None) if thought.context else None
             channel_id = getattr(system_snapshot, "channel_id", None) if system_snapshot else None
         if not channel_id:
-            # No fallback needed since observer functionality is at adapter level
             pass
         return channel_id
 

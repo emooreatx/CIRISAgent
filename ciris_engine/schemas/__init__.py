@@ -15,28 +15,20 @@ __all__ = [
     'ActionSelectionResult', 'EthicalDMAResult', 'CSDMAResult', 'DSDMAResult',
     'HandlerActionType', 'TaskStatus', 'ThoughtStatus', 'ObservationSourceType', 'IncomingMessage', 'DiscordMessage',
     'FetchedMessage', 'ResourceUsage',
-    # Action params
     'ObserveParams', 'SpeakParams', 'ToolParams', 'PonderParams', 'RejectParams',
     'DeferParams', 'MemorizeParams', 'RecallParams', 'ForgetParams',
-    # Service actions enums and dataclasses
     'ActionType', 'ActionMessage', 'SendMessageAction', 'FetchMessagesAction',
     'FetchGuidanceAction', 'SendDeferralAction', 'MemorizeAction', 'RecallAction',
     'ForgetAction', 'SendToolAction', 'FetchToolAction', 'ObserveMessageAction',
-    # Memory operation schemas
     'MemoryOpStatus', 'MemoryOpAction', 'MemoryOpResult',
-    # Service correlation schemas
     'ServiceCorrelationStatus', 'ServiceCorrelation',
     
-    # Network schemas
     'NetworkType', 'AgentIdentity', 'NetworkPresence',
     
-    # Community schemas
     'CommunityHealth', 'MinimalCommunityContext',
     
-    # Wisdom schemas
     'WisdomSource', 'WisdomRequest', 'UniversalGuidanceProtocol',
     
-    # Telemetry schemas
     'ResourceMetrics', 'CompactTelemetry',
 ]
 

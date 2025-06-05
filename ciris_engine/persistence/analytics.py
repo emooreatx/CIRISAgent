@@ -42,7 +42,7 @@ def get_tasks_needing_seed_thought(limit: Optional[int] = None) -> List[Any]:
     for task in active_tasks:
         thoughts = thought_ops.get_thoughts_by_task_id(task.task_id)
         if not thoughts:
-            tasks_needing_seed.append(task)  # type: ignore[union-attr]
+            tasks_needing_seed.append(task)
     if limit:
         return tasks_needing_seed[:limit]
     return tasks_needing_seed

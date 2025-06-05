@@ -145,5 +145,4 @@ class ObserveMessageAction(ActionMessage):
         self.message = message
 
 
-# Alias for backward compatibility
 DeferralMessage = SendDeferralAction

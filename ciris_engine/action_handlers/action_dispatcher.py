@@ -26,7 +26,6 @@ class ActionDispatcher:
         self.handlers: Dict[HandlerActionType, BaseActionHandler] = handlers
         self.action_filter: Optional[Callable[[ActionSelectionResult, Dict[str, Any]], Awaitable[bool] | bool]] = None
 
-        # Log the registered handlers for clarity during startup
         for action_type, handler_instance in self.handlers.items():
             logger.info(f"ActionDispatcher: Registered handler for {action_type.value}: {handler_instance.__class__.__name__}")
 

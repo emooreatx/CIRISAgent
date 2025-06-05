@@ -279,16 +279,12 @@ class AuditVerifier:
         
         logger.info("Generating comprehensive audit verification report")
         
-        # Get basic chain info
         chain_summary = self.hash_chain.get_chain_summary()
         
-        # Perform complete verification
         verification_result = self.verify_complete_chain()
         
-        # Get key information
         key_info = self.signature_manager.get_key_info()
         
-        # Check for recent tampering
         first_tampered = self.find_tampering_fast()
         
         report: Dict[str, Any] = {
@@ -301,21 +297,20 @@ class AuditVerifier:
             "recommendations": []
         }
         
-        # Add recommendations based on findings
         if not verification_result["valid"]:
-            report["recommendations"].append("CRITICAL: Audit log integrity compromised - investigate immediately")  # type: ignore[union-attr]
+            report["recommendations"].append("CRITICAL: Audit log integrity compromised - investigate immediately")
         
         if first_tampered:
             report["recommendations"].append(f"Tampering detected at sequence {first_tampered} - verify backup logs")
         
-        if verification_result.get("verification_time_ms", 0) > 10000:  # > 10 seconds
+        if verification_result.get("verification_time_ms", 0) > 10000:
             report["recommendations"].append("Verification taking too long - consider archiving old entries")
         
         if chain_summary.get("total_entries", 0) > 100000:
             report["recommendations"].append("Large audit log - consider periodic archiving")
         
-        if not key_info.get("active", False):  # type: ignore[union-attr]
-            report["recommendations"].append("WARNING: Signing key is revoked or inactive")  # type: ignore[union-attr]
+        if not key_info.get("active", False):
+            report["recommendations"].append("WARNING: Signing key is revoked or inactive")
         
         return report
     
@@ -346,7 +341,6 @@ class AuditVerifier:
             verified_count = 0
             
             for root in roots:
-                # Verify the range covered by this root
                 range_result = self.verify_range(root["sequence_start"], root["sequence_end"])
                 
                 if range_result["valid"]:

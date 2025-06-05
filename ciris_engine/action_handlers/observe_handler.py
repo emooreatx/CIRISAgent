@@ -19,19 +19,14 @@ from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
 
-PASSIVE_OBSERVE_LIMIT = 10  # number of messages to fetch for passive context
-ACTIVE_OBSERVE_LIMIT = 50   # number of messages to fetch for active context
+PASSIVE_OBSERVE_LIMIT = 10
+ACTIVE_OBSERVE_LIMIT = 50
 
 logger = logging.getLogger(__name__)
 
 
 class ObserveHandler(BaseActionHandler):
 
-#TODO break into handler for active and passive observation, and break out handling thoughts from the guardrails/DMAs from handling thoughts from the runtime detecting incoming messages in the fetchmessage queue
-#We request observations by putting actions in the fetch message queue, but we also need to handle incoming messages that were put in the queue by different adapter observers
-#If the source is the DMAs/guardrails, we are creating an action request for an active observation to be handled by the adapters
-#If the source is the runtime, we are creating a task from the result to be processed (mark it PENDING)
-#No dicts, only schemas and ENUMs and models and dataclasses
 
 
     async def _recall_from_messages(
@@ -56,7 +51,6 @@ class ObserveHandler(BaseActionHandler):
                 GraphScope.LOCAL,
             ):
                 try:
-                    # Determine node type based on ID prefix
                     if rid.startswith("channel/"):
                         node_type = NodeType.CHANNEL
                     elif rid.startswith("user/"):
@@ -102,10 +96,8 @@ class ObserveHandler(BaseActionHandler):
                 final_action=result,
             )
             follow_up_text = f"OBSERVE action failed for thought {thought_id}. Reason: {e}"
-            #PROMPT_FOLLOW_UP_THOUGHT
             try:
                 fu = create_follow_up_thought(parent=thought, content=follow_up_text)
-                # Update context using Pydantic model_copy with additional fields
                 context_data = fu.context.model_dump() if fu.context else {}
                 context_data.update({
                     "action_performed": HandlerActionType.OBSERVE.value,
@@ -120,7 +112,6 @@ class ObserveHandler(BaseActionHandler):
                 raise FollowUpCreationError from fe
             return
 
-        # Passive observations are already handled at the adapter level
         if not params.active:
             logger.debug(f"Passive observation for thought {thought_id} - no action needed")
             persistence.update_thought_status(
@@ -135,11 +126,10 @@ class ObserveHandler(BaseActionHandler):
             or dispatch_context.get("channel_id")
             or getattr(thought, "context", {}).get("channel_id")
         )
-        if channel_id and isinstance(channel_id, str) and channel_id.startswith("@"):  # likely user mention
+        if channel_id and isinstance(channel_id, str) and channel_id.startswith("@"):
             channel_id = None
         params.channel_id = channel_id
 
-        # Get services with better logging
         multi_service_sink = self.get_multi_service_sink()
         logger.debug(f"ObserveHandler: Got multi-service sink: {type(multi_service_sink).__name__ if multi_service_sink else 'None'}")
         
@@ -158,7 +148,6 @@ class ObserveHandler(BaseActionHandler):
             )
             if messages is None:
                 raise RuntimeError("Failed to fetch messages via multi-service sink")
-            # Note: Observer adapters handle observation at adapter level, not service level
             await self._recall_from_messages(memory_service, channel_id, messages)
             action_performed = True
             follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"
@@ -168,7 +157,6 @@ class ObserveHandler(BaseActionHandler):
             final_status = ThoughtStatus.FAILED
             follow_up_info = str(e)
 
-        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_status,
@@ -179,11 +167,10 @@ class ObserveHandler(BaseActionHandler):
             f"CIRIS_FOLLOW_UP_THOUGHT: OBSERVE action completed. Info: {follow_up_info}"
             if action_performed
             else f"CIRIS_FOLLOW_UP_THOUGHT: OBSERVE action failed: {follow_up_info}"
-        )  #PROMPT_FOLLOW_UP_THOUGHT
+        )
         try:
             logger.info(f"ObserveHandler: Creating follow-up thought for {thought_id}")
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
-            # Update context using Pydantic model_copy with additional fields
             context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
             ctx = {
                 "action_performed": HandlerActionType.OBSERVE.value,
@@ -196,12 +183,6 @@ class ObserveHandler(BaseActionHandler):
             new_follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(new_follow_up)
             logger.info(f"ObserveHandler: Follow-up thought created for {thought_id}")
-            #TODO: Fix auditing
-#            await self._audit_log(
-#                HandlerActionType.OBSERVE,
-#                {**dispatch_context, "thought_id": thought_id},
-#                outcome="success" if action_performed else "failed",
-#            )
 
         except Exception as e:
             logger.critical(

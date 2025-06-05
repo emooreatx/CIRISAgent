@@ -10,12 +10,8 @@ logger = logging.getLogger(__name__)
 from ..schemas.config_schemas_v1 import AppConfig
 from .env_utils import get_env_var
 
-# --- Global Configuration Instance ---
-# This will hold the loaded application configuration.
-# It's initialized to None and populated by load_config() or get_config().
 _app_config: Optional[AppConfig] = None
 
-# --- Configuration File ---
 DEFAULT_CONFIG_FILENAME = "ciris_engine_config.json"
 
 def get_project_root_for_config() -> Path:
@@ -25,12 +21,7 @@ def get_project_root_for_config() -> Path:
     It will place 'ciris_engine_config.json' in the 'cirisengine/' directory.
     Adjust if your project structure or desired config location is different.
     """
-    # Path(__file__) is cirisengine/core/config_manager.py
-    # .parent is cirisengine/core/
-    # .parent.parent would be the directory containing cirisengine/
-    # For now, let's assume the config file lives alongside the cirisengine package,
-    # or inside it. Let's target inside `cirisengine/` for simplicity.
-    return Path(__file__).resolve().parent.parent # Should point to 'cirisengine' directory
+    return Path(__file__).resolve().parent.parent
 
 def get_config_file_path(filename: str = DEFAULT_CONFIG_FILENAME) -> Path:
     """Returns the default path for the configuration file."""
@@ -133,15 +124,13 @@ async def save_config_to_json_async(config: AppConfig, config_file_path: Optiona
     """Asynchronous wrapper around ``save_config_to_json``."""
     await asyncio.to_thread(save_config_to_json, config, config_file_path)
 
-# --- Utility for Database Path Construction ---
 def get_sqlite_db_full_path() -> str:
     """
     Constructs the full, absolute path to the SQLite database file
     based on the current configuration.
     """
     config = get_config()
-    project_root = get_project_root_for_config() # Assumes 'cirisengine' is the reference
-    # Use config.database instead of config.db
+    project_root = get_project_root_for_config()
     db_path = project_root / config.database.data_directory / config.database.db_filename
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return str(db_path.resolve())
@@ -157,6 +146,3 @@ def get_graph_memory_full_path() -> str:
     graph_path.parent.mkdir(parents=True, exist_ok=True)
     return str(graph_path.resolve())
 
-# Example of how to initialize and potentially create a default config file at startup.
-# This line could be called explicitly in the main application entry point.
-# load_config(create_if_not_exists=True)

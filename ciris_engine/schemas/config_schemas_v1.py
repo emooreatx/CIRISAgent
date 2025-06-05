@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 
-# Default values used across tests and services
 DEFAULT_SQLITE_DB_FILENAME = "ciris_engine.db"
 DEFAULT_DATA_DIR = "data"
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
@@ -45,18 +44,15 @@ class OpenAIConfig(BaseModel):
         """Load configuration from environment variables if present."""
         from ciris_engine.config.env_utils import get_env_var
 
-        # Load API key from environment variable
         if not self.api_key:
             self.api_key = get_env_var(self.api_key_env_var)
         
-        # Load base URL - support both OPENAI_API_BASE and OPENAI_BASE_URL
         if not self.base_url:
             base_url = get_env_var("OPENAI_API_BASE") or get_env_var("OPENAI_BASE_URL")
             if base_url:
                 self.base_url = base_url
         
-        # Load model name
-        if not self.model_name or self.model_name == "gpt-4o-mini":  # Only override default
+        if not self.model_name or self.model_name == "gpt-4o-mini":
             env_model = get_env_var("OPENAI_MODEL_NAME")
             if env_model:
                 self.model_name = env_model
@@ -100,8 +96,8 @@ class NetworkConfig(BaseModel):
     
 class TelemetryConfig(BaseModel):
     """Telemetry configuration - secure by default"""
-    enabled: bool = False  # Disabled in pre-beta
-    internal_only: bool = True  # No external export initially
+    enabled: bool = False
+    internal_only: bool = True
     retention_hours: int = 1
     snapshot_interval_ms: int = 1000
 
@@ -117,19 +113,18 @@ class AppConfig(BaseModel):
     version: Optional[str] = None
     log_level: Optional[str] = None
     database: DatabaseConfig = DatabaseConfig()
-    llm_services: LLMServicesConfig = LLMServicesConfig()  # Updated structure
+    llm_services: LLMServicesConfig = LLMServicesConfig()
     guardrails: GuardrailsConfig = GuardrailsConfig()
     workflow: WorkflowConfig = WorkflowConfig()
-    cirisnode: CIRISNodeConfig = CIRISNodeConfig()  # Add cirisnode configuration
+    cirisnode: CIRISNodeConfig = CIRISNodeConfig()
     network: NetworkConfig = NetworkConfig()
     telemetry: TelemetryConfig = TelemetryConfig()
     wisdom: WisdomConfig = WisdomConfig()
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
     default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
-    discord_channel_id: Optional[str] = None  # Add this field for Discord channel id
+    discord_channel_id: Optional[str] = None
 
-# Expose commonly used constants at module level for convenience
 DMA_RETRY_LIMIT = 3
 GUARDRAIL_RETRY_LIMIT = 2
 DMA_TIMEOUT_SECONDS = 30.0

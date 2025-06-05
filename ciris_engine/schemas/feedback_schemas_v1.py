@@ -30,31 +30,25 @@ class WiseAuthorityFeedback(BaseModel):
     """Structured feedback from WA on deferred decisions."""
     feedback_id: str
     
-    # Reference to original deferral
     original_report_id: Optional[str] = None
     original_thought_id: Optional[str] = None
     original_task_id: Optional[str] = None
     
-    # Feedback content  
     feedback_type: FeedbackType
     feedback_source: FeedbackSource
     directives: List[FeedbackDirective] = Field(default_factory=list)
     
-    # Context and reasoning
     summary: str = ""
     detailed_reasoning: Optional[str] = None
     authority_confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     
-    # Implementation guidance
-    priority: str = Field(default="normal")  # low, normal, high, critical
+    priority: str = Field(default="normal")
     implementation_notes: Optional[str] = None
     
-    # Metadata
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     created_by: str = "wise_authority"
     expires_at: Optional[str] = None
     
-    # Processing status
     processed: bool = False
     processed_at: Optional[str] = None
     processing_result: Optional[Dict[str, Any]] = None

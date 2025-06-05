@@ -33,7 +33,7 @@ class DatabaseMaintenanceService:
     def __init__(self, archive_dir_path: str = "data_archive", archive_older_than_hours: int = 24) -> None:
         self.archive_dir = Path(archive_dir_path)
         self.archive_older_than_hours = archive_older_than_hours
-        self.valid_root_task_ids = {"WAKEUP_ROOT", "job-discord-monitor"} # Common root tasks to preserve
+        self.valid_root_task_ids = {"WAKEUP_ROOT", "job-discord-monitor"}
         self._maintenance_task: Optional[asyncio.Task] = None
         self._shutdown_event = asyncio.Event()
 
@@ -52,7 +52,6 @@ class DatabaseMaintenanceService:
                 logger.warning("Maintenance task did not finish in time")
                 self._maintenance_task.cancel()
         await self._final_cleanup()
-        # If you have a parent class, call super().stop()
 
     async def _maintenance_loop(self) -> None:
         """Periodic maintenance loop."""
@@ -67,10 +66,6 @@ class DatabaseMaintenanceService:
 
     async def _perform_periodic_maintenance(self) -> None:
         """Run periodic maintenance tasks."""
-        # Archive old data
-        # Optimize database
-        # Clean up orphaned records
-        # Generate maintenance report
         logger.info("Periodic maintenance tasks executed.")
 
     async def _final_cleanup(self) -> None:

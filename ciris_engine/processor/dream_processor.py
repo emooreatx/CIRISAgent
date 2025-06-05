@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from datetime import datetime, timezone
 
 from ciris_engine.adapters import CIRISNodeClient
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile # Added imports
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 
 if TYPE_CHECKING:
     from ciris_engine.registries.base import ServiceRegistry
@@ -24,16 +24,16 @@ class DreamProcessor:
     
     def __init__(
         self,
-        app_config: AppConfig, # Added
-        profile: AgentProfile, # Added
-        service_registry: Optional["ServiceRegistry"],  # Add service_registry parameter instead of audit_service
+        app_config: AppConfig,
+        profile: AgentProfile,
+        service_registry: Optional["ServiceRegistry"],
         cirisnode_url: str = "https://localhost:8001",
-        pulse_interval: float = 60.0,  # Snore pulse interval in seconds
+        pulse_interval: float = 60.0,
         max_snore_history: int = 5
     ) -> None:
-        self.app_config = app_config # Added
-        self.profile = profile # Added
-        self.service_registry = service_registry  # Store service registry
+        self.app_config = app_config
+        self.profile = profile
+        self.service_registry = service_registry
         self.cirisnode_url = cirisnode_url
         self.pulse_interval = pulse_interval
         self.max_snore_history = max_snore_history
@@ -125,15 +125,14 @@ class DreamProcessor:
                 
                 await self._dream_pulse()
                 
-                # Wait for next pulse or stop event
                 try:
                     await asyncio.wait_for(
                         self._stop_event.wait(),
                         timeout=self.pulse_interval
                     )
-                    break  # Stop event was set
+                    break
                 except asyncio.TimeoutError:
-                    pass  # Continue to next pulse
+                    pass
             
             logger.info("Dream cycle completed")
             
@@ -206,14 +205,12 @@ class DreamProcessor:
         recent_summary = "; ".join(self.snore_history)
         logger.info(f"[Dream Insights] Recent dreams: {recent_summary}")
         
-        # Calculate average bench score if numeric
         numeric_scores = [s for s in self.dream_metrics["bench_scores"] 
                          if isinstance(s, (int, float))]
         if numeric_scores:
             avg_score = sum(numeric_scores) / len(numeric_scores)
             logger.info(f"[Dream Insights] Average bench score: {avg_score:.2f}")
         
-        # Most common topics
         if self.dream_metrics["topics"]:
             from collections import Counter
             topic_counts = Counter(self.dream_metrics["topics"])

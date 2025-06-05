@@ -31,6 +31,7 @@ from ..protocols.services import (
     ToolService,
 )
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
+from ciris_engine.schemas.tool_schemas_v1 import ToolResult
 from ..registries.circuit_breaker import CircuitBreakerError
 from .base_sink import BaseMultiServiceSink
 
@@ -48,7 +49,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                  max_queue_size: int = 1000,
                  fallback_channel_id: Optional[str] = None) -> None:
         super().__init__(service_registry, max_queue_size, fallback_channel_id)
-        # Pending tool results for correlation
         self._pending_tool_results: Dict[str, asyncio.Future] = {}
     
     @property
@@ -80,7 +80,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FORGET: ['forget'],
             ActionType.SEND_TOOL: ['execute_tool'],
             ActionType.FETCH_TOOL: ['get_tool_result'],
-            # Note: OBSERVE_MESSAGE capabilities removed - observation handled at adapter level
         }
 
     async def _validate_action(self, action: ActionMessage) -> bool:
@@ -103,23 +102,23 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         
         try:
             if action_type == ActionType.SEND_MESSAGE:
-                await self._handle_send_message(service, action)  # type: ignore
+                await self._handle_send_message(service, action)
             elif action_type == ActionType.FETCH_MESSAGES:
-                await self._handle_fetch_messages(service, action)  # type: ignore
+                await self._handle_fetch_messages(service, action)
             elif action_type == ActionType.FETCH_GUIDANCE:
-                await self._handle_fetch_guidance(service, action)  # type: ignore
+                await self._handle_fetch_guidance(service, action)
             elif action_type == ActionType.SEND_DEFERRAL:
-                await self._handle_send_deferral(service, action)  # type: ignore
+                await self._handle_send_deferral(service, action)
             elif action_type == ActionType.MEMORIZE:
-                await self._handle_memorize(service, action)  # type: ignore
+                await self._handle_memorize(service, action)
             elif action_type == ActionType.RECALL:
-                await self._handle_recall(service, action)  # type: ignore
+                await self._handle_recall(service, action)
             elif action_type == ActionType.FORGET:
-                await self._handle_forget(service, action)  # type: ignore
+                await self._handle_forget(service, action)
             elif action_type == ActionType.SEND_TOOL:
-                await self._handle_send_tool(service, action)  # type: ignore
+                await self._handle_send_tool(service, action)
             elif action_type == ActionType.FETCH_TOOL:
-                await self._handle_fetch_tool(service, action)  # type: ignore
+                await self._handle_fetch_tool(service, action)
             else:
                 logger.error(f"No handler for action type: {action_type}")
                 
@@ -191,14 +190,12 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     
     async def _handle_send_tool(self, service: ToolService, action: SendToolAction) -> Any:
         """Handle send tool action"""
-        # Execute tool using the ToolService
         try:
             result = await service.execute_tool(action.tool_name, action.tool_args)
             correlation_id = action.correlation_id or f"tool_{asyncio.get_event_loop().time()}"
             
             logger.info(f"Executed tool {action.tool_name} with correlation {correlation_id}")
             
-            # Store result for potential retrieval
             if correlation_id and hasattr(self, '_tool_results'):
                 self._tool_results[correlation_id] = result
             
@@ -252,10 +249,9 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 limit=limit
             )
             
-            # Get service directly and call fetch_messages
             service = await self._get_service('communication', action)
             if service:
-                messages = await self._handle_fetch_messages(service, action)  # type: ignore
+                messages = await self._handle_fetch_messages(service, action)
                 return messages
             else:
                 logger.warning(f"No communication service available for fetch_messages_sync")
@@ -285,7 +281,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         )
         return await self.enqueue_action(action)
 
-    # Memory convenience methods
     async def memorize(self, node: Any, handler_name: str = "memory", metadata: Optional[Dict] = None) -> Any:
         """Convenience method to memorize a node synchronously"""
         try:
@@ -318,10 +313,9 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 node=node
             )
             
-            # Get service directly and call recall
             service = await self._get_service('memory', action)
             if service:
-                result = await self._handle_recall(service, action)  # type: ignore
+                result = await self._handle_recall(service, action)
                 return result
             else:
                 logger.warning(f"No memory service available for recall")
@@ -367,10 +361,9 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 correlation_id=correlation_id
             )
             
-            # Get service directly and call execute
             service = await self._get_service('tool', action)
             if service:
-                result = await self._handle_send_tool(service, action)  # type: ignore
+                result = await self._handle_send_tool(service, action)
                 return result
             else:
                 logger.warning(f"No tool service available for execute_tool_sync")

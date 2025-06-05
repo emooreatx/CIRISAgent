@@ -13,15 +13,14 @@ class ToolRegistry:
 
     def get_tool_schema(self, name: str) -> Optional[Dict[str, Any]]:
         """Get the argument schema for a tool."""
-        return self._tools.get(name)  # type: ignore[union-attr]
+        return self._tools.get(name)
 
     def validate_arguments(self, name: str, args: Dict[str, Any]) -> bool:
         """Validate tool arguments against schema. (Stub: always returns True for now)"""
-        # TODO: Implement real schema validation (e.g., with pydantic or jsonschema)
-        schema = self._tools.get(name)  # type: ignore[union-attr]
+        schema = self._tools.get(name)
         if not schema:
             return False
         return True
 
     def get_handler(self, name: str) -> Optional[Callable]:
-        return self._handlers.get(name)  # type: ignore[union-attr]
+        return self._handlers.get(name)

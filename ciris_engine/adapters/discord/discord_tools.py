@@ -7,13 +7,12 @@ import asyncio
 from typing import Dict, Any, Optional
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 
-# --- Tool Implementations ---
 
 async def discord_delete_message(bot: discord.Client, channel_id: int, message_id: int, **kwargs) -> ToolResult:
     try:
         channel = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
         if hasattr(channel, 'fetch_message'):
-            msg = await channel.fetch_message(message_id)  # type: ignore
+            msg = await channel.fetch_message(message_id)
             await msg.delete()
         else:
             raise ValueError(f"Channel {channel_id} does not support message fetching")
@@ -81,7 +80,6 @@ async def discord_kick_user(bot: discord.Client, guild_id: int, user_id: int, re
             error_message=str(e),
         )
 
-# --- Tool Registration Helper ---
 
 def register_discord_tools(registry: Any, bot: Any) -> None:
     """Register Discord tools in the ToolRegistry."""

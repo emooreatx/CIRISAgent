@@ -174,7 +174,6 @@ class OpenAICompatibleLLM(Service):
     """Adapter that exposes an OpenAICompatibleClient through the Service interface."""
 
     def __init__(self, llm_config: Optional[LLMServicesConfig] = None) -> None:
-        # Set up retry configuration for LLM operations
         retry_config = {
             "retry": {
                 "global": {
@@ -185,7 +184,7 @@ class OpenAICompatibleLLM(Service):
                     "jitter_range": 0.25
                 },
                 "llm_call": {
-                    "max_retries": 5,  # LLM calls may need more retries
+                    "max_retries": 5,
                     "base_delay": 1.0,
                 }
             }

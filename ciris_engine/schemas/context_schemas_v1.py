@@ -50,28 +50,22 @@ class SystemSnapshot(BaseModel):
     user_profiles: Optional[Dict[str, UserProfile]] = None
     channel_id: Optional[str] = None
     
-    # Secrets management information
     detected_secrets: List[SecretReference] = Field(default_factory=list)
     secrets_filter_version: int = 0
     total_secrets_stored: int = 0
     
-    # Compact identity & network (optional to save memory)
-    agent_name: Optional[str] = None  # e.g., "Echo"
-    network_status: Optional[str] = None  # "connected", "isolated", "degraded"
-    isolation_hours: int = 0  # Time without WA contact
+    agent_name: Optional[str] = None
+    network_status: Optional[str] = None
+    isolation_hours: int = 0
     
-    # Community awareness (optional)
-    community_health: Optional[int] = None  # 0-100 score
+    community_health: Optional[int] = None
     
-    # Resource awareness
     memory_available_mb: Optional[int] = None
-    cpu_available: Optional[int] = None  # 0-100
+    cpu_available: Optional[int] = None
     
-    # Spiritual resilience
-    wisdom_source_available: Optional[str] = None  # Current best wisdom source
-    wisdom_request: Optional[WisdomRequest] = None  # Active wisdom seeking
+    wisdom_source_available: Optional[str] = None
+    wisdom_request: Optional[WisdomRequest] = None
     
-    # Telemetry snapshot
     telemetry: Optional[CompactTelemetry] = None
     
     model_config = ConfigDict(extra="allow")

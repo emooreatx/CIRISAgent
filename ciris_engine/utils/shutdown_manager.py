@@ -1,4 +1,3 @@
-# ciris_engine/utils/shutdown_manager.py
 """
 Global shutdown manager for graceful shutdown from anywhere in the codebase.
 """
@@ -61,11 +60,9 @@ class ShutdownManager:
             
         logger.critical(f"GLOBAL SHUTDOWN REQUESTED: {reason}")
         
-        # Set the event if we're in an async context
         if self._shutdown_event:
             self._shutdown_event.set()
         
-        # Execute synchronous shutdown handlers immediately
         self._execute_sync_handlers()
     
     def _execute_sync_handlers(self) -> None:
@@ -129,7 +126,6 @@ class ShutdownManager:
         logger.debug("Shutdown manager reset")
 
 
-# Global instance
 _global_shutdown_manager: Optional[ShutdownManager] = None
 _manager_lock = Lock()
 
@@ -181,7 +177,6 @@ def get_global_shutdown_reason() -> Optional[str]:
     manager = get_shutdown_manager()
     return manager.get_shutdown_reason()
 
-# Convenience function for critical service failures
 def request_shutdown_critical_service_failure(service_name: str, error: str = "") -> None:
     """
     Request shutdown due to critical service failure.
@@ -196,7 +191,6 @@ def request_shutdown_critical_service_failure(service_name: str, error: str = ""
     
     request_global_shutdown(reason)
 
-# Convenience function for communication failures
 def request_shutdown_communication_failure(details: str = "") -> None:
     """
     Request shutdown due to communication service failure.
@@ -210,7 +204,6 @@ def request_shutdown_communication_failure(details: str = "") -> None:
     
     request_global_shutdown(reason)
 
-# Convenience function for unrecoverable errors
 def request_shutdown_unrecoverable_error(error_type: str, details: str = "") -> None:
     """
     Request shutdown due to unrecoverable error.

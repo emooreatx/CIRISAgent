@@ -77,10 +77,8 @@ class CLIObserver:
             logger.debug("Ignoring self message %s", msg.message_id)
             return
         
-        # Store in history
         self._history.append(msg)
         
-        # Handle passive observation: route incoming messages based on channel and author
         await self._handle_passive_observation(msg)
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
@@ -117,7 +115,7 @@ class CLIObserver:
         """Check if message is from the agent itself"""
         if self.agent_id and msg.author_id == self.agent_id:
             return True
-        return getattr(msg, "is_bot", False)  # Additional check for bot messages
+        return getattr(msg, "is_bot", False)
 
     async def _create_passive_observation_result(self, msg: IncomingMessage) -> None:
         """Create task and thought for passive observation."""
@@ -194,11 +192,7 @@ class CLIObserver:
     async def _add_to_feedback_queue(self, msg: IncomingMessage) -> None:
         """Add WA message to fetch feedback queue via multi-service sink"""
         try:
-            # For WA feedback messages, we can use the multi-service sink to route appropriately
-            # This creates a message action that will be processed by the communication services
             if self.multi_service_sink:
-                # Send the feedback message content to be processed
-                # The multi-service sink will handle routing to appropriate handlers
                 success = await self.multi_service_sink.send_message(
                     handler_name="CLIObserver",
                     channel_id=msg.channel_id,
@@ -236,7 +230,6 @@ class CLIObserver:
                 GraphScope.LOCAL,
             ):
                 try:
-                    # Determine node type based on ID prefix
                     if rid.startswith("channel/"):
                         node_type = NodeType.CHANNEL
                     elif rid.startswith("user/"):

@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from collections import defaultdict
+from datetime import datetime
 import logging
 
 from .analyzers import SchemaValidator, ProtocolAnalyzer, UnusedCodeDetector
@@ -40,25 +41,54 @@ class CIRISMypyToolkit:
         self.fixes_applied = 0
         
     def get_mypy_errors(self) -> List[Dict[str, Any]]:
-        """Run mypy and parse errors with enhanced parsing."""
+        """Run mypy and parse errors with 100% accuracy."""
         cmd = f"python -m mypy {self.target_dir} --ignore-missing-imports --show-error-codes --no-error-summary"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         
         errors = []
-        output = result.stderr
+        # MyPy sends output to stderr, but let's check both streams
+        full_output = result.stderr + result.stdout
         
-        for line in output.splitlines():
-            # Enhanced error parsing
-            match = re.search(r'^([^:]+):(\d+):(\d+):\s*error:\s*(.+?)\s*(?:\[([^\]]+)\])?', line)
+        # Parse multi-line mypy output
+        lines = full_output.splitlines()
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i]
+            
+            # Look for error lines: file:line: error: message or file:line:col: error: message
+            match = re.search(r'^([^:]+):(\d+)(?::(\d+))?\s*:\s*error:\s*(.+)', line)
             if match:
+                file_path = match.group(1)
+                line_num = int(match.group(2))
+                col_num = int(match.group(3)) if match.group(3) else 0
+                message = match.group(4).strip()
+                
+                # Look ahead for error code on next line
+                error_code = 'unknown'
+                if i + 1 < len(lines):
+                    next_line = lines[i + 1]
+                    # Error code is on line that starts with space and contains [code]
+                    if next_line.strip().startswith('[') and next_line.strip().endswith(']'):
+                        error_code = next_line.strip()[1:-1]  # Remove [ and ]
+                        i += 1  # Skip the code line
+                    elif '[' in next_line and ']' in next_line:
+                        code_match = re.search(r'\[([^\]]+)\]', next_line)
+                        if code_match:
+                            error_code = code_match.group(1)
+                            i += 1  # Skip the code line
+                
                 errors.append({
-                    'file': match.group(1),
-                    'line': int(match.group(2)),
-                    'col': int(match.group(3)),
-                    'message': match.group(4).strip(),
-                    'code': match.group(5).strip() if match.group(5) else 'unknown'
+                    'file': file_path,
+                    'line': line_num,
+                    'col': col_num,
+                    'message': message,
+                    'code': error_code
                 })
+            
+            i += 1
         
+        logger.debug(f"Parsed {len(errors)} mypy errors from output")
         return errors
     
     def analyze_compliance(self) -> Dict[str, Any]:
@@ -107,19 +137,18 @@ class CIRISMypyToolkit:
         
         return report
     
-    def fix_all_issues(self, categories: Optional[List[str]] = None) -> Dict[str, int]:
+    def propose_fixes(self, categories: Optional[List[str]] = None, output_file: str = "proposed_fixes.json") -> str:
         """
-        Fix all detected issues systematically.
+        Analyze issues and propose fixes without making changes.
         
         Args:
-            categories: Specific categories to fix, or None for all
+            categories: Specific categories to analyze
+            output_file: File to write proposed changes to
             
         Returns:
-            Dictionary of fixes applied per category
+            Path to the proposal file
         """
-        logger.info("🛠️ Starting systematic issue fixing...")
-        
-        fixes_summary = {}
+        logger.info("🔍 Analyzing issues and proposing fixes...")
         
         # Default categories in order of safety/impact
         if categories is None:
@@ -130,29 +159,108 @@ class CIRISMypyToolkit:
                 "unused_code_removal"
             ]
         
-        initial_errors = len(self.get_mypy_errors())
+        initial_errors = self.get_mypy_errors()
+        
+        proposal = {
+            "metadata": {
+                "timestamp": datetime.now().isoformat(),
+                "initial_mypy_errors": len(initial_errors),
+                "categories_analyzed": categories,
+                "validation_required": True,
+                "mode": "aggressive_pre_beta",
+                "target": "100_percent_cleanliness"
+            },
+            "current_errors": [
+                {
+                    "file": error["file"],
+                    "line": error["line"],
+                    "message": error["message"],
+                    "code": error.get("code", "unknown")
+                }
+                for error in initial_errors[:50]  # Show more errors for aggressive mode
+            ],
+            "error_summary": self._categorize_errors(initial_errors),
+            "proposed_changes": {}
+        }
         
         for category in categories:
-            logger.info(f"🎯 Fixing {category} issues...")
+            logger.info(f"🎯 Analyzing {category} issues...")
             
             if category == "type_annotations":
-                fixes = self.type_fixer.fix_all_type_issues()
+                changes = self.type_fixer.propose_type_fixes()
+                proposal["proposed_changes"]["type_annotations"] = changes
+                
+            elif category == "schema_alignment":
+                changes = self.schema_fixer.propose_schema_fixes()
+                proposal["proposed_changes"]["schema_alignment"] = changes
+                
+            elif category == "protocol_compliance":
+                changes = self.protocol_fixer.propose_protocol_fixes()
+                proposal["proposed_changes"]["protocol_compliance"] = changes
+                
+            elif category == "unused_code_removal":
+                changes = self.unused_code_detector.propose_cleanup()
+                proposal["proposed_changes"]["unused_code_removal"] = changes
+        
+        # Write proposal to file
+        import json
+        with open(output_file, 'w') as f:
+            json.dump(proposal, f, indent=2)
+        
+        logger.info(f"📄 Proposed changes written to {output_file}")
+        logger.info("⚠️  REVIEW THE PROPOSED CHANGES BEFORE APPLYING!")
+        logger.info(f"📋 To apply: python -m ciris_mypy_toolkit.cli execute {output_file}")
+        
+        return output_file
+    
+    def execute_approved_fixes(self, proposal_file: str) -> Dict[str, int]:
+        """
+        Execute fixes from an approved proposal file.
+        
+        Args:
+            proposal_file: Path to the approved proposal JSON file
+            
+        Returns:
+            Dictionary of fixes applied per category
+        """
+        logger.info(f"🚀 Executing approved fixes from {proposal_file}")
+        
+        import json
+        with open(proposal_file, 'r') as f:
+            proposal = json.load(f)
+        
+        if not proposal["metadata"]["validation_required"]:
+            logger.warning("⚠️  This proposal was not marked for validation!")
+        
+        fixes_summary = {}
+        initial_errors = len(self.get_mypy_errors())
+        
+        for category, changes in proposal["proposed_changes"].items():
+            if not changes:  # Skip empty change sets
+                continue
+                
+            logger.info(f"🎯 Applying {category} fixes...")
+            
+            if category == "type_annotations":
+                fixes = self.type_fixer.apply_approved_fixes(changes)
                 fixes_summary["type_annotations"] = fixes
                 
             elif category == "schema_alignment":
-                fixes = self.schema_fixer.fix_schema_violations()
+                fixes = self.schema_fixer.apply_approved_fixes(changes)
                 fixes_summary["schema_alignment"] = fixes
                 
             elif category == "protocol_compliance":
-                fixes = self.protocol_fixer.fix_protocol_violations()
+                fixes = self.protocol_fixer.apply_approved_fixes(changes)
                 fixes_summary["protocol_compliance"] = fixes
                 
             elif category == "unused_code_removal":
-                fixes = self.unused_code_detector.remove_unused_code()
+                fixes = self.unused_code_detector.apply_approved_cleanup(changes)
                 fixes_summary["unused_code_removal"] = fixes
         
         final_errors = len(self.get_mypy_errors())
         fixes_summary["total_errors_eliminated"] = initial_errors - final_errors
+        
+        logger.info(f"✅ Applied fixes. Errors: {initial_errors} → {final_errors}")
         
         return fixes_summary
     

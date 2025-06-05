@@ -18,7 +18,6 @@ from ciris_engine.processor.thought_processor import ThoughtProcessor
 if TYPE_CHECKING:
     from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 
-# For main_processor.py and work_processor.py (or anywhere else you need it)
 from .state_manager import StateManager
 from .wakeup_processor import WakeupProcessor
 from .work_processor import WorkProcessor
@@ -26,7 +25,6 @@ from .play_processor import PlayProcessor
 from .dream_processor import DreamProcessor
 from .solitude_processor import SolitudeProcessor
 
-# Import global shutdown functionality
 from ciris_engine.utils.shutdown_manager import request_global_shutdown
 
 logger = logging.getLogger(__name__)
@@ -41,7 +39,7 @@ class AgentProcessor:
     def __init__(
         self,
         app_config: AppConfig,
-        active_profile: AgentProfile,  # Add active_profile parameter
+        active_profile: AgentProfile,
         thought_processor: ThoughtProcessor,
         action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any],
@@ -146,34 +144,27 @@ class AgentProcessor:
         self._stop_event.clear()
         logger.info(f"Starting agent processing (rounds: {num_rounds or 'infinite'})")
         
-        # Transition to WAKEUP state
         if not self.state_manager.transition_to(AgentState.WAKEUP):
             logger.error("Failed to transition to WAKEUP state")
             return
         
-        # Initialize wakeup processor
         await self.wakeup_processor.initialize()
         
-        # Process WAKEUP in non-blocking mode
         wakeup_complete = False
         wakeup_round = 0
         
         while not wakeup_complete and not self._stop_event.is_set() and (num_rounds is None or self.current_round_number < num_rounds):
             logger.info(f"=== WAKEUP Round {wakeup_round} ===")
             
-            # 1. Run wakeup processor in non-blocking mode
             wakeup_result = await self.wakeup_processor.process_wakeup(wakeup_round, non_blocking=True)
             wakeup_complete = wakeup_result.get("wakeup_complete", False)
             
             if not wakeup_complete:
-                # 2. Process any pending thoughts from ALL tasks (not just wakeup)
-                # This ensures PONDER and other actions get processed
                 thoughts_processed = await self._process_pending_thoughts_async()
                 
                 logger.info(f"Wakeup round {wakeup_round}: {wakeup_result.get('steps_completed', 0)}/{wakeup_result.get('total_steps', 5)} steps complete, {thoughts_processed} thoughts processed")
                 
-                # 3. Brief delay between rounds
-                await asyncio.sleep(5.0)  # Increased delay for more natural pacing
+                await asyncio.sleep(5.0)
             else:
                 logger.info("✓ Wakeup sequence completed successfully!")
             
@@ -185,17 +176,13 @@ class AgentProcessor:
             await self.stop_processing()
             return
         
-        # Transition to WORK state after wakeup completes
         if not self.state_manager.transition_to(AgentState.WORK):
             logger.error("Failed to transition to WORK state after wakeup")
             await self.stop_processing()
             return
 
-        # Mark wakeup as complete in state metadata
         self.state_manager.update_state_metadata("wakeup_complete", True)
 
-        # --- Initialize interactive console if available (for CLI, etc.) ---
-        # This is the hook for starting the interactive console after entering WORK
         if hasattr(self, "runtime") and hasattr(self.runtime, "start_interactive_console"):
             print("[STATE] Initializing interactive console for user input...")
             try:
@@ -203,10 +190,8 @@ class AgentProcessor:
             except Exception as e:
                 logger.error(f"Error initializing interactive console: {e}")
 
-        # Initialize work processor
         await self.work_processor.initialize()
         
-        # Start main processing loop
         self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
         
         try:
@@ -224,11 +209,9 @@ class AgentProcessor:
         This is the key to non-blocking operation - it processes ALL thoughts,
         not just wakeup thoughts.
         """
-        # Get all pending thoughts for active tasks
         pending_thoughts = persistence.get_pending_thoughts_for_active_tasks()
         
-        # Apply max_active_thoughts limit from workflow config
-        max_active = 10  # Default value
+        max_active = 10
         if hasattr(self.app_config, 'workflow') and self.app_config.workflow:
             max_active = getattr(self.app_config.workflow, 'max_active_thoughts', 10)
         
@@ -241,26 +224,21 @@ class AgentProcessor:
         
         processed_count = 0
         
-        # Process thoughts in parallel batches
-        batch_size = 5  # Process up to 5 thoughts concurrently
+        batch_size = 5
         
         for i in range(0, len(limited_thoughts), batch_size):
             batch = limited_thoughts[i:i + batch_size]
             
-            # Create tasks for parallel processing
             tasks: List[Any] = []
             for thought in batch:
-                # Mark as PROCESSING
                 persistence.update_thought_status(
                     thought_id=thought.thought_id,
                     status=ThoughtStatus.PROCESSING
                 )
                 
-                # Create processing task
                 task = self._process_single_thought(thought)
                 tasks.append(task)
             
-            # Wait for batch to complete
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
             for result, thought in zip(results, batch):
@@ -333,18 +311,15 @@ class AgentProcessor:
         logger.info("Stopping processing loop...")
         self._stop_event.set()
         
-        # Stop dream if active
         if self.state_manager.get_state() == AgentState.DREAM:
             await self.dream_processor.stop_dreaming()
         
-        # Clean up processors
         for processor in self.state_processors.values():
             try:
                 await processor.cleanup()
             except Exception as e:
                 logger.error(f"Error cleaning up {processor}: {e}")
         
-        # Transition to SHUTDOWN
         self.state_manager.transition_to(AgentState.SHUTDOWN)
         
         try:
@@ -443,21 +418,16 @@ class AgentProcessor:
             logger.error(f"Failed to transition from {current_state} to {target_state}")
             return
         
-        # Handle state-specific initialization/cleanup
         if target_state == AgentState.DREAM:
-            # Start dream processing
-            duration = 600  # 10 minutes, TODO: make configurable
+            duration = 600
             await self.dream_processor.start_dreaming(duration)
             
         elif target_state == AgentState.WORK and current_state == AgentState.DREAM:
-            # Stop dream processing
             await self.dream_processor.stop_dreaming()
             
-            # Log dream summary
             summary = self.dream_processor.get_dream_summary()
             logger.info(f"Dream summary: {summary}")
             
-        # Initialize processor if needed
         if target_state in self.state_processors:
             processor = self.state_processors[target_state]
             await processor.initialize()

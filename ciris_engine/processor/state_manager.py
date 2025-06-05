@@ -29,21 +29,17 @@ class StateTransition:
 class StateManager:
     """Manages agent state transitions and state-specific behaviors."""
     
-    # Valid state transitions
     VALID_TRANSITIONS = [
-        # Allow SHUTDOWN <-> any state
         StateTransition(AgentState.SHUTDOWN, AgentState.WAKEUP),
         StateTransition(AgentState.SHUTDOWN, AgentState.WORK),
         StateTransition(AgentState.SHUTDOWN, AgentState.DREAM),
         StateTransition(AgentState.SHUTDOWN, AgentState.PLAY),
         StateTransition(AgentState.SHUTDOWN, AgentState.SOLITUDE),
-        # Allow any state to SHUTDOWN
         StateTransition(AgentState.WAKEUP, AgentState.SHUTDOWN),
         StateTransition(AgentState.WORK, AgentState.SHUTDOWN),
         StateTransition(AgentState.DREAM, AgentState.SHUTDOWN),
         StateTransition(AgentState.PLAY, AgentState.SHUTDOWN),
         StateTransition(AgentState.SOLITUDE, AgentState.SHUTDOWN),
-        # Original transitions
         StateTransition(AgentState.WAKEUP, AgentState.WORK),
         StateTransition(AgentState.WAKEUP, AgentState.DREAM),
         StateTransition(AgentState.WORK, AgentState.DREAM),
@@ -61,7 +57,6 @@ class StateManager:
         self.state_metadata: Dict[AgentState, Dict[str, Any]] = {}
         self._transition_map = self._build_transition_map()
         
-        # Record initial state
         self._record_state_change(initial_state, None)
     
     def _build_transition_map(self) -> Dict[AgentState, Dict[AgentState, StateTransition]]:
@@ -75,7 +70,7 @@ class StateManager:
     
     def _record_state_change(self, new_state: AgentState, old_state: Optional[AgentState]) -> None:
         """Record state change in history."""
-        self.state_history.append({  # type: ignore[union-attr]
+        self.state_history.append({
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "from_state": old_state.value if old_state else None,
             "to_state": new_state.value,

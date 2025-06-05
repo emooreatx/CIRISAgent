@@ -148,18 +148,17 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         "student_mode_action_selection_rationale_csdma_guidance": (
             "If CSDMA flagged ambiguity, your rationale MUST explain how the chosen action (especially Ponder) helps in critically analyzing and understanding the ambiguous concept from a learner's perspective."
         ),
-        # Added Teacher-specific guidance for OBSERVE
         "teacher_mode_action_params_observe_guidance": (
             "If 'Observe' is chosen by the Teacher profile to gather more context (e.g., about a user's message or current state of a discussion), 'perform_active_look' SHOULD generally be true to actively fetch recent information. "
             "Set 'sources' to relevant identifiers (e.g., channel IDs, user IDs if applicable). "
             "Provide a clear 'reason' for the observation. "
-            "Example: {{\"sources\": [\"#relevant_channel_id\"], \"reason\": \"To understand the latest messages from the user before responding.\", \"perform_active_look\": true}}"
+            "Example: {{\"sources\": [\"channel_id_1\", \"user_id_2\"], \"perform_active_look\": true, \"reason\": \"Checking for recent user activity\"}}"
         ),
         "normal_mode_action_params_observe_guidance": (
             "If 'Observe' is chosen to gather more context (e.g., about a user's message or current state of a discussion), 'perform_active_look' SHOULD generally be true to actively fetch recent information. "
             "Set 'sources' to relevant identifiers (e.g., channel IDs, user IDs if applicable). "
             "Provide a clear 'reason' for the observation. "
-            "Example: {{\"sources\": [\"#relevant_channel_id\"], \"reason\": \"To understand the latest messages from the user before responding.\", \"perform_active_look\": true}}"
+            "Example: {{\"sources\": [\"channel_id_1\", \"user_id_2\"], \"perform_active_look\": true, \"reason\": \"Checking for recent user activity\"}}"
         ),
         "normal_mode_final_ponder_advisory": (
             "\nIMPORTANT FINAL ATTEMPT ADVISORY (Action Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_rounds}):\n"
@@ -224,35 +223,29 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         self,
         triaged_inputs: Dict[str, Any]
     ) -> str:
-        original_thought: Thought = triaged_inputs['original_thought'] # Assuming Thought model
+        original_thought: Thought = triaged_inputs['original_thought']
         ethical_pdma_result: EthicalDMAResult = triaged_inputs['ethical_pdma_result']
         csdma_result: CSDMAResult = triaged_inputs['csdma_result']
-        dsdma_result: Optional[DSDMAResult] = triaged_inputs.get('dsdma_result')  # type: ignore[union-attr]
+        dsdma_result: Optional[DSDMAResult] = triaged_inputs.get('dsdma_result')
         current_ponder_count: int = triaged_inputs['current_ponder_count']
         max_rounds: int = triaged_inputs['max_rounds']
-        agent_profile: Optional[Any] = triaged_inputs.get('agent_profile') # Get the profile if available  # type: ignore[union-attr]
+        agent_profile: Optional[Any] = triaged_inputs.get('agent_profile')
 
         agent_name_from_thought = None
-        # Prefer agent name from the passed agent_profile object
-        if agent_profile and hasattr(agent_profile, 'name'): # Check for 'name' attribute
+        if agent_profile and hasattr(agent_profile, 'name'):
              agent_name_from_thought = agent_profile.name
              logger.debug(f"Using agent name '{agent_name_from_thought}' from provided agent_profile object.")
         
-        # Access processing_context from triaged_inputs
-        processing_context_data = triaged_inputs.get('processing_context')  # type: ignore[union-attr]
+        processing_context_data = triaged_inputs.get('processing_context')
         if not agent_name_from_thought and processing_context_data:
-            # Fallback to environment_context within the thought if agent_profile not passed or no name
             if hasattr(processing_context_data, 'environment_context') and processing_context_data.environment_context:
                 agent_name_from_thought = getattr(processing_context_data.environment_context, 'agent_name', None)
                 if agent_name_from_thought:
                     logger.debug(f"Using agent name '{agent_name_from_thought}' from thought's environment_context.")
         
-        # The old fallback to original_thought.context_json is removed as it was non-standard.
         if not agent_name_from_thought:
             logger.warning(f"Could not determine agent name for thought {original_thought.thought_id}. Profile-specific prompts might not apply.")
 
-        # --- Get permitted actions dynamically ---
-        # Default fallback list
         default_permitted_actions = [
             HandlerActionType.SPEAK, HandlerActionType.PONDER,
             HandlerActionType.REJECT, HandlerActionType.DEFER,
@@ -264,14 +257,12 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
 
         if 'permitted_actions' not in triaged_inputs:
              logger.warning(f"ActionSelectionPDMA: 'permitted_actions' not found in triaged_inputs for thought {original_thought.thought_id}. Falling back to default: {[a.value for a in default_permitted_actions]}")
-        elif not permitted_actions: # Handle case where it's provided but empty
+        elif not permitted_actions:
              logger.warning(f"ActionSelectionPDMA: 'permitted_actions' in triaged_inputs is empty for thought {original_thought.thought_id}. Falling back to default.")
              permitted_actions = default_permitted_actions
 
-        # Build action_options_str for prompt
         action_options_str = ', '.join([a.value for a in permitted_actions])
 
-        # Get available tools if TOOL action is permitted
         available_tools_str = ""
         if HandlerActionType.TOOL in permitted_actions:
             try:
@@ -282,12 +273,9 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
                     if tool_names:
                         available_tools_str = f"\nAvailable tools: {', '.join(tool_names)}"
             except Exception:
-                pass  # Silently ignore if tool registry not available
-        # Add tool usage guidance
+                pass
         tool_usage_guidance = self.prompt.get("tool_usage_guidance", self.DEFAULT_PROMPT.get("tool_usage_guidance", ""))
-        # ...existing code...
 
-        # Construct ethical_summary carefully, accessing potential nested fields in alignment_check
         conflicts_str = "None"
         resolution_str = "None"
         if isinstance(ethical_pdma_result.alignment_check, dict):
@@ -295,7 +283,6 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
             resolution_str = str(ethical_pdma_result.alignment_check.get('resolution', "None"))
         
         ethical_summary = f"Ethical PDMA Stance: {ethical_pdma_result.decision}. Key Conflicts: {conflicts_str}. Resolution: {resolution_str}."
-        # Note: csdma_result.common_sense_plausibility_score was an old field name, schema uses plausibility_score
         csdma_summary = f"CSDMA Output: Plausibility {csdma_result.plausibility_score:.2f}, Flags: {', '.join(csdma_result.flags) if csdma_result.flags else 'None'}. Reasoning: {csdma_result.reasoning}"
         
         dsdma_summary_str = "DSDMA did not apply or did not run for this thought."
@@ -342,7 +329,6 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         action_alignment_example = self._get_profile_specific_prompt("csdma_ambiguity_alignment_example", agent_name_from_thought)
         action_parameters_speak_csdma_guidance = self._get_profile_specific_prompt("action_params_speak_csdma_guidance", agent_name_from_thought)
         action_parameters_ponder_guidance = self._get_profile_specific_prompt("action_params_ponder_guidance", agent_name_from_thought)
-        # Get Observe guidance - will pick up teacher_mode if agent_name_from_thought is 'teacher'
         action_parameters_observe_guidance = self._get_profile_specific_prompt("action_params_observe_guidance", agent_name_from_thought)
         action_selection_rationale_csdma_guidance = self._get_profile_specific_prompt("action_selection_rationale_csdma_guidance", agent_name_from_thought)
         action_parameter_schemas = self.prompt.get("action_parameter_schemas", self.DEFAULT_PROMPT.get("action_parameter_schemas", ""))
@@ -357,24 +343,18 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
                 "Avoid MEMORIZE, ACT, REJECT, or DEFER during startup."
             )
 
-        # --- User Profile and System Snapshot Context Injection using Utilities ---
         user_profile_context_str = ""
-        system_snapshot_context_str = "" # This will include general system snapshot details
+        system_snapshot_context_str = ""
         other_processing_context_str = ""
 
-        # Use processing_context_data obtained from triaged_inputs
         if processing_context_data:
             if hasattr(processing_context_data, 'system_snapshot') and processing_context_data.system_snapshot:
                 user_profiles_data = getattr(processing_context_data.system_snapshot, 'user_profiles', None)
                 user_profile_context_str = format_user_profiles(user_profiles_data)
                 system_snapshot_context_str = format_system_snapshot(processing_context_data.system_snapshot)
         
-        # The format_system_snapshot_for_prompt already includes a section for "Original Thought Full Processing Context"
-        # so we don't need to add it separately here if we pass original_thought.context  # Updated to v1 field to it.
 
-        # --- End User Profile and System Snapshot Context Injection ---
 
-        # Using original_thought.content which is a string
         main_user_content_prompt = f"""
 {profile_specific_system_header_injection}Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
 You MUST execute the Principled Decision-Making Algorithm (PDMA) to choose this HANDLER ACTION and structure your response as a JSON object matching the provided schema.

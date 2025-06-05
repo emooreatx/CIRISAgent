@@ -29,10 +29,9 @@ class BaseProcessor(ABC):
     ) -> None:
         """Initialize base processor with common dependencies."""
         self.app_config = app_config
-        self.thought_processor = thought_processor  # type: ignore  # ThoughtProcessor is imported at runtime or via forward reference
+        self.thought_processor = thought_processor
         self.action_dispatcher = action_dispatcher
         self.services = services
-        # Propagate commonly used services as direct attributes for convenience
         if services and "discord_service" in services:
             self.discord_service = services["discord_service"]
         self.metrics: Dict[str, Any] = {
@@ -124,9 +123,7 @@ class BaseProcessor(ABC):
         except Exception as e:
             logger.error(f"Error processing thought {item.thought_id}: {e}", exc_info=True)
             self.metrics["errors"] += 1
-            # DMA failure fallback logic
             if hasattr(e, "is_dma_failure") and getattr(e, "is_dma_failure", False):
-                # Check for action rounds remaining (stub: always force ponder if possible)
                 if hasattr(self, "force_ponder"):
                     logger.warning(f"DMA failure for {item.thought_id}, forcing PONDER fallback.")
                     return await self.force_ponder(item, context)
@@ -144,7 +141,6 @@ class BaseProcessor(ABC):
     async def force_defer(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None) -> None:
         """Force a DEFER action for the given thought item. Override in subclass for custom logic."""
         logger.info(f"Forcing DEFER for thought {item.thought_id}")
-        # Implement actual logic in subclass
         pass
     
     def __repr__(self) -> str:

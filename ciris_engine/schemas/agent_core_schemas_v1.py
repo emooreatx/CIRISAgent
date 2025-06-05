@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 
-# Import enums from foundational_schemas_v1
 from .foundational_schemas_v1 import TaskStatus, ThoughtStatus
 from .action_params_v1 import (
     ObserveParams,

@@ -25,20 +25,15 @@ class ProtocolComplianceFixer:
         self.schemas_dir = Path(schemas_dir)
         self.fixes_applied = 0
         
-    def fix_protocol_violations(self) -> int:
-        """Fix all protocol violations across the codebase."""
-        logger.info("🔌 Fixing protocol compliance issues...")
-        
-        initial_fixes = self.fixes_applied
-        
-        self._fix_database_access()
-        self._fix_service_instantiation()
-        self._fix_private_method_calls()
-        
-        total_fixes = self.fixes_applied - initial_fixes
-        logger.info(f"Applied {total_fixes} protocol compliance fixes")
-        
-        return total_fixes
+    def propose_protocol_fixes(self) -> Dict[str, Any]:
+        """Propose protocol compliance fixes for agent review.""" 
+        logger.info("🔍 Analyzing protocol compliance issues for agent review...")
+        return {"total_proposed": 0, "changes": []}  # Stub for now
+    
+    def apply_approved_fixes(self, approved_changes: Dict[str, Any]) -> int:
+        """Apply agent-approved protocol fixes."""
+        logger.info("🎯 Applying agent-approved protocol fixes...")
+        return 0  # Stub for now
     
     def _fix_database_access(self) -> int:
         """Replace direct database access with persistence interface calls."""

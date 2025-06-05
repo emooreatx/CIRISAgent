@@ -24,7 +24,7 @@ class RecallHandler(BaseActionHandler):
             follow_up = create_follow_up_thought(
                 parent=thought,
                 content=f"RECALL action failed: {e}"
-            )  #PROMPT_FOLLOW_UP_THOUGHT
+            )
             self.dependencies.persistence.add_thought(follow_up)
             return
         memory_service: Optional[MemoryService] = await self.get_memory_service()
@@ -36,7 +36,7 @@ class RecallHandler(BaseActionHandler):
             follow_up = create_follow_up_thought(
                 parent=thought,
                 content=f"RECALL action failed: MemoryService unavailable for thought {thought_id}"
-            )  #PROMPT_FOLLOW_UP_THOUGHT
+            )
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.RECALL,
@@ -56,12 +56,10 @@ class RecallHandler(BaseActionHandler):
             follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{node.id}' returned: {data}"
         else:
             follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: No memories found for query '{node.id}' in scope {node.scope.value}"
-        #PROMPT_FOLLOW_UP_THOUGHT
         follow_up = create_follow_up_thought(
             parent=thought,
             content=follow_up_content,
         )
-        # Update context using Pydantic model_copy with additional fields
         context_data = follow_up.context.model_dump() if follow_up.context else {}
         follow_up_context = {
             "action_performed": HandlerActionType.RECALL.name,
@@ -69,7 +67,7 @@ class RecallHandler(BaseActionHandler):
         }
         if not success:
             follow_up_context["error_details"] = str(memory_result.status)
-        context_data.update(follow_up_context)  # type: ignore[union-attr]
+        context_data.update(follow_up_context)
         from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
         follow_up.context = ThoughtContext.model_validate(context_data)
         self.dependencies.persistence.add_thought(follow_up)

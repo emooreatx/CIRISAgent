@@ -2,7 +2,6 @@ import logging
 from typing import Dict, Any, Optional
 
 
-# Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import MemorizeParams
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
@@ -22,7 +21,7 @@ class MemorizeHandler(BaseActionHandler):
 
     async def handle(
         self,
-        result: ActionSelectionResult,  # Updated to v1 result schema
+        result: ActionSelectionResult,
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
@@ -101,15 +100,13 @@ class MemorizeHandler(BaseActionHandler):
                     final_thought_status = ThoughtStatus.FAILED
                     follow_up_content_key_info = f"Exception during memory operation: {e_mem}"
 
-        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result,  # Pass the ActionSelectionResult object directly
+            final_action=result,
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after MEMORIZE attempt.")
 
-        # Create follow-up thought
         follow_up_text = ""
         if action_performed_successfully:
             follow_up_text = (
@@ -117,9 +114,8 @@ class MemorizeHandler(BaseActionHandler):
                 f"Info: {follow_up_content_key_info}. "
                 "Consider informing the user with SPEAK or select TASK_COMPLETE if the overall task is finished."
             )
-        else:  # Failed or Deferred
+        else:
             follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: MEMORIZE action for thought {thought_id} resulted in status {final_thought_status.value}. Info: {follow_up_content_key_info}. Review and determine next steps."
-        #PROMPT_FOLLOW_UP_THOUGHT
 
         try:
             new_follow_up = create_follow_up_thought(
@@ -127,7 +123,6 @@ class MemorizeHandler(BaseActionHandler):
                 content=follow_up_text,
             )
 
-            # Update context using Pydantic model_copy with additional fields
             context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
             context_for_follow_up = {
                 "action_performed": HandlerActionType.MEMORIZE.value

@@ -1,4 +1,3 @@
-# New formatters for user profiles
 
 from typing import Dict, Any, Optional, List
 

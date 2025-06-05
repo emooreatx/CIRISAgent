@@ -66,7 +66,7 @@ class CLIToolService(ToolService):
 
     async def _read_file(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Read file contents"""
-        path = params.get("path")  # type: ignore[union-attr]
+        path = params.get("path")
         if not path:
             return {"error": "path parameter required"}
         try:
@@ -77,7 +77,7 @@ class CLIToolService(ToolService):
 
     async def _write_file(self, params: Dict[str, Any]) -> Dict[str, Any]:
         path = params.get("path")
-        content = params.get("content", "")  # type: ignore[union-attr]
+        content = params.get("content", "")
         if not path:
             return {"error": "path parameter required"}
         try:
@@ -91,7 +91,7 @@ class CLIToolService(ToolService):
             f.write(content)
 
     async def _shell_command(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        cmd = params.get("command")  # type: ignore[union-attr]
+        cmd = params.get("command")
         if not cmd:
             return {"error": "command parameter required"}
         proc = await asyncio.create_subprocess_shell(

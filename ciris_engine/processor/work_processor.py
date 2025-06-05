@@ -26,7 +26,6 @@ class WorkProcessor(BaseProcessor):
         self.startup_channel_id = startup_channel_id
         super().__init__(*args, **kwargs)
         
-        # Extract config values with defaults
         workflow_config = getattr(self.app_config, 'workflow', None)
         if workflow_config:
             max_active_tasks = getattr(workflow_config, 'max_active_tasks', 10)
@@ -124,7 +123,6 @@ class WorkProcessor(BaseProcessor):
         
         logger.info(f"Processing batch of {len(batch)} thoughts")
         
-        # Mark thoughts as PROCESSING
         batch = self.thought_manager.mark_thoughts_processing(batch, round_number)
         if not batch:
             logger.warning("No thoughts could be marked as PROCESSING")
@@ -132,17 +130,14 @@ class WorkProcessor(BaseProcessor):
         
         processed_count = 0
         
-        # Process each thought
         for item in batch:
             try:
                 result = await self._process_single_thought(item)
                 processed_count += 1
                 
                 if result is None:
-                    # Thought was re-queued (e.g., PONDER)
                     logger.debug(f"Thought {item.thought_id} was re-queued")
                 else:
-                    # Dispatch the action
                     await self._dispatch_thought_result(item, result)
                     
             except Exception as e:
@@ -164,13 +159,11 @@ class WorkProcessor(BaseProcessor):
             f"for thought {thought_id}"
         )
         
-        # Get full thought object
         thought_obj = await persistence.async_get_thought_by_id(thought_id)
         if not thought_obj:
             logger.error(f"Could not retrieve thought {thought_id} for dispatch")
             return
 
-        # Get the task object for context
         task = persistence.get_task_by_id(item.source_task_id)
         dispatch_context = build_dispatch_context(
             thought=thought_obj, 
@@ -181,15 +174,12 @@ class WorkProcessor(BaseProcessor):
             extra_context=getattr(item, 'initial_context', {})
         )
         
-        # Add services from processor for convenience
         if hasattr(self, 'services') and self.services:
             dispatch_context.update({"services": self.services})
             
-            # Add specific service references for convenience
             if "discord_service" in self.services:
                 dispatch_context["discord_service"] = self.services["discord_service"]
         
-        # Add discord_service directly if available
         if hasattr(self, 'discord_service'):
             dispatch_context["discord_service"] = self.discord_service
         
@@ -251,17 +241,14 @@ class WorkProcessor(BaseProcessor):
         Returns:
             True if DREAM state is recommended
         """
-        # Check idle duration
         if self.get_idle_duration() < idle_threshold:
             return False
         
-        # Check if there's truly nothing to do
         if (self.task_manager.get_active_task_count() == 0 and
             self.task_manager.get_pending_task_count() == 0 and
             self.thought_manager.get_pending_thought_count() == 0):
             return True
         
-        # If we've been idle for many rounds despite having work
         if self.idle_rounds > 10:
             logger.warning(
                 f"Been idle for {self.idle_rounds} rounds despite having work. "

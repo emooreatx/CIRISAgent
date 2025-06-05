@@ -3,7 +3,6 @@ import uuid
 import logging
 from typing import Optional, Dict, Any
 
-# Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 
@@ -24,7 +23,6 @@ def create_follow_up_thought(
     now = datetime.now(timezone.utc).isoformat()
     parent_round = parent.round_number if hasattr(parent, 'round_number') else 0
 
-    # Create follow-up thought with v1 schema
     from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 
     if parent.context is not None:

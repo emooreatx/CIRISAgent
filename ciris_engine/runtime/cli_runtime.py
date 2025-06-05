@@ -158,8 +158,6 @@ class CLIRuntime(CIRISRuntime):
         if not self._initialized:
             await self.initialize()
         
-        # Call parent run method to handle the main processing loop
-        # The parent method will start agent processing with the correct num_rounds
         await super().run(num_rounds=num_rounds)
 
     async def start_interactive_console(self) -> None:

@@ -86,14 +86,12 @@ class BaseMultiServiceSink(ABC):
                     except Exception as e:
                         logger.error(f"Error processing action {action.type}: {e}", exc_info=True)
             except asyncio.TimeoutError:
-                # Check for shutdown during timeout
                 if is_global_shutdown_requested():
                     logger.info(f"Global shutdown requested for {self.__class__.__name__}")
                     break
                 continue
             except Exception as e:
                 logger.error(f"Unexpected error in {self.__class__.__name__} processing loop: {e}", exc_info=True)
-                # Also check for shutdown on unexpected errors
                 if is_global_shutdown_requested():
                     logger.info(f"Global shutdown requested for {self.__class__.__name__} after error")
                     break
@@ -101,7 +99,7 @@ class BaseMultiServiceSink(ABC):
 
     async def _process_action(self, action: ActionMessage) -> None:
         action_type = action.type
-        service_type = self.service_routing.get(action_type)  # type: ignore[union-attr]
+        service_type = self.service_routing.get(action_type)
         if not service_type:
             logger.error(f"No service routing defined for action type: {action_type}")
             return
@@ -121,7 +119,7 @@ class BaseMultiServiceSink(ABC):
     async def _get_service(self, service_type: str, action: ActionMessage) -> Optional[Any]:
         if not self.service_registry:
             return None
-        required_capabilities = self.capability_map.get(action.type, [])  # type: ignore[union-attr]
+        required_capabilities = self.capability_map.get(action.type, [])
         return await self.service_registry.get_service(
             handler=action.handler_name,
             service_type=service_type,

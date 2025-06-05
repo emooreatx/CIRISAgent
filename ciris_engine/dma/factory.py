@@ -10,7 +10,6 @@ from ..utils.profile_loader import load_profile
 
 logger = logging.getLogger(__name__)
 
-# Registry of available DSDMA classes
 DSDMA_CLASS_REGISTRY: Dict[str, Type[BaseDSDMA]] = {
     "BaseDSDMA": BaseDSDMA,
 }
@@ -39,7 +38,7 @@ async def create_dsdma_from_profile(
             logger.error("Default profile could not be loaded")
             return None
 
-    dsdma_cls = DSDMA_CLASS_REGISTRY.get(profile.dsdma_identifier)  # type: ignore[union-attr]
+    dsdma_cls = DSDMA_CLASS_REGISTRY.get(profile.dsdma_identifier)
     if not dsdma_cls:
         logger.error("Unknown DSDMA identifier: %s", profile.dsdma_identifier)
         return None

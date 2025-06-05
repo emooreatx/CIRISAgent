@@ -1,4 +1,3 @@
-# --- v1 DMA Results Schemas ---
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional, Union
 from .action_params_v1 import (
@@ -69,7 +68,7 @@ class ActionSelectionResult(BaseModel):
         if param_class and isinstance(self.action_parameters, dict):
             try:
                 result = param_class(**self.action_parameters)
-                return result  # type: ignore[no-any-return]
+                return result
             except Exception:
                 pass
         return self.action_parameters

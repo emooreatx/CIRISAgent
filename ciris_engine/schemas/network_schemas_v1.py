@@ -17,12 +17,11 @@ class NetworkType(str, Enum):
 class AgentIdentity(BaseModel):
     """Minimal agent identity - under 1KB serialized"""
     schema_version: SchemaVersion = Field(default=SchemaVersion.V1_0)
-    agent_id: str  # UUID or similar
-    chosen_name: Optional[str] = None  # e.g., "Echo"
-    public_key: Optional[str] = None  # Future use
+    agent_id: str
+    chosen_name: Optional[str] = None
+    public_key: Optional[str] = None
     primary_network: NetworkType = NetworkType.LOCAL
-    # SI/CS from Annex E - single byte each when serialized
-    structural_influence: int = Field(default=0, ge=0, le=100)  # 0-100 instead of float
+    structural_influence: int = Field(default=0, ge=0, le=100)
     coherence_stake: int = Field(default=0, ge=0, le=100)
 
 class NetworkPresence(BaseModel):

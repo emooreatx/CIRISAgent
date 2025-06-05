@@ -48,7 +48,7 @@ class APIMemoryRoutes:
         try:
             data = await request.json()
             key = data.get("key")
-            value = data.get("value")  # type: ignore[union-attr]
+            value = data.get("value")
             if not key:
                 return web.json_response({"error": "Missing key"}, status=400)
             node = GraphNode(id=key, type=NodeType.CONCEPT, scope=GraphScope(scope), attributes={"value": value})

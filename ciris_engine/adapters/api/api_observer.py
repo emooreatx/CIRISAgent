@@ -29,11 +29,9 @@ class APIObserver:
         self._history: list[IncomingMessage] = []
 
     async def start(self) -> None:
-        # APIObserver doesn't need to start a polling task - it only handles direct message calls
         pass
 
     async def stop(self) -> None:
-        # APIObserver doesn't have background tasks to stop
         pass
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:

@@ -1,4 +1,3 @@
-# --- v1 Graph Schemas ---
 from enum import Enum
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Optional
@@ -8,15 +7,15 @@ class GraphScope(str, Enum):
     LOCAL = "local"
     IDENTITY = "identity"
     ENVIRONMENT = "environment"
-    COMMUNITY = "community"    # NEW - for community-specific knowledge
-    NETWORK = "network"        # NEW - for network/peer information
+    COMMUNITY = "community"
+    NETWORK = "network"
 
 
 class NodeType(str, Enum):
     AGENT = "agent"
     USER = "user"
     CHANNEL = "channel"
-    CONCEPT = "concept"  # For identity/environment concepts
+    CONCEPT = "concept"
 
 
 class GraphNode(BaseModel):
@@ -36,7 +35,7 @@ class GraphEdge(BaseModel):
 
     source: str
     target: str
-    relationship: str  # Simplified from label
+    relationship: str
     scope: GraphScope
     weight: float = 1.0
     attributes: Dict[str, Any] = Field(default_factory=dict)

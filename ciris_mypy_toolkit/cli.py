@@ -36,7 +36,7 @@ Examples:
     )
     
     parser.add_argument("command", 
-                       choices=["analyze", "fix", "validate", "report", "clean"],
+                       choices=["analyze", "propose", "execute", "validate", "report", "clean"],
                        help="Command to execute")
     
     parser.add_argument("target", nargs="?", 
@@ -76,8 +76,11 @@ Examples:
         if args.command == "analyze":
             execute_analyze(toolkit)
             
-        elif args.command == "fix":
-            execute_fix(toolkit, args)
+        elif args.command == "propose":
+            execute_propose(toolkit, args)
+            
+        elif args.command == "execute":
+            execute_approved_fixes(toolkit, args)
             
         elif args.command == "validate":
             execute_validate(toolkit, args)
@@ -123,49 +126,58 @@ def execute_analyze(toolkit: CIRISMypyToolkit):
             print(f"   • {rec}")
 
 
-def execute_fix(toolkit: CIRISMypyToolkit, args):
-    """Execute systematic fixing."""
-    print("🛠️ CIRIS Issue Fixing")
-    print("=" * 40)
+def execute_propose(toolkit: CIRISMypyToolkit, args):
+    """Execute proposal generation for agent review."""
+    print("🔍 CIRIS Fix Proposal Generation")
+    print("=" * 45)
     
-    if args.systematic:
-        print("Using systematic approach...")
-        
-        # Get initial error count
-        initial_errors = len(toolkit.get_mypy_errors())
-        print(f"Starting with {initial_errors} mypy errors")
-        
-        # Fix issues systematically
-        results = toolkit.fix_all_issues(args.categories)
-        
-        # Show results
-        print(f"\n✅ Fix Results:")
-        for category, count in results.items():
-            if count > 0:
-                print(f"   • {category}: {count} fixes applied")
-        
-        final_errors = len(toolkit.get_mypy_errors())
-        eliminated = initial_errors - final_errors
-        
-        print(f"\n📈 Progress:")
-        print(f"   • Errors eliminated: {eliminated}")
-        print(f"   • Final error count: {final_errors}")
-        
-        if final_errors == 0:
-            print("🎉 ZERO ERRORS ACHIEVED!")
-        else:
-            print(f"   • Success rate: {(eliminated/initial_errors)*100:.1f}%")
+    # Get initial error count
+    initial_errors = len(toolkit.get_mypy_errors())
+    print(f"Current mypy errors: {initial_errors}")
     
-    else:
-        # Manual category fixing
-        categories = args.categories or ["type_annotations"]
-        
-        for category in categories:
-            print(f"\n🎯 Fixing {category}...")
-            
-            if category == "type_annotations":
-                fixes = toolkit.type_fixer.fix_all_type_issues()
-                print(f"Applied {fixes} type annotation fixes")
+    # Generate proposal
+    categories = args.categories or ["type_annotations"]
+    output_file = args.output or "proposed_fixes.json"
+    
+    proposal_file = toolkit.propose_fixes(categories, output_file)
+    
+    print(f"\n📄 Proposal generated: {proposal_file}")
+    print("🤖 AGENT: Please review the proposed changes in the file.")
+    print(f"📋 To execute: python -m ciris_mypy_toolkit.cli execute {proposal_file}")
+
+
+def execute_approved_fixes(toolkit: CIRISMypyToolkit, args):
+    """Execute fixes from an approved proposal file."""
+    if not args.target:
+        logger.error("Proposal file required for execution")
+        sys.exit(1)
+    
+    proposal_file = args.target
+    
+    print(f"🚀 Executing Approved Fixes")
+    print("=" * 35)
+    print(f"Proposal file: {proposal_file}")
+    
+    if not Path(proposal_file).exists():
+        logger.error(f"Proposal file {proposal_file} not found")
+        sys.exit(1)
+    
+    # Execute approved fixes
+    results = toolkit.execute_approved_fixes(proposal_file)
+    
+    # Show results
+    print(f"\n✅ Execution Results:")
+    for category, count in results.items():
+        if count > 0:
+            print(f"   • {category}: {count} fixes applied")
+    
+    # Final verification
+    final_errors = len(toolkit.get_mypy_errors())
+    print(f"\n📈 Final Status:")
+    print(f"   • Current mypy errors: {final_errors}")
+    
+    if final_errors == 0:
+        print("🎉 ZERO ERRORS ACHIEVED!")
 
 
 def execute_validate(toolkit: CIRISMypyToolkit, args):

@@ -121,7 +121,6 @@ class CSDMAEvaluator(BaseDMA):
             {"role": "user", "content": user_message},
         ]
 
-    # Updated signature to use ProcessingQueueItem
     async def evaluate_thought(self, thought_item: ProcessingQueueItem) -> CSDMAResult:
         llm_service = await self.get_llm_service()
         if not llm_service:
@@ -129,19 +128,13 @@ class CSDMAEvaluator(BaseDMA):
 
         aclient = instructor.patch(llm_service.get_client().client, mode=self.instructor_mode)
 
-        # Extract thought content string robustly from ProcessingQueueItem.content (Dict[str, Any])
         thought_content_str = ""
         if isinstance(thought_item.content, dict):
-            thought_content_str = thought_item.content.get("text", thought_item.content.get("description", str(thought_item.content)))
-        else: # Should not happen based on ProcessingQueueItem definition, but handle defensively
-             thought_content_str = str(thought_item.content)
+            thought_content_str = str(thought_item.content)
+        else:
+            thought_content_str = str(thought_item.content)
 
         context_summary = "Standard Earth-based physical context, unless otherwise specified in the thought."
-        # Example of how context might be overridden from the thought item itself
-        # Note: ProcessingQueueItem.content is Dict[str, Any], not str, so direct check is fine.
-        # if isinstance(thought_item.content, dict) and "context_override" in thought_item.content:
-        #     context_summary = thought_item.content["context_override"]
-        # Check initial_context for environment context description, as ProcessingQueueItem stores it there.
         if hasattr(thought_item, 'initial_context') and thought_item.initial_context and "environment_context" in thought_item.initial_context:
             env_ctx = thought_item.initial_context["environment_context"]
             if isinstance(env_ctx, dict) and "description" in env_ctx:
@@ -183,36 +176,34 @@ class CSDMAEvaluator(BaseDMA):
         try:
             csdma_eval: CSDMAResult = await aclient.chat.completions.create(
                 model=self.model_name,
-                response_model=CSDMAResult, # Key instructor feature
+                response_model=CSDMAResult,
                 messages=messages,
-                max_tokens=512, # CSDMA response is usually shorter
-                max_retries=self.max_retries # Pass configured max_retries here
+                max_tokens=512,
+                max_retries=self.max_retries
             )
 
-            # If raw_llm_response is a field in CSDMAResult and you want to populate it:
             if hasattr(csdma_eval, '_raw_response') and hasattr(csdma_eval, 'raw_llm_response'):
                 raw_resp = getattr(csdma_eval, '_raw_response', None)
                 if raw_resp:
                     setattr(csdma_eval, 'raw_llm_response', str(raw_resp))
 
 
-            logger.info(f"CSDMA (instructor) evaluation successful for thought ID {thought_item.thought_id}: Score {csdma_eval.plausibility_score:.2f}") # Corrected field name
+            logger.info(f"CSDMA (instructor) evaluation successful for thought ID {thought_item.thought_id}: Score {csdma_eval.plausibility_score:.2f}")
             return csdma_eval
 
-        except InstructorRetryException as e_instr: # Catch specific instructor retry/validation error
+        except InstructorRetryException as e_instr:
             error_detail = e_instr.errors() if hasattr(e_instr, 'errors') else str(e_instr)
             logger.error(f"CSDMA (instructor) InstructorRetryException for thought {thought_item.thought_id}: {error_detail}", exc_info=True)
-            # Add required args to exception for fallback result
             return CSDMAResult(
-                plausibility_score=0.0, # Corrected field name, Default to lowest plausibility on error
+                plausibility_score=0.0,
                 flags=["Instructor_ValidationError"],
                 reasoning=f"Failed CSDMA evaluation via instructor due to validation error: {error_detail}",
                 raw_llm_response=f"InstructorRetryException: {error_detail}"
             )
-        except Exception as e: # Catch other potential errors (API connection, etc.)
+        except Exception as e:
             logger.error(f"CSDMA (instructor) evaluation failed for thought ID {thought_item.thought_id}: {e}", exc_info=True)
             return CSDMAResult(
-                plausibility_score=0.0, # Corrected field name, Default to lowest plausibility on error
+                plausibility_score=0.0,
                 flags=["LLM_Error_Instructor"],
                 reasoning=f"Failed CSDMA evaluation via instructor: {str(e)}",
                 raw_llm_response=f"Exception: {str(e)}"

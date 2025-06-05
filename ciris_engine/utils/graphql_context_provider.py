@@ -13,7 +13,6 @@ from ciris_engine.config.env_utils import get_env_var
 class GraphQLClient:
     def __init__(self, endpoint: str | None = None) -> None:
         self.endpoint = endpoint or get_env_var("GRAPHQL_ENDPOINT", "https://localhost:8000/graphql")
-        # Use a short timeout per repository guidelines
         self._client = httpx.AsyncClient(timeout=3.0)
 
     async def query(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
@@ -34,7 +33,7 @@ class GraphQLContextProvider:
         if enable_remote_graphql:
             self.client = graphql_client or GraphQLClient()
         else:
-            self.client = graphql_client  # stored for tests but not used
+            self.client = graphql_client
         self.memory_service = memory_service
 
     async def enrich_context(self, task, thought) -> Dict[str, Any]:
@@ -43,7 +42,7 @@ class GraphQLContextProvider:
             name = task.context.get("author_name")
             if name:
                 authors.add(name)
-        history: List[Dict[str, Any]] = []  # Remove legacy processing_context usage, use only v1 fields.
+        history: List[Dict[str, Any]] = []
         for item in history:
             name = item.get("author_name")
             if name:

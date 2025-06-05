@@ -131,7 +131,7 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
     placeholders = ','.join('?' for _ in task_ids)
     
     sql_get_thought_ids = f"SELECT thought_id FROM thoughts WHERE source_task_id IN ({placeholders})"
-    sql_delete_feedback_mappings = "DELETE FROM feedback_mappings WHERE target_thought_id IN ({})" # Placeholder for thought_ids
+    sql_delete_feedback_mappings = "DELETE FROM feedback_mappings WHERE target_thought_id IN ({})"
     sql_delete_thoughts = f"DELETE FROM thoughts WHERE source_task_id IN ({placeholders})"
     sql_delete_tasks = f"DELETE FROM tasks WHERE task_id IN ({placeholders})"
     
@@ -140,13 +140,11 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
         with get_db_connection(db_path) as conn:
             cursor = conn.cursor()
             
-            # Get thought_ids associated with the tasks to be deleted
             cursor.execute(sql_get_thought_ids, task_ids)
             thought_rows = cursor.fetchall()
             thought_ids_to_delete = [row['thought_id'] for row in thought_rows]
 
             if thought_ids_to_delete:
-                # Delete associated feedback_mappings
                 feedback_placeholders = ','.join('?' for _ in thought_ids_to_delete)
                 current_sql_delete_feedback_mappings = sql_delete_feedback_mappings.format(feedback_placeholders)
                 cursor.execute(current_sql_delete_feedback_mappings, thought_ids_to_delete)
@@ -154,11 +152,9 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
             else:
                 logger.info(f"No associated feedback mappings found for task IDs: {task_ids}.")
 
-            # Delete associated thoughts
             cursor.execute(sql_delete_thoughts, task_ids)
             logger.info(f"Deleted {cursor.rowcount} associated thoughts for task IDs: {task_ids}.")
             
-            # Delete tasks
             cursor.execute(sql_delete_tasks, task_ids)
             deleted_count = cursor.rowcount
             
@@ -171,7 +167,6 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
             return False
     except Exception as e:
         logger.exception(f"Failed to delete tasks with IDs {task_ids}: {e}")
-        # Rollback is handled automatically by the context manager if an exception occurs
         return False
 
 def get_tasks_older_than(older_than_timestamp: str, db_path: Optional[str] = None) -> List[Task]:

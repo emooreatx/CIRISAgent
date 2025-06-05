@@ -3,7 +3,6 @@ from typing import Dict, Any
 
 from pydantic import ValidationError
 
-# Updated imports for v1 schemas
 from ciris_engine.schemas import Thought, SpeakParams, ThoughtStatus, HandlerActionType, ActionSelectionResult
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
@@ -105,11 +104,10 @@ class SpeakHandler(BaseActionHandler):
             """
             if success
             else f"CIRIS_FOLLOW_UP_THOUGHT: SPEAK action failed for thought {thought_id}."
-        )  #PROMPT_FOLLOW_UP_THOUGHT
+        )
 
         try:
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
-            # Update context using Pydantic model_copy with additional fields
             context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
             ctx = {
                 "action_performed": HandlerActionType.SPEAK.value,
@@ -117,7 +115,7 @@ class SpeakHandler(BaseActionHandler):
             }
             if not success:
                 ctx["error_details"] = follow_up_error_context
-            context_data.update(ctx)  # type: ignore[union-attr]
+            context_data.update(ctx)
             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
             new_follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(new_follow_up)

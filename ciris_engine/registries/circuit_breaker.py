@@ -26,10 +26,10 @@ class CircuitState(Enum):
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker behavior"""
-    failure_threshold: int = 5          # Failures before opening circuit
-    recovery_timeout: float = 60.0      # Seconds before attempting recovery
-    success_threshold: int = 3          # Successes needed to close circuit in half-open state
-    timeout_duration: float = 30.0      # Request timeout in seconds
+    failure_threshold: int = 5
+    recovery_timeout: float = 60.0
+    success_threshold: int = 3
+    timeout_duration: float = 30.0
 
 class CircuitBreaker:
     """
@@ -95,7 +95,6 @@ class CircuitBreaker:
             if self.failure_count >= self.config.failure_threshold:
                 self._transition_to_open()
         elif self.state == CircuitState.HALF_OPEN:
-            # Return to open state on any failure during recovery
             self._transition_to_open()
     
     def _transition_to_open(self) -> None:

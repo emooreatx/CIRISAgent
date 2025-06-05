@@ -16,19 +16,15 @@ class CaseInsensitiveEnum(str, Enum):
 
 class HandlerActionType(CaseInsensitiveEnum):
     """Core 3×3×3 action model"""
-    # External actions
     OBSERVE = "observe"
     SPEAK = "speak"
     TOOL = "tool"
-    # Control responses
     REJECT = "reject"
     PONDER = "ponder"
     DEFER = "defer"
-    # Memory operations
     MEMORIZE = "memorize"
     RECALL = "recall"
     FORGET = "forget"
-    # Terminal
     TASK_COMPLETE = "task_complete"
 
 class TaskStatus(CaseInsensitiveEnum):
@@ -46,11 +42,11 @@ class ThoughtStatus(CaseInsensitiveEnum):
     DEFERRED = "deferred"
 
 class ObservationSourceType(CaseInsensitiveEnum):
-    CHAT_MESSAGE = "chat_message"  # Renamed from DISCORD_MESSAGE
-    FEEDBACK_PACKAGE = "feedback_package"  # Renamed from CORRECTION_PACKAGE
+    CHAT_MESSAGE = "chat_message"
+    FEEDBACK_PACKAGE = "feedback_package"
     USER_REQUEST = "user_request"
     AGENT_MESSAGE = "agent_message"
-    INTERNAL_SIGNAL = "internal_signal"  # Simplified from INTERNAL_SENSOR
+    INTERNAL_SIGNAL = "internal_signal"
 
 class IncomingMessage(BaseModel):
     """Schema for incoming messages from various sources."""
