@@ -14,10 +14,16 @@ logger = logging.getLogger(__name__)
 
 def _build_speak_error_context(params: SpeakParams, thought_id: str, error_type: str = "notification_failed") -> str:
     """Build a descriptive error context string for speak failures."""
+    # Use attribute access for content if it's a GraphNode
+    content_str = params.content
+    if hasattr(params.content, 'value'):
+        content_str = getattr(params.content, 'value', str(params.content))
+    elif hasattr(params.content, '__str__'):
+        content_str = str(params.content)
     error_contexts = {
-        "notification_failed": f"Failed to send notification to channel '{params.channel_id}' with content: '{params.content[:100]}{'...' if len(params.content) > 100 else ''}'",
+        "notification_failed": f"Failed to send notification to channel '{params.channel_id}' with content: '{content_str[:100]}{'...' if len(content_str) > 100 else ''}'",
         "channel_unavailable": f"Channel '{params.channel_id}' is not available or accessible",
-        "content_rejected": f"Content was rejected by the communication service: '{params.content[:100]}{'...' if len(params.content) > 100 else ''}'",
+        "content_rejected": f"Content was rejected by the communication service: '{content_str[:100]}{'...' if len(content_str) > 100 else ''}'",
         "service_timeout": f"Communication service timed out while sending to channel '{params.channel_id}'",
         "unknown": f"Unknown error occurred while speaking to channel '{params.channel_id}'"
     }
@@ -76,7 +82,9 @@ class SpeakHandler(BaseActionHandler):
             outcome="start",
         )
 
-        success = await self._send_notification(params.channel_id, params.content)
+        # Extract string from GraphNode for notification
+        content_str = params.content.attributes.get('text', str(params.content)) if hasattr(params.content, 'attributes') else str(params.content)
+        success = await self._send_notification(params.channel_id, content_str)
 
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
         

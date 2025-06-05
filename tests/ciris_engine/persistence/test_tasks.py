@@ -24,10 +24,10 @@ def temp_db_file():
 def make_task(task_id, status=TaskStatus.ACTIVE, priority=0, created_at=None, updated_at=None):
     now = datetime.now(timezone.utc).isoformat()
     return Task(
-        task_id=task_id,
+        task_id=str(task_id),
         description=f"desc-{task_id}",
         status=status,
-        priority=priority,
+        priority=int(priority),
         created_at=created_at or now,
         updated_at=updated_at or now
     )

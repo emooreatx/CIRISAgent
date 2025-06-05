@@ -103,6 +103,40 @@ class ResourceUsage(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class ThoughtType(str, Enum):
+    # Core thought types
+    STANDARD = "standard"
+    FOLLOW_UP = "follow_up"
+    ERROR = "error"
+    OBSERVATION = "observation"
+    MEMORY = "memory"
+    DEFERRED = "deferred"
+    PONDER = "ponder"
+    # Feedback and guidance types
+    FEEDBACK = "feedback"           # Processing WA feedback
+    GUIDANCE = "guidance"           # Incorporating WA guidance
+    IDENTITY_UPDATE = "identity_update"  # Identity feedback processing
+    # Decision-making types
+    ETHICAL_REVIEW = "ethical_review"    # Ethical DMA triggered
+    GUARDRAIL = "guardrail"         # Guardrail violation handling
+    CONSENSUS = "consensus"         # Multi-agent consensus needed
+    # System and meta types
+    REFLECTION = "reflection"       # Self-reflection/meta-cognition
+    SYNTHESIS = "synthesis"         # Combining multiple thoughts
+    DELEGATION = "delegation"       # Delegating to another agent/service
+    # Communication types
+    CLARIFICATION = "clarification" # Seeking clarification from user
+    SUMMARY = "summary"            # Summarizing conversation/task
+    # Tool and action types
+    TOOL_RESULT = "tool_result"    # Processing tool execution results
+    ACTION_REVIEW = "action_review" # Reviewing action before execution
+    # Urgency and priority types
+    URGENT = "urgent"              # High-priority urgent thought
+    SCHEDULED = "scheduled"        # Time-based scheduled thought
+    # Learning and adaptation
+    PATTERN = "pattern"           # Pattern recognition
+    ADAPTATION = "adaptation"     # Behavioral adaptation
+
 # Backwards-compatible alias for SchemaVersion
 CIRISSchemaVersion = SchemaVersion
 
@@ -112,6 +146,7 @@ __all__ = [
     "HandlerActionType",
     "TaskStatus",
     "ThoughtStatus",
+    "ThoughtType",
     "ObservationSourceType",
     "IncomingMessage",
     "DiscordMessage",

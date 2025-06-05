@@ -6,7 +6,8 @@ from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpSta
 from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from typing import Optional
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 import logging
 from pydantic import ValidationError
 
@@ -128,7 +129,7 @@ class ForgetHandler(BaseActionHandler):
             )
         follow_up = create_follow_up_thought(
             parent=thought,
-            content=follow_up_content,
+            content=ThoughtStatus.PENDING,
         )
         context_data = follow_up.context.model_dump() if follow_up.context else {}
         context_data.update({

@@ -120,7 +120,7 @@ class MemorizeHandler(BaseActionHandler):
         try:
             new_follow_up = create_follow_up_thought(
                 parent=thought,
-                content=follow_up_text,
+                content=ThoughtStatus.PENDING,
             )
 
             context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}

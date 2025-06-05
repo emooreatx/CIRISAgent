@@ -10,7 +10,7 @@ from ciris_engine.persistence import (
 )
 from ciris_engine.persistence import add_task
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType, ThoughtType
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.action_params_v1 import (
     SpeakParams, RecallParams, ForgetParams, MemorizeParams, PonderParams, ObserveParams
@@ -36,29 +36,29 @@ def temp_db_file():
     return f.name
 
 def make_task(task_id):
-    # Use TaskStatus enums for all required fields
+    now = datetime.now(timezone.utc).isoformat()
     return Task(
-        task_id=TaskStatus.PENDING,
-        description=TaskStatus.PENDING,
+        task_id=str(task_id),
+        description=f"desc-{task_id}",
         status=TaskStatus.PENDING,
-        priority=TaskStatus.PENDING,
-        created_at=TaskStatus.PENDING,
-        updated_at=TaskStatus.PENDING
+        priority=0,
+        created_at=now,
+        updated_at=now
     )
 
-def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING):
-    # Use ThoughtStatus enums for all required fields
+def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING, thought_type=ThoughtType.FOLLOW_UP):
+    now = datetime.now(timezone.utc).isoformat()
     return Thought(
-        thought_id=ThoughtStatus.PENDING,
-        source_task_id=ThoughtStatus.PENDING,
-        thought_type=ThoughtStatus.PENDING,
+        thought_id=str(thought_id),
+        source_task_id=str(source_task_id),
+        thought_type=thought_type,
         status=status,
-        created_at=ThoughtStatus.PENDING,
-        updated_at=ThoughtStatus.PENDING,
-        round_number=ThoughtStatus.PENDING,
-        content=ThoughtStatus.PENDING,
-        context={},
-        ponder_count=ThoughtStatus.PENDING,
+        created_at=now,
+        updated_at=now,
+        round_number=0,
+        content="test content",
+        context=None,
+        ponder_count=0,
         ponder_notes=None,
         parent_thought_id=None,
         final_action={}
@@ -192,7 +192,7 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
             with patch.object(handler_mod.persistence, 'add_thought', side_effect=lambda t, db_path_=None: add_thought(t, db_path=db_path)), \
                  patch.object(handler_mod.persistence, 'update_thought_status', side_effect=lambda **kwargs: None):
                 handler = handler_cls(deps)
-                result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale=MemorizeParams(node=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY)))
+                result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale="r")
                 dispatch_context = {"channel_id": "c1", "wa_authorized": True}
                 if extra_setup:
                     extra_setup(deps, thought, db_path)
@@ -202,7 +202,7 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
             deps.persistence.add_thought = lambda t, db_path_=None: add_thought(t, db_path=db_path)
             deps.persistence.update_thought_status = lambda **kwargs: None
             handler = handler_cls(deps)
-            result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale=MemorizeParams(node=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY)))
+            result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale="r")
             dispatch_context = {"channel_id": "c1", "wa_authorized": True}
             if extra_setup:
                 extra_setup(deps, thought, db_path)

@@ -6,9 +6,10 @@ from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpSta
 from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 import logging
 from pydantic import ValidationError
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class RecallHandler(BaseActionHandler):
             await self._handle_error(HandlerActionType.RECALL, dispatch_context, thought_id, e)
             follow_up = create_follow_up_thought(
                 parent=thought,
-                content=f"RECALL action failed: {e}"
+                content=ThoughtStatus.PENDING
             )
             self.dependencies.persistence.add_thought(follow_up)
             return
@@ -35,7 +36,7 @@ class RecallHandler(BaseActionHandler):
             )
             follow_up = create_follow_up_thought(
                 parent=thought,
-                content=f"RECALL action failed: MemoryService unavailable for thought {thought_id}"
+                content=ThoughtStatus.PENDING
             )
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(

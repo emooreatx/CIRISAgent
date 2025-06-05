@@ -18,14 +18,14 @@ from ciris_engine.schemas.action_params_v1 import (
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, TaskStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, TaskStatus, ThoughtType
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult, MemoryOpStatus
 
 
 DEFAULT_THOUGHT_KWARGS = dict(
     thought_id="t1",
     source_task_id="task1",
-    thought_type="test",
+    thought_type=ThoughtType.STANDARD,
     status=ThoughtStatus.PENDING,
     created_at="2025-05-28T00:00:00Z",
     updated_at="2025-05-28T00:00:00Z",
@@ -49,18 +49,19 @@ async def test_forget_handler_schema_driven(monkeypatch):
     deps.persistence = MagicMock()
     handler = ForgetHandler(deps)
 
-    node = GraphNode(id="user1", type=NodeType.USER, scope=GraphScope.LOCAL)
+    node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
+    reason_node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.FORGET,
-        action_parameters=ForgetParams(node=node, reason="r"),
-        rationale="r",
+        action_parameters=ForgetParams(node=node, reason=reason_node),
+        rationale=reason_node,
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
 
     await handler.handle(action_result, thought, {})
 
     expected_node = GraphNode(
-        id="user1",
+        id=NodeType.USER,
         type=NodeType.USER,
         scope=GraphScope.LOCAL,
         attributes={},
@@ -81,7 +82,7 @@ async def test_recall_handler_schema_driven(monkeypatch):
     deps.persistence = MagicMock()
     handler = RecallHandler(deps)
 
-    node = GraphNode(id="user1", type=NodeType.USER, scope=GraphScope.LOCAL)
+    node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.RECALL,
         action_parameters=RecallParams(node=node),
@@ -92,7 +93,7 @@ async def test_recall_handler_schema_driven(monkeypatch):
     await handler.handle(action_result, thought, {})
 
     expected_node = GraphNode(
-        id="user1",
+        id=NodeType.USER,
         type=NodeType.USER,
         scope=GraphScope.LOCAL,
         attributes={},
@@ -108,18 +109,17 @@ async def test_observe_handler_passive(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
-    # Passive observation is now handled at the adapter/observer level, not by calling handle_incoming_message
-    deps = ActionHandlerDependencies()
-    handler = ObserveHandler(deps)
-
-    params = ObserveParams(active=False, context={})
+    from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+    active_node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
+    context_node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL)
+    params = ObserveParams(active=active_node, context=context_node)
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.OBSERVE,
         action_parameters=params,
         rationale="r",
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
-
+    handler = ObserveHandler(ActionHandlerDependencies())
     await handler.handle(action_result, thought, {})
 
     update_status.assert_called_once()

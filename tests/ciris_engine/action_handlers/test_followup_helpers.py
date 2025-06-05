@@ -1,22 +1,25 @@
 import pytest
+from datetime import datetime
 from ciris_engine.action_handlers.helpers import create_follow_up_thought
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, ThoughtType
 
 
 def make_parent():
+    now = datetime.utcnow()
+    # Set channel_id and foo in context for propagation
+    context = {"channel_id": "chan", "foo": "bar"}
     return Thought(
-        thought_id=ThoughtStatus.PENDING,
-        source_task_id=ThoughtStatus.PENDING,
-        thought_type=ThoughtStatus.PENDING,
+        thought_id="parent",
+        source_task_id="task1",
+        thought_type=ThoughtType.STANDARD,
         status=ThoughtStatus.PENDING,
-        created_at=ThoughtStatus.PENDING,
-        updated_at=ThoughtStatus.PENDING,
-        round_number=ThoughtStatus.PENDING,
-        content=ThoughtStatus.PENDING,
-        context={"channel_id": "chan", "foo": "bar"},
-        ponder_count=ThoughtStatus.PENDING,
-        ponder_notes=None,
+        created_at=now.isoformat(),
+        updated_at=now.isoformat(),
+        round_number=0,
+        content="parent content",
+        context=context,
+        ponder_count=0,
         parent_thought_id=None,
         final_action={},
     )
