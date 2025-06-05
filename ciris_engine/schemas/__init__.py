@@ -5,6 +5,10 @@ from .foundational_schemas_v1 import *
 from .service_actions_v1 import *
 from .memory_schemas_v1 import *
 from .correlation_schemas_v1 import *
+from .network_schemas_v1 import NetworkType, AgentIdentity, NetworkPresence
+from .community_schemas_v1 import CommunityHealth, MinimalCommunityContext
+from .wisdom_schemas_v1 import WisdomSource, WisdomRequest, UniversalGuidanceProtocol
+from .telemetry_schemas_v1 import ResourceMetrics, CompactTelemetry
 
 __all__ = [
     'Task', 'Thought',
@@ -22,5 +26,17 @@ __all__ = [
     'MemoryOpStatus', 'MemoryOpAction', 'MemoryOpResult',
     # Service correlation schemas
     'ServiceCorrelationStatus', 'ServiceCorrelation',
+    
+    # Network schemas
+    'NetworkType', 'AgentIdentity', 'NetworkPresence',
+    
+    # Community schemas
+    'CommunityHealth', 'MinimalCommunityContext',
+    
+    # Wisdom schemas
+    'WisdomSource', 'WisdomRequest', 'UniversalGuidanceProtocol',
+    
+    # Telemetry schemas
+    'ResourceMetrics', 'CompactTelemetry',
 ]
 

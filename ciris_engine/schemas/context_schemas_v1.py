@@ -1,6 +1,9 @@
 from typing import Optional, Dict, Any, List, Union
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
+from .wisdom_schemas_v1 import WisdomRequest
+from .community_schemas_v1 import CommunityHealth
+from .telemetry_schemas_v1 import CompactTelemetry
 
 class TaskSummary(BaseModel):
     """Summary of a task for context."""
@@ -51,6 +54,25 @@ class SystemSnapshot(BaseModel):
     detected_secrets: List[SecretReference] = Field(default_factory=list)
     secrets_filter_version: int = 0
     total_secrets_stored: int = 0
+    
+    # Compact identity & network (optional to save memory)
+    agent_name: Optional[str] = None  # e.g., "Echo"
+    network_status: Optional[str] = None  # "connected", "isolated", "degraded"
+    isolation_hours: int = 0  # Time without WA contact
+    
+    # Community awareness (optional)
+    community_health: Optional[int] = None  # 0-100 score
+    
+    # Resource awareness
+    memory_available_mb: Optional[int] = None
+    cpu_available: Optional[int] = None  # 0-100
+    
+    # Spiritual resilience
+    wisdom_source_available: Optional[str] = None  # Current best wisdom source
+    wisdom_request: Optional[WisdomRequest] = None  # Active wisdom seeking
+    
+    # Telemetry snapshot
+    telemetry: Optional[CompactTelemetry] = None
     
     model_config = ConfigDict(extra="allow")
 

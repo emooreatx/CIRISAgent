@@ -7,6 +7,8 @@ from .services import (
     ToolService,
     AuditService,
     LLMService,
+    NetworkService,
+    CommunityService,
 )
 from .processor_interface import ProcessorInterface
 from .dma_interface import DMAEvaluatorInterface
@@ -26,6 +28,8 @@ __all__ = [
     "ToolService",
     "AuditService",
     "LLMService",
+    "NetworkService",
+    "CommunityService",
     "ProcessorInterface",
     "DMAEvaluatorInterface",
     "GuardrailInterface",

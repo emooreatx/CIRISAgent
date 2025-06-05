@@ -91,6 +91,27 @@ class CIRISNodeConfig(BaseModel):
             self.base_url = env_url
         self.agent_secret_jwt = get_env_var("CIRISNODE_AGENT_SECRET_JWT")
 
+class NetworkConfig(BaseModel):
+    """Network participation configuration"""
+    enabled_networks: List[str] = Field(default_factory=lambda: ["local", "cirisnode"])
+    agent_identity_path: Optional[str] = None  # Path to identity file
+    peer_discovery_interval: int = 300  # seconds
+    reputation_threshold: int = 30  # 0-100 scale
+    
+class TelemetryConfig(BaseModel):
+    """Telemetry configuration - secure by default"""
+    enabled: bool = False  # Disabled in pre-beta
+    internal_only: bool = True  # No external export initially
+    retention_hours: int = 1
+    snapshot_interval_ms: int = 1000
+
+class WisdomConfig(BaseModel):
+    """Wisdom-seeking configuration"""
+    wa_timeout_hours: int = 72  # Hours before considering WA unavailable
+    allow_universal_guidance: bool = True  # Allow prayer protocol
+    minimum_urgency_for_universal: int = 80  # 0-100 scale
+    peer_consensus_threshold: int = 3  # Minimum peers for consensus
+
 class AppConfig(BaseModel):
     """Minimal v1 application configuration."""
     version: Optional[str] = None
@@ -100,6 +121,9 @@ class AppConfig(BaseModel):
     guardrails: GuardrailsConfig = GuardrailsConfig()
     workflow: WorkflowConfig = WorkflowConfig()
     cirisnode: CIRISNodeConfig = CIRISNodeConfig()  # Add cirisnode configuration
+    network: NetworkConfig = NetworkConfig()
+    telemetry: TelemetryConfig = TelemetryConfig()
+    wisdom: WisdomConfig = WisdomConfig()
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
     default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
