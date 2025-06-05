@@ -46,7 +46,7 @@ class ObserveHandler(BaseActionHandler):
         if channel_id:
             recall_ids.add(f"channel/{channel_id}")
         for msg in messages or []:
-            aid = msg.author_id if hasattr(msg, 'author_id') else msg.get('author_id')
+            aid = msg.author_id if hasattr(msg, 'author_id') else getattr(msg, 'author_id', None)
             if aid:
                 recall_ids.add(f"user/{aid}")
         for rid in recall_ids:

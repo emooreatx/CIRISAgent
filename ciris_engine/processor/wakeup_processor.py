@@ -196,7 +196,7 @@ class WakeupProcessor(BaseProcessor):
             return
         
         # Process all step tasks concurrently
-        tasks = []
+        tasks: List[Any] = []
         
         for i, step_task in enumerate(self.wakeup_tasks[1:]):  # Skip root
             current_task = persistence.get_task_by_id(step_task.task_id)

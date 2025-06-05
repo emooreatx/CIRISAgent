@@ -70,8 +70,8 @@ class DMAOrchestrator:
         """
         Run EthicalPDMA, CSDMA, and DSDMA in parallel (async). Returns a dict with results or escalates on error.
         """
-        results = {}
-        errors = {}
+        results: Dict[str, Any] = {}
+        errors: Dict[str, Any] = {}
         tasks = {
             "ethical_pdma": asyncio.create_task(
                 run_dma_with_retries(

@@ -17,7 +17,7 @@ class CLIWiseAuthorityService(WiseAuthorityService):
     """CLI-based WA service that prompts user for guidance"""
 
     def __init__(self) -> None:
-        self.deferral_log = []
+        self.deferral_log: List[Dict[str, Any]] = []
 
     async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:
         """Prompt user for guidance on deferred decision"""
