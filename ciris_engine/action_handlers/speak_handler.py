@@ -28,7 +28,7 @@ def _build_speak_error_context(params: SpeakParams, thought_id: str, error_type:
 
 
 class SpeakHandler(BaseActionHandler):
-    def __init__(self, dependencies: ActionHandlerDependencies, snore_channel_id: str = None):
+    def __init__(self, dependencies: ActionHandlerDependencies, snore_channel_id: str = None) -> None:
         super().__init__(dependencies)
         self.snore_channel_id = snore_channel_id
 

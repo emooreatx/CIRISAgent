@@ -21,7 +21,7 @@ class BaseMultiServiceSink(ABC):
     def __init__(self, 
                  service_registry: Optional[Any] = None,
                  max_queue_size: int = 1000,
-                 fallback_channel_id: Optional[str] = None):
+                 fallback_channel_id: Optional[str] = None) -> None:
         self.service_registry = service_registry
         self.fallback_channel_id = fallback_channel_id
         self._queue = asyncio.Queue(maxsize=max_queue_size)
@@ -39,7 +39,7 @@ class BaseMultiServiceSink(ABC):
         pass
 
     @abstractmethod
-    async def _execute_action_on_service(self, service: Any, action: ActionMessage):
+    async def _execute_action_on_service(self, service: Any, action: ActionMessage) -> None:
         pass
 
     async def enqueue_action(self, action: ActionMessage) -> bool:
@@ -59,7 +59,7 @@ class BaseMultiServiceSink(ABC):
         self._processing = False
         self._stop_event.set()
 
-    async def _start_processing(self):
+    async def _start_processing(self) -> None:
         logger.info(f"Starting {self.__class__.__name__} processing")
         while self._processing and not is_global_shutdown_requested():
             try:
@@ -99,7 +99,7 @@ class BaseMultiServiceSink(ABC):
                     break
         logger.info(f"Stopped {self.__class__.__name__} processing")
 
-    async def _process_action(self, action: ActionMessage):
+    async def _process_action(self, action: ActionMessage) -> None:
         action_type = action.type
         service_type = self.service_routing.get(action_type)
         if not service_type:
@@ -128,5 +128,5 @@ class BaseMultiServiceSink(ABC):
             required_capabilities=required_capabilities
         )
 
-    async def _handle_fallback(self, action: ActionMessage):
+    async def _handle_fallback(self, action: ActionMessage) -> None:
         logger.warning(f"No service available for {action.type} - logging action: {asdict(action)}")

@@ -29,7 +29,7 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         port=8080,
         profile_name: str = "default",
         app_config: Optional[AppConfig] = None,
-    ):
+    ) -> None:
         # Create API adapter if not provided
         if api_adapter is None:
             from ciris_engine.adapters.api import APIAdapter
@@ -65,7 +65,7 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         self.site = None
         self._web_server_stopped = False # For idempotency
 
-    async def _register_core_services(self):
+    async def _register_core_services(self) -> None:
         """Register core services including API-specific ones."""
         # First, call parent to register standard services
         await super()._register_core_services()
@@ -121,7 +121,7 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             
             logger.info("Registered APIAdapter for all service types during core service registration")
 
-    def _register_routes(self):
+    def _register_routes(self) -> None:
         """Register all API routes after services are initialized."""
         # Store comms routes so tests can invoke handlers directly
         self._comms_routes = APICommsRoutes(self.api_observer, self.api_adapter)

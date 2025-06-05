@@ -11,7 +11,7 @@ T = TypeVar('T')
 class Service(ABC):
     """Abstract base class for pluggable services within the CIRIS Engine."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
         Initialize the service.
 

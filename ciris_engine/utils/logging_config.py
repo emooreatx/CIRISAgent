@@ -17,7 +17,7 @@ def setup_basic_logging(level: int = logging.INFO,
                         prefix: Optional[str] = None,
                         log_to_file: bool = True,
                         log_dir: str = "logs",
-                        console_output: bool = False):
+                        console_output: bool = False) -> None:
     """
     Sets up basic logging configuration with file output and optional console output.
 

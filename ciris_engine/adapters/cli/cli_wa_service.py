@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class CLIWiseAuthorityService(WiseAuthorityService):
     """CLI-based WA service that prompts user for guidance"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.deferral_log = []
 
     async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:

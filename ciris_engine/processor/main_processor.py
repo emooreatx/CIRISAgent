@@ -46,7 +46,7 @@ class AgentProcessor:
         action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any],
         startup_channel_id: Optional[str] = None,
-    ):
+    ) -> None:
         """Initialize the agent processor with v1 configuration."""
         self.app_config = app_config
         self.active_profile = active_profile  # Store active profile
@@ -118,7 +118,7 @@ class AgentProcessor:
         return self._action_dispatcher
 
     @action_dispatcher.setter
-    def action_dispatcher(self, new_dispatcher: "ActionDispatcher"):
+    def action_dispatcher(self, new_dispatcher: "ActionDispatcher") -> None:
         logger.info(f"AgentProcessor's action_dispatcher is being updated to: {new_dispatcher}")
         self._action_dispatcher = new_dispatcher
         # Propagate the new dispatcher to sub-processors
@@ -137,7 +137,7 @@ class AgentProcessor:
                 logger.warning(f"{sub_processor.__class__.__name__} does not have an 'action_dispatcher' attribute to update.")
         logger.info("AgentProcessor's action_dispatcher updated and propagated if applicable.")
     
-    async def start_processing(self, num_rounds: Optional[int] = None):
+    async def start_processing(self, num_rounds: Optional[int] = None) -> None:
         """Start the main agent processing loop."""
         if self._processing_task and not self._processing_task.done():
             logger.warning("Processing is already running")
@@ -324,7 +324,7 @@ class AgentProcessor:
             logger.error(f"Error processing thought {thought.thought_id}: {e}", exc_info=True)
             raise
     
-    async def stop_processing(self):
+    async def stop_processing(self) -> None:
         """Stop the processing loop gracefully."""
         if not self._processing_task or self._processing_task.done():
             logger.info("Processing loop is not running")
@@ -360,7 +360,7 @@ class AgentProcessor:
         finally:
             self._processing_task = None
     
-    async def _processing_loop(self, num_rounds: Optional[int] = None):
+    async def _processing_loop(self, num_rounds: Optional[int] = None) -> None:
         """Main processing loop with state management."""
         round_count = 0
         
@@ -435,7 +435,7 @@ class AgentProcessor:
         
         logger.info("Processing loop finished")
     
-    async def _handle_state_transition(self, target_state: AgentState):
+    async def _handle_state_transition(self, target_state: AgentState) -> None:
         """Handle transitioning to a new state."""
         current_state = self.state_manager.get_state()
         

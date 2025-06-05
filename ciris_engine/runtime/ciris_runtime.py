@@ -74,7 +74,7 @@ class CIRISRuntime(RuntimeInterface):
         io_adapter: Optional[Any] = None,
         app_config: Optional[AppConfig] = None,
         startup_channel_id: Optional[str] = None,
-    ):
+    ) -> None:
         self.profile_name = profile_name
         self.io_adapter = io_adapter
         self.app_config = app_config

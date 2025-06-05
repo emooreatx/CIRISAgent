@@ -25,7 +25,7 @@ class CLIObserver:
         multi_service_sink: Optional[MultiServiceActionSink] = None,
         *,
         interactive: bool = True,
-    ):
+    ) -> None:
         self.on_observe = on_observe
         self.memory_service = memory_service
         self.agent_id = agent_id
@@ -35,7 +35,7 @@ class CLIObserver:
         self._stop_event = asyncio.Event()
         self._history: list[IncomingMessage] = []
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the observer and optional input loop."""
         logger.info("CLIObserver started")
         if self.interactive and self._input_task is None:

@@ -29,14 +29,14 @@ class ActionHandlerDependencies:
         io_adapter: Optional[Any] = None,
         # Shutdown signal mechanism
         shutdown_callback: Optional[Callable[[], None]] = None,
-    ):
+    ) -> None:
         self.service_registry = service_registry
         self.io_adapter = io_adapter
         # Shutdown signal mechanism
         self.shutdown_callback = shutdown_callback
         self._shutdown_requested = False
     
-    def request_graceful_shutdown(self, reason: str = "Handler requested shutdown"):
+    def request_graceful_shutdown(self, reason: str = "Handler requested shutdown") -> None:
         """Request a graceful shutdown of the agent runtime."""
         if self._shutdown_requested:
             logger.debug("Shutdown already requested, ignoring duplicate request")
@@ -93,11 +93,11 @@ class ActionHandlerDependencies:
 
 class BaseActionHandler(ABC):
     """Abstract base class for action handlers."""
-    def __init__(self, dependencies: ActionHandlerDependencies):
+    def __init__(self, dependencies: ActionHandlerDependencies) -> None:
         self.dependencies = dependencies
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def _audit_log(self, handler_action, context, outcome: Optional[str] = None):
+    async def _audit_log(self, handler_action, context, outcome: Optional[str] = None) -> None:
         audit_service = await self.get_audit_service()
         if audit_service:
             await audit_service.log_action(handler_action, context, outcome)

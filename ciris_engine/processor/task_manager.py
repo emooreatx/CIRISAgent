@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class TaskManager:
     """Manages task lifecycle operations."""
     
-    def __init__(self, max_active_tasks: int = 10):
+    def __init__(self, max_active_tasks: int = 10) -> None:
         self.max_active_tasks = max_active_tasks
         
     def create_task(

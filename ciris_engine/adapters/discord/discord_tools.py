@@ -80,7 +80,7 @@ async def discord_kick_user(bot: discord.Client, guild_id: int, user_id: int, re
 
 # --- Tool Registration Helper ---
 
-def register_discord_tools(registry, bot):
+def register_discord_tools(registry: Any, bot: Any) -> None:
     """Register Discord tools in the ToolRegistry."""
     registry.register_tool(
         "discord_delete_message",

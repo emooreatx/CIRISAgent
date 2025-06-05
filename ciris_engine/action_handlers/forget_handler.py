@@ -154,10 +154,10 @@ class ForgetHandler(BaseActionHandler):
             outcome="success" if success else "failed",
         )
 
-    def _can_forget(self, params, dispatch_context):
+    def _can_forget(self, params, dispatch_context) -> bool:
         # Placeholder: implement permission logic as needed
         return True
 
-    async def _audit_forget_operation(self, params, dispatch_context, result):
+    async def _audit_forget_operation(self, params, dispatch_context, result) -> None:
         # Placeholder: implement audit logging as needed
         pass

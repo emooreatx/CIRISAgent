@@ -16,14 +16,14 @@ logger = logging.getLogger(__name__)
 class CLIAdapter(CommunicationService):
     """Simple CLI adapter implementing CommunicationService."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the adapter with no interactive input handling."""
 
-    async def start(self):
+    async def start(self) -> None:
         """CLI adapter has no startup actions."""
         pass
 
-    async def stop(self):
+    async def stop(self) -> None:
         """CLI adapter has no background tasks to stop."""
         pass
 

@@ -26,7 +26,7 @@ class BaseProcessor(ABC):
         thought_processor: ThoughtProcessor,
         action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any]
-    ):
+    ) -> None:
         """Initialize base processor with common dependencies."""
         self.app_config = app_config
         self.thought_processor = thought_processor  # type: ignore  # ThoughtProcessor is imported at runtime or via forward reference
@@ -81,7 +81,7 @@ class BaseProcessor(ABC):
         """Get processor metrics."""
         return self.metrics.copy()
     
-    def update_metrics(self, updates: Dict[str, Any]):
+    def update_metrics(self, updates: Dict[str, Any]) -> None:
         """Update processor metrics."""
         self.metrics.update(updates)
     
@@ -135,13 +135,13 @@ class BaseProcessor(ABC):
                     return await self.force_defer(item, context)
             raise
 
-    async def force_ponder(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None):
+    async def force_ponder(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None) -> None:
         """Force a PONDER action for the given thought item. Override in subclass for custom logic."""
         logger.info(f"Forcing PONDER for thought {item.thought_id}")
         # Implement actual logic in subclass
         pass
 
-    async def force_defer(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None):
+    async def force_defer(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None) -> None:
         """Force a DEFER action for the given thought item. Override in subclass for custom logic."""
         logger.info(f"Forcing DEFER for thought {item.thought_id}")
         # Implement actual logic in subclass

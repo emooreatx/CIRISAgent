@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class ThoughtManager:
     """Manages thought generation, queueing, and processing."""
 
-    def __init__(self, max_active_thoughts: int = 50, default_channel_id: Optional[str] = None):
+    def __init__(self, max_active_thoughts: int = 50, default_channel_id: Optional[str] = None) -> None:
         self.max_active_thoughts = max_active_thoughts
         self.default_channel_id = default_channel_id
         self.processing_queue: Deque[ProcessingQueueItem] = collections.deque()

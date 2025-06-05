@@ -48,7 +48,7 @@ class ServiceRegistry:
     circuit breaker patterns for resilience.
     """
     
-    def __init__(self, required_services: Optional[List[str]] = None):
+    def __init__(self, required_services: Optional[List[str]] = None) -> None:
         # Handler -> Service Type -> List of providers sorted by priority
         self._providers: Dict[str, Dict[str, List[ServiceProvider]]] = {}
         self._circuit_breakers: Dict[str, CircuitBreaker] = {}

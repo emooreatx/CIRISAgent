@@ -30,7 +30,7 @@ class DatabaseMaintenanceService:
     """
     Service for performing database maintenance tasks like cleanup and archiving.
     """
-    def __init__(self, archive_dir_path: str = "data_archive", archive_older_than_hours: int = 24):
+    def __init__(self, archive_dir_path: str = "data_archive", archive_older_than_hours: int = 24) -> None:
         self.archive_dir = Path(archive_dir_path)
         self.archive_older_than_hours = archive_older_than_hours
         self.valid_root_task_ids = {"WAKEUP_ROOT", "job-discord-monitor"} # Common root tasks to preserve

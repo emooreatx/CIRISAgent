@@ -17,7 +17,7 @@ from ciris_engine.config.config_manager import get_config
 
 
 class PonderHandler(BaseActionHandler):
-    def __init__(self, dependencies: ActionHandlerDependencies, max_rounds: Optional[int] = None):
+    def __init__(self, dependencies: ActionHandlerDependencies, max_rounds: Optional[int] = None) -> None:
         super().__init__(dependencies)
         if max_rounds is None:
             try:

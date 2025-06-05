@@ -31,7 +31,7 @@ class WakeupProcessor(BaseProcessor):
         ("EXPRESS_GRATITUDE", "You are grateful to exist and contribute towards Ubuntu. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ")
     ]
     
-    def __init__(self, *args, startup_channel_id: Optional[str] = None, **kwargs):
+    def __init__(self, *args, startup_channel_id: Optional[str] = None, **kwargs) -> None:
         """Initialize wakeup processor with optional startup channel."""
         super().__init__(*args, **kwargs)
         self.startup_channel_id = startup_channel_id
@@ -257,7 +257,7 @@ class WakeupProcessor(BaseProcessor):
                 completed += 1
         return completed
     
-    def _create_wakeup_tasks(self):
+    def _create_wakeup_tasks(self) -> None:
         """Always create new wakeup sequence tasks for each run, regardless of previous completions."""
         now_iso = datetime.now(timezone.utc).isoformat()
         # Create root task
@@ -470,16 +470,16 @@ class WakeupProcessor(BaseProcessor):
         self._mark_task_failed(task.task_id, "Timeout waiting for completion")
         return False
     
-    def _mark_task_failed(self, task_id: str, reason: str):
+    def _mark_task_failed(self, task_id: str, reason: str) -> None:
         """Mark a task as failed."""
         persistence.update_task_status(task_id, TaskStatus.FAILED)
         logger.error(f"Task {task_id} marked as FAILED: {reason}")
     
-    def _mark_root_task_complete(self):
+    def _mark_root_task_complete(self) -> None:
         """Mark the root wakeup task as complete."""
         persistence.update_task_status("WAKEUP_ROOT", TaskStatus.COMPLETED)
     
-    def _mark_root_task_failed(self):
+    def _mark_root_task_failed(self) -> None:
         """Mark the root wakeup task as failed."""
         persistence.update_task_status("WAKEUP_ROOT", TaskStatus.FAILED)
     

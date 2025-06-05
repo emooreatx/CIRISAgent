@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class CLIRuntime(CIRISRuntime):
     """Runtime for running the agent via the command line."""
 
-    def __init__(self, profile_name: str = "default", interactive: bool = True):
+    def __init__(self, profile_name: str = "default", interactive: bool = True) -> None:
         self.cli_adapter = CLIAdapter()
         super().__init__(profile_name=profile_name, io_adapter=self.cli_adapter, startup_channel_id="cli")
 

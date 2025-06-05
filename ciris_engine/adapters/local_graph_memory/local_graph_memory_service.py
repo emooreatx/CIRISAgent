@@ -23,15 +23,15 @@ logger = logging.getLogger(__name__)
 class LocalGraphMemoryService(Service):
     """Graph memory backed by the persistence database."""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None) -> None:
         super().__init__()
         self.db_path = db_path or get_sqlite_db_full_path()
         initialize_database(db_path=self.db_path)
 
-    async def start(self):
+    async def start(self) -> None:
         await super().start()
 
-    async def stop(self):
+    async def stop(self) -> None:
         await super().stop()
 
     async def memorize(self, node: GraphNode, *args, **kwargs) -> MemoryOpResult:

@@ -274,7 +274,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         return await self.enqueue_action(action)
 
     async def execute_tool(self, handler_name: str, tool_name: str, tool_args: Dict[str, Any], 
-                          correlation_id: Optional[str] = None, metadata: Optional[Dict] = None) -> bool:
+                          correlation_id: Optional[str] = None, metadata: Optional[Dict] = None) -> ToolResult:
         """Convenience method to execute a tool"""
         action = SendToolAction(
             handler_name=handler_name,
@@ -355,7 +355,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     # Tool convenience methods
     async def execute_tool_sync(self, tool_name: str, tool_args: Dict[str, Any], 
                                correlation_id: Optional[str] = None, handler_name: str = "tool", 
-                               metadata: Optional[Dict] = None) -> Any:
+                               metadata: Optional[Dict] = None) -> ToolResult:
         """Convenience method to execute a tool synchronously"""
         try:
             from ciris_engine.schemas.service_actions_v1 import SendToolAction
@@ -379,8 +379,8 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error in execute_tool_sync: {e}")
             raise
 
-    async def get_tool_result_sync(self, correlation_id: str, timeout: Optional[float] = None,
-                                  handler_name: str = "tool", metadata: Optional[Dict] = None) -> Any:
+    async def get_tool_result_sync(self, correlation_id: str, timeout: Optional[float] = None, 
+                                  handler_name: str = "tool", metadata: Optional[Dict] = None) -> Optional[ToolResult]:
         """Convenience method to get tool result synchronously"""
         try:
             from ciris_engine.schemas.service_actions_v1 import FetchToolAction

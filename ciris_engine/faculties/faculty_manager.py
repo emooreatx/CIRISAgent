@@ -15,7 +15,7 @@ DEFAULT_MODEL_NAME = "gpt-4o"
 class EntropyFaculty:
     """Measure entropy/chaos in content."""
 
-    def __init__(self, service_registry: ServiceRegistry, model_name: str = DEFAULT_MODEL_NAME):
+    def __init__(self, service_registry: ServiceRegistry, model_name: str = DEFAULT_MODEL_NAME) -> None:
         self.service_registry = service_registry
         self.model_name = model_name
 
@@ -42,7 +42,7 @@ class EntropyFaculty:
 class CoherenceFaculty:
     """Assess coherence/alignment in content."""
 
-    def __init__(self, service_registry: ServiceRegistry, model_name: str = DEFAULT_MODEL_NAME):
+    def __init__(self, service_registry: ServiceRegistry, model_name: str = DEFAULT_MODEL_NAME) -> None:
         self.service_registry = service_registry
         self.model_name = model_name
 
@@ -69,11 +69,11 @@ class CoherenceFaculty:
 class FacultyManager:
     """Manages all epistemic faculties."""
 
-    def __init__(self, service_registry: ServiceRegistry):
+    def __init__(self, service_registry: ServiceRegistry) -> None:
         self.faculties: Dict[str, EpistemicFaculty] = {}
         self.service_registry = service_registry
 
-    def register_faculty(self, name: str, faculty: EpistemicFaculty):
+    def register_faculty(self, name: str, faculty: EpistemicFaculty) -> None:
         self.faculties[name] = faculty
 
     async def run_all_faculties(self, content: str) -> Dict[str, FacultyResult]:

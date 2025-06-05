@@ -11,7 +11,7 @@ from ciris_engine.config.env_utils import get_env_var
 
 
 class GraphQLClient:
-    def __init__(self, endpoint: str | None = None):
+    def __init__(self, endpoint: str | None = None) -> None:
         self.endpoint = endpoint or get_env_var("GRAPHQL_ENDPOINT", "https://localhost:8000/graphql")
         # Use a short timeout per repository guidelines
         self._client = httpx.AsyncClient(timeout=3.0)

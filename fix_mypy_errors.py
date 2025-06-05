@@ -17,24 +17,34 @@ class SmartMypyFixer:
         
     def get_mypy_errors(self) -> List[Dict[str, str]]:
         """Run mypy and parse errors."""
-        cmd = f"python -m mypy {self.target_dir} --ignore-missing-imports --show-error-codes"
+        cmd = f"python -m mypy {self.target_dir} --ignore-missing-imports --show-error-codes --no-error-summary"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         
         errors = []
-        # Mypy outputs to both stdout and stderr depending on error type
-        output = result.stdout + result.stderr
+        # Mypy outputs to stderr
+        output = result.stderr
+        
+        # Parse multiline mypy errors
+        current_error = None
         for line in output.splitlines():
-            if "error:" in line and "[" in line and "]" in line:
-                # More flexible regex to handle multiline errors
-                match = re.search(r'^([^:]+):(\d+):(\d+):\s*error:\s*(.+?)\s*\[([^\]]+)\]', line)
-                if match:
-                    errors.append({
-                        'file': match.group(1),
-                        'line': int(match.group(2)),
-                        'col': int(match.group(3)),
-                        'message': match.group(4).strip(),
-                        'code': match.group(5).strip()
-                    })
+            # Match error line with file:line:col format
+            match = re.search(r'^([^:]+):(\d+):(\d+):\s*error:\s*(.+)', line)
+            if match:
+                current_error = {
+                    'file': match.group(1),
+                    'line': int(match.group(2)),
+                    'col': int(match.group(3)),
+                    'message': match.group(4).strip(),
+                    'code': ''
+                }
+            elif current_error and '[' in line and ']' in line:
+                # Extract error code from continuation line
+                code_match = re.search(r'\[([^\]]+)\]', line)
+                if code_match:
+                    current_error['code'] = code_match.group(1)
+                    errors.append(current_error)
+                    current_error = None
+                    
         return errors
 
     def fix_missing_return_type(self, file_path: str, line_num: int) -> bool:

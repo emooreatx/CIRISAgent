@@ -21,7 +21,7 @@ from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult, MemoryOpStatu
 class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, MemoryService):
     """Adapter for HTTP API communication, WA, tools, and memory interactions."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.responses: Dict[str, Any] = {}  # response_id -> response_data
         self.channel_messages: Dict[str, List[Dict[str, Any]]] = {}  # channel_id -> list of messages
         self.tool_results: Dict[str, Any] = {}

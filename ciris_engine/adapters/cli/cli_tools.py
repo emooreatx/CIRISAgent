@@ -15,7 +15,7 @@ from ciris_engine.protocols.services import ToolService
 class CLIToolService(ToolService):
     """Simple ToolService providing local filesystem browsing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._results: Dict[str, Dict[str, Any]] = {}
         self._tools = {
             "list_files": self._list_files,

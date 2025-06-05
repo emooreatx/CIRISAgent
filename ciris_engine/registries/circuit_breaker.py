@@ -41,7 +41,7 @@ class CircuitBreaker:
     - HALF_OPEN: Testing recovery, limited requests allowed
     """
     
-    def __init__(self, name: str, config: Optional[CircuitBreakerConfig] = None):
+    def __init__(self, name: str, config: Optional[CircuitBreakerConfig] = None) -> None:
         self.name = name
         self.config = config or CircuitBreakerConfig()
         
