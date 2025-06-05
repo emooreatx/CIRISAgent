@@ -67,14 +67,7 @@ async def test_llm_success(monkeypatch):
         action_resolution=None,
         selected_action=HandlerActionType.SPEAK,
         action_parameters={
-            # Provide a valid GraphNode for content
-            "content": GraphNode(
-                id=NodeType.CONCEPT,
-                type=NodeType.CONCEPT,
-                scope=GraphScope.LOCAL,
-                attributes={"content": "hi"},
-                version=NodeType.CONCEPT  # Use a valid NodeType for version
-            )
+            "content": "hi"
         },
         action_selection_rationale="rationale",
         rationale="rationale",  # Add rationale attribute for compatibility

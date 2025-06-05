@@ -4,6 +4,7 @@ from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.schemas.dma_results_v1 import CSDMAResult
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.registries.base import ServiceRegistry, Priority
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtType
 
 def test_csdma_init_and_patch(monkeypatch):
     service_registry = ServiceRegistry()
@@ -28,7 +29,7 @@ async def test_csdma_evaluate_thought(monkeypatch):
     item = ProcessingQueueItem(
         thought_id="t1",
         source_task_id="s1",
-        thought_type="test",
+        thought_type=ThoughtType.STANDARD,
         content=ThoughtContent(text="test"),
     )
     result = await evaluator.evaluate_thought(item)

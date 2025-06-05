@@ -21,42 +21,42 @@ class FeedbackSource(str, Enum):
 
 class FeedbackDirective(BaseModel):
     """Specific directive within feedback."""
-    action: FeedbackType  # "update", "delete", "add", "override", etc.
-    target: FeedbackType  # What to act on
+    action: str  # "update", "delete", "add", "override", etc.
+    target: str  # What to act on
     data: Union[Dict[str, Any], str, List[Any]]
     reasoning: Optional[str] = None
 
 class WiseAuthorityFeedback(BaseModel):
     """Structured feedback from WA on deferred decisions."""
-    feedback_id: FeedbackType
+    feedback_id: str
     
     original_report_id: Optional[str] = None
     original_thought_id: Optional[str] = None
     original_task_id: Optional[str] = None
     
-    feedback_type: FeedbackType
+    feedback_type: str
     feedback_source: FeedbackSource
     directives: List[FeedbackDirective] = Field(default_factory=list)
     
-    summary: FeedbackType = ""
+    summary: str = ""
     detailed_reasoning: Optional[str] = None
-    authority_confidence: FeedbackType = Field(default=1.0, ge=0.0, le=1.0)
+    authority_confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     
-    priority: FeedbackType = Field(default="normal")
+    priority: str = Field(default="normal")
     implementation_notes: Optional[str] = None
     
-    created_at: FeedbackType = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    created_by: FeedbackType = "wise_authority"
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_by: str = "wise_authority"
     expires_at: Optional[str] = None
     
-    processed: FeedbackType = False
+    processed: bool = False
     processed_at: Optional[str] = None
     processing_result: Optional[Dict[str, Any]] = None
 
 class FeedbackMapping(BaseModel):
     """Maps feedback to original context for processing."""
-    mapping_id: FeedbackType
-    feedback_id: FeedbackType
+    mapping_id: str
+    feedback_id: str
     
     # Original context
     source_message_id: Optional[str] = None  # Discord message, etc.
@@ -64,26 +64,26 @@ class FeedbackMapping(BaseModel):
     source_thought_id: Optional[str] = None
     
     # Transport context
-    transport_type: FeedbackType  # "discord", "email", "api", etc.
+    transport_type: str  # "discord", "email", "api", etc.
     transport_data: Dict[str, Any] = Field(default_factory=dict)
     
-    created_at: FeedbackType
+    created_at: str
 
 
 class OptimizationVetoResult(BaseModel):
     """Result of the optimization veto guardrail."""
 
-    decision: FeedbackType
-    justification: FeedbackType
-    entropy_reduction_ratio: FeedbackType
+    decision: str
+    justification: str
+    entropy_reduction_ratio: float
     affected_values: List[str] = Field(default_factory=list)
-    confidence: FeedbackType = 1.0
+    confidence: float = 1.0
 
 
 class EpistemicHumilityResult(BaseModel):
     """Result of the epistemic humility check."""
 
-    epistemic_certainty: FeedbackType
+    epistemic_certainty: float
     identified_uncertainties: List[str] = Field(default_factory=list)
-    reflective_justification: FeedbackType
-    recommended_action: FeedbackType
+    reflective_justification: str
+    recommended_action: str
