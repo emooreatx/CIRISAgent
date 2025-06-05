@@ -37,7 +37,7 @@ The system is designed for modularity, allowing developers to create and integra
 *   **Profile‑Driven Actions:** Allowed handler actions are loaded from the active profile and passed dynamically to the ASPDMA.
 *   **Basic Guardrails:** Includes an ethical guardrail to check action outputs.
 *   **SQLite Persistence:** Uses SQLite for persisting tasks and thoughts.
-*   **Graph Memory:** MEMORIZE actions store user metadata in `LocalGraphMemoryService`. RECALL and FORGET exist but are often disabled via profiles during testing.
+*   **Graph Memory:** MEMORIZE actions store user metadata in a sqlite backed strongly type enforce graph database
     * Channel node updates require WA approval. The initial write is deferred and a new thought is generated for the Wise Authority. When that follow-up thought includes `is_wa_correction` and references the deferred thought, the update is applied automatically.
     * User nick node updates can be memorized immediately if guardrails are satisfied.
 
@@ -81,10 +81,10 @@ The `HandlerActionType` enum defines core operations grouped as:
 * **Memory Operations:** `MEMORIZE`, `RECALL`, `FORGET` (now fully supported and enabled by default)
 * **Terminal:** `TASK_COMPLETE`
 
-These actions are processed by matching handlers within the engine. Profiles now enable all actions, including `RECALL` and `FORGET`, by default.
+These actions are processed by matching handlers within the engine. 
 
 ### Audit Logging
-All handler actions are now logged via the integrated `AuditService`, which supports log rotation, retention, and query. Audit logs are written to `audit_logs.jsonl` by default and can be queried for compliance and debugging.
+All handler actions are logged via the integrated `AuditService`, which supports log rotation, retention, and query. Audit logs are written to `audit_logs.jsonl` by default and can be queried for compliance and debugging.
 
 Example memory action JSON:
 
@@ -199,15 +199,6 @@ For offline testing you can pass `--mock-llm` to use the bundled mock LLM servic
 Play Mode and Solitude Mode provide short introspective sessions for the agent. Each lasts five minutes and is offered at random roughly once per hour. In safety-critical deployments, these sessions should be restricted to non‑shift hours via agent configuration.
 
 ---
-## Other Notable Components
-
-*   **`discord_graph_memory.py`** – persistent graph memory for Discord user metadata.
-*   **`discord_observer.py`** – minimal observer that dispatches OBSERVE payloads.
-*   **`play_mode.py` / `solitude_mode.py`** – short harnesses offering five minute Play or Solitude sessions.
-*   **`reflection_scheduler.py`** – scheduler that triggers Play or Solitude Mode at random intervals.
-*   The `tests/` directory contains unit and integration tests runnable with `pytest`.
-
----
 ## Testing
 
 Run the full test suite with:
@@ -233,4 +224,3 @@ Run `pytest` to ensure all tests pass before submitting a pull request.
 ## License
 
 Apache-2.0 © 2025 CIRIS AI Project
-(Assuming LICENSE file will be added with Apache 2.0 content)
