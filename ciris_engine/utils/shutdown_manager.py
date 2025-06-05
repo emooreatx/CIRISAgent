@@ -20,7 +20,7 @@ class ShutdownManager:
     4. Execute cleanup callbacks in proper order
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._shutdown_requested = False
         self._shutdown_reason: Optional[str] = None
         self._shutdown_handlers: List[Callable[[], None]] = []
@@ -28,7 +28,7 @@ class ShutdownManager:
         self._lock = Lock()
         self._shutdown_event = asyncio.Event() if asyncio._get_running_loop() else None
         
-    def register_shutdown_handler(self, handler: Callable[[], None], is_async: bool = False):
+    def register_shutdown_handler(self, handler: Callable[[], None], is_async: bool = False) -> None:
         """
         Register a shutdown handler to be called during graceful shutdown.
         
@@ -44,7 +44,7 @@ class ShutdownManager:
                 self._shutdown_handlers.append(handler)
                 logger.debug(f"Registered shutdown handler: {handler.__name__}")
     
-    def request_shutdown(self, reason: str = "Global shutdown requested"):
+    def request_shutdown(self, reason: str = "Global shutdown requested") -> None:
         """
         Request a graceful shutdown from anywhere in the codebase.
         
@@ -68,7 +68,7 @@ class ShutdownManager:
         # Execute synchronous shutdown handlers immediately
         self._execute_sync_handlers()
     
-    def _execute_sync_handlers(self):
+    def _execute_sync_handlers(self) -> None:
         """Execute all registered synchronous shutdown handlers."""
         with self._lock:
             handlers = self._shutdown_handlers.copy()
@@ -80,7 +80,7 @@ class ShutdownManager:
             except Exception as e:
                 logger.error(f"Error in shutdown handler {handler.__name__}: {e}")
     
-    async def execute_async_handlers(self):
+    async def execute_async_handlers(self) -> None:
         """Execute all registered asynchronous shutdown handlers."""
         with self._lock:
             handlers = self._async_shutdown_handlers.copy()
@@ -103,7 +103,7 @@ class ShutdownManager:
         """Get the reason for the shutdown request."""
         return self._shutdown_reason
     
-    async def wait_for_shutdown(self):
+    async def wait_for_shutdown(self) -> None:
         """Wait for a shutdown request (async context only)."""
         if not self._shutdown_event:
             # Create event if we're now in async context
@@ -117,7 +117,7 @@ class ShutdownManager:
         
         await self._shutdown_event.wait()
     
-    def reset(self):
+    def reset(self) -> None:
         """Reset the shutdown manager (for testing purposes)."""
         with self._lock:
             self._shutdown_requested = False

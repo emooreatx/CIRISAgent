@@ -65,20 +65,18 @@ class CircuitBreaker:
                 return True
             return False
         
-        if self.state == CircuitState.HALF_OPEN:
-            # Allow limited requests in half-open state
-            return True
-        
-        return False
+        # CircuitState.HALF_OPEN case
+        # Allow limited requests in half-open state  
+        return True
     
-    def check_and_raise(self):
+    def check_and_raise(self) -> None:
         """Check if service is available, raise CircuitBreakerError if not"""
         if not self.is_available():
             raise CircuitBreakerError(
                 f"Circuit breaker '{self.name}' is {self.state.value}, service unavailable"
             )
     
-    def record_success(self):
+    def record_success(self) -> None:
         """Record a successful operation"""
         if self.state == CircuitState.HALF_OPEN:
             self.success_count += 1
@@ -88,7 +86,7 @@ class CircuitBreaker:
             # Reset failure count on success
             self.failure_count = 0
     
-    def record_failure(self):
+    def record_failure(self) -> None:
         """Record a failed operation"""
         self.failure_count += 1
         self.last_failure_time = time.time()
@@ -100,19 +98,19 @@ class CircuitBreaker:
             # Return to open state on any failure during recovery
             self._transition_to_open()
     
-    def _transition_to_open(self):
+    def _transition_to_open(self) -> None:
         """Transition to OPEN state (service disabled)"""
         self.state = CircuitState.OPEN
         self.success_count = 0
         logger.warning(f"Circuit breaker '{self.name}' opened due to {self.failure_count} failures")
     
-    def _transition_to_half_open(self):
+    def _transition_to_half_open(self) -> None:
         """Transition to HALF_OPEN state (testing recovery)"""
         self.state = CircuitState.HALF_OPEN
         self.success_count = 0
         logger.info(f"Circuit breaker '{self.name}' transitioning to half-open for recovery testing")
     
-    def _transition_to_closed(self):
+    def _transition_to_closed(self) -> None:
         """Transition to CLOSED state (normal operation)"""
         self.state = CircuitState.CLOSED
         self.failure_count = 0
@@ -129,7 +127,7 @@ class CircuitBreaker:
             "last_failure_time": self.last_failure_time
         }
     
-    def reset(self):
+    def reset(self) -> None:
         """Reset circuit breaker to initial state"""
         self.state = CircuitState.CLOSED
         self.failure_count = 0
