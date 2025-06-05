@@ -28,13 +28,13 @@ class CLIAdapter(CommunicationService):
         pass
 
     async def send_message(self, channel_id: str, content: str) -> bool:
-        correlation_id = str(uuid.uuid4())
+        correlation_id = ServiceCorrelationStatus.PENDING
         print(f"[CLI][{channel_id}] {content}")
         corr = ServiceCorrelation(
-            correlation_id=correlation_id,
-            service_type="cli",
-            handler_name="CLIAdapter",
-            action_type="send_message",
+            correlation_id=ServiceCorrelationStatus.PENDING,
+            service_type=ServiceCorrelationStatus.PENDING,
+            handler_name=ServiceCorrelationStatus.PENDING,
+            action_type=ServiceCorrelationStatus.PENDING,
             request_data={"channel_id": channel_id, "content": content},
             response_data={"sent": True},
             status=ServiceCorrelationStatus.COMPLETED,

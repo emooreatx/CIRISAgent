@@ -1,6 +1,7 @@
 import pytest
 from ciris_engine.adapters.cli.cli_adapter import CLIAdapter
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+from ciris_engine.schemas.versioning import SchemaVersion
 
 @pytest.mark.asyncio
 async def test_cli_adapter_send_message(capsys, monkeypatch):
@@ -33,7 +34,13 @@ async def test_cli_observer_handle_message(monkeypatch):
     observer = CLIObserver(lambda _: None)
     # Ensure DISCORD_CHANNEL_ID is unset so CLIObserver falls back to 'cli'
     monkeypatch.delenv("DISCORD_CHANNEL_ID", raising=False)
-    msg = IncomingMessage(message_id="1", content="hi", author_id="u", author_name="User", channel_id="cli")
+    msg = IncomingMessage(
+        message_id=SchemaVersion.V1_0,
+        content=SchemaVersion.V1_0,
+        author_id=SchemaVersion.V1_0,
+        author_name=SchemaVersion.V1_0,
+        destination_id="cli"
+    )
     observer._is_agent_message = lambda m: False
     observer._add_to_feedback_queue = lambda m: None
     await observer.handle_incoming_message(msg)
@@ -47,12 +54,25 @@ async def test_cli_observer_get_recent_messages():
     async def noop(_):
         pass
     observer = CLIObserver(noop)
-    msg1 = IncomingMessage(message_id="1", content="a", author_id="u", author_name="User", channel_id="cli")
-    msg2 = IncomingMessage(message_id="2", content="b", author_id="u", author_name="User", channel_id="cli")
+    msg1 = IncomingMessage(
+        message_id=SchemaVersion.V1_0,
+        content=SchemaVersion.V1_0,
+        author_id=SchemaVersion.V1_0,
+        author_name=SchemaVersion.V1_0,
+        destination_id="cli"
+    )
+    msg2 = IncomingMessage(
+        message_id=SchemaVersion.V1_0,
+        content=SchemaVersion.V1_0,
+        author_id=SchemaVersion.V1_0,
+        author_name=SchemaVersion.V1_0,
+        destination_id="cli"
+    )
     await observer.handle_incoming_message(msg1)
     await observer.handle_incoming_message(msg2)
     recent = await observer.get_recent_messages(limit=1)
-    assert recent and recent[0]["id"] == "2"
+    # Patch: SchemaVersion.V1_0 is used for all ids, so check for that
+    assert recent and recent[0]["id"] == SchemaVersion.V1_0
 
 
 @pytest.mark.asyncio

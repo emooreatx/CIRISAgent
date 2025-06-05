@@ -230,10 +230,10 @@ def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
             }
             rationale = "General thought processing aligns with ethical guidelines. No contraindications to CIRIS covenant principles detected."
     
-    # Use MemorizeParams for decision field
-    decision_param = MemorizeParams(node=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY))
+    # Use string for decision field per new schema
+    decision_param = str(decision)  # Ensure decision is always a string
     return _attach_extras(
-        EthicalDMAResult(alignment_check=alignment_check, decision=decision_param, rationale=rationale)
+        EthicalDMAResult(alignment_check=alignment_check, decision=decision_param, rationale=str(rationale))
     )
 
 

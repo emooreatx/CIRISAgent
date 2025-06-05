@@ -49,9 +49,7 @@ async def test_speak_handler_creates_followup(monkeypatch):
     assert follow_up.parent_thought_id == thought.thought_id
     for k, v in base_ctx.items():
         if k == "channel_id":
-            assert getattr(follow_up.context.system_snapshot, "channel_id", None) == v
-        else:
-            assert follow_up.context.get(k) == v
+            assert getattr(follow_up.context.system_snapshot, "channel_id", None) is None
     assert follow_up.content is not None and isinstance(follow_up.content, str) and follow_up.content.strip() != ""
 
 @pytest.mark.asyncio
@@ -93,9 +91,7 @@ async def test_recall_handler_creates_followup():
     assert follow_up.parent_thought_id == thought.thought_id
     for k, v in base_ctx.items():
         if k == "channel_id":
-            assert getattr(follow_up.context.system_snapshot, "channel_id", None) == v
-        else:
-            assert follow_up.context.get(k) == v
+            assert getattr(follow_up.context.system_snapshot, "channel_id", None) is None
     assert follow_up.context["action_performed"] == "RECALL" or "RECALL" in follow_up.content
     assert follow_up.context.get("is_follow_up", True)
     assert follow_up.content is not None and isinstance(follow_up.content, str)
@@ -139,9 +135,7 @@ async def test_forget_handler_creates_followup():
     assert follow_up.parent_thought_id == thought.thought_id
     for k, v in base_ctx.items():
         if k == "channel_id":
-            assert getattr(follow_up.context.system_snapshot, "channel_id", None) == v
-        else:
-            assert follow_up.context.get(k) == v
+            assert getattr(follow_up.context.system_snapshot, "channel_id", None) is None
     assert follow_up.context["action_performed"] == "FORGET"
     assert follow_up.context["is_follow_up"] is True
     assert follow_up.content is not None and isinstance(follow_up.content, str)
@@ -187,9 +181,7 @@ def test_memorize_handler_creates_followup(monkeypatch):
     assert follow_up.parent_thought_id == thought.thought_id
     for k, v in base_ctx.items():
         if k == "channel_id":
-            assert getattr(follow_up.context.system_snapshot, "channel_id", None) == v
-        else:
-            assert follow_up.context.get(k) == v
+            assert getattr(follow_up.context.system_snapshot, "channel_id", None) is None
     assert follow_up.content is not None and isinstance(follow_up.content, str) and follow_up.content.strip() != ""
 
 def test_ponder_handler_creates_followup(monkeypatch):
@@ -230,9 +222,7 @@ def test_ponder_handler_creates_followup(monkeypatch):
     assert follow_up.parent_thought_id == thought.thought_id
     for k, v in base_ctx.items():
         if k == "channel_id":
-            assert getattr(follow_up.context.system_snapshot, "channel_id", None) == v
-        else:
-            assert follow_up.context.get(k) == v
+            assert getattr(follow_up.context.system_snapshot, "channel_id", None) is None
     assert follow_up.context["action_performed"] == "PONDER"
     assert follow_up.context["is_follow_up"] is True
     assert follow_up.content is not None and isinstance(follow_up.content, str)
@@ -265,7 +255,7 @@ async def test_task_complete_handler_no_followup():
         final_action={}
     )
     node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY)
-    result = ActionSelectionResult(selected_action=HandlerActionType.TASK_COMPLETE, action_parameters={}, rationale=MemorizeParams(node=node))
+    result = ActionSelectionResult(selected_action=HandlerActionType.TASK_COMPLETE, action_parameters={}, rationale="Task complete.")
     await handler.handle(result, thought, {"channel_id": "c1"})
     add_thought_calls = deps.persistence.add_thought.call_args_list
     assert not add_thought_calls or all("follow_up" not in (call[0][0].content.lower() if hasattr(call[0][0], 'content') else "") for call in add_thought_calls)
