@@ -16,7 +16,7 @@ class ActionDispatcher:
     def __init__(
         self,
         handlers: Dict[HandlerActionType, BaseActionHandler]
-    ):
+    ) -> None:
         """
         Initializes the ActionDispatcher with a map of action types to their handler instances.
 
@@ -32,7 +32,7 @@ class ActionDispatcher:
 
     def get_handler(self, action_type: HandlerActionType) -> Optional[BaseActionHandler]:
         """Get a handler by action type."""
-        return self.handlers.get(action_type)
+        return self.handlers.get(action_type)  # type: ignore[union-attr]
 
     async def dispatch(
         self,

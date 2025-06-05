@@ -38,7 +38,7 @@ class DiscordRuntime(CIRISRuntime):
         startup_channel_id: Optional[str] = None,
         monitored_channel_id: Optional[str] = None,
         deferral_channel_id: Optional[str] = None,
-    ):
+    ) -> None:
         # Create Discord components
         self.token = token
         self.discord_adapter = DiscordAdapter(token, on_message=self._handle_incoming_message)

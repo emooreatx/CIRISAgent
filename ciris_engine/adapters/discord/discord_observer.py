@@ -27,7 +27,7 @@ class DiscordObserver:
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
         multi_service_sink: Optional[MultiServiceActionSink] = None,
-    ):
+    ) -> None:
         self.memory_service = memory_service
         self.agent_id = agent_id
         self.multi_service_sink = multi_service_sink
@@ -39,11 +39,11 @@ class DiscordObserver:
             monitored_channel_id = get_config().discord_channel_id
         self.monitored_channel_id: Optional[str] = monitored_channel_id
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the observer - no polling needed since we receive messages directly."""
         logger.info("DiscordObserver started - ready to receive messages directly from Discord adapter")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the observer - no background tasks to clean up."""
         logger.info("DiscordObserver stopped")
 

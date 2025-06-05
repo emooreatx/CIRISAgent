@@ -6,7 +6,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
 from ciris_engine import persistence
 from ciris_engine.processor.base_processor import BaseProcessor

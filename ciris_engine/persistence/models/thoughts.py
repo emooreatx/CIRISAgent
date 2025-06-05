@@ -16,7 +16,7 @@ def get_thoughts_by_status(status: ThoughtStatus, db_path: Optional[str] = None)
         raise TypeError(f"Expected ThoughtStatus enum, got {type(status)}: {status}")
     status_val = status.value
     sql = "SELECT * FROM thoughts WHERE status = ? ORDER BY created_at ASC"
-    thoughts = []
+    thoughts: List[Any] = []
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.cursor()
@@ -95,7 +95,7 @@ async def async_get_thought_status(thought_id: str, db_path: Optional[str] = Non
 def get_thoughts_by_task_id(task_id: str, db_path: Optional[str] = None) -> list[Thought]:
     """Return all thoughts for a given source_task_id as Thought objects."""
     sql = "SELECT * FROM thoughts WHERE source_task_id = ? ORDER BY created_at ASC"
-    thoughts = []
+    thoughts: List[Any] = []
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.cursor()
@@ -204,7 +204,7 @@ def pydantic_to_dict(obj: Any) -> Any:
 def get_thoughts_older_than(older_than_timestamp: str, db_path: Optional[str] = None) -> List[Thought]:
     """Returns all thoughts with created_at older than the given ISO timestamp as Thought objects."""
     sql = "SELECT * FROM thoughts WHERE created_at < ? ORDER BY created_at ASC"
-    thoughts = []
+    thoughts: List[Any] = []
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.cursor()

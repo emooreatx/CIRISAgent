@@ -28,10 +28,10 @@ class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, Memory
         self.memory: Dict[str, Dict[str, Any]] = {}
         self.tools: Dict[str, Any] = {"echo": lambda args: {"result": args}}
 
-    async def start(self):
+    async def start(self) -> None:
         pass
 
-    async def stop(self):
+    async def stop(self) -> None:
         pass
 
     async def send_message(self, channel_id: str, content: str) -> bool:
@@ -127,7 +127,7 @@ class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, Memory
         return list(self.tools.keys())
 
     async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
-        return self.tool_results.get(correlation_id)
+        return self.tool_results.get(correlation_id)  # type: ignore[union-attr]
 
     async def validate_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
         return True

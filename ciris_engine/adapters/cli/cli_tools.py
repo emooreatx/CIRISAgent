@@ -66,7 +66,7 @@ class CLIToolService(ToolService):
 
     async def _read_file(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Read file contents"""
-        path = params.get("path")
+        path = params.get("path")  # type: ignore[union-attr]
         if not path:
             return {"error": "path parameter required"}
         try:
@@ -77,7 +77,7 @@ class CLIToolService(ToolService):
 
     async def _write_file(self, params: Dict[str, Any]) -> Dict[str, Any]:
         path = params.get("path")
-        content = params.get("content", "")
+        content = params.get("content", "")  # type: ignore[union-attr]
         if not path:
             return {"error": "path parameter required"}
         try:
@@ -91,7 +91,7 @@ class CLIToolService(ToolService):
             f.write(content)
 
     async def _shell_command(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        cmd = params.get("command")
+        cmd = params.get("command")  # type: ignore[union-attr]
         if not cmd:
             return {"error": "command parameter required"}
         proc = await asyncio.create_subprocess_shell(
@@ -106,10 +106,10 @@ class CLIToolService(ToolService):
 
     async def _search_text(self, params: Dict[str, Any]) -> Dict[str, Any]:
         pattern = params.get("pattern")
-        path = params.get("path")
+        path = params.get("path")  # type: ignore[union-attr]
         if not pattern or not path:
             return {"error": "pattern and path required"}
-        matches = []
+        matches: List[Any] = []
         try:
             lines = await asyncio.to_thread(self._read_lines_sync, path)
             for idx, line in enumerate(lines, 1):

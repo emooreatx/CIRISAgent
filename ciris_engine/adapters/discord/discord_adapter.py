@@ -25,8 +25,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
     """
     def __init__(self, token: str,
                  guidance_channel_id: str = None, deferral_channel_id: str = None,
-                 tool_registry: Any = None, bot: discord.Client = None,
-                 on_message: Optional[Callable[[DiscordMessage], Awaitable[None]]] = None):
+                 tool_registry: Optional[Any] = None, bot: discord.Client = None,
+                 on_message: Optional[Callable[[DiscordMessage], Awaitable[None]]] = None) -> None:
         # Configure retry settings for Discord API operations
         retry_config = {
             "retry": {
@@ -278,7 +278,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         """Return names of registered Discord tools."""
         if not self.tool_registry:
             return []
-        return list(self.tool_registry.tools.keys())
+        return list(self.tool_registry.tools.keys())  # type: ignore[union-attr]
 
     async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
         """Basic parameter validation using tool registry schemas."""
@@ -288,7 +288,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         if not schema:
             return False
         # Simple validation: ensure required keys exist
-        return all(k in parameters for k in schema.keys())
+        return all(k in parameters for k in schema.keys())  # type: ignore[union-attr]
 
     # --- Capabilities ---
     def get_capabilities(self) -> list[str]:
@@ -298,7 +298,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             "execute_tool", "get_tool_result"
         ]
 
-    async def send_output(self, channel_id: str, content: str):
+    async def send_output(self, channel_id: str, content: str) -> None:
         """Send output to a Discord channel with retry logic"""
         if not self.client:
             logger.error("Discord client is not initialized.")
@@ -309,7 +309,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             channel_id, content
         )
 
-    async def _send_output_impl(self, channel_id: str, content: str, **kwargs):
+    async def _send_output_impl(self, channel_id: str, content: str, **kwargs) -> None:
         """Internal implementation of send_output for retry wrapping"""
         # Wait for the client to be ready before sending
         if hasattr(self.client, 'wait_until_ready'):
@@ -324,7 +324,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.error(f"Could not find Discord channel with ID {channel_id}")
             raise RuntimeError(f"Discord channel {channel_id} not found")
 
-    async def on_message(self, message):
+    async def on_message(self, message) -> None:
         # Only process messages from users (not bots)
         if message.author.bot:
             return
@@ -342,13 +342,13 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         if self.on_message_callback:
             await self.on_message_callback(incoming)
 
-    def attach_to_client(self, client):
+    def attach_to_client(self, client) -> None:
         # Attach the on_message event to the Discord client
         @client.event
-        async def on_message(message):
+        async def on_message(message) -> None:
             await self.on_message(message)
 
-    async def start(self):
+    async def start(self) -> None:
         """
         Start the Discord adapter.
         Note: This doesn't start the Discord client connection - that's handled by the runtime.
@@ -366,7 +366,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to start Discord adapter: {e}")
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """
         Stop the Discord adapter and clean up resources.
         """

@@ -21,7 +21,7 @@ class AuditService(Service):
         log_path: str = "audit_logs.jsonl",
         rotation_size_mb: int = 100,
         retention_days: int = 90,
-    ):
+    ) -> None:
         # Configure retry settings for file operations
         retry_config = {
             "retry": {
@@ -149,7 +149,7 @@ class AuditService(Service):
             if not self.log_path.exists():
                 return []
             
-            entries = []
+            entries: List[Any] = []
             with self.log_path.open("r", encoding="utf-8") as f:
                 for line in f:
                     try:
@@ -214,7 +214,7 @@ class AuditService(Service):
         self, handler_action: HandlerActionType, context: Dict[str, Any], outcome: Optional[str] = None
     ) -> str:
         """Generate a summary including outcome if provided."""
-        base_summary = f"{handler_action.value} action for thought {context.get('thought_id', 'unknown')}"
+        base_summary = f"{handler_action.value} action for thought {context.get('thought_id', 'unknown')}"  # type: ignore[union-attr]
         if outcome:
             return f"{base_summary} - {outcome}"
         return base_summary

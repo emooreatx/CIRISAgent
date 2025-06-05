@@ -29,7 +29,7 @@ class GraphQLClient:
 class GraphQLContextProvider:
     def __init__(self, graphql_client: GraphQLClient | None = None,
                  memory_service: Optional[LocalGraphMemoryService] = None,
-                 enable_remote_graphql: bool = False):
+                 enable_remote_graphql: bool = False) -> None:
         self.enable_remote_graphql = enable_remote_graphql
         if enable_remote_graphql:
             self.client = graphql_client or GraphQLClient()
@@ -55,7 +55,7 @@ class GraphQLContextProvider:
                 users(names:$names){ name nick channel }
             }
         """
-        result = {}
+        result: Dict[str, Any] = {}
         if self.enable_remote_graphql and self.client:
             result = await self.client.query(query, {"names": list(authors)})
         users = result.get("users", []) if result else []
@@ -80,7 +80,7 @@ class GraphQLContextProvider:
             except Exception as exc:
                 logger.warning("Failed to export identity context: %s", exc)
 
-        context = {}
+        context: Dict[str, Any] = {}
         if enriched:
             context["user_profiles"] = enriched
         if identity_block:

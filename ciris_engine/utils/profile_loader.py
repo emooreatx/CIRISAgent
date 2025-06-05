@@ -2,7 +2,7 @@ import yaml
 import logging
 import asyncio
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, List
 
 from ciris_engine.schemas.config_schemas_v1 import AgentProfile
 
@@ -59,7 +59,7 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[AgentProfile]:
         # Convert permitted_actions from string to HandlerActionType robustly
         if "permitted_actions" in profile_data:
             from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-            converted_actions = []
+            converted_actions: List[Any] = []
             for action in profile_data["permitted_actions"]:
                 if isinstance(action, HandlerActionType):
                     converted_actions.append(action)

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class AuditHashChain:
     """Manages the cryptographic hash chain for audit entries"""
     
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str) -> None:
         self.db_path = db_path
         self._last_hash: Optional[str] = None
         self._sequence_number: int = 0
@@ -133,7 +133,7 @@ class AuditHashChain:
                     "errors": []
                 }
             else:
-                errors = []
+                errors: List[Any] = []
                 previous_hash: Optional[str] = None
                 
                 # If not starting from sequence 1, get the previous entry's hash
@@ -203,12 +203,12 @@ class AuditHashChain:
             return None  # No tampering found
         
         # Parse errors to find first tampered sequence
-        errors = result.get("errors", [])
+        errors = result.get("errors", [])  # type: ignore[union-attr]
         if not errors:
             return 1  # Found tampering but no specific errors
             
         # Sort to find the first error by sequence number
-        tampered_sequences = []
+        tampered_sequences: List[Any] = []
         for error in errors:
             # Look for specific error patterns
             import re

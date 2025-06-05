@@ -185,7 +185,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         prompt_overrides: Optional[Dict[str, str]] = None,
         *,
         instructor_mode: instructor.Mode = instructor.Mode.JSON,
-    ):
+    ) -> None:
         """
         Initialize ActionSelectionPDMAEvaluator.
         Args:
@@ -227,10 +227,10 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         original_thought: Thought = triaged_inputs['original_thought'] # Assuming Thought model
         ethical_pdma_result: EthicalDMAResult = triaged_inputs['ethical_pdma_result']
         csdma_result: CSDMAResult = triaged_inputs['csdma_result']
-        dsdma_result: Optional[DSDMAResult] = triaged_inputs.get('dsdma_result')
+        dsdma_result: Optional[DSDMAResult] = triaged_inputs.get('dsdma_result')  # type: ignore[union-attr]
         current_ponder_count: int = triaged_inputs['current_ponder_count']
         max_rounds: int = triaged_inputs['max_rounds']
-        agent_profile: Optional[Any] = triaged_inputs.get('agent_profile') # Get the profile if available
+        agent_profile: Optional[Any] = triaged_inputs.get('agent_profile') # Get the profile if available  # type: ignore[union-attr]
 
         agent_name_from_thought = None
         # Prefer agent name from the passed agent_profile object
@@ -239,7 +239,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
              logger.debug(f"Using agent name '{agent_name_from_thought}' from provided agent_profile object.")
         
         # Access processing_context from triaged_inputs
-        processing_context_data = triaged_inputs.get('processing_context')
+        processing_context_data = triaged_inputs.get('processing_context')  # type: ignore[union-attr]
         if not agent_name_from_thought and processing_context_data:
             # Fallback to environment_context within the thought if agent_profile not passed or no name
             if hasattr(processing_context_data, 'environment_context') and processing_context_data.environment_context:
@@ -370,7 +370,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
                 system_snapshot_context_str = format_system_snapshot(processing_context_data.system_snapshot)
         
         # The format_system_snapshot_for_prompt already includes a section for "Original Thought Full Processing Context"
-        # so we don't need to add it separately here if we pass original_thought.processing_context to it.
+        # so we don't need to add it separately here if we pass original_thought.context  # Updated to v1 field to it.
 
         # --- End User Profile and System Snapshot Context Injection ---
 
@@ -577,7 +577,7 @@ Adhere strictly to the schema for your JSON output.
                     # Try initial_task_context field
                     if not channel_id and hasattr(processing_context, 'initial_task_context') and processing_context.initial_task_context:
                         if isinstance(processing_context.initial_task_context, dict):
-                            channel_id = processing_context.initial_task_context.get('channel_id')
+                            channel_id = processing_context.initial_task_context.get('channel_id')  # type: ignore[union-attr]
                     
                     # Try system_snapshot.channel_id
                     if not channel_id and hasattr(processing_context, 'system_snapshot') and processing_context.system_snapshot:

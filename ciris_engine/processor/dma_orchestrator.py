@@ -34,10 +34,10 @@ class DMAOrchestrator:
         csdma_evaluator: CSDMAEvaluator,
         dsdma: Optional[BaseDSDMA],
         action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator,
-        app_config: Any = None,
-        llm_service: Any = None,
-        memory_service: Any = None,
-    ):
+        app_config: Optional[Any] = None,
+        llm_service: Optional[Any] = None,
+        memory_service: Optional[Any] = None,
+    ) -> None:
         self.ethical_pdma_evaluator = ethical_pdma_evaluator
         self.csdma_evaluator = csdma_evaluator
         self.dsdma = dsdma
@@ -255,14 +255,14 @@ class DMAOrchestrator:
         agent_profile_obj = None
         if self.app_config and hasattr(self.app_config, 'agent_profiles'):
             # Try exact match first
-            agent_profile_obj = self.app_config.agent_profiles.get(profile_name)
+            agent_profile_obj = self.app_config.agent_profiles.get(profile_name)  # type: ignore[union-attr]
             if not agent_profile_obj:
                 # Try lowercase match
-                agent_profile_obj = self.app_config.agent_profiles.get(profile_name.lower())
+                agent_profile_obj = self.app_config.agent_profiles.get(profile_name.lower())  # type: ignore[union-attr]
             # If still not found and we're not already looking for default, try default
             if not agent_profile_obj and profile_name != "default":
                 logger.warning(f"Profile '{profile_name}' not found, falling back to default profile")
-                agent_profile_obj = self.app_config.agent_profiles.get("default")
+                agent_profile_obj = self.app_config.agent_profiles.get("default")  # type: ignore[union-attr]
         if agent_profile_obj:
             logger.debug(f"Using profile '{getattr(agent_profile_obj, 'name', 'unknown')}' for thought {thought_item.thought_id}")
         else:

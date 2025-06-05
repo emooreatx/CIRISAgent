@@ -87,7 +87,7 @@ class TaskContext(BaseModel):
     def __contains__(self, key: str) -> bool:
         return hasattr(self, key)
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         return getattr(self, key, default)
 
     def __getitem__(self, key: str) -> Any:
@@ -101,7 +101,7 @@ class ThoughtContext(BaseModel):
     initial_task_context: Optional[TaskContext] = None
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         """Dictionary-style access for backward compatibility."""
         return getattr(self, key, default)
 

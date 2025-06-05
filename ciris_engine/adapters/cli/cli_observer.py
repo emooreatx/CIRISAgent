@@ -41,7 +41,7 @@ class CLIObserver:
         if self.interactive and self._input_task is None:
             self._input_task = asyncio.create_task(self._input_loop())
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the observer and background input loop."""
         if self._input_task:
             self._stop_event.set()

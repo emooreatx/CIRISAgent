@@ -34,7 +34,7 @@ class ThoughtManager:
         now_iso = datetime.now(timezone.utc).isoformat()
         
         # Build context from task
-        context_dict = {}
+        context_dict: Dict[str, Any] = {}
         if task.context:
             context_dict = {"initial_task_context": task.context.model_dump()}
             for key in ["author_name", "author_id", "channel_id", "origin_service"]:
@@ -164,7 +164,7 @@ class ThoughtManager:
         Mark thoughts as PROCESSING before sending to workflow coordinator.
         Returns the successfully updated items.
         """
-        updated_items = []
+        updated_items: List[Any] = []
         
         for item in batch:
             try:

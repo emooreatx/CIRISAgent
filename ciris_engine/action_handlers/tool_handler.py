@@ -64,7 +64,7 @@ class ToolHandler(BaseActionHandler):
                 tool_result = await tool_service.get_tool_result(
                     correlation_id, timeout=self.TOOL_RESULT_TIMEOUT
                 )
-                if tool_result and tool_result.get("error") is None:
+                if tool_result and tool_result.get("error") is None:  # type: ignore[union-attr]
                     action_performed_successfully = True
                     follow_up_content_key_info = (
                         f"Tool '{params.name}' executed successfully. Result: {tool_result}"

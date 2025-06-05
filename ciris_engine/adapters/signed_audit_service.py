@@ -45,7 +45,7 @@ class SignedAuditService(AuditService):
         retention_days: int = 90,
         enable_jsonl: bool = True,
         enable_signed: bool = True
-    ):
+    ) -> None:
         """
         Initialize the signed audit service.
         
@@ -73,7 +73,7 @@ class SignedAuditService(AuditService):
         self._db_connection: Optional[sqlite3.Connection] = None
         self._signing_enabled = False
     
-    async def start(self):
+    async def start(self) -> None:
         """Start the signed audit service."""
         # Start base service (handles JSONL)
         if self.enable_jsonl:
@@ -83,7 +83,7 @@ class SignedAuditService(AuditService):
         if self.enable_signed:
             await self._initialize_signed_audit()
     
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the signed audit service."""
         # Flush any remaining entries
         await self._flush_buffer()
@@ -227,7 +227,7 @@ class SignedAuditService(AuditService):
     
     async def _init_database(self) -> None:
         """Initialize the audit database with required tables."""
-        def _create_tables():
+        def _create_tables() -> None:
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
             
@@ -307,7 +307,7 @@ class SignedAuditService(AuditService):
     
     async def _write_signed_entry(self, entry: AuditLogEntry) -> None:
         """Write an entry to the signed audit database."""
-        def _write_to_db():
+        def _write_to_db() -> None:
             # Convert entry to dict for hash chain
             entry_dict = {
                 "event_id": entry.event_id,
@@ -422,7 +422,7 @@ class SignedAuditService(AuditService):
                 return {"error": "No entries in audit chain"}
             
             # Create root anchor entry
-            def _create_anchor():
+            def _create_anchor() -> None:
                 if not self._db_connection:
                     raise RuntimeError("Database connection not available")
                 cursor = self._db_connection.cursor()

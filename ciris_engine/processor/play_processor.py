@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Any, List
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 
 from .work_processor import WorkProcessor
 

@@ -15,7 +15,7 @@ def get_tasks_by_status(status: TaskStatus, db_path: Optional[str] = None) -> Li
         raise TypeError(f"Expected TaskStatus enum, got {type(status)}: {status}")
     status_val = status.value
     sql = "SELECT * FROM tasks WHERE status = ? ORDER BY created_at ASC"
-    tasks_list = []
+    tasks_list: List[Any] = []
     try:
         with get_db_connection(db_path) as conn:
             cursor = conn.cursor()
@@ -29,7 +29,7 @@ def get_tasks_by_status(status: TaskStatus, db_path: Optional[str] = None) -> Li
 
 def get_all_tasks(db_path: Optional[str] = None) -> List[Task]:
     sql = "SELECT * FROM tasks ORDER BY created_at ASC"
-    tasks_list = []
+    tasks_list: List[Any] = []
     try:
         with get_db_connection(db_path) as conn:
             cursor = conn.cursor()
@@ -177,7 +177,7 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
 def get_tasks_older_than(older_than_timestamp: str, db_path: Optional[str] = None) -> List[Task]:
     """Get all tasks with created_at older than the given ISO timestamp, returning Task objects."""
     sql = "SELECT * FROM tasks WHERE created_at < ?"
-    tasks_list = []
+    tasks_list: List[Any] = []
     try:
         with get_db_connection(db_path) as conn:
             cursor = conn.cursor()

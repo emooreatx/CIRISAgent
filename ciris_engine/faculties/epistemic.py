@@ -132,7 +132,7 @@ async def calculate_epistemic_values(
     """
     results = {"entropy": 0.1, "coherence": 0.9, "error": None} # Default values
 
-    async def get_entropy():
+    async def get_entropy() -> None:
         try:
             messages = _create_entropy_messages_for_instructor(text_to_evaluate)
             entropy_eval: EntropyResult = await aclient.chat.completions.create(
@@ -152,7 +152,7 @@ async def calculate_epistemic_values(
             results["entropy_error"] = f"Entropy Error: {str(e)}"
             return 0.1 # Fallback entropy
 
-    async def get_coherence():
+    async def get_coherence() -> None:
         try:
             messages = _create_coherence_messages_for_instructor(text_to_evaluate)
             coherence_eval: CoherenceResult = await aclient.chat.completions.create(
@@ -188,7 +188,7 @@ async def calculate_epistemic_values(
         # Fallbacks for entropy and coherence are already set by default
 
     # Consolidate specific errors into the general 'error' field if they occurred
-    general_error_messages = []
+    general_error_messages: List[Any] = []
     if "entropy_error" in results:
         general_error_messages.append(results["entropy_error"])
         del results["entropy_error"] # Remove specific key after consolidation

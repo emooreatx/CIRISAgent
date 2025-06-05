@@ -166,7 +166,7 @@ class BaseActionHandler(ABC):
 
     async def _get_channel_id(self, thought: Thought, dispatch_context: Dict[str, Any]) -> Optional[str]:
         """Get channel ID from dispatch or thought context."""
-        channel_id = dispatch_context.get("channel_id")
+        channel_id = dispatch_context.get("channel_id")  # type: ignore[union-attr]
         if not channel_id and getattr(thought, "context", None):
             system_snapshot = getattr(thought.context, "system_snapshot", None) if thought.context else None
             channel_id = getattr(system_snapshot, "channel_id", None) if system_snapshot else None

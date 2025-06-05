@@ -20,7 +20,7 @@ class APIWARoutes:
         try:
             data = await request.json()
         except Exception:
-            data = {}
+            data: Dict[str, Any] = {}
         try:
             guidance = await self.multi_service_sink.fetch_guidance(data)
             return web.json_response({"guidance": guidance})

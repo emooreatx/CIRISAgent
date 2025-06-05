@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 import asyncio
 import json
 
@@ -62,7 +62,7 @@ class LocalGraphMemoryService(Service):
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
     def export_identity_context(self) -> str:
-        lines = []
+        lines: List[Any] = []
         with get_db_connection(db_path=self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -84,7 +84,7 @@ class LocalGraphMemoryService(Service):
                 reason="Invalid identity update format"
             )
         # Check for required WA authorization
-        if not update_data.get("wa_authorized"):
+        if not update_data.get("wa_authorized"):  # type: ignore[union-attr]
             return MemoryOpResult(
                 status=MemoryOpStatus.DENIED,
                 reason="Identity updates require WA authorization"
@@ -179,7 +179,7 @@ class LocalGraphMemoryService(Service):
         required_fields = ["wa_user_id", "wa_authorized", "update_timestamp"]
         if not all(field in update_data for field in required_fields):
             return False
-        for node in update_data.get("nodes", []):
+        for node in update_data.get("nodes", []):  # type: ignore[union-attr]
             if "id" not in node or "type" not in node:
                 return False
             if node["type"] != NodeType.CONCEPT:

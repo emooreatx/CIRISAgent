@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import uuid
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
 
 # Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought

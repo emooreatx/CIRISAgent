@@ -117,7 +117,7 @@ class SpeakHandler(BaseActionHandler):
             }
             if not success:
                 ctx["error_details"] = follow_up_error_context
-            context_data.update(ctx)
+            context_data.update(ctx)  # type: ignore[union-attr]
             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
             new_follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(new_follow_up)

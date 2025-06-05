@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class SecretsEncryption:
     """Handles encryption/decryption of secrets using AES-256-GCM"""
     
-    def __init__(self, master_key: Optional[bytes] = None):
+    def __init__(self, master_key: Optional[bytes] = None) -> None:
         """
         Initialize with a master key. If not provided, generates a new one.
         

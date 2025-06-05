@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext, SystemSnapshot
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
@@ -18,7 +18,7 @@ class ContextBuilder:
         memory_service: Optional[LocalGraphMemoryService] = None,
         graphql_provider: Optional[GraphQLContextProvider] = None,
         app_config: Optional[Any] = None,
-    ):
+    ) -> None:
         self.memory_service = memory_service
         self.graphql_provider = graphql_provider
         self.app_config = app_config
@@ -124,7 +124,7 @@ class ContextBuilder:
             logger.warning(f"DEBUG: Channel memory result: {channel_info}")
 
         # Recent and top tasks
-        recent_tasks_list = []
+        recent_tasks_list: List[Any] = []
         db_recent_tasks = persistence.get_recent_completed_tasks(10)
         from ciris_engine.schemas.context_schemas_v1 import TaskSummary
         for t_obj in db_recent_tasks:
@@ -134,7 +134,7 @@ class ContextBuilder:
                 recent_tasks_list.append(TaskSummary(**t_obj.model_dump()))
             elif isinstance(t_obj, dict):
                 recent_tasks_list.append(TaskSummary(**t_obj))
-        top_tasks_list = []
+        top_tasks_list: List[Any] = []
         db_top_tasks = persistence.get_top_tasks(10)
         for t_obj in db_top_tasks:
             if isinstance(t_obj, TaskSummary):

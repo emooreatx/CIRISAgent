@@ -101,7 +101,7 @@ class BaseMultiServiceSink(ABC):
 
     async def _process_action(self, action: ActionMessage) -> None:
         action_type = action.type
-        service_type = self.service_routing.get(action_type)
+        service_type = self.service_routing.get(action_type)  # type: ignore[union-attr]
         if not service_type:
             logger.error(f"No service routing defined for action type: {action_type}")
             return
@@ -121,7 +121,7 @@ class BaseMultiServiceSink(ABC):
     async def _get_service(self, service_type: str, action: ActionMessage) -> Optional[Any]:
         if not self.service_registry:
             return None
-        required_capabilities = self.capability_map.get(action.type, [])
+        required_capabilities = self.capability_map.get(action.type, [])  # type: ignore[union-attr]
         return await self.service_registry.get_service(
             handler=action.handler_name,
             service_type=service_type,

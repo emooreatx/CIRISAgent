@@ -69,7 +69,7 @@ class RecallHandler(BaseActionHandler):
         }
         if not success:
             follow_up_context["error_details"] = str(memory_result.status)
-        context_data.update(follow_up_context)
+        context_data.update(follow_up_context)  # type: ignore[union-attr]
         from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
         follow_up.context = ThoughtContext.model_validate(context_data)
         self.dependencies.persistence.add_thought(follow_up)

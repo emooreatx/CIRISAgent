@@ -49,8 +49,8 @@ class CSDMAEvaluator(BaseDMA):
         service_registry: ServiceRegistry,
         model_name: Optional[str] = None,
         max_retries: int = 2,
-        environmental_kg: Any = None,
-        task_specific_kg: Any = None,
+        environmental_kg: Optional[Any] = None,
+        task_specific_kg: Optional[Any] = None,
         prompt_overrides: Optional[Dict[str, str]] = None,
     ) -> None:
 

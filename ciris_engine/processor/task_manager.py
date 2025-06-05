@@ -32,7 +32,7 @@ class TaskManager:
         
         # Ensure context exists
         if context is None:
-            context = {}
+            context: Dict[str, Any] = {}
         
         # Ensure channel_id is in context
         if 'channel_id' not in context:

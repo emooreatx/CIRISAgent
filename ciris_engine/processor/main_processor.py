@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine import persistence
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus, Task
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
@@ -248,7 +248,7 @@ class AgentProcessor:
             batch = limited_thoughts[i:i + batch_size]
             
             # Create tasks for parallel processing
-            tasks = []
+            tasks: List[Any] = []
             for thought in batch:
                 # Mark as PROCESSING
                 persistence.update_thought_status(
@@ -284,7 +284,7 @@ class AgentProcessor:
             item = ProcessingQueueItem.from_thought(thought)
 
             # Use the current state's processor for fallback-aware processing
-            processor = self.state_processors.get(self.state_manager.get_state())
+            processor = self.state_processors.get(self.state_manager.get_state())  # type: ignore[union-attr]
             if processor is None:
                 logger.error(f"No processor found for state {self.state_manager.get_state()}")
                 return False

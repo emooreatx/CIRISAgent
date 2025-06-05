@@ -5,8 +5,8 @@ logger = logging.getLogger(__name__)
 
 def build_dispatch_context(
     thought: Any, 
-    task: Any = None, 
-    app_config: Any = None, 
+    task: Optional[Any] = None, 
+    app_config: Optional[Any] = None, 
     startup_channel_id: Optional[str] = None, 
     round_number: Optional[int] = None, 
     extra_context: Optional[Dict[str, Any]] = None
@@ -26,7 +26,7 @@ def build_dispatch_context(
         Dict containing the dispatch context
     """
     # Start with initial context from thought if available
-    context = {}
+    context: Dict[str, Any] = {}
     if hasattr(thought, "initial_context") and thought.initial_context:
         context = thought.initial_context.copy()
     

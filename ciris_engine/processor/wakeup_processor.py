@@ -7,7 +7,7 @@ import uuid
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType
 from ciris_engine import persistence
@@ -129,7 +129,7 @@ class WakeupProcessor(BaseProcessor):
                         logger.info(f"Step {i+1} has existing thoughts and task not active, skipping")
                 
                 # 2. Check completion status
-                steps_status = []
+                steps_status: List[Any] = []
                 for i, step_task in enumerate(self.wakeup_tasks[1:]):
                     current_task = persistence.get_task_by_id(step_task.task_id)
                     status = "missing"

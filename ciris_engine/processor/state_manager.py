@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Optional, Dict, Any, Callable
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 
@@ -55,7 +55,7 @@ class StateManager:
         StateTransition(AgentState.SOLITUDE, AgentState.WORK),
     ]
     
-    def __init__(self, initial_state: AgentState = AgentState.SHUTDOWN):
+    def __init__(self, initial_state: AgentState = AgentState.SHUTDOWN) -> None:
         self.current_state = initial_state
         self.state_history: list[Dict[str, Any]] = []
         self.state_metadata: Dict[AgentState, Dict[str, Any]] = {}
@@ -75,7 +75,7 @@ class StateManager:
     
     def _record_state_change(self, new_state: AgentState, old_state: Optional[AgentState]) -> None:
         """Record state change in history."""
-        self.state_history.append({
+        self.state_history.append({  # type: ignore[union-attr]
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "from_state": old_state.value if old_state else None,
             "to_state": new_state.value,

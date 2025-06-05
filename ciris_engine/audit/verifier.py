@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class AuditVerifier:
     """Verifies audit log integrity and detects tampering"""
     
-    def __init__(self, db_path: str, key_path: str):
+    def __init__(self, db_path: str, key_path: str) -> None:
         self.db_path = db_path
         self.hash_chain = AuditHashChain(db_path)
         self.signature_manager = AuditSignatureManager(key_path, db_path)
@@ -159,7 +159,7 @@ class AuditVerifier:
     
     def _verify_single_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         """Verify a single entry's hash and signature"""
-        errors = []
+        errors: List[Any] = []
         
         # Verify entry hash
         computed_hash = self.hash_chain.compute_entry_hash(entry)
@@ -197,7 +197,7 @@ class AuditVerifier:
             entries = cursor.fetchall()
             conn.close()
             
-            errors = []
+            errors: List[Any] = []
             verified_count = 0
             
             for entry in entries:
@@ -243,7 +243,7 @@ class AuditVerifier:
             entries = cursor.fetchall()
             conn.close()
             
-            errors = []
+            errors: List[Any] = []
             verified_count = 0
             
             for entry in entries:
@@ -303,7 +303,7 @@ class AuditVerifier:
         
         # Add recommendations based on findings
         if not verification_result["valid"]:
-            report["recommendations"].append("CRITICAL: Audit log integrity compromised - investigate immediately")
+            report["recommendations"].append("CRITICAL: Audit log integrity compromised - investigate immediately")  # type: ignore[union-attr]
         
         if first_tampered:
             report["recommendations"].append(f"Tampering detected at sequence {first_tampered} - verify backup logs")
@@ -314,8 +314,8 @@ class AuditVerifier:
         if chain_summary.get("total_entries", 0) > 100000:
             report["recommendations"].append("Large audit log - consider periodic archiving")
         
-        if not key_info.get("active", False):
-            report["recommendations"].append("WARNING: Signing key is revoked or inactive")
+        if not key_info.get("active", False):  # type: ignore[union-attr]
+            report["recommendations"].append("WARNING: Signing key is revoked or inactive")  # type: ignore[union-attr]
         
         return report
     
@@ -342,7 +342,7 @@ class AuditVerifier:
                     "message": "No root anchors found"
                 }
             
-            errors = []
+            errors: List[Any] = []
             verified_count = 0
             
             for root in roots:

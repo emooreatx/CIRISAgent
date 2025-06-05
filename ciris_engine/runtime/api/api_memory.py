@@ -3,7 +3,7 @@ import logging
 from aiohttp import web
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
-from typing import Any
+from typing import Any, List
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class APIMemoryRoutes:
             if memory_service and hasattr(memory_service, 'list_entries'):
                 entries = await memory_service.list_entries(scope)
             else:
-                entries = []
+                entries: List[Any] = []
             return web.json_response({"entries": entries})
         except Exception as e:
             logger.error(f"Error in memory entries: {e}")
@@ -48,7 +48,7 @@ class APIMemoryRoutes:
         try:
             data = await request.json()
             key = data.get("key")
-            value = data.get("value")
+            value = data.get("value")  # type: ignore[union-attr]
             if not key:
                 return web.json_response({"error": "Missing key"}, status=400)
             node = GraphNode(id=key, type=NodeType.CONCEPT, scope=GraphScope(scope), attributes={"value": value})

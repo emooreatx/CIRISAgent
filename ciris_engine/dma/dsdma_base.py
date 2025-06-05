@@ -43,7 +43,7 @@ class BaseDSDMA(BaseDMA):
                  service_registry: ServiceRegistry,
                  model_name: Optional[str] = None,
                  domain_specific_knowledge: Optional[Dict[str, Any]] = None,
-                 prompt_template: Optional[str] = None):
+                 prompt_template: Optional[str] = None) -> None:
         
         app_config = get_config()
         resolved_model = model_name or app_config.llm_services.openai.model_name

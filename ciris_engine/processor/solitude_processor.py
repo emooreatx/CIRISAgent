@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Any, List
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
 from ciris_engine import persistence
 
@@ -172,7 +172,7 @@ class SolitudeProcessor(BaseProcessor):
             reflection_result["recent_tasks_analyzed"] = len(recent_completed)
             
             # Look for patterns (simplified example)
-            task_types = {}
+            task_types: Dict[str, Any] = {}
             for task in recent_completed:
                 task_type = task.context.get("type", "unknown") if task.context else "unknown"
                 task_types[task_type] = task_types.get(task_type, 0) + 1

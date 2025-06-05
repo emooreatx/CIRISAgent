@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class AuditSignatureManager:
     """Manages signing keys and signatures for audit entries"""
     
-    def __init__(self, key_path: str, db_path: str):
+    def __init__(self, key_path: str, db_path: str) -> None:
         self.key_path = Path(key_path)
         self.db_path = db_path
         self._private_key: Optional[PrivateKeyTypes] = None

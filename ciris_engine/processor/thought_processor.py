@@ -3,7 +3,7 @@ ThoughtProcessor: Core logic for processing a single thought in the CIRISAgent p
 Coordinates DMA orchestration, context building, guardrails, and pondering.
 """
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
@@ -231,7 +231,7 @@ class ThoughtProcessor:
 
 
 
-    async def _handle_special_cases(self, result, thought, context):
+    async def _handle_special_cases(self, result, thought, context) -> None:
         """Handle special cases like PONDER and DEFER overrides."""
         # Handle both GuardrailResult and ActionSelectionResult
         selected_action = None
@@ -311,7 +311,7 @@ class ThoughtProcessor:
 
 
 
-    async def _update_thought_status(self, thought, result):
+    async def _update_thought_status(self, thought, result) -> None:
         from ciris_engine import persistence
         # Update the thought status in persistence
         # Support GuardrailResult as well as ActionSelectionResult
@@ -351,7 +351,7 @@ class ThoughtProcessor:
         """Handles the selected action by dispatching to the appropriate handler."""
         # ...existing code...
         if action_selection.action == HandlerActionType.PONDER:
-            ponder_questions = []
+            ponder_questions: List[Any] = []
             if action_selection.action_parameters:
                 if isinstance(action_selection.action_parameters, dict) and 'questions' in action_selection.action_parameters:
                     ponder_questions = action_selection.action_parameters['questions']

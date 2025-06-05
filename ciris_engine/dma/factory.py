@@ -39,7 +39,7 @@ async def create_dsdma_from_profile(
             logger.error("Default profile could not be loaded")
             return None
 
-    dsdma_cls = DSDMA_CLASS_REGISTRY.get(profile.dsdma_identifier)
+    dsdma_cls = DSDMA_CLASS_REGISTRY.get(profile.dsdma_identifier)  # type: ignore[union-attr]
     if not dsdma_cls:
         logger.error("Unknown DSDMA identifier: %s", profile.dsdma_identifier)
         return None

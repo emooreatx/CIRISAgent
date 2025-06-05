@@ -1,5 +1,5 @@
 import asyncio
-from typing import Callable, Awaitable, Dict, Any, Optional
+from typing import Callable, Awaitable, Dict, Any, Optional, List
 import os
 import logging
 
@@ -20,7 +20,7 @@ class APIObserver:
         agent_id: Optional[str] = None,
         multi_service_sink: Optional[MultiServiceActionSink] = None,
         api_adapter: Optional[Any] = None,
-    ):
+    ) -> None:
         self.on_observe = on_observe
         self.memory_service = memory_service
         self.agent_id = agent_id
@@ -28,11 +28,11 @@ class APIObserver:
         self.api_adapter = api_adapter
         self._history: list[IncomingMessage] = []
 
-    async def start(self):
+    async def start(self) -> None:
         # APIObserver doesn't need to start a polling task - it only handles direct message calls
         pass
 
-    async def stop(self):
+    async def stop(self) -> None:
         # APIObserver doesn't have background tasks to stop
         pass
 
@@ -193,7 +193,7 @@ class APIObserver:
                     continue
 
     async def get_recent_messages(self, limit: int = 20) -> list[Dict[str, Any]]:
-        all_messages = []
+        all_messages: List[Any] = []
         
         # Get recent input messages from history
         recent_history = self._history[-limit*2:]  # Get more history to account for responses
@@ -217,7 +217,7 @@ class APIObserver:
         
         # Remove duplicates and sort by timestamp if available
         seen_ids = set()
-        unique_messages = []
+        unique_messages: List[Any] = []
         for msg in all_messages:
             if msg["id"] not in seen_ids:
                 seen_ids.add(msg["id"])

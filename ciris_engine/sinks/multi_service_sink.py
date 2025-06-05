@@ -46,7 +46,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     def __init__(self,
                  service_registry: Optional[Any] = None,
                  max_queue_size: int = 1000,
-                 fallback_channel_id: Optional[str] = None):
+                 fallback_channel_id: Optional[str] = None) -> None:
         super().__init__(service_registry, max_queue_size, fallback_channel_id)
         # Pending tool results for correlation
         self._pending_tool_results: Dict[str, asyncio.Future] = {}
@@ -255,7 +255,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             # Get service directly and call fetch_messages
             service = await self._get_service('communication', action)
             if service:
-                messages = await self._handle_fetch_messages(service, action)
+                messages = await self._handle_fetch_messages(service, action)  # type: ignore
                 return messages
             else:
                 logger.warning(f"No communication service available for fetch_messages_sync")
@@ -299,7 +299,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             # Get service directly and call memorize
             service = await self._get_service('memory', action)
             if service:
-                result = await self._handle_memorize(service, action)
+                result = await self._handle_memorize(service, action)  # type: ignore
                 return result
             else:
                 logger.warning(f"No memory service available for memorize")
@@ -321,7 +321,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             # Get service directly and call recall
             service = await self._get_service('memory', action)
             if service:
-                result = await self._handle_recall(service, action)
+                result = await self._handle_recall(service, action)  # type: ignore
                 return result
             else:
                 logger.warning(f"No memory service available for recall")
@@ -343,7 +343,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             # Get service directly and call forget
             service = await self._get_service('memory', action)
             if service:
-                result = await self._handle_forget(service, action)
+                result = await self._handle_forget(service, action)  # type: ignore
                 return result
             else:
                 logger.warning(f"No memory service available for forget")
@@ -370,7 +370,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             # Get service directly and call execute
             service = await self._get_service('tool', action)
             if service:
-                result = await self._handle_send_tool(service, action)
+                result = await self._handle_send_tool(service, action)  # type: ignore
                 return result
             else:
                 logger.warning(f"No tool service available for execute_tool_sync")
@@ -394,7 +394,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             # Get service directly and call fetch
             service = await self._get_service('tool', action)
             if service:
-                result = await self._handle_fetch_tool(service, action)
+                result = await self._handle_fetch_tool(service, action)  # type: ignore
                 return result
             else:
                 logger.warning(f"No tool service available for get_tool_result_sync")

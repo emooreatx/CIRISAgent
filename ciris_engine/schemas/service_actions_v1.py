@@ -37,7 +37,7 @@ class SendMessageAction(ActionMessage):
     channel_id: str
     content: str
     
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], channel_id: str, content: str):
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], channel_id: str, content: str) -> None:
         super().__init__(ActionType.SEND_MESSAGE, handler_name, metadata)
         self.channel_id = channel_id
         self.content = content
@@ -49,7 +49,7 @@ class FetchMessagesAction(ActionMessage):
     channel_id: str
     limit: int = 10
     
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], channel_id: str, limit: int = 10):
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], channel_id: str, limit: int = 10) -> None:
         super().__init__(ActionType.FETCH_MESSAGES, handler_name, metadata)
         self.channel_id = channel_id
         self.limit = limit
@@ -60,7 +60,7 @@ class FetchGuidanceAction(ActionMessage):
     """Action to fetch guidance from WA service"""
     context: Dict[str, Any]
     
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], context: Dict[str, Any]):
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], context: Dict[str, Any]) -> None:
         super().__init__(ActionType.FETCH_GUIDANCE, handler_name, metadata)
         self.context = context
 
@@ -71,7 +71,7 @@ class SendDeferralAction(ActionMessage):
     thought_id: str
     reason: str
     
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], thought_id: str, reason: str):
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], thought_id: str, reason: str) -> None:
         super().__init__(ActionType.SEND_DEFERRAL, handler_name, metadata)
         self.thought_id = thought_id
         self.reason = reason
@@ -82,7 +82,7 @@ class MemorizeAction(ActionMessage):
     """Action to memorize data via memory service"""
     node: GraphNode
 
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], node: GraphNode):
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], node: GraphNode) -> None:
         super().__init__(ActionType.MEMORIZE, handler_name, metadata)
         self.node = node
 
@@ -92,7 +92,7 @@ class RecallAction(ActionMessage):
     """Action to recall data via memory service"""
     node: GraphNode
 
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], node: GraphNode):
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], node: GraphNode) -> None:
         super().__init__(ActionType.RECALL, handler_name, metadata)
         self.node = node
 
@@ -102,7 +102,7 @@ class ForgetAction(ActionMessage):
     """Action to forget data via memory service"""
     node: GraphNode
 
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], node: GraphNode):
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], node: GraphNode) -> None:
         super().__init__(ActionType.FORGET, handler_name, metadata)
         self.node = node
 
@@ -114,7 +114,7 @@ class SendToolAction(ActionMessage):
     tool_args: Dict[str, Any]
     correlation_id: Optional[str] = None
     
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], tool_name: str, tool_args: Dict[str, Any], correlation_id: Optional[str] = None):
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], tool_name: str, tool_args: Dict[str, Any], correlation_id: Optional[str] = None) -> None:
         super().__init__(ActionType.SEND_TOOL, handler_name, metadata)
         self.tool_name = tool_name
         self.tool_args = tool_args
@@ -128,7 +128,7 @@ class FetchToolAction(ActionMessage):
     correlation_id: str
     timeout: float = 30.0
     
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], tool_name: str, correlation_id: str, timeout: float = 30.0):
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], tool_name: str, correlation_id: str, timeout: float = 30.0) -> None:
         super().__init__(ActionType.FETCH_TOOL, handler_name, metadata)
         self.tool_name = tool_name
         self.correlation_id = correlation_id
@@ -140,7 +140,7 @@ class ObserveMessageAction(ActionMessage):
     """Action to observe/process a message"""
     message: IncomingMessage
 
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], message: IncomingMessage):
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], message: IncomingMessage) -> None:
         super().__init__(ActionType.OBSERVE_MESSAGE, handler_name, metadata)
         self.message = message
 

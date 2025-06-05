@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 
 if TYPE_CHECKING:
     from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
