@@ -4,7 +4,7 @@ Handles transitions between WAKEUP, DREAM, PLAY, WORK, SOLITUDE, and SHUTDOWN st
 """
 import logging
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.states import AgentState
@@ -18,7 +18,8 @@ class StateTransition:
     """Represents a state transition with validation rules."""
     
     def __init__(self, from_state: AgentState, to_state: AgentState, 
-                 condition_fn=None, on_transition_fn=None):
+                 condition_fn: Optional[Callable[[], bool]] = None, 
+                 on_transition_fn: Optional[Callable[[], None]] = None) -> None:
         self.from_state = from_state
         self.to_state = to_state
         self.condition_fn = condition_fn  # Optional validation function
@@ -56,7 +57,7 @@ class StateManager:
     
     def __init__(self, initial_state: AgentState = AgentState.SHUTDOWN):
         self.current_state = initial_state
-        self.state_history = []
+        self.state_history: list[Dict[str, Any]] = []
         self.state_metadata: Dict[AgentState, Dict[str, Any]] = {}
         self._transition_map = self._build_transition_map()
         
@@ -65,14 +66,14 @@ class StateManager:
     
     def _build_transition_map(self) -> Dict[AgentState, Dict[AgentState, StateTransition]]:
         """Build a map for quick transition lookups."""
-        transition_map = {}
+        transition_map: Dict[AgentState, Dict[AgentState, StateTransition]] = {}
         for transition in self.VALID_TRANSITIONS:
             if transition.from_state not in transition_map:
                 transition_map[transition.from_state] = {}
             transition_map[transition.from_state][transition.to_state] = transition
         return transition_map
     
-    def _record_state_change(self, new_state: AgentState, old_state: Optional[AgentState]):
+    def _record_state_change(self, new_state: AgentState, old_state: Optional[AgentState]) -> None:
         """Record state change in history."""
         self.state_history.append({
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -144,7 +145,7 @@ class StateManager:
         """Get metadata for current state."""
         return self.state_metadata.get(self.current_state, {})
     
-    def update_state_metadata(self, key: str, value: Any):
+    def update_state_metadata(self, key: str, value: Any) -> None:
         """Update metadata for current state."""
         if self.current_state not in self.state_metadata:
             self.state_metadata[self.current_state] = {}

@@ -3,15 +3,16 @@ import logging
 import uuid
 from aiohttp import web
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 class APICommsRoutes:
-    def __init__(self, api_observer, api_adapter):
+    def __init__(self, api_observer: Any, api_adapter: Any) -> None:
         self.api_observer = api_observer
         self.api_adapter = api_adapter
 
-    def register(self, app: web.Application):
+    def register(self, app: web.Application) -> None:
         app.router.add_post('/v1/messages', self._handle_message)
         app.router.add_get('/v1/messages', self._handle_get_messages)
         app.router.add_get('/v1/status', self._handle_status)

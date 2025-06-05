@@ -90,7 +90,7 @@ class Service(ABC):
                     return result  # type: ignore[no-any-return]
                 else:
                     result = operation(*args, **kwargs)
-                    return result  # type: ignore[no-any-return]
+                    return result
                     
             except non_retryable_exceptions as e:
                 logger.error(f"{self.service_name}: Non-retryable error, failing immediately: {e}")

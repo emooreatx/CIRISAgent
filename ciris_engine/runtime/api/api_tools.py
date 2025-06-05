@@ -1,14 +1,15 @@
 """API tools endpoints for CIRISAgent, using the multi_service_sink for real tool service."""
 import logging
 from aiohttp import web
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 class APIToolsRoutes:
-    def __init__(self, multi_service_sink):
+    def __init__(self, multi_service_sink: Any) -> None:
         self.multi_service_sink = multi_service_sink
 
-    def register(self, app: web.Application):
+    def register(self, app: web.Application) -> None:
         app.router.add_get('/v1/tools', self._handle_list_tools)
         app.router.add_post('/v1/tools/{tool_name}', self._handle_tool)
 

@@ -42,17 +42,11 @@ class ContextBuilder:
         # --- Add Discord channel context ---
         channel_id = None
         # Try to get channel_id from task context first
-        if task and hasattr(task, 'context'):
-            if isinstance(task.context, BaseModel):
-                channel_id = getattr(task.context, 'channel_id', None)
-            elif isinstance(task.context, dict):
-                channel_id = task.context.get('channel_id')
+        if task and task.context:
+            channel_id = getattr(task.context, 'channel_id', None)
         # Then try from thought context
-        if not channel_id and hasattr(thought, 'context'):
-            if isinstance(thought.context, BaseModel):
-                channel_id = getattr(thought.context, 'channel_id', None)
-            elif isinstance(thought.context, dict):
-                channel_id = thought.context.get('channel_id')
+        if not channel_id and thought.context:
+            channel_id = getattr(thought.context, 'channel_id', None)
         # Then try environment variable
         if not channel_id:
             channel_id = get_env_var("DISCORD_CHANNEL_ID")
@@ -114,16 +108,10 @@ class ContextBuilder:
 
         # Add channel memory lookup for debugging
         channel_id = None
-        if task and hasattr(task, 'context'):
-            if isinstance(task.context, BaseModel) and getattr(task.context, 'channel_id', None):
-                channel_id = getattr(task.context, 'channel_id', None)
-            elif isinstance(task.context, dict):
-                channel_id = task.context.get('channel_id')
-        if not channel_id and thought and hasattr(thought, 'context'):
-            if isinstance(thought.context, BaseModel) and getattr(thought.context, 'channel_id', None):
-                channel_id = getattr(thought.context, 'channel_id', None)
-            elif isinstance(thought.context, dict):
-                channel_id = thought.context.get('channel_id')
+        if task and task.context:
+            channel_id = getattr(task.context, 'channel_id', None)
+        if not channel_id and thought and thought.context:
+            channel_id = getattr(thought.context, 'channel_id', None)
         
         if channel_id and self.memory_service:
             logger.warning(f"DEBUG: Looking up channel {channel_id} in memory")

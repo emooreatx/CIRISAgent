@@ -1,11 +1,12 @@
 """API WA (Wise Authority) endpoints for CIRISAgent, using the multi_service_sink for backend logic."""
 import logging
 from aiohttp import web
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 class APIWARoutes:
-    def __init__(self, multi_service_sink) -> None:
+    def __init__(self, multi_service_sink: Any) -> None:
         self.multi_service_sink = multi_service_sink
 
     def register(self, app: web.Application) -> None:

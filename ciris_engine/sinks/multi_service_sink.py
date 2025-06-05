@@ -286,7 +286,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         return await self.enqueue_action(action)
 
     # Memory convenience methods
-    async def memorize(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None) -> Any:
+    async def memorize(self, node: Any, handler_name: str = "memory", metadata: Optional[Dict] = None) -> Any:
         """Convenience method to memorize a node synchronously"""
         try:
             from ciris_engine.schemas.service_actions_v1 import MemorizeAction
@@ -308,7 +308,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error in memorize: {e}")
             raise
 
-    async def recall(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None) -> Any:
+    async def recall(self, node: Any, handler_name: str = "memory", metadata: Optional[Dict] = None) -> Any:
         """Convenience method to recall a node synchronously"""
         try:
             from ciris_engine.schemas.service_actions_v1 import RecallAction
@@ -330,7 +330,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error in recall: {e}")
             raise
 
-    async def forget(self, node, handler_name: str = "memory", metadata: Optional[Dict] = None) -> Any:
+    async def forget(self, node: Any, handler_name: str = "memory", metadata: Optional[Dict] = None) -> Any:
         """Convenience method to forget a node synchronously"""
         try:
             from ciris_engine.schemas.service_actions_v1 import ForgetAction

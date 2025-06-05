@@ -7,11 +7,11 @@ import os
 logger = logging.getLogger(__name__)
 
 class APILogsRoutes:
-    def register(self, app: web.Application):
+    def register(self, app: web.Application) -> None:
         app.router.add_get('/v1/logs/{filename}', self._handle_logs)
 
     async def _handle_logs(self, request: web.Request) -> web.Response:
-        filename = request.match_info.get('filename')
+        filename = request.match_info.get('filename', '')
         tail = int(request.query.get('tail', 100))
         log_dir = Path('logs')
         log_path = log_dir / filename

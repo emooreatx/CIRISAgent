@@ -42,8 +42,6 @@ def format_task_context(current_task: Dict[str, str],
     if recent_actions:
         out_lines.append("\n=== Recent Actions ===")
         for idx, act in enumerate(recent_actions[:max_actions], 1):
-            if not isinstance(act, dict):
-                continue
             desc = str(act.get("description", ""))
             outcome = str(act.get("outcome", ""))
             upd = act.get("updated_at", "N/A")

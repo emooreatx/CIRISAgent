@@ -2,14 +2,15 @@
 import logging
 from aiohttp import web
 import json
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 class APIAuditRoutes:
-    def __init__(self, audit_service):
+    def __init__(self, audit_service: Any) -> None:
         self.audit_service = audit_service
 
-    def register(self, app: web.Application):
+    def register(self, app: web.Application) -> None:
         app.router.add_get('/v1/audit', self._handle_audit)
 
     async def _handle_audit(self, request: web.Request) -> web.Response:

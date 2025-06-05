@@ -2,7 +2,7 @@ import yaml
 import logging
 import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from ciris_engine.schemas.config_schemas_v1 import AgentProfile
 
@@ -24,7 +24,7 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[AgentProfile]:
     """
     if profile_path is None:
         profile_path = DEFAULT_PROFILE_PATH
-    if not isinstance(profile_path, Path):
+    elif not isinstance(profile_path, Path):
         profile_path = Path(profile_path)
 
     if not profile_path.exists() or not profile_path.is_file():
@@ -38,7 +38,7 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[AgentProfile]:
             return None
 
     try:
-        def _load_yaml(path: Path):
+        def _load_yaml(path: Path) -> Any:
             with open(path, "r") as f:
                 return yaml.safe_load(f)
 

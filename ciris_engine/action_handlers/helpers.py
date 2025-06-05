@@ -27,12 +27,8 @@ def create_follow_up_thought(
     # Create follow-up thought with v1 schema
     from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 
-    if isinstance(parent.context, ThoughtContext):
+    if parent.context is not None:
         ctx = parent.context.model_copy()
-    elif isinstance(parent.context, dict):
-        ctx_data = parent.context.copy()
-        ctx_data.setdefault("system_snapshot", {})
-        ctx = ThoughtContext.model_validate(ctx_data)
     else:
         ctx = ThoughtContext(system_snapshot=SystemSnapshot())
 

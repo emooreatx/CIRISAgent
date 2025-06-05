@@ -50,7 +50,7 @@ class DreamProcessor:
         self._stop_event = asyncio.Event()
         self._dream_task: Optional[asyncio.Task] = None
     
-    async def start_dreaming(self, duration: Optional[float] = None):
+    async def start_dreaming(self, duration: Optional[float] = None) -> None:
         """
         Start the dream cycle.
         
@@ -70,7 +70,7 @@ class DreamProcessor:
         logger.info(f"Starting dream cycle (duration: {duration or 'indefinite'}s)")
         self._dream_task = asyncio.create_task(self._dream_loop(duration))
     
-    async def stop_dreaming(self):
+    async def stop_dreaming(self) -> None:
         """Stop the dream cycle gracefully."""
         client_to_close = self.cirisnode_client  # Hold a reference to the current client
 
@@ -112,7 +112,7 @@ class DreamProcessor:
         self.dream_metrics["end_time"] = datetime.now(timezone.utc).isoformat()
         logger.info("Dream cycle stopped")
     
-    async def _dream_loop(self, duration: Optional[float]):
+    async def _dream_loop(self, duration: Optional[float]) -> None:
         """Main dream processing loop."""
         try:
             start_time = asyncio.get_event_loop().time()
@@ -142,7 +142,7 @@ class DreamProcessor:
         finally:
             self._stop_event.set()
     
-    async def _dream_pulse(self):
+    async def _dream_pulse(self) -> None:
         """Execute a single dream pulse (snore)."""
         self.dream_metrics["total_pulses"] += 1
         pulse_num = self.dream_metrics["total_pulses"]
@@ -198,7 +198,7 @@ class DreamProcessor:
             snore_summary = f"*snore* pulse {pulse_num}: Dream interrupted by {type(e).__name__}"
             self.snore_history.append(snore_summary)
     
-    def _generate_dream_insights(self):
+    def _generate_dream_insights(self) -> None:
         """Generate insights from recent dream activity."""
         if not self.snore_history:
             return
