@@ -68,7 +68,8 @@ class ActionSelectionResult(BaseModel):
         param_class = param_map.get(self.selected_action)
         if param_class and isinstance(self.action_parameters, dict):
             try:
-                return param_class(**self.action_parameters)
+                result = param_class(**self.action_parameters)
+                return result  # type: ignore[no-any-return]
             except Exception:
                 pass
         return self.action_parameters

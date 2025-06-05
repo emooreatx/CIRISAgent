@@ -1,12 +1,12 @@
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 from .versioning import SchemaVersion
-from typing import Optional
+from typing import Optional, Any
 
 class CaseInsensitiveEnum(str, Enum):
     """Enum that allows case-insensitive value lookup."""
     @classmethod
-    def _missing_(cls, value: object):
+    def _missing_(cls, value: object) -> 'CaseInsensitiveEnum | None':
         if isinstance(value, str):
             lowered = value.lower()
             for member in cls:
@@ -78,7 +78,7 @@ class DiscordMessage(IncomingMessage):
     is_bot: bool = False
     is_dm: bool = False
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         if "destination_id" not in data and "channel_id" in data:
             data["destination_id"] = data.get("channel_id")
         super().__init__(**data)
