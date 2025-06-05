@@ -214,7 +214,7 @@ class AuditService(Service):
         self, handler_action: HandlerActionType, context: Dict[str, Any], outcome: Optional[str] = None
     ) -> str:
         """Generate a summary including outcome if provided."""
-        base_summary = f"{handler_action.value} action for thought {context.get('thought_id', 'unknown')}"  # type: ignore[union-attr]
+        base_summary = f"{handler_action.value} action for thought {context.get('thought_id', 'unknown')}"
         if outcome:
             return f"{base_summary} - {outcome}"
         return base_summary

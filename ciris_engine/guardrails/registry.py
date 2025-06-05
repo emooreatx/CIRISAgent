@@ -8,10 +8,10 @@ from .interface import GuardrailInterface
 
 @dataclass
 class GuardrailEntry:
-    name: GuardrailInterface
+    name: str
     guardrail: GuardrailInterface
-    priority: GuardrailInterface = 0
-    enabled: GuardrailInterface = True
+    priority: int = 0
+    enabled: bool = True
     circuit_breaker: CircuitBreaker | None = None
 
 class GuardrailRegistry:
