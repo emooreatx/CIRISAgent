@@ -37,12 +37,12 @@ class DatabaseMaintenanceService:
         self._maintenance_task: Optional[asyncio.Task] = None
         self._shutdown_event = asyncio.Event()
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the maintenance service with periodic tasks."""
         # If you have a parent class, call super().start()
         self._maintenance_task = asyncio.create_task(self._maintenance_loop())
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Properly stop the maintenance service."""
         self._shutdown_event.set()
         if self._maintenance_task:
@@ -54,7 +54,7 @@ class DatabaseMaintenanceService:
         await self._final_cleanup()
         # If you have a parent class, call super().stop()
 
-    async def _maintenance_loop(self):
+    async def _maintenance_loop(self) -> None:
         """Periodic maintenance loop."""
         while not self._shutdown_event.is_set():
             try:
@@ -65,7 +65,7 @@ class DatabaseMaintenanceService:
             except asyncio.TimeoutError:
                 await self._perform_periodic_maintenance()
 
-    async def _perform_periodic_maintenance(self):
+    async def _perform_periodic_maintenance(self) -> None:
         """Run periodic maintenance tasks."""
         # Archive old data
         # Optimize database
@@ -73,11 +73,11 @@ class DatabaseMaintenanceService:
         # Generate maintenance report
         logger.info("Periodic maintenance tasks executed.")
 
-    async def _final_cleanup(self):
+    async def _final_cleanup(self) -> None:
         """Final cleanup before shutdown."""
         logger.info("Final maintenance cleanup executed.")
 
-    async def perform_startup_cleanup(self):
+    async def perform_startup_cleanup(self) -> None:
         """
         Performs database cleanup at startup:
         1. Removes orphaned active tasks and thoughts.

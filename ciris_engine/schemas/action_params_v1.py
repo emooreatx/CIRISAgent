@@ -10,7 +10,7 @@ class ObserveParams(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         if 'context' not in data or data['context'] is None:
             data['context'] = {}
         super().__init__(**data)

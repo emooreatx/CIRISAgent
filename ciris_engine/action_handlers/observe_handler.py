@@ -105,11 +105,15 @@ class ObserveHandler(BaseActionHandler):
             #PROMPT_FOLLOW_UP_THOUGHT
             try:
                 fu = create_follow_up_thought(parent=thought, content=follow_up_text)
-                fu.context = {
+                # Update context using Pydantic model_copy with additional fields
+                context_data = fu.context.model_dump()
+                context_data.update({
                     "action_performed": HandlerActionType.OBSERVE.value,
                     "error_details": str(e),
                     "action_params": result.action_parameters,
-                }
+                })
+                from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+                fu.context = ThoughtContext.model_validate(context_data)
                 persistence.add_thought(fu)
             except Exception as fe:
                 await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, fe)
@@ -179,16 +183,17 @@ class ObserveHandler(BaseActionHandler):
         try:
             logger.info(f"ObserveHandler: Creating follow-up thought for {thought_id}")
             new_follow_up = create_follow_up_thought(parent=thought, content=follow_up_text)
+            # Update context using Pydantic model_copy with additional fields
+            context_data = new_follow_up.context.model_dump()
             ctx = {
                 "action_performed": HandlerActionType.OBSERVE.value,
                 "action_params": params,
             }
             if final_status == ThoughtStatus.FAILED:
                 ctx["error_details"] = follow_up_info
-            if isinstance(new_follow_up.context, dict):
-                new_follow_up.context.update(ctx)
-            else:
-                new_follow_up.context = ctx
+            context_data.update(ctx)
+            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+            new_follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(new_follow_up)
             logger.info(f"ObserveHandler: Follow-up thought created for {thought_id}")
             #TODO: Fix auditing

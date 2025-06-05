@@ -27,14 +27,16 @@ class ForgetHandler(BaseActionHandler):
                     parent=thought,
                     content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 )
-                ctx = {
+                # Update context using Pydantic model_copy with additional fields
+                context_data = follow_up.context.model_dump()
+                context_data.update({
                     "action_performed": HandlerActionType.FORGET.name,
                     "parent_task_id": thought.source_task_id,
                     "is_follow_up": True,
                     "error": str(e)
-                }
-                for k, v in ctx.items():
-                    setattr(follow_up.context, k, v)
+                })
+                from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+                follow_up.context = ThoughtContext.model_validate(context_data)
                 self.dependencies.persistence.add_thought(follow_up)
                 await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
                 return
@@ -44,14 +46,16 @@ class ForgetHandler(BaseActionHandler):
                 parent=thought,
                 content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters type: {type(raw_params)}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-            ctx = {
+            # Update context using Pydantic model_copy with additional fields
+            context_data = follow_up.context.model_dump()
+            context_data.update({
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "error": f"Invalid params type: {type(raw_params)}"
-            }
-            for k, v in ctx.items():
-                setattr(follow_up.context, k, v)
+            })
+            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+            follow_up.context = ThoughtContext.model_validate(context_data)
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             return
@@ -61,14 +65,16 @@ class ForgetHandler(BaseActionHandler):
                 parent=thought,
                 content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action was not permitted. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-            ctx = {
+            # Update context using Pydantic model_copy with additional fields
+            context_data = follow_up.context.model_dump()
+            context_data.update({
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "error": "Permission denied or WA required"
-            }
-            for k, v in ctx.items():
-                setattr(follow_up.context, k, v)
+            })
+            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+            follow_up.context = ThoughtContext.model_validate(context_data)
             self.dependencies.persistence.add_thought(follow_up)
             return
         memory_service: Optional[MemoryService] = await self.get_memory_service()
@@ -94,14 +100,16 @@ class ForgetHandler(BaseActionHandler):
                 parent=thought,
                 content="FORGET action denied: WA authorization required"
             )
-            ctx = {
+            # Update context using Pydantic model_copy with additional fields
+            context_data = follow_up.context.model_dump()
+            context_data.update({
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "error": "wa_denied",
-            }
-            for k, v in ctx.items():
-                setattr(follow_up.context, k, v)
+            })
+            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+            follow_up.context = ThoughtContext.model_validate(context_data)
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.FORGET,
@@ -127,16 +135,18 @@ class ForgetHandler(BaseActionHandler):
             parent=thought,
             content=follow_up_content,
         )
-        ctx_final = {
+        # Update context using Pydantic model_copy with additional fields
+        context_data = follow_up.context.model_dump()
+        context_data.update({
             "action_performed": HandlerActionType.FORGET.name,
             "parent_task_id": thought.source_task_id,
             "is_follow_up": True,
             "forget_key": node.id,
             "forget_scope": node.scope.value,
             "forget_status": str(getattr(forget_result, "status", forget_result))
-        }
-        for k, v in ctx_final.items():
-            setattr(follow_up.context, k, v)
+        })
+        from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+        follow_up.context = ThoughtContext.model_validate(context_data)
         self.dependencies.persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.FORGET,

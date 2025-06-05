@@ -4,13 +4,13 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 def build_dispatch_context(
-    thought, 
-    task=None, 
-    app_config=None, 
-    startup_channel_id=None, 
-    round_number=None, 
-    extra_context=None
-):
+    thought: Any, 
+    task: Any = None, 
+    app_config: Any = None, 
+    startup_channel_id: Optional[str] = None, 
+    round_number: Optional[int] = None, 
+    extra_context: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """
     Build a dispatch context for thought processing.
     

@@ -3,9 +3,10 @@ from ciris_engine.persistence.models import thoughts as thought_ops
 from ciris_engine.persistence import count_tasks, get_all_tasks, get_task_by_id
 from ciris_engine.persistence import count_thoughts, get_thoughts_by_task_id
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from typing import Optional, List, Any
 
 
-def get_pending_thoughts_for_active_tasks(limit=None):
+def get_pending_thoughts_for_active_tasks(limit: Optional[int] = None) -> List[Any]:
     """Return all thoughts pending or processing for ACTIVE tasks."""
     active_tasks = task_ops.get_tasks_by_status(TaskStatus.ACTIVE)
     active_task_ids = {t.task_id for t in active_tasks}
@@ -18,7 +19,7 @@ def get_pending_thoughts_for_active_tasks(limit=None):
     return filtered
 
 
-def count_pending_thoughts_for_active_tasks():
+def count_pending_thoughts_for_active_tasks() -> int:
     """Return the count of thoughts pending or processing for ACTIVE tasks."""
     active_tasks = task_ops.get_tasks_by_status(TaskStatus.ACTIVE)
     active_task_ids = {t.task_id for t in active_tasks}
@@ -29,12 +30,12 @@ def count_pending_thoughts_for_active_tasks():
     return len(filtered)
 
 
-def count_active_tasks():
+def count_active_tasks() -> int:
     """Count tasks with ACTIVE status."""
     return count_tasks(TaskStatus.ACTIVE)
 
 
-def get_tasks_needing_seed_thought(limit=None):
+def get_tasks_needing_seed_thought(limit: Optional[int] = None) -> List[Any]:
     """Get active tasks that don't yet have thoughts."""
     active_tasks = task_ops.get_tasks_by_status(TaskStatus.ACTIVE)
     tasks_needing_seed = []
@@ -47,18 +48,18 @@ def get_tasks_needing_seed_thought(limit=None):
     return tasks_needing_seed
 
 
-def pending_thoughts():
+def pending_thoughts() -> bool:
     """Check if there are any pending thoughts."""
     return count_thoughts() > 0
 
 
-def thought_exists_for(task_id):
+def thought_exists_for(task_id: str) -> bool:
     """Check if any thoughts exist for the given task."""
     thoughts = thought_ops.get_thoughts_by_task_id(task_id)
     return len(thoughts) > 0
 
 
-def count_thoughts_by_status(status):
+def count_thoughts_by_status(status: ThoughtStatus) -> int:
     """Count thoughts with the given status."""
     thoughts = thought_ops.get_thoughts_by_status(status)
     return len(thoughts)

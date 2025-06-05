@@ -27,7 +27,7 @@ class CLIRuntime(CIRISRuntime):
 
         self.interactive = interactive
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         await super().initialize()
 
         # Create all CLI services
@@ -57,7 +57,7 @@ class CLIRuntime(CIRISRuntime):
             self.cli_adapter.start(),
         )
 
-    async def _handle_observe_event(self, payload: Dict[str, Any]):
+    async def _handle_observe_event(self, payload: Dict[str, Any]) -> Any:
         """Forward observation payload through the multi service sink."""
         logger.debug("CLI runtime received observe event: %s", payload)
 
@@ -81,7 +81,7 @@ class CLIRuntime(CIRISRuntime):
         await sink.observe_message("ObserveHandler", message, metadata)
         return None
 
-    async def _register_cli_services(self):
+    async def _register_cli_services(self) -> None:
         """Register CLI-specific services matching Discord's pattern"""
         if not self.service_registry:
             return
@@ -126,14 +126,14 @@ class CLIRuntime(CIRISRuntime):
                     capabilities=["fetch_guidance", "send_deferral"],
                 )
 
-    async def _build_action_dispatcher(self, dependencies):
+    async def _build_action_dispatcher(self, dependencies: Any) -> Any:
         return build_action_dispatcher(
             service_registry=self.service_registry,
             max_rounds=self.app_config.workflow.max_rounds,
             shutdown_callback=dependencies.shutdown_callback,
         )
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         logger.info(f"Shutting down {self.__class__.__name__}...")
 
         services_to_stop = [
@@ -152,7 +152,7 @@ class CLIRuntime(CIRISRuntime):
 
         await super().shutdown()
 
-    async def run(self, num_rounds: Optional[int] = None):
+    async def run(self, num_rounds: Optional[int] = None) -> None:
         """Run the CLI runtime and start agent processing."""
         if not self._initialized:
             await self.initialize()
@@ -161,7 +161,7 @@ class CLIRuntime(CIRISRuntime):
         # The parent method will start agent processing with the correct num_rounds
         await super().run(num_rounds=num_rounds)
 
-    async def start_interactive_console(self):
+    async def start_interactive_console(self) -> None:
         """Start the interactive console for user input if in interactive mode."""
         if self.interactive and self.cli_observer:
             print("[CLI] Interactive console is now active. Type your messages below.")

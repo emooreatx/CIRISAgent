@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+MANUAL TEST SCRIPT - API Endpoint Testing
+
+This is a manual integration test script for verifying API endpoint functionality.
+It is NOT part of the automated test suite and should be run manually for debugging.
+
 Test script to verify that the API returns agent responses in the messages list.
 """
 import asyncio

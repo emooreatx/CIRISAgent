@@ -2,7 +2,7 @@ from typing import Callable, Dict, Any, Optional
 
 class ToolRegistry:
     """Central registry for available tools and their schemas."""
-    def __init__(self):
+    def __init__(self) -> None:
         self._tools: Dict[str, Dict[str, Any]] = {}
         self._handlers: Dict[str, Callable] = {}
 

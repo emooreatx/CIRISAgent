@@ -159,14 +159,16 @@ class PonderHandler(BaseActionHandler):
                 parent=thought,
                 content=follow_up_content,
             )
-            ctx = {
+            # Update context using Pydantic model_copy with additional fields
+            context_data = follow_up.context.model_dump()
+            context_data.update({
                 "action_performed": HandlerActionType.PONDER.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "ponder_notes": questions_list,
-            }
-            for k, v in ctx.items():
-                setattr(follow_up.context, k, v)
+            })
+            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+            follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(follow_up)
             # Note: The thought is already set to PENDING status, so it will be automatically
             # picked up in the next processing round when the queue is populated from the database

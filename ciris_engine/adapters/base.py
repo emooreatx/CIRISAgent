@@ -23,13 +23,13 @@ class Service(ABC):
         logger.info(f"Initializing service: {self.service_name}")
 
     @abstractmethod
-    async def start(self):
+    async def start(self) -> None:
         """Starts the service and any background tasks it manages."""
         logger.info(f"Starting service: {self.service_name}")
         pass
 
     @abstractmethod
-    async def stop(self):
+    async def stop(self) -> None:
         """Stops the service and cleans up resources."""
         logger.info(f"Stopping service: {self.service_name}")
         pass
@@ -37,7 +37,7 @@ class Service(ABC):
     async def retry_with_backoff(
         self,
         operation: Callable[..., T],
-        *args,
+        *args: Any,
         max_retries: int = 3,
         base_delay: float = 1.0,
         max_delay: float = 60.0,
@@ -45,7 +45,7 @@ class Service(ABC):
         jitter_range: float = 0.25,
         retryable_exceptions: tuple = (Exception,),
         non_retryable_exceptions: tuple = (),
-        **kwargs
+        **kwargs: Any
     ) -> T:
         """
         Retry an operation with exponential backoff and jitter.
@@ -86,9 +86,11 @@ class Service(ABC):
                 
                 # Handle both async and sync operations
                 if asyncio.iscoroutinefunction(operation):
-                    return await operation(*args, **kwargs)
+                    result = await operation(*args, **kwargs)
+                    return result  # type: ignore[no-any-return]
                 else:
-                    return operation(*args, **kwargs)
+                    result = operation(*args, **kwargs)
+                    return result  # type: ignore[no-any-return]
                     
             except non_retryable_exceptions as e:
                 logger.error(f"{self.service_name}: Non-retryable error, failing immediately: {e}")

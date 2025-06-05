@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
@@ -6,7 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def map_row_to_task(row):
+def map_row_to_task(row: Any) -> Task:
     row_dict = dict(row)
     # Map DB columns to Task fields as per v1 schema
     if row_dict.get("context_json"):
@@ -43,7 +44,7 @@ def map_row_to_task(row):
     # parent_task_id is present, all other fields match schema
     return Task(**row_dict)
 
-def map_row_to_thought(row):
+def map_row_to_thought(row: Any) -> Thought:
     row_dict = dict(row)
     # Map DB columns to Thought fields as per v1 schema
     if row_dict.get("context_json"):

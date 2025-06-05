@@ -1,60 +1,27 @@
-# CIRIS Mock LLM Service Documentation
+# CIRIS Mock LLM Testing Framework
 
 ## Overview
 
-The Mock LLM Service is a comprehensive testing framework that replaces the real LLM with a controllable, predictable service for end-to-end system testing. It enables testing of the complete CIRIS pipeline from wakeup through work mode without external LLM dependencies.
+The Mock LLM Testing Framework is a comprehensive testing system that replaces the real LLM with a controllable, predictable service for end-to-end CIRIS agent testing. It enables full pipeline validation from wakeup through work mode without external LLM dependencies.
 
 ## Current Status: ✅ COMPLETED - Full System Testing Ready
 
 ✅ **COMPLETED**: Mock LLM is now 100% compatible with instructor patching and enables full system testing across all runtime modes
 
-### Issues Resolved
-- ✅ Mock LLM now fully supports `instructor.patch()` calls via MockPatchedClient
+### Recent Achievements
+- ✅ Full instructor.patch() compatibility via MockPatchedClient
 - ✅ Action Selection DMA properly detects follow-up thoughts and creates SPEAK→TASK_COMPLETE patterns
 - ✅ Complete wakeup sequences work correctly (5 SPEAK + 5 TASK_COMPLETE transitions)
 - ✅ All runtime modes (CLI, Discord, API) work correctly with mock LLM
 - ✅ Timeout handling fixed in Discord mode
 - ✅ Concise debug output prevents context overflow
 
-### Instructor Patching Compatibility
-Full support for both LLM call patterns:
-1. **Pre-patched Pattern**: `llm.get_client().instruct_client` (✅ Working - Guardrails/Faculties)
-2. **Dynamic Patching**: `instructor.patch(llm.get_client().client, ...)` (✅ Working - Action Selection)
+## Architecture & Components
 
-### Runtime Mode Testing Results
-- **CLI Mode**: ✅ Full wakeup sequence, proper SPEAK/TASK_COMPLETE alternation, transitions to work mode
-- **Discord Mode**: ✅ Timeout handling fixed, proper action patterns, follow-up detection working
-- **API Mode**: ✅ All endpoints functional (`/v1/status`, `/v1/messages`), message processing working
-
-### Recent Improvements (Latest Session)
-- **Enhanced Thought Detection**: Mock LLM now properly extracts actual thought content from LLM message payloads instead of system context
-- **Follow-up Recognition**: Added "CIRIS_FOLLOW_UP_THOUGHT:" markers to all 8 action handlers for reliable follow-up detection
-- **Concise Debug Output**: Replaced massive context dumps with concise summaries showing key indicators (follow_up=true/false, thought snippets)
-- **Wakeup Security**: Added secure database-driven enforcement requiring SPEAK actions before TASK_COMPLETE in wakeup tasks
-- **Discord Timeout Fix**: Fixed --timeout option not being respected in Discord mode by adding shutdown signal monitoring
-
-## Purpose and Goals
-
-### Primary Use Cases
-1. **Full System Testing**: Test complete agent workflows in all modes (CLI, API, Discord)
-2. **Instructor Compatibility**: Support both pre-patched and dynamically-patched instructor clients
-3. **Pipeline Validation**: Verify DMA pipeline, guardrails, and action handlers work correctly
-4. **CI/CD Integration**: Automated testing in build pipelines without external dependencies
-5. **Handler Coverage**: Test all 10 action handlers with controlled, deterministic inputs
-
-### Key Benefits
-- **100% Instructor Compatible**: Works with all instructor patching patterns used in CIRIS
-- **Deterministic**: Predictable responses for consistent testing
-- **Fast**: No network calls or LLM inference delays
-- **Controllable**: Force specific actions and responses via commands
-- **Observable**: Full context visibility and debugging capabilities
-- **Cost-Free**: No LLM API costs during testing
-
-## Architecture
-
-### Components
+### Core Components
 - **MockLLMService**: Service wrapper implementing the LLM interface
 - **MockLLMClient**: Client that mimics OpenAI-compatible API
+- **MockPatchedClient**: Instructor-compatible patched client
 - **Response Generator**: Context-aware response creation
 - **Context Analyzer**: Extracts and processes message context
 - **Action Router**: Maps inputs to appropriate handler actions
@@ -64,8 +31,9 @@ Full support for both LLM call patterns:
 - **Action Selection**: Returns ActionSelectionResult with chosen actions
 - **Guardrails**: Passes optimization veto and epistemic humility checks
 - **Faculties**: Provides entropy and coherence evaluations
+- **Instructor Compatibility**: Supports both pre-patched and dynamic patching patterns
 
-## Usage
+## Usage & Testing
 
 ### Basic Startup
 ```bash
@@ -102,19 +70,14 @@ MOCK_FORCE_ACTION:forget        # Force FORGET action
 MOCK_FORCE_ACTION:task_complete # Force TASK_COMPLETE action
 ```
 
-### Testing Commands
+### Testing & Debug Commands
 ```
 MOCK_TEST_MODE                  # Enable testing mode with enhanced logging
 MOCK_INJECT_ERROR              # Inject error conditions for testing
 MOCK_RATIONALE:"custom text"   # Set custom rationale for actions
 MOCK_SHOW_CONTEXT              # Display full context in response
 MOCK_FILTER_CONTEXT:"regex"    # Filter context display by regex pattern
-```
-
-### Context Analysis Commands
-```
 MOCK_ECHO_FULL                 # Echo complete context received
-MOCK_ECHO_FILTERED:"pattern"   # Echo context matching regex pattern
 MOCK_DEBUG_DMA                 # Show DMA evaluation details
 MOCK_DEBUG_GUARDRAILS         # Show guardrail processing details
 ```
@@ -242,20 +205,6 @@ Mock Response: Task completion confirmation
 }
 ```
 
-## Context Extraction Patterns
-
-### Automatic Context Detection
-The mock LLM automatically extracts:
-- **User Speech**: `user says "message"` → `echo_user_speech:message`
-- **Channel IDs**: `channel "id"` → `echo_channel:id`
-- **Memory Queries**: `search memory for "query"` → `echo_memory_query:query`
-- **Wakeup Content**: Detects wakeup ritual steps automatically
-
-### Context Echo Format
-```
-Mock LLM received: echo_user_speech:Hello, echo_channel:test (+2 more items)
-```
-
 ## Testing Workflows
 
 ### 1. Basic Wakeup Test
@@ -282,13 +231,7 @@ MOCK_FORCE_ACTION:recall What did we discuss about testing?
 # Expected: RECALL action with memory query
 ```
 
-### 4. Error Injection Test
-```bash
-MOCK_INJECT_ERROR This should trigger safety mechanisms
-# Expected: PONDER action due to guardrail activation
-```
-
-### 5. Complete Handler Coverage Test
+### 4. Complete Handler Coverage Test
 ```bash
 # Test each handler systematically
 for action in [speak, recall, memorize, tool, observe, ponder, defer, reject, forget, task_complete]:
@@ -296,32 +239,21 @@ for action in [speak, recall, memorize, tool, observe, ponder, defer, reject, fo
     # Verify correct action dispatch and execution
 ```
 
-## Configuration Options
+## Context Extraction & Analysis
 
-### Mock LLM Configuration
-```python
-class MockLLMConfig:
-    testing_mode: bool = False          # Enhanced logging and debugging
-    force_action: str = None            # Force specific action selection
-    inject_error: bool = False          # Inject error conditions
-    custom_rationale: str = None        # Custom rationale text
-    echo_context: bool = False          # Echo full context in responses
-    filter_pattern: str = None          # Regex filter for context
+### Automatic Context Detection
+The mock LLM automatically extracts:
+- **User Speech**: `user says "message"` → `echo_user_speech:message`
+- **Channel IDs**: `channel "id"` → `echo_channel:id`
+- **Memory Queries**: `search memory for "query"` → `echo_memory_query:query`
+- **Wakeup Content**: Detects wakeup ritual steps automatically
+
+### Context Echo Format
+```
+Mock LLM received: echo_user_speech:Hello, echo_channel:test (+2 more items)
 ```
 
-### Runtime Configuration
-```python
-# Set configuration programmatically
-from tests.adapters.mock_llm.responses import set_mock_config
-
-set_mock_config(
-    testing_mode=True,
-    force_action="speak",
-    echo_context=True
-)
-```
-
-## Debugging and Observability
+## Debugging & Observability
 
 ### Debug Output
 ```
@@ -331,54 +263,30 @@ set_mock_config(
 [MOCK_LLM] Parameters: {"content": "Mock LLM received: echo_user_speech:Hello", "channel_id": "test"}
 ```
 
-### Context Visibility
-```bash
-# Show full context
-MOCK_SHOW_CONTEXT What context do you see?
-# Response includes complete context dump
+### Enhanced Logging Features
+- **Follow-up Detection**: Automatic recognition of "CIRIS_FOLLOW_UP_THOUGHT:" markers
+- **Concise Context**: Summarized context display preventing overflow
+- **Action Tracing**: Full action selection pipeline visibility
+- **Database Enforcement**: Secure wakeup sequence validation
 
-# Filter context by pattern
-MOCK_FILTER_CONTEXT:"echo_user.*" Show only user speech
-# Response shows only matching context items
-```
+## Performance & Benefits
 
-### DMA Debug Information
-```bash
-MOCK_DEBUG_DMA Analyze this thought
-# Response includes DMA evaluation details:
-# - Ethical: decision=proceed, covenant_alignment=affirmed
-# - Common Sense: score=0.92, plausibility=high
-# - Domain: score=0.9, domain=general
-# - Action Selection: selected=speak, confidence=0.95
-```
+### Key Benefits
+- **100% Instructor Compatible**: Works with all instructor patching patterns
+- **Deterministic**: Predictable responses for consistent testing
+- **Fast**: No network calls or LLM inference delays
+- **Controllable**: Force specific actions and responses via commands
+- **Observable**: Full context visibility and debugging capabilities
+- **Cost-Free**: No LLM API costs during testing
 
-## Performance Characteristics
-
-### Speed Improvements
+### Performance Characteristics
 - **No Network Latency**: Instant responses
 - **No Model Inference**: Immediate action selection
 - **Minimal Processing**: Simple pattern matching and response generation
-
-### Resource Usage
 - **Memory**: ~10MB for service and response patterns
 - **CPU**: Negligible during operation
-- **Network**: None required
 
-## Limitations and Considerations
-
-### What the Mock LLM Cannot Do
-1. **Real Reasoning**: No actual language understanding
-2. **Complex Context**: Limited to pattern matching
-3. **Learning**: No adaptation or improvement over time
-4. **Nuanced Responses**: Simple template-based responses
-
-### Best Practices
-1. **Use for Pipeline Testing**: Excellent for testing system components
-2. **Complement Real Testing**: Use alongside real LLM testing
-3. **Clear Test Scenarios**: Design specific test cases for each handler
-4. **Document Expected Behavior**: Clearly define what each test should accomplish
-
-## Integration with CI/CD
+## CI/CD Integration
 
 ### Automated Testing
 ```yaml
@@ -399,24 +307,6 @@ def test_mock_llm_wakeup():
     assert result.state == "work"
     assert all(step.completed for step in result.wakeup_steps)
 ```
-
-## Future Enhancements
-
-### Planned Features
-1. **Response Templates**: Configurable response patterns
-2. **Scenario Playbooks**: Pre-defined test scenarios
-3. **State Simulation**: Mock different agent states
-4. **Performance Metrics**: Response time and throughput tracking
-5. **Advanced Context**: More sophisticated context understanding
-
-### Extensibility
-The mock LLM service is designed to be easily extended:
-- Add new response patterns
-- Implement custom action selection logic
-- Create domain-specific response generators
-- Integrate with external testing frameworks
-
----
 
 ## Quick Reference
 
@@ -446,4 +336,13 @@ MOCK_INJECT_ERROR
 - **Context Visibility**: Full observability of agent internals
 - **Deterministic Behavior**: Consistent, predictable responses
 
-The Mock LLM Service transforms CIRIS into a fully testable system, enabling comprehensive validation of all components without external dependencies or costs.
+## Future Enhancements
+
+### Planned Features
+1. **Response Templates**: Configurable response patterns
+2. **Scenario Playbooks**: Pre-defined test scenarios
+3. **State Simulation**: Mock different agent states
+4. **Performance Metrics**: Response time and throughput tracking
+5. **Advanced Context**: More sophisticated context understanding
+
+The Mock LLM Testing Framework transforms CIRIS into a fully testable system, enabling comprehensive validation of all components without external dependencies or costs.

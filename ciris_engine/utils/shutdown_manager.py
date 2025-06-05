@@ -20,7 +20,7 @@ class ShutdownManager:
     4. Execute cleanup callbacks in proper order
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._shutdown_requested = False
         self._shutdown_reason: Optional[str] = None
         self._shutdown_handlers: List[Callable[[], None]] = []
@@ -28,7 +28,7 @@ class ShutdownManager:
         self._lock = Lock()
         self._shutdown_event = asyncio.Event() if asyncio._get_running_loop() else None
         
-    def register_shutdown_handler(self, handler: Callable[[], None], is_async: bool = False):
+    def register_shutdown_handler(self, handler: Callable[[], None], is_async: bool = False) -> None:
         """
         Register a shutdown handler to be called during graceful shutdown.
         
@@ -44,7 +44,7 @@ class ShutdownManager:
                 self._shutdown_handlers.append(handler)
                 logger.debug(f"Registered shutdown handler: {handler.__name__}")
     
-    def request_shutdown(self, reason: str = "Global shutdown requested"):
+    def request_shutdown(self, reason: str = "Global shutdown requested") -> None:
         """
         Request a graceful shutdown from anywhere in the codebase.
         
@@ -68,7 +68,7 @@ class ShutdownManager:
         # Execute synchronous shutdown handlers immediately
         self._execute_sync_handlers()
     
-    def _execute_sync_handlers(self):
+    def _execute_sync_handlers(self) -> None:
         """Execute all registered synchronous shutdown handlers."""
         with self._lock:
             handlers = self._shutdown_handlers.copy()
@@ -80,7 +80,7 @@ class ShutdownManager:
             except Exception as e:
                 logger.error(f"Error in shutdown handler {handler.__name__}: {e}")
     
-    async def execute_async_handlers(self):
+    async def execute_async_handlers(self) -> None:
         """Execute all registered asynchronous shutdown handlers."""
         with self._lock:
             handlers = self._async_shutdown_handlers.copy()
@@ -103,7 +103,7 @@ class ShutdownManager:
         """Get the reason for the shutdown request."""
         return self._shutdown_reason
     
-    async def wait_for_shutdown(self):
+    async def wait_for_shutdown(self) -> None:
         """Wait for a shutdown request (async context only)."""
         if not self._shutdown_event:
             # Create event if we're now in async context
@@ -117,7 +117,7 @@ class ShutdownManager:
         
         await self._shutdown_event.wait()
     
-    def reset(self):
+    def reset(self) -> None:
         """Reset the shutdown manager (for testing purposes)."""
         with self._lock:
             self._shutdown_requested = False
@@ -143,7 +143,7 @@ def get_shutdown_manager() -> ShutdownManager:
             logger.debug("Created global shutdown manager")
         return _global_shutdown_manager
 
-def request_global_shutdown(reason: str = "Global shutdown requested"):
+def request_global_shutdown(reason: str = "Global shutdown requested") -> None:
     """
     Request a graceful shutdown from anywhere in the codebase.
     
@@ -155,7 +155,7 @@ def request_global_shutdown(reason: str = "Global shutdown requested"):
     manager = get_shutdown_manager()
     manager.request_shutdown(reason)
 
-def register_global_shutdown_handler(handler: Callable[[], None], is_async: bool = False):
+def register_global_shutdown_handler(handler: Callable[[], None], is_async: bool = False) -> None:
     """
     Register a global shutdown handler.
     
@@ -171,7 +171,7 @@ def is_global_shutdown_requested() -> bool:
     manager = get_shutdown_manager()
     return manager.is_shutdown_requested()
 
-async def wait_for_global_shutdown():
+async def wait_for_global_shutdown() -> None:
     """Wait for a global shutdown request (async context only)."""
     manager = get_shutdown_manager()
     await manager.wait_for_shutdown()
@@ -182,7 +182,7 @@ def get_global_shutdown_reason() -> Optional[str]:
     return manager.get_shutdown_reason()
 
 # Convenience function for critical service failures
-def request_shutdown_critical_service_failure(service_name: str, error: str = ""):
+def request_shutdown_critical_service_failure(service_name: str, error: str = "") -> None:
     """
     Request shutdown due to critical service failure.
     
@@ -197,7 +197,7 @@ def request_shutdown_critical_service_failure(service_name: str, error: str = ""
     request_global_shutdown(reason)
 
 # Convenience function for communication failures
-def request_shutdown_communication_failure(details: str = ""):
+def request_shutdown_communication_failure(details: str = "") -> None:
     """
     Request shutdown due to communication service failure.
     
@@ -211,7 +211,7 @@ def request_shutdown_communication_failure(details: str = ""):
     request_global_shutdown(reason)
 
 # Convenience function for unrecoverable errors
-def request_shutdown_unrecoverable_error(error_type: str, details: str = ""):
+def request_shutdown_unrecoverable_error(error_type: str, details: str = "") -> None:
     """
     Request shutdown due to unrecoverable error.
     

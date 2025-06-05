@@ -5,10 +5,10 @@ from aiohttp import web
 logger = logging.getLogger(__name__)
 
 class APIWARoutes:
-    def __init__(self, multi_service_sink):
+    def __init__(self, multi_service_sink) -> None:
         self.multi_service_sink = multi_service_sink
 
-    def register(self, app: web.Application):
+    def register(self, app: web.Application) -> None:
         app.router.add_post('/v1/guidance', self._handle_guidance)
         app.router.add_post('/v1/defer', self._handle_defer)
         app.router.add_get('/v1/wa/deferrals', self._handle_wa_deferrals)

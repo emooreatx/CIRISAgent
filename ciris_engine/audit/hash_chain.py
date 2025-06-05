@@ -134,7 +134,7 @@ class AuditHashChain:
                 }
             else:
                 errors = []
-                previous_hash = None
+                previous_hash: Optional[str] = None
                 
                 # If not starting from sequence 1, get the previous entry's hash
                 if start_seq > 1:
@@ -156,7 +156,7 @@ class AuditHashChain:
                     if i == 0 and start_seq == 1:
                         expected_prev = "genesis"
                     else:
-                        expected_prev = previous_hash
+                        expected_prev = previous_hash or ""
                     
                     if entry["previous_hash"] != expected_prev:
                         errors.append(f"Hash chain break at sequence {entry['sequence_number']}")

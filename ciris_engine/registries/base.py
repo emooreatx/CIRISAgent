@@ -67,7 +67,7 @@ class ServiceRegistry:
         service_type: str, 
         provider: Any,
         priority: Priority = Priority.NORMAL,
-        capabilities: List[str] = None,
+        capabilities: Optional[List[str]] = None,
         circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -125,7 +125,7 @@ class ServiceRegistry:
         service_type: str,
         provider: Any,
         priority: Priority = Priority.NORMAL,
-        capabilities: List[str] = None,
+        capabilities: Optional[List[str]] = None,
         circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -173,7 +173,7 @@ class ServiceRegistry:
         self, 
         handler: str, 
         service_type: str,
-        required_capabilities: List[str] = None,
+        required_capabilities: Optional[List[str]] = None,
         fallback_to_global: bool = True
     ) -> Optional[Any]:
         """
@@ -225,7 +225,7 @@ class ServiceRegistry:
     async def _get_service_from_providers(
         self,
         providers: List[ServiceProvider],
-        required_capabilities: List[str] = None
+        required_capabilities: Optional[List[str]] = None
     ) -> Optional[Any]:
         """Get service from a list of providers with health checking"""
         for provider in providers:
@@ -246,16 +246,19 @@ class ServiceRegistry:
                 if hasattr(provider.instance, 'is_healthy'):
                     if not await provider.instance.is_healthy():
                         logger.debug(f"Provider '{provider.name}' failed health check")
-                        provider.circuit_breaker.record_failure()
+                        if provider.circuit_breaker:
+                            provider.circuit_breaker.record_failure()
                         continue
                 
-                provider.circuit_breaker.record_success()
+                if provider.circuit_breaker:
+                    provider.circuit_breaker.record_success()
                 logger.debug(f"Selected provider '{provider.name}' with priority {provider.priority.name}")
                 return provider.instance
                 
             except Exception as e:
                 logger.warning(f"Error checking provider '{provider.name}': {e}")
-                provider.circuit_breaker.record_failure()
+                if provider.circuit_breaker:
+                    provider.circuit_breaker.record_failure()
                 continue
         
         return None
@@ -353,13 +356,13 @@ class ServiceRegistry:
         
         return False
     
-    def reset_circuit_breakers(self):
+    def reset_circuit_breakers(self) -> None:
         """Reset all circuit breakers to closed state"""
         for cb in self._circuit_breakers.values():
             cb.reset()
         logger.info("Reset all circuit breakers")
     
-    def clear_all(self):
+    def clear_all(self) -> None:
         """Clear all registered services and circuit breakers"""
         self._providers.clear()
         self._global_services.clear()

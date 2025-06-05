@@ -17,6 +17,7 @@ from unittest.mock import Mock, AsyncMock
 sys.path.insert(0, '/home/emoore/CIRISAgent')
 
 from ciris_engine.action_handlers.observe_handler import ObserveHandler
+from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope
 
 # Configure logging
@@ -140,7 +141,8 @@ async def test_real_observe_handler():
         logger.info(f"  Content: {msg['content'][:80]}{'...' if len(msg['content']) > 80 else ''}")
     
     # Create a mock ObserveHandler instance to call the method
-    handler = ObserveHandler()
+    deps = ActionHandlerDependencies()
+    handler = ObserveHandler(deps)
     
     # Call the actual method
     await handler._recall_from_messages(memory_service, channel_id, messages)
@@ -204,7 +206,8 @@ async def test_edge_cases_real_handler():
         author_id = msg.get('author_id', 'MISSING')
         logger.info(f"Edge case {i}: author_id={repr(author_id)}, content='{msg.get('content', '')[:50]}'")
     
-    handler = ObserveHandler()
+    deps = ActionHandlerDependencies()
+    handler = ObserveHandler(deps)
     await handler._recall_from_messages(memory_service, channel_id, edge_messages)
     
     # Analyze edge case results
@@ -230,7 +233,8 @@ async def test_no_messages():
     memory_service = TestMemoryService()
     channel_id = "918273645012345680"
     
-    handler = ObserveHandler()
+    deps = ActionHandlerDependencies()
+    handler = ObserveHandler(deps)
     await handler._recall_from_messages(memory_service, channel_id, [])
     
     # Should only have channel recalls
@@ -245,7 +249,8 @@ async def test_no_memory_service():
     logger.info("\n=== Testing No Memory Service ===")
     
     # Should not crash and should handle gracefully
-    handler = ObserveHandler()
+    deps = ActionHandlerDependencies()
+    handler = ObserveHandler(deps)
     await handler._recall_from_messages(None, "test_channel", create_realistic_discord_messages())
     
     logger.info("✅ No memory service test passed!")
@@ -266,7 +271,8 @@ async def test_message_field_variations():
     ]
     
     # Test each message type
-    handler = ObserveHandler()
+    deps = ActionHandlerDependencies()
+    handler = ObserveHandler(deps)
     for msg in variant_messages:
         logger.info(f"Testing message: {msg}")
         try:

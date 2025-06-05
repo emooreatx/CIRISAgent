@@ -32,7 +32,7 @@ class MockLLMConfig:
         self.context_patterns = {
             r'user.*says?.*"([^"]+)"': lambda m: f"echo_user_speech:{m.group(1)}",
             r'thought.*content.*"([^"]+)"': lambda m: f"echo_thought:{m.group(1)}",
-            r'channel.*(?:id|ID).*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
+            r'channel.*?[\'"]([^\'"]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
             r'memory.*search.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_memory_query:{m.group(1)}",
             r'domain.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_domain:{m.group(1)}",
             # Capture wakeup ritual content

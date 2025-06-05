@@ -67,7 +67,7 @@ class DiscordRuntime(CIRISRuntime):
         
 
         
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize Discord-specific components."""
         await super().initialize()
 
@@ -152,7 +152,7 @@ class DiscordRuntime(CIRISRuntime):
         else:
             logger.warning("No DiscordObserver available to handle incoming message")
         
-    async def _build_action_dispatcher(self, dependencies):
+    async def _build_action_dispatcher(self, dependencies: Any) -> Any:
         """Build Discord-specific action dispatcher."""
         return build_action_dispatcher(
             service_registry=self.service_registry,
@@ -160,7 +160,7 @@ class DiscordRuntime(CIRISRuntime):
             max_rounds=self.app_config.workflow.max_rounds,
         )
         
-    async def _register_discord_services(self):
+    async def _register_discord_services(self) -> None:
         """Register Discord-specific services in the service registry."""
         if not self.service_registry:
             logger.warning("No service registry available for Discord service registration")
@@ -232,7 +232,7 @@ class DiscordRuntime(CIRISRuntime):
         except Exception as e:
             logger.error(f"Failed to register Discord services: {e}", exc_info=True)
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown Discord-specific components."""
         # Stop Discord services
         discord_services: list[Any] = []
@@ -253,7 +253,7 @@ class DiscordRuntime(CIRISRuntime):
         # Call parent shutdown
         await super().shutdown()
     
-    async def run(self, num_rounds: Optional[int] = None):
+    async def run(self, num_rounds: Optional[int] = None) -> None:
         """Run the Discord runtime with proper client connection."""
         if not self._initialized:
             await self.initialize()
@@ -350,6 +350,6 @@ class DiscordRuntime(CIRISRuntime):
                 
             await self.shutdown()
 
-    async def start_interactive_console(self):
+    async def start_interactive_console(self) -> None:
         """Discord does not use a local interactive console, so this is a no-op."""
         pass

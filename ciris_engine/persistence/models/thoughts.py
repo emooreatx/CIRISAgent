@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any
 from ciris_engine.persistence import get_db_connection
 import asyncio
 from ciris_engine.persistence.utils import map_row_to_thought
@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def get_thoughts_by_status(status: ThoughtStatus, db_path=None):
+def get_thoughts_by_status(status: ThoughtStatus, db_path: Optional[str] = None) -> List[Thought]:
     """Returns all thoughts with the given status from the thoughts table as Thought objects."""
     if not isinstance(status, ThoughtStatus):
         raise TypeError(f"Expected ThoughtStatus enum, got {type(status)}: {status}")
@@ -28,7 +28,7 @@ def get_thoughts_by_status(status: ThoughtStatus, db_path=None):
         logger.exception(f"Failed to get thoughts with status {status_val}: {e}")
     return thoughts
 
-def add_thought(thought: Thought, db_path=None) -> str:
+def add_thought(thought: Thought, db_path: Optional[str] = None) -> str:
     thought_dict = thought.model_dump(mode='json')
     sql = """
         INSERT INTO thoughts (thought_id, source_task_id, thought_type, status, created_at, updated_at,
@@ -54,7 +54,7 @@ def add_thought(thought: Thought, db_path=None) -> str:
         logger.exception(f"Failed to add thought {thought.thought_id}: {e}")
         raise
 
-def get_thought_by_id(thought_id: str, db_path=None) -> Optional[Thought]:
+def get_thought_by_id(thought_id: str, db_path: Optional[str] = None) -> Optional[Thought]:
     sql = "SELECT * FROM thoughts WHERE thought_id = ?"
     try:
         with get_db_connection(db_path=db_path) as conn:
@@ -69,12 +69,12 @@ def get_thought_by_id(thought_id: str, db_path=None) -> Optional[Thought]:
         return None
 
 
-async def async_get_thought_by_id(thought_id: str, db_path=None) -> Optional[Thought]:
+async def async_get_thought_by_id(thought_id: str, db_path: Optional[str] = None) -> Optional[Thought]:
     """Asynchronous wrapper for get_thought_by_id using asyncio.to_thread."""
     return await asyncio.to_thread(get_thought_by_id, thought_id, db_path)
 
 
-async def async_get_thought_status(thought_id: str, db_path=None) -> Optional[ThoughtStatus]:
+async def async_get_thought_status(thought_id: str, db_path: Optional[str] = None) -> Optional[ThoughtStatus]:
     """Retrieve just the status of a thought asynchronously."""
 
     def _query() -> Optional[ThoughtStatus]:
@@ -92,7 +92,7 @@ async def async_get_thought_status(thought_id: str, db_path=None) -> Optional[Th
 
     return await asyncio.to_thread(_query)
 
-def get_thoughts_by_task_id(task_id: str, db_path=None) -> list[Thought]:
+def get_thoughts_by_task_id(task_id: str, db_path: Optional[str] = None) -> list[Thought]:
     """Return all thoughts for a given source_task_id as Thought objects."""
     sql = "SELECT * FROM thoughts WHERE source_task_id = ? ORDER BY created_at ASC"
     thoughts = []
@@ -107,7 +107,7 @@ def get_thoughts_by_task_id(task_id: str, db_path=None) -> list[Thought]:
         logger.exception(f"Failed to get thoughts for task {task_id}: {e}")
     return thoughts
 
-def delete_thoughts_by_ids(thought_ids: list[str], db_path=None) -> int:
+def delete_thoughts_by_ids(thought_ids: list[str], db_path: Optional[str] = None) -> int:
     """Delete thoughts by a list of IDs. Returns the number deleted."""
     if not thought_ids:
         return 0
@@ -121,7 +121,7 @@ def delete_thoughts_by_ids(thought_ids: list[str], db_path=None) -> int:
         logger.exception(f"Failed to delete thoughts by ids: {e}")
         return 0
 
-def count_thoughts(db_path=None) -> int:
+def count_thoughts(db_path: Optional[str] = None) -> int:
     """Return the count of thoughts that are PENDING or PROCESSING."""
     sql = "SELECT COUNT(*) FROM thoughts WHERE status = ? OR status = ?"
     count = 0
@@ -136,7 +136,7 @@ def count_thoughts(db_path=None) -> int:
         logger.exception(f"Failed to count PENDING or PROCESSING thoughts: {e}")
     return count
 
-def update_thought_status(thought_id, status, db_path=None, final_action=None, **kwargs):
+def update_thought_status(thought_id: str, status: ThoughtStatus, db_path: Optional[str] = None, final_action: Optional[Any] = None, **kwargs) -> bool:
     """Update the status of a thought by ID and optionally final_action. 
     
     Args:
@@ -191,7 +191,7 @@ def update_thought_status(thought_id, status, db_path=None, final_action=None, *
         logger.exception(f"Failed to update status for thought {thought_id}: {e}")
         return False
 
-def pydantic_to_dict(obj):
+def pydantic_to_dict(obj: Any) -> Any:
     if hasattr(obj, "model_dump"):
         return obj.model_dump(mode="json")
     elif isinstance(obj, dict):
@@ -201,7 +201,7 @@ def pydantic_to_dict(obj):
     else:
         return obj
 
-def get_thoughts_older_than(older_than_timestamp: str, db_path=None) -> List[Thought]:
+def get_thoughts_older_than(older_than_timestamp: str, db_path: Optional[str] = None) -> List[Thought]:
     """Returns all thoughts with created_at older than the given ISO timestamp as Thought objects."""
     sql = "SELECT * FROM thoughts WHERE created_at < ? ORDER BY created_at ASC"
     thoughts = []

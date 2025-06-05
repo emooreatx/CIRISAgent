@@ -58,9 +58,9 @@ def mock_memory_service():
 def observe_handler():
     """Fixture providing an ObserveHandler instance with minimal dependencies"""
     # Create minimal dependencies
+    service_registry = AsyncMock()
     deps = ActionHandlerDependencies(
-        multi_service_sink=None,
-        audit_service=None
+        service_registry=service_registry
     )
     return ObserveHandler(deps)
 

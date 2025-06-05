@@ -39,6 +39,8 @@ class RejectHandler(BaseActionHandler):
                     parent=thought,
                     content=follow_up_text,
                 )
+                # Update context using Pydantic model_copy with additional fields
+                context_data = new_follow_up.context.model_dump()
                 context_for_follow_up = {
                     "action_performed": HandlerActionType.REJECT.value,
                     "parent_task_id": parent_task_id,
@@ -46,10 +48,9 @@ class RejectHandler(BaseActionHandler):
                     "error_details": follow_up_content_key_info,
                 }
                 context_for_follow_up["action_params"] = params
-                if isinstance(new_follow_up.context, dict):
-                    new_follow_up.context.update(context_for_follow_up)
-                else:
-                    new_follow_up.context = context_for_follow_up
+                context_data.update(context_for_follow_up)
+                from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+                new_follow_up.context = ThoughtContext.model_validate(context_data)
                 persistence.add_thought(new_follow_up)
                 await self._audit_log(HandlerActionType.REJECT, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             except Exception as e2:
@@ -101,7 +102,8 @@ class RejectHandler(BaseActionHandler):
                 content=follow_up_text,
             )
 
-            # v1 uses 'context' instead of 'processing_context'
+            # Update context using Pydantic model_copy with additional fields
+            context_data = new_follow_up.context.model_dump()
             context_for_follow_up = {
                 "action_performed": HandlerActionType.REJECT.value,
                 "parent_task_id": parent_task_id,
@@ -111,11 +113,9 @@ class RejectHandler(BaseActionHandler):
 
             # Pass params directly - persistence will handle serialization
             context_for_follow_up["action_params"] = params
-
-            if isinstance(new_follow_up.context, dict):
-                new_follow_up.context.update(context_for_follow_up)  # v1 uses 'context'
-            else:
-                new_follow_up.context = context_for_follow_up
+            context_data.update(context_for_follow_up)
+            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+            new_follow_up.context = ThoughtContext.model_validate(context_data)
 
             persistence.add_thought(new_follow_up)
             self.logger.info(
