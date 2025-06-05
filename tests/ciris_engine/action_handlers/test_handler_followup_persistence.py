@@ -13,7 +13,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType, ThoughtType
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.action_params_v1 import (
-    SpeakParams, RecallParams, ForgetParams, MemorizeParams, PonderParams, ObserveParams
+    SpeakParams, RecallParams, ForgetParams, MemorizeParams, PonderParams, ObserveParams, RejectParams
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
 from ciris_engine.action_handlers.speak_handler import SpeakHandler
@@ -66,16 +66,11 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING, thoug
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("handler_cls,params,result_action,extra_setup", [
-    # SPEAK: content must be a GraphNode, not a string
+    # SPEAK: content must be a string
     (
         SpeakHandler,
         SpeakParams(
-            content=GraphNode(
-                id=NodeType.AGENT,
-                type=NodeType.AGENT,
-                scope=GraphScope.LOCAL,
-                attributes={"text": "hello"}
-            ),
+            content="hello",
             channel_id="c1"
         ),
         HandlerActionType.SPEAK,
@@ -86,7 +81,7 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING, thoug
         RecallHandler,
         RecallParams(
             node=GraphNode(
-                id=NodeType.CONCEPT,
+                id="concept1",
                 type=NodeType.CONCEPT,
                 scope=GraphScope.IDENTITY
             )
@@ -94,21 +89,16 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING, thoug
         HandlerActionType.RECALL,
         None
     ),
-    # FORGET: id/type must be NodeType enums, reason must be GraphNode
+    # FORGET: node must be GraphNode, reason must be string
     (
         ForgetHandler,
         ForgetParams(
             node=GraphNode(
-                id=NodeType.CONCEPT,
+                id="concept1",
                 type=NodeType.CONCEPT,
                 scope=GraphScope.IDENTITY
             ),
-            reason=GraphNode(
-                id=NodeType.USER,
-                type=NodeType.USER,
-                scope=GraphScope.LOCAL,
-                attributes={"reason": "r"}
-            )
+            reason="no longer needed"
         ),
         HandlerActionType.FORGET,
         None
@@ -118,7 +108,7 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING, thoug
         MemorizeHandler,
         MemorizeParams(
             node=GraphNode(
-                id=NodeType.CONCEPT,
+                id="concept1",
                 type=NodeType.CONCEPT,
                 scope=GraphScope.IDENTITY,
                 attributes={"value": "v"}
@@ -134,34 +124,21 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING, thoug
         HandlerActionType.PONDER,
         None
     ),
-    # OBSERVE: active/context must be GraphNode
+    # OBSERVE: active must be bool, context must be dict
     (
         ObserveHandler,
         ObserveParams(
-            active=GraphNode(
-                id=NodeType.CHANNEL,
-                type=NodeType.CHANNEL,
-                scope=GraphScope.LOCAL
-            ),
+            active=True,
             channel_id="c1",
-            context=GraphNode(
-                id=NodeType.AGENT,
-                type=NodeType.AGENT,
-                scope=GraphScope.LOCAL
-            )
+            context={"source": "test"}
         ),
         HandlerActionType.OBSERVE,
         None
     ),
-    # REJECT: reason must be GraphNode
+    # REJECT: reason must be string
     (
         RejectHandler,
-        {"reason": GraphNode(
-            id=NodeType.USER,
-            type=NodeType.USER,
-            scope=GraphScope.LOCAL,
-            attributes={"reason": "bad"}
-        )},
+        RejectParams(reason="Not relevant to the task"),
         HandlerActionType.REJECT,
         None
     ),

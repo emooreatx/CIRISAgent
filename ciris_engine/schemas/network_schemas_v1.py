@@ -17,16 +17,16 @@ class NetworkType(str, Enum):
 class AgentIdentity(BaseModel):
     """Minimal agent identity - under 1KB serialized"""
     schema_version: SchemaVersion = Field(default=SchemaVersion.V1_0)
-    agent_id: SchemaVersion
+    agent_id: str
     chosen_name: Optional[str] = None
     public_key: Optional[str] = None
     primary_network: NetworkType = NetworkType.LOCAL
-    structural_influence: SchemaVersion = Field(default=0, ge=0, le=100)
-    coherence_stake: SchemaVersion = Field(default=0, ge=0, le=100)
+    structural_influence: int = Field(default=0, ge=0, le=100)
+    coherence_stake: int = Field(default=0, ge=0, le=100)
 
 class NetworkPresence(BaseModel):
     """Minimal presence info - for discovery"""
-    agent_id: SchemaVersion
-    last_seen_epoch: SchemaVersion  # Epoch seconds (smaller than ISO8601)
+    agent_id: str
+    last_seen_epoch: int  # Epoch seconds (smaller than ISO8601)
     capabilities_hash: Optional[str] = None  # Hash of capabilities list
-    reputation: SchemaVersion = Field(default=50, ge=0, le=100)  # 0-100 scale
+    reputation: int = Field(default=50, ge=0, le=100)  # 0-100 scale

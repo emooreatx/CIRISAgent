@@ -51,10 +51,10 @@ class ObservationSourceType(CaseInsensitiveEnum):
 class IncomingMessage(BaseModel):
     """Schema for incoming messages from various sources."""
 
-    message_id: SchemaVersion
-    author_id: SchemaVersion
-    author_name: SchemaVersion
-    content: SchemaVersion
+    message_id: str
+    author_id: str
+    author_name: str
+    content: str
     destination_id: Optional[str] = Field(default=None, alias="channel_id")
     reference_message_id: Optional[str] = None
     timestamp: Optional[str] = None
@@ -70,9 +70,9 @@ class IncomingMessage(BaseModel):
 class DiscordMessage(IncomingMessage):
     """Incoming message specific to the Discord platform."""
 
-    channel_id: SchemaVersion
-    is_bot: SchemaVersion = False
-    is_dm: SchemaVersion = False
+    channel_id: str
+    is_bot: bool = False
+    is_dm: bool = False
 
     def __init__(self, **data: Any) -> None:
         if "destination_id" not in data and "channel_id" in data:
@@ -96,7 +96,7 @@ class FetchedMessage(BaseModel):
 class ResourceUsage(BaseModel):
     """Track LLM resource utilization."""
 
-    tokens: SchemaVersion = 0
+    tokens: int = 0
     estimated_cost: Optional[float] = None
     energy_kwh: Optional[float] = None
 

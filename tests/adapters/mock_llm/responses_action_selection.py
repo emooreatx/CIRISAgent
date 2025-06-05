@@ -6,8 +6,7 @@ from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScop
 
 def action_selection(context=None):
     """Mock ActionSelectionResult with passing values and protocol-compliant types."""
-    node = GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY, attributes={"content": "Hello, world!"})
-    params = SpeakParams(content=node, channel_id="test")
+    params = SpeakParams(content="Hello, world!", channel_id="test")
     rationale = "Test rationale string"
     result = ActionSelectionResult(
         selected_action=HandlerActionType.SPEAK,

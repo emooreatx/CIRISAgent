@@ -9,9 +9,9 @@ DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
 
 class DatabaseConfig(BaseModel):
     """Minimal v1 database configuration."""
-    db_filename: str = Field(default=DEFAULT_SQLITE_DB_FILENAME, alias="db_filename")
-    data_directory: str = DEFAULT_DATA_DIR
-    graph_memory_filename: str = Field(default="graph_memory.pkl", alias="graph_memory_filename")
+    db_filename: GuardrailsConfig = Field(default=DEFAULT_SQLITE_DB_FILENAME, alias="db_filename")
+    data_directory: GuardrailsConfig = DEFAULT_DATA_DIR
+    graph_memory_filename: GuardrailsConfig = Field(default="graph_memory.pkl", alias="graph_memory_filename")
 
 from .agent_core_schemas_v1 import Task, Thought
 from .action_params_v1 import *
@@ -19,27 +19,27 @@ from .foundational_schemas_v1 import HandlerActionType
 
 class WorkflowConfig(BaseModel):
     """Workflow processing configuration for v1."""
-    max_active_tasks: int = Field(default=10, description="Maximum tasks that can be active simultaneously")
-    max_active_thoughts: int = Field(default=50, description="Maximum thoughts to pull into processing queue per round") 
-    round_delay_seconds: float = Field(default=1.0, description="Delay between processing rounds in seconds")
-    max_rounds: int = Field(default=5, description="Maximum ponder iterations before auto-defer")
+    max_active_tasks: GuardrailsConfig = Field(default=10, description="Maximum tasks that can be active simultaneously")
+    max_active_thoughts: GuardrailsConfig = Field(default=50, description="Maximum thoughts to pull GuardrailsConfigo processing queue per round") 
+    round_delay_seconds: GuardrailsConfig = Field(default=1.0, description="Delay between processing rounds in seconds")
+    max_rounds: GuardrailsConfig = Field(default=5, description="Maximum ponder iterations before auto-defer")
     num_rounds: Optional[int] = Field(default=None, description="Maximum number of processing rounds (None = infinite)")
-    DMA_RETRY_LIMIT: int = Field(default=3, description="Maximum retry attempts for DMAs")
-    DMA_TIMEOUT_SECONDS: float = Field(
+    DMA_RETRY_LIMIT: GuardrailsConfig = Field(default=3, description="Maximum retry attempts for DMAs")
+    DMA_TIMEOUT_SECONDS: GuardrailsConfig = Field(
         default=30.0,
         description="Timeout in seconds for each DMA evaluation",
     )
-    GUARDRAIL_RETRY_LIMIT: int = Field(default=2, description="Maximum retry attempts for guardrails")
+    GUARDRAIL_RETRY_LIMIT: GuardrailsConfig = Field(default=2, description="Maximum retry attempts for guardrails")
 
 class OpenAIConfig(BaseModel):
     """OpenAI/LLM service configuration for v1."""
-    model_name: str = Field(default="gpt-4o-mini", description="Default model name")
+    model_name: GuardrailsConfig = Field(default="gpt-4o-mini", description="Default model name")
     base_url: Optional[str] = Field(default=None, description="Custom API base URL")
-    timeout_seconds: float = Field(default=30.0, description="Request timeout")
-    max_retries: int = Field(default=3, description="Maximum retry attempts")
+    timeout_seconds: GuardrailsConfig = Field(default=30.0, description="Request timeout")
+    max_retries: GuardrailsConfig = Field(default=3, description="Maximum retry attempts")
     api_key: Optional[str] = Field(default=None, description="API key for OpenAI or compatible service")
-    api_key_env_var: str = Field(default="OPENAI_API_KEY", description="Environment variable for API key")
-    instructor_mode: str = Field(default="JSON", description="InGuardrailsConfiguctor library mode")
+    api_key_env_var: GuardrailsConfig = Field(default="OPENAI_API_KEY", description="Environment variable for API key")
+    inGuardrailsConfiguctor_mode: GuardrailsConfig = Field(default="JSON", description="InGuardrailsConfiguctor library mode")
 
     def load_env_vars(self) -> None:
         """Load configuration from environment variables if present."""
@@ -64,20 +64,19 @@ class LLMServicesConfig(BaseModel):
 
 class AgentProfile(BaseModel):
     """Minimal v1 agent profile configuration."""
-    name: str
+    name: GuardrailsConfig
     dsdma_identifier: Optional[str] = None
     dsdma_kwargs: Optional[Dict[str, Any]] = None
     permitted_actions: List[HandlerActionType] = Field(default_factory=list)
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
-    guardrails_config: Optional[GuardrailsConfig] = None
 
 class CIRISNodeConfig(BaseModel):
     """Configuration for communicating with CIRISNode service."""
 
-    base_url: str = Field(default="https://localhost:8001")
-    timeout_seconds: float = Field(default=30.0)
-    max_retries: int = Field(default=2)
+    base_url: GuardrailsConfig = Field(default="https://localhost:8001")
+    timeout_seconds: GuardrailsConfig = Field(default=30.0)
+    max_retries: GuardrailsConfig = Field(default=2)
     agent_secret_jwt: Optional[str] = None
 
     def load_env_vars(self) -> None:
@@ -93,22 +92,22 @@ class NetworkConfig(BaseModel):
     """Network participation configuration"""
     enabled_networks: List[str] = Field(default_factory=lambda: ["local", "cirisnode"])
     agent_identity_path: Optional[str] = None  # Path to identity file
-    peer_discovery_interval: int = 300  # seconds
-    reputation_threshold: int = 30  # 0-100 scale
+    peer_discovery_GuardrailsConfigerval: GuardrailsConfig = 300  # seconds
+    reputation_threshold: GuardrailsConfig = 30  # 0-100 scale
     
 class TelemetryConfig(BaseModel):
     """Telemetry configuration - secure by default"""
-    enabled: bool = False
-    internal_only: bool = True
-    retention_hours: int = 1
-    snapshot_interval_ms: int = 1000
+    enabled: GuardrailsConfig = False
+    internal_only: GuardrailsConfig = True
+    retention_hours: GuardrailsConfig = 1
+    snapshot_GuardrailsConfigerval_ms: GuardrailsConfig = 1000
 
 class WisdomConfig(BaseModel):
     """Wisdom-seeking configuration"""
-    wa_timeout_hours: int = 72  # Hours before considering WA unavailable
-    allow_universal_guidance: bool = True  # Allow prayer protocol
-    minimum_urgency_for_universal: int = 80  # 0-100 scale
-    peer_consensus_threshold: int = 3  # Minimum peers for consensus
+    wa_timeout_hours: GuardrailsConfig = 72  # Hours before considering WA unavailable
+    allow_universal_guidance: GuardrailsConfig = True  # Allow prayer protocol
+    minimum_urgency_for_universal: GuardrailsConfig = 80  # 0-100 scale
+    peer_consensus_threshold: GuardrailsConfig = 3  # Minimum peers for consensus
 
 class AppConfig(BaseModel):
     """Minimal v1 application configuration."""
@@ -122,8 +121,8 @@ class AppConfig(BaseModel):
     network: NetworkConfig = NetworkConfig()
     telemetry: TelemetryConfig = TelemetryConfig()
     wisdom: WisdomConfig = WisdomConfig()
-    profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
-    default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
+    profile_directory: GuardrailsConfig = Field(default="ciris_profiles", description="Directory containing agent profiles")
+    default_profile: GuardrailsConfig = Field(default="default", description="Default agent profile name to use if not specified")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
     discord_channel_id: Optional[str] = None
 
