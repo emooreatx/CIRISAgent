@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class WorkProcessor(BaseProcessor):
     """Handles the WORK state for normal task/thought processing."""
 
-    def __init__(self, *args, startup_channel_id: Optional[str] = None, **kwargs):
+    def __init__(self, *args, startup_channel_id: Optional[str] = None, **kwargs) -> None:
         """Initialize work processor."""
         self.startup_channel_id = startup_channel_id
         super().__init__(*args, **kwargs)
@@ -155,7 +155,7 @@ class WorkProcessor(BaseProcessor):
         """Process a single thought item."""
         return await self.process_thought_item(item)
     
-    async def _dispatch_thought_result(self, item: Any, result: Any):
+    async def _dispatch_thought_result(self, item: Any, result: Any) -> None:
         """Dispatch the result of thought processing."""
         thought_id = item.thought_id
         
@@ -202,7 +202,7 @@ class WorkProcessor(BaseProcessor):
                 f"Dispatch failed: {str(e)}"
             )
     
-    async def _handle_idle_state(self, round_number: int):
+    async def _handle_idle_state(self, round_number: int) -> None:
         """Handle idle state when no thoughts are pending."""
         logger.info(f"Round {round_number}: No thoughts to process (idle rounds: {self.idle_rounds})")
         
@@ -214,7 +214,7 @@ class WorkProcessor(BaseProcessor):
         else:
             logger.debug("No job thought needed")
     
-    def _mark_thought_failed(self, thought_id: str, error: str):
+    def _mark_thought_failed(self, thought_id: str, error: str) -> None:
         """Mark a thought as failed."""
         persistence.update_thought_status(
             thought_id=thought_id,

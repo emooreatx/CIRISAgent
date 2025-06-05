@@ -111,15 +111,15 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             elif action_type == ActionType.SEND_DEFERRAL:
                 await self._handle_send_deferral(service, action)  # type: ignore
             elif action_type == ActionType.MEMORIZE:
-                await self._handle_memorize(service, action)
+                await self._handle_memorize(service, action)  # type: ignore
             elif action_type == ActionType.RECALL:
-                await self._handle_recall(service, action)
+                await self._handle_recall(service, action)  # type: ignore
             elif action_type == ActionType.FORGET:
-                await self._handle_forget(service, action)
+                await self._handle_forget(service, action)  # type: ignore
             elif action_type == ActionType.SEND_TOOL:
-                await self._handle_send_tool(service, action)
+                await self._handle_send_tool(service, action)  # type: ignore
             elif action_type == ActionType.FETCH_TOOL:
-                await self._handle_fetch_tool(service, action)
+                await self._handle_fetch_tool(service, action)  # type: ignore
             else:
                 logger.error(f"No handler for action type: {action_type}")
                 

@@ -76,11 +76,11 @@ class OpenAICompatibleClient(Service):
             logger.exception(f"Failed to patch OpenAI client: {e}")
             self.instruct_client = self.client
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the client service."""
         await super().start()
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the client service."""
         await super().stop()
 
