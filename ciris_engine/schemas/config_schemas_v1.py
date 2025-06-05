@@ -103,6 +103,16 @@ class TelemetryConfig(BaseModel):
     retention_hours: int = 1
     snapshot_interval_ms: int = 1000
 
+class AuditConfig(BaseModel):
+    """Audit service configuration"""
+    enable_signed_audit: bool = Field(default=False, description="Enable cryptographically signed audit trail")
+    enable_jsonl_audit: bool = Field(default=True, description="Enable traditional JSONL audit logging")
+    audit_log_path: str = Field(default="audit_logs.jsonl", description="Path to JSONL audit log file")
+    audit_db_path: str = Field(default="ciris_audit.db", description="Path to signed audit database")
+    audit_key_path: str = Field(default="audit_keys", description="Directory for audit signing keys")
+    rotation_size_mb: int = Field(default=100, description="JSONL file rotation size in MB")
+    retention_days: int = Field(default=90, description="Audit log retention period in days")
+
 class WisdomConfig(BaseModel):
     """Wisdom-seeking configuration"""
     wa_timeout_hours: int = 72  # Hours before considering WA unavailable
@@ -118,6 +128,7 @@ class AppConfig(BaseModel):
     llm_services: LLMServicesConfig = LLMServicesConfig()
     guardrails: GuardrailsConfig = GuardrailsConfig()
     workflow: WorkflowConfig = WorkflowConfig()
+    audit: AuditConfig = AuditConfig()
     cirisnode: CIRISNodeConfig = CIRISNodeConfig()
     network: NetworkConfig = NetworkConfig()
     telemetry: TelemetryConfig = TelemetryConfig()

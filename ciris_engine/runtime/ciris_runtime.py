@@ -19,6 +19,7 @@ from ciris_engine.utils.constants import DEFAULT_NUM_ROUNDS
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.adapters.openai_compatible_llm import OpenAICompatibleLLM
 from ciris_engine.adapters import AuditService
+from ciris_engine.adapters.signed_audit_service import SignedAuditService
 from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
 from .runtime_interface import RuntimeInterface
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
@@ -191,7 +192,23 @@ class CIRISRuntime(RuntimeInterface):
         self.memory_service = LocalGraphMemoryService()
         await self.memory_service.start()
         
-        self.audit_service = AuditService()
+        # Initialize audit service based on configuration
+        if config.audit.enable_signed_audit:
+            self.audit_service = SignedAuditService(
+                log_path=config.audit.audit_log_path,
+                db_path=config.audit.audit_db_path,
+                key_path=config.audit.audit_key_path,
+                rotation_size_mb=config.audit.rotation_size_mb,
+                retention_days=config.audit.retention_days,
+                enable_jsonl=config.audit.enable_jsonl_audit,
+                enable_signed=config.audit.enable_signed_audit
+            )
+        else:
+            self.audit_service = AuditService(
+                log_path=config.audit.audit_log_path,
+                rotation_size_mb=config.audit.rotation_size_mb,
+                retention_days=config.audit.retention_days
+            )
         await self.audit_service.start()
         
         archive_dir = getattr(config, "data_archive_dir", "data_archive")
