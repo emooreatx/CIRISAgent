@@ -70,7 +70,6 @@ class IncomingMessage(BaseModel):
 class DiscordMessage(IncomingMessage):
     """Incoming message specific to the Discord platform."""
 
-    channel_id: str
     is_bot: bool = False
     is_dm: bool = False
 
