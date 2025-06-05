@@ -1,4 +1,300 @@
-# Repository Guidelines for CIRISAgent Contributors
+# CIRIS Agent Implementation Task List
+
+## Document Status
+**Version**: 1.0.0  
+**Status**: ACTIVE WORK PLAN  
+**Last Updated**: 2025-01-06
+
+## Overview
+
+This document provides a comprehensive, prioritized task list for completing the CIRIS Agent pre-beta implementation. Tasks are organized by component and include clear success criteria, testing requirements, and integration points.
+
+## ⚠️ WORKING PRINCIPLES
+
+1. **Test-Driven Development**: Write unit tests BEFORE implementing features
+2. **Type Safety**: All code must be properly typed with comprehensive error handling
+3. **Security First**: Assume hostile environment, implement defense-in-depth
+4. **Fail Secure**: Any failure must default to safe operation
+5. **Humble Assessment**: Only mark tasks complete when fully tested and integrated
+
+## 🎯 HIGH PRIORITY TASKS (Blockers for Beta)
+
+### Task Group A: Audit System Integration
+**Est: 3-5 days | Priority: CRITICAL | Dependencies: None**
+
+#### A1: Create Audit System Tests
+**File**: `tests/ciris_engine/audit/test_audit_integration.py`
+**Status**: ❌ NOT STARTED
+
+```python
+# Required test coverage:
+# - Hash chain integrity verification
+# - RSA signature generation and verification  
+# - Database migration 003 application
+# - Integration with existing audit service
+# - Performance impact validation
+# - Error handling and recovery
+# - Key rotation procedures
+```
+
+**Success Criteria**:
+- [ ] All crypto components have 100% test coverage
+- [ ] Performance overhead < 5% of normal operation
+- [ ] Migration applies successfully on existing databases
+- [ ] Audit service uses signed trail without breaking existing functionality
+
+#### A2: Integrate Signed Audit Trail with LocalAuditLog
+**File**: `ciris_engine/adapters/local_audit_log.py`
+**Status**: ❌ NOT STARTED
+
+```python
+# Integration requirements:
+# - Modify existing audit service to use AuditHashChain
+# - Add signature verification to audit reads
+# - Implement graceful fallback if signing fails
+# - Add configuration options for enabling/disabling
+# - Maintain backwards compatibility
+```
+
+**Success Criteria**:
+- [ ] Existing audit functionality unchanged
+- [ ] New entries are hash-chained and signed
+- [ ] Verification occurs on audit read operations
+- [ ] Configuration controls feature activation
+
+#### A3: Apply Database Migration 003 Safely
+**File**: `ciris_engine/persistence/migration_runner.py`
+**Status**: ❌ NEEDS CREATION
+
+```python
+# Migration runner requirements:
+# - Safe application of migration 003
+# - Rollback procedures if migration fails
+# - Backup creation before migration
+# - Validation of migration success
+# - No data loss during upgrade
+```
+
+**Success Criteria**:
+- [ ] Migration applies without data loss
+- [ ] Rollback works correctly
+- [ ] Existing audit logs remain intact
+- [ ] New schema validates correctly
+
+### Task Group B: Telemetry System Implementation  
+**Est: 2-3 days | Priority: HIGH | Dependencies: A2**
+
+#### B1: Implement Core Telemetry Service
+**File**: `ciris_engine/telemetry/core.py`
+**Status**: ❌ NEEDS CREATION
+
+```python
+# Core service requirements:
+# - Metric collection with security filtering
+# - Integration with SystemSnapshot
+# - Memory-efficient buffering
+# - Tiered collection intervals (50ms, 250ms, 1s, 5s, 30s)
+# - Thread-safe operations
+```
+
+**Success Criteria**:
+- [ ] SystemSnapshot contains real-time telemetry data
+- [ ] Memory usage < 10MB for telemetry system
+- [ ] No PII or sensitive data in metrics
+- [ ] Performance impact < 1% of normal operation
+
+#### B2: Create Security Filter Implementation
+**File**: `ciris_engine/telemetry/security.py`
+**Status**: ❌ NEEDS CREATION
+
+```python
+# Security filter requirements:
+# - PII detection and removal
+# - Metric bounds validation
+# - Rate limiting per metric type
+# - Sanitization of error messages
+# - Audit trail for filtered metrics
+```
+
+**Success Criteria**:
+- [ ] No PII leaks through telemetry
+- [ ] All metrics are bounds-checked
+- [ ] Rate limiting prevents DoS
+- [ ] Security tests pass 100%
+
+#### B3: Update SystemSnapshot Integration
+**File**: `ciris_engine/schemas/context_schemas_v1.py`
+**Status**: ❌ NEEDS MODIFICATION
+
+```python
+# Integration requirements:
+# - Add TelemetrySnapshot to SystemSnapshot
+# - Ensure real-time updates from TelemetryService
+# - Maintain backwards compatibility
+# - Add validation for telemetry data
+```
+
+**Success Criteria**:
+- [ ] Agent can access its own metrics via SystemSnapshot
+- [ ] Telemetry updates in real-time
+- [ ] No breaking changes to existing code
+- [ ] Validation prevents invalid telemetry data
+
+### Task Group C: Network Schema Implementation
+**Est: 2-3 days | Priority: HIGH | Dependencies: None**
+
+#### C1: Create Network Schema Files
+**File**: `ciris_engine/schemas/network_schemas_v1.py`
+**Status**: ❌ NEEDS CREATION
+
+```python
+# From NETWORK_SCHEMAS.md specifications:
+# - NetworkType enum (LOCAL, CIRISNODE, DISCORD)
+# - AgentIdentity with minimal memory footprint
+# - NetworkPresence for discovery
+# - Memory optimization (integers vs floats, epochs vs ISO8601)
+```
+
+**Success Criteria**:
+- [ ] All schemas serialize to < 1KB each
+- [ ] Memory usage tested on Raspberry Pi
+- [ ] Type validation works correctly
+- [ ] Integration with existing schemas
+
+#### C2: Create Community Schema Files
+**File**: `ciris_engine/schemas/community_schemas_v1.py`
+**Status**: ❌ NEEDS CREATION
+
+```python
+# Community awareness requirements:
+# - CommunityHealth with 0-100 integer metrics
+# - MinimalCommunityContext for resource constraints
+# - Single community tracking to save memory
+```
+
+**Success Criteria**:
+- [ ] Single community context < 4KB memory
+- [ ] Health metrics use single bytes
+- [ ] Integration with graph memory
+
+#### C3: Create Wisdom Schema Files
+**File**: `ciris_engine/schemas/wisdom_schemas_v1.py`
+**Status**: ❌ NEEDS CREATION
+
+```python
+# Wisdom-seeking requirements:
+# - WisdomRequest for isolation scenarios
+# - UniversalGuidanceProtocol as last resort
+# - Clear activation criteria (72+ hours isolation)
+# - Integration with deferral system
+```
+
+**Success Criteria**:
+- [ ] UGP only activates after proper escalation
+- [ ] Integration with existing WA deferral
+- [ ] Clear audit trail for UGP activation
+- [ ] Prevents bypass of normal deferral
+
+#### C4: Update Schema Registry and Exports
+**Files**: `ciris_engine/schemas/__init__.py`, `ciris_engine/schemas/schema_registry.py`
+**Status**: ❌ NEEDS MODIFICATION
+
+```python
+# Registry requirements:
+# - Add all new schemas to registry
+# - Update exports in __init__.py
+# - Maintain backwards compatibility
+# - Add version tracking
+```
+
+**Success Criteria**:
+- [ ] All new schemas accessible via imports
+- [ ] Schema registry contains all schemas
+- [ ] No breaking changes to existing imports
+- [ ] Version tracking works correctly
+
+## 🔧 MEDIUM PRIORITY TASKS (Quality & Robustness)
+
+### Task Group D: Secrets System Enhancement
+**Est: 1-2 days | Priority: MEDIUM | Dependencies: None**
+
+#### D1: Complete Secrets Service Implementation
+**Files**: `ciris_engine/secrets/filter.py`, `ciris_engine/secrets/store.py`, `ciris_engine/secrets/service.py`, `ciris_engine/secrets/tools.py`
+**Status**: ❌ PARTIALLY IMPLEMENTED
+
+```python
+# Secrets system completion:
+# - Implement missing components referenced in __init__.py
+# - Integration with graph memory for RECALL/MEMORIZE/FORGET
+# - Auto-FORGET behavior after task completion
+# - Agent tools for secrets management
+```
+
+**Success Criteria**:
+- [ ] All imports in secrets/__init__.py work
+- [ ] RECALL/MEMORIZE/FORGET work with secrets
+- [ ] Auto-FORGET prevents secret accumulation
+- [ ] Agent can manage detection patterns
+
+#### D2: Create Secrets Integration Tests
+**File**: `tests/ciris_engine/secrets/test_secrets_integration.py`
+**Status**: ❌ NEEDS CREATION
+
+```python
+# Integration test requirements:
+# - End-to-end secret detection and storage
+# - Graph memory integration testing
+# - Auto-FORGET behavior validation
+# - Performance impact testing
+```
+
+**Success Criteria**:
+- [ ] Secrets detected and stored correctly
+- [ ] Graph memory operations work with secrets
+- [ ] Auto-FORGET cleans up after tasks
+- [ ] Performance overhead < 2%
+
+## 📋 TASK EXECUTION INSTRUCTIONS
+
+### Before Starting Any Task:
+1. Read the FINAL_FEATURES.md status and limitations
+2. Check if any dependencies are incomplete
+3. Write comprehensive unit tests FIRST
+4. Implement with proper error handling and type safety
+5. Test integration with existing systems
+6. Update documentation
+
+### Task Completion Criteria:
+- [ ] All unit tests pass (100% coverage for new code)
+- [ ] Integration tests pass
+- [ ] Performance benchmarks meet targets  
+- [ ] Security tests pass
+- [ ] Documentation updated
+- [ ] Code review completed (self-review acceptable)
+
+## 🚦 PROGRESS TRACKING
+
+### Legend:
+- ❌ NOT STARTED
+- 🔄 IN PROGRESS  
+- ⚠️ BLOCKED (waiting for dependency)
+- ✅ COMPLETE
+- 🧪 TESTING
+- 📝 DOCUMENTATION
+
+### Current Status:
+- **Task Group A**: ❌ NOT STARTED
+- **Task Group B**: ❌ NOT STARTED  
+- **Task Group C**: ❌ NOT STARTED
+- **Task Group D**: ❌ NOT STARTED
+
+**Estimated Total Time**: 10-15 days
+**Current Completion**: 0%
+**Next Action**: Begin Task A1 (Create Audit System Tests)
+
+---
+
+## REPOSITORY GUIDELINES (Original Content)
 
 - All unit tests are currently passing. Ensure they remain green by running
   `pytest -q` before committing changes.
@@ -32,8 +328,16 @@
 - Use `python main.py --help` to see the unified runtime options. The same flags
   map directly to runtime arguments (e.g., `--host`, `--port`, `--no-interactive`).
   For offline tests pass `--mock-llm` to run without network access.
-- The ongoing refactor is tracked in `ECHO_Refactor.md`. Begin or continue the
-  lowest numbered incomplete task in that file and update its status when you
-  work on it.
 
-- Follow the ECHO refactor tasks aggressively: delete outdated code and tests rather than adapting them. Each commit should clearly reference the task being advanced.
+## NOTES FOR CLAUDE
+
+When working through this task list:
+
+1. **Always start with tests** - Write comprehensive unit tests before implementing features
+2. **Be thorough** - Don't mark tasks complete until fully tested and integrated
+3. **Update progress** - Keep this document updated with current status
+4. **Security focus** - All security-critical components need extra testing
+5. **Performance validation** - Measure impact of all changes
+6. **Integration testing** - Ensure new features don't break existing functionality
+
+Remember: This is mission-critical software. Quality and security are more important than speed.
