@@ -2,11 +2,12 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from ciris_engine.action_handlers.defer_handler import DeferHandler
-from ciris_engine.schemas.action_params_v1 import DeferParams
+from ciris_engine.schemas.action_params_v1 import DeferParams, MemorizeParams
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
 @pytest.mark.asyncio
 async def test_defer_handler_schema_driven(monkeypatch):
@@ -26,20 +27,20 @@ async def test_defer_handler_schema_driven(monkeypatch):
 
     action_result = ActionSelectionResult(
         selected_action=HandlerActionType.DEFER,
-        action_parameters=DeferParams(reason="Need WA", context={"foo": "bar"}),
-        rationale="r",
+        action_parameters=DeferParams(reason=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY), context={"foo": "bar"}),
+        rationale=MemorizeParams(node=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY)),
     )
     thought = Thought(
-        thought_id="t1",
-        source_task_id="s1",
-        thought_type="defer",
+        thought_id=ThoughtStatus.PENDING,
+        source_task_id=ThoughtStatus.PENDING,
+        thought_type=ThoughtStatus.PENDING,
         status=ThoughtStatus.PENDING,
-        created_at="2025-05-28T00:00:00Z",
-        updated_at="2025-05-28T00:00:00Z",
-        round_number=1,
-        content="Defer this",
+        created_at=ThoughtStatus.PENDING,
+        updated_at=ThoughtStatus.PENDING,
+        round_number=ThoughtStatus.PENDING,
+        content=ThoughtStatus.PENDING,
         context={},
-        ponder_count=0,
+        ponder_count=ThoughtStatus.PENDING,
         ponder_notes=None,
         parent_thought_id=None,
         final_action={}

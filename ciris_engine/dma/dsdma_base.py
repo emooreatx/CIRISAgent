@@ -86,7 +86,6 @@ class BaseDSDMA(BaseDMA):
 
         thought_content_str = ""
         if isinstance(thought_item.content, dict):
-            # You may want to serialize the dict, e.g. with json.dumps, or just str()
             thought_content_str = str(thought_item.content)
         else:
             thought_content_str = str(thought_item.content)

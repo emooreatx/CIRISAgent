@@ -1,10 +1,10 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.action_params_v1 import SpeakParams, RecallParams, ForgetParams, PonderParams, MemorizeParams
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.schemas.action_params_v1 import SpeakParams, RecallParams, ForgetParams, MemorizeParams, PonderParams
-from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import NodeType, GraphScope, GraphNode
 from ciris_engine.action_handlers.speak_handler import SpeakHandler
 from ciris_engine.action_handlers.recall_handler import RecallHandler
 from ciris_engine.action_handlers.forget_handler import ForgetHandler
@@ -22,26 +22,31 @@ async def test_speak_handler_creates_followup(monkeypatch):
     deps.persistence.add_thought = add_thought_mock
     audit_service = MagicMock()
     audit_service.log_action = AsyncMock()
-    mock_comm = MagicMock()
-    mock_comm.send_message = AsyncMock(return_value=True)
-    async def get_service(handler, service_type, **kwargs):
-        if service_type == "communication":
-            return mock_comm
-        if service_type == "audit":
-            return audit_service
-        return None
-    deps.get_service = AsyncMock(side_effect=get_service)
+    deps.get_service = AsyncMock(return_value=audit_service)
     handler = SpeakHandler(deps)
     base_ctx = {"channel_id": "orig", "custom": "foo"}
-    thought = Thought(thought_id="t1", source_task_id="parent1", content="test content", context=base_ctx, status="PENDING", created_at="now", updated_at="now", round_number=1)
-    params = SpeakParams(content="hello", channel_id="c1")
-    result = ActionSelectionResult(selected_action=HandlerActionType.SPEAK, action_parameters=params, rationale="r")
+    thought = Thought(
+        thought_id=ThoughtStatus.PENDING,
+        source_task_id=ThoughtStatus.PENDING,
+        thought_type=ThoughtStatus.PENDING,
+        status=ThoughtStatus.PENDING,
+        created_at=ThoughtStatus.PENDING,
+        updated_at=ThoughtStatus.PENDING,
+        round_number=ThoughtStatus.PENDING,
+        content=ThoughtStatus.PENDING,
+        context=base_ctx,
+        ponder_count=ThoughtStatus.PENDING,
+        ponder_notes=None,
+        parent_thought_id=None,
+        final_action={},
+    )
+    params = SpeakParams(content=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY), channel_id="c1")
+    result = ActionSelectionResult(selected_action=HandlerActionType.SPEAK, action_parameters=params, rationale=MemorizeParams(node=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY)))
     await handler.handle(result, thought, {"channel_id": "c1"})
     follow_up = add_thought_mock.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
     for k, v in base_ctx.items():
         assert follow_up.context.get(k) == v
-    # Only require that follow_up.content is a non-empty string
     assert follow_up.content is not None and isinstance(follow_up.content, str) and follow_up.content.strip() != ""
 
 @pytest.mark.asyncio
@@ -61,10 +66,24 @@ async def test_recall_handler_creates_followup():
     deps.get_service = AsyncMock(side_effect=get_service)
     handler = RecallHandler(deps)
     base_ctx = {"channel_id": "orig", "custom": "foo"}
-    thought = Thought(thought_id="t2", source_task_id="parent2", content="test content", context=base_ctx, status="PENDING", created_at="now", updated_at="now", round_number=1)
-    node = GraphNode(id="q", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
+    thought = Thought(
+        thought_id=ThoughtStatus.PENDING,
+        source_task_id=ThoughtStatus.PENDING,
+        thought_type=ThoughtStatus.PENDING,
+        status=ThoughtStatus.PENDING,
+        created_at=ThoughtStatus.PENDING,
+        updated_at=ThoughtStatus.PENDING,
+        round_number=ThoughtStatus.PENDING,
+        content=ThoughtStatus.PENDING,
+        context=base_ctx,
+        ponder_count=ThoughtStatus.PENDING,
+        ponder_notes=None,
+        parent_thought_id=None,
+        final_action={},
+    )
+    node = GraphNode(id=NodeType.CONCEPT, type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
     params = RecallParams(node=node)
-    result = ActionSelectionResult(selected_action=HandlerActionType.RECALL, action_parameters=params, rationale="r")
+    result = ActionSelectionResult(selected_action=HandlerActionType.RECALL, action_parameters=params, rationale=MemorizeParams(node=node))
     await handler.handle(result, thought, {"wa_authorized": True})
     follow_up = deps.persistence.add_thought.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
@@ -72,7 +91,6 @@ async def test_recall_handler_creates_followup():
         assert follow_up.context.get(k) == v
     assert follow_up.context["action_performed"] == "RECALL" or "RECALL" in follow_up.content
     assert follow_up.context.get("is_follow_up", True)
-    # Allow for any valid follow-up content, not just those mentioning 'complete'
     assert follow_up.content is not None and isinstance(follow_up.content, str)
 
 @pytest.mark.asyncio
@@ -92,10 +110,24 @@ async def test_forget_handler_creates_followup():
     deps.get_service = AsyncMock(side_effect=get_service)
     handler = ForgetHandler(deps)
     base_ctx = {"channel_id": "orig", "custom": "foo"}
-    thought = Thought(thought_id="t3", source_task_id="parent3", content="test content", context=base_ctx, status="PENDING", created_at="now", updated_at="now", round_number=1)
-    node = GraphNode(id="k", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
-    params = ForgetParams(node=node, reason="r")
-    result = ActionSelectionResult(selected_action=HandlerActionType.FORGET, action_parameters=params, rationale="r")
+    thought = Thought(
+        thought_id=ThoughtStatus.PENDING,
+        source_task_id=ThoughtStatus.PENDING,
+        thought_type=ThoughtStatus.PENDING,
+        status=ThoughtStatus.PENDING,
+        created_at=ThoughtStatus.PENDING,
+        updated_at=ThoughtStatus.PENDING,
+        round_number=ThoughtStatus.PENDING,
+        content=ThoughtStatus.PENDING,
+        context=base_ctx,
+        ponder_count=ThoughtStatus.PENDING,
+        ponder_notes=None,
+        parent_thought_id=None,
+        final_action={},
+    )
+    node = GraphNode(id=NodeType.CONCEPT, type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)
+    params = ForgetParams(node=node, reason=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.LOCAL))
+    result = ActionSelectionResult(selected_action=HandlerActionType.FORGET, action_parameters=params, rationale=MemorizeParams(node=node))
     await handler.handle(result, thought, {"wa_authorized": True})
     follow_up = deps.persistence.add_thought.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
@@ -103,7 +135,6 @@ async def test_forget_handler_creates_followup():
         assert follow_up.context.get(k) == v
     assert follow_up.context["action_performed"] == "FORGET"
     assert follow_up.context["is_follow_up"] is True
-    # Allow for any valid follow-up content, not just those mentioning 'complete'
     assert follow_up.content is not None and isinstance(follow_up.content, str)
 
 def test_memorize_handler_creates_followup(monkeypatch):
@@ -125,16 +156,29 @@ def test_memorize_handler_creates_followup(monkeypatch):
     deps.get_service = AsyncMock(side_effect=get_service)
     handler = MemorizeHandler(deps)
     base_ctx = {"channel_id": "orig", "custom": "foo"}
-    thought = Thought(thought_id="t4", source_task_id="parent4", content="test content", context=base_ctx, status="PENDING", created_at="now", updated_at="now", round_number=1)
-    node = GraphNode(id="k", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY, attributes={"value": "v"})
+    thought = Thought(
+        thought_id=ThoughtStatus.PENDING,
+        source_task_id=ThoughtStatus.PENDING,
+        thought_type=ThoughtStatus.PENDING,
+        status=ThoughtStatus.PENDING,
+        created_at=ThoughtStatus.PENDING,
+        updated_at=ThoughtStatus.PENDING,
+        round_number=ThoughtStatus.PENDING,
+        content=ThoughtStatus.PENDING,
+        context=base_ctx,
+        ponder_count=ThoughtStatus.PENDING,
+        ponder_notes=None,
+        parent_thought_id=None,
+        final_action={},
+    )
+    node = GraphNode(id=NodeType.CONCEPT, type=NodeType.CONCEPT, scope=GraphScope.IDENTITY, attributes={"value": "v"})
     params = MemorizeParams(node=node)
-    result = ActionSelectionResult(selected_action=HandlerActionType.MEMORIZE, action_parameters=params, rationale="r")
+    result = ActionSelectionResult(selected_action=HandlerActionType.MEMORIZE, action_parameters=params, rationale=MemorizeParams(node=node))
     import asyncio; asyncio.run(handler.handle(result, thought, {"wa_authorized": True}))
     follow_up = add_thought_mock.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
     for k, v in base_ctx.items():
         assert follow_up.context.get(k) == v
-    # Only require that follow_up.content is a non-empty string
     assert follow_up.content is not None and isinstance(follow_up.content, str) and follow_up.content.strip() != ""
 
 def test_ponder_handler_creates_followup(monkeypatch):
@@ -152,7 +196,21 @@ def test_ponder_handler_creates_followup(monkeypatch):
     deps.get_service = AsyncMock(side_effect=get_service)
     handler = PonderHandler(deps)
     base_ctx = {"channel_id": "orig", "custom": "foo"}
-    thought = Thought(thought_id="t5", source_task_id="parent5", content="test content", context=base_ctx, status="PENDING", created_at="now", updated_at="now", round_number=1, ponder_count=0)
+    thought = Thought(
+        thought_id=ThoughtStatus.PENDING,
+        source_task_id=ThoughtStatus.PENDING,
+        thought_type=ThoughtStatus.PENDING,
+        status=ThoughtStatus.PENDING,
+        created_at=ThoughtStatus.PENDING,
+        updated_at=ThoughtStatus.PENDING,
+        round_number=ThoughtStatus.PENDING,
+        content=ThoughtStatus.PENDING,
+        context=base_ctx,
+        ponder_count=ThoughtStatus.PENDING,
+        ponder_notes=None,
+        parent_thought_id=None,
+        final_action={},
+    )
     params = PonderParams(questions=["q1", "q2"])
     result = ActionSelectionResult(selected_action=HandlerActionType.PONDER, action_parameters=params, rationale="r")
     deps.persistence.update_thought_status.return_value = True
@@ -163,7 +221,6 @@ def test_ponder_handler_creates_followup(monkeypatch):
         assert follow_up.context.get(k) == v
     assert follow_up.context["action_performed"] == "PONDER"
     assert follow_up.context["is_follow_up"] is True
-    # Allow for any valid follow-up content, not just those mentioning 'complete'
     assert follow_up.content is not None and isinstance(follow_up.content, str)
 
 @pytest.mark.asyncio
@@ -179,7 +236,21 @@ async def test_task_complete_handler_no_followup():
     deps.get_service = AsyncMock(side_effect=get_service)
     handler = TaskCompleteHandler(deps)
     base_ctx = {"channel_id": "orig", "custom": "foo"}
-    thought = Thought(thought_id="t6", source_task_id="parent6", content="test content", context=base_ctx, status="PENDING", created_at="now", updated_at="now", round_number=1)
+    thought = Thought(
+        thought_id=ThoughtStatus.PENDING,
+        source_task_id=ThoughtStatus.PENDING,
+        thought_type=ThoughtStatus.PENDING,
+        status=ThoughtStatus.PENDING,
+        created_at=ThoughtStatus.PENDING,
+        updated_at=ThoughtStatus.PENDING,
+        round_number=ThoughtStatus.PENDING,
+        content=ThoughtStatus.PENDING,
+        context=base_ctx,
+        ponder_count=ThoughtStatus.PENDING,
+        ponder_notes=None,
+        parent_thought_id=None,
+        final_action={},
+    )
     result = ActionSelectionResult(selected_action=HandlerActionType.TASK_COMPLETE, action_parameters={}, rationale="r")
     await handler.handle(result, thought, {"channel_id": "c1"})
     add_thought_calls = deps.persistence.add_thought.call_args_list

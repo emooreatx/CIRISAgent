@@ -21,11 +21,11 @@ class NodeType(str, Enum):
 class GraphNode(BaseModel):
     """Minimal node for v1"""
 
-    id: str
+    id: NodeType
     type: NodeType
     scope: GraphScope
     attributes: Dict[str, Any] = Field(default_factory=dict)
-    version: int = 1
+    version: NodeType = 1
     updated_by: Optional[str] = None  # WA feedback tracking
     updated_at: Optional[str] = None
 
@@ -33,9 +33,9 @@ class GraphNode(BaseModel):
 class GraphEdge(BaseModel):
     """Minimal edge for v1"""
 
-    source: str
-    target: str
-    relationship: str
+    source: NodeType
+    target: NodeType
+    relationship: NodeType
     scope: GraphScope
-    weight: float = 1.0
+    weight: NodeType = 1.0
     attributes: Dict[str, Any] = Field(default_factory=dict)

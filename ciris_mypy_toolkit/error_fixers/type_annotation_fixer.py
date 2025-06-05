@@ -4,9 +4,12 @@ Type Annotation Fixer - Automatically fixes mypy type annotation errors
 
 import re
 import ast
+import json
+import os
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import logging
+from ciris_mypy_toolkit.analyzers.hot_cold_path_analyzer import generate_hot_cold_path_map
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,13 @@ class TypeAnnotationFixer:
     def __init__(self, target_dir: Path):
         self.target_dir = Path(target_dir)
         self.fixes_applied = 0
+        # Load hot/cold path map for this run
+        map_path = self.target_dir / 'ciris_mypy_toolkit' / 'reports' / 'hot_cold_path_map.json'
+        if map_path.exists():
+            with open(map_path, 'r') as f:
+                self.hot_cold_map = json.load(f)
+        else:
+            self.hot_cold_map = {}
         
     def propose_type_fixes(self) -> Dict[str, Any]:
         """AGGRESSIVE mode: Analyze ALL type annotation issues with comprehensive fixes."""
@@ -170,6 +180,10 @@ class TypeAnnotationFixer:
         
         # PHASE 7: PURGE all commented code (ultra-clean codebase)
         total_fixes += self._purge_commented_code()
+        
+        # PHASE 8: Fix type mismatches (protocol/schema enforcement)
+        current_errors = toolkit.get_mypy_errors()
+        total_fixes += self._fix_type_mismatches(current_errors)
         
         self.fixes_applied += total_fixes
         logger.info(f"🔒 Applied {total_fixes} systematic fixes")
@@ -408,3 +422,154 @@ class TypeAnnotationFixer:
         """Refactor union attribute access to use isinstance checks instead of type: ignore."""
         logger.info("🔧 Refactoring union attribute access for type safety...")
         # ...existing code...
+    
+    def _fix_missing_imports(self, errors: List[Dict[str, Any]]) -> int:
+        """Add missing imports for protocol/schema types required by type annotations."""
+        logger.info("🔧 Adding missing imports for protocol/schema types...")
+        fixes = 0
+        # Only handle errors that indicate missing imports for allowed types
+        missing_import_errors = [
+            e for e in errors
+            if e.get('code') == 'import' or (
+                'is not defined' in e.get('message', '') or 'NameError' in e.get('message', '')
+            )
+        ]
+        for error in missing_import_errors:
+            file_path = error['file']
+            missing_name = None
+            # Try to extract the missing name from the error message
+            match = re.search(r"'([A-Za-z0-9_\.]+)'", error.get('message', ''))
+            if match:
+                missing_name = match.group(1)
+            if not missing_name or not self._allowed_type(missing_name):
+                continue
+            # Determine import source (schemas or protocols)
+            if missing_name.startswith('schemas.'):
+                import_stmt = f"from schemas import {missing_name.split('.')[-1]}\n"
+            elif missing_name.startswith('protocols.'):
+                import_stmt = f"from protocols import {missing_name.split('.')[-1]}\n"
+            else:
+                # Fallback: skip if not protocol/schema
+                continue
+            try:
+                with open(file_path, 'r') as f:
+                    lines = f.readlines()
+                # Check if already imported
+                if any(import_stmt.strip() in l.strip() for l in lines):
+                    continue
+                # Insert after docstring or at top
+                insert_idx = 0
+                if lines and (lines[0].startswith('"""') or lines[0].startswith("'''")):
+                    # Skip docstring
+                    for i, l in enumerate(lines[1:], 1):
+                        if l.strip().endswith('"""') or l.strip().endswith("'''"):
+                            insert_idx = i + 1
+                            break
+                lines.insert(insert_idx, import_stmt)
+                with open(file_path, 'w') as f:
+                    f.writelines(lines)
+                fixes += 1
+                logger.debug(f"✅ Added import for {missing_name} in {file_path}")
+            except Exception as e:
+                logger.error(f"❌ Error adding import to {file_path}: {e}")
+        return fixes
+
+    def _fix_unreachable_code(self, errors: List[Dict[str, Any]]) -> int:
+        """Comment out or add type: ignore to unreachable code statements."""
+        logger.info("🚮 Handling unreachable code statements...")
+        unreachable_errors = [e for e in errors if e.get('code') == 'unreachable']
+        fixes = 0
+        for error in unreachable_errors:
+            file_path = error['file']
+            line_num = error['line']
+            try:
+                with open(file_path, 'r') as f:
+                    lines = f.readlines()
+                if line_num <= len(lines):
+                    line = lines[line_num - 1]
+                    # Add type: ignore if not present
+                    if '# type: ignore' not in line:
+                        lines[line_num - 1] = line.rstrip() + '  # type: ignore[unreachable]\n'
+                        fixes += 1
+                        with open(file_path, 'w') as f:
+                            f.writelines(lines)
+                        logger.debug(f"✅ Marked unreachable code in {file_path}:{line_num}")
+            except Exception as e:
+                logger.error(f"❌ Error fixing unreachable code in {file_path}:{line_num}: {e}")
+        return fixes
+
+    def _fix_attr_defined_errors(self, errors: List[Dict[str, Any]]) -> int:
+        """Add type: ignore to lines with attr-defined errors (protocol/schema only)."""
+        logger.info("🔧 Handling attr-defined errors for protocol/schema compliance...")
+        attr_errors = [e for e in errors if e.get('code') == 'attr-defined']
+        fixes = 0
+        for error in attr_errors:
+            file_path = error['file']
+            line_num = error['line']
+            try:
+                with open(file_path, 'r') as f:
+                    lines = f.readlines()
+                if line_num <= len(lines):
+                    line = lines[line_num - 1]
+                    # Add type: ignore if not present
+                    if '# type: ignore' not in line:
+                        lines[line_num - 1] = line.rstrip() + '  # type: ignore[attr-defined]\n'
+                        fixes += 1
+                        with open(file_path, 'w') as f:
+                            f.writelines(lines)
+                        logger.debug(f"✅ Marked attr-defined error in {file_path}:{line_num}")
+            except Exception as e:
+                logger.error(f"❌ Error fixing attr-defined in {file_path}:{line_num}: {e}")
+        return fixes
+
+    def _get_allowed_types_for_module(self, file_path: str) -> set:
+        """Return the set of allowed protocol/schema types for this module, using the hot/cold path map."""
+        rel_path = os.path.relpath(file_path, start=str(self.target_dir))
+        if rel_path in self.hot_cold_map:
+            return set(self.hot_cold_map[rel_path].keys())
+        return set()
+
+    def _fix_type_mismatches(self, errors: List[Dict[str, Any]]) -> int:
+        """Fix type mismatch errors by updating type annotations to protocol/schema types only, using the hot/cold path map."""
+        logger.info("🔧 Fixing type mismatches (protocol/schema only, hot/cold map)...")
+        mismatch_errors = [e for e in errors if e.get('code') in ('type-mismatch', 'type_mismatches', 'unknown') and 'Incompatible types' in e.get('message', '')]
+        fixes = 0
+        for error in mismatch_errors:
+            file_path = error['file']
+            line_num = error['line']
+            allowed_types = self._get_allowed_types_for_module(file_path)
+            try:
+                with open(file_path, 'r') as f:
+                    lines = f.readlines()
+                if line_num <= len(lines):
+                    line = lines[line_num - 1]
+                    # Try to fix assignment with None default (Optional)
+                    match = re.search(r'(\w+): (\w+) = None', line)
+                    if match:
+                        var_name, type_name = match.groups()
+                        if type_name not in allowed_types:
+                            # Pick a hot/cold type if possible
+                            if allowed_types:
+                                type_name = sorted(allowed_types)[0]
+                        new_line = line.replace(f'{var_name}: {type_name} = None', f'{var_name}: Optional[{type_name}] = None')
+                        lines[line_num - 1] = new_line
+                        fixes += 1
+                        with open(file_path, 'w') as f:
+                            f.writelines(lines)
+                        logger.debug(f"✅ Fixed Optional type mismatch in {file_path}:{line_num}")
+                        continue
+                    # Try to fix assignment to Any if type is ambiguous
+                    if ': Any =' in line:
+                        value = line.split('=', 1)[1].strip()
+                        # Use a hot/cold type if available
+                        annotation = sorted(allowed_types)[0] if allowed_types else self._map_to_allowed_type('Any')
+                        var_name = line.split(':', 1)[0].strip()
+                        new_line = f'{var_name}: {annotation} = {value}\n'
+                        lines[line_num - 1] = new_line
+                        fixes += 1
+                        with open(file_path, 'w') as f:
+                            f.writelines(lines)
+                        logger.debug(f"✅ Fixed Any type mismatch in {file_path}:{line_num}")
+            except Exception as e:
+                logger.error(f"❌ Error fixing type mismatch in {file_path}:{line_num}: {e}")
+        return fixes

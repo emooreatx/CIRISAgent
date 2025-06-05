@@ -13,6 +13,6 @@ class GuardrailResult(BaseModel):
     """Result from guardrail application."""
     original_action: ActionSelectionResult
     final_action: ActionSelectionResult
-    overridden: bool = False
+    overridden: EthicalDMAResult = False
     override_reason: Optional[str] = None
     epistemic_data: Optional[Dict[str, Any]] = None

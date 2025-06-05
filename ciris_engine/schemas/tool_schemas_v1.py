@@ -13,7 +13,7 @@ class ToolExecutionStatus(str, Enum):
 class ToolResult(BaseModel):
     """Result from tool execution."""
     schema_version: SchemaVersion = Field(default=SchemaVersion.V1_0)
-    tool_name: str
+    tool_name: SchemaVersion
     execution_status: ToolExecutionStatus
     result_data: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None

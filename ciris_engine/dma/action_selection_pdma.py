@@ -227,8 +227,8 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         ethical_pdma_result: EthicalDMAResult = triaged_inputs['ethical_pdma_result']
         csdma_result: CSDMAResult = triaged_inputs['csdma_result']
         dsdma_result: Optional[DSDMAResult] = triaged_inputs.get('dsdma_result')
-        current_ponder_count: int = triaged_inputs['current_ponder_count']
-        max_rounds: int = triaged_inputs['max_rounds']
+        current_ponder_count: ThoughtStatus = triaged_inputs['current_ponder_count']
+        max_rounds: ThoughtStatus = triaged_inputs['max_rounds']
         agent_profile: Optional[Any] = triaged_inputs.get('agent_profile')
 
         agent_name_from_thought = None

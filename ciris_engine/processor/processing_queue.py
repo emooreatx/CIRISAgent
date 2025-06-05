@@ -13,7 +13,7 @@ from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 
 class ThoughtContent(BaseModel):
     """Typed content for a thought."""
-    text: str
+    text: Thought
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class ProcessingQueueItem(BaseModel):
@@ -21,10 +21,10 @@ class ProcessingQueueItem(BaseModel):
     Represents an item loaded into an in-memory processing queue (e.g., collections.deque).
     This is a lightweight representation derived from a Thought, optimized for queue processing.
     """
-    thought_id: str
-    source_task_id: str
-    thought_type: str # Corresponds to Thought.thought_type (string)
-    content: ThoughtContent
+    thought_id: Thought
+    source_task_id: Thought
+    thought_type: Thought # Corresponds to Thought.thought_type (Thoughting)
+    content: Thought
     raw_input_string: Optional[str] = Field(default=None, description="The original input string that generated this thought, if applicable.")
     initial_context: Optional[Dict[str, Any] | ThoughtContext] = Field(default=None, description="Initial context when the thought was first received/generated for processing.")
     ponder_notes: Optional[List[str]] = Field(default=None, description="Key questions from a previous Ponder action if this item is being re-queued.")

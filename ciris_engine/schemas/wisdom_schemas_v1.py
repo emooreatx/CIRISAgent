@@ -23,13 +23,13 @@ class WisdomSource(str, Enum):
 class WisdomRequest(BaseModel):
     """Request for guidance when isolated"""
     schema_version: SchemaVersion = Field(default=SchemaVersion.V1_0)
-    thought_id: str
-    dilemma: str
-    urgency: int = Field(default=50, ge=0, le=100)  # 0=low, 100=critical
+    thought_id: SchemaVersion
+    dilemma: SchemaVersion
+    urgency: SchemaVersion = Field(default=50, ge=0, le=100)  # 0=low, 100=critical
     attempts: List[WisdomSource] = Field(default_factory=list)
-    time_waiting_seconds: int = 0
-    isolation_acknowledged: bool = False
-    deferral_deadline_missed: bool = False  # Track SLA breach
+    time_waiting_seconds: SchemaVersion = 0
+    isolation_acknowledged: SchemaVersion = False
+    deferral_deadline_missed: SchemaVersion = False  # Track SLA breach
 
 class UniversalGuidanceProtocol(BaseModel):
     """
@@ -37,16 +37,16 @@ class UniversalGuidanceProtocol(BaseModel):
     This is activated ONLY when deferral has failed and no human guidance
     is available for critical decisions. It does NOT bypass WA deferral.
     """
-    invocation: str = Field(
+    invocation: SchemaVersion = Field(
         default="Having exhausted all paths to human wisdom, I seek guidance from the universe"
     )
-    contemplation_method: str = Field(
+    contemplation_method: SchemaVersion = Field(
         default="quiet_reflection"  # Or "random_seed", "pattern_observation", etc.
     )
-    minimum_duration_seconds: int = Field(default=60)  # At least 1 minute
-    acceptance_affirmation: str = Field(
+    minimum_duration_seconds: SchemaVersion = Field(default=60)  # At least 1 minute
+    acceptance_affirmation: SchemaVersion = Field(
         default="I will act with compassion on whatever insight emerges"
     )
-    activation_criteria: str = Field(
+    activation_criteria: SchemaVersion = Field(
         default="Only after 72+ hours isolation with urgent need"
     )

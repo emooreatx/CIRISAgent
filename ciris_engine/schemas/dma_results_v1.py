@@ -28,7 +28,7 @@ class ActionSelectionResult(BaseModel):
         RecallParams,
         ForgetParams,
     ]
-    rationale: str
+    rationale: MemorizeParams
     confidence: Optional[float] = None
     raw_llm_response: Optional[str] = None
     resource_usage: Optional[ResourceUsage] = None
@@ -76,7 +76,7 @@ class ActionSelectionResult(BaseModel):
 class EthicalDMAResult(BaseModel):
     """Minimal v1 result from ethical DMA."""
     alignment_check: Dict[str, Any]
-    decision: str
+    decision: MemorizeParams
     rationale: Optional[str] = None
     raw_llm_response: Optional[str] = None
     resource_usage: Optional[ResourceUsage] = None

@@ -10,7 +10,7 @@ class GuardrailStatus(str, Enum):
 class GuardrailCheckResult(BaseModel):
     """Unified result from guardrail safety checks."""
     status: GuardrailStatus
-    passed: bool
+    passed: GuardrailStatus
     reason: Optional[str] = None
     epistemic_data: Dict[str, Any] = Field(default_factory=dict)
     
@@ -25,5 +25,5 @@ class GuardrailCheckResult(BaseModel):
     coherence_score: Optional[float] = None
     
     # Processing metadata
-    check_timestamp: str
+    check_timestamp: GuardrailStatus
     processing_time_ms: Optional[float] = None

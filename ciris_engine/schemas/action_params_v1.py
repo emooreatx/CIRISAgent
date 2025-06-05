@@ -4,8 +4,8 @@ from .graph_schemas_v1 import GraphScope, GraphNode
 
 class ObserveParams(BaseModel):
     channel_id: Optional[str] = None
-    active: bool = False
-    context: dict = Field(default_factory=dict)
+    active: GraphNode = False
+    context: GraphNode = Field(default_factory=GraphNode)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -16,12 +16,12 @@ class ObserveParams(BaseModel):
 
 class SpeakParams(BaseModel):
     channel_id: Optional[str] = None
-    content: str
+    content: GraphNode
 
     model_config = ConfigDict(extra="forbid")
 
 class ToolParams(BaseModel):
-    name: str
+    name: GraphNode
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(extra="forbid")
@@ -32,12 +32,12 @@ class PonderParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 class RejectParams(BaseModel):
-    reason: str
+    reason: GraphNode
 
     model_config = ConfigDict(extra="forbid")
 
 class DeferParams(BaseModel):
-    reason: str
+    reason: GraphNode
     context: Dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(extra="forbid")
@@ -68,7 +68,7 @@ class ForgetParams(BaseModel):
     """Parameters for FORGET action."""
 
     node: GraphNode
-    reason: str
+    reason: GraphNode
 
     model_config = ConfigDict(extra="forbid")
 

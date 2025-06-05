@@ -173,6 +173,10 @@ class BaseActionHandler(ABC):
 
     async def _send_notification(self, channel_id: str, content: str) -> bool:
         """Send a notification using the best available service."""
+        # STRICT: content must be a string, not a GraphNode or any other type
+        if not isinstance(content, str):
+            self.logger.error(f"_send_notification: content must be a string, got {type(content)}")
+            raise TypeError("_send_notification: content must be a string, not a GraphNode or other type")
         if not channel_id or not content:
             self.logger.error(f"_send_notification failed: missing channel_id ({channel_id}) or content ({bool(content)})")
             return False

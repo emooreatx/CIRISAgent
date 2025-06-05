@@ -19,12 +19,12 @@ class DeferralReason(str, Enum):
 
 class DeferralPackage(BaseModel):
     """Complete context package for deferred decisions."""
-    thought_id: str
-    task_id: str
+    thought_id: FeedbackType
+    task_id: FeedbackType
     deferral_reason: DeferralReason
-    reason_description: str
+    reason_description: FeedbackType
     
-    thought_content: str
+    thought_content: FeedbackType
     task_description: Optional[str] = None
     
     ethical_assessment: Optional[Dict[str, Any]] = None
@@ -36,21 +36,21 @@ class DeferralPackage(BaseModel):
     
     ponder_history: List[str] = Field(default_factory=list)
     action_history: List[Dict[str, Any]] = Field(default_factory=list)
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: FeedbackType = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class DeferralReport(BaseModel):
     """Deferral report for transmission to WA."""
-    report_id: str
+    report_id: FeedbackType
     package: DeferralPackage
-    target_wa_identifier: str  # Could be Discord user, email, etc.
-    urgency_level: str = Field(default="normal")  # low, normal, high, critical
+    target_wa_identifier: FeedbackType  # Could be Discord user, email, etc.
+    urgency_level: FeedbackType = Field(default="normal")  # low, normal, high, critical
     
     # Transport metadata (set by adapters)
     transport_data: Dict[str, Any] = Field(default_factory=dict)
-    created_at: str
+    created_at: FeedbackType
     
     # Status tracking
-    delivered: bool = False
+    delivered: FeedbackType = False
     delivered_at: Optional[str] = None
-    response_received: bool = False
+    response_received: FeedbackType = False
     response_at: Optional[str] = None

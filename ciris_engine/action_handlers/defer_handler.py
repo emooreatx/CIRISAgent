@@ -3,7 +3,6 @@ from typing import Dict, Any, Optional # Added Optional
 
 from pydantic import BaseModel
 
-# Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import DeferParams
 from ciris_engine.schemas.deferral_schemas_v1 import DeferralPackage, DeferralReason
@@ -56,7 +55,6 @@ class DeferHandler(BaseActionHandler):
         except Exception as param_parse_error:
             self.logger.error(f"DEFER action params parsing error or unexpected structure. Type: {type(raw_params)}, Error: {param_parse_error}. Thought ID: {thought_id}")
             follow_up_content_key_info = f"DEFER action failed: Invalid parameters ({type(raw_params)}) for thought {thought_id}. Error: {param_parse_error}"
-            # Deferral still proceeds, but with potentially less context for the sink.
             wa_service = await self.get_wa_service()
             if wa_service:
                 try:
@@ -68,7 +66,6 @@ class DeferHandler(BaseActionHandler):
             else:
                 action_performed_successfully = True
 
-        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,  # Should be DEFERRED
@@ -77,16 +74,8 @@ class DeferHandler(BaseActionHandler):
         self.logger.info(f"Updated original thought {thought_id} to status {final_thought_status.value} for DEFER action. Info: {follow_up_content_key_info}")
         await self._audit_log(HandlerActionType.DEFER, {**dispatch_context, "thought_id": thought_id}, outcome="success")
 
-        # If this is an observation (not a root/system task), defer the parent task as well
-        # Fixed: Use TaskStatus.DEFERRED not ThoughtStatus.DEFERRED for tasks
         parent_task_id = thought.source_task_id
         if parent_task_id not in ["WAKEUP_ROOT", "SYSTEM_TASK", "job-discord-monitor", "DREAM_TASK"]:
             persistence.update_task_status(parent_task_id, TaskStatus.DEFERRED)
             self.logger.info(f"Marked parent task {parent_task_id} as DEFERRED due to child thought deferral.")
 
-        # DEFER actions typically don't create a standard "next step" follow-up thought
-        # because the deferral itself is a terminal state for this thought's processing round.
-        # A human or another process is expected to review deferred thoughts.
-        # However, one might log this to a specific system or create a different kind of notification.
-        # For now, no standard follow-up thought is created by this handler.
-        # If a follow-up IS needed, it would be specific to the deferral reason/workflow.

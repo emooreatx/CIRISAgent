@@ -29,16 +29,34 @@ This workflow guarantees:
 - **Schema Validator**: Detects dict usage that should be proper schema classes
 - **Protocol Analyzer**: Finds direct internal method calls that should use protocol interfaces
 - **Unused Code Detector**: Identifies uncalled functions, unused imports, and dead code
+- **Hot/Cold Path Analyzer**: Generates a per-module map of which schema/protocol objects are directly available (hot) or only accessible via context/persistence (cold)
 
 ### 🔧 Automated Fixing
 - **Type Annotation Fixer**: Adds missing return types, variable annotations, Optional types, always using protocol/schema types
 - **Protocol Compliance Fixer**: Refactors internal calls to use service registry and protocols
 - **Schema Alignment Fixer**: Updates legacy imports to v1 schemas and adds schema TODOs
+- **Engine Simplification Automation**: Uses the hot/cold map to refactor all engine modules, ensuring only hot objects are used for direct variable/property types and assignments, and all dicts/ad-hoc types are eliminated
 
 ### 📊 Comprehensive Reporting
 - Full compliance analysis across the codebase
 - Adapter-specific validation for new components
 - Progress tracking and success metrics
+
+## 🧠 Engine Simplification Automation
+
+The toolkit now includes a fully automated workflow to optimize the CIRIS engine using the hot/cold path map:
+
+1. **Generate Hot/Cold Path Map**: Analyze all modules and output a JSON/Markdown map of available schema/protocol objects (see `reports/hot_cold_path_map.json`).
+2. **Analyze Engine Modules**: For each engine module, identify all variable/property type annotations and assignments.
+3. **Enforce Hot Path Types**: Only allow direct use of schema/protocol objects listed as "hot" for that module. Flag and refactor/remove all other types (including dicts, Any, legacy types).
+4. **Refactor/Remove Non-Compliant Code**: Convert dicts/ad-hoc types to schema/protocol objects, remove or refactor code using types not in the hot list, and ensure cold objects are only accessed via protocol/context fetch.
+5. **Update Type Annotations**: All type annotations are updated to use only hot schema/protocol types. No ambiguous or legacy types remain.
+6. **Automated Fix Proposal**: The toolkit generates a proposal file for agent review, ensuring all changes are auditable and reversible.
+
+**How the Hot/Cold Map Enables Optimization:**
+- The map is the single source of truth for valid types in each module.
+- It eliminates ambiguity, dead code, and legacy patterns.
+- It makes type annotation fixing, mypy compliance, and future refactoring much easier and safer.
 
 ## 🚀 Quick Start
 
@@ -55,7 +73,8 @@ python -m ciris_mypy_toolkit.cli propose --categories type_annotations schema_al
 #    Approve or edit as needed.
 
 # 4. Execute only approved fixes
-python -m ciris_mypy_toolkit.cli execute proposed_fixes.json --approved
+# (The --approved flag is not required; execution applies the reviewed proposal file)
+python -m ciris_mypy_toolkit.cli execute proposed_fixes.json
 
 # 5. Re-analyze to confirm zero errors
 python -m ciris_mypy_toolkit.cli analyze
@@ -84,7 +103,7 @@ print(f"Applied {results['total_errors_eliminated']} fixes")
 
 ## 🏗️ Architecture
 
-The toolkit follows a modular architecture with clear separation of concerns:
+The toolkit is now split into clear, modular components:
 
 ```
 ciris_mypy_toolkit/
@@ -92,7 +111,8 @@ ciris_mypy_toolkit/
 ├── analyzers/                 # Code analysis modules
 │   ├── schema_validator.py    # Schema compliance checking
 │   ├── protocol_analyzer.py   # Protocol usage analysis  
-│   └── unused_code_detector.py # Dead code detection
+│   ├── hot_cold_path_analyzer.py # Hot/cold path map generator
+│   └── engine_simplifier.py   # Engine simplification automation (NEW)
 ├── error_fixers/              # Automated fixing modules
 │   ├── type_annotation_fixer.py    # Type safety fixes (protocol/schema only)
 │   ├── protocol_compliance_fixer.py # Protocol compliance

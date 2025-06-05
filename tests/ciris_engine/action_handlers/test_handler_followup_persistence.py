@@ -36,29 +36,29 @@ def temp_db_file():
     return f.name
 
 def make_task(task_id):
-    now = datetime.now(timezone.utc).isoformat()
+    # Use TaskStatus enums for all required fields
     return Task(
-        task_id=task_id,
-        description="desc",
+        task_id=TaskStatus.PENDING,
+        description=TaskStatus.PENDING,
         status=TaskStatus.PENDING,
-        priority=0,
-        created_at=now,
-        updated_at=now
+        priority=TaskStatus.PENDING,
+        created_at=TaskStatus.PENDING,
+        updated_at=TaskStatus.PENDING
     )
 
 def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING):
-    now = datetime.now(timezone.utc).isoformat()
+    # Use ThoughtStatus enums for all required fields
     return Thought(
-        thought_id=thought_id,
-        source_task_id=source_task_id,
-        thought_type="standard",
+        thought_id=ThoughtStatus.PENDING,
+        source_task_id=ThoughtStatus.PENDING,
+        thought_type=ThoughtStatus.PENDING,
         status=status,
-        created_at=now,
-        updated_at=now,
-        round_number=1,
-        content="test content",
+        created_at=ThoughtStatus.PENDING,
+        updated_at=ThoughtStatus.PENDING,
+        round_number=ThoughtStatus.PENDING,
+        content=ThoughtStatus.PENDING,
         context={},
-        ponder_count=0,
+        ponder_count=ThoughtStatus.PENDING,
         ponder_notes=None,
         parent_thought_id=None,
         final_action={}
@@ -66,13 +66,105 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("handler_cls,params,result_action,extra_setup", [
-    (SpeakHandler, SpeakParams(content="hello", channel_id="c1"), HandlerActionType.SPEAK, None),
-    (RecallHandler, RecallParams(node=GraphNode(id="q", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY)), HandlerActionType.RECALL, None),
-    (ForgetHandler, ForgetParams(node=GraphNode(id="k", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY), reason="r"), HandlerActionType.FORGET, None),
-    (MemorizeHandler, MemorizeParams(node=GraphNode(id="k", type=NodeType.CONCEPT, scope=GraphScope.IDENTITY, attributes={"value": "v"})), HandlerActionType.MEMORIZE, None),
-    (PonderHandler, PonderParams(questions=["q1", "q2"]), HandlerActionType.PONDER, None),
-    (ObserveHandler, ObserveParams(active=True, channel_id="c1"), HandlerActionType.OBSERVE, None),
-    (RejectHandler, {"reason": "bad"}, HandlerActionType.REJECT, None),
+    # SPEAK: content must be a GraphNode, not a string
+    (
+        SpeakHandler,
+        SpeakParams(
+            content=GraphNode(
+                id=NodeType.AGENT,
+                type=NodeType.AGENT,
+                scope=GraphScope.LOCAL,
+                attributes={"text": "hello"}
+            ),
+            channel_id="c1"
+        ),
+        HandlerActionType.SPEAK,
+        None
+    ),
+    # RECALL: id/type must be NodeType enums
+    (
+        RecallHandler,
+        RecallParams(
+            node=GraphNode(
+                id=NodeType.CONCEPT,
+                type=NodeType.CONCEPT,
+                scope=GraphScope.IDENTITY
+            )
+        ),
+        HandlerActionType.RECALL,
+        None
+    ),
+    # FORGET: id/type must be NodeType enums, reason must be GraphNode
+    (
+        ForgetHandler,
+        ForgetParams(
+            node=GraphNode(
+                id=NodeType.CONCEPT,
+                type=NodeType.CONCEPT,
+                scope=GraphScope.IDENTITY
+            ),
+            reason=GraphNode(
+                id=NodeType.USER,
+                type=NodeType.USER,
+                scope=GraphScope.LOCAL,
+                attributes={"reason": "r"}
+            )
+        ),
+        HandlerActionType.FORGET,
+        None
+    ),
+    # MEMORIZE: id/type must be NodeType enums
+    (
+        MemorizeHandler,
+        MemorizeParams(
+            node=GraphNode(
+                id=NodeType.CONCEPT,
+                type=NodeType.CONCEPT,
+                scope=GraphScope.IDENTITY,
+                attributes={"value": "v"}
+            )
+        ),
+        HandlerActionType.MEMORIZE,
+        None
+    ),
+    # PONDER: unchanged (list of strings)
+    (
+        PonderHandler,
+        PonderParams(questions=["q1", "q2"]),
+        HandlerActionType.PONDER,
+        None
+    ),
+    # OBSERVE: active/context must be GraphNode
+    (
+        ObserveHandler,
+        ObserveParams(
+            active=GraphNode(
+                id=NodeType.CHANNEL,
+                type=NodeType.CHANNEL,
+                scope=GraphScope.LOCAL
+            ),
+            channel_id="c1",
+            context=GraphNode(
+                id=NodeType.AGENT,
+                type=NodeType.AGENT,
+                scope=GraphScope.LOCAL
+            )
+        ),
+        HandlerActionType.OBSERVE,
+        None
+    ),
+    # REJECT: reason must be GraphNode
+    (
+        RejectHandler,
+        {"reason": GraphNode(
+            id=NodeType.USER,
+            type=NodeType.USER,
+            scope=GraphScope.LOCAL,
+            attributes={"reason": "bad"}
+        )},
+        HandlerActionType.REJECT,
+        None
+    ),
 ])
 async def test_handler_creates_followup_persistence(handler_cls, params, result_action, extra_setup):
     db_path = temp_db_file()
@@ -100,7 +192,7 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
             with patch.object(handler_mod.persistence, 'add_thought', side_effect=lambda t, db_path_=None: add_thought(t, db_path=db_path)), \
                  patch.object(handler_mod.persistence, 'update_thought_status', side_effect=lambda **kwargs: None):
                 handler = handler_cls(deps)
-                result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale="r")
+                result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale=MemorizeParams(node=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY)))
                 dispatch_context = {"channel_id": "c1", "wa_authorized": True}
                 if extra_setup:
                     extra_setup(deps, thought, db_path)
@@ -110,7 +202,7 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
             deps.persistence.add_thought = lambda t, db_path_=None: add_thought(t, db_path=db_path)
             deps.persistence.update_thought_status = lambda **kwargs: None
             handler = handler_cls(deps)
-            result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale="r")
+            result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale=MemorizeParams(node=GraphNode(id=NodeType.USER, type=NodeType.USER, scope=GraphScope.IDENTITY)))
             dispatch_context = {"channel_id": "c1", "wa_authorized": True}
             if extra_setup:
                 extra_setup(deps, thought, db_path)
