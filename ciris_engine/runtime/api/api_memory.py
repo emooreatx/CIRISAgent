@@ -37,7 +37,7 @@ class APIMemoryRoutes:
             if memory_service and hasattr(memory_service, 'list_entries'):
                 entries = await memory_service.list_entries(scope)
             else:
-                entries: List[Any] = []
+                entries = []
             return web.json_response({"entries": entries})
         except Exception as e:
             logger.error(f"Error in memory entries: {e}")

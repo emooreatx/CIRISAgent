@@ -1,7 +1,7 @@
 """API WA (Wise Authority) endpoints for CIRISAgent, using the multi_service_sink for backend logic."""
 import logging
 from aiohttp import web
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class APIWARoutes:
         try:
             data = await request.json()
         except Exception:
-            data: Dict[str, Any] = {}
+            data = {}
         try:
             guidance = await self.multi_service_sink.fetch_guidance(data)
             return web.json_response({"guidance": guidance})

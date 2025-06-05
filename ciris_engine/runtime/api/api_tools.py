@@ -1,7 +1,7 @@
 """API tools endpoints for CIRISAgent, using the multi_service_sink for real tool service."""
 import logging
 from aiohttp import web
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class APIToolsRoutes:
             if tool_service and hasattr(tool_service, 'get_available_tools'):
                 tools = await tool_service.get_available_tools()
             else:
-                tools: List[Any] = []
+                tools = []
             return web.json_response([{"name": t} for t in tools])
         except Exception as e:
             logger.error(f"Error listing tools: {e}")
@@ -30,7 +30,7 @@ class APIToolsRoutes:
         try:
             data = await request.json()
         except Exception:
-            data: Dict[str, Any] = {}
+            data = {}
         try:
             result = await self.multi_service_sink.execute_tool(tool_name, data)
             return web.json_response(result)

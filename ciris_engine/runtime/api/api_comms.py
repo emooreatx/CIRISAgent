@@ -3,7 +3,7 @@ import logging
 import uuid
 from aiohttp import web
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class APICommsRoutes:
             return web.json_response({"error": str(e)}, status=400)
 
     async def _handle_status(self, request: web.Request) -> web.Response:
-        status_data = {"status": "ok"}
+        status_data: Dict[str, Any] = {"status": "ok"}
         if self.api_adapter and hasattr(self.api_adapter, 'responses') and self.api_adapter.responses:
             latest_response_id = max(self.api_adapter.responses.keys())
             latest_response = self.api_adapter.responses[latest_response_id]

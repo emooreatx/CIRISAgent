@@ -1,7 +1,7 @@
 """Entrypoint for CIRISAgent API runtime, wires up all service routes."""
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Any, Dict
 from aiohttp import web
 from ciris_engine.adapters.api import APIAdapter, APIObserver
 from ciris_engine.runtime.api.api_comms import APICommsRoutes
@@ -20,13 +20,13 @@ class APIRuntimeEntrypoint(CIRISRuntime):
     
     def __init__(
         self, 
-        service_registry=None, 
-        multi_service_sink=None, 
-        audit_service=None, 
-        api_observer=None, 
-        api_adapter=None, 
-        host="0.0.0.0", 
-        port=8080,
+        service_registry: Optional[Any] = None, 
+        multi_service_sink: Optional[Any] = None, 
+        audit_service: Optional[Any] = None, 
+        api_observer: Optional[APIObserver] = None, 
+        api_adapter: Optional[APIAdapter] = None, 
+        host: str = "0.0.0.0", 
+        port: int = 8080,
         profile_name: str = "default",
         app_config: Optional[AppConfig] = None,
     ) -> None:
@@ -55,8 +55,8 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         self.host = host
         self.port = port
         self.app = web.Application()
-        self.runner = None
-        self.site = None
+        self.runner: Optional[web.AppRunner] = None
+        self.site: Optional[web.TCPSite] = None
         self._web_server_stopped = False
 
     async def _register_core_services(self) -> None:
@@ -160,8 +160,13 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             # Create API observer if not provided
             if self.api_observer is None:
                 from ciris_engine.adapters.api import APIObserver
+                
+                async def default_observe_callback(data: Dict[str, Any]) -> None:
+                    """Default no-op observe callback"""
+                    pass
+                
                 self.api_observer = APIObserver(
-                    on_observe=None,  # Will be set later if needed
+                    on_observe=default_observe_callback,  # Provide a default callback
                     memory_service=self.memory_service,
                     multi_service_sink=self.multi_service_sink,
                     api_adapter=self.api_adapter,

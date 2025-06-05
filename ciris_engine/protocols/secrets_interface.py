@@ -297,7 +297,7 @@ class SecretsEncryptionInterface(ABC):
         pass
     
     @abstractmethod
-    def rotate_master_key(self, new_master_key: bytes = None) -> bytes:
+    def rotate_master_key(self, new_master_key: Optional[bytes] = None) -> bytes:
         """
         Rotate the master encryption key
         
