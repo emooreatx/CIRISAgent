@@ -14,10 +14,28 @@ Key principles:
 from .resource_monitor import ResourceMonitor, ResourceSignalBus
 from .core import TelemetryService
 from .security import SecurityFilter
+from .collectors import (
+    BaseCollector,
+    InstantCollector,
+    FastCollector,
+    NormalCollector,
+    SlowCollector,
+    AggregateCollector,
+    CollectorManager,
+    MetricData
+)
 
 __all__ = [
     "ResourceMonitor",
-    "ResourceSignalBus",
+    "ResourceSignalBus", 
     "TelemetryService",
     "SecurityFilter",
+    "BaseCollector",
+    "InstantCollector",
+    "FastCollector",
+    "NormalCollector",
+    "SlowCollector",
+    "AggregateCollector",
+    "CollectorManager",
+    "MetricData",
 ]

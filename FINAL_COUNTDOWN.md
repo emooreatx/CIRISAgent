@@ -187,40 +187,50 @@
   - ✅ Resource usage tracking (LLM token counting per API call)
 - Status: Core components now record metrics to telemetry service without exposing content
 
-**17. 🔄 PENDING - Implement Tiered Collectors**
+**17. ✅ COMPLETED - Implement Tiered Collectors**
 - Location: `FSD/TELEMETRY.md` (lines 255-268)
 - Target: `ciris_engine/telemetry/collectors.py` (new file)
 - Requirements: Different collection intervals with security validation
 - Components:
-  - InstantCollector (50ms)
-  - FastCollector (250ms) 
-  - NormalCollector (1s)
-  - SlowCollector (5s)
-  - AggregateCollector (30s)
+  - ✅ InstantCollector (50ms) - circuit breakers, critical errors
+  - ✅ FastCollector (250ms) - active thoughts, handler selection
+  - ✅ NormalCollector (1s) - resource usage, guardrails
+  - ✅ SlowCollector (5s) - memory operations, DMAs with sanitization
+  - ✅ AggregateCollector (30s) - community metrics, rollups with audit
+- Status: Full tiered collection system with security filtering, rate limiting, and comprehensive test coverage
 
 ### Phase 4: Security Implementation (FSD/SECRETS.md)
 
-**19. 🔄 PENDING - Implement Secrets Detection Engine**
+**19. ✅ COMPLETED - Implement Secrets Detection Engine**
 - Location: `FSD/SECRETS.md` (lines 54-156)
-- Target: `ciris_engine/services/secrets_filter.py` (new file)
+- Target: `ciris_engine/secrets/filter.py` (new file)
 - Requirements: Automatic detection of sensitive information
 - Components:
-  - Pattern-based detection (API keys, passwords, etc.)
-  - Agent-configurable custom patterns
-  - Context-aware filtering
+  - ✅ Pattern-based detection (API keys, passwords, credit cards, SSNs, etc.)
+  - ✅ Agent-configurable custom patterns with CRUD operations
+  - ✅ Context-aware filtering with security levels
+  - ✅ Built-in patterns for AWS, GitHub, Discord, Slack tokens
+  - ✅ Sensitivity overrides and pattern enabling/disabling
+  - ✅ UUID-based secret replacement with metadata preservation
+- Status: Complete secrets detection system with 12 built-in patterns and comprehensive test coverage
 
-**20. 🔄 PENDING - Implement Secrets Storage Service**
+**20. ✅ COMPLETED - Implement Secrets Storage Service**
 - Location: `FSD/SECRETS.md` (lines 104-128)
-- Target: `ciris_engine/services/secrets_storage.py` (new file)
+- Target: `ciris_engine/secrets/store.py` and `ciris_engine/secrets/service.py` (new files)
 - Requirements: Encrypted storage with per-secret keys
 - Components:
-  - AES-256-GCM encryption
-  - SecretRecord model implementation
-  - Key management and rotation
+  - ✅ AES-256-GCM encryption with SecretsEncryption class
+  - ✅ SecretRecord model with encrypted storage fields
+  - ✅ SecretsStore class with SQLite backend and rate limiting
+  - ✅ SecretsService coordinating detection, storage, and decapsulation
+  - ✅ Full audit trail with SecretAccessLog
+  - ✅ Auto-decapsulation based on action types and sensitivity levels
+  - ✅ Comprehensive test coverage (53/53 tests passing)
+- Status: Complete encrypted secrets storage system with automatic detection and secure decapsulation
 
 **21. 🔄 PENDING - Implement Agent Secrets Tools**
 - Location: `FSD/SECRETS.md` (lines 193-280)
-- Target: `ciris_engine/tools/secrets_tools.py` (new file)
+- Target: `ciris_engine/secrets/tools.py` (new file)
 - Requirements: RECALL_SECRET and UPDATE_SECRETS_FILTER tools
 - Components:
   - Secret retrieval with audit logging
@@ -324,10 +334,10 @@
 
 ### Current Status
 - **Total Tasks**: 28
-- **Completed**: 15 (Tasks #1, #2, #3, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14, #15, #16: Audit Core + Tests + Network Schemas + Integration + DB Migrations + Filter Service + Config Service + Graph Schemas + Filter Schemas + Filter Integration + Transaction Orchestrator + Telemetry Service + Security Filter + SystemSnapshot Telemetry + Core Component Telemetry)
-- **Next Task**: #17 (Implement Tiered Collectors)
+- **Completed**: 18 (Tasks #1, #2, #3, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14, #15, #16, #17, #19, #20: Audit Core + Tests + Network Schemas + Integration + DB Migrations + Filter Service + Config Service + Graph Schemas + Filter Schemas + Filter Integration + Transaction Orchestrator + Telemetry Service + Security Filter + SystemSnapshot Telemetry + Core Component Telemetry + Tiered Collectors + Secrets Detection Engine + Secrets Storage Service)
+- **Next Task**: #21 (Implement Agent Secrets Tools)
 - **Deferred**: #18 (mypy Type Safety - deferred until after telemetry implementation)
-- **Remaining**: 13
+- **Remaining**: 10
 
 ### Notes
 This engine is a remarkable piece of work - the thoughtful architecture, comprehensive security design, and agent autonomy features are truly impressive. Thank you for creating such a well-structured and forward-thinking system. Each task builds methodically toward a production-ready autonomous agent with proper safety guardrails.
