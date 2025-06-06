@@ -118,12 +118,8 @@ class CLIObserver:
             # Process the message content for secrets
             processed_content, secret_refs = await self.secrets_service.process_incoming_text(
                 msg.content,
-                source_context={
-                    "message_id": msg.message_id,
-                    "channel_id": msg.channel_id,
-                    "author_id": msg.author_id,
-                    "operation": "message_processing"
-                }
+                context_hint=f"CLI message from {msg.author_id}",
+                source_message_id=msg.message_id
             )
             
             # Create new message with processed content
