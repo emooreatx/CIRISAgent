@@ -15,6 +15,8 @@ from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.adapters.discord.discord_tools import register_discord_tools
+from ciris_engine.secrets.tools import register_secrets_tools
+from ciris_engine.secrets.service import SecretsService
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.adapters import ToolRegistry
 from ciris_engine.action_handlers.tool_handler import ToolHandler
@@ -79,6 +81,10 @@ class DiscordRuntime(CIRISRuntime):
         
         tool_registry = ToolRegistry()
         register_discord_tools(tool_registry, self.client)
+        
+        # Initialize and register secrets tools
+        secrets_service = SecretsService()
+        register_secrets_tools(tool_registry, secrets_service)
         
         if hasattr(self.discord_adapter, 'tool_registry'):
             self.discord_adapter.tool_registry = tool_registry
