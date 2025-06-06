@@ -12,6 +12,7 @@ import discord
 
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.adapters.discord.discord_tools import register_discord_tools
@@ -39,6 +40,7 @@ class DiscordRuntime(CIRISRuntime):
         startup_channel_id: Optional[str] = None,
         monitored_channel_id: Optional[str] = None,
         deferral_channel_id: Optional[str] = None,
+        app_config: Optional[AppConfig] = None,
     ) -> None:
         # Create Discord components
         self.token = token
@@ -64,6 +66,7 @@ class DiscordRuntime(CIRISRuntime):
             profile_name=profile_name,
             io_adapter=self.discord_adapter,
             startup_channel_id=startup_channel_id,
+            app_config=app_config,
         )
         
 
@@ -151,6 +154,7 @@ class DiscordRuntime(CIRISRuntime):
             service_registry=self.service_registry,
             shutdown_callback=dependencies.shutdown_callback,
             max_rounds=config.workflow.max_rounds,
+            multi_service_sink=self.multi_service_sink,
         )
         
     async def _register_discord_services(self) -> None:

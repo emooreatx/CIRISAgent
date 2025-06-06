@@ -16,12 +16,13 @@ from ciris_engine.schemas.graph_schemas_v1 import (
 )
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus, MemoryOpResult
 from ciris_engine.adapters.base import Service
+from ciris_engine.protocols.services import MemoryService
 from ciris_engine.secrets.service import SecretsService
 
 logger = logging.getLogger(__name__)
 
 
-class LocalGraphMemoryService(Service):
+class LocalGraphMemoryService(Service, MemoryService):
     """Graph memory backed by the persistence database."""
 
     def __init__(self, db_path: Optional[str] = None, secrets_service: Optional[SecretsService] = None) -> None:
@@ -210,11 +211,7 @@ class LocalGraphMemoryService(Service):
         # Process for secrets detection and replacement
         processed_text, secret_refs = await self.secrets_service.process_incoming_text(
             attributes_str,
-            source_context={
-                "operation": "memorize",
-                "node_id": node.id,
-                "scope": node.scope.value
-            }
+            context_hint=f"memorize node_id={node.id} scope={node.scope.value}"
         )
         
         # Create new node with processed attributes
@@ -243,7 +240,7 @@ class LocalGraphMemoryService(Service):
             return attributes
         
         # Auto-decrypt secrets if the action type allows it
-        should_decrypt = self.secrets_service.filter.config.should_auto_decrypt(action_type)
+        should_decrypt = action_type in getattr(self.secrets_service.filter.config, "auto_decrypt_for_actions", ["speak", "tool"])
         
         if should_decrypt:
             # Convert to JSON for processing

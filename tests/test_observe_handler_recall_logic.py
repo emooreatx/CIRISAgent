@@ -57,10 +57,23 @@ def mock_memory_service():
 @pytest.fixture
 def observe_handler():
     """Fixture providing an ObserveHandler instance with minimal dependencies"""
-    # Create minimal dependencies
+    from unittest.mock import AsyncMock
+    
+    # Create minimal dependencies with a mocked secrets service
     service_registry = AsyncMock()
+    
+    # Mock the secrets service to avoid abstract class instantiation issues
+    mock_secrets_service = AsyncMock()
+    mock_secrets_service.process_incoming_text = AsyncMock(return_value=("test", []))
+    mock_secrets_service.decapsulate_secrets = AsyncMock(side_effect=lambda x, **kwargs: x)
+    mock_secrets_service.get_secret_references = AsyncMock(return_value=[])
+    mock_secrets_service.recall_secret = AsyncMock(return_value={})
+    mock_secrets_service.update_secrets_filter = AsyncMock(return_value={})
+    mock_secrets_service.rotate_encryption_keys = AsyncMock(return_value=True)
+    
     deps = ActionHandlerDependencies(
-        service_registry=service_registry
+        service_registry=service_registry,
+        secrets_service=mock_secrets_service
     )
     return ObserveHandler(deps)
 

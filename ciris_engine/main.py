@@ -34,6 +34,9 @@ def create_runtime(
     port: int = 8080,
 ) -> CIRISRuntime:
     """Factory to create a runtime based on the mode."""
+    # Set the agent_mode in the config so context propagation works
+    config.agent_mode = mode
+    
     if mode == "discord":
         from ciris_engine.config.env_utils import get_env_var
 
@@ -44,9 +47,10 @@ def create_runtime(
             token=token,
             profile_name=profile,
             startup_channel_id=config.discord_channel_id,
+            app_config=config,
         )
     if mode == "cli":
-        return CLIRuntime(profile_name=profile, interactive=interactive)
+        return CLIRuntime(profile_name=profile, interactive=interactive, app_config=config)
     if mode == "api":
         # The APIRuntime entrypoint will handle all service creation and registration
         return APIRuntime(

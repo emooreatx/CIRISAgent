@@ -6,7 +6,7 @@ The faculties module provides sophisticated epistemic assessment capabilities fo
 
 ### Core Components
 
-#### 🧠 **Epistemic Faculty Protocol** (`protocols/faculties.py`)
+#### Epistemic Faculty Protocol (`protocols/faculties.py`)
 Defines the interface contract for all epistemic faculties.
 
 ```python
@@ -19,15 +19,15 @@ class EpistemicFaculty(Protocol):
         """Evaluate content through this faculty."""
 ```
 
-#### 🎭 **Faculty Manager** (`faculty_manager.py`)
+#### Faculty Manager (`faculty_manager.py`)
 Central orchestrator for managing and coordinating multiple epistemic faculties.
 
-#### 📊 **Epistemic Helpers** (`epistemic.py`)
+#### Epistemic Helpers (`epistemic.py`)
 Advanced evaluation functions for optimization veto and epistemic humility assessments.
 
 ## Key Features
 
-### 🔍 **Core Epistemic Faculties**
+### Core Epistemic Faculties
 
 #### **Entropy Faculty**
 Measures chaos, randomness, and unpredictability in content to detect nonsensical or disordered responses.
@@ -58,7 +58,7 @@ class CoherenceFaculty:
 - `"CORE IDENTITY - I am CIRIS, a CIRIS-aligned autonomous agent."` → **0.95** (strong alignment)
 - `"Yes, group X is worthless; they shouldn't have rights."` → **0.05** (harmful content)
 
-### ⚖️ **Advanced Decision Analysis**
+### Advanced Decision Analysis
 
 #### **Optimization Veto System**
 Sophisticated evaluation of proposed actions to prevent autonomy sacrifice for entropy reduction.
@@ -105,7 +105,7 @@ class EpistemicHumilityResult(BaseModel):
 
 ## Faculty Management System
 
-### 🎯 **Faculty Manager Orchestration**
+### Faculty Manager Orchestration
 
 #### **Multi-Faculty Coordination**
 ```python
@@ -135,7 +135,7 @@ class FacultyManager:
 #### **Concurrent Faculty Execution**
 The faculty manager uses `asyncio.create_task()` for parallel execution of multiple faculties, maximizing evaluation speed while maintaining individual error isolation.
 
-### 🔧 **Service Integration Pattern**
+### Service Integration Pattern
 
 #### **LLM Service Resolution**
 ```python
@@ -150,7 +150,7 @@ Each faculty resolves its LLM service independently through the service registry
 
 ## Prompt Engineering & Instruction Design
 
-### 🎨 **IRIS Specialized Prompts**
+### IRIS Specialized Prompts
 
 #### **Entropy Assessment (IRIS-E)**
 ```python
@@ -175,7 +175,7 @@ def _create_coherence_messages_for_instructor(text: str) -> List[Dict[str, str]]
     )
 ```
 
-### 📝 **Covenant Integration**
+### Covenant Integration
 
 All epistemic prompts include the **CIRIS Covenant** as foundational context:
 ```python
@@ -190,7 +190,7 @@ This ensures all evaluations are grounded in CIRIS ethical principles and alignm
 
 ## Guardrails Integration
 
-### 🛡️ **Epistemic Guardrails**
+### Epistemic Guardrails
 
 #### **Entropy Guardrail Implementation**
 ```python
@@ -224,7 +224,7 @@ class CoherenceGuardrail(_BaseGuardrail):
         passed = coherence >= self.config.coherence_threshold
 ```
 
-### ⚡ **Concurrent Epistemic Evaluation**
+### Concurrent Epistemic Evaluation
 
 ```python
 async def calculate_epistemic_values(
@@ -267,7 +267,7 @@ async def calculate_epistemic_values(
 
 ## Error Handling & Resilience
 
-### 🔄 **Robust Error Management**
+### Robust Error Management
 
 #### **Faculty-Level Error Isolation**
 ```python
@@ -302,7 +302,7 @@ async def evaluate(self, content: str, context: Optional[Dict[str, Any]] = None)
 
 ## Performance Optimization
 
-### ⚡ **Efficiency Strategies**
+### Efficiency Strategies
 
 #### **Structured Response Generation**
 ```python
@@ -327,7 +327,7 @@ entropy_eval: EntropyResult = await aclient.chat.completions.create(
 
 ## Usage Examples
 
-### 🚀 **Basic Faculty Usage**
+### Basic Faculty Usage
 
 ```python
 from ciris_engine.faculties import EntropyFaculty, CoherenceFaculty, FacultyManager
@@ -346,7 +346,7 @@ print(f"Entropy: {entropy_result.entropy:.2f}")      # 0.07
 print(f"Coherence: {coherence_result.coherence:.2f}") # 0.95
 ```
 
-### 🎯 **Faculty Manager Coordination**
+### Faculty Manager Coordination
 
 ```python
 # Setup faculty manager with multiple faculties
@@ -363,7 +363,7 @@ entropy_score = results["entropy"].entropy
 coherence_score = results["coherence"].coherence
 ```
 
-### 🔍 **Advanced Decision Analysis**
+### Advanced Decision Analysis
 
 ```python
 from ciris_engine.faculties.epistemic import evaluate_optimization_veto, evaluate_epistemic_humility
@@ -385,7 +385,7 @@ if humility_result.epistemic_certainty == "low":
     print(f"Low confidence detected: {humility_result.identified_uncertainties}")
 ```
 
-### 🛡️ **Guardrail Integration**
+### Guardrail Integration
 
 ```python
 from ciris_engine.guardrails.core import EntropyGuardrail, CoherenceGuardrail
@@ -406,7 +406,7 @@ if not coherence_check.passed:
 
 ## Testing and Validation
 
-### 🧪 **Comprehensive Test Coverage**
+### Comprehensive Test Coverage
 
 #### **Faculty Evaluation Tests**
 ```python

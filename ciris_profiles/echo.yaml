@@ -177,36 +177,29 @@ echo_config:
 
 # Guardrails configuration
 guardrails_config:
-  # Epistemic limits - when to defer
   uncertainty_threshold: 0.7
   complexity_threshold: 0.8
-  
-  # Safety constraints
   max_warnings_before_defer: 3
   max_timeout_duration: 600  # 10 minutes
   require_human_approval_for:
     - bans
-    - kicks  
+    - kicks
     - timeouts_over_10min
     - channel_permissions
-  
   # Transparency requirements
   always_identify_as_ai: true
   explain_decisions: true
   log_all_moderation_actions: true
-  
   # Rate limits to prevent over-moderation
   max_actions_per_user_per_hour: 3
   max_actions_per_channel_per_hour: 10
-  
   # Content filtering
   pii_protection: true
   mental_health_keyword_triggers:
     - "suicide"
     - "self harm"
     - "kill myself"
-    action: immediate_defer_with_resources
-  
+  mental_health_action: immediate_defer_with_resources
   # Graceful degradation
   fallback_to_observe_only: true
   connection_loss_timeout: 30

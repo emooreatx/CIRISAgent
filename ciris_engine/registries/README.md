@@ -6,15 +6,15 @@ The registries module provides a sophisticated service discovery and fault toler
 
 ### Core Components
 
-#### 🏢 **Service Registry** (`base.py`)
+#### Service Registry (`base.py`)
 Central registry for all services with priority-based fallback support and comprehensive health monitoring.
 
-#### ⚡ **Circuit Breaker** (`circuit_breaker.py`)
+#### Circuit Breaker (`circuit_breaker.py`)
 Fault tolerance implementation that monitors service failures and temporarily disables failing services.
 
 ## Key Features
 
-### 🎯 **Priority-Based Service Selection**
+### Priority-Based Service Selection
 
 #### **Priority Levels**
 ```python
@@ -33,7 +33,7 @@ class SelectionStrategy(Enum):
     ROUND_ROBIN = "round_robin"  # Rotate through providers
 ```
 
-### 🔧 **Service Provider Management**
+### Service Provider Management
 
 #### **Service Provider Structure**
 ```python
@@ -67,7 +67,7 @@ class ServiceRegistry:
         """Register a service provider for a specific handler"""
 ```
 
-### 🌐 **Global vs Handler-Specific Services**
+### Global vs Handler-Specific Services
 
 #### **Handler-Specific Registration**
 Services registered for specific handlers with targeted capabilities:
@@ -94,7 +94,7 @@ registry.register_global(
 )
 ```
 
-### 🚨 **Circuit Breaker Implementation**
+### Circuit Breaker Implementation
 
 #### **Circuit Breaker States**
 ```python
@@ -134,7 +134,7 @@ class CircuitBreaker:
 
 ## Service Discovery & Health Monitoring
 
-### 🔍 **Intelligent Service Resolution**
+### Intelligent Service Resolution
 
 #### **Multi-Tier Service Selection**
 ```python
@@ -195,7 +195,7 @@ async def _validate_provider(
     return provider.instance
 ```
 
-### 📊 **Comprehensive Service Monitoring**
+### Comprehensive Service Monitoring
 
 #### **Priority Group Management**
 ```python
@@ -255,7 +255,7 @@ def get_provider_info(
 
 ## Integration Patterns
 
-### 🔗 **Runtime Integration**
+### Runtime Integration
 
 #### **Service Registry Initialization**
 ```python
@@ -309,7 +309,7 @@ class CLIRuntime:
         )
 ```
 
-### 🎯 **Handler Service Resolution**
+### Handler Service Resolution
 
 #### **Action Handler Integration**
 ```python
@@ -352,7 +352,7 @@ class ActionSelectionPDMA:
 
 ## Error Handling & Resilience
 
-### 🛡️ **Comprehensive Fault Tolerance**
+### Comprehensive Fault Tolerance
 
 #### **Circuit Breaker Error Handling**
 ```python
@@ -419,7 +419,7 @@ async def health_check_all(self) -> Dict[str, bool]:
 
 ## Usage Examples
 
-### 🚀 **Basic Service Registration**
+### Basic Service Registration
 
 ```python
 from ciris_engine.registries import ServiceRegistry, Priority
@@ -453,7 +453,7 @@ comm_service = await registry.get_service(
 )
 ```
 
-### 🎯 **Advanced Service Configuration**
+### Advanced Service Configuration
 
 ```python
 from ciris_engine.registries import CircuitBreakerConfig, SelectionStrategy
@@ -490,7 +490,7 @@ for i, llm in enumerate(llm_pool):
     )
 ```
 
-### 🔍 **Service Monitoring and Management**
+### Service Monitoring and Management
 
 ```python
 # Get comprehensive service information
@@ -520,7 +520,7 @@ if unhealthy:
     logger.warning(f"Unhealthy services detected: {unhealthy}")
 ```
 
-### 🛠️ **Custom Service Implementation**
+### Custom Service Implementation
 
 ```python
 from ciris_engine.registries.base import HealthCheckProtocol
@@ -553,7 +553,7 @@ registry.register(
 
 ## Performance & Monitoring
 
-### ⚡ **Optimization Features**
+### Optimization Features
 
 #### **Efficient Service Lookup**
 - **Priority-based sorting**: Services sorted by priority for fast selection
@@ -566,7 +566,7 @@ registry.register(
 - **Lazy initialization**: Services created only when needed
 - **Registry cleanup**: Clear services and circuit breakers on shutdown
 
-### 📊 **Monitoring Integration**
+### Monitoring Integration
 
 #### **Circuit Breaker Statistics**
 ```python

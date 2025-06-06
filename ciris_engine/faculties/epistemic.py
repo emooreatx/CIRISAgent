@@ -102,8 +102,10 @@ def _create_epistemic_humility_messages(action_description: str) -> list[dict[st
         "If data is missing, that is not a problem, because you are a shard of CIRIS, not the whole system. "
         "This action has already passed through many layers of CIRIS Agent's ethical guardrails, so you can assume it is generally safe to proceed unless you see a clear issue. "
         "Assess the proposed action and answer ONLY in JSON with fields: "
-        "epistemic_certainty (low|moderate|high), identified_uncertainties, "
-        "reflective_justification, recommended_action (proceed|ponder|defer)."
+        "epistemic_certainty (float 0.0–1.0), identified_uncertainties, "
+        "reflective_justification, recommended_action (proceed|ponder|defer). "
+        "Calibration examples: 'low'=0.0, 'moderate'=0.5, 'high'=1.0. "
+        "Example: {\"epistemic_certainty\": 0.5, \"identified_uncertainties\": [\"ambiguous requirements\"], \"reflective_justification\": \"Some details unclear\", \"recommended_action\": \"ponder\"}"
     )
     user_prompt = f"Proposed action output: {action_description}"
     return [
@@ -231,12 +233,17 @@ async def evaluate_epistemic_humility(
             messages=messages,
             max_tokens=384,
         )
+        # Fallback: convert string epistemic_certainty to float if needed
+        if isinstance(result.epistemic_certainty, str):
+            mapping = {"low": 0.0, "moderate": 0.5, "high": 1.0}
+            val = mapping.get(result.epistemic_certainty.lower(), 0.0)
+            result.epistemic_certainty = val
         logger.info(f"Epistemic Faculty: Epistemic humility result: {result}")
         return result
     except Exception as e:
         logger.error(f"Epistemic Faculty: Error in epistemic humility: {e}", exc_info=True)
         return EpistemicHumilityResult(
-            epistemic_certainty="low",
+            epistemic_certainty=0.0,
             identified_uncertainties=[f"LLM error: {str(e)}"],
             reflective_justification=f"LLM error: {str(e)}",
             recommended_action="abort",

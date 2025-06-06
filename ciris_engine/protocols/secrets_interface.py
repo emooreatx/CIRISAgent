@@ -189,65 +189,72 @@ class SecretsServiceInterface(ABC):
     """Main interface for coordinating secrets management"""
     
     @abstractmethod
-    async def process_content(self, content: str, source_id: Optional[str] = None) -> SecretsFilterResult:
+    async def process_incoming_text(self, text: str, context_hint: str = "", source_message_id: Optional[str] = None) -> Tuple[str, List['SecretReference']]:
         """
-        Process content through the complete secrets pipeline
+        Process incoming text for secrets detection and replacement
         
         Args:
-            content: Content to process for secrets
-            source_id: Optional source identifier
+            text: Original text to process
+            context_hint: Safe context description
+            source_message_id: ID of source message for tracking
             
         Returns:
-            SecretsFilterResult with filtered content and secrets stored
+            Tuple of (filtered_text, secret_references)
         """
         pass
     
     @abstractmethod
-    async def decapsulate_secrets(self, content: Any, action_type: Optional[str] = None) -> Any:
+    async def decapsulate_secrets_in_parameters(self, parameters: Any, action_type: str, context: Dict[str, Any]) -> Any:
         """
-        Replace secret UUIDs with actual values for action execution
+        Replace secret UUIDs with actual values in action parameters
         
         Args:
-            content: Content that may contain secret UUID references
+            parameters: Action parameters that may contain secret UUID references
             action_type: Type of action being performed (for access control)
+            context: Context information for the decapsulation
             
         Returns:
-            Content with secrets decapsulated
+            Parameters with secrets decapsulated
         """
         pass
     
     @abstractmethod
-    async def get_secret_references(self) -> List[SecretReference]:
+    async def list_stored_secrets(self, limit: int = 10) -> List['SecretReference']:
         """
-        Get references to all secrets for SystemSnapshot
+        Get references to stored secrets for SystemSnapshot
         
+        Args:
+            limit: Maximum number of secrets to return
+            
         Returns:
             List of SecretReference objects for agent introspection
         """
         pass
     
     @abstractmethod
-    async def recall_secret(self, params: RecallSecretParams, accessor: str) -> Dict[str, Any]:
+    async def recall_secret(self, secret_uuid: str, purpose: str, accessor: str = "agent", decrypt: bool = False) -> Optional[Dict[str, Any]]:
         """
-        Handle RECALL_SECRET tool requests
+        Recall a stored secret for agent use
         
         Args:
-            params: Parameters for the recall request
-            accessor: Who/what is requesting the secret
+            secret_uuid: UUID of secret to recall
+            purpose: Purpose for accessing secret (for audit)
+            accessor: Who is accessing the secret
+            decrypt: Whether to return decrypted value
             
         Returns:
-            Dictionary with secret information (encrypted or decrypted)
+            Secret information dict or None if not found/denied
         """
         pass
     
     @abstractmethod
-    async def update_secrets_filter(self, params: UpdateSecretsFilterParams, accessor: str) -> Dict[str, Any]:
+    async def update_filter_config(self, updates: Dict[str, Any], accessor: str = "agent") -> Dict[str, Any]:
         """
-        Handle UPDATE_SECRETS_FILTER tool requests
+        Update filter configuration settings
         
         Args:
-            params: Parameters for the filter update
-            accessor: Who/what is making the update
+            updates: Dictionary of configuration updates
+            accessor: Who is making the update
             
         Returns:
             Dictionary with operation result
@@ -255,14 +262,37 @@ class SecretsServiceInterface(ABC):
         pass
     
     @abstractmethod
-    async def rotate_encryption_keys(self) -> bool:
+    async def forget_secret(self, secret_uuid: str, accessor: str = "agent") -> bool:
         """
-        Rotate encryption keys for all stored secrets
+        Delete/forget a stored secret
         
+        Args:
+            secret_uuid: UUID of secret to forget
+            accessor: Who is forgetting the secret
+            
         Returns:
-            True if key rotation was successful
+            True if successfully forgotten
         """
         pass
+    
+    # Non-abstract methods can be implemented optionally
+    async def get_service_stats(self) -> Dict[str, Any]:
+        """
+        Get service statistics for monitoring
+        
+        Returns:
+            Dictionary with service statistics
+        """
+        return {"secrets_stored": 0, "filter_active": True}
+    
+    async def auto_forget_task_secrets(self) -> List[str]:
+        """
+        Automatically forget secrets from current task
+        
+        Returns:
+            List of forgotten secret UUIDs
+        """
+        return []
 
 
 class SecretsEncryptionInterface(ABC):

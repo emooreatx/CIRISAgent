@@ -443,6 +443,7 @@ class CIRISRuntime(RuntimeInterface):
             shutdown_callback=dependencies.shutdown_callback,
             max_rounds=config.workflow.max_rounds,
             telemetry_service=self.telemetry_service,
+            multi_service_sink=self.multi_service_sink,
         )
         
     async def run(self, num_rounds: Optional[int] = None) -> None:

@@ -18,6 +18,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from pydantic import BaseModel, Field
 
+from ..protocols.secrets_interface import SecretsStoreInterface, SecretsEncryptionInterface
+
 logger = logging.getLogger(__name__)
 
 
@@ -44,6 +46,17 @@ class SecretRecord(BaseModel):
     # Access control
     auto_decapsulate_for_actions: List[str] = Field(default_factory=list)
     manual_access_only: bool = False
+
+    @property
+    def channel_id(self) -> Optional[str]:
+        """
+        Attempt to extract channel ID from source_message_id if present.
+        Assumes source_message_id is of the form 'channelid-messageid' or similar.
+        Returns None if not parseable.
+        """
+        if self.source_message_id and '-' in self.source_message_id:
+            return self.source_message_id.split('-')[0]
+        return None
 
 
 class SecretAccessLog(BaseModel):
@@ -150,7 +163,7 @@ class SecretsEncryption:
         return self._master_key
 
 
-class SecretsStore:
+class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
     """
     Encrypted storage for secrets with comprehensive access controls.
     
@@ -511,6 +524,15 @@ class SecretsStore:
             logger.error(f"Failed to list secrets: {e}")
             return []
             
+    async def list_all_secrets(self) -> List[SecretRecord]:
+        """
+        List all stored secrets (no filters).
+        
+        Returns:
+            List of SecretRecord
+        """
+        return await self.list_secrets()
+    
     async def _check_rate_limits(self, accessor: str) -> bool:
         """Check if accessor is within rate limits."""
         now = datetime.now()
@@ -592,3 +614,86 @@ class SecretsStore:
                 
         except Exception as e:
             logger.error(f"Failed to log secret access: {e}")
+    
+    # Implement missing SecretsEncryptionInterface methods by delegating to encryption instance
+    def encrypt_secret(self, value: str) -> Tuple[bytes, bytes, bytes]:
+        """Delegate to encryption instance."""
+        return self.encryption.encrypt_secret(value)
+    
+    def decrypt_secret(self, encrypted_value: bytes, salt: bytes, nonce: bytes) -> str:
+        """Delegate to encryption instance."""
+        return self.encryption.decrypt_secret(encrypted_value, salt, nonce)
+    
+    def rotate_master_key(self, new_master_key: Optional[bytes] = None) -> bytes:
+        """Delegate to encryption instance."""
+        return self.encryption.rotate_master_key(new_master_key)
+    
+    def test_encryption(self) -> bool:
+        """Test that encryption/decryption works correctly."""
+        try:
+            test_value = "test_secret_123"
+            encrypted_value, salt, nonce = self.encrypt_secret(test_value)
+            decrypted_value = self.decrypt_secret(encrypted_value, salt, nonce)
+            return decrypted_value == test_value
+        except Exception:
+            return False
+    
+    async def get_access_logs(self, secret_uuid: Optional[str] = None, limit: int = 100) -> List[Any]:
+        """Get access logs for auditing."""
+        logs = []
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                if secret_uuid:
+                    cursor = conn.execute("""
+                        SELECT * FROM secret_access_log 
+                        WHERE secret_uuid = ? 
+                        ORDER BY timestamp DESC 
+                        LIMIT ?
+                    """, (secret_uuid, limit))
+                else:
+                    cursor = conn.execute("""
+                        SELECT * FROM secret_access_log 
+                        ORDER BY timestamp DESC 
+                        LIMIT ?
+                    """, (limit,))
+                
+                for row in cursor.fetchall():
+                    # Convert row to dict-like access log
+                    logs.append({
+                        'access_id': row[0],
+                        'secret_uuid': row[1],
+                        'access_type': row[2],
+                        'accessor': row[3],
+                        'purpose': row[4],
+                        'timestamp': row[5],
+                        'success': bool(row[9])
+                    })
+        except Exception as e:
+            logger.error(f"Failed to retrieve access logs: {e}")
+        return logs
+    
+    async def reencrypt_all(self, new_encryption_key: bytes) -> bool:
+        """Re-encrypt all stored secrets with a new key."""
+        try:
+            # This would be a complex operation involving:
+            # 1. Decrypt all secrets with old key
+            # 2. Update encryption instance with new key  
+            # 3. Re-encrypt all secrets with new key
+            # 4. Update database records
+            # For now, return False as not implemented
+            logger.warning("reencrypt_all not fully implemented")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to re-encrypt secrets: {e}")
+            return False
+    
+    async def update_access_log(self, log_entry: Any) -> None:
+        """Record access to a secret in the audit log."""
+        await self._log_access(
+            log_entry.secret_uuid,
+            log_entry.access_type,
+            log_entry.accessor,
+            log_entry.purpose,
+            log_entry.success,
+            log_entry.failure_reason
+        )

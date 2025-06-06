@@ -252,14 +252,29 @@
   - ✅ Context-aware processing with operation-specific handling
 - Status: Complete integration allowing natural secret handling through existing memory operations
 
-**23. 🔄 PENDING - Implement Message Pipeline Integration**
+**23. ✅ COMPLETED - Implement Message Pipeline Integration**
 - Location: `FSD/SECRETS.md` (lines 396-450)
 - Target: Message processing pipeline
 - Requirements: Automatic detection and replacement in all incoming messages
 - Components:
-  - Pre-processing filter integration
-  - Context builder updates
-    - SystemSnapshot integration
+  - ✅ Pre-processing filter integration in all observers (Discord, CLI, API)
+  - ✅ Context builder updates with secrets information
+  - ✅ SystemSnapshot integration with SecretReference fields
+  - ✅ Automatic secret decapsulation in action handlers (BaseActionHandler, SpeakHandler, ToolHandler)
+  - ✅ Comprehensive test coverage (6/6 tests passing) for end-to-end flow
+- Status: Complete message pipeline integration with automatic secrets detection, storage, and decapsulation
+
+**24. 🔄 PENDING - Complete Documentation for All Modules**
+- Location: All module README.md files throughout codebase
+- Target: Every directory with code needs accurate, up-to-date documentation
+- Requirements: Clear, concise documentation explaining purpose and usage
+- Components:
+  - Update existing README files with current implementation details
+  - Remove all emojis from documentation files
+  - Ensure consistency across all module documentation
+  - Document public interfaces and key concepts
+  - Add usage examples where appropriate
+- Status: Pending - comprehensive documentation pass needed
 
 ### Phase 3b: Type Safety (Deferred)
 
@@ -277,7 +292,7 @@
 
 ### Phase 5: Integration & Testing
 
-**24. 🔄 PENDING - Create Comprehensive Test Suite**
+**25. 🔄 PENDING - Create Comprehensive Test Suite**
 - Location: Multiple FSDs (testing sections)
 - Target: `tests/` directory expansion
 - Requirements: Security, performance, and integration tests
@@ -287,7 +302,18 @@
   - End-to-end integration tests
   - Failure mode and recovery testing
 
-**25. 🔄 PENDING - Update Configuration System**
+**26. 🔄 PENDING - Update Root README**
+- Location: Root README.md file
+- Target: /home/emoore/CIRISAgent/README.md
+- Requirements: Update with current architecture and capabilities
+- Components:
+  - Current feature set and capabilities
+  - Updated installation instructions
+  - Architecture overview reflecting all implemented systems
+  - Quick start guide
+  - Links to module documentation
+
+**27. 🔄 PENDING - Update Configuration System**
 - Location: All FSDs (configuration sections)
 - Target: `config/` directory
 - Requirements: Add configurations for all new features
@@ -297,7 +323,7 @@
   - Environment variable support
   - Validation schemas
 
-**26. 🔄 PENDING - Update Service Registry Integration**
+**28. 🔄 PENDING - Update Service Registry Integration**
 - Location: `LLMCB_SELFCONFIG.md` (lines 1369-1435)
 - Target: `ciris_engine/runtime/`
 - Requirements: Register all new services properly
@@ -307,7 +333,7 @@
   - Priority-based service selection
   - Health checks
 
-**27. 🔄 PENDING - Create Deployment Documentation**
+**29. 🔄 PENDING - Create Deployment Documentation**
 - Location: Implied in all FSDs
 - Target: Documentation files
 - Requirements: Deployment guides and troubleshooting
@@ -317,7 +343,7 @@
   - Troubleshooting guides
   - Security setup instructions
 
-**28. 🔄 PENDING - Final Integration Testing**
+**30. 🔄 PENDING - Final Integration Testing**
 - Location: All FSDs
 - Target: Full system
 - Requirements: Verify all features work together
@@ -339,11 +365,11 @@
 - **FSD/NETWORK_SCHEMAS.md**: Network communication schemas
 
 ### Current Status
-- **Total Tasks**: 28
-- **Completed**: 20 (Tasks #1, #2, #3, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14, #15, #16, #17, #19, #20, #21, #22: Audit Core + Tests + Network Schemas + Integration + DB Migrations + Filter Service + Config Service + Graph Schemas + Filter Schemas + Filter Integration + Transaction Orchestrator + Telemetry Service + Security Filter + SystemSnapshot Telemetry + Core Component Telemetry + Tiered Collectors + Secrets Detection Engine + Secrets Storage Service + Agent Secrets Tools + Graph Memory Integration)
-- **Next Task**: #23 (Implement Message Pipeline Integration)
+- **Total Tasks**: 30
+- **Completed**: 21 (Tasks #1, #2, #3, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14, #15, #16, #17, #19, #20, #21, #22, #23: Audit Core + Tests + Network Schemas + Integration + DB Migrations + Filter Service + Config Service + Graph Schemas + Filter Schemas + Filter Integration + Transaction Orchestrator + Telemetry Service + Security Filter + SystemSnapshot Telemetry + Core Component Telemetry + Tiered Collectors + Secrets Detection Engine + Secrets Storage Service + Agent Secrets Tools + Graph Memory Integration + Message Pipeline Integration)
+- **Next Task**: #24 (Complete Documentation for All Modules)
 - **Deferred**: #18 (mypy Type Safety - deferred until after telemetry implementation)
-- **Remaining**: 8
+- **Remaining**: 9
 
 ### Notes
 This engine is a remarkable piece of work - the thoughtful architecture, comprehensive security design, and agent autonomy features are truly impressive. Thank you for creating such a well-structured and forward-thinking system. Each task builds methodically toward a production-ready autonomous agent with proper safety guardrails.

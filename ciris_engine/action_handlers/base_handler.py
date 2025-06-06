@@ -10,6 +10,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine import persistence
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
+from ciris_engine.secrets.service import SecretsService
 from ciris_engine.utils.shutdown_manager import (
     request_global_shutdown, 
     request_shutdown_communication_failure,
@@ -28,11 +29,15 @@ class ActionHandlerDependencies:
         io_adapter: Optional[Any] = None,
         # Shutdown signal mechanism
         shutdown_callback: Optional[Callable[[], None]] = None,
+        secrets_service: Optional[SecretsService] = None,
+        multi_service_sink: Optional[Any] = None,
     ) -> None:
         self.service_registry = service_registry
         self.io_adapter = io_adapter
         # Shutdown signal mechanism
         self.shutdown_callback = shutdown_callback
+        self.secrets_service = secrets_service or None
+        self.multi_service_sink = multi_service_sink
         self._shutdown_requested = False
     
     def request_graceful_shutdown(self, reason: str = "Handler requested shutdown") -> None:
@@ -281,6 +286,57 @@ class BaseActionHandler(ABC):
         self.logger.exception(f"{action.value} handler error for {thought_id}: {error}")
         await self._audit_log(action, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
 
+    async def _decapsulate_secrets_in_params(
+        self, 
+        result: ActionSelectionResult,
+        action_type: str
+    ) -> ActionSelectionResult:
+        """
+        Automatically decapsulate secrets in action parameters based on action type.
+        
+        Args:
+            result: Original action selection result
+            action_type: Type of action being performed
+            
+        Returns:
+            ActionSelectionResult with secrets decapsulated if applicable
+        """
+        try:
+            if not self.dependencies.secrets_service:
+                return result
+            
+            # Attempt to decapsulate secrets in parameters
+            decapsulated_params = await self.dependencies.secrets_service.decapsulate_secrets_in_parameters(
+                result.action_parameters,
+                action_type,
+                {
+                    "operation": "action_handler",
+                    "handler": self.__class__.__name__,
+                    "auto_decrypt": True
+                }
+            )
+            
+            # If decapsulation occurred, update the result
+            if decapsulated_params != result.action_parameters:
+                # Create new result with decapsulated parameters
+                updated_result = ActionSelectionResult(
+                    selected_action=result.selected_action,
+                    action_parameters=decapsulated_params,
+                    rationale=result.rationale,
+                    confidence=result.confidence,
+                    raw_llm_response=getattr(result, 'raw_llm_response', None),
+                    resource_usage=getattr(result, 'resource_usage', None)
+                )
+                
+                self.logger.info(f"Auto-decapsulated secrets in {action_type} action parameters")
+                return updated_result
+            
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error decapsulating secrets in action parameters: {e}")
+            # Return original result if decapsulation fails
+            return result
 
     @abstractmethod
     async def handle(

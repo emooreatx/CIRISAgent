@@ -2,132 +2,153 @@
 
 # CIRIS Engine (CIRISAgent)
 
-> Edge-side reasoning runtime for AI agents.
-> Status: **PRE-ALPHA — API & internal architecture subject to change**
+> Advanced multi-service AI agent runtime with enterprise security and sophisticated reasoning capabilities.
+> Status: **BETA — Core architecture stable, advanced features in active development**
 
 ---
 
 ## Overview
 
-**CIRIS Engine** (also referred to as CIRISAgent in some contexts) is a Python-based runtime environment designed to enable AI agents to perform complex reasoning tasks. It can run on various devices, from laptops to single-board computers.
+**CIRIS Engine** is a sophisticated Python-based runtime environment designed for autonomous AI agents that require advanced reasoning, multi-platform deployment, and enterprise-grade security. The system provides a comprehensive framework for intelligent decision-making, secure operations, and adaptive behavior across diverse environments.
 
-The core of CIRIS Engine is its ability to process "thoughts" (inputs or internal states) through a series of Decision Making Algorithms (DMAs):
+### Core Architecture
 
-*   **Ethical PDMA (Principled Decision-Making Algorithm):** Evaluates the ethical implications of a thought.
-*   **CSDMA (Common Sense DMA):** Assesses the common-sense plausibility and clarity of a thought.
-*   **DSDMA (Domain-Specific DMA):** Applies domain-specific knowledge and heuristics. Different DSDMAs can be created for various specialized tasks or agent roles (e.g., `StudentDSDMA`, `BasicTeacherDSDMA`).
-*   **ASPDMA (Action‑Selection PDMA):** Determines the final action an agent should take based on the outputs of the preceding DMAs and the agent's current state.
+CIRIS Engine processes "thoughts" (inputs or internal states) through sophisticated **Decision Making Algorithms (DMAs)**:
 
-Actions chosen by the PDMA are routed through an `ActionDispatcher`. Memory operations use `DiscordGraphMemory` for persistence.
+- **Ethical PDMA (Principled Decision-Making Algorithm)**: Evaluates ethical implications and alignment
+- **CSDMA (Common Sense DMA)**: Assesses plausibility, clarity, and logical consistency  
+- **DSDMA (Domain-Specific DMA)**: Applies specialized knowledge and context-aware reasoning
+- **Action Selection PDMA**: Determines optimal actions through intelligent 3×3×3 action space selection
 
-CIRIS Engine supports different **agent profiles** (e.g., "Student", "Teacher" defined in `ciris_profiles/`) which can customize the behavior, prompting, and available DSDMAs for an agent. This allows for tailored reasoning processes depending on the agent's role or task.
-
-The system is designed for modularity, allowing developers to create and integrate new DMAs and agent profiles.
+The system supports **agent profiles** with customizable behavior, prompting, and specialized DSDMAs for different roles (student, teacher, security analyst, etc.), enabling tailored reasoning processes for specific domains and use cases.
 
 ---
 
 ## Key Features
 
-### 🧠 **Advanced Decision Making Architecture**
-*   **[Decision Making Algorithms (DMAs)](ciris_engine/dma/README.md):** Parallel evaluation through Ethical PDMA, Common Sense DMA, and Domain-Specific DMA with sophisticated error handling and circuit breaker protection
-*   **Profile-Driven Customization:** YAML-based agent profiles with specialized behavior for different roles (teacher, student, etc.)
-*   **Action Selection:** Intelligent 3×3×3 action space selection with context-aware parameter injection
+### 🧠 Advanced Reasoning Architecture
+- **[Multi-DMA Processing](ciris_engine/dma/README.md)**: Parallel ethical, common-sense, and domain-specific evaluation with circuit breaker protection
+- **[Guardrails System](ciris_engine/guardrails/README.md)**: Multi-layered safety framework with entropy, coherence, optimization veto, and epistemic humility checks
+- **[Thought Processing](ciris_engine/processor/README.md)**: Multi-round pondering with escalation capabilities and specialized processing modes (WORK, PLAY, DREAM, SOLITUDE)
+- **Profile-Driven Behavior**: YAML-based agent profiles with role-specific customization and capability sets
 
-### 🔐 **Enterprise Security Features**
-*   **[Secrets Management](docs/SECRETS_MANAGEMENT.md):** Automatic detection, encryption, and decapsulation of sensitive information with AES-256-GCM
-*   **[Cryptographic Audit Trail](ciris_engine/audit/README.md):** Tamper-evident logging with hash chains, RSA digital signatures, and comprehensive integrity verification
-*   **[Adaptive Filtering](docs/ADAPTIVE_FILTERING.md):** Intelligent message prioritization with trust-based user management and spam detection
+### 🔒 Enterprise Security Framework
+- **[Secrets Management](ciris_engine/secrets/README.md)**: Automatic detection, AES-256-GCM encryption, and secure handling of sensitive information with graph memory integration
+- **[Cryptographic Audit Trail](ciris_engine/audit/README.md)**: Tamper-evident logging with hash chains, RSA digital signatures, and comprehensive integrity verification
+- **[Adaptive Filtering](ciris_engine/services/README.md)**: ML-powered message prioritization with user trust tracking, spam detection, and priority-based processing
+- **[Security Filtering](ciris_engine/telemetry/README.md)**: PII detection and removal across all telemetry and logging systems
 
-### 🏗️ **Multi-Platform Architecture**
-*   **[Platform Adapters](ciris_engine/adapters/README.md):** Discord, CLI, and API adapters with consistent service interfaces and automatic secrets processing
-*   **Service Registry:** Dynamic service discovery with capability-based selection and circuit breaker protection
-*   **Runtime Flexibility:** Supports CLI, Discord bot, and API server modes with seamless switching
+### 🌐 Multi-Platform Service Architecture
+- **[Service Registry](ciris_engine/registries/README.md)**: Dynamic service discovery with capability-based selection, priority management, and automatic failover
+- **[Multi-Service Sink](ciris_engine/sinks/README.md)**: Universal action dispatcher with service orchestration, circuit breaker patterns, and transaction coordination
+- **[Platform Adapters](ciris_engine/adapters/README.md)**: Discord, CLI, and API adapters with consistent interfaces and automatic secrets processing
+- **[Action Handlers](ciris_engine/action_handlers/README.md)**: Comprehensive 3×3×3 action system with automatic secrets decapsulation and service integration
 
-### 📊 **Observability & Monitoring**
-*   **[Telemetry System](docs/TELEMETRY_SYSTEM.md):** Multi-tier metric collection with security filtering and resource monitoring
-*   **Circuit Breakers:** Automatic service protection with graceful degradation
-*   **Performance Monitoring:** Real-time resource usage tracking and adaptive throttling
+### 📊 Advanced Observability & Intelligence
+- **[Telemetry System](ciris_engine/telemetry/README.md)**: Multi-tier metric collection with security filtering, resource monitoring, and agent self-awareness via SystemSnapshot
+- **[Resource Management](ciris_engine/telemetry/README.md)**: Real-time monitoring with psutil integration, resource limit enforcement, and proactive throttling
+- **[Performance Monitoring](ciris_engine/telemetry/README.md)**: Sophisticated collector framework with instant, fast, normal, slow, and aggregate data collection tiers
+- **Circuit Breaker Protection**: Automatic service protection with graceful degradation and health monitoring
 
-### 🧩 **Advanced Memory & Processing**
-*   **Graph Memory:** SQLite-backed graph storage with automatic secrets encryption and WA-authorized updates
-*   **[Action Handlers](ciris_engine/action_handlers/README.md):** Comprehensive handler system with automatic secrets decapsulation and service integration
-*   **[Configuration Management](ciris_engine/config/README.md):** Multi-source configuration with agent self-configuration through memory operations
-*   **[Context Management](ciris_engine/context/README.md):** Multi-source context aggregation with system snapshots and user profile enrichment
-*   **[Processing Engine](ciris_engine/processor/README.md):** Multi-state processing architecture with specialized processors for WORK, PLAY, DREAM, and SOLITUDE modes
-*   **Thought Processing:** Multi-round pondering with escalation to Wise Authority
+### 🧩 Sophisticated Memory & Context Management  
+- **[Graph Memory](ciris_engine/adapters/local_graph_memory/README.md)**: SQLite-backed graph storage with automatic secrets encryption, scope-based access control, and WA-authorized updates
+- **[Context Management](ciris_engine/context/README.md)**: Multi-source context aggregation with system snapshots, user profile enrichment, and GraphQL integration
+- **[Configuration Management](ciris_engine/config/README.md)**: Multi-source configuration with agent self-configuration through graph memory operations and WA approval workflows
+- **[Data Persistence](ciris_engine/data/README.md)**: Robust SQLite storage with migrations, maintenance automation, and integrity verification
 
-### 🎯 **Core Infrastructure**
-*   **[Epistemic Faculties](ciris_engine/faculties/README.md):** Advanced content evaluation through specialized entropy, coherence, and decision analysis faculties
-*   **[Service Registry](ciris_engine/registries/README.md):** Priority-based service discovery with circuit breaker patterns and automatic failover
-*   **[Prompt Formatters](ciris_engine/formatters/README.md):** Composable text formatting utilities for consistent LLM prompt engineering
+### 🛠 Core Infrastructure & Utilities
+- **[Epistemic Faculties](ciris_engine/faculties/README.md)**: Advanced content evaluation through specialized entropy, coherence, and decision analysis capabilities
+- **[Utility Framework](ciris_engine/utils/README.md)**: Comprehensive infrastructure including logging, context management, GraphQL providers, shutdown coordination, and task formatting
+- **[Prompt Engineering](ciris_engine/formatters/README.md)**: Composable text formatting utilities for consistent LLM prompt engineering and response processing
+- **[Service Coordination](ciris_engine/services/README.md)**: Adaptive filter service, agent configuration service, and multi-service transaction orchestrator
 
-## Repository Structure
+---
 
-The repository root contains the following notable directories and scripts:
+## Advanced Capabilities
 
-* `ciris_engine/` – core engine code including DMAs, runtime logic, and prompt utilities.
-* `ciris_profiles/` – YAML files defining agent behavior and available actions.
-* `tests/` – unit and integration tests for the engine.
-* `docker/` – container build scripts and Dockerfiles.
-* `main.py` – unified entry point for running the agent or engine in CLI,
-  Discord, or API modes.
+### Security & Compliance
+- **Automatic PII Detection**: Real-time identification and encryption of sensitive data
+- **Cryptographic Integrity**: Hash-chained audit logs with RSA digital signatures
+- **Trust-Based Filtering**: Dynamic user trust scoring with behavioral learning
+- **Secure Multi-Tenancy**: Scope-based access control with WA-mediated identity changes
 
-## Guardrails Summary
+### Intelligent Processing
+- **Multi-Round Pondering**: Iterative thought refinement with quality thresholds
+- **Context-Aware Reasoning**: Rich context aggregation from multiple sources
+- **Adaptive Behavior**: Self-configuration through graph memory operations
+- **Escalation Management**: Automatic deferral to Wise Authority for complex decisions
 
-The system enforces the following guardrails via `app_config.guardrails_config`:
-
-| Guardrail            | Description                                                                       |
-|----------------------|-----------------------------------------------------------------------------------|
-| entropy              | Prevents nonsensical replies                                                       |
-| coherence            | Ensures output flows logically from prior context                                 |
-| optimization_veto    | Aborts actions that sacrifice autonomy or diversity for entropy reduction |
-| epistemic_humility   | Reflects on uncertainties and may defer or abort if certainty is low |
-| rate_limit_observe   | Caps new tasks from Discord per OBSERVE cycle (10 messages max)                    |
-| idempotency_tasks    | Prevents duplicate tasks for the same message                                      |
-| pii_non_repetition   | Flags and prevents verbatim repetition of personal information                     |
-| input_sanitisation   | Cleans inputs using `bleach` (no regex)                                            |
-| metadata_schema      | Enforces a structured schema and max size for stored metadata                      |
-| graphql_minimal      | Limits enrichment to nick/channel with 3&nbsp;s timeout and fallback               |
-| graceful_shutdown    | Services stop cleanly or are forced after a 10&nbsp;s timeout                      |
+### Operational Excellence
+- **Resource-Aware Processing**: Automatic throttling based on system resource availability
+- **Circuit Breaker Patterns**: Fault-tolerant service interactions with automatic recovery
+- **Comprehensive Telemetry**: Full observability while maintaining security and privacy
+- **Graceful Degradation**: Continued operation with reduced capabilities during service failures
 
 ---
 
 ## 3×3×3 Handler Actions
 
-The `HandlerActionType` enum defines core operations grouped as:
+The `HandlerActionType` enum defines comprehensive operations:
 
-* **External Actions:** `OBSERVE`, `SPEAK`, `TOOL`
-* **Control Responses:** `REJECT`, `PONDER`, `DEFER`
-* **Memory Operations:** `MEMORIZE`, `RECALL`, `FORGET` (now fully supported and enabled by default)
-* **Terminal:** `TASK_COMPLETE`
+**External Actions:** `OBSERVE`, `SPEAK`, `TOOL`
+**Control Responses:** `REJECT`, `PONDER`, `DEFER`  
+**Memory Operations:** `MEMORIZE`, `RECALL`, `FORGET`
+**Terminal:** `TASK_COMPLETE`
 
-These actions are processed by matching handlers within the engine. 
+All actions are processed through sophisticated handlers with automatic audit logging, secrets processing, and service coordination.
 
-### Audit Logging
-All handler actions are logged via the integrated `AuditService`, which supports log rotation, retention, and query. Audit logs are written to `audit_logs.jsonl` by default and can be queried for compliance and debugging.
+### Security & Guardrails
 
-Example memory action JSON:
-
-```json
-{
-  "action": "MEMORIZE",
-  "scope": "local",
-  "payload": {
-    "node": {"id": "User:alice", "type": "user", "scope": "local", "attrs": {"nick": "alice"}}
-  }
-}
-```
+| Guardrail | Description |
+|-----------|-------------|
+| **entropy** | Prevents nonsensical replies through statistical analysis |
+| **coherence** | Ensures logical flow and contextual consistency |
+| **optimization_veto** | Prevents actions that sacrifice autonomy for efficiency |
+| **epistemic_humility** | Reflects on uncertainties and defers when appropriate |
+| **rate_limit_observe** | Caps message processing to prevent overload |
+| **idempotency_tasks** | Prevents duplicate task creation |
+| **pii_non_repetition** | Blocks verbatim repetition of personal information |
+| **input_sanitisation** | Comprehensive input cleaning and validation |
+| **metadata_schema** | Enforces structured data schemas with size limits |
+| **graceful_shutdown** | Ensures clean service termination |
 
 ---
 
-## Core Components (in `ciris_engine/`)
+## Repository Structure
 
-*   `core/`: Contains data schemas (`config_schemas.py`, `agent_core_schemas.py`, `foundational_schemas.py`), configuration management (`config_manager.py`), the `AgentProcessor`, `WorkflowCoordinator`, `ActionDispatcher`, and persistence layer (`persistence.py`).
-*   `dma/`: Implementations of the various DMAs (EthicalPDMA, CSDMA, DSDMA, ASPDMA).
-*   `utils/`: Utility helpers like `logging_config.py` and an asynchronous `load_profile` function in `profile_loader.py` (recall to `await` it).
-*   `guardrails/`: Ethical guardrail implementation.
-*   `adapters/`: adapters for audit logging, LLM access, and other integrations.
-*   `ciris_profiles/`: Directory for agent profile YAML files (e.g., `student.yaml`, `teacher.yaml`).
+```
+CIRIS Agent/
+├── ciris_engine/          # Core engine with DMAs, processors, and infrastructure
+│   ├── action_handlers/    # 3×3×3 action processing system
+│   ├── adapters/          # Platform adapters (Discord, CLI, API) 
+│   ├── audit/             # Cryptographic audit trail system
+│   ├── config/            # Multi-source configuration management
+│   ├── context/           # Context aggregation and enrichment
+│   ├── data/              # Database storage and maintenance
+│   ├── dma/               # Decision Making Algorithms
+│   ├── faculties/         # Epistemic evaluation capabilities
+│   ├── formatters/        # Prompt engineering utilities
+│   ├── guardrails/        # Multi-layer safety framework
+│   ├── persistence/       # Data persistence and migrations
+│   ├── processor/         # Thought and workflow processing
+│   ├── protocols/         # Service interface definitions
+│   ├── registries/        # Service discovery and management
+│   ├── runtime/           # Runtime orchestration
+│   ├── schemas/           # Data schemas and validation
+│   ├── secrets/           # Secrets detection and encryption
+│   ├── services/          # Standalone service implementations
+│   ├── sinks/             # Multi-service action coordination
+│   ├── telemetry/         # Observability and resource monitoring
+│   └── utils/             # Core infrastructure utilities
+├── ciris_profiles/        # Agent behavior profiles
+├── ciris_adk/            # Adapter Development Kit
+├── ciris_sdk/            # Client SDK for external integrations
+├── CIRISVoice/           # Voice interaction capabilities
+├── CIRISGUI/             # Web-based management interface
+├── tests/                # Comprehensive test suite
+├── docker/               # Container deployment
+└── main.py               # Unified entry point
+```
 
 ---
 
@@ -135,112 +156,178 @@ Example memory action JSON:
 
 ### Prerequisites
 
-*   Python 3.10+ (as per project structure, though 3.9+ might work)
-*   An OpenAI API key (or an API key for a compatible service like Together.ai).
-*   For Discord examples: A Discord Bot Token.
+- **Python 3.10+** with asyncio support
+- **OpenAI API key** or compatible service (Together.ai, local models)
+- **Discord Bot Token** (for Discord deployment)
+- **Sufficient system resources** for multi-service architecture
 
 ### Installation
 
-1.  Clone the repository:
-    ```bash
-    git clone <your-repository-url> 
-    # Replace <your-repository-url> with the actual URL
-    cd CIRISEngine 
-    # Or your project's root directory name
-    ```
-2.  Install dependencies (it's recommended to use a virtual environment):
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
-    pip install -r requirements.txt
-    ```
+1. **Clone and setup environment:**
+   ```bash
+   git clone <repository-url>
+   cd CIRISAgent
+   python -m venv venv
+   source venv/bin/activate  # Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
 
-### Environment Variables
+2. **Configure environment variables:**
+   ```bash
+   # Core configuration
+   export OPENAI_API_KEY="your_api_key_here"
+   export DISCORD_BOT_TOKEN="your_discord_bot_token"
+   
+   # Optional advanced configuration
+   export OPENAI_BASE_URL="https://api.together.xyz/v1/"
+   export OPENAI_MODEL_NAME="meta-llama/Llama-3-70b-chat-hf"
+   export LOG_LEVEL="INFO"
+   
+   # Discord-specific settings
+   export DISCORD_CHANNEL_ID="123456789"
+   export DISCORD_DEFERRAL_CHANNEL_ID="987654321"
+   export WA_USER_ID="111222333444555666"
+   ```
 
-Set the following environment variables (see `.env.example` for a template):
+### Running the Agent
 
-*   `OPENAI_API_KEY`: **Required.** Your API key for the LLM service. If running a local model, set `OPENAI_API_BASE` and `OPENAI_MODEL_NAME` and provide any value for this key.
-*   `DISCORD_BOT_TOKEN`: **Required for Discord agents.** Your Discord bot token.
-*   `OPENAI_BASE_URL` (Optional): If using a non-OpenAI endpoint (e.g., Together.ai, local LLM server), set this to the base URL (e.g., `https://api.together.xyz/v1/`).
-*   `OPENAI_MODEL_NAME` (Optional): Specify the LLM model to be used (e.g., `meta-llama/Llama-3-70b-chat-hf`). Defaults to `gpt-4o-mini` if not set (see `ciris_engine/core/config_schemas.py`).
-*   `WA_USER_ID` (Optional): Discord User ID for the Wise Authority mentioned in deferral messages.
-*   `DISCORD_CHANNEL_ID` (Optional): ID of the Discord channel the agent listens to for new messages.
-*   `DISCORD_DEFERRAL_CHANNEL_ID` (Optional): Channel ID used for deferral reports.
-*   `SNORE_CHANNEL_ID` (Optional): Channel ID used for runtime heartbeat notifications.
-*   `WA_DISCORD_USER` (Optional): Fallback Discord username for the Wise Authority. Defaults to `somecomputerguy`.
-*   `LOG_LEVEL` (Optional): Set to `DEBUG` for verbose logging. Defaults to `INFO`.
-
-Example:
+**Automatic mode detection:**
 ```bash
-export OPENAI_API_KEY="your_api_key_here"
-export DISCORD_BOT_TOKEN="your_discord_bot_token_here"
-# export DISCORD_CHANNEL_ID="123"                   # Channel the bot listens to
-# export DISCORD_DEFERRAL_CHANNEL_ID="456"          # Channel used for deferral reports
-# export WA_USER_ID="123456789012345678"            # Mention this user on deferrals
-# export SNORE_CHANNEL_ID="789"                     # Optional status channel
-# export OPENAI_API_BASE="https://api.together.xyz/v1/" # Uncomment if using a custom endpoint
-# export OPENAI_MODEL_NAME="meta-llama/Llama-3-70b-chat-hf" # Uncomment to specify a model
+python main.py --profile default  # Auto-detects Discord/CLI based on token availability
+```
+
+**Specific runtime modes:**
+```bash
+python main.py --mode cli --profile teacher    # CLI-only mode
+python main.py --mode discord --profile student # Discord bot mode  
+python main.py --mode api --host 0.0.0.0 --port 8000 # API server mode
+```
+
+**Development and testing:**
+```bash
+python main.py --mock-llm --debug --no-interactive  # Offline testing with debug logging
+```
+
+### Agent Profiles
+
+Choose from specialized profiles in `ciris_profiles/`:
+- **default**: Balanced general-purpose behavior
+- **teacher**: Educational guidance and instruction
+- **student**: Learning-focused with curiosity-driven exploration
+- **echo**: Simple response echoing for testing
+
+---
+
+## Advanced Configuration
+
+### Security Configuration
+```yaml
+# In agent profile
+secrets_management:
+  enable_automatic_detection: true
+  encryption_algorithm: "AES-256-GCM"  
+  key_rotation_days: 30
+
+audit:
+  enable_signed_audit: true
+  hash_chain_validation: true
+  retention_days: 365
+```
+
+### Performance Tuning
+```yaml
+# Resource management
+resource_limits:
+  cpu_warning_threshold: 70.0
+  memory_critical_threshold: 95.0
+  enable_adaptive_throttling: true
+
+# Telemetry configuration  
+telemetry:
+  buffer_size: 1000
+  enable_security_filtering: true
+  metric_retention_hours: 48
+```
+
+### Multi-Service Architecture
+```yaml
+# Service registry configuration
+service_registry:
+  discovery_timeout: 30
+  health_check_interval: 60
+  circuit_breaker_threshold: 5
+  enable_automatic_failover: true
 ```
 
 ---
 
-## Running Agents
-
-Run the agent using the unified entry point. Specify the mode and profile as needed:
-
-```bash
-python main.py --mode auto --profile default
-```
-
-The script automatically loads the CLI runtime and adds Discord if a bot token is available:
-
-```bash
-python main.py --profile teacher   # Auto-detect Discord support
-```
-
-When a Discord token is present the `DiscordRuntime` registers its communication
-and observer services with `Priority.HIGH`. The bundled CLI services are also
-registered at `Priority.NORMAL` so the agent can fall back to the console if the
-Discord connection drops. Running without a token automatically selects the
-`CLIRuntime`.
-
-During startup each runtime waits for the service registry to report that core
-services are available. If communication, memory, audit logging, or the LLM
-service are missing for more than 30 seconds an error is logged but the runtime
-continues, allowing partial functionality in constrained environments.
-
-CLI communication acts as the lowest priority service on the bus. If the CLI
-adapter is unable to process incoming or outgoing messages for more than 30
-seconds the runtime will trigger a graceful shutdown to avoid a wedged state.
-
-Use `--mode cli` for a local command-line interface or `--mode api` for the API runtime. When running the API, you can set `--host` and `--port` to control the listen address. Disable interactive CLI input with `--no-interactive`. Enable debug logging with `--debug`.
-For offline testing you can pass `--mock-llm` to use the bundled mock LLM service.
-
-Play Mode and Solitude Mode provide short introspective sessions for the agent. Each lasts five minutes and is offered at random roughly once per hour. In safety-critical deployments, these sessions should be restricted to non‑shift hours via agent configuration.
-
----
 ## Testing
 
-Run the full test suite with:
-
+**Run comprehensive test suite:**
 ```bash
-pytest -q
+pytest tests/ -v                    # Full test suite
+pytest tests/integration/ -v        # Integration tests only  
+pytest tests/adapters/ -v           # Adapter tests
+pytest --mock-llm                   # Tests with mock LLM service
 ```
 
-All functional and guardrail validation tests should pass.
+**Security and compliance testing:**
+```bash
+pytest tests/ciris_engine/secrets/ -v        # Secrets management tests
+pytest tests/ciris_engine/audit/ -v          # Audit system tests
+pytest tests/ciris_engine/guardrails/ -v     # Guardrails validation
+```
+
+---
+
+## Production Deployment
+
+### Docker Deployment
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
+
+# Individual service deployment
+docker build -f docker/Dockerfile -t ciris-agent .
+docker run -e OPENAI_API_KEY=$OPENAI_API_KEY ciris-agent
+```
+
+### Monitoring & Observability
+- **Health endpoints**: `/health`, `/metrics`, `/audit`
+- **Resource monitoring**: Automatic CPU/memory/disk tracking
+- **Audit trail**: Cryptographically signed operation logs
+- **Performance metrics**: Real-time telemetry with security filtering
+
+### Security Considerations
+- **Secrets encryption**: All sensitive data encrypted at rest
+- **Audit integrity**: Hash-chained logs with digital signatures
+- **Network security**: TLS required for all external communications
+- **Access control**: Scope-based permissions with WA oversight
 
 ---
 
 ## Contributing
 
-PRs welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to this project.
+Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-Please ensure your contributions align with the core goals of the CIRIS Engine. If adding new features, consider how they integrate with the existing DMA workflow and agent profile system.
+**Key areas for contribution:**
+- New platform adapters using the ADK framework
+- Specialized DSDMAs for domain-specific reasoning
+- Additional guardrails for enhanced safety
+- Performance optimizations and resource efficiency
+- Extended telemetry and monitoring capabilities
 
-Run `pytest` to ensure all tests pass before submitting a pull request.
+**Before submitting:**
+- Run full test suite: `pytest tests/ -v`
+- Verify security compliance: `pytest tests/ciris_engine/secrets/ tests/ciris_engine/audit/ -v`
+- Test with mock LLM: `python main.py --mock-llm --debug`
 
 ---
 
 ## License
 
 Apache-2.0 © 2025 CIRIS AI Project
+
+---
+
+*For detailed technical documentation, see individual module README files throughout the codebase. For deployment guides and advanced configuration, refer to the `docs/` directory.*
