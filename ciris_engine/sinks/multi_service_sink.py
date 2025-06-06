@@ -304,7 +304,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error generating structured LLM response: {e}")
             raise
 
-    async def _get_filter_service(self):
+    async def _get_filter_service(self) -> Any:
         """Get the adaptive filter service for LLM response filtering"""
         if self.service_registry:
             try:

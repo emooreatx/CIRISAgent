@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Any
 from ciris_engine.persistence import get_db_connection
 from ciris_engine.persistence.utils import map_row_to_task
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus

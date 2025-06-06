@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class AdaptiveFilterService(Service):
     """Service for adaptive message filtering with graph memory persistence"""
     
-    def __init__(self, memory_service, llm_service=None):
+    def __init__(self, memory_service: Any, llm_service: Any = None) -> None:
         super().__init__()
         self.memory = memory_service
         self.llm = llm_service
@@ -38,13 +38,13 @@ class AdaptiveFilterService(Service):
         self._stats = FilterStats()
         self._init_task = None
     
-    async def start(self):
+    async def start(self) -> None:
         """Start the service and load configuration"""
         await super().start()
         self._init_task = asyncio.create_task(self._initialize())
         logger.info("Adaptive Filter Service starting...")
     
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the service and save final state"""
         if self._init_task and not self._init_task.done():
             self._init_task.cancel()
@@ -55,7 +55,7 @@ class AdaptiveFilterService(Service):
         await super().stop()
         logger.info("Adaptive Filter Service stopped")
     
-    async def _initialize(self):
+    async def _initialize(self) -> None:
         """Load or create initial configuration"""
         try:
             # Try to load existing config from graph memory
@@ -302,9 +302,9 @@ class AdaptiveFilterService(Service):
             if not user_id:
                 return False
                 
-            count_threshold, time_window = trigger.pattern.split(":")
-            count_threshold = int(count_threshold)
-            time_window = int(time_window)
+            count_str, time_str = trigger.pattern.split(":")
+            count_threshold = int(count_str)
+            time_window = int(time_str)
             
             return await self._check_frequency(user_id, count_threshold, time_window)
             
@@ -358,6 +358,9 @@ class AdaptiveFilterService(Service):
     
     async def _update_user_trust(self, user_id: str, priority: FilterPriority, triggered: List[str]) -> None:
         """Update user trust profile based on message filtering results"""
+        if self._config is None:
+            return
+            
         if user_id not in self._config.user_profiles:
             self._config.user_profiles[user_id] = UserTrustProfile(
                 user_id=user_id,
@@ -382,9 +385,9 @@ class AdaptiveFilterService(Service):
     def _extract_content(self, message: Any, adapter_type: str) -> str:
         """Extract text content from message based on adapter type"""
         if hasattr(message, 'content'):
-            return message.content
+            return str(message.content)  # Ensure string return
         elif isinstance(message, dict):
-            return message.get('content', str(message))
+            return str(message.get('content', str(message)))
         elif isinstance(message, str):
             return message
         else:
@@ -393,9 +396,9 @@ class AdaptiveFilterService(Service):
     def _extract_user_id(self, message: Any, adapter_type: str) -> Optional[str]:
         """Extract user ID from message"""
         if hasattr(message, 'user_id'):
-            return message.user_id
+            return str(message.user_id) if message.user_id is not None else None
         elif hasattr(message, 'author_id'):
-            return message.author_id
+            return str(message.author_id) if message.author_id is not None else None
         elif isinstance(message, dict):
             return message.get('user_id') or message.get('author_id')
         return None
@@ -403,7 +406,7 @@ class AdaptiveFilterService(Service):
     def _extract_channel_id(self, message: Any, adapter_type: str) -> Optional[str]:
         """Extract channel ID from message"""
         if hasattr(message, 'channel_id'):
-            return message.channel_id
+            return str(message.channel_id) if message.channel_id is not None else None
         elif isinstance(message, dict):
             return message.get('channel_id')
         return None
@@ -411,19 +414,19 @@ class AdaptiveFilterService(Service):
     def _extract_message_id(self, message: Any, adapter_type: str) -> str:
         """Extract message ID from message"""
         if hasattr(message, 'message_id'):
-            return message.message_id
+            return str(message.message_id)
         elif hasattr(message, 'id'):
-            return message.id
+            return str(message.id)
         elif isinstance(message, dict):
-            return message.get('message_id') or message.get('id', 'unknown')
+            return str(message.get('message_id') or message.get('id', 'unknown'))
         return f"msg_{datetime.utcnow().timestamp()}"
     
     def _is_direct_message(self, message: Any, adapter_type: str) -> bool:
         """Check if message is a direct message"""
         if hasattr(message, 'is_dm'):
-            return message.is_dm
+            return bool(message.is_dm)
         elif isinstance(message, dict):
-            return message.get('is_dm', False)
+            return bool(message.get('is_dm', False))
         
         # Heuristic: if no channel_id or channel_id looks like DM
         channel_id = self._extract_channel_id(message, adapter_type)

@@ -8,11 +8,17 @@ import re
 import uuid
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Literal, Any
+from typing import Dict, List, Optional, Tuple, Literal, Any, cast
 from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
 from ..protocols.secrets_interface import SecretsFilterInterface
+from ..schemas.secrets_schemas_v1 import (
+    SecretPattern as SchemaSecretPattern,
+    SecretsFilter as SchemaSecretsFilter,
+    DetectedSecret as SchemaDetectedSecret,
+    SecretsFilterResult
+)
 
 logger = logging.getLogger(__name__)
 
@@ -345,19 +351,44 @@ class SecretsFilter(SecretsFilterInterface):
         logger.info(f"Imported secrets filter config version {self.config.version}")
     
     # Implement SecretsFilterInterface methods
-    async def filter_content(self, content: str, source_id: Optional[str] = None) -> Any:
+    async def filter_content(self, content: str, source_id: Optional[str] = None) -> SecretsFilterResult:
         """Filter content for secrets using the text filtering method."""
         # Return a simple result for interface compatibility
         filtered_text, detected_secrets = self.filter_text(content)
-        return {
-            "filtered_content": filtered_text,
-            "detected_secrets": detected_secrets
-        }
+        
+        # Convert local DetectedSecret to schema format
+        schema_secrets = []
+        for secret in detected_secrets:
+            schema_secret = SchemaDetectedSecret(
+                original_value=secret.original_text,
+                secret_uuid=secret.secret_uuid,
+                pattern_name=secret.pattern_name,
+                description=secret.description,
+                sensitivity=secret.sensitivity,
+                context_hint=secret.context_hint,
+                replacement_text=secret.replacement_text
+            )
+            schema_secrets.append(schema_secret)
+        
+        return SecretsFilterResult(
+            filtered_content=filtered_text,
+            detected_secrets=schema_secrets,
+            secrets_found=len(detected_secrets),
+            patterns_matched=[s.pattern_name for s in detected_secrets]
+        )
     
-    async def add_pattern(self, pattern: SecretPattern) -> bool:
+    async def add_pattern(self, pattern: SchemaSecretPattern) -> bool:
         """Add a new secret detection pattern."""
         try:
-            self.add_custom_pattern(pattern)
+            # Convert to local SecretPattern format
+            local_pattern = SecretPattern(
+                name=pattern.name,
+                regex=pattern.regex,
+                description=pattern.description,
+                sensitivity=pattern.sensitivity,
+                enabled=True
+            )
+            self.add_custom_pattern(local_pattern)
             return True
         except Exception:
             return False
@@ -366,9 +397,28 @@ class SecretsFilter(SecretsFilterInterface):
         """Remove a secret detection pattern."""
         return self.remove_custom_pattern(pattern_name)
     
-    async def get_filter_config(self) -> SecretsFilterConfig:
+    async def get_filter_config(self) -> SchemaSecretsFilter:
         """Get the current filter configuration."""
-        return self.config
+        # Convert local config to schema format
+        return SchemaSecretsFilter(
+            filter_id=self.config.filter_id,
+            version=self.config.version,
+            builtin_patterns_enabled=self.config.builtin_patterns_enabled,
+            custom_patterns=[
+                SchemaSecretPattern(
+                    name=p.name,
+                    regex=p.regex,
+                    description=p.description,
+                    sensitivity=p.sensitivity,
+                    context_hint=p.description,  # Use description as context hint
+                    enabled=p.enabled
+                ) for p in self.config.custom_patterns
+            ],
+            disabled_patterns=self.config.disabled_patterns,
+            sensitivity_overrides=self.config.sensitivity_overrides,
+            require_confirmation_for=self.config.require_confirmation_for,
+            auto_decrypt_for_actions=self.config.auto_decrypt_for_actions
+        )
     
     async def update_filter_config(self, updates: Dict[str, Any]) -> bool:
         """Update filter configuration settings."""

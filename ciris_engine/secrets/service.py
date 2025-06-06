@@ -202,12 +202,12 @@ class SecretsService(SecretsServiceInterface):
         if isinstance(obj, str):
             return await self._decapsulate_string(obj, action_type, context)
         elif isinstance(obj, dict):
-            result = {}
+            result: Dict[str, Any] = {}
             for key, value in obj.items():
                 result[key] = await self._deep_decapsulate(value, action_type, context)
             return result
         elif isinstance(obj, list):
-            result = []
+            result: List[Any] = []
             for item in obj:
                 result.append(await self._deep_decapsulate(item, action_type, context))
             return result
@@ -270,7 +270,7 @@ class SecretsService(SecretsServiceInterface):
     async def update_filter_config(
         self,
         operation: str,
-        **kwargs
+        **kwargs: Any
     ) -> Dict[str, Any]:
         """
         Update secrets filter configuration.
@@ -363,16 +363,13 @@ class SecretsService(SecretsServiceInterface):
         result = []
         for secret in secrets:
             result.append({
-                "uuid": secret.secret_uuid,
+                "uuid": secret.uuid,
                 "description": secret.description,
-                "sensitivity": secret.sensitivity_level,
-                "pattern": secret.detected_pattern,
+                "sensitivity": secret.sensitivity,
                 "context_hint": secret.context_hint,
                 "created_at": secret.created_at.isoformat(),
                 "last_accessed": secret.last_accessed.isoformat() if secret.last_accessed else None,
-                "access_count": secret.access_count,
-                "auto_decapsulate_actions": secret.auto_decapsulate_for_actions,
-                "manual_access_only": secret.manual_access_only
+                "auto_decapsulate_actions": secret.auto_decapsulate_actions
             })
             
         return result
@@ -461,14 +458,11 @@ class SecretsService(SecretsServiceInterface):
             
             for secret in all_secrets:
                 # Count by sensitivity
-                sensitivity_counts[secret.sensitivity_level] = (
-                    sensitivity_counts.get(secret.sensitivity_level, 0) + 1
+                sensitivity_counts[secret.sensitivity] = (
+                    sensitivity_counts.get(secret.sensitivity, 0) + 1
                 )
                 
-                # Count by pattern
-                pattern_counts[secret.detected_pattern] = (
-                    pattern_counts.get(secret.detected_pattern, 0) + 1
-                )
+                # Note: SecretReference doesn't have detected_pattern, skip pattern counting
                 
             return {
                 "filter_stats": filter_stats,

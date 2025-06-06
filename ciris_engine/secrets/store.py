@@ -8,7 +8,7 @@ import os
 import sqlite3
 import asyncio
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Literal, cast
 from pathlib import Path
 import logging
 
@@ -18,60 +18,10 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from pydantic import BaseModel, Field
 
+from ..schemas.secrets_schemas_v1 import SecretRecord, DetectedSecret, SecretAccessLog, SecretReference
 from ..protocols.secrets_interface import SecretsStoreInterface, SecretsEncryptionInterface
 
 logger = logging.getLogger(__name__)
-
-
-class SecretRecord(BaseModel):
-    """Encrypted secret storage record."""
-    secret_uuid: str = Field(description="UUID identifier for the secret")
-    encrypted_value: bytes = Field(description="AES-256-GCM encrypted secret value")
-    encryption_key_ref: str = Field(description="Reference to encryption key in secure store")
-    salt: bytes = Field(description="Cryptographic salt")
-    nonce: bytes = Field(description="AES-GCM nonce")
-    
-    # Metadata (not encrypted)
-    description: str = Field(description="Human-readable description")
-    sensitivity_level: str = Field(description="LOW, MEDIUM, HIGH, or CRITICAL")
-    detected_pattern: str = Field(description="Pattern that detected this secret")
-    context_hint: str = Field(description="Safe context description")
-    
-    # Audit fields
-    created_at: datetime
-    last_accessed: Optional[datetime] = None
-    access_count: int = 0
-    source_message_id: Optional[str] = None
-    
-    # Access control
-    auto_decapsulate_for_actions: List[str] = Field(default_factory=list)
-    manual_access_only: bool = False
-
-    @property
-    def channel_id(self) -> Optional[str]:
-        """
-        Attempt to extract channel ID from source_message_id if present.
-        Assumes source_message_id is of the form 'channelid-messageid' or similar.
-        Returns None if not parseable.
-        """
-        if self.source_message_id and '-' in self.source_message_id:
-            return self.source_message_id.split('-')[0]
-        return None
-
-
-class SecretAccessLog(BaseModel):
-    """Audit log for secret access."""
-    access_id: str = Field(description="Unique access identifier")
-    secret_uuid: str = Field(description="Secret that was accessed")
-    access_type: str = Field(description="VIEW, DECRYPT, UPDATE, or DELETE")
-    accessor: str = Field(description="Who/what accessed the secret")
-    purpose: str = Field(description="Stated purpose for access")
-    timestamp: datetime
-    source_ip: Optional[str] = None
-    user_agent: Optional[str] = None
-    action_context: Optional[str] = None
-    success: bool = True
-    failure_reason: Optional[str] = None
 
 
 class SecretsEncryption:
@@ -250,27 +200,40 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
             
             conn.commit()
             
-    async def store_secret(self, secret_record: SecretRecord, original_value: str) -> bool:
+    async def store_secret(self, secret: DetectedSecret, source_id: Optional[str] = None) -> SecretRecord:
         """
         Store encrypted secret in database.
         
         Args:
-            secret_record: Secret metadata
-            original_value: Plain text secret value to encrypt
+            secret: The detected secret to store
+            source_id: Optional identifier for the source
             
         Returns:
-            True if stored successfully
+            SecretRecord with storage metadata
         """
         async with self._lock:
             try:
                 # Encrypt the secret value
-                encrypted_value, salt, nonce = self.encryption.encrypt_secret(original_value)
+                encrypted_value, salt, nonce = self.encryption.encrypt_secret(secret.original_value)
                 
-                # Update record with encryption data
-                secret_record.encrypted_value = encrypted_value
-                secret_record.salt = salt
-                secret_record.nonce = nonce
-                secret_record.encryption_key_ref = "master_key_v1"  # Key versioning
+                # Create secret record with encryption data
+                secret_record = SecretRecord(
+                    secret_uuid=secret.secret_uuid,
+                    encrypted_value=encrypted_value,
+                    encryption_key_ref="master_key_v1",  # Key versioning
+                    salt=salt,
+                    nonce=nonce,
+                    description=secret.description,
+                    sensitivity_level=secret.sensitivity,
+                    detected_pattern=secret.pattern_name,
+                    context_hint=secret.context_hint,
+                    created_at=datetime.now(),
+                    last_accessed=None,
+                    access_count=0,
+                    source_message_id=source_id,
+                    auto_decapsulate_for_actions=[],
+                    manual_access_only=False
+                )
                 
                 with sqlite3.connect(self.db_path) as conn:
                     conn.execute("""
@@ -308,34 +271,26 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                 )
                 
                 logger.info(f"Stored encrypted secret {secret_record.secret_uuid}")
-                return True
+                return secret_record
                 
             except Exception as e:
-                logger.error(f"Failed to store secret {secret_record.secret_uuid}: {e}")
+                logger.error(f"Failed to store secret {secret.secret_uuid}: {e}")
                 await self._log_access(
-                    secret_record.secret_uuid,
+                    secret.secret_uuid,
                     "STORE",
                     "system", 
                     "Initial secret storage",
                     False,
                     str(e)
                 )
-                return False
+                raise
                 
-    async def retrieve_secret(
-        self, 
-        secret_uuid: str, 
-        purpose: str,
-        accessor: str = "system",
-        decrypt: bool = False
-    ) -> Optional[SecretRecord]:
+    async def retrieve_secret(self, secret_uuid: str, decrypt: bool = False) -> Optional[SecretRecord]:
         """
         Retrieve secret from storage.
         
         Args:
             secret_uuid: UUID of secret to retrieve
-            purpose: Purpose for accessing secret (for audit)
-            accessor: Who is accessing the secret
             decrypt: Whether to decrypt the secret value
             
         Returns:
@@ -343,9 +298,9 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
         """
         async with self._lock:
             # Check rate limits
-            if not await self._check_rate_limits(accessor):
+            if not await self._check_rate_limits("system"):
                 await self._log_access(
-                    secret_uuid, "VIEW", accessor, purpose, False, "Rate limit exceeded"
+                    secret_uuid, "VIEW", "system", "retrieve", False, "Rate limit exceeded"
                 )
                 return None
                 
@@ -358,7 +313,7 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                     row = cursor.fetchone()
                     if not row:
                         await self._log_access(
-                            secret_uuid, "VIEW", accessor, purpose, False, "Secret not found"
+                            secret_uuid, "VIEW", "system", "retrieve", False, "Secret not found"
                         )
                         return None
                         
@@ -397,14 +352,14 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                     conn.commit()
                     
                 access_type = "DECRYPT" if decrypt else "VIEW"
-                await self._log_access(secret_uuid, access_type, accessor, purpose, True)
+                await self._log_access(secret_uuid, access_type, "system", "retrieve", True)
                 
                 return secret_record
                 
             except Exception as e:
                 logger.error(f"Failed to retrieve secret {secret_uuid}: {e}")
                 await self._log_access(
-                    secret_uuid, "VIEW", accessor, purpose, False, str(e)
+                    secret_uuid, "VIEW", "system", "retrieve", False, str(e)
                 )
                 return None
                 
@@ -428,13 +383,12 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
             logger.error(f"Failed to decrypt secret {secret_record.secret_uuid}: {e}")
             return None
             
-    async def delete_secret(self, secret_uuid: str, accessor: str = "system") -> bool:
+    async def delete_secret(self, secret_uuid: str) -> bool:
         """
         Delete secret from storage.
         
         Args:
             secret_uuid: UUID of secret to delete
-            accessor: Who is deleting the secret
             
         Returns:
             True if deleted successfully
@@ -450,7 +404,7 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                     conn.commit()
                     
                 await self._log_access(
-                    secret_uuid, "DELETE", accessor, "Secret deletion", deleted
+                    secret_uuid, "DELETE", "system", "Secret deletion", deleted
                 )
                 
                 if deleted:
@@ -460,32 +414,23 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
             except Exception as e:
                 logger.error(f"Failed to delete secret {secret_uuid}: {e}")
                 await self._log_access(
-                    secret_uuid, "DELETE", accessor, "Secret deletion", False, str(e)
+                    secret_uuid, "DELETE", "system", "Secret deletion", False, str(e)
                 )
                 return False
                 
-    async def list_secrets(
-        self, 
-        pattern_filter: Optional[str] = None,
-        sensitivity_filter: Optional[str] = None
-    ) -> List[SecretRecord]:
+    async def list_secrets(self, sensitivity_filter: Optional[str] = None) -> List[SecretReference]:
         """
-        List stored secrets (without decryption).
+        List stored secrets (metadata only).
         
         Args:
-            pattern_filter: Filter by detection pattern
             sensitivity_filter: Filter by sensitivity level
             
         Returns:
-            List of secret records (encrypted values)
+            List of SecretReference objects
         """
         try:
-            query = "SELECT * FROM secrets WHERE 1=1"
+            query = "SELECT secret_uuid, description, context_hint, sensitivity_level, auto_decapsulate_for_actions, created_at, last_accessed FROM secrets WHERE 1=1"
             params = []
-            
-            if pattern_filter:
-                query += " AND detected_pattern = ?"
-                params.append(pattern_filter)
                 
             if sensitivity_filter:
                 query += " AND sensitivity_level = ?"
@@ -499,24 +444,16 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                 
             secrets = []
             for row in rows:
-                secret_record = SecretRecord(
-                    secret_uuid=row[0],
-                    encrypted_value=row[1],
-                    encryption_key_ref=row[2],
-                    salt=row[3],
-                    nonce=row[4],
-                    description=row[5],
-                    sensitivity_level=row[6],
-                    detected_pattern=row[7],
-                    context_hint=row[8],
-                    created_at=datetime.fromisoformat(row[9]),
-                    last_accessed=datetime.fromisoformat(row[10]) if row[10] else None,
-                    access_count=row[11],
-                    source_message_id=row[12],
-                    auto_decapsulate_for_actions=row[13].split(",") if row[13] else [],
-                    manual_access_only=bool(row[14])
+                secret_ref = SecretReference(
+                    uuid=row[0],
+                    description=row[1],
+                    context_hint=row[2],
+                    sensitivity=row[3],
+                    auto_decapsulate_actions=row[4].split(",") if row[4] else [],
+                    created_at=datetime.fromisoformat(row[5]),
+                    last_accessed=datetime.fromisoformat(row[6]) if row[6] else None
                 )
-                secrets.append(secret_record)
+                secrets.append(secret_ref)
                 
             return secrets
             
@@ -524,12 +461,12 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
             logger.error(f"Failed to list secrets: {e}")
             return []
             
-    async def list_all_secrets(self) -> List[SecretRecord]:
+    async def list_all_secrets(self) -> List[SecretReference]:
         """
         List all stored secrets (no filters).
         
         Returns:
-            List of SecretRecord
+            List of SecretReference
         """
         return await self.list_secrets()
     
@@ -582,7 +519,7 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
             access_log = SecretAccessLog(
                 access_id=f"access_{datetime.now().timestamp()}_{secret_uuid[:8]}",
                 secret_uuid=secret_uuid,
-                access_type=access_type,
+                access_type=cast(Literal["VIEW", "DECRYPT", "UPDATE", "DELETE"], access_type),
                 accessor=accessor,
                 purpose=purpose,
                 timestamp=datetime.now(),
