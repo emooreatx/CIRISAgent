@@ -33,7 +33,7 @@ class DatabaseMaintenanceService:
     def __init__(self, archive_dir_path: str = "data_archive", archive_older_than_hours: int = 24) -> None:
         self.archive_dir = Path(archive_dir_path)
         self.archive_older_than_hours = archive_older_than_hours
-        self.valid_root_task_ids = {"WAKEUP_ROOT", "job-discord-monitor"}
+        self.valid_root_task_ids = {"WAKEUP_ROOT"}
         self._maintenance_task: Optional[asyncio.Task] = None
         self._shutdown_event = asyncio.Event()
 

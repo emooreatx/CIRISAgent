@@ -13,11 +13,12 @@ import logging
 from .filter import SecretsFilter, DetectedSecret, SecretsFilterConfig
 from .store import SecretsStore, SecretRecord
 from ..schemas.context_schemas_v1 import SecretReference
+from ..protocols.secrets_interface import SecretsServiceInterface
 
 logger = logging.getLogger(__name__)
 
 
-class SecretsService:
+class SecretsService(SecretsServiceInterface):
     """
     Central service for secrets management in CIRIS Agent.
     

@@ -8,6 +8,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
 from ciris_engine.utils.constants import DEFAULT_WA
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+from ciris_engine.secrets.service import SecretsService
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class CLIObserver:
         agent_id: Optional[str] = None,
         multi_service_sink: Optional[MultiServiceActionSink] = None,
         filter_service: Optional[Any] = None,
+        secrets_service: Optional[SecretsService] = None,
         *,
         interactive: bool = True,
     ) -> None:
@@ -35,6 +37,7 @@ class CLIObserver:
         self.agent_id = agent_id
         self.multi_service_sink = multi_service_sink
         self.filter_service = filter_service
+        self.secrets_service = secrets_service or SecretsService()
         self.interactive = interactive
         self._input_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
@@ -88,23 +91,73 @@ class CLIObserver:
             logger.debug(f"Message {msg.message_id} filtered out: {filter_result.reasoning}")
             return
         
-        # Add filter context to message for downstream processing
-        msg._filter_priority = filter_result.priority
-        msg._filter_context = filter_result.context_hints
-        msg._filter_reasoning = filter_result.reasoning
+        # Process message for secrets detection and replacement
+        processed_msg = await self._process_message_secrets(msg)
         
-        self._history.append(msg)
+        # Add filter context to message for downstream processing
+        processed_msg._filter_priority = filter_result.priority
+        processed_msg._filter_context = filter_result.context_hints
+        processed_msg._filter_reasoning = filter_result.reasoning
+        
+        self._history.append(processed_msg)
         
         # Process based on priority
         if filter_result.priority.value in ['critical', 'high']:
             # Immediate processing for high-priority messages
             logger.info(f"Processing {filter_result.priority.value} priority message {msg.message_id}: {filter_result.reasoning}")
-            await self._handle_priority_observation(msg, filter_result)
+            await self._handle_priority_observation(processed_msg, filter_result)
         else:
             # Normal processing for medium/low priority
-            await self._handle_passive_observation(msg)
+            await self._handle_passive_observation(processed_msg)
             
-        await self._recall_context(msg)
+        await self._recall_context(processed_msg)
+
+    async def _process_message_secrets(self, msg: IncomingMessage) -> IncomingMessage:
+        """Process message content for secrets detection and replacement."""
+        try:
+            # Process the message content for secrets
+            processed_content, secret_refs = await self.secrets_service.process_incoming_text(
+                msg.content,
+                source_context={
+                    "message_id": msg.message_id,
+                    "channel_id": msg.channel_id,
+                    "author_id": msg.author_id,
+                    "operation": "message_processing"
+                }
+            )
+            
+            # Create new message with processed content
+            processed_msg = IncomingMessage(
+                message_id=msg.message_id,
+                content=processed_content,
+                author_id=msg.author_id,
+                author_name=msg.author_name,
+                channel_id=msg.channel_id,
+                timestamp=getattr(msg, 'timestamp', None),
+                is_bot=getattr(msg, 'is_bot', False),
+                is_dm=getattr(msg, 'is_dm', False),
+                mentions_agent=getattr(msg, 'mentions_agent', False),
+                reply_to_message_id=getattr(msg, 'reply_to_message_id', None)
+            )
+            
+            # Store secret references on the message for context
+            if secret_refs:
+                processed_msg._detected_secrets = [
+                    {
+                        "uuid": ref.secret_uuid,
+                        "context_hint": ref.context_hint,
+                        "sensitivity": ref.sensitivity
+                    }
+                    for ref in secret_refs
+                ]
+                logger.info(f"Detected and processed {len(secret_refs)} secrets in CLI message {msg.message_id}")
+            
+            return processed_msg
+            
+        except Exception as e:
+            logger.error(f"Error processing secrets in CLI message {msg.message_id}: {e}")
+            # Return original message if processing fails
+            return msg
 
     async def _apply_message_filtering(self, msg: IncomingMessage):
         """Apply adaptive filtering to incoming message"""

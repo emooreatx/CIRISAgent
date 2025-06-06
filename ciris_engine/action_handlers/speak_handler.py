@@ -46,7 +46,10 @@ class SpeakHandler(BaseActionHandler):
         thought_id = thought.thought_id
 
         try:
-            params = await self._validate_and_convert_params(result.action_parameters, SpeakParams)
+            # Auto-decapsulate any secrets in the action parameters
+            processed_result = await self._decapsulate_secrets_in_params(result, "speak")
+            
+            params = await self._validate_and_convert_params(processed_result.action_parameters, SpeakParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, e)
             persistence.update_thought_status(

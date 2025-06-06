@@ -62,7 +62,8 @@ class AgentProcessor:
             thought_processor=thought_processor,
             action_dispatcher=self._action_dispatcher, # Use internal dispatcher
             services=services,
-            startup_channel_id=startup_channel_id
+            startup_channel_id=startup_channel_id,
+            agent_profile=active_profile
         )
         
         self.work_processor = WorkProcessor(

@@ -12,6 +12,8 @@ from typing import Dict, List, Optional, Tuple, Literal, Any
 from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
+from ..protocols.secrets_interface import SecretsFilterInterface
+
 logger = logging.getLogger(__name__)
 
 
@@ -58,7 +60,7 @@ class DetectedSecret:
     end_pos: int
 
 
-class SecretsFilter:
+class SecretsFilter(SecretsFilterInterface):
     """
     Automatic secrets detection and filtering system.
     
@@ -341,3 +343,42 @@ class SecretsFilter:
         self.config = SecretsFilterConfig(**config_dict)
         self._compile_patterns()
         logger.info(f"Imported secrets filter config version {self.config.version}")
+    
+    # Implement SecretsFilterInterface methods
+    async def filter_content(self, content: str, source_id: Optional[str] = None) -> Any:
+        """Filter content for secrets using the text filtering method."""
+        # Return a simple result for interface compatibility
+        filtered_text, detected_secrets = self.filter_text(content)
+        return {
+            "filtered_content": filtered_text,
+            "detected_secrets": detected_secrets
+        }
+    
+    async def add_pattern(self, pattern: SecretPattern) -> bool:
+        """Add a new secret detection pattern."""
+        try:
+            self.add_custom_pattern(pattern)
+            return True
+        except Exception:
+            return False
+    
+    async def remove_pattern(self, pattern_name: str) -> bool:
+        """Remove a secret detection pattern."""
+        return self.remove_custom_pattern(pattern_name)
+    
+    async def get_filter_config(self) -> SecretsFilterConfig:
+        """Get the current filter configuration."""
+        return self.config
+    
+    async def update_filter_config(self, updates: Dict[str, Any]) -> bool:
+        """Update filter configuration settings."""
+        try:
+            # Simple update - could be made more sophisticated
+            for key, value in updates.items():
+                if hasattr(self.config, key):
+                    setattr(self.config, key, value)
+            # Recompile patterns if patterns were updated
+            self._compile_patterns()
+            return True
+        except Exception:
+            return False

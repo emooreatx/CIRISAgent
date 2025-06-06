@@ -30,18 +30,72 @@ class ThoughtManager:
         task: Task,
         round_number: int = 0
     ) -> Optional[Thought]:
-        """Generate a seed thought for a task using v1 schema."""
+        """Generate a seed thought for a task with MISSION-CRITICAL type safety."""
         now_iso = datetime.now(timezone.utc).isoformat()
         
         context_dict: Dict[str, Any] = {}
+        channel_id: Optional[str] = None
+        
         if task.context:
-            context_dict = {"initial_task_context": task.context.model_dump()}
-            for key in ["author_name", "author_id", "channel_id", "origin_service"]:
-                if key in task.context:
-                    context_dict[key] = task.context.get(key)
-            context = ThoughtContext.model_validate(context_dict)
+            logger.info(f"SEED_THOUGHT: Processing task {task.task_id}, context type: {type(task.context)}")
+            
+            # Store the original task context
+            if hasattr(task.context, 'model_dump'):
+                context_dict = {"initial_task_context": task.context.model_dump()}
+            elif isinstance(task.context, dict):
+                context_dict = {"initial_task_context": task.context.copy()}
+            else:
+                context_dict = {"initial_task_context": str(task.context)}
+            
+            # MISSION-CRITICAL: Extract key context fields with type safety
+            critical_fields = ["author_name", "author_id", "channel_id", "origin_service"]
+            for key in critical_fields:
+                value = None
+                
+                # Type-safe extraction
+                if isinstance(task.context, dict):
+                    value = task.context.get(key)
+                    if value is not None:
+                        logger.info(f"SEED_THOUGHT: Extracted {key}='{value}' from dict context")
+                elif hasattr(task.context, key):
+                    try:
+                        value = getattr(task.context, key, None)
+                        if value is not None:
+                            logger.info(f"SEED_THOUGHT: Extracted {key}='{value}' from object context")
+                    except Exception as e:
+                        logger.error(f"SEED_THOUGHT: Error extracting {key}: {e}")
+                        continue
+                
+                if value is not None:
+                    context_dict[key] = str(value)  # Ensure string type
+                    if key == "channel_id":
+                        channel_id = str(value)
+            
+            # CRITICAL: Validate channel_id was extracted
+            if not channel_id:
+                logger.warning(f"SEED_THOUGHT: No channel_id found in task context for {task.task_id}")
         else:
-            context = ThoughtContext()
+            logger.warning(f"SEED_THOUGHT: Task {task.task_id} has NO context")
+        
+        # MISSION-CRITICAL: Ensure channel_id is NEVER None
+        if not channel_id:
+            if self.default_channel_id:
+                channel_id = self.default_channel_id
+                logger.warning(f"SEED_THOUGHT: Using default channel_id='{channel_id}' for task {task.task_id}")
+            else:
+                channel_id = "CLI_EMERGENCY_FALLBACK"
+                logger.error(f"SEED_THOUGHT: EMERGENCY FALLBACK channel_id='{channel_id}' for task {task.task_id}")
+        
+        # Validate and set channel_id in context
+        context_dict["channel_id"] = channel_id
+        logger.info(f"SEED_THOUGHT: Final channel_id='{channel_id}' for task {task.task_id}")
+        
+        try:
+            context = ThoughtContext.model_validate(context_dict)
+        except Exception as e:
+            logger.error(f"SEED_THOUGHT: Failed to validate context for task {task.task_id}: {e}")
+            # Emergency fallback context
+            context = ThoughtContext(channel_id=channel_id)
         
         thought = Thought(
             thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",
@@ -75,41 +129,7 @@ class ThoughtManager:
         
         logger.info(f"Generated {generated_count} seed thoughts")
         return generated_count
-    
-    def create_job_thought(self, round_number: int) -> Optional[Thought]:
-        """Create a job thought for Discord monitoring."""
-        job_task_id = "job-discord-monitor"
 
-        if not persistence.task_exists(job_task_id):
-            logger.warning(f"Job task '{job_task_id}' not found")
-            return None
-
-        job_task = persistence.get_task_by_id(job_task_id)
-        channel_id = None
-        if job_task and job_task.context:
-            channel_id = job_task.context.system_snapshot.channel_id
-        if not channel_id:
-            channel_id = self.default_channel_id
-
-        thought = Thought(
-            thought_id=str(uuid.uuid4()),
-            source_task_id=job_task_id,
-            thought_type=ThoughtType.STANDARD,
-            status=ThoughtStatus.PENDING,
-            created_at=datetime.now(timezone.utc).isoformat(),
-            updated_at=datetime.now(timezone.utc).isoformat(),
-            round_number=round_number,
-            content="I should check for new messages and events.",
-            context=ThoughtContext(channel_id=channel_id) if channel_id else ThoughtContext(),
-        )
-        
-        try:
-            persistence.add_thought(thought)
-            logger.info(f"Created job thought {thought.thought_id}")
-            return thought
-        except Exception as e:
-            logger.error(f"Failed to create job thought: {e}")
-            return None
     
     def populate_queue(self, round_number: int) -> int:
         """
@@ -218,29 +238,8 @@ class ThoughtManager:
         Handle idle state when no thoughts are pending.
         Returns True if a job thought was created.
         """
-        job_task_id = "job-discord-monitor"
-        
-        if not persistence.pending_thoughts() and not persistence.thought_exists_for(job_task_id):
-            if not persistence.task_exists(job_task_id):
-                logger.warning(f"Task '{job_task_id}' not found. Creating it.")
-                now_iso = datetime.now(timezone.utc).isoformat()
-                job_task = Task(
-                    task_id=job_task_id,
-                    description="Monitor Discord for new messages and events.",
-                    status=TaskStatus.PENDING,
-                    priority=0,
-                    created_at=now_iso,
-                    updated_at=now_iso,
-                    context=ThoughtContext(
-                        meta_goal="continuous_monitoring",
-                        origin_service="agent_processor_fallback",
-                        channel_id=self.default_channel_id
-                    ),
-                )
-                persistence.add_task(job_task)
-            
-            thought = self.create_job_thought(round_number)
-            return thought is not None
+        #TODO: Implement idle state handling logic
+
         
         return False
     

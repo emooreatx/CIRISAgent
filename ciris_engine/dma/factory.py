@@ -5,6 +5,7 @@ from typing import Dict, Optional, Type
 from ciris_engine.registries.base import ServiceRegistry
 
 from .dsdma_base import BaseDSDMA
+from .moderation_dsdma import ModerationDSDMA
 from ciris_engine.schemas.config_schemas_v1 import AgentProfile
 from ..utils.profile_loader import load_profile
 
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 DSDMA_CLASS_REGISTRY: Dict[str, Type[BaseDSDMA]] = {
     "BaseDSDMA": BaseDSDMA,
+    "ModerationDSDMA": ModerationDSDMA,
 }
 
 DEFAULT_PROFILE_PATH = Path("ciris_profiles/default.yaml")

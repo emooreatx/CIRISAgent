@@ -1,8 +1,8 @@
-# CIRIS MyPy Toolkit 🛠️
+# CIRIS MyPy Toolkit
 
 A mission-critical toolkit for agents and developers to drive the CIRIS codebase to zero mypy errors, strict protocol adherence, and schema compliance. This toolkit is designed for agent-in-the-loop workflows, ensuring all type safety and compliance is enforced at the protocol and schema level—never via comments or dead code.
 
-## 🎯 Mission
+## Mission
 
 The CIRIS MyPy Toolkit ensures that all code in the CIRIS ecosystem:
 - Uses only v1 schemas and protocol interfaces (never raw dicts or internal implementations)
@@ -10,7 +10,7 @@ The CIRIS MyPy Toolkit ensures that all code in the CIRIS ecosystem:
 - Avoids dead code, code in comments, or ambiguous/partial fixes
 - Empowers agents to review and approve all automated fixes before execution
 
-## 👩‍💻 Agent-Driven Workflow
+## Agent-Driven Workflow
 
 **The toolkit is designed for agent-in-the-loop operation:**
 
@@ -23,26 +23,26 @@ This workflow guarantees:
 - All type annotations and fixes are protocol/schema-bound
 - Every change is reviewable and auditable by an agent
 
-## ✨ Features
+## Features
 
-### 🔍 Advanced Analysis
+### Advanced Analysis
 - **Schema Validator**: Detects dict usage that should be proper schema classes
 - **Protocol Analyzer**: Finds direct internal method calls that should use protocol interfaces
 - **Unused Code Detector**: Identifies uncalled functions, unused imports, and dead code
 - **Hot/Cold Path Analyzer**: Generates a per-module map of which schema/protocol objects are directly available (hot) or only accessible via context/persistence (cold)
 
-### 🔧 Automated Fixing
+### Automated Fixing
 - **Type Annotation Fixer**: Adds missing return types, variable annotations, Optional types, always using protocol/schema types
 - **Protocol Compliance Fixer**: Refactors internal calls to use service registry and protocols
 - **Schema Alignment Fixer**: Updates legacy imports to v1 schemas and adds schema TODOs
 - **Engine Simplification Automation**: Uses the hot/cold map to refactor all engine modules, ensuring only hot objects are used for direct variable/property types and assignments, and all dicts/ad-hoc types are eliminated
 
-### 📊 Comprehensive Reporting
+### Comprehensive Reporting
 - Full compliance analysis across the codebase
 - Adapter-specific validation for new components
 - Progress tracking and success metrics
 
-## 🧠 Engine Simplification Automation
+## Engine Simplification Automation
 
 The toolkit now includes a fully automated workflow to optimize the CIRIS engine using the hot/cold path map:
 
@@ -58,7 +58,7 @@ The toolkit now includes a fully automated workflow to optimize the CIRIS engine
 - It eliminates ambiguity, dead code, and legacy patterns.
 - It makes type annotation fixing, mypy compliance, and future refactoring much easier and safer.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Command Line Usage
 
@@ -101,7 +101,7 @@ results = toolkit.execute_approved_fixes(proposal)
 print(f"Applied {results['total_errors_eliminated']} fixes")
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 The toolkit is now split into clear, modular components:
 
@@ -120,21 +120,21 @@ ciris_mypy_toolkit/
 └── cli.py                     # Command-line interface
 ```
 
-## 🦾 Agent Usage Philosophy
+## Agent Usage Philosophy
 
 - **No code in comments**: All dead code and commented-out code is purged, never left for review.
 - **Protocol/Schema Only**: All type annotations and fixes use only types from `protocols/` and `schemas/`.
 - **Review Required**: No fix is applied without explicit agent/human review and approval.
 - **Zero Tolerance**: The goal is zero mypy errors, zero protocol violations, and zero schema drift.
 
-## 🛡️ Safety Features
+## Safety Features
 
 - **Conservative Fixing**: Only applies safe, well-tested transformations
 - **Verification**: Validates fixes don't break functionality  
 - **Rollback Support**: Git integration for easy rollback if needed
 - **Progress Tracking**: Clear metrics on what was changed
 
-## 🔄 Integration with Existing Tools
+## Integration with Existing Tools
 
 Works seamlessly with:
 - **MyPy**: Uses mypy output for error detection and fixing
@@ -142,7 +142,7 @@ Works seamlessly with:
 - **Git**: Tracks changes and enables rollback
 - **CI/CD**: Can be integrated into automated pipelines
 
-## 📈 Continuous Improvement
+## Continuous Improvement
 
 The toolkit learns from the codebase and can:
 - **Detect Patterns**: Identifies recurring issues across modules
@@ -150,7 +150,7 @@ The toolkit learns from the codebase and can:
 - **Track Progress**: Monitors compliance over time
 - **Adapt Rules**: Updates validation rules as schemas evolve
 
-## 🤝 Contributing
+## Contributing
 
 To extend the toolkit:
 
@@ -159,7 +159,7 @@ To extend the toolkit:
 3. **Extend CLI**: Add new commands for specific use cases
 4. **Update Patterns**: Keep schema and protocol patterns current
 
-## 📚 Related Documentation
+## Related Documentation
 
 - [CIRIS Schemas](../ciris_engine/schemas/README.md) - v1 schema documentation
 - [Protocol Interfaces](../ciris_engine/protocols/README.md) - Service protocols

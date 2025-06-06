@@ -1,38 +1,14 @@
-"""MemoryService protocol for agent memory storage."""
+"""MemoryService protocol for agent memory storage - aligned with engine protocols."""
 
 from __future__ import annotations
 
-from datetime import datetime
-from enum import StrEnum
-from typing import Any, Dict, Protocol
+from typing import Any, Dict, List, Protocol
 
-from pydantic import BaseModel, Field
+# Import the standardized protocols and schemas from engine
+from ciris_engine.protocols.services import MemoryService
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult
 
-
-class MemoryScope(StrEnum):
-    LOCAL = "local"
-    IDENTITY = "identity"
-    ENVIRONMENT = "environment"
-
-
-class MemoryEntry(BaseModel):
-    key: str
-    value: Dict[str, Any]
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
-class MemoryService(Protocol):
-    async def store(self, scope: MemoryScope, entry: MemoryEntry) -> None:
-        ...
-
-    async def fetch(self, scope: MemoryScope, key: str) -> MemoryEntry | None:
-        ...
-
-    async def query(
-        self,
-        scope: MemoryScope,
-        prefix: str | None = None,
-        limit: int = 100,
-    ) -> list[MemoryEntry]:
-        ...
+# Re-export the engine protocol as the canonical interface
+__all__ = ["MemoryService", "GraphNode", "MemoryOpResult"]
 

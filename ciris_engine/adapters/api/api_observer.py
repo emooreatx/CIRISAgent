@@ -7,6 +7,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.utils.constants import DEFAULT_WA
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+from ciris_engine.secrets.service import SecretsService
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +21,14 @@ class APIObserver:
         agent_id: Optional[str] = None,
         multi_service_sink: Optional[MultiServiceActionSink] = None,
         api_adapter: Optional[Any] = None,
+        secrets_service: Optional[SecretsService] = None,
     ) -> None:
         self.on_observe = on_observe
         self.memory_service = memory_service
         self.agent_id = agent_id
         self.multi_service_sink = multi_service_sink
         self.api_adapter = api_adapter
+        self.secrets_service = secrets_service or SecretsService()
         self._history: list[IncomingMessage] = []
 
     async def start(self) -> None:
@@ -41,9 +44,60 @@ class APIObserver:
         if self.agent_id and msg.author_id == self.agent_id:
             logger.debug("Ignoring self message %s", msg.message_id)
             return
-        self._history.append(msg)
-        await self._handle_passive_observation(msg)
-        await self._recall_context(msg)
+        
+        # Process message for secrets detection and replacement
+        processed_msg = await self._process_message_secrets(msg)
+        
+        self._history.append(processed_msg)
+        await self._handle_passive_observation(processed_msg)
+        await self._recall_context(processed_msg)
+
+    async def _process_message_secrets(self, msg: IncomingMessage) -> IncomingMessage:
+        """Process message content for secrets detection and replacement."""
+        try:
+            # Process the message content for secrets
+            processed_content, secret_refs = await self.secrets_service.process_incoming_text(
+                msg.content,
+                source_context={
+                    "message_id": msg.message_id,
+                    "channel_id": msg.channel_id,
+                    "author_id": msg.author_id,
+                    "operation": "message_processing"
+                }
+            )
+            
+            # Create new message with processed content
+            processed_msg = IncomingMessage(
+                message_id=msg.message_id,
+                content=processed_content,
+                author_id=msg.author_id,
+                author_name=msg.author_name,
+                channel_id=msg.channel_id,
+                timestamp=getattr(msg, 'timestamp', None),
+                is_bot=getattr(msg, 'is_bot', False),
+                is_dm=getattr(msg, 'is_dm', False),
+                mentions_agent=getattr(msg, 'mentions_agent', False),
+                reply_to_message_id=getattr(msg, 'reply_to_message_id', None)
+            )
+            
+            # Store secret references on the message for context
+            if secret_refs:
+                processed_msg._detected_secrets = [
+                    {
+                        "uuid": ref.secret_uuid,
+                        "context_hint": ref.context_hint,
+                        "sensitivity": ref.sensitivity
+                    }
+                    for ref in secret_refs
+                ]
+                logger.info(f"Detected and processed {len(secret_refs)} secrets in API message {msg.message_id}")
+            
+            return processed_msg
+            
+        except Exception as e:
+            logger.error(f"Error processing secrets in API message {msg.message_id}: {e}")
+            # Return original message if processing fails
+            return msg
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
         from ciris_engine.utils.constants import (

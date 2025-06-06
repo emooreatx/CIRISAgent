@@ -4,6 +4,7 @@ from typing import Optional, Dict, Any
 
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 from ciris_engine.registries.base import Priority
 from ..adapters.cli.cli_adapter import CLIAdapter
@@ -17,9 +18,9 @@ logger = logging.getLogger(__name__)
 class CLIRuntime(CIRISRuntime):
     """Runtime for running the agent via the command line."""
 
-    def __init__(self, profile_name: str = "default", interactive: bool = True) -> None:
+    def __init__(self, profile_name: str = "default", interactive: bool = True, app_config: Optional[AppConfig] = None) -> None:
         self.cli_adapter = CLIAdapter()
-        super().__init__(profile_name=profile_name, io_adapter=self.cli_adapter, startup_channel_id="cli")
+        super().__init__(profile_name=profile_name, io_adapter=self.cli_adapter, startup_channel_id="cli", app_config=app_config)
 
         self.cli_observer: Optional[CLIObserver] = None
         self.cli_tool_service: Optional[CLIToolService] = None
@@ -132,6 +133,7 @@ class CLIRuntime(CIRISRuntime):
             service_registry=self.service_registry,
             max_rounds=config.workflow.max_rounds,
             shutdown_callback=dependencies.shutdown_callback,
+            multi_service_sink=self.multi_service_sink,
         )
 
     async def shutdown(self) -> None:

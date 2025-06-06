@@ -18,7 +18,7 @@ from .ponder_handler import PonderHandler
 from ciris_engine.config.env_utils import get_env_var
 from typing import Optional
 
-def build_action_dispatcher(service_registry=None, max_rounds: int = 5, shutdown_callback: Optional[str] = None, telemetry_service=None) -> None:
+def build_action_dispatcher(service_registry=None, max_rounds: int = 5, shutdown_callback: Optional[str] = None, telemetry_service=None, multi_service_sink=None) -> None:
     """
     Instantiates all handlers and returns a ready-to-use ActionDispatcher.
     Uses service_registry for all service dependencies.
@@ -26,6 +26,7 @@ def build_action_dispatcher(service_registry=None, max_rounds: int = 5, shutdown
     deps = ActionHandlerDependencies(
         service_registry=service_registry,
         shutdown_callback=shutdown_callback,
+        multi_service_sink=multi_service_sink,
     )
     handlers = {
         HandlerActionType.MEMORIZE: MemorizeHandler(deps),

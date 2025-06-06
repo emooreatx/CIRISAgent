@@ -75,7 +75,7 @@ class DeferHandler(BaseActionHandler):
         await self._audit_log(HandlerActionType.DEFER, {**dispatch_context, "thought_id": thought_id}, outcome="success")
 
         parent_task_id = thought.source_task_id
-        if parent_task_id not in ["WAKEUP_ROOT", "SYSTEM_TASK", "job-discord-monitor", "DREAM_TASK"]:
+        if parent_task_id not in ["WAKEUP_ROOT", "SYSTEM_TASK", "DREAM_TASK"]:
             persistence.update_task_status(parent_task_id, TaskStatus.DEFERRED)
             self.logger.info(f"Marked parent task {parent_task_id} as DEFERRED due to child thought deferral.")
 

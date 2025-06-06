@@ -23,7 +23,6 @@ class ToolHandler(BaseActionHandler):
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
-        params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.TOOL, {**dispatch_context, "thought_id": thought_id}, outcome="start")
         final_thought_status = ThoughtStatus.COMPLETED
@@ -32,7 +31,10 @@ class ToolHandler(BaseActionHandler):
         new_follow_up = None
 
         try:
-            params = await self._validate_and_convert_params(params, ToolParams)
+            # Auto-decapsulate any secrets in the action parameters
+            processed_result = await self._decapsulate_secrets_in_params(result, "tool")
+            
+            params = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e)
             final_thought_status = ThoughtStatus.FAILED

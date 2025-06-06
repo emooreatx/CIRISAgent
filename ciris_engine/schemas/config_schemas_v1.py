@@ -96,15 +96,126 @@ class NetworkConfig(BaseModel):
     peer_discovery_interval: int = 300  # seconds
     reputation_threshold: int = 30  # 0-100 scale
     
+class CollectorConfig(BaseModel):
+    """Configuration for telemetry collectors"""
+    interval_ms: int = Field(description="Collection interval in milliseconds")
+    max_buffer_size: int = Field(description="Maximum buffer size for this collector")
+
+class TelemetryCollectorsConfig(BaseModel):
+    """Configuration for all telemetry collector tiers"""
+    instant: CollectorConfig = CollectorConfig(interval_ms=50, max_buffer_size=1000)
+    fast: CollectorConfig = CollectorConfig(interval_ms=250, max_buffer_size=5000)
+    normal: CollectorConfig = CollectorConfig(interval_ms=1000, max_buffer_size=10000)
+    slow: CollectorConfig = CollectorConfig(interval_ms=5000, max_buffer_size=5000)
+    aggregate: CollectorConfig = CollectorConfig(interval_ms=30000, max_buffer_size=1000)
+
+class TelemetrySecurityConfig(BaseModel):
+    """Security configuration for telemetry system"""
+    require_tls: bool = Field(default=True, description="Require TLS for external telemetry")
+    require_auth: bool = Field(default=True, description="Require authentication for telemetry endpoints")
+    pii_detection: bool = Field(default=True, description="Enable PII detection and filtering")
+    max_history_hours: int = Field(default=1, description="Maximum telemetry history retention")
+    encryption_key_env: str = Field(default="TELEMETRY_ENCRYPTION_KEY", description="Environment variable for encryption key")
+
+class TelemetryExportConfig(BaseModel):
+    """Export configuration for telemetry data"""
+    otlp: bool = Field(default=False, description="Enable OpenTelemetry protocol export")
+    websocket: bool = Field(default=False, description="Enable WebSocket telemetry streaming")
+    api: bool = Field(default=False, description="Enable API endpoint for telemetry")
+
 class TelemetryConfig(BaseModel):
-    """Telemetry configuration - secure by default"""
-    enabled: bool = False
-    internal_only: bool = True
-    retention_hours: int = 1
-    snapshot_interval_ms: int = 1000
+    """Comprehensive telemetry configuration"""
+    enabled: bool = Field(default=False, description="Enable telemetry system")
+    internal_only: bool = Field(default=True, description="Restrict to internal telemetry only")
+    retention_hours: int = Field(default=1, description="Data retention period in hours")
+    snapshot_interval_ms: int = Field(default=1000, description="SystemSnapshot update interval")
+    buffer_size: int = Field(default=1000, description="Main telemetry buffer size")
+    security: TelemetrySecurityConfig = TelemetrySecurityConfig()
+    collectors: TelemetryCollectorsConfig = TelemetryCollectorsConfig()
+    export: TelemetryExportConfig = TelemetryExportConfig()
+
+class SecretsStorageConfig(BaseModel):
+    """Configuration for secrets storage"""
+    database_path: str = Field(default="secrets.db", description="Path to secrets database")
+    encryption_key_env: str = Field(default="SECRETS_MASTER_KEY", description="Environment variable for master encryption key")
+    key_rotation_days: int = Field(default=90, description="Key rotation period in days")
+
+class SecretsDetectionConfig(BaseModel):
+    """Configuration for secrets detection"""
+    builtin_patterns: bool = Field(default=True, description="Enable built-in detection patterns")
+    custom_patterns_enabled: bool = Field(default=True, description="Allow custom detection patterns")
+    sensitivity_threshold: str = Field(default="MEDIUM", description="Detection sensitivity: LOW, MEDIUM, HIGH, CRITICAL")
+
+class SecretsAccessControlConfig(BaseModel):
+    """Configuration for secrets access control"""
+    max_accesses_per_minute: int = Field(default=10, description="Maximum secret accesses per minute")
+    max_accesses_per_hour: int = Field(default=100, description="Maximum secret accesses per hour")
+    max_decryptions_per_hour: int = Field(default=20, description="Maximum decryptions per hour")
+    require_confirmation_for: List[str] = Field(default_factory=lambda: ["CRITICAL"], description="Sensitivity levels requiring confirmation")
+
+class SecretsAuditConfig(BaseModel):
+    """Configuration for secrets audit logging"""
+    log_all_access: bool = Field(default=True, description="Log all secret access operations")
+    log_path: str = Field(default="secrets_audit.log", description="Path to secrets audit log")
+    retention_days: int = Field(default=365, description="Audit log retention period")
+
+class SecretsAutoDecapsulationConfig(BaseModel):
+    """Configuration for automatic secrets decapsulation"""
+    enabled: bool = Field(default=True, description="Enable automatic decapsulation in handlers")
+    allowed_actions: List[str] = Field(default_factory=lambda: ["speak", "tool", "memorize"], description="Actions that allow auto-decapsulation")
+    require_purpose: bool = Field(default=True, description="Require purpose documentation for decapsulation")
+
+class SecretsConfig(BaseModel):
+    """Comprehensive secrets management configuration"""
+    enabled: bool = Field(default=True, description="Enable secrets management system")
+    storage: SecretsStorageConfig = SecretsStorageConfig()
+    detection: SecretsDetectionConfig = SecretsDetectionConfig()
+    access_control: SecretsAccessControlConfig = SecretsAccessControlConfig()
+    audit: SecretsAuditConfig = SecretsAuditConfig()
+    auto_decapsulation: SecretsAutoDecapsulationConfig = SecretsAutoDecapsulationConfig()
+    
+    def load_env_vars(self) -> None:
+        """Load configuration from environment variables if present."""
+        from ciris_engine.config.env_utils import get_env_var
+        
+        # Load storage configuration
+        db_path = get_env_var("SECRETS_DB_PATH")
+        if db_path:
+            self.storage.database_path = db_path
+        
+        # Load sensitivity threshold
+        sensitivity = get_env_var("SECRETS_SENSITIVITY_THRESHOLD")
+        if sensitivity and sensitivity.upper() in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
+            self.detection.sensitivity_threshold = sensitivity.upper()
+        
+        # Load access control limits
+        max_per_minute = get_env_var("SECRETS_MAX_ACCESS_PER_MINUTE")
+        if max_per_minute:
+            try:
+                self.access_control.max_accesses_per_minute = int(max_per_minute)
+            except ValueError:
+                pass
+
+class AuditHashChainConfig(BaseModel):
+    """Configuration for audit hash chains"""
+    enabled: bool = Field(default=True, description="Enable hash chain integrity")
+    algorithm: str = Field(default="sha256", description="Hash algorithm")
+
+class AuditSignatureConfig(BaseModel):
+    """Configuration for audit signatures"""
+    enabled: bool = Field(default=True, description="Enable digital signatures")
+    algorithm: str = Field(default="rsa-pss", description="Signature algorithm")
+    key_size: int = Field(default=2048, description="Key size in bits")
+    key_rotation_days: int = Field(default=90, description="Key rotation period")
+
+class AuditAnchoringConfig(BaseModel):
+    """Configuration for audit anchoring"""
+    enabled: bool = Field(default=True, description="Enable audit anchoring")
+    interval_hours: int = Field(default=1, description="Anchoring interval in hours")
+    method: str = Field(default="local", description="Anchoring method: local, blockchain, rfc3161")
 
 class AuditConfig(BaseModel):
-    """Audit service configuration"""
+    """Comprehensive audit service configuration"""
     enable_signed_audit: bool = Field(default=False, description="Enable cryptographically signed audit trail")
     enable_jsonl_audit: bool = Field(default=True, description="Enable traditional JSONL audit logging")
     audit_log_path: str = Field(default="audit_logs.jsonl", description="Path to JSONL audit log file")
@@ -112,6 +223,120 @@ class AuditConfig(BaseModel):
     audit_key_path: str = Field(default="audit_keys", description="Directory for audit signing keys")
     rotation_size_mb: int = Field(default=100, description="JSONL file rotation size in MB")
     retention_days: int = Field(default=90, description="Audit log retention period in days")
+    hash_chain: AuditHashChainConfig = AuditHashChainConfig()
+    signatures: AuditSignatureConfig = AuditSignatureConfig()
+    anchoring: AuditAnchoringConfig = AuditAnchoringConfig()
+
+class ResourceBudgetConfig(BaseModel):
+    """Configuration for individual resource budgets"""
+    limit: float = Field(description="Resource limit threshold")
+    warning: float = Field(description="Warning threshold")
+    critical: float = Field(description="Critical threshold")
+    action: str = Field(description="Action to take when threshold exceeded: defer, throttle, reject, shutdown")
+
+class ResourceThrottleConfig(BaseModel):
+    """Configuration for resource throttling actions"""
+    min_delay_seconds: float = Field(default=0.1, description="Minimum throttle delay")
+    max_delay_seconds: float = Field(default=10.0, description="Maximum throttle delay")
+    increment: float = Field(default=1.0, description="Delay increment factor")
+
+class ResourceDeferConfig(BaseModel):
+    """Configuration for resource deferral actions"""
+    priority_threshold: int = Field(default=50, description="Priority threshold for deferral")
+
+class ResourceShutdownConfig(BaseModel):
+    """Configuration for resource shutdown actions"""
+    grace_period_seconds: int = Field(default=30, description="Graceful shutdown period")
+    save_state: bool = Field(default=True, description="Save state before shutdown")
+
+class ResourceActionsConfig(BaseModel):
+    """Configuration for resource management actions"""
+    throttle: ResourceThrottleConfig = ResourceThrottleConfig()
+    defer: ResourceDeferConfig = ResourceDeferConfig()
+    shutdown: ResourceShutdownConfig = ResourceShutdownConfig()
+
+class ResourceMonitoringConfig(BaseModel):
+    """Configuration for resource monitoring"""
+    interval_seconds: int = Field(default=1, description="Monitoring interval")
+    history_hours: int = Field(default=24, description="Resource history retention")
+
+class ResourceConfig(BaseModel):
+    """Comprehensive resource management configuration"""
+    enabled: bool = Field(default=True, description="Enable resource management")
+    monitoring: ResourceMonitoringConfig = ResourceMonitoringConfig()
+    budgets: Dict[str, ResourceBudgetConfig] = Field(default_factory=lambda: {
+        "memory": ResourceBudgetConfig(limit=256, warning=200, critical=240, action="defer"),
+        "cpu": ResourceBudgetConfig(limit=80, warning=60, critical=75, action="throttle"),
+        "tokens_hour": ResourceBudgetConfig(limit=10000, warning=8000, critical=9500, action="defer"),
+        "tokens_day": ResourceBudgetConfig(limit=100000, warning=80000, critical=95000, action="reject"),
+        "thoughts": ResourceBudgetConfig(limit=50, warning=40, critical=48, action="defer")
+    })
+    actions: ResourceActionsConfig = ResourceActionsConfig()
+
+class AdaptiveFilteringConfig(BaseModel):
+    """Configuration for adaptive message filtering"""
+    new_user_threshold: int = Field(default=5, description="Threshold for new user classification")
+    sample_rate_default: float = Field(default=0.1, description="Default sampling rate")
+    effectiveness_threshold: float = Field(default=0.3, description="Effectiveness threshold for adjustments")
+    false_positive_threshold: float = Field(default=0.2, description="False positive threshold")
+
+class AdaptiveLearningConfig(BaseModel):
+    """Configuration for adaptive learning system"""
+    enabled: bool = Field(default=True, description="Enable adaptive learning")
+    adjustment_interval: int = Field(default=3600, description="Adjustment interval in seconds")
+    min_samples_for_adjustment: int = Field(default=10, description="Minimum samples required for adjustment")
+
+class CircuitBreakerConfig(BaseModel):
+    """Configuration for circuit breaker patterns"""
+    failure_threshold: int = Field(default=3, description="Failure threshold to open circuit")
+    reset_timeout: int = Field(default=300, description="Reset timeout in seconds")
+    half_open_test_interval: int = Field(default=60, description="Half-open test interval")
+
+class IdentityUpdatesConfig(BaseModel):
+    """Configuration for identity update management"""
+    require_wa_approval: bool = Field(default=True, description="Require WA approval for identity changes")
+    wa_timeout_hours: int = Field(default=72, description="WA approval timeout")
+    allow_emergency_override: bool = Field(default=False, description="Allow emergency override of WA requirement")
+
+class AdaptiveConfig(BaseModel):
+    """Comprehensive adaptive configuration and self-configuration"""
+    enabled: bool = Field(default=True, description="Enable adaptive configuration system")
+    filtering: AdaptiveFilteringConfig = AdaptiveFilteringConfig()
+    learning: AdaptiveLearningConfig = AdaptiveLearningConfig()
+    circuit_breaker: CircuitBreakerConfig = CircuitBreakerConfig()
+    identity_updates: IdentityUpdatesConfig = IdentityUpdatesConfig()
+
+class PersistenceIntegrityConfig(BaseModel):
+    """Configuration for persistence integrity verification"""
+    enabled: bool = Field(default=True, description="Enable integrity verification")
+    mode: str = Field(default="full", description="Integrity mode: full, lightweight, disabled")
+
+class PersistenceHashChainsConfig(BaseModel):
+    """Configuration for persistence hash chains"""
+    tasks: bool = Field(default=True, description="Enable hash chains for tasks")
+    thoughts: bool = Field(default=True, description="Enable hash chains for thoughts")
+    graph_nodes: bool = Field(default=False, description="Enable hash chains for graph nodes")
+
+class PersistenceSignaturesConfig(BaseModel):
+    """Configuration for persistence signatures"""
+    enabled: bool = Field(default=True, description="Enable selective signing")
+    selective: bool = Field(default=True, description="Use selective signing")
+    deferred_thoughts: bool = Field(default=True, description="Sign deferred thoughts")
+    high_priority_tasks: bool = Field(default=True, description="Sign high priority tasks")
+    wa_updates: bool = Field(default=True, description="Sign WA updates")
+
+class PersistenceVerificationConfig(BaseModel):
+    """Configuration for persistence verification"""
+    on_startup: bool = Field(default=False, description="Verify on startup")
+    on_deferral: bool = Field(default=True, description="Verify on deferral")
+    periodic_hours: int = Field(default=24, description="Periodic verification interval")
+
+class PersistenceConfig(BaseModel):
+    """Configuration for persistence integrity system"""
+    integrity: PersistenceIntegrityConfig = PersistenceIntegrityConfig()
+    hash_chains: PersistenceHashChainsConfig = PersistenceHashChainsConfig()
+    signatures: PersistenceSignaturesConfig = PersistenceSignaturesConfig()
+    verification: PersistenceVerificationConfig = PersistenceVerificationConfig()
 
 class WisdomConfig(BaseModel):
     """Wisdom-seeking configuration"""
@@ -121,7 +346,7 @@ class WisdomConfig(BaseModel):
     peer_consensus_threshold: int = 3  # Minimum peers for consensus
 
 class AppConfig(BaseModel):
-    """Minimal v1 application configuration."""
+    """Comprehensive v1 application configuration with all implemented features."""
     version: Optional[str] = None
     log_level: Optional[str] = None
     database: DatabaseConfig = DatabaseConfig()
@@ -132,11 +357,20 @@ class AppConfig(BaseModel):
     cirisnode: CIRISNodeConfig = CIRISNodeConfig()
     network: NetworkConfig = NetworkConfig()
     telemetry: TelemetryConfig = TelemetryConfig()
+    secrets: SecretsConfig = SecretsConfig()
+    resources: ResourceConfig = ResourceConfig()
+    adaptive: AdaptiveConfig = AdaptiveConfig()
+    persistence: PersistenceConfig = PersistenceConfig()
     wisdom: WisdomConfig = WisdomConfig()
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
     default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
     discord_channel_id: Optional[str] = None
+    agent_mode: str = Field(default="", description="Runtime mode: 'cli', 'discord', 'api'")
+    cli_channel_id: Optional[str] = Field(default=None, description="Channel ID for CLI mode")
+    api_channel_id: Optional[str] = Field(default=None, description="Channel ID for API mode")
+    data_archive_dir: str = Field(default="data_archive", description="Directory for archived data")
+    archive_older_than_hours: int = Field(default=24, description="Archive data older than this many hours")
 
 DMA_RETRY_LIMIT = 3
 GUARDRAIL_RETRY_LIMIT = 2
