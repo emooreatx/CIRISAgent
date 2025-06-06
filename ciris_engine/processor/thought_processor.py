@@ -28,7 +28,8 @@ class ThoughtProcessor:
         context_builder: Any,
         guardrail_orchestrator: Any,
         app_config: AppConfig,
-        dependencies: ActionHandlerDependencies
+        dependencies: ActionHandlerDependencies,
+        telemetry_service: Optional[Any] = None
     ) -> None:
         self.dma_orchestrator = dma_orchestrator
         self.context_builder = context_builder
@@ -36,6 +37,7 @@ class ThoughtProcessor:
         self.app_config = app_config
         self.dependencies = dependencies
         self.settings = app_config.workflow
+        self.telemetry_service = telemetry_service
 
     async def process_thought(
         self,
@@ -44,10 +46,16 @@ class ThoughtProcessor:
         benchmark_mode: bool = False
     ) -> Optional[ActionSelectionResult]:
         """Main processing pipeline - coordinates the components."""
+        # Record thought processing start
+        if self.telemetry_service:
+            await self.telemetry_service.record_metric("thought_processing_started")
+        
         # 1. Fetch the full Thought object
         thought = await self._fetch_thought(thought_item.thought_id)
         if not thought:
             logger.error(f"Thought {thought_item.thought_id} not found.")
+            if self.telemetry_service:
+                await self.telemetry_service.record_metric("thought_not_found")
             return None
 
         # 2. Build context
@@ -74,6 +82,8 @@ class ThoughtProcessor:
                 f"DMA failure during initial processing for {thought_item.thought_id}: {dma_err}",
                 exc_info=True,
             )
+            if self.telemetry_service:
+                await self.telemetry_service.record_metric("dma_failure")
             defer_params = DeferParams(
                 reason="DMA timeout",
                 context={"error": str(dma_err)},
@@ -173,6 +183,13 @@ class ThoughtProcessor:
                     action_parameters=ponder_params,
                     rationale="No guardrail result",
                 )
+
+        # Record thought processing completion and action taken
+        if self.telemetry_service:
+            await self.telemetry_service.record_metric("thought_processing_completed")
+            if final_result:
+                action_metric = f"action_selected_{final_result.selected_action.value}"
+                await self.telemetry_service.record_metric(action_metric)
 
         return final_result
 

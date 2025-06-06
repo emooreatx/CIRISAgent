@@ -18,10 +18,12 @@ class ContextBuilder:
         memory_service: Optional[LocalGraphMemoryService] = None,
         graphql_provider: Optional[GraphQLContextProvider] = None,
         app_config: Optional[Any] = None,
+        telemetry_service: Optional[Any] = None,
     ) -> None:
         self.memory_service = memory_service
         self.graphql_provider = graphql_provider
         self.app_config = app_config
+        self.telemetry_service = telemetry_service
 
     async def build_thought_context(
         self,
@@ -173,4 +175,10 @@ class ContextBuilder:
                     graphql_extra_processed[key] = value
             context_data.update(graphql_extra_processed)
         
-        return SystemSnapshot(**context_data)
+        snapshot = SystemSnapshot(**context_data)
+        
+        # Update snapshot with telemetry data if service is available
+        if self.telemetry_service:
+            await self.telemetry_service.update_system_snapshot(snapshot)
+        
+        return snapshot

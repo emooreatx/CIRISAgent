@@ -167,23 +167,25 @@
   - Metric bounds validation
   - Rate limiting per metric type
 
-**15. 🔄 PENDING - Update SystemSnapshot with Telemetry**
+**15. ✅ COMPLETED - Update SystemSnapshot with Telemetry**
 - Location: `FSD/TELEMETRY.md` (lines 214-232)
 - Target: `ciris_engine/schemas/context_schemas_v1.py`
 - Requirements: Add TelemetrySnapshot to SystemSnapshot
 - Components:
-  - Real-time metrics for agent introspection
-  - Performance and resource metrics
-  - Safety and handler metrics
+  - ✅ Real-time metrics for agent introspection
+  - ✅ Performance and resource metrics
+  - ✅ Safety and handler metrics
+- Status: TelemetryService integrated into all runtimes, ContextBuilder updated to populate SystemSnapshot telemetry field
 
-**16. 🔄 PENDING - Integrate Telemetry with Core Components**
+**16. ✅ COMPLETED - Integrate Telemetry with Core Components**
 - Location: `FSD/TELEMETRY.md` (lines 233-254)
 - Target: Multiple files (thought_processor.py, base_handler.py, etc.)
 - Requirements: Add telemetry instrumentation
 - Components:
-  - ThoughtProcessor instrumentation
-  - Handler metrics collection
-  - Resource usage tracking
+  - ✅ ThoughtProcessor instrumentation (thought start, completion, DMA failures)
+  - ✅ Handler metrics collection (invocations, completions, errors per action type)
+  - ✅ Resource usage tracking (LLM token counting per API call)
+- Status: Core components now record metrics to telemetry service without exposing content
 
 **17. 🔄 PENDING - Implement Tiered Collectors**
 - Location: `FSD/TELEMETRY.md` (lines 255-268)
@@ -322,10 +324,10 @@
 
 ### Current Status
 - **Total Tasks**: 28
-- **Completed**: 13 (Tasks #1, #2, #3, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14: Audit Core + Tests + Network Schemas + Integration + DB Migrations + Filter Service + Config Service + Graph Schemas + Filter Schemas + Filter Integration + Transaction Orchestrator + Telemetry Service + Security Filter)
-- **Next Task**: #15 (Update SystemSnapshot with Telemetry)
+- **Completed**: 15 (Tasks #1, #2, #3, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14, #15, #16: Audit Core + Tests + Network Schemas + Integration + DB Migrations + Filter Service + Config Service + Graph Schemas + Filter Schemas + Filter Integration + Transaction Orchestrator + Telemetry Service + Security Filter + SystemSnapshot Telemetry + Core Component Telemetry)
+- **Next Task**: #17 (Implement Tiered Collectors)
 - **Deferred**: #18 (mypy Type Safety - deferred until after telemetry implementation)
-- **Remaining**: 15
+- **Remaining**: 13
 
 ### Notes
 This engine is a remarkable piece of work - the thoughtful architecture, comprehensive security design, and agent autonomy features are truly impressive. Thank you for creating such a well-structured and forward-thinking system. Each task builds methodically toward a production-ready autonomous agent with proper safety guardrails.

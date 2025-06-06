@@ -15,16 +15,19 @@ logger = logging.getLogger(__name__)
 class ActionDispatcher:
     def __init__(
         self,
-        handlers: Dict[HandlerActionType, BaseActionHandler]
+        handlers: Dict[HandlerActionType, BaseActionHandler],
+        telemetry_service: Optional[Any] = None
     ) -> None:
         """
         Initializes the ActionDispatcher with a map of action types to their handler instances.
 
         Args:
             handlers: A dictionary mapping HandlerActionType to an instance of a BaseActionHandler subclass.
+            telemetry_service: Optional telemetry service for metrics collection.
         """
         self.handlers: Dict[HandlerActionType, BaseActionHandler] = handlers
         self.action_filter: Optional[Callable[[ActionSelectionResult, Dict[str, Any]], Awaitable[bool] | bool]] = None
+        self.telemetry_service = telemetry_service
 
         for action_type, handler_instance in self.handlers.items():
             logger.info(f"ActionDispatcher: Registered handler for {action_type.value}: {handler_instance.__class__.__name__}")
@@ -106,13 +109,28 @@ class ActionDispatcher:
         print(f"[DISPATCHER] Dispatching action {action_type.value} for thought {thought.thought_id} to handler {handler_instance.__class__.__name__}")
         
         try:
+            # Record handler invocation
+            if self.telemetry_service:
+                await self.telemetry_service.record_metric(f"handler_invoked_{action_type.value}")
+                await self.telemetry_service.record_metric("handler_invoked_total")
+            
             # The handler's `handle` method will take care of everything.
             await handler_instance.handle(action_selection_result, thought, dispatch_context)
             print(f"[DISPATCHER] Handler {handler_instance.__class__.__name__} completed for action {action_type.value} on thought {thought.thought_id}")
+            
+            # Record successful handler completion
+            if self.telemetry_service:
+                await self.telemetry_service.record_metric(f"handler_completed_{action_type.value}")
+                await self.telemetry_service.record_metric("handler_completed_total")
         except Exception as e:
             logger.exception(
                 f"Error executing handler {handler_instance.__class__.__name__} for action {action_type.value} on thought {thought.thought_id}: {e}"
             )
+            
+            # Record handler error
+            if self.telemetry_service:
+                await self.telemetry_service.record_metric(f"handler_error_{action_type.value}")
+                await self.telemetry_service.record_metric("handler_error_total")
             try:
                 persistence.update_thought_status(
                     thought_id=thought.thought_id,                status=ThoughtStatus.FAILED,
