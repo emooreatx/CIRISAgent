@@ -12,8 +12,12 @@ Key principles:
 """
 
 from .resource_monitor import ResourceMonitor, ResourceSignalBus
+from .core import TelemetryService
+from .security import SecurityFilter
 
 __all__ = [
     "ResourceMonitor",
     "ResourceSignalBus",
+    "TelemetryService",
+    "SecurityFilter",
 ]

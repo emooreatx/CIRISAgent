@@ -6,4 +6,5 @@ This module provides minimal observability features for the CIRIS engine.
   psutil integration.
 - `metrics.py`, `security.py`, and `core.py` host the broader telemetry system.
 
-Services should import `ResourceMonitor` via `ciris_engine.telemetry`.
+Services should import `ResourceMonitor`, `TelemetryService`, and the
+`SecurityFilter` via `ciris_engine.telemetry`.

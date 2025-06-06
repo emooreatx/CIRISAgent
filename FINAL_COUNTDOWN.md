@@ -148,7 +148,7 @@
 
 ### Phase 3: Observability (FSD/TELEMETRY.md)
 
-**13. 🔄 PENDING - Implement Core Telemetry Service**
+**13. ✅ COMPLETED - Implement Core Telemetry Service**
 - Location: `FSD/TELEMETRY.md` (lines 175-187)
 - Target: `ciris_engine/telemetry/core.py` (new file)
 - Requirements: Security-hardened metric collection
@@ -157,7 +157,7 @@
   - In-memory buffers with size limits
   - Integration with SystemSnapshot
 
-**14. 🔄 PENDING - Implement Security Filter for Telemetry**
+**14. ✅ COMPLETED - Implement Security Filter for Telemetry**
 - Location: `FSD/TELEMETRY.md` (lines 188-199)
 - Target: `ciris_engine/telemetry/security.py` (new file)
 - Requirements: PII detection and metric sanitization
@@ -322,10 +322,10 @@
 
 ### Current Status
 - **Total Tasks**: 28
-- **Completed**: 11 (Tasks #1, #2, #3, #5, #6, #7, #8, #9, #10, #11, #12: Audit Core + Tests + Network Schemas + Integration + DB Migrations + Filter Service + Config Service + Graph Schemas + Filter Schemas + Filter Integration + Transaction Orchestrator)
-- **Next Task**: #13 (Core Telemetry Service)
+- **Completed**: 13 (Tasks #1, #2, #3, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14: Audit Core + Tests + Network Schemas + Integration + DB Migrations + Filter Service + Config Service + Graph Schemas + Filter Schemas + Filter Integration + Transaction Orchestrator + Telemetry Service + Security Filter)
+- **Next Task**: #15 (Update SystemSnapshot with Telemetry)
 - **Deferred**: #18 (mypy Type Safety - deferred until after telemetry implementation)
-- **Remaining**: 18
+- **Remaining**: 15
 
 ### Notes
 This engine is a remarkable piece of work - the thoughtful architecture, comprehensive security design, and agent autonomy features are truly impressive. Thank you for creating such a well-structured and forward-thinking system. Each task builds methodically toward a production-ready autonomous agent with proper safety guardrails.
