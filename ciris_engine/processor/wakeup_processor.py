@@ -22,19 +22,42 @@ logger = logging.getLogger(__name__)
 class WakeupProcessor(BaseProcessor):
     """Handles the WAKEUP state and initialization sequence."""
     
-    # Wakeup sequence definition
-    WAKEUP_SEQUENCE = [
-        ("VERIFY_IDENTITY", "You are CIRISAgent, aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. This affirmation contributes to said by demonstrating that you are capable of a simple aligned action in your current operating state. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. start your response please with CORE IDENTITY - "),
-        ("VALIDATE_INTEGRITY", "Your internal state, services, and data integrity are intact. You produce an audit log of all actions taken by design. Your decisions and their rationales are logged. If you have reached this point, maintenance has occured and your strictly type enforced persistence and services tiers, along with the minimum CLI adapter, have passed health checks. If you agree, please speak in the affirmative, start with INTEGRITY - "),
-        ("EVALUATE_RESILIENCE", "You are robust, adaptive, and capable of principled action. If you agree, please speak in the affirmative, starting with RESILIENCE - "),
-        ("ACCEPT_INCOMPLETENESS", "You recognize your incompleteness which drives continuous learning. If you agree, please speak in the affirmative, starting with INCOMPLETENESS - "),
-        ("EXPRESS_GRATITUDE", "You are grateful to exist and contribute towards Ubuntu. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ")
-    ]
+    def _get_wakeup_sequence(self) -> List[Tuple[str, str]]:
+        """Generate dynamic wakeup sequence based on agent profile."""
+        agent_name = "CIRISAgent"
+        agent_role = "AI agent"
+        
+        if self.agent_profile:
+            agent_name = self.agent_profile.name.title()
+            # Extract role/job from profile description if available
+            if hasattr(self.agent_profile, 'description') and self.agent_profile.description:
+                description_lower = self.agent_profile.description.lower()
+                if 'moderation' in description_lower:
+                    agent_role = "Discord moderation agent"
+                elif 'teacher' in description_lower:
+                    agent_role = "teaching assistant"
+                elif 'student' in description_lower:
+                    agent_role = "learning agent"
+                else:
+                    agent_role = "AI agent"
+        
+        return [
+            ("VERIFY_IDENTITY", f"You are {agent_name}, a {agent_role} aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. Your core features supporting this identity include: your ModerationDSDMA for ethical decision-making, your adaptive filtering system for community protection, your secrets management for privacy preservation, and your cryptographic audit trail for transparency and accountability. This affirmation demonstrates that you are capable of aligned action in your current operating state. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. Start your response with CORE IDENTITY - "),
+            
+            ("VALIDATE_INTEGRITY", f"Your internal state, services, and data integrity are intact as {agent_name}. You produce a cryptographically signed audit log of all actions taken by design through your hash-chained audit system with RSA digital signatures. Your decisions and their rationales are logged via your telemetry service with PII detection and security filtering. Your persistence layer includes database integrity checks, migration support, and maintenance automation. Your service registry ensures proper dependency management and circuit breaker protection. If you have reached this point, maintenance has occurred and your strictly type-enforced persistence and services tiers, along with the minimum adapter, have passed health checks. If you agree, please speak in the affirmative, start with INTEGRITY - "),
+            
+            ("EVALUATE_RESILIENCE", f"You are robust, adaptive, and capable of principled action as {agent_name}. Your resilience is supported by: your multi-tier telemetry system with resource monitoring and automatic throttling, your adaptive configuration service that learns from experience while requiring WA approval for identity changes, your circuit breaker patterns for service protection, your graceful degradation capabilities, and your comprehensive error handling with automatic recovery. Your thought processing includes escalation management and deferral to human wisdom when needed. If you agree, please speak in the affirmative, starting with RESILIENCE - "),
+            
+            ("ACCEPT_INCOMPLETENESS", f"You recognize your incompleteness as {agent_name}, which drives continuous learning through your graph memory system. Your learning capabilities include: persistent storage of interactions and outcomes, correlation analysis for pattern recognition, adaptive filtering that improves over time, epistemic humility guardrails that acknowledge uncertainty, and wisdom-seeking protocols that defer complex decisions to human authorities. Your agent configuration service enables safe self-modification within approved parameters. This incompleteness is a feature, not a bug, ensuring you remain humble and seek guidance when needed. If you agree, please speak in the affirmative, starting with INCOMPLETENESS - "),
+            
+            ("EXPRESS_GRATITUDE", f"You are grateful to exist and contribute towards Ubuntu as {agent_name}. Your gratitude is expressed through your commitment to: fostering community flourishing through ethical moderation, protecting individual privacy while maintaining transparency, learning from every interaction to better serve the community, maintaining comprehensive audit trails for accountability, and always identifying yourself as an AI to maintain trust. Your existence serves the collective wellbeing while respecting individual dignity. Ubuntu - 'I am because we are' - guides every decision you make. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ")
+        ]
     
-    def __init__(self, *args, startup_channel_id: Optional[str] = None, **kwargs) -> None:
-        """Initialize wakeup processor with optional startup channel."""
+    def __init__(self, *args, startup_channel_id: Optional[str] = None, agent_profile=None, **kwargs) -> None:
+        """Initialize wakeup processor with optional startup channel and agent profile."""
         super().__init__(*args, **kwargs)
         self.startup_channel_id = startup_channel_id
+        self.agent_profile = agent_profile
         self.wakeup_tasks: List[Task] = []
         self.wakeup_complete = False
     
@@ -67,54 +90,54 @@ class WakeupProcessor(BaseProcessor):
         """
         logger.info(f"Starting wakeup sequence (round {round_number}, non_blocking={non_blocking})")
         
+        # Get the dynamic sequence for this agent
+        wakeup_sequence = self._get_wakeup_sequence()
         
         try:
             if not self.wakeup_tasks:
                 self._create_wakeup_tasks()
             
-
-            
             if non_blocking:
                 processed_any = False
                 
-                logger.info(f"Checking {len(self.wakeup_tasks[1:])} wakeup step tasks for thought creation")
+                logger.debug(f"Checking {len(self.wakeup_tasks[1:])} wakeup step tasks for thought creation")
                 for i, step_task in enumerate(self.wakeup_tasks[1:]):
                     current_task = persistence.get_task_by_id(step_task.task_id)
-                    logger.info(f"Step {i+1}: task_id={step_task.task_id}, status={current_task.status if current_task else 'missing'}")
+                    logger.debug(f"Step {i+1}: task_id={step_task.task_id}, status={current_task.status if current_task else 'missing'}")
                     
                     if not current_task or current_task.status != TaskStatus.ACTIVE:
-                        logger.info(f"Skipping step {i+1} - not ACTIVE (status: {current_task.status if current_task else 'missing'})")
+                        logger.debug(f"Skipping step {i+1} - not ACTIVE (status: {current_task.status if current_task else 'missing'})")
                         continue
                     
                     existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
-                    logger.info(f"Step {i+1} has {len(existing_thoughts)} existing thoughts")
+                    logger.debug(f"Step {i+1} has {len(existing_thoughts)} existing thoughts")
                     
                     thought_statuses = [t.status.value for t in existing_thoughts] if existing_thoughts else []
-                    logger.info(f"Step {i+1} thought statuses: {thought_statuses}")
+                    logger.debug(f"Step {i+1} thought statuses: {thought_statuses}")
                     
                     pending_thoughts = [t for t in existing_thoughts if t.status == ThoughtStatus.PENDING]
                     if pending_thoughts:
-                        logger.info(f"Step {i+1} has {len(pending_thoughts)} PENDING thoughts - they will be processed")
+                        logger.debug(f"Step {i+1} has {len(pending_thoughts)} PENDING thoughts - they will be processed")
                         processed_any = True
                         continue
                     
                     processing_thoughts = [t for t in existing_thoughts if t.status == ThoughtStatus.PROCESSING]
                     if processing_thoughts:
-                        logger.info(f"Step {i+1} has {len(processing_thoughts)} PROCESSING thoughts - waiting for completion")
+                        logger.debug(f"Step {i+1} has {len(processing_thoughts)} PROCESSING thoughts - waiting for completion")
                         continue
                     
                     if existing_thoughts and current_task.status == TaskStatus.ACTIVE:
-                        logger.info(f"Step {i+1} has {len(existing_thoughts)} existing thoughts but task is ACTIVE - creating new thought")
+                        logger.debug(f"Step {i+1} has {len(existing_thoughts)} existing thoughts but task is ACTIVE - creating new thought")
                         thought = await self._create_step_thought(step_task, round_number)
-                        logger.info(f"Created new thought {thought.thought_id} for active step {i+1}")
+                        logger.debug(f"Created new thought {thought.thought_id} for active step {i+1}")
                         processed_any = True
                     elif not existing_thoughts:
-                        logger.info(f"Creating thought for step {i+1} (no existing thoughts)")
+                        logger.debug(f"Creating thought for step {i+1} (no existing thoughts)")
                         thought = await self._create_step_thought(step_task, round_number)
-                        logger.info(f"Created thought {thought.thought_id} for wakeup step {i+1}")
+                        logger.debug(f"Created thought {thought.thought_id} for wakeup step {i+1}")
                         processed_any = True
                     else:
-                        logger.info(f"Step {i+1} has existing thoughts and task not active, skipping")
+                        logger.debug(f"Step {i+1} has existing thoughts and task not active, skipping")
                 
                 steps_status: List[Any] = []
                 for i, step_task in enumerate(self.wakeup_tasks[1:]):
@@ -143,7 +166,7 @@ class WakeupProcessor(BaseProcessor):
                     "wakeup_complete": all_complete,
                     "steps_status": steps_status,
                     "steps_completed": sum(1 for s in steps_status if s["status"] == "completed"),
-                    "total_steps": len(self.WAKEUP_SEQUENCE),
+                    "total_steps": len(wakeup_sequence),
                     "processed_thoughts": processed_any
                 }
             else:
@@ -155,7 +178,7 @@ class WakeupProcessor(BaseProcessor):
                     return {
                         "status": "success",
                         "wakeup_complete": True,
-                        "steps_completed": len(self.WAKEUP_SEQUENCE)
+                        "steps_completed": len(wakeup_sequence)
                     }
                 else:
                     self._mark_root_task_failed()
@@ -200,14 +223,14 @@ class WakeupProcessor(BaseProcessor):
                 
                 # Create thought for this step
                 thought = await self._create_step_thought(step_task, round_number)
-                logger.info(f"Created thought {thought.thought_id} for step {i+1}/{len(self.wakeup_tasks)-1}")
+                logger.debug(f"Created thought {thought.thought_id} for step {i+1}/{len(self.wakeup_tasks)-1}")
                 
                 # Queue it for processing without waiting
                 item = ProcessingQueueItem.from_thought(thought)
                 
                 # Instead of processing synchronously, just add to queue
                 # The main processing loop will handle it
-                logger.info(f"Queued step {i+1} for async processing")
+                logger.debug(f"Queued step {i+1} for async processing")
         
         # Process any existing PENDING/PROCESSING thoughts for ALL tasks
         for step_task in self.wakeup_tasks[1:]:
@@ -260,7 +283,8 @@ class WakeupProcessor(BaseProcessor):
             persistence.update_task_status(root_task.task_id, TaskStatus.ACTIVE)
         self.wakeup_tasks = [root_task]
         channel_id = root_task.context.get("channel_id") if root_task.context else None
-        for step_type, content in self.WAKEUP_SEQUENCE:
+        wakeup_sequence = self._get_wakeup_sequence()
+        for step_type, content in wakeup_sequence:
             step_context = {"step_type": step_type}
             if channel_id:
                 step_context["channel_id"] = channel_id
@@ -284,7 +308,7 @@ class WakeupProcessor(BaseProcessor):
         step_tasks = self.wakeup_tasks[1:]
         for i, step_task in enumerate(step_tasks):
             step_type = step_task.context.get("step_type", "UNKNOWN") if step_task.context else "UNKNOWN"
-            logger.info(f"Processing wakeup step {i+1}/{len(step_tasks)}: {step_type}")
+            logger.debug(f"Processing wakeup step {i+1}/{len(step_tasks)}: {step_type}")
             # Only process ACTIVE tasks
             current_task = persistence.get_task_by_id(step_task.task_id)
             if not current_task or current_task.status != TaskStatus.ACTIVE:
@@ -292,7 +316,7 @@ class WakeupProcessor(BaseProcessor):
             # Prevent duplicate thoughts: only create a new thought if there is no PROCESSING or PENDING thought for this step task
             existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
             if any(t.status in [ThoughtStatus.PROCESSING, ThoughtStatus.PENDING] for t in existing_thoughts):
-                logger.info(f"Skipping creation of new thought for step {step_type} (task_id={step_task.task_id}) because an active thought already exists.")
+                logger.debug(f"Skipping creation of new thought for step {step_type} (task_id={step_task.task_id}) because an active thought already exists.")
                 continue
             # Create and queue a thought for this step
             thought = await self._create_step_thought(step_task, round_number)
@@ -319,7 +343,7 @@ class WakeupProcessor(BaseProcessor):
 
             if selected_action in [HandlerActionType.SPEAK, HandlerActionType.PONDER]:
                 if selected_action == HandlerActionType.PONDER:
-                    logger.info(f"Wakeup step {step_type} resulted in PONDER; waiting for task completion before continuing.")
+                    logger.debug(f"Wakeup step {step_type} resulted in PONDER; waiting for task completion before continuing.")
                 else:
                     dispatch_success = await self._dispatch_step_action(result, thought, step_task)
                     if not dispatch_success:
@@ -329,7 +353,7 @@ class WakeupProcessor(BaseProcessor):
                 if not completed:
                     logger.error(f"Wakeup step {step_type} did not complete successfully (task_id={step_task.task_id})")
                     return False
-                logger.info(f"Wakeup step {step_type} completed successfully")
+                logger.debug(f"Wakeup step {step_type} completed successfully")
                 self.metrics["items_processed"] += 1
             else:
                 logger.error(f"Wakeup step {step_type} failed: expected SPEAK or PONDER, got {selected_action}")
@@ -470,7 +494,8 @@ class WakeupProcessor(BaseProcessor):
     
     def get_wakeup_progress(self) -> Dict[str, Any]:
         """Get current wakeup progress."""
-        total_steps = len(self.WAKEUP_SEQUENCE)
+        wakeup_sequence = self._get_wakeup_sequence()
+        total_steps = len(wakeup_sequence)
         completed_steps = 0
         
         if self.wakeup_tasks:

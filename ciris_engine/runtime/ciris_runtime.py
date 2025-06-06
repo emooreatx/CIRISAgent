@@ -52,6 +52,10 @@ from ciris_engine.guardrails import (
     EpistemicHumilityGuardrail,
 )
 from ciris_engine.telemetry import TelemetryService, SecurityFilter
+from ciris_engine.services.adaptive_filter_service import AdaptiveFilterService
+from ciris_engine.services.agent_config_service import AgentConfigService
+from ciris_engine.services.multi_service_transaction_orchestrator import MultiServiceTransactionOrchestrator
+from ciris_engine.secrets.service import SecretsService
 
 from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
 
@@ -82,6 +86,11 @@ class CIRISRuntime(RuntimeInterface):
         self.memory_service: Optional[LocalGraphMemoryService] = None
         self.audit_service: Optional[AuditService] = None
         self.maintenance_service: Optional[DatabaseMaintenanceService] = None
+        self.telemetry_service: Optional[TelemetryService] = None
+        self.secrets_service: Optional[SecretsService] = None
+        self.adaptive_filter_service: Optional[AdaptiveFilterService] = None
+        self.agent_config_service: Optional[AgentConfigService] = None
+        self.transaction_orchestrator: Optional[MultiServiceTransactionOrchestrator] = None
         
         self.service_registry: Optional[ServiceRegistry] = None
         
@@ -220,6 +229,34 @@ class CIRISRuntime(RuntimeInterface):
                 retention_days=config.audit.retention_days
             )
         await self.audit_service.start()
+        
+        # Initialize secrets service
+        self.secrets_service = SecretsService(
+            config=config.secrets,
+            audit_service=self.audit_service
+        )
+        await self.secrets_service.start()
+        
+        # Initialize adaptive filter service
+        self.adaptive_filter_service = AdaptiveFilterService(
+            memory_service=self.memory_service,
+            llm_service=self.llm_service
+        )
+        await self.adaptive_filter_service.start()
+        
+        # Initialize agent configuration service
+        self.agent_config_service = AgentConfigService(
+            memory_service=self.memory_service,
+            wa_service=None,  # WA service not yet implemented
+            filter_service=self.adaptive_filter_service
+        )
+        await self.agent_config_service.start()
+        
+        # Initialize transaction orchestrator
+        self.transaction_orchestrator = MultiServiceTransactionOrchestrator(
+            service_registry=self.service_registry
+        )
+        await self.transaction_orchestrator.start()
         
         archive_dir = getattr(config, "data_archive_dir", "data_archive")
         archive_hours = getattr(config, "archive_older_than_hours", 24)
@@ -432,6 +469,42 @@ class CIRISRuntime(RuntimeInterface):
                 capabilities=["generate_response", "generate_structured_response"]
             )
         
+        # Register secrets service globally for all handlers
+        if self.secrets_service:
+            self.service_registry.register_global(
+                service_type="secrets",
+                provider=self.secrets_service,
+                priority=Priority.HIGH,
+                capabilities=["detect_secrets", "store_secret", "retrieve_secret", "filter_content"]
+            )
+        
+        # Register adaptive filter service
+        if self.adaptive_filter_service:
+            self.service_registry.register_global(
+                service_type="filter",
+                provider=self.adaptive_filter_service,
+                priority=Priority.HIGH,
+                capabilities=["message_filtering", "priority_assessment", "user_trust_tracking"]
+            )
+        
+        # Register agent configuration service
+        if self.agent_config_service:
+            self.service_registry.register_global(
+                service_type="config",
+                provider=self.agent_config_service,
+                priority=Priority.HIGH,
+                capabilities=["self_configuration", "wa_deferral", "config_persistence"]
+            )
+        
+        # Register transaction orchestrator
+        if self.transaction_orchestrator:
+            self.service_registry.register_global(
+                service_type="orchestrator",
+                provider=self.transaction_orchestrator,
+                priority=Priority.CRITICAL,
+                capabilities=["transaction_coordination", "service_routing", "health_monitoring"]
+            )
+        
         # Note: Communication and WA services will be registered by subclasses
         # (e.g., DiscordRuntime registers Discord adapter, CIRISNode client)
         
@@ -527,6 +600,10 @@ class CIRISRuntime(RuntimeInterface):
             self.memory_service,
             self.audit_service,
             self.telemetry_service,
+            self.secrets_service,
+            self.adaptive_filter_service,
+            self.agent_config_service,
+            self.transaction_orchestrator,
             self.maintenance_service,
         ]
         
