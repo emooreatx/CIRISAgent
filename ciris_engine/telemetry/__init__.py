@@ -11,14 +11,9 @@ Key principles:
 - Fail Secure: Telemetry failures don't affect agent operation
 """
 
-from .core import TelemetryService
-from .metrics import MetricType, MetricData, TelemetrySnapshot
-from .security import SecurityFilter
+from .resource_monitor import ResourceMonitor, ResourceSignalBus
 
 __all__ = [
-    "TelemetryService",
-    "MetricType", 
-    "MetricData",
-    "TelemetrySnapshot",
-    "SecurityFilter",
+    "ResourceMonitor",
+    "ResourceSignalBus",
 ]

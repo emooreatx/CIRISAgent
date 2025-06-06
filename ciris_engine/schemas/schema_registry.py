@@ -18,6 +18,7 @@ from .network_schemas_v1 import AgentIdentity, NetworkPresence
 from .community_schemas_v1 import MinimalCommunityContext
 from .wisdom_schemas_v1 import WisdomRequest, UniversalGuidanceProtocol
 from .telemetry_schemas_v1 import CompactTelemetry
+from .resource_schemas_v1 import ResourceSnapshot
 
 class SchemaRegistry:
     """Central registry for schema validation."""
@@ -49,6 +50,7 @@ class SchemaRegistry:
         
         # Telemetry schemas
         "CompactTelemetry": CompactTelemetry,
+        "ResourceSnapshot": ResourceSnapshot,
     }
 
     @classmethod
