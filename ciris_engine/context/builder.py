@@ -44,41 +44,23 @@ class ContextBuilder:
         channel_id = None
         resolution_source = "none"
         
-        # Enhanced debugging for failing cases
-        logger.warning(f"DEBUG: build_thought_context called with task={task is not None}, thought={thought is not None}")
-        if task:
-            logger.warning(f"DEBUG: task.task_id={getattr(task, 'task_id', 'NO_ID')}, task.context={task.context is not None}")
-        if thought:
-            logger.warning(f"DEBUG: thought.thought_id={getattr(thought, 'thought_id', 'NO_ID')}, thought.context={thought.context is not None}")
         
         def safe_extract_channel_id(context: Any, source_name: str) -> Optional[str]:
-            """Type-safe channel_id extraction with comprehensive logging."""
+            """Type-safe channel_id extraction."""
             if not context:
-                logger.debug(f"Context from {source_name} is None/empty")
                 return None
                 
             try:
-                logger.debug(f"Examining context from {source_name}: type={type(context)}, value={context}")
-                
                 if isinstance(context, dict):
-                    logger.debug(f"Dict keys in {source_name}: {list(context.keys())}")
                     cid = context.get('channel_id')
                     if cid is not None:
-                        logger.info(f"Channel ID '{cid}' resolved from {source_name} (dict)")
+                        logger.info(f"Channel ID '{cid}' resolved from {source_name}")
                         return str(cid)
-                    else:
-                        logger.debug(f"No 'channel_id' key found in {source_name} dict")
                 elif hasattr(context, 'channel_id'):
                     cid = getattr(context, 'channel_id', None)
                     if cid is not None:
-                        logger.info(f"Channel ID '{cid}' resolved from {source_name} (attr)")
+                        logger.info(f"Channel ID '{cid}' resolved from {source_name}")
                         return str(cid)
-                    else:
-                        logger.debug(f"Context from {source_name} has channel_id attr but value is None")
-                else:
-                    # Log all available attributes/methods for debugging
-                    attrs = [attr for attr in dir(context) if not attr.startswith('_')]
-                    logger.debug(f"Context from {source_name} has no channel_id (type: {type(context)}, attrs: {attrs[:10]})")
             except Exception as e:
                 logger.error(f"Error extracting channel_id from {source_name}: {e}")
             
@@ -86,21 +68,15 @@ class ContextBuilder:
         
         # 1. Task context (highest priority)
         if task and task.context:
-            logger.warning(f"DEBUG: Checking task.context: type={type(task.context)}, value={task.context}")
             channel_id = safe_extract_channel_id(task.context, "task.context")
             if channel_id:
                 resolution_source = "task.context"
-        else:
-            logger.warning(f"DEBUG: Task context unavailable: task={task is not None}, task.context={getattr(task, 'context', None) is not None if task else 'NO_TASK'}")
         
         # 2. Thought context
         if not channel_id and thought and thought.context:
-            logger.warning(f"DEBUG: Checking thought.context: type={type(thought.context)}, value={thought.context}")
             channel_id = safe_extract_channel_id(thought.context, "thought.context")
             if channel_id:
                 resolution_source = "thought.context"
-        elif not channel_id:
-            logger.warning(f"DEBUG: Thought context unavailable: thought={thought is not None}, thought.context={getattr(thought, 'context', None) is not None if thought else 'NO_THOUGHT'}")
         
         # 3. Environment variable (for Discord)
         if not channel_id:
@@ -112,29 +88,19 @@ class ContextBuilder:
         
         # 4. App config (structured fallback)
         if not channel_id and self.app_config:
-            logger.warning(f"DEBUG: Checking app_config for channel_id: type={type(self.app_config)}")
-            if hasattr(self.app_config, '__dict__'):
-                logger.warning(f"DEBUG: App config attributes: {list(self.app_config.__dict__.keys())}")
-            
             config_attrs = ['discord_channel_id', 'cli_channel_id', 'api_channel_id']
             for attr in config_attrs:
                 if hasattr(self.app_config, attr):
                     config_channel_id = getattr(self.app_config, attr, None)
-                    logger.warning(f"DEBUG: Found {attr} = {config_channel_id}")
                     if config_channel_id:
                         channel_id = str(config_channel_id)
                         resolution_source = f"app_config.{attr}"
                         logger.info(f"Channel ID '{channel_id}' resolved from {resolution_source}")
                         break
-                else:
-                    logger.warning(f"DEBUG: App config does not have attribute '{attr}'")
-        else:
-            logger.warning(f"DEBUG: Skipping app_config check: channel_id already found={channel_id is not None}, app_config is None={self.app_config is None}")
         
         # 5. Mode-based fallback (last resort)
         if not channel_id and self.app_config:
             mode = getattr(self.app_config, 'agent_mode', '')
-            logger.warning(f"DEBUG: Checking mode-based fallback: mode='{mode}'")
             mode_lower = mode.lower() if mode else ''
             if mode_lower == 'cli':
                 channel_id = 'CLI'
@@ -148,8 +114,6 @@ class ContextBuilder:
             
             if channel_id:
                 logger.info(f"Channel ID '{channel_id}' resolved from {resolution_source}")
-        else:
-            logger.warning(f"DEBUG: Skipping mode fallback: channel_id already found={channel_id is not None}, app_config is None={self.app_config is None}")
         
         # Final validation and logging
         if not channel_id:
@@ -162,7 +126,6 @@ class ContextBuilder:
         # Apply resolved channel_id to system snapshot
         if channel_id and hasattr(system_snapshot_data, 'channel_id'):
             system_snapshot_data.channel_id = channel_id
-            logger.debug(f"Set system_snapshot.channel_id = '{channel_id}'")
         
         # Build comprehensive channel context string
         channel_context_str = f"Our assigned channel is {channel_id} (resolved from {resolution_source})" if channel_id else None
@@ -239,14 +202,12 @@ class ContextBuilder:
             channel_id = safe_extract_channel_id(thought.context, "thought.context")
         
         if channel_id and self.memory_service:
-            logger.warning(f"DEBUG: Looking up channel {channel_id} in memory")
             channel_node = GraphNode(
                 id=f"channel/{channel_id}",
                 type=NodeType.CHANNEL,
                 scope=GraphScope.LOCAL
             )
             channel_info = await self.memory_service.recall(channel_node)
-            logger.warning(f"DEBUG: Channel memory result: {channel_info}")
 
         recent_tasks_list: List[Any] = []
         db_recent_tasks = persistence.get_recent_completed_tasks(10)
