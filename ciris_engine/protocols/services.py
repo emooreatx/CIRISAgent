@@ -336,7 +336,7 @@ class NetworkService(Protocol):
         ...
     
     @abstractmethod
-    async def discover_peers(self, capabilities: List[str] = None) -> List[NetworkPresence]:
+    async def discover_peers(self, capabilities: Optional[List[str]] = None) -> List[NetworkPresence]:
         """Discover other agents/services"""
         ...
     

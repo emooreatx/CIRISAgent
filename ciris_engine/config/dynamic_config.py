@@ -9,7 +9,7 @@ from .config_loader import ConfigLoader
 class ConfigManager:
     """Manage runtime configuration changes."""
 
-    def __init__(self, config: AppConfig):
+    def __init__(self, config: AppConfig) -> None:
         self._config = config
         self._lock = asyncio.Lock()
 

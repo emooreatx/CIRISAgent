@@ -6,7 +6,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
 from ciris_engine import persistence
 from ciris_engine.processor.base_processor import BaseProcessor
@@ -21,12 +21,11 @@ logger = logging.getLogger(__name__)
 class WorkProcessor(BaseProcessor):
     """Handles the WORK state for normal task/thought processing."""
 
-    def __init__(self, *args, startup_channel_id: Optional[str] = None, **kwargs):
+    def __init__(self, *args, startup_channel_id: Optional[str] = None, **kwargs) -> None:
         """Initialize work processor."""
         self.startup_channel_id = startup_channel_id
         super().__init__(*args, **kwargs)
         
-        # Extract config values with defaults
         workflow_config = getattr(self.app_config, 'workflow', None)
         if workflow_config:
             max_active_tasks = getattr(workflow_config, 'max_active_tasks', 10)
@@ -124,7 +123,6 @@ class WorkProcessor(BaseProcessor):
         
         logger.info(f"Processing batch of {len(batch)} thoughts")
         
-        # Mark thoughts as PROCESSING
         batch = self.thought_manager.mark_thoughts_processing(batch, round_number)
         if not batch:
             logger.warning("No thoughts could be marked as PROCESSING")
@@ -132,17 +130,14 @@ class WorkProcessor(BaseProcessor):
         
         processed_count = 0
         
-        # Process each thought
         for item in batch:
             try:
                 result = await self._process_single_thought(item)
                 processed_count += 1
                 
                 if result is None:
-                    # Thought was re-queued (e.g., PONDER)
                     logger.debug(f"Thought {item.thought_id} was re-queued")
                 else:
-                    # Dispatch the action
                     await self._dispatch_thought_result(item, result)
                     
             except Exception as e:
@@ -155,7 +150,7 @@ class WorkProcessor(BaseProcessor):
         """Process a single thought item."""
         return await self.process_thought_item(item)
     
-    async def _dispatch_thought_result(self, item: Any, result: Any):
+    async def _dispatch_thought_result(self, item: Any, result: Any) -> None:
         """Dispatch the result of thought processing."""
         thought_id = item.thought_id
         
@@ -164,13 +159,11 @@ class WorkProcessor(BaseProcessor):
             f"for thought {thought_id}"
         )
         
-        # Get full thought object
         thought_obj = await persistence.async_get_thought_by_id(thought_id)
         if not thought_obj:
             logger.error(f"Could not retrieve thought {thought_id} for dispatch")
             return
 
-        # Get the task object for context
         task = persistence.get_task_by_id(item.source_task_id)
         dispatch_context = build_dispatch_context(
             thought=thought_obj, 
@@ -181,15 +174,12 @@ class WorkProcessor(BaseProcessor):
             extra_context=getattr(item, 'initial_context', {})
         )
         
-        # Add services from processor for convenience
         if hasattr(self, 'services') and self.services:
             dispatch_context.update({"services": self.services})
             
-            # Add specific service references for convenience
             if "discord_service" in self.services:
                 dispatch_context["discord_service"] = self.services["discord_service"]
         
-        # Add discord_service directly if available
         if hasattr(self, 'discord_service'):
             dispatch_context["discord_service"] = self.discord_service
         
@@ -202,7 +192,7 @@ class WorkProcessor(BaseProcessor):
                 f"Dispatch failed: {str(e)}"
             )
     
-    async def _handle_idle_state(self, round_number: int):
+    async def _handle_idle_state(self, round_number: int) -> None:
         """Handle idle state when no thoughts are pending."""
         logger.info(f"Round {round_number}: No thoughts to process (idle rounds: {self.idle_rounds})")
         
@@ -214,7 +204,7 @@ class WorkProcessor(BaseProcessor):
         else:
             logger.debug("No job thought needed")
     
-    def _mark_thought_failed(self, thought_id: str, error: str):
+    def _mark_thought_failed(self, thought_id: str, error: str) -> None:
         """Mark a thought as failed."""
         persistence.update_thought_status(
             thought_id=thought_id,
@@ -251,17 +241,14 @@ class WorkProcessor(BaseProcessor):
         Returns:
             True if DREAM state is recommended
         """
-        # Check idle duration
         if self.get_idle_duration() < idle_threshold:
             return False
         
-        # Check if there's truly nothing to do
         if (self.task_manager.get_active_task_count() == 0 and
             self.task_manager.get_pending_task_count() == 0 and
             self.thought_manager.get_pending_thought_count() == 0):
             return True
         
-        # If we've been idle for many rounds despite having work
         if self.idle_rounds > 10:
             logger.warning(
                 f"Been idle for {self.idle_rounds} rounds despite having work. "

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class CLIRuntime(CIRISRuntime):
     """Runtime for running the agent via the command line."""
 
-    def __init__(self, profile_name: str = "default", interactive: bool = True):
+    def __init__(self, profile_name: str = "default", interactive: bool = True) -> None:
         self.cli_adapter = CLIAdapter()
         super().__init__(profile_name=profile_name, io_adapter=self.cli_adapter, startup_channel_id="cli")
 
@@ -127,9 +127,10 @@ class CLIRuntime(CIRISRuntime):
                 )
 
     async def _build_action_dispatcher(self, dependencies: Any) -> Any:
+        config = self._ensure_config()
         return build_action_dispatcher(
             service_registry=self.service_registry,
-            max_rounds=self.app_config.workflow.max_rounds,
+            max_rounds=config.workflow.max_rounds,
             shutdown_callback=dependencies.shutdown_callback,
         )
 
@@ -157,8 +158,6 @@ class CLIRuntime(CIRISRuntime):
         if not self._initialized:
             await self.initialize()
         
-        # Call parent run method to handle the main processing loop
-        # The parent method will start agent processing with the correct num_rounds
         await super().run(num_rounds=num_rounds)
 
     async def start_interactive_console(self) -> None:

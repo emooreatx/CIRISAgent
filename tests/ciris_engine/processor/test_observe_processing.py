@@ -6,7 +6,7 @@ from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.guardrails.orchestrator import GuardrailOrchestrator
 from ciris_engine.guardrails import GuardrailRegistry
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, ThoughtType
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
@@ -18,7 +18,7 @@ def make_thought(th_id="th-observe"):
     return Thought(
         thought_id=th_id,
         source_task_id="task1",
-        thought_type="test",
+        thought_type=ThoughtType.STANDARD,
         status=ThoughtStatus.PENDING,
         created_at="now",
         updated_at="now",

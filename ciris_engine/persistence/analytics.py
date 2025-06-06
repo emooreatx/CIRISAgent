@@ -38,7 +38,7 @@ def count_active_tasks() -> int:
 def get_tasks_needing_seed_thought(limit: Optional[int] = None) -> List[Any]:
     """Get active tasks that don't yet have thoughts."""
     active_tasks = task_ops.get_tasks_by_status(TaskStatus.ACTIVE)
-    tasks_needing_seed = []
+    tasks_needing_seed: List[Any] = []
     for task in active_tasks:
         thoughts = thought_ops.get_thoughts_by_task_id(task.task_id)
         if not thoughts:

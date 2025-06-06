@@ -42,15 +42,18 @@ class GuardrailOrchestrator:
             guardrail = entry.guardrail
             cb = entry.circuit_breaker
             try:
-                cb.check_and_raise()
+                if cb:
+                    cb.check_and_raise()
                 result = await guardrail.check(final_action, context)
-                cb.record_success()
+                if cb:
+                    cb.record_success()
             except CircuitBreakerError as e:
                 logger.warning(f"Guardrail {entry.name} unavailable: {e}")
                 continue
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Guardrail {entry.name} error: {e}", exc_info=True)
-                cb.record_failure()
+                if cb:
+                    cb.record_failure()
                 continue
 
             epistemic_data[entry.name] = result.epistemic_data

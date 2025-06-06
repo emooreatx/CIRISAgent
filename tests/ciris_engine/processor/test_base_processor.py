@@ -6,7 +6,7 @@ from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.states import AgentState
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, ThoughtType
 
 
 class DummyProcessor(BaseProcessor):
@@ -24,7 +24,7 @@ def make_thought():
     return Thought(
         thought_id="th1",
         source_task_id="t1",
-        thought_type="test",
+        thought_type=ThoughtType.STANDARD,
         status=ThoughtStatus.PENDING,
         created_at="now",
         updated_at="now",
@@ -70,7 +70,7 @@ async def test_process_thought_item_updates_metrics():
     item = ProcessingQueueItem(
         thought_id="th1",
         source_task_id="t1",
-        thought_type="test",
+        thought_type=ThoughtType.STANDARD,
         content=ThoughtContent(text="hello"),
     )
 
@@ -92,7 +92,7 @@ async def test_process_thought_item_error(monkeypatch):
     item = ProcessingQueueItem(
         thought_id="th1",
         source_task_id="t1",
-        thought_type="test",
+        thought_type=ThoughtType.STANDARD,
         content=ThoughtContent(text="hello"),
     )
 
@@ -121,7 +121,7 @@ async def test_process_thought_item_dma_failure_fallback(monkeypatch):
     item = ProcessingQueueItem(
         thought_id="th1",
         source_task_id="t1",
-        thought_type="test",
+        thought_type=ThoughtType.STANDARD,
         content=ThoughtContent(text="hello"),
     )
 

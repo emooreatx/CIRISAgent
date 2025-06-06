@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from ciris_engine.persistence import get_db_connection
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
@@ -41,7 +41,7 @@ def add_correlation(corr: ServiceCorrelation, db_path: Optional[str] = None) -> 
 def update_correlation(correlation_id: str, *, response_data: Optional[Dict[str, Any]] = None,
                         status: Optional[ServiceCorrelationStatus] = None,
                         db_path: Optional[str] = None) -> bool:
-    updates = []
+    updates: List[Any] = []
     params: list[Any] = []
     if response_data is not None:
         updates.append("response_data = ?")

@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Any, List
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 
 from .work_processor import WorkProcessor
 
@@ -23,7 +23,7 @@ class PlayProcessor(WorkProcessor):
     - Learning through exploration
     """
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         """Initialize play processor."""
         super().__init__(*args, **kwargs)
         self.play_metrics = {
@@ -43,18 +43,11 @@ class PlayProcessor(WorkProcessor):
         """
         logger.info(f"--- Starting Play Round {round_number} (Creative Mode) ---")
         
-        # For now, use work processor logic
         result = await super().process(round_number)
         
-        # Add play-specific metrics
         result["mode"] = "play"
         result["creativity_enabled"] = True
         
-        # In future implementations, this could:
-        # - Prioritize tasks tagged as "creative" or "experimental"
-        # - Use different prompting strategies
-        # - Allow more exploration in responses
-        # - Track novel solutions
         
         self.play_metrics["creative_tasks_processed"] += result.get("thoughts_processed", 0)
         

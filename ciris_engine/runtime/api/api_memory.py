@@ -3,14 +3,15 @@ import logging
 from aiohttp import web
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
+from typing import Any, List
 
 logger = logging.getLogger(__name__)
 
 class APIMemoryRoutes:
-    def __init__(self, multi_service_sink):
+    def __init__(self, multi_service_sink: Any) -> None:
         self.multi_service_sink = multi_service_sink
 
-    def register(self, app: web.Application):
+    def register(self, app: web.Application) -> None:
         app.router.add_get('/v1/memory/scopes', self._handle_memory_scopes)
         app.router.add_get('/v1/memory/{scope}/entries', self._handle_memory_entries)
         app.router.add_post('/v1/memory/{scope}/store', self._handle_memory_store)

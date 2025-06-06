@@ -6,9 +6,10 @@ from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpSta
 from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 import logging
 from pydantic import ValidationError
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,8 @@ class RecallHandler(BaseActionHandler):
             await self._handle_error(HandlerActionType.RECALL, dispatch_context, thought_id, e)
             follow_up = create_follow_up_thought(
                 parent=thought,
-                content=f"RECALL action failed: {e}"
-            )  #PROMPT_FOLLOW_UP_THOUGHT
+                content=ThoughtStatus.PENDING
+            )
             self.dependencies.persistence.add_thought(follow_up)
             return
         memory_service: Optional[MemoryService] = await self.get_memory_service()
@@ -35,8 +36,8 @@ class RecallHandler(BaseActionHandler):
             )
             follow_up = create_follow_up_thought(
                 parent=thought,
-                content=f"RECALL action failed: MemoryService unavailable for thought {thought_id}"
-            )  #PROMPT_FOLLOW_UP_THOUGHT
+                content=ThoughtStatus.PENDING
+            )
             self.dependencies.persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.RECALL,
@@ -56,13 +57,11 @@ class RecallHandler(BaseActionHandler):
             follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{node.id}' returned: {data}"
         else:
             follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: No memories found for query '{node.id}' in scope {node.scope.value}"
-        #PROMPT_FOLLOW_UP_THOUGHT
         follow_up = create_follow_up_thought(
             parent=thought,
             content=follow_up_content,
         )
-        # Update context using Pydantic model_copy with additional fields
-        context_data = follow_up.context.model_dump()
+        context_data = follow_up.context.model_dump() if follow_up.context else {}
         follow_up_context = {
             "action_performed": HandlerActionType.RECALL.name,
             "is_follow_up": True,

@@ -10,7 +10,6 @@ from ..utils.profile_loader import load_profile
 
 logger = logging.getLogger(__name__)
 
-# Registry of available DSDMA classes
 DSDMA_CLASS_REGISTRY: Dict[str, Type[BaseDSDMA]] = {
     "BaseDSDMA": BaseDSDMA,
 }

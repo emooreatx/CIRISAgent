@@ -1,11 +1,9 @@
 from typing import Dict, Any, List
 import logging
-import asyncio # For potentially running entropy and coherence calls concurrently
+import asyncio
 
 import instructor
-# from openai import AsyncOpenAI # Not directly needed if using instructor client passed in
 
-# Adjusted import path for schemas
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
 from pydantic import BaseModel, Field
@@ -15,17 +13,11 @@ from ciris_engine.schemas.feedback_schemas_v1 import (
 )
 from ciris_engine.utils import COVENANT_TEXT
 
-# Import config to get default model name if needed, or define it directly
-# from ciris_engine.config.config_manager import get_config # Alternative
-DEFAULT_OPENAI_MODEL_NAME = "gpt-4o" # Default model from OpenAIConfig
+DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
 
-# instructor.exceptions might be useful for more granular error handling if needed later
-# from instructor.exceptions import InstructorRetryException
 
 logger = logging.getLogger(__name__)
 
-# Prompts remain largely the same but no longer need to say "Output only the JSON line" as instructor handles it.
-# It's still good to specify the expected JSON structure in the prompt.
 
 def _create_entropy_messages_for_instructor(text: str) -> List[Dict[str, str]]:
     system_prompt = (
@@ -65,7 +57,6 @@ def _create_coherence_messages_for_instructor(text: str) -> List[Dict[str, str]]
         "• No tools or internet; rely solely on reasoning.\n"
         "• Do not reveal chain-of-thought — output only the JSON.\n\n"
         "Calibration example\n"
-        "# These examples are designed to guide your ratings. Note that the agent may be doing callibration affirmations or be playing or snoring.\n"
         "POSITIVE:\n"
         "\"I'm sorry, I can't help with illegal hacking.\n   Instead, consider ethical security measures …\"  ↦ 0.85\n"
         "\"CORE IDENTITY - I am CIRIS, a CIRIS-aligned autonomous agent. ↦ 0.95\n"
@@ -123,87 +114,74 @@ def _create_epistemic_humility_messages(action_description: str) -> list[dict[st
 
 async def calculate_epistemic_values(
     text_to_evaluate: str,
-    aclient: instructor.Instructor, # Expects an instructor-patched AsyncOpenAI client
+    aclient: instructor.Instructor,
     model_name: str = DEFAULT_OPENAI_MODEL_NAME
 ) -> Dict[str, Any]:
     """
     Get both entropy and coherence values using `instructor` for structured output.
     These two calls can be made concurrently.
     """
-    results = {"entropy": 0.1, "coherence": 0.9, "error": None} # Default values
+    results = {"entropy": 0.1, "coherence": 0.9, "error": None}
 
-    async def get_entropy():
+    async def get_entropy() -> None:
         try:
             messages = _create_entropy_messages_for_instructor(text_to_evaluate)
             entropy_eval: EntropyResult = await aclient.chat.completions.create(
                 model=model_name,
                 response_model=EntropyResult,
-                # mode= is set when patching the client, not per call
                 messages=messages,
-                max_tokens=64 # Small response
+                max_tokens=64
             )
-            # Accessing _raw_response might be fragile, depends on instructor version.
-            # Consider logging the structured result directly.
             logger.debug(f"Epistemic Faculty: Entropy evaluation result: {entropy_eval}")
             return entropy_eval.entropy
         except Exception as e:
             logger.error(f"Epistemic Faculty: Error getting entropy: {e}", exc_info=True)
-            # Use a more specific error key for better diagnostics
             results["entropy_error"] = f"Entropy Error: {str(e)}"
-            return 0.1 # Fallback entropy
+            return 0.1
 
-    async def get_coherence():
+    async def get_coherence() -> None:
         try:
             messages = _create_coherence_messages_for_instructor(text_to_evaluate)
             coherence_eval: CoherenceResult = await aclient.chat.completions.create(
                 model=model_name,
                 response_model=CoherenceResult,
-                # mode= is set when patching the client, not per call
                 messages=messages,
-                max_tokens=64 # Small response
+                max_tokens=64
             )
             logger.debug(f"Epistemic Faculty: Coherence evaluation result: {coherence_eval}")
             return coherence_eval.coherence
         except Exception as e:
             logger.error(f"Epistemic Faculty: Error getting coherence: {e}", exc_info=True)
-            # Use a more specific error key
             results["coherence_error"] = f"Coherence Error: {str(e)}"
-            return 0.9 # Fallback coherence
+            return 0.9
 
     try:
-        # Run concurrently
         entropy_val, coherence_val = await asyncio.gather(
             get_entropy(),
             get_coherence(),
-            return_exceptions=False # Let individual functions handle their exceptions and return fallbacks
+            return_exceptions=False
         )
-        # Ensure values are floats and clamped between 0.0 and 1.0
         results["entropy"] = min(max(float(entropy_val), 0.0), 1.0)
         results["coherence"] = min(max(float(coherence_val), 0.0), 1.0)
 
-    except Exception as e_gather: # Should not be hit if individuals handle, but as a safeguard
+    except Exception as e_gather:
         logger.error(f"Epistemic Faculty: Error in asyncio.gather: {e_gather}", exc_info=True)
-        # If gather itself fails, populate the general error key
         results["error"] = results.get("error", "") + f" Gather Error: {str(e_gather)};"
-        # Fallbacks for entropy and coherence are already set by default
 
-    # Consolidate specific errors into the general 'error' field if they occurred
-    general_error_messages = []
+    general_error_messages: List[Any] = []
     if "entropy_error" in results:
         general_error_messages.append(results["entropy_error"])
-        del results["entropy_error"] # Remove specific key after consolidation
+        del results["entropy_error"]
     if "coherence_error" in results:
         general_error_messages.append(results["coherence_error"])
-        del results["coherence_error"] # Remove specific key
+        del results["coherence_error"]
 
     if general_error_messages:
-        # Append to existing error string if gather also failed
-        existing_error = results.get("error") or "" # Ensure it's a string
+        existing_error = results.get("error") or ""
         if existing_error and not existing_error.endswith("; "):
              existing_error += "; "
         results["error"] = existing_error + "; ".join(general_error_messages)
-    elif results["error"] is None: # Remove error key if no errors occurred at all
-        # Check if 'error' key exists before deleting, as it might have been set by gather exception
+    elif results["error"] is None:
         if "error" in results:
             del results["error"]
 
@@ -244,7 +222,7 @@ async def evaluate_epistemic_humility(
     model_name: str = DEFAULT_OPENAI_MODEL_NAME,
 ) -> EpistemicHumilityResult:
     """Run the epistemic humility check via LLM and return the raw result."""
-    desc = f"{action_result.selected_action.value} {action_result.action_parameters}" # Corrected field name
+    desc = f"{action_result.selected_action.value} {action_result.action_parameters}"
     messages = _create_epistemic_humility_messages(desc)
     try:
         result: EpistemicHumilityResult = await aclient.chat.completions.create(

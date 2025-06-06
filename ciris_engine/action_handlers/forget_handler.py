@@ -6,7 +6,8 @@ from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpSta
 from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from typing import Optional
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 import logging
 from pydantic import ValidationError
 
@@ -27,8 +28,7 @@ class ForgetHandler(BaseActionHandler):
                     parent=thought,
                     content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 )
-                # Update context using Pydantic model_copy with additional fields
-                context_data = follow_up.context.model_dump()
+                context_data = follow_up.context.model_dump() if follow_up.context else {}
                 context_data.update({
                     "action_performed": HandlerActionType.FORGET.name,
                     "parent_task_id": thought.source_task_id,
@@ -46,8 +46,7 @@ class ForgetHandler(BaseActionHandler):
                 parent=thought,
                 content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters type: {type(raw_params)}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-            # Update context using Pydantic model_copy with additional fields
-            context_data = follow_up.context.model_dump()
+            context_data = follow_up.context.model_dump() if follow_up.context else {}
             context_data.update({
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
@@ -65,8 +64,7 @@ class ForgetHandler(BaseActionHandler):
                 parent=thought,
                 content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action was not permitted. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-            # Update context using Pydantic model_copy with additional fields
-            context_data = follow_up.context.model_dump()
+            context_data = follow_up.context.model_dump() if follow_up.context else {}
             context_data.update({
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
@@ -100,8 +98,7 @@ class ForgetHandler(BaseActionHandler):
                 parent=thought,
                 content="FORGET action denied: WA authorization required"
             )
-            # Update context using Pydantic model_copy with additional fields
-            context_data = follow_up.context.model_dump()
+            context_data = follow_up.context.model_dump() if follow_up.context else {}
             context_data.update({
                 "action_performed": HandlerActionType.FORGET.name,
                 "parent_task_id": thought.source_task_id,
@@ -130,13 +127,11 @@ class ForgetHandler(BaseActionHandler):
             follow_up_content = (
                 f"CIRIS_FOLLOW_UP_THOUGHT: This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. Failed to forget key '{node.id}' in scope {node.scope.value}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-        #PROMPT_FOLLOW_UP_THOUGHT
         follow_up = create_follow_up_thought(
             parent=thought,
-            content=follow_up_content,
+            content=ThoughtStatus.PENDING,
         )
-        # Update context using Pydantic model_copy with additional fields
-        context_data = follow_up.context.model_dump()
+        context_data = follow_up.context.model_dump() if follow_up.context else {}
         context_data.update({
             "action_performed": HandlerActionType.FORGET.name,
             "parent_task_id": thought.source_task_id,
@@ -154,10 +149,8 @@ class ForgetHandler(BaseActionHandler):
             outcome="success" if success else "failed",
         )
 
-    def _can_forget(self, params, dispatch_context):
-        # Placeholder: implement permission logic as needed
+    def _can_forget(self, params, dispatch_context) -> bool:
         return True
 
-    async def _audit_forget_operation(self, params, dispatch_context, result):
-        # Placeholder: implement audit logging as needed
+    async def _audit_forget_operation(self, params, dispatch_context, result) -> None:
         pass

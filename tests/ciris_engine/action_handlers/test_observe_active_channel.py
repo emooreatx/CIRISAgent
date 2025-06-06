@@ -5,14 +5,15 @@ from ciris_engine.action_handlers.observe_handler import ObserveHandler
 from ciris_engine.schemas.action_params_v1 import ObserveParams
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, ThoughtType
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
 
 DEFAULT_THOUGHT_KWARGS = dict(
     thought_id="t1",
     source_task_id="task1",
-    thought_type="test",
+    thought_type=ThoughtType.STANDARD,
     status=ThoughtStatus.PENDING,
     created_at="now",
     updated_at="now",
@@ -40,7 +41,7 @@ async def test_observe_handler_active_injects_channel(monkeypatch):
     handler = ObserveHandler(deps)
     handler.get_multi_service_sink = lambda: mock_sink
 
-    params = ObserveParams(active=True, channel_id=None, context={})
+    params = ObserveParams(active=True, channel_id=None, context={"source": "test"})
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.OBSERVE,
         action_parameters=params,

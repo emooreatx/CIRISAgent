@@ -16,25 +16,25 @@ logger = logging.getLogger(__name__)
 class CLIAdapter(CommunicationService):
     """Simple CLI adapter implementing CommunicationService."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the adapter with no interactive input handling."""
 
-    async def start(self):
+    async def start(self) -> None:
         """CLI adapter has no startup actions."""
         pass
 
-    async def stop(self):
+    async def stop(self) -> None:
         """CLI adapter has no background tasks to stop."""
         pass
 
     async def send_message(self, channel_id: str, content: str) -> bool:
-        correlation_id = str(uuid.uuid4())
+        correlation_id = ServiceCorrelationStatus.PENDING
         print(f"[CLI][{channel_id}] {content}")
         corr = ServiceCorrelation(
-            correlation_id=correlation_id,
-            service_type="cli",
-            handler_name="CLIAdapter",
-            action_type="send_message",
+            correlation_id=ServiceCorrelationStatus.PENDING,
+            service_type=ServiceCorrelationStatus.PENDING,
+            handler_name=ServiceCorrelationStatus.PENDING,
+            action_type=ServiceCorrelationStatus.PENDING,
             request_data={"channel_id": channel_id, "content": content},
             response_data={"sent": True},
             status=ServiceCorrelationStatus.COMPLETED,
@@ -45,10 +45,7 @@ class CLIAdapter(CommunicationService):
         return True
 
     async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
-        # CLI adapter does not maintain history; return empty list
         return []
 
     def get_capabilities(self) -> list[str]:
-        # Support both sending and fetching messages so the service
-        # can satisfy communication requests via the registry
         return ["send_message", "fetch_messages"]

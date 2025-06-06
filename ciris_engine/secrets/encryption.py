@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class SecretsEncryption:
     """Handles encryption/decryption of secrets using AES-256-GCM"""
     
-    def __init__(self, master_key: Optional[bytes] = None):
+    def __init__(self, master_key: Optional[bytes] = None) -> None:
         """
         Initialize with a master key. If not provided, generates a new one.
         
@@ -52,7 +52,7 @@ class SecretsEncryption:
             algorithm=hashes.SHA256(),
             length=32,
             salt=salt,
-            iterations=100000,  # OWASP recommended minimum
+            iterations=100000,
         )
         return kdf.derive(self.master_key)
     
@@ -66,14 +66,11 @@ class SecretsEncryption:
         Returns:
             Tuple of (encrypted_value, salt, nonce)
         """
-        # Generate random salt and nonce
         salt = secrets.token_bytes(16)
-        nonce = secrets.token_bytes(12)  # GCM recommended nonce size
+        nonce = secrets.token_bytes(12)
         
-        # Derive encryption key
         key = self._derive_key(salt)
         
-        # Encrypt the value
         aesgcm = AESGCM(key)
         encrypted_value = aesgcm.encrypt(nonce, value.encode('utf-8'), None)
         
@@ -95,10 +92,8 @@ class SecretsEncryption:
         Raises:
             InvalidSignature: If decryption fails (wrong key, corrupted data, etc.)
         """
-        # Derive the same encryption key
         key = self._derive_key(salt)
         
-        # Decrypt the value
         aesgcm = AESGCM(key)
         decrypted_bytes = aesgcm.decrypt(nonce, encrypted_value, None)
         

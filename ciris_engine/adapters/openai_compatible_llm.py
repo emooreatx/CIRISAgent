@@ -76,11 +76,11 @@ class OpenAICompatibleClient(Service):
             logger.exception(f"Failed to patch OpenAI client: {e}")
             self.instruct_client = self.client
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the client service."""
         await super().start()
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the client service."""
         await super().stop()
 
@@ -116,7 +116,7 @@ class OpenAICompatibleClient(Service):
     ) -> Tuple[str, ResourceUsage]:
         logger.debug(f"Raw LLM call with messages: {messages}")
         
-        async def _make_raw_call():
+        async def _make_raw_call() -> Tuple[str, ResourceUsage]:
             response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
@@ -147,7 +147,7 @@ class OpenAICompatibleClient(Service):
     ) -> Tuple[BaseModel, ResourceUsage]:
         logger.debug(f"Structured LLM call for {response_model.__name__}")
         
-        async def _make_structured_call():
+        async def _make_structured_call() -> Tuple[Any, ResourceUsage]:
             response = await self.instruct_client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
@@ -174,7 +174,6 @@ class OpenAICompatibleLLM(Service):
     """Adapter that exposes an OpenAICompatibleClient through the Service interface."""
 
     def __init__(self, llm_config: Optional[LLMServicesConfig] = None) -> None:
-        # Set up retry configuration for LLM operations
         retry_config = {
             "retry": {
                 "global": {
@@ -185,7 +184,7 @@ class OpenAICompatibleLLM(Service):
                     "jitter_range": 0.25
                 },
                 "llm_call": {
-                    "max_retries": 5,  # LLM calls may need more retries
+                    "max_retries": 5,
                     "base_delay": 1.0,
                 }
             }

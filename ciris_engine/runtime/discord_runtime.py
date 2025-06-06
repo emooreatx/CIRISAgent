@@ -21,7 +21,6 @@ from ciris_engine.action_handlers.tool_handler import ToolHandler
 from ciris_engine.adapters.cli.cli_adapter import CLIAdapter
 from ciris_engine.adapters.cli.cli_tools import CLIToolService
 
-# Import multi-service sink components
 from ciris_engine.registries.base import Priority
 from ciris_engine.adapters import CIRISNodeClient
 
@@ -38,7 +37,7 @@ class DiscordRuntime(CIRISRuntime):
         startup_channel_id: Optional[str] = None,
         monitored_channel_id: Optional[str] = None,
         deferral_channel_id: Optional[str] = None,
-    ):
+    ) -> None:
         # Create Discord components
         self.token = token
         self.discord_adapter = DiscordAdapter(token, on_message=self._handle_incoming_message)
@@ -71,24 +70,19 @@ class DiscordRuntime(CIRISRuntime):
         """Initialize Discord-specific components."""
         await super().initialize()
 
-        # Create and assign the Discord client (Bot)
         intents = discord.Intents.all()
         self.client = discord.Client(intents=intents)
-        self.discord_adapter.client = self.client  # Assign the client to the adapter
+        self.discord_adapter.client = self.client
 
 
-        # CLI fallback tool service
         self.cli_tool_service = CLIToolService()
         
-        # Register Discord tools with the live client
         tool_registry = ToolRegistry()
         register_discord_tools(tool_registry, self.client)
         
-        # Set the tool registry on the Discord adapter (which implements ToolService)
         if hasattr(self.discord_adapter, 'tool_registry'):
             self.discord_adapter.tool_registry = tool_registry
         
-        # Register Discord adapter as tool service in the service registry
         if self.service_registry and self.discord_adapter:
             self.service_registry.register(
                 handler="ToolHandler",
@@ -98,27 +92,21 @@ class DiscordRuntime(CIRISRuntime):
                 capabilities=["execute_tool", "get_tool_result", "get_available_tools", "validate_parameters"]
             )
 
-        # Register Discord-specific services before dispatcher is built
         await self._register_discord_services()
 
         if self.service_registry:
             await self.service_registry.wait_ready()
 
-        # Set up DiscordObserver with proper services after multi_service_sink is available
         if self.discord_observer:
             self.discord_observer.multi_service_sink = self.multi_service_sink
             self.discord_observer.memory_service = self.memory_service  
             self.discord_observer.agent_id = getattr(self, 'agent_id', None)
-            # Start the DiscordObserver to handle incoming messages
             await self.discord_observer.start()
             logger.info("DiscordObserver configured and started with runtime services")
 
-        # Update agent processor services with Discord client
         if self.agent_processor:
-            # Update the main services dict
             self.agent_processor.services["discord_service"] = self.client
             
-            # Set discord_service on all processors for context passing
             processors = [
                 self.agent_processor.wakeup_processor,
                 self.agent_processor.work_processor,
@@ -129,10 +117,9 @@ class DiscordRuntime(CIRISRuntime):
             for processor in processors:
                 if processor:
                     processor.discord_service = self.client
-                    processor.services = self.agent_processor.services  # Share services dict
+                    processor.services = self.agent_processor.services
                     logger.debug(f"Set discord_service on {processor.__class__.__name__}")
 
-        # Rebuild dispatcher with correct services
         if self.agent_processor:
             dependencies = getattr(self.agent_processor.thought_processor, 'dependencies', None)
             if dependencies:
@@ -140,7 +127,6 @@ class DiscordRuntime(CIRISRuntime):
                 self.agent_processor.action_dispatcher = new_dispatcher
                 logger.info("DiscordRuntime: Action dispatcher rebuilt with correct sinks.")
 
-        # Start Discord-specific services
         await self.cli_adapter.start()
         
 
@@ -154,10 +140,11 @@ class DiscordRuntime(CIRISRuntime):
         
     async def _build_action_dispatcher(self, dependencies: Any) -> Any:
         """Build Discord-specific action dispatcher."""
+        config = self._ensure_config()
         return build_action_dispatcher(
             service_registry=self.service_registry,
             shutdown_callback=dependencies.shutdown_callback,
-            max_rounds=self.app_config.workflow.max_rounds,
+            max_rounds=config.workflow.max_rounds,
         )
         
     async def _register_discord_services(self) -> None:
@@ -234,7 +221,6 @@ class DiscordRuntime(CIRISRuntime):
 
     async def shutdown(self) -> None:
         """Shutdown Discord-specific components."""
-        # Stop Discord services
         discord_services: list[Any] = []
 
         for service in discord_services:
@@ -250,7 +236,6 @@ class DiscordRuntime(CIRISRuntime):
             except Exception as e:
                 logger.error(f"Error stopping {self.cli_adapter.__class__.__name__}: {e}")
                     
-        # Call parent shutdown
         await super().shutdown()
     
     async def run(self, num_rounds: Optional[int] = None) -> None:
@@ -270,7 +255,10 @@ class DiscordRuntime(CIRISRuntime):
                 logger.info("Started multi-service sink as background task")
             
             # Start IO adapter (this doesn't start Discord client yet)
-            await self.io_adapter.start()
+            if self.io_adapter:
+                await self.io_adapter.start()
+            else:
+                raise RuntimeError("IO adapter not initialized")
             logger.info("Started IO adapter")
             
             # Attach event handlers to Discord client
@@ -296,6 +284,8 @@ class DiscordRuntime(CIRISRuntime):
             
             # NOW start agent processing - this is the key part that triggers WAKEUP
             logger.info("Starting agent processing with WAKEUP sequence...")
+            if not self.agent_processor:
+                raise RuntimeError("Agent processor not initialized")
             processing_task = asyncio.create_task(
                 self.agent_processor.start_processing(num_rounds=num_rounds)
             )

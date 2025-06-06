@@ -15,7 +15,7 @@ from ciris_engine.protocols.services import ToolService
 class CLIToolService(ToolService):
     """Simple ToolService providing local filesystem browsing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._results: Dict[str, Dict[str, Any]] = {}
         self._tools = {
             "list_files": self._list_files,
@@ -106,10 +106,10 @@ class CLIToolService(ToolService):
 
     async def _search_text(self, params: Dict[str, Any]) -> Dict[str, Any]:
         pattern = params.get("pattern")
-        path = params.get("path")
+        path = params.get("path")  # type: ignore[union-attr]
         if not pattern or not path:
             return {"error": "pattern and path required"}
-        matches = []
+        matches: List[Any] = []
         try:
             lines = await asyncio.to_thread(self._read_lines_sync, path)
             for idx, line in enumerate(lines, 1):

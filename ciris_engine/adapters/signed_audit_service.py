@@ -45,7 +45,7 @@ class SignedAuditService(AuditService):
         retention_days: int = 90,
         enable_jsonl: bool = True,
         enable_signed: bool = True
-    ):
+    ) -> None:
         """
         Initialize the signed audit service.
         
@@ -65,7 +65,6 @@ class SignedAuditService(AuditService):
         self.enable_jsonl = enable_jsonl
         self.enable_signed = enable_signed
         
-        # Signed audit components
         self.hash_chain: Optional[AuditHashChain] = None
         self.signature_manager: Optional[AuditSignatureManager] = None
         self.verifier: Optional[AuditVerifier] = None
@@ -73,7 +72,7 @@ class SignedAuditService(AuditService):
         self._db_connection: Optional[sqlite3.Connection] = None
         self._signing_enabled = False
     
-    async def start(self):
+    async def start(self) -> None:
         """Start the signed audit service."""
         # Start base service (handles JSONL)
         if self.enable_jsonl:
@@ -83,16 +82,13 @@ class SignedAuditService(AuditService):
         if self.enable_signed:
             await self._initialize_signed_audit()
     
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the signed audit service."""
-        # Flush any remaining entries
         await self._flush_buffer()
         
-        # Close database connection
         if self._db_connection:
             self._db_connection.close()
         
-        # Stop base service
         if self.enable_jsonl:
             await super().stop()
     
@@ -109,7 +105,6 @@ class SignedAuditService(AuditService):
         signed audit trail when enabled.
         """
         try:
-            # Create the audit entry
             entry = AuditLogEntry(
                 event_id=str(uuid.uuid4()),
                 event_timestamp=datetime.now(timezone.utc).isoformat(),
@@ -124,13 +119,11 @@ class SignedAuditService(AuditService):
                 task_id=context.get("task_id") or context.get("source_task_id"),
             )
             
-            # Buffer for JSONL (if enabled)
             if self.enable_jsonl:
                 self._buffer.append(entry)
                 if len(self._buffer) >= 100:
                     await self._flush_buffer()
             
-            # Write to signed database (if enabled)
             if self.enable_signed and self._signing_enabled:
                 await self._write_signed_entry(entry)
             
@@ -210,17 +203,23 @@ class SignedAuditService(AuditService):
     
     def _init_components_sync(self) -> None:
         """Synchronous initialization of audit components."""
+        if not self.hash_chain:
+            raise RuntimeError("Hash chain not initialized")
+        if not self.signature_manager:
+            raise RuntimeError("Signature manager not initialized")
+        if not self.verifier:
+            raise RuntimeError("Verifier not initialized")
+            
         self.hash_chain.initialize()
         self.signature_manager.initialize()
         self.verifier.initialize()
         
-        # Test signing capability
         if not self.signature_manager.test_signing():
             raise RuntimeError("Signing test failed")
     
     async def _init_database(self) -> None:
         """Initialize the audit database with required tables."""
-        def _create_tables():
+        def _create_tables() -> None:
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
             
@@ -250,7 +249,6 @@ class SignedAuditService(AuditService):
                 )
             """)
             
-            # Create audit_signing_keys table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS audit_signing_keys (
                     key_id TEXT PRIMARY KEY,
@@ -276,7 +274,6 @@ class SignedAuditService(AuditService):
                 )
             """)
             
-            # Create indexes for performance
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_audit_log_v2_event_timestamp 
                 ON audit_log_v2(event_timestamp)
@@ -300,8 +297,7 @@ class SignedAuditService(AuditService):
     
     async def _write_signed_entry(self, entry: AuditLogEntry) -> None:
         """Write an entry to the signed audit database."""
-        def _write_to_db():
-            # Convert entry to dict for hash chain
+        def _write_to_db() -> None:
             entry_dict = {
                 "event_id": entry.event_id,
                 "event_timestamp": entry.event_timestamp,
@@ -310,13 +306,16 @@ class SignedAuditService(AuditService):
                 "event_payload": json.dumps(entry.event_payload) if entry.event_payload else None
             }
             
-            # Prepare entry with hash chain
+            if not self.hash_chain:
+                raise RuntimeError("Hash chain not available")
             prepared = self.hash_chain.prepare_entry(entry_dict)
             
-            # Sign the entry hash
+            if not self.signature_manager:
+                raise RuntimeError("Signature manager not available")
             signature = self.signature_manager.sign_entry(prepared["entry_hash"])
             
-            # Insert into database
+            if not self._db_connection:
+                raise RuntimeError("Database connection not available")
             cursor = self._db_connection.cursor()
             cursor.execute("""
                 INSERT INTO audit_log_v2 
@@ -341,10 +340,11 @@ class SignedAuditService(AuditService):
                 prepared["previous_hash"],
                 prepared["entry_hash"],
                 signature,
-                self.signature_manager.key_id
+                self.signature_manager.key_id if self.signature_manager else "unknown"
             ))
             
-            self._db_connection.commit()
+            if self._db_connection:
+                self._db_connection.commit()
         
         try:
             await asyncio.to_thread(_write_to_db)
@@ -356,11 +356,9 @@ class SignedAuditService(AuditService):
         if not self._buffer:
             return
         
-        # Flush to JSONL if enabled
         if self.enable_jsonl:
             await super()._flush_buffer()
         
-        # Write to signed database if enabled
         if self.enable_signed and self._signing_enabled:
             for entry in self._buffer:
                 await self._write_signed_entry(entry)
@@ -399,14 +397,16 @@ class SignedAuditService(AuditService):
             return {"error": "Signed audit not enabled"}
         
         try:
-            # Get current chain summary
+            if not self.hash_chain:
+                return {"error": "Hash chain not available"}
             summary = await asyncio.to_thread(self.hash_chain.get_chain_summary)
             
             if summary["total_entries"] == 0:
                 return {"error": "No entries in audit chain"}
             
-            # Create root anchor entry
-            def _create_anchor():
+            def _create_anchor() -> None:
+                if not self._db_connection:
+                    raise RuntimeError("Database connection not available")
                 cursor = self._db_connection.cursor()
                 cursor.execute("""
                     INSERT INTO audit_roots 

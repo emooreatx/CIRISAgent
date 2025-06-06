@@ -3,7 +3,6 @@ from typing import Dict, Any
 
 from pydantic import BaseModel
 
-# Updated imports for v1 schemas
 from ciris_engine.schemas import Thought, ToolParams, ThoughtStatus, HandlerActionType, ActionSelectionResult
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
@@ -16,11 +15,11 @@ import uuid
 logger = logging.getLogger(__name__)
 
 class ToolHandler(BaseActionHandler):
-    TOOL_RESULT_TIMEOUT = 30  # seconds
+    TOOL_RESULT_TIMEOUT = 30
 
     async def handle(
         self,
-        result: ActionSelectionResult,  # Updated to v1 result schema
+        result: ActionSelectionResult,
         thought: Thought,
         dispatch_context: Dict[str, Any]
     ) -> None:
@@ -40,7 +39,6 @@ class ToolHandler(BaseActionHandler):
             follow_up_content_key_info = f"TOOL action failed: {e}"
             params = None
 
-        # Tool service validation and execution
         tool_service = await self.get_tool_service()
         if not isinstance(params, ToolParams):
             self.logger.error(
@@ -78,11 +76,10 @@ class ToolHandler(BaseActionHandler):
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = f"TOOL {params.name} execution failed: {str(e_tool)}"
 
-        # Pass ActionSelectionResult directly to persistence - it handles serialization
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
-            final_action=result,  # Pass the ActionSelectionResult object directly
+            final_action=result,
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after TOOL attempt.")
 
@@ -91,7 +88,6 @@ class ToolHandler(BaseActionHandler):
             follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: TOOL action {params.name} executed for thought {thought_id}. Info: {follow_up_content_key_info}. Awaiting tool results or next steps. If task complete, use TASK_COMPLETE."
         else:
             follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: TOOL action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. Review and determine next steps."
-        #PROMPT_FOLLOW_UP_THOUGHT
         try:
             new_follow_up = create_follow_up_thought(
                 parent=thought,
@@ -100,7 +96,6 @@ class ToolHandler(BaseActionHandler):
             context_for_follow_up = {"action_performed": HandlerActionType.TOOL.value}
             if final_thought_status == ThoughtStatus.FAILED:
                 context_for_follow_up["error_details"] = follow_up_content_key_info
-            # Pass params directly - persistence will handle serialization
             context_for_follow_up["action_params"] = params
             if isinstance(new_follow_up.context, dict):
                 new_follow_up.context.update(context_for_follow_up)

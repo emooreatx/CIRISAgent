@@ -4,7 +4,6 @@ import sqlite3
 
 logger = logging.getLogger(__name__)
 
-# Migrations live one directory above this package
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 
 

@@ -27,7 +27,7 @@ class SecretsFilterInterface(ABC):
     """Interface for detecting and filtering secrets from content"""
     
     @abstractmethod
-    async def filter_content(self, content: str, source_id: str = None) -> SecretsFilterResult:
+    async def filter_content(self, content: str, source_id: Optional[str] = None) -> SecretsFilterResult:
         """
         Scan content for secrets and replace them with UUID references
         
@@ -94,7 +94,7 @@ class SecretsStoreInterface(ABC):
     """Interface for encrypted storage and retrieval of secrets"""
     
     @abstractmethod
-    async def store_secret(self, secret: DetectedSecret, source_id: str = None) -> SecretRecord:
+    async def store_secret(self, secret: DetectedSecret, source_id: Optional[str] = None) -> SecretRecord:
         """
         Store a detected secret securely
         
@@ -135,7 +135,7 @@ class SecretsStoreInterface(ABC):
         pass
     
     @abstractmethod
-    async def list_secrets(self, sensitivity_filter: str = None) -> List[SecretReference]:
+    async def list_secrets(self, sensitivity_filter: Optional[str] = None) -> List[SecretReference]:
         """
         List all stored secrets (metadata only)
         
@@ -158,7 +158,7 @@ class SecretsStoreInterface(ABC):
         pass
     
     @abstractmethod
-    async def get_access_logs(self, secret_uuid: str = None, limit: int = 100) -> List[SecretAccessLog]:
+    async def get_access_logs(self, secret_uuid: Optional[str] = None, limit: int = 100) -> List[SecretAccessLog]:
         """
         Retrieve access logs for auditing
         
@@ -189,7 +189,7 @@ class SecretsServiceInterface(ABC):
     """Main interface for coordinating secrets management"""
     
     @abstractmethod
-    async def process_content(self, content: str, source_id: str = None) -> SecretsFilterResult:
+    async def process_content(self, content: str, source_id: Optional[str] = None) -> SecretsFilterResult:
         """
         Process content through the complete secrets pipeline
         
@@ -203,7 +203,7 @@ class SecretsServiceInterface(ABC):
         pass
     
     @abstractmethod
-    async def decapsulate_secrets(self, content: Any, action_type: str = None) -> Any:
+    async def decapsulate_secrets(self, content: Any, action_type: Optional[str] = None) -> Any:
         """
         Replace secret UUIDs with actual values for action execution
         
@@ -297,7 +297,7 @@ class SecretsEncryptionInterface(ABC):
         pass
     
     @abstractmethod
-    def rotate_master_key(self, new_master_key: bytes = None) -> bytes:
+    def rotate_master_key(self, new_master_key: Optional[bytes] = None) -> bytes:
         """
         Rotate the master encryption key
         

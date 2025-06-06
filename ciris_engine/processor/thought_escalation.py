@@ -1,5 +1,3 @@
-# This file was moved from core/thought_escalation.py to core/processor/thought_escalation.py for better modularity and alignment with processing logic.
-# See main_processor.py and thought_manager.py for usage.
 
 from datetime import datetime, timezone
 from typing import Dict, Any

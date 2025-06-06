@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 
-# Default values used across tests and services
+from .guardrails_config_v1 import GuardrailsConfig
+
 DEFAULT_SQLITE_DB_FILENAME = "ciris_engine.db"
 DEFAULT_DATA_DIR = "data"
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
@@ -12,7 +13,6 @@ class DatabaseConfig(BaseModel):
     data_directory: str = DEFAULT_DATA_DIR
     graph_memory_filename: str = Field(default="graph_memory.pkl", alias="graph_memory_filename")
 
-from .guardrails_config_v1 import GuardrailsConfig
 from .agent_core_schemas_v1 import Task, Thought
 from .action_params_v1 import *
 from .foundational_schemas_v1 import HandlerActionType
@@ -22,7 +22,7 @@ class WorkflowConfig(BaseModel):
     max_active_tasks: int = Field(default=10, description="Maximum tasks that can be active simultaneously")
     max_active_thoughts: int = Field(default=50, description="Maximum thoughts to pull into processing queue per round") 
     round_delay_seconds: float = Field(default=1.0, description="Delay between processing rounds in seconds")
-    max_rounds: int = Field(default=5, description="Maximum ponder iterations before auto-defer")
+    max_rounds: int = Field(default=7, description="Maximum ponder iterations before auto-defer")
     num_rounds: Optional[int] = Field(default=None, description="Maximum number of processing rounds (None = infinite)")
     DMA_RETRY_LIMIT: int = Field(default=3, description="Maximum retry attempts for DMAs")
     DMA_TIMEOUT_SECONDS: float = Field(
@@ -39,24 +39,21 @@ class OpenAIConfig(BaseModel):
     max_retries: int = Field(default=3, description="Maximum retry attempts")
     api_key: Optional[str] = Field(default=None, description="API key for OpenAI or compatible service")
     api_key_env_var: str = Field(default="OPENAI_API_KEY", description="Environment variable for API key")
-    instructor_mode: str = Field(default="JSON", description="Instructor library mode")
+    instructor_mode: str = Field(default="JSON", description="InGuardrailsConfiguctor library mode")
 
     def load_env_vars(self) -> None:
         """Load configuration from environment variables if present."""
         from ciris_engine.config.env_utils import get_env_var
 
-        # Load API key from environment variable
         if not self.api_key:
             self.api_key = get_env_var(self.api_key_env_var)
         
-        # Load base URL - support both OPENAI_API_BASE and OPENAI_BASE_URL
         if not self.base_url:
             base_url = get_env_var("OPENAI_API_BASE") or get_env_var("OPENAI_BASE_URL")
             if base_url:
                 self.base_url = base_url
         
-        # Load model name
-        if not self.model_name or self.model_name == "gpt-4o-mini":  # Only override default
+        if not self.model_name or self.model_name == "gpt-4o-mini":
             env_model = get_env_var("OPENAI_MODEL_NAME")
             if env_model:
                 self.model_name = env_model
@@ -73,6 +70,7 @@ class AgentProfile(BaseModel):
     permitted_actions: List[HandlerActionType] = Field(default_factory=list)
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
+    guardrails_config: Optional[GuardrailsConfig] = None
 
 class CIRISNodeConfig(BaseModel):
     """Configuration for communicating with CIRISNode service."""
@@ -100,10 +98,20 @@ class NetworkConfig(BaseModel):
     
 class TelemetryConfig(BaseModel):
     """Telemetry configuration - secure by default"""
-    enabled: bool = False  # Disabled in pre-beta
-    internal_only: bool = True  # No external export initially
+    enabled: bool = False
+    internal_only: bool = True
     retention_hours: int = 1
     snapshot_interval_ms: int = 1000
+
+class AuditConfig(BaseModel):
+    """Audit service configuration"""
+    enable_signed_audit: bool = Field(default=False, description="Enable cryptographically signed audit trail")
+    enable_jsonl_audit: bool = Field(default=True, description="Enable traditional JSONL audit logging")
+    audit_log_path: str = Field(default="audit_logs.jsonl", description="Path to JSONL audit log file")
+    audit_db_path: str = Field(default="ciris_audit.db", description="Path to signed audit database")
+    audit_key_path: str = Field(default="audit_keys", description="Directory for audit signing keys")
+    rotation_size_mb: int = Field(default=100, description="JSONL file rotation size in MB")
+    retention_days: int = Field(default=90, description="Audit log retention period in days")
 
 class WisdomConfig(BaseModel):
     """Wisdom-seeking configuration"""
@@ -117,19 +125,19 @@ class AppConfig(BaseModel):
     version: Optional[str] = None
     log_level: Optional[str] = None
     database: DatabaseConfig = DatabaseConfig()
-    llm_services: LLMServicesConfig = LLMServicesConfig()  # Updated structure
+    llm_services: LLMServicesConfig = LLMServicesConfig()
     guardrails: GuardrailsConfig = GuardrailsConfig()
     workflow: WorkflowConfig = WorkflowConfig()
-    cirisnode: CIRISNodeConfig = CIRISNodeConfig()  # Add cirisnode configuration
+    audit: AuditConfig = AuditConfig()
+    cirisnode: CIRISNodeConfig = CIRISNodeConfig()
     network: NetworkConfig = NetworkConfig()
     telemetry: TelemetryConfig = TelemetryConfig()
     wisdom: WisdomConfig = WisdomConfig()
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
     default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
-    discord_channel_id: Optional[str] = None  # Add this field for Discord channel id
+    discord_channel_id: Optional[str] = None
 
-# Expose commonly used constants at module level for convenience
 DMA_RETRY_LIMIT = 3
 GUARDRAIL_RETRY_LIMIT = 2
 DMA_TIMEOUT_SECONDS = 30.0

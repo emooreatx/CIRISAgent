@@ -17,7 +17,7 @@ from ciris_engine.config.config_manager import get_config
 
 
 class PonderHandler(BaseActionHandler):
-    def __init__(self, dependencies: ActionHandlerDependencies, max_rounds: Optional[int] = None):
+    def __init__(self, dependencies: ActionHandlerDependencies, max_rounds: Optional[int] = None) -> None:
         super().__init__(dependencies)
         if max_rounds is None:
             try:
@@ -41,14 +41,12 @@ class PonderHandler(BaseActionHandler):
         dispatch_context: Dict[str, Any]
     ) -> None:
         """Process ponder action and update thought."""
-        # Extract ponder parameters from the result
         params = result.action_parameters
         ponder_params = PonderParams(**params) if isinstance(params, dict) else params
         
         questions_list = ponder_params.questions if hasattr(ponder_params, 'questions') else []
         
         epistemic_data = dispatch_context.get('epistemic_data')
-        # Add epistemic notes if present
         if epistemic_data:
             if 'optimization_veto' in epistemic_data:
                 veto = epistemic_data['optimization_veto']
@@ -64,16 +62,13 @@ class PonderHandler(BaseActionHandler):
         
         logger.info(f"Thought ID {thought.thought_id} pondering (count: {new_ponder_count}). Questions: {questions_list}")
         
-        # Check if we've reached max rounds after this ponder
         if new_ponder_count >= self.max_rounds:
             logger.warning(f"Thought ID {thought.thought_id} has reached max rounds ({self.max_rounds}) after this ponder. Deferring to defer handler.")
             
-            # Update the thought with the ponder results first
             thought.ponder_count = new_ponder_count
             existing_notes = thought.ponder_notes or []
             thought.ponder_notes = existing_notes + questions_list
             
-            # Create a defer action result and pass to defer handler
             from ciris_engine.schemas.action_params_v1 import DeferParams
             
             defer_params = DeferParams(
@@ -86,13 +81,11 @@ class PonderHandler(BaseActionHandler):
                 raw_llm_response=None
             )
             
-            # Get the defer handler and pass the thought to it
             defer_handler = self.dependencies.action_dispatcher.get_handler(HandlerActionType.DEFER)
             if defer_handler:
                 await defer_handler.handle(defer_result, thought, dispatch_context)
                 return None
             else:
-                # Fallback if defer handler not available - mark as DEFERRED directly
                 logger.error("Defer handler not available. Setting status to DEFERRED directly.")
                 persistence.update_thought_status(
                     thought_id=thought.thought_id,
@@ -112,10 +105,8 @@ class PonderHandler(BaseActionHandler):
                 )
                 return None
         else:
-            # Normal ponder completion - mark as COMPLETED for re-processing
             next_status = ThoughtStatus.COMPLETED
         
-        # Normal ponder completion - update thought and create follow-up
         success = persistence.update_thought_status(
             thought_id=thought.thought_id,
             status=next_status,
@@ -135,7 +126,6 @@ class PonderHandler(BaseActionHandler):
                 f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for {next_status.value}."
             )
             
-            # Log audit for successful ponder
             await self._audit_log(
                 HandlerActionType.PONDER,
                 dispatch_context,
@@ -147,20 +137,17 @@ class PonderHandler(BaseActionHandler):
                 },
             )
             
-            # Create a follow-up thought for the ponder action
             follow_up_content = (
                 f"CIRIS_FOLLOW_UP_THOUGHT: This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
                 f"Pondered questions: {questions_list}. "
                 "If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-            #PROMPT_FOLLOW_UP_THOUGHT
             from .helpers import create_follow_up_thought
             follow_up = create_follow_up_thought(
                 parent=thought,
                 content=follow_up_content,
             )
-            # Update context using Pydantic model_copy with additional fields
-            context_data = follow_up.context.model_dump()
+            context_data = follow_up.context.model_dump() if follow_up.context else {}
             context_data.update({
                 "action_performed": HandlerActionType.PONDER.name,
                 "parent_task_id": thought.source_task_id,
@@ -170,8 +157,6 @@ class PonderHandler(BaseActionHandler):
             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
             follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(follow_up)
-            # Note: The thought is already set to PENDING status, so it will be automatically
-            # picked up in the next processing round when the queue is populated from the database
             return None
         else:
             logger.error(f"Failed to update thought ID {thought.thought_id} for re-processing Ponder.")
@@ -181,22 +166,19 @@ class PonderHandler(BaseActionHandler):
                 final_action={
                     "action": HandlerActionType.PONDER.value,
                     "error": "Failed to update for re-processing",
-                    "ponder_count": current_ponder_count # Reverted to current_ponder_count as update failed
+                    "ponder_count": current_ponder_count
                 }
             )
-            # Log audit for failed ponder update
             await self._audit_log(
                 HandlerActionType.PONDER,
                 dispatch_context,
                 {"thought_id": thought.thought_id, "status": ThoughtStatus.FAILED.value, "ponder_type": "update_failed"},
             )
-            # Create a follow-up thought for the failed ponder action
             follow_up_content = (
                 f"This is a follow-up thought from a FAILED PONDER action performed on parent task {thought.source_task_id}. "
                 f"Pondered questions: {questions_list}. "
                 "The update failed. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-            #PROMPT_FOLLOW_UP_THOUGHT
             from .helpers import create_follow_up_thought
             follow_up = create_follow_up_thought(
                 parent=thought,

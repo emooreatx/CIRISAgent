@@ -41,8 +41,12 @@ async def extract_user_nick(
             current_thought = await persistence.async_get_thought_by_id(thought_id)
             if current_thought and current_thought.source_task_id:
                 parent_task = persistence.get_task_by_id(current_thought.source_task_id)
-                if parent_task and isinstance(parent_task.context, dict):
-                    nick = parent_task.context.get("author_name") or parent_task.context.get("user_id")
+                if parent_task and parent_task.context:
+                    # Check if context has get method (dict-like) or use getattr for objects
+                    if hasattr(parent_task.context, 'get'):
+                        nick = parent_task.context.get("author_name") or parent_task.context.get("user_id")
+                    else:
+                        nick = getattr(parent_task.context, "author_name", None) or getattr(parent_task.context, "user_id", None)
                     if nick:
                         return str(nick)
         except Exception:

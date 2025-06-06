@@ -11,9 +11,8 @@ from ciris_engine.config.env_utils import get_env_var
 
 
 class GraphQLClient:
-    def __init__(self, endpoint: str | None = None):
+    def __init__(self, endpoint: str | None = None) -> None:
         self.endpoint = endpoint or get_env_var("GRAPHQL_ENDPOINT", "https://localhost:8000/graphql")
-        # Use a short timeout per repository guidelines
         self._client = httpx.AsyncClient(timeout=3.0)
 
     async def query(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
@@ -29,12 +28,12 @@ class GraphQLClient:
 class GraphQLContextProvider:
     def __init__(self, graphql_client: GraphQLClient | None = None,
                  memory_service: Optional[LocalGraphMemoryService] = None,
-                 enable_remote_graphql: bool = False):
+                 enable_remote_graphql: bool = False) -> None:
         self.enable_remote_graphql = enable_remote_graphql
         if enable_remote_graphql:
             self.client = graphql_client or GraphQLClient()
         else:
-            self.client = graphql_client  # stored for tests but not used
+            self.client = graphql_client
         self.memory_service = memory_service
 
     async def enrich_context(self, task, thought) -> Dict[str, Any]:
@@ -43,7 +42,7 @@ class GraphQLContextProvider:
             name = task.context.get("author_name")
             if name:
                 authors.add(name)
-        history: List[Dict[str, Any]] = []  # Remove legacy processing_context usage, use only v1 fields.
+        history: List[Dict[str, Any]] = []
         for item in history:
             name = item.get("author_name")
             if name:
@@ -55,7 +54,7 @@ class GraphQLContextProvider:
                 users(names:$names){ name nick channel }
             }
         """
-        result = {}
+        result: Dict[str, Any] = {}
         if self.enable_remote_graphql and self.client:
             result = await self.client.query(query, {"names": list(authors)})
         users = result.get("users", []) if result else []
@@ -80,7 +79,7 @@ class GraphQLContextProvider:
             except Exception as exc:
                 logger.warning("Failed to export identity context: %s", exc)
 
-        context = {}
+        context: Dict[str, Any] = {}
         if enriched:
             context["user_profiles"] = enriched
         if identity_block:

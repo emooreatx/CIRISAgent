@@ -5,7 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str, package: Optional[Dict[str, Any]] = None, db_path=None) -> None:
+def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str, package: Optional[Dict[str, Any]] = None, db_path: Optional[str] = None) -> None:
     sql = """
         INSERT OR REPLACE INTO deferral_reports (message_id, task_id, thought_id, package_json)
         VALUES (?, ?, ?, ?)
@@ -28,7 +28,7 @@ def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str,
             e,
         )
 
-def get_deferral_report_context(message_id: str, db_path=None) -> Optional[tuple[str, str, Optional[Dict[str, Any]]]]:
+def get_deferral_report_context(message_id: str, db_path: Optional[str] = None) -> Optional[tuple[str, str, Optional[Dict[str, Any]]]]:
     sql = "SELECT task_id, thought_id, package_json FROM deferral_reports WHERE message_id = ?"
     try:
         with get_db_connection(db_path=db_path) as conn:

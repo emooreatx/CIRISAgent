@@ -29,19 +29,16 @@ class SecretRecord(BaseModel):
     salt: bytes = Field(description="Cryptographic salt")
     nonce: bytes = Field(description="AES-GCM nonce")
     
-    # Metadata (not encrypted)
     description: str = Field(description="Human-readable description")
     sensitivity_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
     detected_pattern: str = Field(description="Pattern that detected this secret")
     context_hint: str = Field(description="Safe context description")
     
-    # Audit fields
     created_at: datetime
     last_accessed: Optional[datetime] = None
     access_count: int = 0
     source_message_id: Optional[str] = None
     
-    # Access control
     auto_decapsulate_for_actions: List[str] = Field(default_factory=list)
     manual_access_only: bool = False
 

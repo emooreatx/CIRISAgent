@@ -1,10 +1,9 @@
-import logging # Add logging
+import logging
 from abc import ABC
 from typing import Dict, Any, Optional, List
 
-import instructor # For instructor.Mode
+import instructor
 
-# Corrected imports based on project structure
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import DSDMAResult
 from ciris_engine.registries.base import ServiceRegistry
@@ -18,9 +17,9 @@ from ciris_engine.formatters import (
 from ciris_engine.utils import COVENANT_TEXT
 from pydantic import BaseModel, Field
 from instructor.exceptions import InstructorRetryException
-from ciris_engine.config.config_manager import get_config # To access global config
+from ciris_engine.config.config_manager import get_config
 
-logger = logging.getLogger(__name__) # Add logger
+logger = logging.getLogger(__name__)
 
 class BaseDSDMA(BaseDMA):
     """
@@ -43,7 +42,7 @@ class BaseDSDMA(BaseDMA):
                  service_registry: ServiceRegistry,
                  model_name: Optional[str] = None,
                  domain_specific_knowledge: Optional[Dict[str, Any]] = None,
-                 prompt_template: Optional[str] = None):
+                 prompt_template: Optional[str] = None) -> None:
         
         app_config = get_config()
         resolved_model = model_name or app_config.llm_services.openai.model_name
@@ -66,7 +65,6 @@ class BaseDSDMA(BaseDMA):
 
         self.domain_name = domain_name
         self.domain_specific_knowledge = domain_specific_knowledge if domain_specific_knowledge else {}
-        # Use provided template, fallback to class default, then empty string
         self.prompt_template = prompt_template if prompt_template is not None else (self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE is not None else "")
 
         logger.info(
@@ -88,14 +86,13 @@ class BaseDSDMA(BaseDMA):
 
         thought_content_str = ""
         if isinstance(thought_item.content, dict):
-            thought_content_str = thought_item.content.get("text", thought_item.content.get("description", str(thought_item.content)))
+            thought_content_str = str(thought_item.content)
         else:
             thought_content_str = str(thought_item.content)
 
         context_str = str(current_context) if current_context else "No specific platform context provided."
         rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General domain guidance") if isinstance(self.domain_specific_knowledge, dict) else "General domain guidance"
 
-        # Extract context blocks for formatting
         system_snapshot_block = ""
         user_profiles_block = ""
         identity_block = ""
@@ -109,20 +106,16 @@ class BaseDSDMA(BaseDMA):
             
             identity_block = thought_item.context.get("identity_context", "")
 
-        # Prepare escalation guidance
-        escalation_guidance_block = get_escalation_guidance(0)  # Default early stage
+        escalation_guidance_block = get_escalation_guidance(0)
         
-        # Prepare task history block - for DSDMA this can be empty or minimal
         task_history_block = ""
         
-        # Check if the template contains the new block placeholders
         template_has_blocks = any(placeholder in self.prompt_template for placeholder in [
             "{task_history_block}", "{escalation_guidance_block}", 
             "{system_snapshot_block}", "{user_profiles_block}"
         ])
         
         if template_has_blocks:
-            # Use the new canonical formatting approach
             try:
                 system_message_content = self.prompt_template.format(
                     task_history_block=task_history_block,
@@ -135,7 +128,6 @@ class BaseDSDMA(BaseDMA):
                 )
             except KeyError as e:
                 logger.error(f"Missing template variable in DSDMA template: {e}")
-                # Fall back to default template
                 system_message_content = format_system_prompt_blocks(
                     identity_block,
                     task_history_block,
@@ -146,9 +138,8 @@ class BaseDSDMA(BaseDMA):
                     f"Consider the domain rules: '{rules_summary_str}' and context: '{context_str}'."
                 )
         else:
-            # Use the original formatting approach for backwards compatibility
             system_message_template = self.prompt_template
-            if not system_message_template: # Default if subclass doesn't provide one
+            if not system_message_template:
                 system_message_template = (
                     "You are a domain-specific evaluator for the '{domain_name}' domain. "
                     "Your primary goal is to assess how well a given 'thought' aligns with the specific rules, "
@@ -164,7 +155,6 @@ class BaseDSDMA(BaseDMA):
                 context_str=context_str
             )
 
-        # User message includes the thought and the formatted snapshot context (user profiles + system state)
         full_snapshot_and_profile_context_str = system_snapshot_block + user_profiles_block
         user_message_content = f"{full_snapshot_and_profile_context_str}\nEvaluate this thought for the '{self.domain_name}' domain: \"{thought_content_str}\""
         
@@ -190,7 +180,6 @@ class BaseDSDMA(BaseDMA):
                 recommended_action=llm_eval_data.recommended_action,
                 flags=llm_eval_data.flags,
                 reasoning=llm_eval_data.reasoning
-                # domain_specific_output was not a field in DSDMAResult schema
             )
             logger.info(
                 f"DSDMA '{self.domain_name}' (instructor) evaluation successful for thought ID {thought_item.thought_id}: "

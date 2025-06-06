@@ -1,8 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 
-# Import enums from foundational_schemas_v1
-from .foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from .foundational_schemas_v1 import TaskStatus, ThoughtStatus, ThoughtType
 from .action_params_v1 import (
     ObserveParams,
     SpeakParams,
@@ -19,10 +18,10 @@ from .context_schemas_v1 import ThoughtContext
 
 class Task(BaseModel):
     """Core task object - minimal v1"""
-    task_id: str
-    description: str
+    task_id: str  # Changed from ThoughtStatus to str
+    description: str  # Changed from ThoughtStatus to str
     status: TaskStatus = TaskStatus.PENDING
-    priority: int = 0
+    priority: int = 0  # Changed from ThoughtStatus to int
     created_at: str  # ISO8601
     updated_at: str  # ISO8601
     parent_task_id: Optional[str] = None
@@ -33,7 +32,7 @@ class Thought(BaseModel):
     """Core thought object - minimal v1"""
     thought_id: str
     source_task_id: str
-    thought_type: str = "standard"
+    thought_type: ThoughtType = ThoughtType.STANDARD
     status: ThoughtStatus = ThoughtStatus.PENDING
     created_at: str
     updated_at: str

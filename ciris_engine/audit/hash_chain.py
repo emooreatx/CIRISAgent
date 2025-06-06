@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class AuditHashChain:
     """Manages the cryptographic hash chain for audit entries"""
     
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str) -> None:
         self.db_path = db_path
         self._last_hash: Optional[str] = None
         self._sequence_number: int = 0
@@ -64,15 +64,12 @@ class AuditHashChain:
         if not self._initialized:
             self.initialize()
             
-        # Assign sequence number and previous hash
         self._sequence_number += 1
         entry["sequence_number"] = self._sequence_number
         entry["previous_hash"] = self._last_hash or "genesis"
         
-        # Compute entry hash
         entry["entry_hash"] = self.compute_entry_hash(entry)
         
-        # Update last hash for next entry
         self._last_hash = entry["entry_hash"]
         
         return entry
@@ -133,7 +130,7 @@ class AuditHashChain:
                     "errors": []
                 }
             else:
-                errors = []
+                errors: List[Any] = []
                 previous_hash: Optional[str] = None
                 
                 # If not starting from sequence 1, get the previous entry's hash
@@ -147,12 +144,10 @@ class AuditHashChain:
                         previous_hash = prev_row[0]
                 
                 for i, entry in enumerate(entries):
-                    # Check sequence number continuity
                     expected_seq = start_seq + i
                     if entry["sequence_number"] != expected_seq:
                         errors.append(f"Sequence gap at {entry['sequence_number']}, expected {expected_seq}")
                     
-                    # Check previous hash linkage
                     if i == 0 and start_seq == 1:
                         expected_prev = "genesis"
                     else:
@@ -161,7 +156,6 @@ class AuditHashChain:
                     if entry["previous_hash"] != expected_prev:
                         errors.append(f"Hash chain break at sequence {entry['sequence_number']}")
                     
-                    # Verify entry hash
                     computed_hash = self.compute_entry_hash(entry)
                     if computed_hash != entry["entry_hash"]:
                         errors.append(f"Entry hash mismatch at sequence {entry['sequence_number']}")
@@ -208,7 +202,7 @@ class AuditHashChain:
             return 1  # Found tampering but no specific errors
             
         # Sort to find the first error by sequence number
-        tampered_sequences = []
+        tampered_sequences: List[Any] = []
         for error in errors:
             # Look for specific error patterns
             import re
@@ -237,11 +231,9 @@ class AuditHashChain:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Get basic stats
             cursor.execute("SELECT COUNT(*), MIN(sequence_number), MAX(sequence_number) FROM audit_log_v2")
             count, min_seq, max_seq = cursor.fetchone()
             
-            # Get oldest and newest entries
             cursor.execute("SELECT event_timestamp FROM audit_log_v2 ORDER BY sequence_number LIMIT 1")
             oldest_row = cursor.fetchone()
             oldest = oldest_row[0] if oldest_row else None

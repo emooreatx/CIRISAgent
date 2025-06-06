@@ -3,11 +3,31 @@
 ## Document Status
 **Version**: 1.0.0  
 **Status**: ACTIVE WORK PLAN  
-**Last Updated**: 2025-01-06
+**Last Updated**: 2025-06-05
 
 ## Overview
 
 This document provides a comprehensive, prioritized task list for completing the CIRIS Agent pre-beta implementation. Tasks are organized by component and include clear success criteria, testing requirements, and integration points.
+
+## ⚡️ AGENT-IN-THE-LOOP TYPE SAFETY & COMPLIANCE
+
+CIRIS Agents are responsible for:
+- Enforcing strict type safety and protocol/schema compliance across the codebase
+- Using the CIRIS MyPy Toolkit to analyze, review, and execute type and protocol/schema fixes
+- Ensuring no code is left in comments, no dead code remains, and all type annotations are protocol/schema-bound
+- Reviewing all proposed fixes before execution (no auto-application without agent approval)
+- Driving the codebase to zero mypy errors and full compliance
+
+### CIRIS MyPy Toolkit Agent Workflow
+1. **Analyze**: Run the toolkit to collect and categorize all mypy, protocol, and schema errors.
+2. **Review**: Review the proposed fixes (in JSON or report form) and approve or edit as needed.
+3. **Execute**: Apply only the approved fixes, then re-analyze to confirm compliance.
+
+**Key Principles:**
+- Only types from `protocols/` and `schemas/` are allowed in type annotations.
+- All dead code and commented code is purged automatically.
+- No ambiguous or partial fixes are allowed—every change must be protocol/schema-compliant.
+- All changes are reviewable and auditable by agents.
 
 ## ⚠️ WORKING PRINCIPLES
 

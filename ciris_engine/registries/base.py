@@ -48,12 +48,10 @@ class ServiceRegistry:
     circuit breaker patterns for resilience.
     """
     
-    def __init__(self, required_services: Optional[List[str]] = None):
-        # Handler -> Service Type -> List of providers sorted by priority
+    def __init__(self, required_services: Optional[List[str]] = None) -> None:
         self._providers: Dict[str, Dict[str, List[ServiceProvider]]] = {}
         self._circuit_breakers: Dict[str, CircuitBreaker] = {}
         self._global_services: Dict[str, List[ServiceProvider]] = {}
-        # Service types that must be available before processing can start
         self._required_service_types: List[str] = required_services or [
             "communication",
             "memory",
@@ -93,7 +91,6 @@ class ServiceRegistry:
         
         provider_name = f"{provider.__class__.__name__}_{id(provider)}"
         
-        # Create circuit breaker
         cb_config = circuit_breaker_config or CircuitBreakerConfig()
         circuit_breaker = CircuitBreaker(f"{handler}_{service_type}_{provider_name}", cb_config)
         self._circuit_breakers[provider_name] = circuit_breaker
@@ -108,13 +105,11 @@ class ServiceRegistry:
         )
         
         self._providers[handler][service_type].append(sp)
-        # Keep sorted by priority (lower number = higher priority)
         self._providers[handler][service_type].sort(key=lambda x: x.priority.value)
         
         logger.info(f"Registered {service_type} service '{provider_name}' for handler '{handler}' "
                    f"with priority {priority.name} and capabilities {capabilities}")
         
-        # Debug: Show current registry state for this handler
         logger.debug(f"ServiceRegistry: Handler '{handler}' now has {len(self._providers[handler][service_type])} "
                     f"{service_type} providers: {[p.name for p in self._providers[handler][service_type]]}")
         
@@ -191,7 +186,6 @@ class ServiceRegistry:
         logger.debug(f"ServiceRegistry.get_service: handler='{handler}', service_type='{service_type}', "
                     f"capabilities={required_capabilities}")
         
-        # Try handler-specific services first
         handler_providers = self._providers.get(handler, {}).get(service_type, [])
         logger.debug(f"ServiceRegistry: Found {len(handler_providers)} handler-specific providers for {handler}.{service_type}")
         
@@ -204,7 +198,6 @@ class ServiceRegistry:
             logger.debug(f"ServiceRegistry: Using handler-specific {service_type} service for '{handler}': {type(service).__name__}")
             return service
         
-        # Fallback to global services
         if fallback_to_global:
             global_providers = self._global_services.get(service_type, [])
             logger.debug(f"ServiceRegistry: Found {len(global_providers)} global providers for {service_type}")
@@ -263,7 +256,7 @@ class ServiceRegistry:
         
         return None
     
-    def get_provider_info(self, handler: str = None, service_type: str = None) -> Dict[str, Any]:
+    def get_provider_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> Dict[str, Any]:
         """
         Get information about registered providers.
         
@@ -274,7 +267,7 @@ class ServiceRegistry:
         Returns:
             Dictionary containing provider information
         """
-        info = {
+        info: Dict[str, Any] = {
             "handlers": {},
             "global_services": {},
             "circuit_breaker_stats": {}
@@ -412,7 +405,6 @@ class ServiceRegistry:
                 return True
         return False
 
-# Global registry instance
 _global_registry: Optional[ServiceRegistry] = None
 
 def get_global_registry() -> ServiceRegistry:

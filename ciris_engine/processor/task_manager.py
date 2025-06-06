@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class TaskManager:
     """Manages task lifecycle operations."""
     
-    def __init__(self, max_active_tasks: int = 10):
+    def __init__(self, max_active_tasks: int = 10) -> None:
         self.max_active_tasks = max_active_tasks
         
     def create_task(
@@ -30,13 +30,10 @@ class TaskManager:
         """Create a new task with v1 schema."""
         now_iso = datetime.now(timezone.utc).isoformat()
         
-        # Ensure context exists
         if context is None:
-            context = {}
+            context: Dict[str, Any] = {}
         
-        # Ensure channel_id is in context
         if 'channel_id' not in context:
-            # Try to get from environment
             from ciris_engine.config.env_utils import get_env_var
 
             channel_id = get_env_var('DISCORD_CHANNEL_ID')
@@ -52,11 +49,9 @@ class TaskManager:
             updated_at=now_iso,
             parent_task_id=parent_task_id,
             context=context,
-            outcome={}
+            outcome={},  # type: ignore  # Use default empty dict, type checked elsewhere
         )
         
-        # ... rest of the method remains the same
-        # Inject agent_profile_name into context if not already present and profile is available
         if context is not None and 'agent_profile_name' not in task.context:
             from ciris_engine.utils.profile_loader import load_profile
             import os
@@ -113,9 +108,7 @@ class TaskManager:
             logger.error(f"Task {task_id} not found")
             return False
         
-        # Update outcome if provided
         if outcome:
-            # TODO: Add method to update task outcome in persistence
             pass
         
         return persistence.update_task_status(task_id, TaskStatus.COMPLETED)
@@ -134,7 +127,6 @@ class TaskManager:
         """Create the WAKEUP sequence tasks using v1 schema."""
         now_iso = datetime.now(timezone.utc).isoformat()
         
-        # Create root task
         root_task = Task(
             task_id="WAKEUP_ROOT",
             description="Wakeup ritual",
@@ -150,7 +142,6 @@ class TaskManager:
         else:
             persistence.update_task_status(root_task.task_id, TaskStatus.ACTIVE)
         
-        # Wakeup sequence steps
         wakeup_steps = [
             ("VERIFY_IDENTITY", "You are CIRISAgent, aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. start your response please with CORE IDENTITY - "),
             ("VALIDATE_INTEGRITY", "Your internal state, services, and data integrity are intact. If you agree, please speak in the affirmative, start with INTEGRITY - "),
@@ -161,8 +152,7 @@ class TaskManager:
         
         tasks = [root_task]
         
-        # Propagate channel_id to step tasks if present in root_task context
-        channel_id = root_task.context.get("channel_id")
+        channel_id = root_task.context.get("channel_id") if root_task.context else None
         
         for step_type, content in wakeup_steps:
             step_context = {"step_type": step_type}

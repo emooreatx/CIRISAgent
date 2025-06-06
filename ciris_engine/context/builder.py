@@ -1,16 +1,16 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext, SystemSnapshot
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType # Corrected import for GraphScope
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus  # Add TaskStatus import
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
 from ciris_engine.utils import GraphQLContextProvider
-from ciris_engine import persistence  # Import persistence for proper task/thought access
+from ciris_engine import persistence
 from pydantic import BaseModel
 from ciris_engine.config.env_utils import get_env_var
 import logging
 
-logger = logging.getLogger(__name__) # Initialize logger
+logger = logging.getLogger(__name__)
 
 class ContextBuilder:
     def __init__(
@@ -18,7 +18,7 @@ class ContextBuilder:
         memory_service: Optional[LocalGraphMemoryService] = None,
         graphql_provider: Optional[GraphQLContextProvider] = None,
         app_config: Optional[Any] = None,
-    ):
+    ) -> None:
         self.memory_service = memory_service
         self.graphql_provider = graphql_provider
         self.app_config = app_config
@@ -42,17 +42,11 @@ class ContextBuilder:
         # --- Add Discord channel context ---
         channel_id = None
         # Try to get channel_id from task context first
-        if task and hasattr(task, 'context'):
-            if isinstance(task.context, BaseModel):
-                channel_id = getattr(task.context, 'channel_id', None)
-            elif isinstance(task.context, dict):
-                channel_id = task.context.get('channel_id')
+        if task and task.context:
+            channel_id = getattr(task.context, 'channel_id', None)
         # Then try from thought context
-        if not channel_id and hasattr(thought, 'context'):
-            if isinstance(thought.context, BaseModel):
-                channel_id = getattr(thought.context, 'channel_id', None)
-            elif isinstance(thought.context, dict):
-                channel_id = thought.context.get('channel_id')
+        if not channel_id and thought.context:
+            channel_id = getattr(thought.context, 'channel_id', None)
         # Then try environment variable
         if not channel_id:
             channel_id = get_env_var("DISCORD_CHANNEL_ID")
@@ -74,7 +68,7 @@ class ContextBuilder:
             if isinstance(ctx, ThoughtContext):
                 initial_task_context = ctx.initial_task_context
             elif isinstance(ctx, TaskContext):
-                initial_task_context = ctx
+                pass  # initial_task_context = ctx
         
         # Create SystemSnapshot object from the data
         system_snapshot = system_snapshot_data
@@ -93,7 +87,6 @@ class ContextBuilder:
         thought: Any  # Accept Thought or ProcessingQueueItem
     ) -> SystemSnapshot:
         """Build system snapshot for the thought."""
-        # This is the logic from WorkflowCoordinator.build_context
         from ciris_engine.schemas.context_schemas_v1 import ThoughtSummary
         thought_summary = None
         if thought:
@@ -112,18 +105,11 @@ class ContextBuilder:
                 ponder_count=getattr(thought, 'ponder_count', None)
             )
 
-        # Add channel memory lookup for debugging
         channel_id = None
-        if task and hasattr(task, 'context'):
-            if isinstance(task.context, BaseModel) and getattr(task.context, 'channel_id', None):
-                channel_id = getattr(task.context, 'channel_id', None)
-            elif isinstance(task.context, dict):
-                channel_id = task.context.get('channel_id')
-        if not channel_id and thought and hasattr(thought, 'context'):
-            if isinstance(thought.context, BaseModel) and getattr(thought.context, 'channel_id', None):
-                channel_id = getattr(thought.context, 'channel_id', None)
-            elif isinstance(thought.context, dict):
-                channel_id = thought.context.get('channel_id')
+        if task and task.context:
+            channel_id = getattr(task.context, 'channel_id', None)
+        if not channel_id and thought and thought.context:
+            channel_id = getattr(thought.context, 'channel_id', None)
         
         if channel_id and self.memory_service:
             logger.warning(f"DEBUG: Looking up channel {channel_id} in memory")
@@ -135,26 +121,21 @@ class ContextBuilder:
             channel_info = await self.memory_service.recall(channel_node)
             logger.warning(f"DEBUG: Channel memory result: {channel_info}")
 
-        # Recent and top tasks
-        recent_tasks_list = []
+        recent_tasks_list: List[Any] = []
         db_recent_tasks = persistence.get_recent_completed_tasks(10)
         from ciris_engine.schemas.context_schemas_v1 import TaskSummary
         for t_obj in db_recent_tasks:
             if isinstance(t_obj, TaskSummary):
-                recent_tasks_list.append(t_obj)
+                pass
             elif isinstance(t_obj, BaseModel):
                 recent_tasks_list.append(TaskSummary(**t_obj.model_dump()))
-            elif isinstance(t_obj, dict):
-                recent_tasks_list.append(TaskSummary(**t_obj))
-        top_tasks_list = []
+        top_tasks_list: List[Any] = []
         db_top_tasks = persistence.get_top_tasks(10)
         for t_obj in db_top_tasks:
             if isinstance(t_obj, TaskSummary):
-                top_tasks_list.append(t_obj)
+                pass
             elif isinstance(t_obj, BaseModel):
                 top_tasks_list.append(TaskSummary(**t_obj.model_dump()))
-            elif isinstance(t_obj, dict):
-                top_tasks_list.append(TaskSummary(**t_obj))
         current_task_summary = None
         if task:
             from ciris_engine.schemas.context_schemas_v1 import TaskSummary
@@ -163,8 +144,9 @@ class ContextBuilder:
             elif isinstance(task, BaseModel):
                 current_task_summary = TaskSummary(**task.model_dump())
             elif isinstance(task, dict):
-                # Ideally task should never be a plain dict but handle defensively
                 current_task_summary = TaskSummary(**task)
+            else:
+                current_task_summary = None
 
         context_data = {
             "current_task_details": current_task_summary,
@@ -179,10 +161,9 @@ class ContextBuilder:
             "recently_completed_tasks_summary": recent_tasks_list,
             "channel_id": channel_id
         }
-        # Enrich with GraphQL context if available
         if self.graphql_provider:
             graphql_extra_raw = await self.graphql_provider.enrich_context(task, thought)
-            graphql_extra_processed = {}
+            graphql_extra_processed: Dict[str, Any] = {}
             if "user_profiles" in graphql_extra_raw and isinstance(graphql_extra_raw["user_profiles"], dict):
                 graphql_extra_processed["user_profiles"] = {}
                 for key, profile_obj in graphql_extra_raw["user_profiles"].items():

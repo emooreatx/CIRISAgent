@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 import asyncio
 import json
 
@@ -23,15 +23,15 @@ logger = logging.getLogger(__name__)
 class LocalGraphMemoryService(Service):
     """Graph memory backed by the persistence database."""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None) -> None:
         super().__init__()
         self.db_path = db_path or get_sqlite_db_full_path()
         initialize_database(db_path=self.db_path)
 
-    async def start(self):
+    async def start(self) -> None:
         await super().start()
 
-    async def stop(self):
+    async def stop(self) -> None:
         await super().stop()
 
     async def memorize(self, node: GraphNode, *args, **kwargs) -> MemoryOpResult:
@@ -39,7 +39,7 @@ class LocalGraphMemoryService(Service):
         try:
             persistence.add_graph_node(node, db_path=self.db_path)
             return MemoryOpResult(status=MemoryOpStatus.OK)
-        except Exception as e:  # pragma: no cover - log and return error
+        except Exception as e:
             logger.exception("Error storing node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
@@ -49,7 +49,7 @@ class LocalGraphMemoryService(Service):
             if stored:
                 return MemoryOpResult(status=MemoryOpStatus.OK, data=stored.attributes)
             return MemoryOpResult(status=MemoryOpStatus.OK, data=None)
-        except Exception as e:  # pragma: no cover - log and return error
+        except Exception as e:
             logger.exception("Error recalling node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
@@ -57,12 +57,12 @@ class LocalGraphMemoryService(Service):
         try:
             persistence.delete_graph_node(node.id, node.scope, db_path=self.db_path)
             return MemoryOpResult(status=MemoryOpStatus.OK)
-        except Exception as e:  # pragma: no cover - log and return error
+        except Exception as e:
             logger.exception("Error forgetting node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
     def export_identity_context(self) -> str:
-        lines = []
+        lines: List[Any] = []
         with get_db_connection(db_path=self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -84,7 +84,7 @@ class LocalGraphMemoryService(Service):
                 reason="Invalid identity update format"
             )
         # Check for required WA authorization
-        if not update_data.get("wa_authorized"):
+        if not update_data.get("wa_authorized"):  # type: ignore[union-attr]
             return MemoryOpResult(
                 status=MemoryOpStatus.DENIED,
                 reason="Identity updates require WA authorization"
@@ -134,7 +134,6 @@ class LocalGraphMemoryService(Service):
     async def update_environment_graph(self, update_data: Dict[str, Any]) -> MemoryOpResult:
         """Update environment graph based on WA feedback."""
         from datetime import datetime, timezone
-        # Example: No WA required, but could add more validation as needed
         for node_update in update_data.get("nodes", []):
             node_id = node_update["id"]
             if node_update.get("action") == "delete":
@@ -179,7 +178,7 @@ class LocalGraphMemoryService(Service):
         required_fields = ["wa_user_id", "wa_authorized", "update_timestamp"]
         if not all(field in update_data for field in required_fields):
             return False
-        for node in update_data.get("nodes", []):
+        for node in update_data.get("nodes", []):  # type: ignore[union-attr]
             if "id" not in node or "type" not in node:
                 return False
             if node["type"] != NodeType.CONCEPT:

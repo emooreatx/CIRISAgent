@@ -25,14 +25,13 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
     """
     def __init__(self, token: str,
                  guidance_channel_id: str = None, deferral_channel_id: str = None,
-                 tool_registry: Any = None, bot: discord.Client = None,
-                 on_message: Optional[Callable[[DiscordMessage], Awaitable[None]]] = None):
-        # Configure retry settings for Discord API operations
+                 tool_registry: Optional[Any] = None, bot: discord.Client = None,
+                 on_message: Optional[Callable[[DiscordMessage], Awaitable[None]]] = None) -> None:
         retry_config = {
             "retry": {
                 "global": {
                     "max_retries": 3,
-                    "base_delay": 2.0,  # Discord rate limits need longer delays
+                    "base_delay": 2.0,
                     "max_delay": 30.0,
                 },
                 "discord_api": {
@@ -44,14 +43,13 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         super().__init__(config=retry_config)
         
         self.token = token
-        self.client = bot  # Discord client instance
+        self.client = bot
         self.guidance_channel_id = guidance_channel_id
         self.deferral_channel_id = deferral_channel_id
         self.tool_registry = tool_registry
         self.on_message_callback = on_message
-        self._tool_results = {}  # correlation_id -> ToolResult
+        self._tool_results = {}
 
-    # --- CommunicationService ---
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Implementation of CommunicationService.send_message"""
         correlation_id = str(uuid.uuid4())
@@ -266,7 +264,6 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
 
     async def get_tool_result(self, correlation_id: str, timeout: int = 10) -> dict:
         """Fetch a tool result by correlation ID from the internal cache."""
-        # Wait up to timeout seconds for the result to appear
         for _ in range(timeout * 10):
             if correlation_id in self._tool_results:
                 return self._tool_results.pop(correlation_id)
@@ -278,7 +275,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         """Return names of registered Discord tools."""
         if not self.tool_registry:
             return []
-        return list(self.tool_registry.tools.keys())
+        return list(self.tool_registry.tools.keys())  # type: ignore[union-attr]
 
     async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
         """Basic parameter validation using tool registry schemas."""
@@ -287,10 +284,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         schema = self.tool_registry.get_schema(tool_name)
         if not schema:
             return False
-        # Simple validation: ensure required keys exist
         return all(k in parameters for k in schema.keys())
 
-    # --- Capabilities ---
     def get_capabilities(self) -> list[str]:
         return [
             "send_message", "fetch_messages",
@@ -298,7 +293,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             "execute_tool", "get_tool_result"
         ]
 
-    async def send_output(self, channel_id: str, content: str):
+    async def send_output(self, channel_id: str, content: str) -> None:
         """Send output to a Discord channel with retry logic"""
         if not self.client:
             logger.error("Discord client is not initialized.")
@@ -309,9 +304,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             channel_id, content
         )
 
-    async def _send_output_impl(self, channel_id: str, content: str, **kwargs):
+    async def _send_output_impl(self, channel_id: str, content: str, **kwargs) -> None:
         """Internal implementation of send_output for retry wrapping"""
-        # Wait for the client to be ready before sending
         if hasattr(self.client, 'wait_until_ready'):
             await self.client.wait_until_ready()
         
@@ -324,11 +318,9 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.error(f"Could not find Discord channel with ID {channel_id}")
             raise RuntimeError(f"Discord channel {channel_id} not found")
 
-    async def on_message(self, message):
-        # Only process messages from users (not bots)
+    async def on_message(self, message) -> None:
         if message.author.bot:
             return
-        # Build DiscordMessage object
         incoming = DiscordMessage(
             message_id=str(message.id),
             content=message.content,
@@ -342,19 +334,18 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         if self.on_message_callback:
             await self.on_message_callback(incoming)
 
-    def attach_to_client(self, client):
-        # Attach the on_message event to the Discord client
+    def attach_to_client(self, client) -> None:
         @client.event
-        async def on_message(message):
+        async def on_message(message) -> None:
             await self.on_message(message)
 
-    async def start(self):
+    async def start(self) -> None:
         """
         Start the Discord adapter.
         Note: This doesn't start the Discord client connection - that's handled by the runtime.
         """
         try:
-            await super().start()  # Initialize base Service
+            await super().start()
             
             if self.client:
                 logger.info("Discord adapter started with existing client (not yet connected)")
@@ -366,17 +357,15 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to start Discord adapter: {e}")
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """
         Stop the Discord adapter and clean up resources.
         """
         try:
             logger.info("Stopping Discord adapter...")
             
-            # Clear tool results cache
             self._tool_results.clear()
             
-            # Call base Service stop
             await super().stop()
             
             logger.info("Discord adapter stopped successfully")

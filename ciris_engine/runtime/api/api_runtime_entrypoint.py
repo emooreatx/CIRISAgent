@@ -1,7 +1,7 @@
 """Entrypoint for CIRISAgent API runtime, wires up all service routes."""
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Any, Dict
 from aiohttp import web
 from ciris_engine.adapters.api import APIAdapter, APIObserver
 from ciris_engine.runtime.api.api_comms import APICommsRoutes
@@ -20,22 +20,20 @@ class APIRuntimeEntrypoint(CIRISRuntime):
     
     def __init__(
         self, 
-        service_registry=None, 
-        multi_service_sink=None, 
-        audit_service=None, 
-        api_observer=None, 
-        api_adapter=None, 
-        host="0.0.0.0", 
-        port=8080,
+        service_registry: Optional[Any] = None, 
+        multi_service_sink: Optional[Any] = None, 
+        audit_service: Optional[Any] = None, 
+        api_observer: Optional[APIObserver] = None, 
+        api_adapter: Optional[APIAdapter] = None, 
+        host: str = "0.0.0.0", 
+        port: int = 8080,
         profile_name: str = "default",
         app_config: Optional[AppConfig] = None,
-    ):
-        # Create API adapter if not provided
+    ) -> None:
         if api_adapter is None:
             from ciris_engine.adapters.api import APIAdapter
             api_adapter = APIAdapter()
         
-        # Initialize parent CIRISRuntime with API adapter as io_adapter
         super().__init__(
             profile_name=profile_name,
             io_adapter=api_adapter,
@@ -43,13 +41,10 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             startup_channel_id="api",
         )
         
-        # Store the API adapter
         self.api_adapter = api_adapter
         
-        # Initialize api_observer to None first
         self.api_observer = api_observer
         
-        # Override services with pre-built ones if provided
         if service_registry:
             self.service_registry = service_registry
         if multi_service_sink:
@@ -57,15 +52,14 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         if audit_service:
             self.audit_service = audit_service
         
-        # Web server configuration
         self.host = host
         self.port = port
         self.app = web.Application()
-        self.runner = None
-        self.site = None
-        self._web_server_stopped = False # For idempotency
+        self.runner: Optional[web.AppRunner] = None
+        self.site: Optional[web.TCPSite] = None
+        self._web_server_stopped = False
 
-    async def _register_core_services(self):
+    async def _register_core_services(self) -> None:
         """Register core services including API-specific ones."""
         # First, call parent to register standard services
         await super()._register_core_services()
@@ -121,9 +115,8 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             
             logger.info("Registered APIAdapter for all service types during core service registration")
 
-    def _register_routes(self):
+    def _register_routes(self) -> None:
         """Register all API routes after services are initialized."""
-        # Store comms routes so tests can invoke handlers directly
         self._comms_routes = APICommsRoutes(self.api_observer, self.api_adapter)
         self._comms_routes.register(self.app)
         APIMemoryRoutes(self.multi_service_sink).register(self.app)
@@ -149,7 +142,6 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         """Legacy handler shim used by older tests."""
         if hasattr(self, "_comms_routes"):
             return await self._comms_routes._handle_message(request)
-        # Fallback if routes haven't been registered yet
         routes = APICommsRoutes(self.api_observer, self.api_adapter)
         return await routes._handle_message(request)
 
@@ -168,8 +160,13 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             # Create API observer if not provided
             if self.api_observer is None:
                 from ciris_engine.adapters.api import APIObserver
+                
+                async def default_observe_callback(data: Dict[str, Any]) -> None:
+                    """Default no-op observe callback"""
+                    pass
+                
                 self.api_observer = APIObserver(
-                    on_observe=None,  # Will be set later if needed
+                    on_observe=default_observe_callback,  # Provide a default callback
                     memory_service=self.memory_service,
                     multi_service_sink=self.multi_service_sink,
                     api_adapter=self.api_adapter,
@@ -196,9 +193,8 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             return
         
         logger.info("Shutting down web server...")
-        self._web_server_stopped = True # Set flag early
+        self._web_server_stopped = True
 
-        # Stop web server
         if self.site:
             try:
                 await self.site.stop()
@@ -207,7 +203,7 @@ class APIRuntimeEntrypoint(CIRISRuntime):
                 logger.warning(f"Error stopping web server site (may already be stopped): {e}")
             except Exception as e:
                 logger.error(f"Unexpected error stopping web server site: {e}")
-            self.site = None # Clear it after trying to stop
+            self.site = None
         
         if self.runner:
             try:
@@ -215,7 +211,7 @@ class APIRuntimeEntrypoint(CIRISRuntime):
                 logger.info("Web runner cleaned up")
             except Exception as e:
                 logger.error(f"Error cleaning up web runner: {e}")
-            self.runner = None # Clear it
+            self.runner = None
         logger.info("Web server shutdown sequence complete.")
 
     async def run(self, num_rounds: Optional[int] = None) -> None:
@@ -246,10 +242,8 @@ class APIRuntimeEntrypoint(CIRISRuntime):
         """Gracefully shutdown the API runtime and all services."""
         logger.info("Shutting down API Runtime...")
         
-        # Shutdown web server first
         await self._shutdown_web_server()
         
-        # Stop API observer
         if self.api_observer and hasattr(self.api_observer, "stop"):
             try:
                 await self.api_observer.stop()
@@ -257,7 +251,6 @@ class APIRuntimeEntrypoint(CIRISRuntime):
             except Exception as e:
                 logger.error(f"Error stopping API observer: {e}")
         
-        # Call parent shutdown to handle all base services
         await super().shutdown()
         
         logger.info("API Runtime shutdown complete")

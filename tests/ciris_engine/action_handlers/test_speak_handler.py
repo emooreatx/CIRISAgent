@@ -5,9 +5,11 @@ from ciris_engine.action_handlers.speak_handler import SpeakHandler
 from ciris_engine.schemas.action_params_v1 import SpeakParams
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, ThoughtType
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.registries.base import ServiceRegistry, Priority
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode
+from ciris_engine.schemas.graph_schemas_v1 import NodeType, GraphScope
 
 @pytest.mark.asyncio
 async def test_speak_handler_schema_driven(monkeypatch):
@@ -31,7 +33,7 @@ async def test_speak_handler_schema_driven(monkeypatch):
     thought = Thought(
         thought_id="t1",
         source_task_id="s1",
-        thought_type="speak",
+        thought_type=ThoughtType.STANDARD,
         status=ThoughtStatus.PENDING,
         created_at="2025-05-28T00:00:00Z",
         updated_at="2025-05-28T00:00:00Z",
@@ -79,7 +81,7 @@ async def test_speak_handler_missing_params(monkeypatch):
     thought = Thought(
         thought_id="t2",
         source_task_id="s2",
-        thought_type="speak",
+        thought_type=ThoughtType.STANDARD,
         status=ThoughtStatus.PENDING,
         created_at="2025-05-28T00:00:00Z",
         updated_at="2025-05-28T00:00:00Z",

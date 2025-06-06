@@ -1,4 +1,3 @@
-# v1 minimal table schemas for CIRISAgent
 
 tasks_table_v1 = '''
 CREATE TABLE IF NOT EXISTS tasks (

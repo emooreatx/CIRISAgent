@@ -1,4 +1,3 @@
-# --- v1 Action Params Schemas ---
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Dict, Any, Optional
 from .graph_schemas_v1 import GraphScope, GraphNode
@@ -6,7 +5,7 @@ from .graph_schemas_v1 import GraphScope, GraphNode
 class ObserveParams(BaseModel):
     channel_id: Optional[str] = None
     active: bool = False
-    context: dict = Field(default_factory=dict)
+    context: Dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -21,7 +20,7 @@ class SpeakParams(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-class ToolParams(BaseModel):  # Renamed from ActParams
+class ToolParams(BaseModel):
     name: str
     parameters: Dict[str, Any] = Field(default_factory=dict)
 

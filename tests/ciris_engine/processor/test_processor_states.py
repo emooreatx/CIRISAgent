@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 from ciris_engine.processor import WakeupProcessor, WorkProcessor, PlayProcessor, SolitudeProcessor, DreamProcessor
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, CIRISNodeConfig, AgentProfile # Corrected import for AgentProfile
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, ThoughtType
 
 
 # Simple in-memory persistence mocks
@@ -135,7 +135,7 @@ async def test_work_processor_enforces_limits(monkeypatch):
         db.add_task(Task(task_id=f'p{i}', description='d', status=TaskStatus.PENDING, priority=0, created_at='now', updated_at='now'))
     # add pending thoughts for active1
     for i in range(5):
-        db.add_thought(Thought(thought_id=f'th{i}', source_task_id='active1', thought_type='test', status=ThoughtStatus.PENDING, created_at='now', updated_at='now', round_number=0, content='c'))
+        db.add_thought(Thought(thought_id=f'th{i}', source_task_id='active1', thought_type=ThoughtType.STANDARD, status=ThoughtStatus.PENDING, created_at='now', updated_at='now', round_number=0, content='c'))
 
     activated = proc.task_manager.activate_pending_tasks()
     assert activated == 1  # only up to max_active_tasks can be activated

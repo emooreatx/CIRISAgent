@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 
 if TYPE_CHECKING:
     from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
@@ -26,13 +26,12 @@ class BaseProcessor(ABC):
         thought_processor: ThoughtProcessor,
         action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any]
-    ):
+    ) -> None:
         """Initialize base processor with common dependencies."""
         self.app_config = app_config
-        self.thought_processor = thought_processor  # type: ignore  # ThoughtProcessor is imported at runtime or via forward reference
+        self.thought_processor = thought_processor
         self.action_dispatcher = action_dispatcher
         self.services = services
-        # Propagate commonly used services as direct attributes for convenience
         if services and "discord_service" in services:
             self.discord_service = services["discord_service"]
         self.metrics: Dict[str, Any] = {
@@ -81,7 +80,7 @@ class BaseProcessor(ABC):
         """Get processor metrics."""
         return self.metrics.copy()
     
-    def update_metrics(self, updates: Dict[str, Any]):
+    def update_metrics(self, updates: Dict[str, Any]) -> None:
         """Update processor metrics."""
         self.metrics.update(updates)
     
@@ -124,9 +123,7 @@ class BaseProcessor(ABC):
         except Exception as e:
             logger.error(f"Error processing thought {item.thought_id}: {e}", exc_info=True)
             self.metrics["errors"] += 1
-            # DMA failure fallback logic
             if hasattr(e, "is_dma_failure") and getattr(e, "is_dma_failure", False):
-                # Check for action rounds remaining (stub: always force ponder if possible)
                 if hasattr(self, "force_ponder"):
                     logger.warning(f"DMA failure for {item.thought_id}, forcing PONDER fallback.")
                     return await self.force_ponder(item, context)
@@ -135,16 +132,15 @@ class BaseProcessor(ABC):
                     return await self.force_defer(item, context)
             raise
 
-    async def force_ponder(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None):
+    async def force_ponder(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None) -> None:
         """Force a PONDER action for the given thought item. Override in subclass for custom logic."""
         logger.info(f"Forcing PONDER for thought {item.thought_id}")
         # Implement actual logic in subclass
         pass
 
-    async def force_defer(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None):
+    async def force_defer(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None) -> None:
         """Force a DEFER action for the given thought item. Override in subclass for custom logic."""
         logger.info(f"Forcing DEFER for thought {item.thought_id}")
-        # Implement actual logic in subclass
         pass
     
     def __repr__(self) -> str:

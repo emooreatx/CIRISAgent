@@ -17,7 +17,6 @@ class ToolRegistry:
 
     def validate_arguments(self, name: str, args: Dict[str, Any]) -> bool:
         """Validate tool arguments against schema. (Stub: always returns True for now)"""
-        # TODO: Implement real schema validation (e.g., with pydantic or jsonschema)
         schema = self._tools.get(name)
         if not schema:
             return False

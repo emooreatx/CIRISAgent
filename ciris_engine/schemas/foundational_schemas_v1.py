@@ -16,19 +16,15 @@ class CaseInsensitiveEnum(str, Enum):
 
 class HandlerActionType(CaseInsensitiveEnum):
     """Core 3×3×3 action model"""
-    # External actions
     OBSERVE = "observe"
     SPEAK = "speak"
     TOOL = "tool"
-    # Control responses
     REJECT = "reject"
     PONDER = "ponder"
     DEFER = "defer"
-    # Memory operations
     MEMORIZE = "memorize"
     RECALL = "recall"
     FORGET = "forget"
-    # Terminal
     TASK_COMPLETE = "task_complete"
 
 class TaskStatus(CaseInsensitiveEnum):
@@ -46,11 +42,11 @@ class ThoughtStatus(CaseInsensitiveEnum):
     DEFERRED = "deferred"
 
 class ObservationSourceType(CaseInsensitiveEnum):
-    CHAT_MESSAGE = "chat_message"  # Renamed from DISCORD_MESSAGE
-    FEEDBACK_PACKAGE = "feedback_package"  # Renamed from CORRECTION_PACKAGE
+    CHAT_MESSAGE = "chat_message"
+    FEEDBACK_PACKAGE = "feedback_package"
     USER_REQUEST = "user_request"
     AGENT_MESSAGE = "agent_message"
-    INTERNAL_SIGNAL = "internal_signal"  # Simplified from INTERNAL_SENSOR
+    INTERNAL_SIGNAL = "internal_signal"
 
 class IncomingMessage(BaseModel):
     """Schema for incoming messages from various sources."""
@@ -74,7 +70,6 @@ class IncomingMessage(BaseModel):
 class DiscordMessage(IncomingMessage):
     """Incoming message specific to the Discord platform."""
 
-    channel_id: str
     is_bot: bool = False
     is_dm: bool = False
 
@@ -107,6 +102,41 @@ class ResourceUsage(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class ThoughtType(str, Enum):
+    # Core thought types
+    STANDARD = "standard"
+    FOLLOW_UP = "follow_up"
+    ERROR = "error"
+    OBSERVATION = "observation"
+    MEMORY = "memory"
+    DEFERRED = "deferred"
+    PONDER = "ponder"
+    GRATITUDE = "gratitude"  # Acknowledging help received
+    # Feedback and guidance types
+    FEEDBACK = "feedback"           # Processing WA feedback
+    GUIDANCE = "guidance"           # Incorporating WA guidance
+    IDENTITY_UPDATE = "identity_update"  # Identity feedback processing
+    # Decision-making types
+    ETHICAL_REVIEW = "ethical_review"    # Ethical DMA triggered
+    GUARDRAIL = "guardrail"         # Guardrail violation handling
+    CONSENSUS = "consensus"         # Multi-agent consensus needed
+    # System and meta types
+    REFLECTION = "reflection"       # Self-reflection/meta-cognition
+    SYNTHESIS = "synthesis"         # Combining multiple thoughts
+    DELEGATION = "delegation"       # Delegating to another agent/service
+    # Communication types
+    CLARIFICATION = "clarification" # Seeking clarification from user
+    SUMMARY = "summary"            # Summarizing conversation/task
+    # Tool and action types
+    TOOL_RESULT = "tool_result"    # Processing tool execution results
+    ACTION_REVIEW = "action_review" # Reviewing action before execution
+    # Urgency and priority types
+    URGENT = "urgent"              # High-priority urgent thought
+    SCHEDULED = "scheduled"        # Time-based scheduled thought
+    # Learning and adaptation
+    PATTERN = "pattern"           # Pattern recognition
+    ADAPTATION = "adaptation"     # Behavioral adaptation
+
 # Backwards-compatible alias for SchemaVersion
 CIRISSchemaVersion = SchemaVersion
 
@@ -116,6 +146,7 @@ __all__ = [
     "HandlerActionType",
     "TaskStatus",
     "ThoughtStatus",
+    "ThoughtType",
     "ObservationSourceType",
     "IncomingMessage",
     "DiscordMessage",

@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Any, List
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
 from ciris_engine import persistence
 
@@ -24,7 +24,7 @@ class SolitudeProcessor(BaseProcessor):
     - Conserves resources
     """
     
-    def __init__(self, *args, critical_priority_threshold: int = 8, **kwargs):
+    def __init__(self, *args, critical_priority_threshold: int = 8, **kwargs) -> None:
         """
         Initialize solitude processor.
         
@@ -64,7 +64,6 @@ class SolitudeProcessor(BaseProcessor):
         }
         
         try:
-            # Phase 1: Check for critical tasks
             critical_count = await self._check_critical_tasks()
             result["critical_tasks_found"] = critical_count
             
@@ -73,18 +72,15 @@ class SolitudeProcessor(BaseProcessor):
                 result["should_exit_solitude"] = True
                 return result
             
-            # Phase 2: Perform maintenance (every 10th round in solitude)
             if round_number % 10 == 0:
                 maintenance_result = await self._perform_maintenance()
                 result["maintenance_performed"] = True
                 result["maintenance_summary"] = maintenance_result
             
-            # Phase 3: Reflection and learning
             if round_number % 5 == 0:
                 reflection_result = await self._reflect_and_learn()
                 result["reflection_summary"] = reflection_result
             
-            # Phase 4: Check if we should exit solitude
             exit_conditions = await self._check_exit_conditions()
             result["should_exit_solitude"] = exit_conditions["should_exit"]
             result["exit_reason"] = exit_conditions.get("reason")
@@ -125,7 +121,6 @@ class SolitudeProcessor(BaseProcessor):
         }
         
         try:
-            # Clean up old completed tasks (older than 7 days)
             cutoff_date = datetime.now(timezone.utc)
             cutoff_date = cutoff_date.replace(day=cutoff_date.day - 7)
             
@@ -138,7 +133,6 @@ class SolitudeProcessor(BaseProcessor):
                 maintenance_result["old_completed_tasks_cleaned"] = deleted
                 logger.info(f"Cleaned up {deleted} old completed tasks")
             
-            # Clean up old thoughts (older than 7 days)
             old_thoughts = persistence.get_thoughts_older_than(cutoff_date.isoformat())
             if old_thoughts:
                 thought_ids = [t.thought_id for t in old_thoughts]
@@ -167,14 +161,12 @@ class SolitudeProcessor(BaseProcessor):
         }
         
         try:
-            # Analyze recent completed tasks
             recent_completed = persistence.get_recent_completed_tasks(limit=20)
             reflection_result["recent_tasks_analyzed"] = len(recent_completed)
             
-            # Look for patterns (simplified example)
-            task_types = {}
+            task_types: Dict[str, Any] = {}
             for task in recent_completed:
-                task_type = task.context.get("type", "unknown")
+                task_type = task.context.get("type", "unknown") if task.context else "unknown"
                 task_types[task_type] = task_types.get(task_type, 0) + 1
             
             if task_types:
@@ -185,13 +177,9 @@ class SolitudeProcessor(BaseProcessor):
                     "count": most_common[1]
                 })
             
-            # Update reflection data
             self.reflection_data["tasks_reviewed"] += len(recent_completed)
             
-            # In a real implementation, this might consolidate memories
-            # using the memory service
             if self.services.get("memory_service"):
-                # Placeholder for memory consolidation
                 reflection_result["memories_consolidated"] = 0
             
         except Exception as e:
@@ -208,27 +196,22 @@ class SolitudeProcessor(BaseProcessor):
         """
         conditions = {"should_exit": False, "reason": None}
         
-        # Check various conditions
         
-        # 1. Been in solitude too long (e.g., > 30 minutes)
         state_duration = 0
         if hasattr(self, 'state_manager'):
             state_duration = self.state_manager.get_state_duration()
         
-        if state_duration > 1800:  # 30 minutes
+        if state_duration > 1800:
             conditions["should_exit"] = True
             conditions["reason"] = "Maximum solitude duration reached"
             return conditions
         
-        # 2. New pending tasks accumulated
         pending_count = persistence.count_tasks(TaskStatus.PENDING)
         if pending_count > 5:
             conditions["should_exit"] = True
             conditions["reason"] = f"Accumulated {pending_count} pending tasks"
             return conditions
         
-        # 3. System resources indicate readiness
-        # (This would check actual system metrics in production)
         
         return conditions
     

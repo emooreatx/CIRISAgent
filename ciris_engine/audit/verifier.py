@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class AuditVerifier:
     """Verifies audit log integrity and detects tampering"""
     
-    def __init__(self, db_path: str, key_path: str):
+    def __init__(self, db_path: str, key_path: str) -> None:
         self.db_path = db_path
         self.hash_chain = AuditHashChain(db_path)
         self.signature_manager = AuditSignatureManager(key_path, db_path)
@@ -159,7 +159,7 @@ class AuditVerifier:
     
     def _verify_single_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         """Verify a single entry's hash and signature"""
-        errors = []
+        errors: List[Any] = []
         
         # Verify entry hash
         computed_hash = self.hash_chain.compute_entry_hash(entry)
@@ -197,7 +197,7 @@ class AuditVerifier:
             entries = cursor.fetchall()
             conn.close()
             
-            errors = []
+            errors: List[Any] = []
             verified_count = 0
             
             for entry in entries:
@@ -243,7 +243,7 @@ class AuditVerifier:
             entries = cursor.fetchall()
             conn.close()
             
-            errors = []
+            errors: List[Any] = []
             verified_count = 0
             
             for entry in entries:
@@ -279,19 +279,15 @@ class AuditVerifier:
         
         logger.info("Generating comprehensive audit verification report")
         
-        # Get basic chain info
         chain_summary = self.hash_chain.get_chain_summary()
         
-        # Perform complete verification
         verification_result = self.verify_complete_chain()
         
-        # Get key information
         key_info = self.signature_manager.get_key_info()
         
-        # Check for recent tampering
         first_tampered = self.find_tampering_fast()
         
-        report = {
+        report: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "verification_result": verification_result,
             "chain_summary": chain_summary,
@@ -301,14 +297,13 @@ class AuditVerifier:
             "recommendations": []
         }
         
-        # Add recommendations based on findings
         if not verification_result["valid"]:
             report["recommendations"].append("CRITICAL: Audit log integrity compromised - investigate immediately")
         
         if first_tampered:
             report["recommendations"].append(f"Tampering detected at sequence {first_tampered} - verify backup logs")
         
-        if verification_result.get("verification_time_ms", 0) > 10000:  # > 10 seconds
+        if verification_result.get("verification_time_ms", 0) > 10000:
             report["recommendations"].append("Verification taking too long - consider archiving old entries")
         
         if chain_summary.get("total_entries", 0) > 100000:
@@ -342,11 +337,10 @@ class AuditVerifier:
                     "message": "No root anchors found"
                 }
             
-            errors = []
+            errors: List[Any] = []
             verified_count = 0
             
             for root in roots:
-                # Verify the range covered by this root
                 range_result = self.verify_range(root["sequence_start"], root["sequence_end"])
                 
                 if range_result["valid"]:

@@ -8,6 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtType
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 
 
@@ -23,7 +24,7 @@ class ProcessingQueueItem(BaseModel):
     """
     thought_id: str
     source_task_id: str
-    thought_type: str # Corresponds to Thought.thought_type (string)
+    thought_type: ThoughtType # Corresponds to Thought.thought_type
     content: ThoughtContent
     raw_input_string: Optional[str] = Field(default=None, description="The original input string that generated this thought, if applicable.")
     initial_context: Optional[Dict[str, Any] | ThoughtContext] = Field(default=None, description="Initial context when the thought was first received/generated for processing.")
@@ -45,7 +46,6 @@ class ProcessingQueueItem(BaseModel):
         """
         Creates a ProcessingQueueItem from a Thought instance.
         """
-        # Keep initial_context as-is - it will be handled properly by persistence
         raw_initial_ctx = initial_ctx if initial_ctx is not None else thought_instance.context
         if hasattr(raw_initial_ctx, 'model_dump') or isinstance(raw_initial_ctx, dict):
             final_initial_ctx = raw_initial_ctx
@@ -73,4 +73,3 @@ class ProcessingQueueItem(BaseModel):
 
 ProcessingQueue = collections.deque[ProcessingQueueItem]
 
-# See original file for AgentProcessingBatchContext example and notes.

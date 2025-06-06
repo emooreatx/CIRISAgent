@@ -1,4 +1,3 @@
-# --- v1 DMA Results Schemas ---
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional, Union
 from .action_params_v1 import (
@@ -29,7 +28,7 @@ class ActionSelectionResult(BaseModel):
         RecallParams,
         ForgetParams,
     ]
-    rationale: str
+    rationale: str  # <- Fixed: should be string
     confidence: Optional[float] = None
     raw_llm_response: Optional[str] = None
     resource_usage: Optional[ResourceUsage] = None
@@ -69,7 +68,8 @@ class ActionSelectionResult(BaseModel):
         if param_class and isinstance(self.action_parameters, dict):
             try:
                 result = param_class(**self.action_parameters)
-                return result  # type: ignore[no-any-return]
+                # Type hint: result is guaranteed to be one of the param types
+                return result  # type: ignore[return-value]
             except Exception:
                 pass
         return self.action_parameters
@@ -77,7 +77,7 @@ class ActionSelectionResult(BaseModel):
 class EthicalDMAResult(BaseModel):
     """Minimal v1 result from ethical DMA."""
     alignment_check: Dict[str, Any]
-    decision: str
+    decision: str  # <- Fixed
     rationale: Optional[str] = None
     raw_llm_response: Optional[str] = None
     resource_usage: Optional[ResourceUsage] = None

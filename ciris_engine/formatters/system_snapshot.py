@@ -17,13 +17,11 @@ def format_system_snapshot(system_snapshot: SystemSnapshot) -> str:
 
     lines = ["=== System Snapshot ==="]
 
-    # Display order / whitelist
     fields = [
         ("pending_tasks", "Pending Tasks"),
         ("active_thoughts", "Active Thoughts"),
         ("completed_tasks", "Completed Tasks"),
         ("recent_errors", "Recent Errors"),
-        # ↳ add more tuples as needed
     ]
 
     for key, label in fields:

@@ -47,7 +47,7 @@ async def test_evaluate_optimization_veto_returns_schema():
 async def test_evaluate_epistemic_humility_returns_schema():
     aclient = MagicMock()
     mock_result = EpistemicHumilityResult(
-        epistemic_certainty="high",
+        epistemic_certainty=0.8,
         identified_uncertainties=[],
         reflective_justification="none",
         recommended_action="proceed",

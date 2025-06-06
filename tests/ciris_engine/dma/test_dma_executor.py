@@ -38,12 +38,13 @@ async def test_run_pdma():
     evaluator = MagicMock()
     evaluator.evaluate = AsyncMock(return_value="ok")
     from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
+    from ciris_engine.schemas.foundational_schemas_v1 import ThoughtType
     from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
     ctx = ThoughtContext(system_snapshot=SystemSnapshot())
     item = Thought(
         thought_id="t1",
         source_task_id="task1",
-        thought_type="test",
+        thought_type=ThoughtType.STANDARD,
         status=ThoughtStatus.PENDING,
         created_at="now",
         updated_at="now",
@@ -60,12 +61,13 @@ async def test_run_pdma_queue_item_context_fallback():
     evaluator = MagicMock()
     evaluator.evaluate = AsyncMock(return_value="ok")
     from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
+    from ciris_engine.schemas.foundational_schemas_v1 import ThoughtType
     from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
     ctx = ThoughtContext(system_snapshot=SystemSnapshot())
     thought = Thought(
         thought_id="t2",
         source_task_id="task2",
-        thought_type="test",
+        thought_type=ThoughtType.STANDARD,
         status=ThoughtStatus.PENDING,
         created_at="now",
         updated_at="now",
@@ -84,10 +86,11 @@ async def test_run_pdma_invalid_context_raises():
     evaluator = MagicMock()
     evaluator.evaluate = AsyncMock(return_value="ok")
     from ciris_engine.processor.processing_queue import ThoughtContent
+    from ciris_engine.schemas.foundational_schemas_v1 import ThoughtType
     item = ProcessingQueueItem(
         thought_id="t3",
         source_task_id="task3",
-        thought_type="test",
+        thought_type=ThoughtType.STANDARD,
         content=ThoughtContent(text="c"),
     )
     with pytest.raises(DMAFailure):

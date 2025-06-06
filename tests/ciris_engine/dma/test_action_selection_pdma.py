@@ -5,7 +5,7 @@ from ciris_engine.registries.base import ServiceRegistry, Priority
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator, HandlerActionType, ActionSelectionResult, PonderParams, SpeakParams
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult, CSDMAResult, DSDMAResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ciris_engine.schemas.foundational_schemas_v1 import SchemaVersion
+from ciris_engine.schemas.foundational_schemas_v1 import SchemaVersion, ThoughtType, ThoughtStatus
 from ciris_engine.schemas.action_params_v1 import PonderParams, SpeakParams
 from pydantic import ValidationError
 
@@ -35,7 +35,7 @@ async def test_forced_ponder(monkeypatch):
         instructor_mode=MagicMock(),
     )
     triaged_inputs = {
-        'original_thought': Thought(thought_id="t1", content="irrelevant", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
+        'original_thought': Thought(thought_id="t1", content="irrelevant", thought_type=ThoughtType.STANDARD, ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status=ThoughtStatus.PENDING, created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
         'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
@@ -58,6 +58,7 @@ async def test_forced_ponder(monkeypatch):
 @pytest.mark.asyncio
 async def test_llm_success(monkeypatch):
     # Patch the instructor client to return a dummy LLM response
+    from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
     dummy_llm_response = DummyLLMResponse(
         schema_version=SchemaVersion.V1_0,
         context_summary_for_action_selection="summary",
@@ -65,7 +66,9 @@ async def test_llm_success(monkeypatch):
         action_conflicts=None,
         action_resolution=None,
         selected_action=HandlerActionType.SPEAK,
-        action_parameters={"content": "hi"},
+        action_parameters={
+            "content": "hi"
+        },
         action_selection_rationale="rationale",
         rationale="rationale",  # Add rationale attribute for compatibility
         monitoring_for_selected_action="monitor",
@@ -84,7 +87,7 @@ async def test_llm_success(monkeypatch):
     )
     dummy_client.client.chat.completions.create = AsyncMock(return_value=dummy_llm_response)
     triaged_inputs = {
-        'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
+        'original_thought': Thought(thought_id="t1", content="hi", thought_type=ThoughtType.STANDARD, ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status=ThoughtStatus.PENDING, created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
         'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
@@ -100,7 +103,11 @@ async def test_llm_success(monkeypatch):
         speak_params = result.action_parameters
     else:
         speak_params = SpeakParams(**result.action_parameters)
-    assert speak_params.content == "hi"
+    # Patch: GraphNode now used for content, check attributes["content"]
+    if hasattr(speak_params.content, "attributes"):
+        assert speak_params.content.attributes["content"] == "hi"
+    else:
+        assert speak_params.content == "hi"
     assert result.confidence == 0.9
 
 @pytest.mark.asyncio
@@ -120,7 +127,7 @@ async def test_instructor_retry(monkeypatch):
             return ["err"]
     dummy_client.client.chat.completions.create = AsyncMock(side_effect=DummyInstrRetry())
     triaged_inputs = {
-        'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
+        'original_thought': Thought(thought_id="t1", content="hi", thought_type=ThoughtType.STANDARD, ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status=ThoughtStatus.PENDING, created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
         'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),
@@ -152,7 +159,7 @@ async def test_general_exception(monkeypatch):
     )
     dummy_client.client.chat.completions.create = AsyncMock(side_effect=Exception("fail"))
     triaged_inputs = {
-        'original_thought': Thought(thought_id="t1", content="hi", thought_type="test", ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status="PENDING", created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
+        'original_thought': Thought(thought_id="t1", content="hi", thought_type=ThoughtType.STANDARD, ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status=ThoughtStatus.PENDING, created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),
         'csdma_result': CSDMAResult.model_construct(plausibility_score=1.0),
         'dsdma_result': DSDMAResult.model_construct(domain="test", score=1.0),

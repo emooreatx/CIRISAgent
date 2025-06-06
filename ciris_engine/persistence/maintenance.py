@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import json
 import asyncio
-from typing import Optional
+from typing import Optional, List
 
 from ciris_engine.persistence import (
     get_all_tasks,
@@ -30,10 +30,10 @@ class DatabaseMaintenanceService:
     """
     Service for performing database maintenance tasks like cleanup and archiving.
     """
-    def __init__(self, archive_dir_path: str = "data_archive", archive_older_than_hours: int = 24):
+    def __init__(self, archive_dir_path: str = "data_archive", archive_older_than_hours: int = 24) -> None:
         self.archive_dir = Path(archive_dir_path)
         self.archive_older_than_hours = archive_older_than_hours
-        self.valid_root_task_ids = {"WAKEUP_ROOT", "job-discord-monitor"} # Common root tasks to preserve
+        self.valid_root_task_ids = {"WAKEUP_ROOT", "job-discord-monitor"}
         self._maintenance_task: Optional[asyncio.Task] = None
         self._shutdown_event = asyncio.Event()
 
@@ -52,7 +52,6 @@ class DatabaseMaintenanceService:
                 logger.warning("Maintenance task did not finish in time")
                 self._maintenance_task.cancel()
         await self._final_cleanup()
-        # If you have a parent class, call super().stop()
 
     async def _maintenance_loop(self) -> None:
         """Periodic maintenance loop."""
@@ -67,10 +66,6 @@ class DatabaseMaintenanceService:
 
     async def _perform_periodic_maintenance(self) -> None:
         """Run periodic maintenance tasks."""
-        # Archive old data
-        # Optimize database
-        # Clean up orphaned records
-        # Generate maintenance report
         logger.info("Periodic maintenance tasks executed.")
 
     async def _final_cleanup(self) -> None:
@@ -122,7 +117,7 @@ class DatabaseMaintenanceService:
         orphaned_thoughts_deleted_count = 0
 
         active_tasks = get_tasks_by_status(TaskStatus.ACTIVE)
-        task_ids_to_delete = []
+        task_ids_to_delete: List[Any] = []
 
         for task in active_tasks:
             if not hasattr(task, 'task_id'):
@@ -151,14 +146,14 @@ class DatabaseMaintenanceService:
         pending_thoughts = get_thoughts_by_status(ThoughtStatus.PENDING)
         processing_thoughts = get_thoughts_by_status(ThoughtStatus.PROCESSING)
         all_potentially_orphaned_thoughts = pending_thoughts + processing_thoughts
-        thought_ids_to_delete_orphan = []
+        thought_ids_to_delete_orphan: List[Any] = []
 
         for thought in all_potentially_orphaned_thoughts:
             source_task = get_task_by_id(thought.source_task_id)
             if not source_task or source_task.status != TaskStatus.ACTIVE:
                 # If source task doesn't exist, or isn't active (and wasn't caught by task deletion cascade)
                 logger.info(f"Orphaned thought found: {thought.thought_id} (Task: {thought.source_task_id} not found or not active). Marking for deletion.")
-                thought_ids_to_delete_orphan.append(thought.thought_id)
+                thought_ids_to_delete_orphan.append(thought.thought_id)  # type: ignore[union-attr]
         
         if thought_ids_to_delete_orphan:
             unique_thought_ids_to_delete = list(set(thought_ids_to_delete_orphan))
@@ -181,7 +176,7 @@ class DatabaseMaintenanceService:
 
         if tasks_to_archive:
             task_archive_file = self.archive_dir / f"archive_tasks_{archive_timestamp_str}.jsonl"
-            task_ids_to_delete_for_archive = []
+            task_ids_to_delete_for_archive: List[Any] = []
             with open(task_archive_file, "w") as f:
                 for task in tasks_to_archive:
                     if task.task_id not in self.valid_root_task_ids:
@@ -200,14 +195,14 @@ class DatabaseMaintenanceService:
         thoughts_to_archive = get_thoughts_older_than(older_than_timestamp)
         if thoughts_to_archive:
             thought_archive_file = self.archive_dir / f"archive_thoughts_{archive_timestamp_str}.jsonl"
-            thought_ids_to_delete_for_archive = []
+            thought_ids_to_delete_for_archive: List[Any] = []
             
             with open(thought_archive_file, "w") as f:
                 for thought in thoughts_to_archive:
                     # Only archive thoughts whose tasks were also archived (or would have been if not special)
                     if thought.source_task_id in task_ids_actually_archived_and_deleted:
                         f.write(thought.model_dump_json() + "\n")
-                        thought_ids_to_delete_for_archive.append(thought.thought_id)
+                        thought_ids_to_delete_for_archive.append(thought.thought_id)  # type: ignore[union-attr]
             
             if thought_ids_to_delete_for_archive:
                 archived_thoughts_count = delete_thoughts_by_ids(thought_ids_to_delete_for_archive)

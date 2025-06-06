@@ -1,14 +1,14 @@
 import pytest
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, ThoughtType
 
 
 def make_thought():
     return Thought(
         thought_id="th1",
         source_task_id="t1",
-        thought_type="test",
+        thought_type=ThoughtType.STANDARD,
         status=ThoughtStatus.PENDING,
         created_at="now",
         updated_at="now",

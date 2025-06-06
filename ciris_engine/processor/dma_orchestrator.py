@@ -23,7 +23,7 @@ from ciris_engine.schemas.processing_schemas_v1 import DMAResults
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.registries.circuit_breaker import CircuitBreaker
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought # Added import
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +34,10 @@ class DMAOrchestrator:
         csdma_evaluator: CSDMAEvaluator,
         dsdma: Optional[BaseDSDMA],
         action_selection_pdma_evaluator: ActionSelectionPDMAEvaluator,
-        app_config: Any = None,
-        llm_service: Any = None,
-        memory_service: Any = None,
-    ):
+        app_config: Optional[Any] = None,
+        llm_service: Optional[Any] = None,
+        memory_service: Optional[Any] = None,
+    ) -> None:
         self.ethical_pdma_evaluator = ethical_pdma_evaluator
         self.csdma_evaluator = csdma_evaluator
         self.dsdma = dsdma
@@ -53,7 +53,6 @@ class DMAOrchestrator:
             getattr(app_config.workflow, "DMA_TIMEOUT_SECONDS", 30.0) if app_config else 30.0
         )
 
-        # Circuit breakers for each DMA to prevent cascading failures
         self._circuit_breakers: Dict[str, CircuitBreaker] = {
             "ethical_pdma": CircuitBreaker("ethical_pdma"),
             "csdma": CircuitBreaker("csdma"),
@@ -70,8 +69,8 @@ class DMAOrchestrator:
         """
         Run EthicalPDMA, CSDMA, and DSDMA in parallel (async). Returns a dict with results or escalates on error.
         """
-        results = {}
-        errors = {}
+        results: Dict[str, Any] = {}
+        errors: Dict[str, Any] = {}
         tasks = {
             "ethical_pdma": asyncio.create_task(
                 run_dma_with_retries(
@@ -116,7 +115,6 @@ class DMAOrchestrator:
                 results[name] = None
 
         if errors:
-            # Escalate or handle as needed; for now, just raise the first error
             raise Exception(f"DMA(s) failed: {errors}")
         return results
 
@@ -216,50 +214,37 @@ class DMAOrchestrator:
         """Run ActionSelectionPDMAEvaluator sequentially after DMAs."""
         triaged = triaged_inputs or {}
         
-        # Populate triaged_inputs correctly
         triaged["original_thought"] = actual_thought
         triaged["processing_context"] = processing_context
         triaged["ethical_pdma_result"] = dma_results.get("ethical_pdma")
         triaged["csdma_result"] = dma_results.get("csdma")
         triaged["dsdma_result"] = dma_results.get("dsdma")
         
-        # Extract channel_id from various sources and add to processing_context
         channel_id = None
         
-        # From thought context
         if hasattr(actual_thought, 'context') and isinstance(actual_thought.context, dict):
             channel_id = actual_thought.context.get('channel_id')
         
-        # From processing_context system_snapshot
         if not channel_id and processing_context.system_snapshot:
             channel_id = processing_context.system_snapshot.channel_id
         
-        # From initial task context
         if not channel_id and processing_context.initial_task_context:
             channel_id = getattr(processing_context.initial_task_context, 'channel_id', None)
         
-        # Note: ThoughtContext is immutable, channel_id should be set at creation time
         
-        # ... rest of the method remains the same
-        # Get ponder_count from the actual Thought model
         triaged.setdefault("current_ponder_count", actual_thought.ponder_count)
         
-        # Get max_rounds from app_config
         if self.app_config and hasattr(self.app_config, 'workflow'):
             triaged.setdefault("max_rounds", self.app_config.workflow.max_rounds)
         else:
-            triaged.setdefault("max_rounds", 5) # Fallback if app_config not available
+            triaged.setdefault("max_rounds", 5)
             logger.warning("DMAOrchestrator: app_config or workflow config not found for max_rounds, using fallback.")
 
-        # Improved agent_profile lookup with fallback logic
         agent_profile_obj = None
         if self.app_config and hasattr(self.app_config, 'agent_profiles'):
-            # Try exact match first
             agent_profile_obj = self.app_config.agent_profiles.get(profile_name)
             if not agent_profile_obj:
-                # Try lowercase match
                 agent_profile_obj = self.app_config.agent_profiles.get(profile_name.lower())
-            # If still not found and we're not already looking for default, try default
             if not agent_profile_obj and profile_name != "default":
                 logger.warning(f"Profile '{profile_name}' not found, falling back to default profile")
                 agent_profile_obj = self.app_config.agent_profiles.get("default")
@@ -269,12 +254,10 @@ class DMAOrchestrator:
             logger.warning(f"No profile found for '{profile_name}' or 'default' fallback")
         triaged["agent_profile"] = agent_profile_obj
 
-        # Get permitted_actions from the agent_profile if available
         if agent_profile_obj and hasattr(agent_profile_obj, 'permitted_actions'):
             triaged.setdefault("permitted_actions", agent_profile_obj.permitted_actions)
         else:
-            # Default permitted actions if profile or its actions are not found
-            from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType # Local import
+            from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
             triaged.setdefault("permitted_actions", [
                 HandlerActionType.SPEAK, HandlerActionType.PONDER,
                 HandlerActionType.REJECT, HandlerActionType.DEFER

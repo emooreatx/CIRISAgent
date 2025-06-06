@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, ThoughtType
 from ciris_engine import persistence
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class ThoughtManager:
     """Manages thought generation, queueing, and processing."""
 
-    def __init__(self, max_active_thoughts: int = 50, default_channel_id: Optional[str] = None):
+    def __init__(self, max_active_thoughts: int = 50, default_channel_id: Optional[str] = None) -> None:
         self.max_active_thoughts = max_active_thoughts
         self.default_channel_id = default_channel_id
         self.processing_queue: Deque[ProcessingQueueItem] = collections.deque()
@@ -33,8 +33,7 @@ class ThoughtManager:
         """Generate a seed thought for a task using v1 schema."""
         now_iso = datetime.now(timezone.utc).isoformat()
         
-        # Build context from task
-        context_dict = {}
+        context_dict: Dict[str, Any] = {}
         if task.context:
             context_dict = {"initial_task_context": task.context.model_dump()}
             for key in ["author_name", "author_id", "channel_id", "origin_service"]:
@@ -47,13 +46,13 @@ class ThoughtManager:
         thought = Thought(
             thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",
             source_task_id=task.task_id,
-            thought_type="seed",  # v1 uses simpler type
+            thought_type=ThoughtType.STANDARD,
             status=ThoughtStatus.PENDING,
             created_at=now_iso,
             updated_at=now_iso,
-            round_number=round_number,  # v1 uses single round_number
+            round_number=round_number,
             content=f"Initial seed thought for task: {task.description}",
-            context=context,  # v1 uses 'context' not 'processing_context'
+            context=context,
             ponder_count=0,
         )
         
@@ -95,7 +94,7 @@ class ThoughtManager:
         thought = Thought(
             thought_id=str(uuid.uuid4()),
             source_task_id=job_task_id,
-            thought_type="job",
+            thought_type=ThoughtType.STANDARD,
             status=ThoughtStatus.PENDING,
             created_at=datetime.now(timezone.utc).isoformat(),
             updated_at=datetime.now(timezone.utc).isoformat(),
@@ -123,18 +122,15 @@ class ThoughtManager:
             logger.warning("max_active_thoughts is zero or negative")
             return 0
         
-        # Get pending thoughts
         pending_thoughts = persistence.get_pending_thoughts_for_active_tasks(
             limit=self.max_active_thoughts
         )
         
-        # Check for memory meta-thoughts (priority processing)
-        memory_meta = [t for t in pending_thoughts if t.thought_type == "memory_meta"]
+        memory_meta = [t for t in pending_thoughts if t.thought_type == ThoughtType.MEMORY]
         if memory_meta:
             pending_thoughts = memory_meta
             logger.info("Memory meta-thoughts detected; processing them exclusively")
         
-        # Add to queue
         added_count = 0
         for thought in pending_thoughts:
             if len(self.processing_queue) < self.max_active_thoughts:
@@ -164,7 +160,7 @@ class ThoughtManager:
         Mark thoughts as PROCESSING before sending to workflow coordinator.
         Returns the successfully updated items.
         """
-        updated_items = []
+        updated_items: List[Any] = []
         
         for item in batch:
             try:
@@ -188,7 +184,7 @@ class ThoughtManager:
         self,
         parent_thought: Thought,
         content: str,
-        thought_type: str = "follow_up",
+        thought_type: ThoughtType = ThoughtType.FOLLOW_UP,
         round_number: int = 0
     ) -> Optional[Thought]:
         """Create a follow-up thought from a parent thought."""
@@ -204,7 +200,7 @@ class ThoughtManager:
             round_number=round_number,
             content=content,
             parent_thought_id=parent_thought.thought_id,
-            context=context,  # v1 uses 'context'
+            context=context,
             ponder_count=0,
             ponder_notes=None,
             final_action={},
@@ -225,7 +221,6 @@ class ThoughtManager:
         job_task_id = "job-discord-monitor"
         
         if not persistence.pending_thoughts() and not persistence.thought_exists_for(job_task_id):
-            # Ensure job task exists
             if not persistence.task_exists(job_task_id):
                 logger.warning(f"Task '{job_task_id}' not found. Creating it.")
                 now_iso = datetime.now(timezone.utc).isoformat()
@@ -244,7 +239,6 @@ class ThoughtManager:
                 )
                 persistence.add_task(job_task)
             
-            # Create job thought
             thought = self.create_job_thought(round_number)
             return thought is not None
         

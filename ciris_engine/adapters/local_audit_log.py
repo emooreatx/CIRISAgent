@@ -21,7 +21,7 @@ class AuditService(Service):
         log_path: str = "audit_logs.jsonl",
         rotation_size_mb: int = 100,
         retention_days: int = 90,
-    ):
+    ) -> None:
         # Configure retry settings for file operations
         retry_config = {
             "retry": {
@@ -44,11 +44,11 @@ class AuditService(Service):
         self._buffer: List[AuditLogEntry] = []
         self._flush_task: Optional[asyncio.Task] = None
 
-    async def start(self):
+    async def start(self) -> None:
         await super().start()
         
         # Use retry logic for initial file creation
-        async def _create_log_file():
+        async def _create_log_file() -> None:
             await asyncio.to_thread(self.log_path.touch, exist_ok=True)
             
         await self.retry_with_backoff(
@@ -56,7 +56,7 @@ class AuditService(Service):
             **self.get_retry_config("file_operation")
         )
 
-    async def stop(self):
+    async def stop(self) -> None:
         # Flush any remaining buffered entries before stopping
         await self._flush_buffer()
         await super().stop()
@@ -149,7 +149,7 @@ class AuditService(Service):
             if not self.log_path.exists():
                 return []
             
-            entries = []
+            entries: List[Any] = []
             with self.log_path.open("r", encoding="utf-8") as f:
                 for line in f:
                     try:
@@ -182,7 +182,7 @@ class AuditService(Service):
         entries_to_write = self._buffer.copy()
         self._buffer.clear()
         
-        async def _perform_flush():
+        async def _perform_flush() -> None:
             await asyncio.to_thread(self._write_entries, entries_to_write)
             if await self._should_rotate():
                 await self._rotate_log()
@@ -200,7 +200,7 @@ class AuditService(Service):
 
     async def _rotate_log(self) -> None:
         """Simple rotation: rename current log and start new."""
-        async def _perform_rotation():
+        async def _perform_rotation() -> None:
             ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             rotated = self.log_path.with_name(f"{self.log_path.stem}_{ts}.jsonl")
             await asyncio.to_thread(self.log_path.rename, rotated)

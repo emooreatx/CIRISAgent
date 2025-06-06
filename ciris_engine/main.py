@@ -9,7 +9,6 @@ from typing import Optional
 import click
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 from .utils.logging_config import setup_basic_logging
@@ -19,7 +18,6 @@ from .runtime.discord_runtime import DiscordRuntime
 from .runtime.cli_runtime import CLIRuntime
 from .runtime.api.api_runtime_entrypoint import APIRuntimeEntrypoint
 
-# Backwards compatibility alias used by some tests and external scripts
 APIRuntime = APIRuntimeEntrypoint
 from ciris_engine.adapters.api import APIAdapter, APIObserver
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
@@ -104,7 +102,6 @@ async def async_main(
     debug: bool,
 ) -> None:
     """Unified CIRIS Engine entry point async implementation."""
-    # Note: Logging setup is handled by the root main.py entry point
     app_config = await load_config(config)
     runtime = create_runtime(
         mode,

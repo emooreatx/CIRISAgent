@@ -57,7 +57,7 @@ class TestEnhancedMockLLM:
         result = create_response(ActionSelectionResult, messages=messages)
         
         assert result.selected_action == HandlerActionType.SPEAK
-        assert "Mock response to: How are you?" in result.action_parameters["content"]
+        assert "Mock response to: How are you?" in result.action_parameters.content
         assert "echo_user_speech:How are you?" in result.rationale
     
     def test_action_selection_with_memory_context(self):

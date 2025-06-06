@@ -18,27 +18,28 @@ sys.path.insert(0, '/home/emoore/CIRISAgent')
 
 from ciris_engine.action_handlers.observe_handler import ObserveHandler
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode
+from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-class TestMemoryService:
+class MockMemoryService:
     """Test memory service that tracks all recall calls"""
     def __init__(self):
         self.recall_calls = []
         self.recall_details = []
         
-    async def recall(self, node_id: str, scope: GraphScope):
+    async def recall(self, node: GraphNode):
         """Track recall calls with full details"""
-        self.recall_calls.append((node_id, scope))
+        self.recall_calls.append((node.id, node.scope))
         self.recall_details.append({
-            'node_id': node_id,
-            'scope': scope,
-            'scope_value': scope.value if hasattr(scope, 'value') else str(scope)
+            'node_id': node.id,
+            'scope': node.scope,
+            'scope_value': node.scope.value if hasattr(node.scope, 'value') else str(node.scope)
         })
-        logger.info(f"MEMORY RECALL: node_id='{node_id}', scope='{scope}'")
+        logger.info(f"MEMORY RECALL: node_id='{node.id}', scope='{node.scope}'")
 
 def create_realistic_discord_messages() -> List[Dict[str, Any]]:
     """Create messages that exactly match Discord adapter output structure"""
@@ -127,7 +128,7 @@ async def test_real_observe_handler():
     logger.info("=== Testing Real ObserveHandler Implementation ===")
     
     # Create test memory service
-    memory_service = TestMemoryService()
+    memory_service = MockMemoryService()
     
     # Test realistic Discord messages
     channel_id = "918273645012345678"  # Realistic Discord channel ID
@@ -144,8 +145,11 @@ async def test_real_observe_handler():
     deps = ActionHandlerDependencies()
     handler = ObserveHandler(deps)
     
+    # Convert dictionaries to FetchedMessage objects
+    fetched_messages = [FetchedMessage(**msg) for msg in messages]
+    
     # Call the actual method
-    await handler._recall_from_messages(memory_service, channel_id, messages)
+    await handler._recall_from_messages(memory_service, channel_id, fetched_messages)
     
     # Analyze results
     logger.info(f"\n--- Recall Analysis ---")
@@ -197,7 +201,7 @@ async def test_edge_cases_real_handler():
     """Test edge cases with the real handler"""
     logger.info("\n=== Testing Edge Cases with Real Handler ===")
     
-    memory_service = TestMemoryService()
+    memory_service = MockMemoryService()
     channel_id = "918273645012345679"
     edge_messages = create_edge_case_messages()
     
@@ -206,9 +210,19 @@ async def test_edge_cases_real_handler():
         author_id = msg.get('author_id', 'MISSING')
         logger.info(f"Edge case {i}: author_id={repr(author_id)}, content='{msg.get('content', '')[:50]}'")
     
+    # Convert dictionaries to FetchedMessage objects, handling validation errors
+    fetched_edge_messages = []
+    for i, msg in enumerate(edge_messages):
+        try:
+            fetched_msg = FetchedMessage(**msg)
+            fetched_edge_messages.append(fetched_msg)
+            logger.info(f"Successfully converted edge message {i+1}: author_id={fetched_msg.author_id}")
+        except Exception as e:
+            logger.warning(f"Failed to convert edge message {i+1}: {e}")
+    
     deps = ActionHandlerDependencies()
     handler = ObserveHandler(deps)
-    await handler._recall_from_messages(memory_service, channel_id, edge_messages)
+    await handler._recall_from_messages(memory_service, channel_id, fetched_edge_messages)
     
     # Analyze edge case results
     unique_nodes = set(call['node_id'] for call in memory_service.recall_details)
@@ -219,7 +233,8 @@ async def test_edge_cases_real_handler():
     logger.info(f"  User nodes: {user_nodes}")
     
     # Should only have channel recall + valid user recall (first message has valid author_id)
-    valid_user_nodes = [node for node in user_nodes if len(node) > 5 and not node.endswith('None') and not node.endswith('')]
+    # Filter for valid user nodes (should have valid author_id)
+    valid_user_nodes = [node for node in user_nodes if len(node) > len('user/') and not node.endswith('None') and not node.endswith('/')]
     
     expected_valid_users = 1  # Only first message has valid author_id
     assert len(valid_user_nodes) == expected_valid_users, f"Expected {expected_valid_users} valid user nodes, got {len(valid_user_nodes)}"
@@ -230,7 +245,7 @@ async def test_no_messages():
     """Test with no messages"""
     logger.info("\n=== Testing Empty Message List ===")
     
-    memory_service = TestMemoryService()
+    memory_service = MockMemoryService()
     channel_id = "918273645012345680"
     
     deps = ActionHandlerDependencies()
@@ -251,7 +266,9 @@ async def test_no_memory_service():
     # Should not crash and should handle gracefully
     deps = ActionHandlerDependencies()
     handler = ObserveHandler(deps)
-    await handler._recall_from_messages(None, "test_channel", create_realistic_discord_messages())
+    # Convert dictionaries to FetchedMessage objects
+    fetched_messages = [FetchedMessage(**msg) for msg in create_realistic_discord_messages()]
+    await handler._recall_from_messages(None, "test_channel", fetched_messages)
     
     logger.info("✅ No memory service test passed!")
 
@@ -259,7 +276,7 @@ async def test_message_field_variations():
     """Test various message field variations and data types"""
     logger.info("\n=== Testing Message Field Variations ===")
     
-    memory_service = TestMemoryService()
+    memory_service = MockMemoryService()
     channel_id = "test_channel"
     
     # Messages with different data types for author_id
@@ -276,7 +293,9 @@ async def test_message_field_variations():
     for msg in variant_messages:
         logger.info(f"Testing message: {msg}")
         try:
-            await handler._recall_from_messages(memory_service, channel_id, [msg])
+            # Convert dictionary to FetchedMessage object
+            fetched_msg = FetchedMessage(**msg)
+            await handler._recall_from_messages(memory_service, channel_id, [fetched_msg])
         except Exception as e:
             logger.warning(f"Error processing message {msg['id']}: {e}")
     

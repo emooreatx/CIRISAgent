@@ -14,7 +14,7 @@ from ciris_engine.persistence import (
     pydantic_to_dict,
 )
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, ThoughtType
 from ciris_engine.persistence import add_task
 from datetime import datetime, timezone
 
@@ -23,18 +23,18 @@ def temp_db_file():
     f.close()
     return f.name
 
-def make_thought(thought_id, source_task_id="task1", status=ThoughtStatus.PENDING, created_at=None, updated_at=None):
+def make_thought(thought_id, source_task_id="task1", status=ThoughtStatus.PENDING, created_at=None, updated_at=None, thought_type=ThoughtType.STANDARD):
     now = datetime.now(timezone.utc).isoformat()
     return Thought(
-        thought_id=thought_id,
-        source_task_id=source_task_id,
-        thought_type="test",
+        thought_id=str(thought_id),
+        source_task_id=str(source_task_id),
+        thought_type=thought_type,
         status=status,
         created_at=created_at or now,
         updated_at=updated_at or now,
         round_number=1,
         content="test content",
-        context={},
+        context=None,
         ponder_count=0,
         ponder_notes=None,
         parent_thought_id=None,
@@ -44,7 +44,7 @@ def make_thought(thought_id, source_task_id="task1", status=ThoughtStatus.PENDIN
 def make_task(task_id):
     now = datetime.now(timezone.utc).isoformat()
     return Task(
-        task_id=task_id,
+        task_id=str(task_id),
         description="desc",
         status=TaskStatus.PENDING,
         priority=0,

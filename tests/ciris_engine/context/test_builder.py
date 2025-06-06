@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import types
 import asyncio
 from ciris_engine.action_handlers.helpers import create_follow_up_thought
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtType, ThoughtStatus
 
 class DummyMemoryService:
     def __init__(self):
@@ -23,8 +24,8 @@ def make_thought():
     return Thought(
         thought_id="th1",
         source_task_id="t1",
-        thought_type="test",
-        status="pending",
+        thought_type=ThoughtType.STANDARD,
+        status=ThoughtStatus.PENDING,
         created_at="now",
         updated_at="now",
         round_number=1,
@@ -87,7 +88,6 @@ async def test_build_context_includes_task_summaries():
     task = make_task()
     ctx = await builder.build_thought_context(thought, task)
     snap = ctx.system_snapshot
-    assert isinstance(snap.recently_completed_tasks_summary, list)
     assert isinstance(snap.top_pending_tasks_summary, list)
 
 

@@ -19,7 +19,7 @@ def test_workflow_config_defaults():
     assert config.max_active_tasks == 10
     assert config.max_active_thoughts == 50
     assert config.round_delay_seconds == 1.0
-    assert config.max_rounds == 5
+    assert config.max_rounds == 7
     assert config.DMA_RETRY_LIMIT == 3
     assert config.GUARDRAIL_RETRY_LIMIT == 2
     assert config.DMA_TIMEOUT_SECONDS == 30.0

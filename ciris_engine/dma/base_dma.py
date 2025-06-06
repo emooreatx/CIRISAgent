@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import instructor
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Any
 
 from pydantic import BaseModel
 
@@ -26,14 +26,15 @@ class BaseDMA(ABC):
         self.max_retries = max_retries
         self.instructor_mode = instructor_mode
 
-    async def get_llm_service(self) -> LLMService:
+    async def get_llm_service(self) -> Optional[LLMService]:
         """Return the LLM service for this DMA from the service registry."""
-        return await self.service_registry.get_service(
+        service = await self.service_registry.get_service(
             handler=self.__class__.__name__,
             service_type="llm",
         )
+        return service
 
     @abstractmethod
-    async def evaluate(self, *args, **kwargs) -> BaseModel:
+    async def evaluate(self, *args: Any, **kwargs: Any) -> BaseModel:
         """Execute DMA evaluation and return a pydantic model."""
         raise NotImplementedError

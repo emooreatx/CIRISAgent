@@ -1,0 +1,2322 @@
+{
+  "ciris_engine/main.py": {
+    "AuditService": {
+      "path": "hot",
+      "line": 24
+    },
+    "AppConfig": {
+      "path": "hot",
+      "line": 30
+    }
+  },
+  "ciris_engine/utils/graphql_context_provider.py": {
+    "NodeType": {
+      "path": "hot",
+      "line": 6
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 6
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 6
+    }
+  },
+  "ciris_engine/utils/profile_loader.py": {
+    "AgentProfile": {
+      "path": "hot",
+      "line": 7
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 58
+    }
+  },
+  "ciris_engine/sinks/multi_service_sink.py": {
+    "SendToolAction": {
+      "path": "hot",
+      "line": 355
+    },
+    "RecallAction": {
+      "path": "hot",
+      "line": 309
+    },
+    "FetchToolAction": {
+      "path": "hot",
+      "line": 379
+    },
+    "FetchGuidanceAction": {
+      "path": "hot",
+      "line": 143
+    },
+    "ActionMessage": {
+      "path": "hot",
+      "line": 99
+    },
+    "ActionType": {
+      "path": "hot",
+      "line": 13
+    },
+    "CommunicationService": {
+      "path": "hot",
+      "line": 137
+    },
+    "ForgetAction": {
+      "path": "hot",
+      "line": 330
+    },
+    "MemorizeAction": {
+      "path": "hot",
+      "line": 287
+    },
+    "FetchMessagesAction": {
+      "path": "hot",
+      "line": 137
+    },
+    "MemoryOpStatus": {
+      "path": "hot",
+      "line": 33
+    },
+    "FetchedMessage": {
+      "path": "hot",
+      "line": 26
+    },
+    "WiseAuthorityService": {
+      "path": "hot",
+      "line": 149
+    },
+    "ToolResult": {
+      "path": "hot",
+      "line": 34
+    },
+    "SendMessageAction": {
+      "path": "hot",
+      "line": 129
+    },
+    "ToolService": {
+      "path": "hot",
+      "line": 207
+    },
+    "SendDeferralAction": {
+      "path": "hot",
+      "line": 149
+    },
+    "MemoryService": {
+      "path": "hot",
+      "line": 178
+    }
+  },
+  "ciris_engine/sinks/__init__.py": {
+    "SendToolAction": {
+      "path": "hot",
+      "line": 7
+    },
+    "RecallAction": {
+      "path": "hot",
+      "line": 7
+    },
+    "FetchToolAction": {
+      "path": "hot",
+      "line": 7
+    },
+    "FetchGuidanceAction": {
+      "path": "hot",
+      "line": 7
+    },
+    "ActionMessage": {
+      "path": "hot",
+      "line": 7
+    },
+    "ActionType": {
+      "path": "hot",
+      "line": 7
+    },
+    "ForgetAction": {
+      "path": "hot",
+      "line": 7
+    },
+    "MemorizeAction": {
+      "path": "hot",
+      "line": 7
+    },
+    "FetchMessagesAction": {
+      "path": "hot",
+      "line": 7
+    },
+    "SendMessageAction": {
+      "path": "hot",
+      "line": 7
+    },
+    "SendDeferralAction": {
+      "path": "hot",
+      "line": 7
+    }
+  },
+  "ciris_engine/sinks/base_sink.py": {
+    "ActionType": {
+      "path": "hot",
+      "line": 10
+    },
+    "ActionMessage": {
+      "path": "hot",
+      "line": 129
+    }
+  },
+  "ciris_engine/runtime/discord_runtime.py": {
+    "IncomingMessage": {
+      "path": "hot",
+      "line": 134
+    }
+  },
+  "ciris_engine/runtime/ciris_runtime.py": {
+    "AppConfig": {
+      "path": "hot",
+      "line": 12
+    },
+    "CommunicationService": {
+      "path": "hot",
+      "line": 33
+    },
+    "AgentProfile": {
+      "path": "hot",
+      "line": 12
+    },
+    "AuditService": {
+      "path": "hot",
+      "line": 21
+    },
+    "WiseAuthorityService": {
+      "path": "hot",
+      "line": 33
+    },
+    "MemoryService": {
+      "path": "hot",
+      "line": 33
+    }
+  },
+  "ciris_engine/runtime/cli_runtime.py": {
+    "IncomingMessage": {
+      "path": "hot",
+      "line": 6
+    }
+  },
+  "ciris_engine/runtime/api/api_runtime_entrypoint.py": {
+    "AppConfig": {
+      "path": "hot",
+      "line": 14
+    }
+  },
+  "ciris_engine/runtime/api/api_comms.py": {
+    "IncomingMessage": {
+      "path": "hot",
+      "line": 5
+    }
+  },
+  "ciris_engine/runtime/api/api_memory.py": {
+    "MemoryOpStatus": {
+      "path": "hot",
+      "line": 5
+    },
+    "NodeType": {
+      "path": "hot",
+      "line": 4
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 4
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 4
+    }
+  },
+  "ciris_engine/adapters/local_audit_log.py": {
+    "AuditLogEntry": {
+      "path": "hot",
+      "line": 11
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 214
+    }
+  },
+  "ciris_engine/adapters/signed_audit_service.py": {
+    "AuditLogEntry": {
+      "path": "hot",
+      "line": 298
+    },
+    "AuditService": {
+      "path": "hot",
+      "line": 18
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 97
+    }
+  },
+  "ciris_engine/adapters/__init__.py": {
+    "AuditService": {
+      "path": "hot",
+      "line": 2
+    }
+  },
+  "ciris_engine/adapters/cirisnode_client.py": {
+    "CIRISNodeConfig": {
+      "path": "hot",
+      "line": 43
+    },
+    "AuditService": {
+      "path": "hot",
+      "line": 13
+    },
+    "AuditLogEntry": {
+      "path": "hot",
+      "line": 7
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 10
+    }
+  },
+  "ciris_engine/adapters/openai_compatible_llm.py": {
+    "OpenAIConfig": {
+      "path": "hot",
+      "line": 12
+    },
+    "LLMServicesConfig": {
+      "path": "hot",
+      "line": 12
+    },
+    "ResourceUsage": {
+      "path": "hot",
+      "line": 13
+    }
+  },
+  "ciris_engine/adapters/local_graph_memory/local_graph_memory_service.py": {
+    "MemoryOpResult": {
+      "path": "hot",
+      "line": 17
+    },
+    "NodeType": {
+      "path": "hot",
+      "line": 11
+    },
+    "MemoryOpStatus": {
+      "path": "hot",
+      "line": 17
+    },
+    "GraphEdge": {
+      "path": "hot",
+      "line": 11
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 11
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 56
+    }
+  },
+  "ciris_engine/adapters/local_graph_memory/__init__.py": {
+    "MemoryOpStatus": {
+      "path": "hot",
+      "line": 1
+    },
+    "MemoryOpResult": {
+      "path": "hot",
+      "line": 1
+    }
+  },
+  "ciris_engine/adapters/cli/cli_observer.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 126
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 125
+    },
+    "NodeType": {
+      "path": "hot",
+      "line": 5
+    },
+    "Task": {
+      "path": "hot",
+      "line": 125
+    },
+    "FetchMessagesAction": {
+      "path": "hot",
+      "line": 8
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 5
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 126
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 5
+    },
+    "IncomingMessage": {
+      "path": "hot",
+      "line": 218
+    }
+  },
+  "ciris_engine/adapters/cli/cli_wa_service.py": {
+    "ServiceCorrelation": {
+      "path": "hot",
+      "line": 8
+    },
+    "WiseAuthorityService": {
+      "path": "hot",
+      "line": 7
+    },
+    "ServiceCorrelationStatus": {
+      "path": "hot",
+      "line": 8
+    }
+  },
+  "ciris_engine/adapters/cli/cli_tools.py": {
+    "ServiceCorrelation": {
+      "path": "hot",
+      "line": 7
+    },
+    "ToolService": {
+      "path": "hot",
+      "line": 13
+    },
+    "ServiceCorrelationStatus": {
+      "path": "hot",
+      "line": 7
+    }
+  },
+  "ciris_engine/adapters/cli/cli_adapter.py": {
+    "ServiceCorrelation": {
+      "path": "hot",
+      "line": 7
+    },
+    "CommunicationService": {
+      "path": "hot",
+      "line": 5
+    },
+    "FetchedMessage": {
+      "path": "hot",
+      "line": 6
+    },
+    "ServiceCorrelationStatus": {
+      "path": "hot",
+      "line": 7
+    }
+  },
+  "ciris_engine/adapters/api/api_adapter.py": {
+    "MemoryOpResult": {
+      "path": "hot",
+      "line": 19
+    },
+    "ServiceCorrelation": {
+      "path": "hot",
+      "line": 7
+    },
+    "CommunicationService": {
+      "path": "hot",
+      "line": 13
+    },
+    "ServiceCorrelationStatus": {
+      "path": "hot",
+      "line": 7
+    },
+    "MemoryOpStatus": {
+      "path": "hot",
+      "line": 19
+    },
+    "FetchedMessage": {
+      "path": "hot",
+      "line": 5
+    },
+    "WiseAuthorityService": {
+      "path": "hot",
+      "line": 13
+    },
+    "ToolService": {
+      "path": "hot",
+      "line": 13
+    },
+    "MemoryService": {
+      "path": "hot",
+      "line": 13
+    }
+  },
+  "ciris_engine/adapters/api/api_observer.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 77
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 76
+    },
+    "NodeType": {
+      "path": "hot",
+      "line": 7
+    },
+    "Task": {
+      "path": "hot",
+      "line": 76
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 7
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 77
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 7
+    },
+    "IncomingMessage": {
+      "path": "hot",
+      "line": 166
+    }
+  },
+  "ciris_engine/adapters/discord/discord_tools.py": {
+    "ToolExecutionStatus": {
+      "path": "hot",
+      "line": 8
+    },
+    "ToolResult": {
+      "path": "hot",
+      "line": 8
+    }
+  },
+  "ciris_engine/adapters/discord/discord_observer.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 92
+    },
+    "DiscordMessage": {
+      "path": "hot",
+      "line": 183
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 91
+    },
+    "NodeType": {
+      "path": "hot",
+      "line": 5
+    },
+    "Task": {
+      "path": "hot",
+      "line": 91
+    },
+    "FetchMessagesAction": {
+      "path": "hot",
+      "line": 8
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 5
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 92
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 5
+    }
+  },
+  "ciris_engine/adapters/discord/discord_adapter.py": {
+    "DiscordMessage": {
+      "path": "hot",
+      "line": 8
+    },
+    "ServiceCorrelation": {
+      "path": "hot",
+      "line": 11
+    },
+    "CommunicationService": {
+      "path": "hot",
+      "line": 9
+    },
+    "ServiceCorrelationStatus": {
+      "path": "hot",
+      "line": 11
+    },
+    "FetchedMessage": {
+      "path": "hot",
+      "line": 8
+    },
+    "WiseAuthorityService": {
+      "path": "hot",
+      "line": 9
+    },
+    "ToolService": {
+      "path": "hot",
+      "line": 9
+    }
+  },
+  "ciris_engine/context/builder.py": {
+    "Thought": {
+      "path": "hot",
+      "line": 28
+    },
+    "NodeType": {
+      "path": "hot",
+      "line": 5
+    },
+    "Task": {
+      "path": "hot",
+      "line": 2
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 3
+    },
+    "ThoughtSummary": {
+      "path": "hot",
+      "line": 90
+    },
+    "TaskSummary": {
+      "path": "hot",
+      "line": 141
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 5
+    },
+    "TaskContext": {
+      "path": "hot",
+      "line": 3
+    },
+    "SystemSnapshot": {
+      "path": "hot",
+      "line": 3
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 6
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 5
+    }
+  },
+  "ciris_engine/processor/thought_manager.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 13
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 185
+    },
+    "Task": {
+      "path": "hot",
+      "line": 30
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 12
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 13
+    }
+  },
+  "ciris_engine/processor/wakeup_processor.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 12
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 404
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 12
+    },
+    "AgentState": {
+      "path": "hot",
+      "line": 45
+    },
+    "Task": {
+      "path": "hot",
+      "line": 425
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 12
+    }
+  },
+  "ciris_engine/processor/processing_queue.py": {
+    "Thought": {
+      "path": "hot",
+      "line": 40
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 11
+    }
+  },
+  "ciris_engine/processor/task_manager.py": {
+    "TaskStatus": {
+      "path": "hot",
+      "line": 11
+    },
+    "Task": {
+      "path": "hot",
+      "line": 10
+    }
+  },
+  "ciris_engine/processor/play_processor.py": {
+    "AgentState": {
+      "path": "hot",
+      "line": 8
+    }
+  },
+  "ciris_engine/processor/base_processor.py": {
+    "AppConfig": {
+      "path": "hot",
+      "line": 25
+    },
+    "AgentState": {
+      "path": "hot",
+      "line": 51
+    }
+  },
+  "ciris_engine/processor/thought_escalation.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 9
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 105
+    }
+  },
+  "ciris_engine/processor/dma_orchestrator.py": {
+    "CSDMAResult": {
+      "path": "hot",
+      "line": 16
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 208
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 260
+    },
+    "DMAResults": {
+      "path": "hot",
+      "line": 129
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 209
+    },
+    "EthicalDMAResult": {
+      "path": "hot",
+      "line": 16
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 16
+    },
+    "DSDMAResult": {
+      "path": "hot",
+      "line": 16
+    }
+  },
+  "ciris_engine/processor/dream_processor.py": {
+    "AgentProfile": {
+      "path": "hot",
+      "line": 28
+    },
+    "AppConfig": {
+      "path": "hot",
+      "line": 27
+    }
+  },
+  "ciris_engine/processor/state_manager.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 12
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 11
+    },
+    "AgentState": {
+      "path": "hot",
+      "line": 95
+    },
+    "Task": {
+      "path": "hot",
+      "line": 11
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 12
+    }
+  },
+  "ciris_engine/processor/main_processor.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 13
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 258
+    },
+    "AppConfig": {
+      "path": "hot",
+      "line": 41
+    },
+    "AgentState": {
+      "path": "hot",
+      "line": 413
+    },
+    "Task": {
+      "path": "hot",
+      "line": 13
+    },
+    "AgentProfile": {
+      "path": "hot",
+      "line": 42
+    }
+  },
+  "ciris_engine/processor/work_processor.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 10
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 10
+    },
+    "AgentState": {
+      "path": "hot",
+      "line": 49
+    }
+  },
+  "ciris_engine/processor/solitude_processor.py": {
+    "TaskStatus": {
+      "path": "hot",
+      "line": 9
+    },
+    "AgentState": {
+      "path": "hot",
+      "line": 47
+    }
+  },
+  "ciris_engine/processor/thought_processor.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 10
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 340
+    },
+    "DeferParams": {
+      "path": "hot",
+      "line": 10
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 10
+    },
+    "AppConfig": {
+      "path": "hot",
+      "line": 30
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 340
+    },
+    "PonderParams": {
+      "path": "hot",
+      "line": 10
+    }
+  },
+  "ciris_engine/config/env_utils.py": {
+    "AppConfig": {
+      "path": "hot",
+      "line": 41
+    }
+  },
+  "ciris_engine/config/dynamic_config.py": {
+    "AppConfig": {
+      "path": "hot",
+      "line": 12
+    }
+  },
+  "ciris_engine/config/config_manager.py": {
+    "AppConfig": {
+      "path": "hot",
+      "line": 123
+    }
+  },
+  "ciris_engine/config/config_loader.py": {
+    "AppConfig": {
+      "path": "hot",
+      "line": 7
+    }
+  },
+  "ciris_engine/dma/action_selection_pdma.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 654
+    },
+    "CSDMAResult": {
+      "path": "hot",
+      "line": 228
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 412
+    },
+    "DeferParams": {
+      "path": "hot",
+      "line": 16
+    },
+    "RecallParams": {
+      "path": "hot",
+      "line": 16
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 654
+    },
+    "ForgetParams": {
+      "path": "hot",
+      "line": 16
+    },
+    "SchemaVersion": {
+      "path": "hot",
+      "line": 27
+    },
+    "RejectParams": {
+      "path": "hot",
+      "line": 16
+    },
+    "SpeakParams": {
+      "path": "hot",
+      "line": 16
+    },
+    "EthicalDMAResult": {
+      "path": "hot",
+      "line": 227
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 504
+    },
+    "PonderParams": {
+      "path": "hot",
+      "line": 16
+    },
+    "ToolParams": {
+      "path": "hot",
+      "line": 26
+    },
+    "ObserveParams": {
+      "path": "hot",
+      "line": 16
+    },
+    "DSDMAResult": {
+      "path": "hot",
+      "line": 10
+    },
+    "MemorizeParams": {
+      "path": "hot",
+      "line": 16
+    }
+  },
+  "ciris_engine/dma/pdma.py": {
+    "EthicalDMAResult": {
+      "path": "hot",
+      "line": 67
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 43
+    }
+  },
+  "ciris_engine/dma/factory.py": {
+    "AgentProfile": {
+      "path": "hot",
+      "line": 8
+    }
+  },
+  "ciris_engine/dma/dsdma_base.py": {
+    "DSDMAResult": {
+      "path": "hot",
+      "line": 8
+    }
+  },
+  "ciris_engine/dma/base_dma.py": {
+    "LLMService": {
+      "path": "hot",
+      "line": 10
+    }
+  },
+  "ciris_engine/dma/csdma.py": {
+    "CSDMAResult": {
+      "path": "hot",
+      "line": 177
+    }
+  },
+  "ciris_engine/dma/dma_executor.py": {
+    "CSDMAResult": {
+      "path": "hot",
+      "line": 16
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 6
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 8
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 9
+    },
+    "EthicalDMAResult": {
+      "path": "hot",
+      "line": 16
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 16
+    },
+    "DSDMAResult": {
+      "path": "hot",
+      "line": 16
+    }
+  },
+  "ciris_engine/secrets/__init__.py": {
+    "SecretsFilter": {
+      "path": "hot",
+      "line": 14
+    }
+  },
+  "ciris_engine/guardrails/registry.py": {
+    "GuardrailInterface": {
+      "path": "hot",
+      "line": 26
+    }
+  },
+  "ciris_engine/guardrails/interface.py": {
+    "GuardrailCheckResult": {
+      "path": "hot",
+      "line": 6
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 13
+    }
+  },
+  "ciris_engine/guardrails/core.py": {
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 9
+    },
+    "LLMService": {
+      "path": "hot",
+      "line": 20
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 154
+    },
+    "GuardrailInterface": {
+      "path": "hot",
+      "line": 22
+    },
+    "GuardrailsConfig": {
+      "path": "hot",
+      "line": 31
+    },
+    "GuardrailCheckResult": {
+      "path": "hot",
+      "line": 10
+    },
+    "GuardrailStatus": {
+      "path": "hot",
+      "line": 10
+    }
+  },
+  "ciris_engine/guardrails/__init__.py": {
+    "GuardrailInterface": {
+      "path": "hot",
+      "line": 3
+    }
+  },
+  "ciris_engine/guardrails/orchestrator.py": {
+    "Thought": {
+      "path": "hot",
+      "line": 24
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 9
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 23
+    },
+    "PonderParams": {
+      "path": "hot",
+      "line": 10
+    },
+    "GuardrailResult": {
+      "path": "hot",
+      "line": 8
+    }
+  },
+  "ciris_engine/formatters/system_snapshot.py": {
+    "SystemSnapshot": {
+      "path": "hot",
+      "line": 4
+    }
+  },
+  "ciris_engine/faculties/faculty_manager.py": {
+    "EpistemicFaculty": {
+      "path": "hot",
+      "line": 76
+    },
+    "LLMService": {
+      "path": "hot",
+      "line": 6
+    },
+    "CoherenceResult": {
+      "path": "hot",
+      "line": 8
+    },
+    "EntropyResult": {
+      "path": "hot",
+      "line": 8
+    },
+    "FacultyResult": {
+      "path": "hot",
+      "line": 8
+    }
+  },
+  "ciris_engine/faculties/epistemic.py": {
+    "OptimizationVetoResult": {
+      "path": "hot",
+      "line": 201
+    },
+    "CoherenceResult": {
+      "path": "hot",
+      "line": 145
+    },
+    "EntropyResult": {
+      "path": "hot",
+      "line": 129
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 220
+    },
+    "EpistemicHumilityResult": {
+      "path": "hot",
+      "line": 228
+    }
+  },
+  "ciris_engine/schemas/community_schemas_v1.py": {
+    "CommunityHealth": {
+      "path": "hot",
+      "line": 22
+    },
+    "SchemaVersion": {
+      "path": "hot",
+      "line": 18
+    }
+  },
+  "ciris_engine/schemas/agent_core_schemas_v1.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 36
+    },
+    "DeferParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "RecallParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "ForgetParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 17
+    },
+    "RejectParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "SpeakParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 16
+    },
+    "PonderParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "ToolParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "ObserveParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 23
+    },
+    "MemorizeParams": {
+      "path": "hot",
+      "line": 5
+    }
+  },
+  "ciris_engine/schemas/processing_schemas_v1.py": {
+    "EthicalDMAResult": {
+      "path": "hot",
+      "line": 3
+    },
+    "CSDMAResult": {
+      "path": "hot",
+      "line": 3
+    },
+    "DSDMAResult": {
+      "path": "hot",
+      "line": 3
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 15
+    }
+  },
+  "ciris_engine/schemas/wisdom_schemas_v1.py": {
+    "SchemaVersion": {
+      "path": "hot",
+      "line": 25
+    }
+  },
+  "ciris_engine/schemas/graph_schemas_v1.py": {
+    "NodeType": {
+      "path": "hot",
+      "line": 25
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 39
+    }
+  },
+  "ciris_engine/schemas/service_actions_v1.py": {
+    "ActionType": {
+      "path": "hot",
+      "line": 29
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 105
+    },
+    "IncomingMessage": {
+      "path": "hot",
+      "line": 143
+    }
+  },
+  "ciris_engine/schemas/action_params_v1.py": {
+    "GraphNode": {
+      "path": "hot",
+      "line": 70
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 3
+    }
+  },
+  "ciris_engine/schemas/config_schemas_v1.py": {
+    "Thought": {
+      "path": "hot",
+      "line": 15
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 17
+    },
+    "CIRISNodeConfig": {
+      "path": "hot",
+      "line": 119
+    },
+    "TelemetryConfig": {
+      "path": "hot",
+      "line": 121
+    },
+    "Task": {
+      "path": "hot",
+      "line": 15
+    },
+    "NetworkConfig": {
+      "path": "hot",
+      "line": 120
+    },
+    "OpenAIConfig": {
+      "path": "hot",
+      "line": 62
+    },
+    "WisdomConfig": {
+      "path": "hot",
+      "line": 122
+    },
+    "DatabaseConfig": {
+      "path": "hot",
+      "line": 115
+    },
+    "LLMServicesConfig": {
+      "path": "hot",
+      "line": 116
+    },
+    "GuardrailsConfig": {
+      "path": "hot",
+      "line": 117
+    },
+    "WorkflowConfig": {
+      "path": "hot",
+      "line": 118
+    }
+  },
+  "ciris_engine/schemas/schema_registry.py": {
+    "Thought": {
+      "path": "hot",
+      "line": 4
+    },
+    "DeferParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "RecallParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "ForgetParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "NetworkPresence": {
+      "path": "hot",
+      "line": 17
+    },
+    "Task": {
+      "path": "hot",
+      "line": 4
+    },
+    "WisdomRequest": {
+      "path": "hot",
+      "line": 19
+    },
+    "RejectParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "SpeakParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "UniversalGuidanceProtocol": {
+      "path": "hot",
+      "line": 19
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 16
+    },
+    "CompactTelemetry": {
+      "path": "hot",
+      "line": 20
+    },
+    "PonderParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "ToolParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "ObserveParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "MemorizeParams": {
+      "path": "hot",
+      "line": 5
+    },
+    "MinimalCommunityContext": {
+      "path": "hot",
+      "line": 18
+    },
+    "AgentIdentity": {
+      "path": "hot",
+      "line": 17
+    }
+  },
+  "ciris_engine/schemas/feedback_schemas_v1.py": {
+    "FeedbackSource": {
+      "path": "hot",
+      "line": 38
+    },
+    "FeedbackType": {
+      "path": "hot",
+      "line": 37
+    }
+  },
+  "ciris_engine/schemas/__init__.py": {
+    "Thought": {
+      "path": "hot",
+      "line": 1
+    },
+    "CommunityHealth": {
+      "path": "hot",
+      "line": 9
+    },
+    "WisdomRequest": {
+      "path": "hot",
+      "line": 10
+    },
+    "NetworkPresence": {
+      "path": "hot",
+      "line": 8
+    },
+    "Task": {
+      "path": "hot",
+      "line": 1
+    },
+    "WisdomSource": {
+      "path": "hot",
+      "line": 10
+    },
+    "ResourceMetrics": {
+      "path": "hot",
+      "line": 11
+    },
+    "UniversalGuidanceProtocol": {
+      "path": "hot",
+      "line": 10
+    },
+    "NetworkType": {
+      "path": "hot",
+      "line": 8
+    },
+    "CompactTelemetry": {
+      "path": "hot",
+      "line": 11
+    },
+    "MinimalCommunityContext": {
+      "path": "hot",
+      "line": 9
+    },
+    "AgentIdentity": {
+      "path": "hot",
+      "line": 8
+    }
+  },
+  "ciris_engine/schemas/foundational_schemas_v1.py": {
+    "SchemaVersion": {
+      "path": "hot",
+      "line": 3
+    }
+  },
+  "ciris_engine/schemas/memory_schemas_v1.py": {
+    "CaseInsensitiveEnum": {
+      "path": "hot",
+      "line": 4
+    },
+    "MemoryOpStatus": {
+      "path": "hot",
+      "line": 21
+    }
+  },
+  "ciris_engine/schemas/correlation_schemas_v1.py": {
+    "ServiceCorrelationStatus": {
+      "path": "hot",
+      "line": 19
+    }
+  },
+  "ciris_engine/schemas/versioning.py": {
+    "SchemaVersion": {
+      "path": "hot",
+      "line": 10
+    }
+  },
+  "ciris_engine/schemas/deferral_schemas_v1.py": {
+    "DeferralReason": {
+      "path": "hot",
+      "line": 24
+    },
+    "FeedbackSource": {
+      "path": "hot",
+      "line": 6
+    },
+    "FeedbackType": {
+      "path": "hot",
+      "line": 6
+    },
+    "DeferralPackage": {
+      "path": "hot",
+      "line": 44
+    },
+    "FeedbackDirective": {
+      "path": "hot",
+      "line": 6
+    }
+  },
+  "ciris_engine/schemas/context_schemas_v1.py": {
+    "CompactTelemetry": {
+      "path": "hot",
+      "line": 6
+    },
+    "WisdomRequest": {
+      "path": "hot",
+      "line": 4
+    },
+    "CommunityHealth": {
+      "path": "hot",
+      "line": 5
+    },
+    "SystemSnapshot": {
+      "path": "hot",
+      "line": 91
+    }
+  },
+  "ciris_engine/schemas/tool_schemas_v1.py": {
+    "ToolExecutionStatus": {
+      "path": "hot",
+      "line": 17
+    },
+    "SchemaVersion": {
+      "path": "hot",
+      "line": 15
+    }
+  },
+  "ciris_engine/schemas/dma_results_v1.py": {
+    "DeferParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "RecallParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 18
+    },
+    "ForgetParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "RejectParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "SpeakParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "PonderParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "ToolParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "ObserveParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "MemorizeParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "ResourceUsage": {
+      "path": "hot",
+      "line": 14
+    }
+  },
+  "ciris_engine/schemas/guardrails_schemas_v1.py": {
+    "GuardrailStatus": {
+      "path": "hot",
+      "line": 12
+    }
+  },
+  "ciris_engine/schemas/network_schemas_v1.py": {
+    "NetworkType": {
+      "path": "hot",
+      "line": 23
+    },
+    "SchemaVersion": {
+      "path": "hot",
+      "line": 19
+    }
+  },
+  "ciris_engine/schemas/telemetry_schemas_v1.py": {
+    "SchemaVersion": {
+      "path": "hot",
+      "line": 18
+    },
+    "ResourceMetrics": {
+      "path": "hot",
+      "line": 25
+    }
+  },
+  "ciris_engine/persistence/utils.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 5
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 3
+    },
+    "Task": {
+      "path": "hot",
+      "line": 3
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 4
+    },
+    "SystemSnapshot": {
+      "path": "hot",
+      "line": 4
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 5
+    }
+  },
+  "ciris_engine/persistence/maintenance.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 25
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 25
+    }
+  },
+  "ciris_engine/persistence/analytics.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 62
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 5
+    }
+  },
+  "ciris_engine/persistence/models/correlations.py": {
+    "ServiceCorrelation": {
+      "path": "hot",
+      "line": 12
+    },
+    "ServiceCorrelationStatus": {
+      "path": "hot",
+      "line": 7
+    }
+  },
+  "ciris_engine/persistence/models/tasks.py": {
+    "TaskStatus": {
+      "path": "hot",
+      "line": 82
+    },
+    "Task": {
+      "path": "hot",
+      "line": 44
+    }
+  },
+  "ciris_engine/persistence/models/thoughts.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 139
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 31
+    }
+  },
+  "ciris_engine/persistence/models/graph.py": {
+    "GraphEdge": {
+      "path": "hot",
+      "line": 75
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 12
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 114
+    }
+  },
+  "ciris_engine/action_handlers/ponder_handler.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 6
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 40
+    },
+    "DeferParams": {
+      "path": "hot",
+      "line": 72
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 6
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 157
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 39
+    },
+    "PonderParams": {
+      "path": "hot",
+      "line": 5
+    }
+  },
+  "ciris_engine/action_handlers/handler_registry.py": {
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 5
+    }
+  },
+  "ciris_engine/action_handlers/defer_handler.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 9
+    },
+    "DeferParams": {
+      "path": "hot",
+      "line": 7
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 23
+    },
+    "DeferralReason": {
+      "path": "hot",
+      "line": 8
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 9
+    },
+    "DeferralPackage": {
+      "path": "hot",
+      "line": 8
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 22
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 9
+    }
+  },
+  "ciris_engine/action_handlers/recall_handler.py": {
+    "MemoryOpResult": {
+      "path": "hot",
+      "line": 5
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 16
+    },
+    "RecallParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 9
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 71
+    },
+    "MemoryOpStatus": {
+      "path": "hot",
+      "line": 5
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 16
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 4
+    },
+    "MemoryService": {
+      "path": "hot",
+      "line": 6
+    }
+  },
+  "ciris_engine/action_handlers/observe_handler.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 9
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 69
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 9
+    },
+    "NodeType": {
+      "path": "hot",
+      "line": 15
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 107
+    },
+    "FetchMessagesAction": {
+      "path": "hot",
+      "line": 16
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 68
+    },
+    "FetchedMessage": {
+      "path": "hot",
+      "line": 9
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 15
+    },
+    "ObserveParams": {
+      "path": "hot",
+      "line": 7
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 15
+    },
+    "IncomingMessage": {
+      "path": "hot",
+      "line": 9
+    }
+  },
+  "ciris_engine/action_handlers/forget_handler.py": {
+    "MemoryOpResult": {
+      "path": "hot",
+      "line": 5
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 16
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 9
+    },
+    "ForgetParams": {
+      "path": "hot",
+      "line": 3
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 37
+    },
+    "MemoryOpStatus": {
+      "path": "hot",
+      "line": 5
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 16
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 4
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 4
+    },
+    "MemoryService": {
+      "path": "hot",
+      "line": 6
+    }
+  },
+  "ciris_engine/action_handlers/action_dispatcher.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 5
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 38
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 39
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 32
+    }
+  },
+  "ciris_engine/action_handlers/reject_handler.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 6
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 19
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 6
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 49
+    },
+    "RejectParams": {
+      "path": "hot",
+      "line": 6
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 18
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 6
+    }
+  },
+  "ciris_engine/action_handlers/task_complete_handler.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 5
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 19
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 5
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 18
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 5
+    }
+  },
+  "ciris_engine/action_handlers/base_handler.py": {
+    "Thought": {
+      "path": "hot",
+      "line": 278
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 264
+    },
+    "CommunicationService": {
+      "path": "hot",
+      "line": 12
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 277
+    },
+    "WiseAuthorityService": {
+      "path": "hot",
+      "line": 12
+    },
+    "MemoryService": {
+      "path": "hot",
+      "line": 12
+    }
+  },
+  "ciris_engine/action_handlers/helpers.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 7
+    },
+    "SystemSnapshot": {
+      "path": "hot",
+      "line": 26
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 13
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 26
+    }
+  },
+  "ciris_engine/action_handlers/speak_handler.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 6
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 37
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 6
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 61
+    },
+    "SpeakParams": {
+      "path": "hot",
+      "line": 15
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 36
+    },
+    "SystemSnapshot": {
+      "path": "hot",
+      "line": 133
+    }
+  },
+  "ciris_engine/action_handlers/tool_handler.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 6
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 23
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 6
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 22
+    },
+    "ToolParams": {
+      "path": "hot",
+      "line": 6
+    },
+    "ToolExecutionStatus": {
+      "path": "hot",
+      "line": 11
+    },
+    "ToolResult": {
+      "path": "hot",
+      "line": 11
+    }
+  },
+  "ciris_engine/action_handlers/memorize_handler.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 7
+    },
+    "MemoryOpResult": {
+      "path": "hot",
+      "line": 11
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 25
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 7
+    },
+    "NodeType": {
+      "path": "hot",
+      "line": 39
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 135
+    },
+    "MemoryOpStatus": {
+      "path": "hot",
+      "line": 11
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 24
+    },
+    "GraphScope": {
+      "path": "hot",
+      "line": 39
+    },
+    "MemorizeParams": {
+      "path": "hot",
+      "line": 6
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 39
+    },
+    "MemoryService": {
+      "path": "hot",
+      "line": 10
+    }
+  },
+  "ciris_engine/protocols/secrets_interface.py": {
+    "RecallSecretParams": {
+      "path": "hot",
+      "line": 230
+    },
+    "SecretsFilterResult": {
+      "path": "hot",
+      "line": 13
+    },
+    "SecretPattern": {
+      "path": "hot",
+      "line": 44
+    },
+    "DetectedSecret": {
+      "path": "hot",
+      "line": 97
+    },
+    "SecretAccessLog": {
+      "path": "hot",
+      "line": 151
+    },
+    "SecretReference": {
+      "path": "hot",
+      "line": 13
+    },
+    "SecretsFilter": {
+      "path": "hot",
+      "line": 13
+    },
+    "UpdateSecretsFilterParams": {
+      "path": "hot",
+      "line": 244
+    },
+    "SecretRecord": {
+      "path": "hot",
+      "line": 13
+    }
+  },
+  "ciris_engine/protocols/guardrail_interface.py": {
+    "GuardrailCheckResult": {
+      "path": "hot",
+      "line": 3
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 9
+    }
+  },
+  "ciris_engine/protocols/__init__.py": {
+    "NetworkService": {
+      "path": "hot",
+      "line": 3
+    },
+    "LLMService": {
+      "path": "hot",
+      "line": 3
+    },
+    "DMAEvaluatorInterface": {
+      "path": "hot",
+      "line": 14
+    },
+    "CommunityService": {
+      "path": "hot",
+      "line": 3
+    },
+    "CommunicationService": {
+      "path": "hot",
+      "line": 3
+    },
+    "SecretsStoreInterface": {
+      "path": "hot",
+      "line": 17
+    },
+    "SecretsServiceInterface": {
+      "path": "hot",
+      "line": 17
+    },
+    "PersistenceInterface": {
+      "path": "hot",
+      "line": 16
+    },
+    "AuditService": {
+      "path": "hot",
+      "line": 3
+    },
+    "GuardrailInterface": {
+      "path": "hot",
+      "line": 15
+    },
+    "WiseAuthorityService": {
+      "path": "hot",
+      "line": 3
+    },
+    "SecretsEncryptionInterface": {
+      "path": "hot",
+      "line": 17
+    },
+    "ToolService": {
+      "path": "hot",
+      "line": 3
+    },
+    "SecretsFilterInterface": {
+      "path": "hot",
+      "line": 17
+    },
+    "MemoryService": {
+      "path": "hot",
+      "line": 3
+    },
+    "ProcessorInterface": {
+      "path": "hot",
+      "line": 13
+    }
+  },
+  "ciris_engine/protocols/dma_interface.py": {
+    "EthicalDMAResult": {
+      "path": "hot",
+      "line": 3
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 9
+    }
+  },
+  "ciris_engine/protocols/services.py": {
+    "MemoryOpResult": {
+      "path": "hot",
+      "line": 13
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 212
+    },
+    "NetworkPresence": {
+      "path": "hot",
+      "line": 14
+    },
+    "FetchedMessage": {
+      "path": "hot",
+      "line": 7
+    },
+    "MinimalCommunityContext": {
+      "path": "hot",
+      "line": 15
+    },
+    "GraphNode": {
+      "path": "hot",
+      "line": 115
+    },
+    "AgentIdentity": {
+      "path": "hot",
+      "line": 334
+    },
+    "IncomingMessage": {
+      "path": "hot",
+      "line": 7
+    }
+  },
+  "ciris_engine/protocols/schemas.py": {
+    "ThoughtStatus": {
+      "path": "hot",
+      "line": 14
+    },
+    "CSDMAResult": {
+      "path": "hot",
+      "line": 2
+    },
+    "Thought": {
+      "path": "hot",
+      "line": 1
+    },
+    "HandlerActionType": {
+      "path": "hot",
+      "line": 14
+    },
+    "DMAResults": {
+      "path": "hot",
+      "line": 9
+    },
+    "GuardrailCheckResult": {
+      "path": "hot",
+      "line": 8
+    },
+    "Task": {
+      "path": "hot",
+      "line": 1
+    },
+    "ThoughtContext": {
+      "path": "hot",
+      "line": 13
+    },
+    "EthicalDMAResult": {
+      "path": "hot",
+      "line": 2
+    },
+    "ActionSelectionResult": {
+      "path": "hot",
+      "line": 2
+    },
+    "TaskStatus": {
+      "path": "hot",
+      "line": 14
+    },
+    "DSDMAResult": {
+      "path": "hot",
+      "line": 2
+    },
+    "GuardrailResult": {
+      "path": "hot",
+      "line": 9
+    }
+  }
+}

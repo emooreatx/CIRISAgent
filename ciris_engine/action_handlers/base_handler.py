@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional, Type, Callable
 from abc import ABC, abstractmethod
 import asyncio
 
-# Updated imports for v1 schemas
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
@@ -29,14 +28,14 @@ class ActionHandlerDependencies:
         io_adapter: Optional[Any] = None,
         # Shutdown signal mechanism
         shutdown_callback: Optional[Callable[[], None]] = None,
-    ):
+    ) -> None:
         self.service_registry = service_registry
         self.io_adapter = io_adapter
         # Shutdown signal mechanism
         self.shutdown_callback = shutdown_callback
         self._shutdown_requested = False
     
-    def request_graceful_shutdown(self, reason: str = "Handler requested shutdown"):
+    def request_graceful_shutdown(self, reason: str = "Handler requested shutdown") -> None:
         """Request a graceful shutdown of the agent runtime."""
         if self._shutdown_requested:
             logger.debug("Shutdown already requested, ignoring duplicate request")
@@ -45,10 +44,8 @@ class ActionHandlerDependencies:
         self._shutdown_requested = True
         logger.critical(f"GRACEFUL SHUTDOWN REQUESTED: {reason}")
         
-        # Use global shutdown manager as primary mechanism
         request_global_shutdown(reason)
         
-        # Also execute local callback if available (for backwards compatibility)
         if self.shutdown_callback:
             try:
                 self.shutdown_callback()
@@ -93,11 +90,11 @@ class ActionHandlerDependencies:
 
 class BaseActionHandler(ABC):
     """Abstract base class for action handlers."""
-    def __init__(self, dependencies: ActionHandlerDependencies):
+    def __init__(self, dependencies: ActionHandlerDependencies) -> None:
         self.dependencies = dependencies
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def _audit_log(self, handler_action, context, outcome=None):
+    async def _audit_log(self, handler_action, context, outcome: Optional[str] = None) -> None:
         audit_service = await self.get_audit_service()
         if audit_service:
             await audit_service.log_action(handler_action, context, outcome)
@@ -168,14 +165,18 @@ class BaseActionHandler(ABC):
         """Get channel ID from dispatch or thought context."""
         channel_id = dispatch_context.get("channel_id")
         if not channel_id and getattr(thought, "context", None):
-            channel_id = getattr(thought.context.system_snapshot, "channel_id", None)
+            system_snapshot = getattr(thought.context, "system_snapshot", None) if thought.context else None
+            channel_id = getattr(system_snapshot, "channel_id", None) if system_snapshot else None
         if not channel_id:
-            # No fallback needed since observer functionality is at adapter level
             pass
         return channel_id
 
     async def _send_notification(self, channel_id: str, content: str) -> bool:
         """Send a notification using the best available service."""
+        # STRICT: content must be a string, not a GraphNode or any other type
+        if not isinstance(content, str):
+            self.logger.error(f"_send_notification: content must be a string, got {type(content)}")
+            raise TypeError("_send_notification: content must be a string, not a GraphNode or other type")
         if not channel_id or not content:
             self.logger.error(f"_send_notification failed: missing channel_id ({channel_id}) or content ({bool(content)})")
             return False
