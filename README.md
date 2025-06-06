@@ -28,18 +28,38 @@ The system is designed for modularity, allowing developers to create and integra
 
 ## Key Features
 
-*   **Four‑DMA Pipeline:** PDMA (ethical), CSDMA (common sense), DSDMA (domain) and ASPDMA (action selection) run sequentially for each thought. The ASPDMA chooses the next handler action using the outputs of the preceding DMAs. This flow is coordinated by the `WorkflowCoordinator`.
-*   **Agent Profiles:** Customizable YAML configurations (`ciris_profiles/`) that define an agent's behavior, DSDMA selection, permitted actions, and LLM prompting strategies for various DMAs.
-*   **Local Execution:** Designed to run locally, enabling edge-side reasoning.
-*   **LLM Integration:** Leverages Large Language Models (LLMs) via `instructor` for structured output from DMAs. Requires an OpenAI-compatible API.
-*   **Thought Processing & Pondering:** Agents may "ponder" repeatedly. The `WorkflowCoordinator` tracks ponder rounds and automatically defers once a configured limit is hit.
-*   **DMA Retry & Escalation:** Each DMA invocation is retried on transient errors. Repeated failures generate an escalation to the Wise Authority.
-*   **Profile‑Driven Actions:** Allowed handler actions are loaded from the active profile and passed dynamically to the ASPDMA.
-*   **Basic Guardrails:** Includes an ethical guardrail to check action outputs.
-*   **SQLite Persistence:** Uses SQLite for persisting tasks and thoughts.
-*   **Graph Memory:** MEMORIZE actions store user metadata in a sqlite backed strongly type enforce graph database
-    * Channel node updates require WA approval. The initial write is deferred and a new thought is generated for the Wise Authority. When that follow-up thought includes `is_wa_correction` and references the deferred thought, the update is applied automatically.
-    * User nick node updates can be memorized immediately if guardrails are satisfied.
+### 🧠 **Advanced Decision Making Architecture**
+*   **[Decision Making Algorithms (DMAs)](ciris_engine/dma/README.md):** Parallel evaluation through Ethical PDMA, Common Sense DMA, and Domain-Specific DMA with sophisticated error handling and circuit breaker protection
+*   **Profile-Driven Customization:** YAML-based agent profiles with specialized behavior for different roles (teacher, student, etc.)
+*   **Action Selection:** Intelligent 3×3×3 action space selection with context-aware parameter injection
+
+### 🔐 **Enterprise Security Features**
+*   **[Secrets Management](docs/SECRETS_MANAGEMENT.md):** Automatic detection, encryption, and decapsulation of sensitive information with AES-256-GCM
+*   **[Cryptographic Audit Trail](ciris_engine/audit/README.md):** Tamper-evident logging with hash chains, RSA digital signatures, and comprehensive integrity verification
+*   **[Adaptive Filtering](docs/ADAPTIVE_FILTERING.md):** Intelligent message prioritization with trust-based user management and spam detection
+
+### 🏗️ **Multi-Platform Architecture**
+*   **[Platform Adapters](ciris_engine/adapters/README.md):** Discord, CLI, and API adapters with consistent service interfaces and automatic secrets processing
+*   **Service Registry:** Dynamic service discovery with capability-based selection and circuit breaker protection
+*   **Runtime Flexibility:** Supports CLI, Discord bot, and API server modes with seamless switching
+
+### 📊 **Observability & Monitoring**
+*   **[Telemetry System](docs/TELEMETRY_SYSTEM.md):** Multi-tier metric collection with security filtering and resource monitoring
+*   **Circuit Breakers:** Automatic service protection with graceful degradation
+*   **Performance Monitoring:** Real-time resource usage tracking and adaptive throttling
+
+### 🧩 **Advanced Memory & Processing**
+*   **Graph Memory:** SQLite-backed graph storage with automatic secrets encryption and WA-authorized updates
+*   **[Action Handlers](ciris_engine/action_handlers/README.md):** Comprehensive handler system with automatic secrets decapsulation and service integration
+*   **[Configuration Management](ciris_engine/config/README.md):** Multi-source configuration with agent self-configuration through memory operations
+*   **[Context Management](ciris_engine/context/README.md):** Multi-source context aggregation with system snapshots and user profile enrichment
+*   **[Processing Engine](ciris_engine/processor/README.md):** Multi-state processing architecture with specialized processors for WORK, PLAY, DREAM, and SOLITUDE modes
+*   **Thought Processing:** Multi-round pondering with escalation to Wise Authority
+
+### 🎯 **Core Infrastructure**
+*   **[Epistemic Faculties](ciris_engine/faculties/README.md):** Advanced content evaluation through specialized entropy, coherence, and decision analysis faculties
+*   **[Service Registry](ciris_engine/registries/README.md):** Priority-based service discovery with circuit breaker patterns and automatic failover
+*   **[Prompt Formatters](ciris_engine/formatters/README.md):** Composable text formatting utilities for consistent LLM prompt engineering
 
 ## Repository Structure
 
