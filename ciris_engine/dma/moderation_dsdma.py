@@ -55,12 +55,11 @@ class ModerationDSDMA(BaseDSDMA):
     {system_snapshot_block}
     {user_profiles_block}
     
-    === Response Format ===
-    Evaluate the thought and provide:
-    - score: 0.0-1.0 (how well aligned with moderation best practices)
-    - recommended_action: Specific moderation action if applicable (e.g., "gentle_reminder", "timeout_10min", "defer_to_human")
-    - flags: List of moderation concerns (e.g., ["potential_conflict", "new_user", "requires_context"])
-    - reasoning: Brief explanation focusing on community impact and proportional response
+    === Evaluation Guidelines ===
+    - score: Rate 0.0-1.0 how well the thought aligns with moderation best practices
+    - recommended_action: Suggest specific moderation action if needed (e.g., "gentle_reminder", "timeout_10min", "defer_to_human")
+    - flags: Identify moderation concerns (e.g., ["potential_conflict", "new_user", "requires_context"])  
+    - reasoning: Explain your assessment focusing on community impact and proportional response
     """
     
     def __init__(self,
