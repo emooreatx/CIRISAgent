@@ -4,6 +4,7 @@ from datetime import datetime
 from .wisdom_schemas_v1 import WisdomRequest
 from .community_schemas_v1 import CommunityHealth
 from .telemetry_schemas_v1 import CompactTelemetry
+from .resource_schemas_v1 import ResourceSnapshot
 
 class TaskSummary(BaseModel):
     """Summary of a task for context."""
@@ -59,14 +60,17 @@ class SystemSnapshot(BaseModel):
     isolation_hours: int = 0
     
     community_health: Optional[int] = None
-    
+
     memory_available_mb: Optional[int] = None
     cpu_available: Optional[int] = None
     
     wisdom_source_available: Optional[str] = None
     wisdom_request: Optional[WisdomRequest] = None
-    
+
     telemetry: Optional[CompactTelemetry] = None
+
+    resources: Optional[ResourceSnapshot] = None
+    resource_actions_taken: Dict[str, int] = Field(default_factory=dict)
     
     model_config = ConfigDict(extra="allow")
 
