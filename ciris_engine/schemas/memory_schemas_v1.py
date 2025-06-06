@@ -8,6 +8,8 @@ class MemoryOpStatus(CaseInsensitiveEnum):
     OK = "ok"
     DEFERRED = "deferred"
     DENIED = "denied"
+    PENDING = "pending"
+    ERROR = "error"
 
 class MemoryOpAction(str, Enum):
     """Memory operation types."""
@@ -28,3 +30,4 @@ __all__ = [
     "MemoryOpAction",
     "MemoryOpResult",
 ]
+

@@ -24,6 +24,13 @@ class Priority(Enum):
     LOW = 3
     FALLBACK = 9
 
+
+class SelectionStrategy(Enum):
+    """Provider selection strategy within a priority group."""
+
+    FALLBACK = "fallback"  # First available
+    ROUND_ROBIN = "round_robin"  # Rotate providers
+
 @dataclass
 class ServiceProvider:
     """Represents a registered service provider with metadata"""
@@ -33,6 +40,8 @@ class ServiceProvider:
     capabilities: List[str]
     circuit_breaker: Optional[CircuitBreaker] = None
     metadata: Optional[Dict[str, Any]] = None
+    priority_group: int = 0
+    strategy: SelectionStrategy = SelectionStrategy.FALLBACK
 
 class HealthCheckProtocol(Protocol):
     """Protocol for services that support health checking"""
@@ -52,6 +61,7 @@ class ServiceRegistry:
         self._providers: Dict[str, Dict[str, List[ServiceProvider]]] = {}
         self._circuit_breakers: Dict[str, CircuitBreaker] = {}
         self._global_services: Dict[str, List[ServiceProvider]] = {}
+        self._rr_state: Dict[str, int] = {}
         self._required_service_types: List[str] = required_services or [
             "communication",
             "memory",
@@ -60,14 +70,16 @@ class ServiceRegistry:
         ]
     
     def register(
-        self, 
-        handler: str, 
-        service_type: str, 
+        self,
+        handler: str,
+        service_type: str,
         provider: Any,
         priority: Priority = Priority.NORMAL,
         capabilities: Optional[List[str]] = None,
         circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        priority_group: int = 0,
+        strategy: SelectionStrategy = SelectionStrategy.FALLBACK,
     ) -> str:
         """
         Register a service provider for a specific handler.
@@ -101,7 +113,9 @@ class ServiceRegistry:
             instance=provider,
             capabilities=capabilities or [],
             circuit_breaker=circuit_breaker,
-            metadata=metadata or {}
+            metadata=metadata or {},
+            priority_group=priority_group,
+            strategy=strategy,
         )
         
         self._providers[handler][service_type].append(sp)
@@ -122,7 +136,9 @@ class ServiceRegistry:
         priority: Priority = Priority.NORMAL,
         capabilities: Optional[List[str]] = None,
         circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        priority_group: int = 0,
+        strategy: SelectionStrategy = SelectionStrategy.FALLBACK,
     ) -> str:
         """
         Register a global service provider available to all handlers.
@@ -153,7 +169,9 @@ class ServiceRegistry:
             instance=provider,
             capabilities=capabilities or [],
             circuit_breaker=circuit_breaker,
-            metadata=metadata or {}
+            metadata=metadata or {},
+            priority_group=priority_group,
+            strategy=strategy,
         )
         
         self._global_services[service_type].append(sp)
@@ -220,41 +238,76 @@ class ServiceRegistry:
         providers: List[ServiceProvider],
         required_capabilities: Optional[List[str]] = None
     ) -> Optional[Any]:
-        """Get service from a list of providers with health checking"""
-        for provider in providers:
-            # Check capabilities
-            if required_capabilities:
-                if not all(cap in provider.capabilities for cap in required_capabilities):
-                    logger.debug(f"Provider '{provider.name}' missing capabilities: "
-                               f"{set(required_capabilities) - set(provider.capabilities)}")
-                    continue
-            
-            # Check circuit breaker
-            if provider.circuit_breaker and not provider.circuit_breaker.is_available():
-                logger.debug(f"Provider '{provider.name}' circuit breaker is open")
+        """Get service from a list of providers with health checking and priority groups."""
+
+        # Group providers by priority group
+        grouped: Dict[int, List[ServiceProvider]] = {}
+        for p in providers:
+            grouped.setdefault(p.priority_group, []).append(p)
+
+        for group in sorted(grouped.keys()):
+            group_providers = sorted(grouped[group], key=lambda x: x.priority.value)
+            if not group_providers:
                 continue
-            
-            try:
-                # Quick health check if available
-                if hasattr(provider.instance, 'is_healthy'):
-                    if not await provider.instance.is_healthy():
-                        logger.debug(f"Provider '{provider.name}' failed health check")
-                        if provider.circuit_breaker:
-                            provider.circuit_breaker.record_failure()
-                        continue
-                
-                if provider.circuit_breaker:
-                    provider.circuit_breaker.record_success()
-                logger.debug(f"Selected provider '{provider.name}' with priority {provider.priority.name}")
-                return provider.instance
-                
-            except Exception as e:
-                logger.warning(f"Error checking provider '{provider.name}': {e}")
-                if provider.circuit_breaker:
-                    provider.circuit_breaker.record_failure()
-                continue
-        
+
+            strategy = group_providers[0].strategy
+
+            if strategy == SelectionStrategy.ROUND_ROBIN:
+                key = f"{group}:{group_providers[0].instance.__class__.__name__}"
+                idx = self._rr_state.get(key, 0)
+                for _ in range(len(group_providers)):
+                    provider = group_providers[idx]
+                    svc = await self._validate_provider(provider, required_capabilities)
+                    if svc is not None:
+                        self._rr_state[key] = (idx + 1) % len(group_providers)
+                        return svc
+                    idx = (idx + 1) % len(group_providers)
+            else:  # Fallback/first
+                for provider in group_providers:
+                    svc = await self._validate_provider(provider, required_capabilities)
+                    if svc is not None:
+                        return svc
+
         return None
+
+    async def _validate_provider(
+        self,
+        provider: ServiceProvider,
+        required_capabilities: Optional[List[str]] = None,
+    ) -> Optional[Any]:
+        """Validate provider availability and return instance if usable."""
+        if required_capabilities:
+            if not all(cap in provider.capabilities for cap in required_capabilities):
+                logger.debug(
+                    f"Provider '{provider.name}' missing capabilities: "
+                    f"{set(required_capabilities) - set(provider.capabilities)}"
+                )
+                return None
+
+        if provider.circuit_breaker and not provider.circuit_breaker.is_available():
+            logger.debug(f"Provider '{provider.name}' circuit breaker is open")
+            return None
+
+        try:
+            if hasattr(provider.instance, "is_healthy"):
+                if not await provider.instance.is_healthy():
+                    logger.debug(f"Provider '{provider.name}' failed health check")
+                    if provider.circuit_breaker:
+                        provider.circuit_breaker.record_failure()
+                    return None
+
+            if provider.circuit_breaker:
+                provider.circuit_breaker.record_success()
+            logger.debug(
+                f"Selected provider '{provider.name}' with priority {provider.priority.name}"
+            )
+            return provider.instance
+
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Error checking provider '{provider.name}': {e}")
+            if provider.circuit_breaker:
+                provider.circuit_breaker.record_failure()
+            return None
     
     def get_provider_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -286,6 +339,8 @@ class ServiceRegistry:
                     {
                         "name": p.name,
                         "priority": p.priority.name,
+                        "priority_group": p.priority_group,
+                        "strategy": p.strategy.value,
                         "capabilities": p.capabilities,
                         "metadata": p.metadata,
                         "circuit_breaker_state": p.circuit_breaker.state.value if p.circuit_breaker else None
@@ -301,6 +356,8 @@ class ServiceRegistry:
                 {
                     "name": p.name,
                     "priority": p.priority.name,
+                    "priority_group": p.priority_group,
+                    "strategy": p.strategy.value,
                     "capabilities": p.capabilities,
                     "metadata": p.metadata,
                     "circuit_breaker_state": p.circuit_breaker.state.value if p.circuit_breaker else None

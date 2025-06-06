@@ -338,8 +338,8 @@ CIRIS Agents are responsible for:
   `ciris_engine.config.config_manager.get_config()`.
 
 - After the setup script completes, the environment is locked down: only
-  packages listed in `requirements.txt` are available and network access is
-  disabled. Add new dependencies to that file and move on if you face issues testing
+  packages listed in `requirements.txt` are available. Add new dependencies to
+  that file and move on if you face issues testing
 
 - Each submodule under `ciris_engine/` should include a brief `README.md`
   describing its purpose and how to use it. Add one if it doesn't exist when
@@ -347,7 +347,7 @@ CIRIS Agents are responsible for:
 
 - Use `python main.py --help` to see the unified runtime options. The same flags
   map directly to runtime arguments (e.g., `--host`, `--port`, `--no-interactive`).
-  For offline tests pass `--mock-llm` to run without network access.
+  For offline tests pass `--mock-llm` to avoid calling external APIs.
 
 ## NOTES FOR CLAUDE
 

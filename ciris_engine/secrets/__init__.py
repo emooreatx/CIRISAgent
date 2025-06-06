@@ -11,15 +11,18 @@ Key components:
 - SecretTools: Agent tools for managing secrets
 """
 
-from .filter import SecretsFilter
-from .store import SecretsStore
+from .filter import SecretsFilter, SecretsFilterConfig, SecretPattern, DetectedSecret
+from .store import SecretsStore, SecretsEncryption, SecretRecord, SecretAccessLog
 from .service import SecretsService
-from .tools import RecallSecretTool, UpdateSecretsFilterTool
 
 __all__ = [
     "SecretsFilter",
-    "SecretsStore", 
+    "SecretsFilterConfig", 
+    "SecretPattern",
+    "DetectedSecret",
+    "SecretsStore",
+    "SecretsEncryption",
+    "SecretRecord", 
+    "SecretAccessLog",
     "SecretsService",
-    "RecallSecretTool",
-    "UpdateSecretsFilterTool",
 ]

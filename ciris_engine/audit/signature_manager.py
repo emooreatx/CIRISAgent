@@ -36,6 +36,8 @@ class AuditSignatureManager:
         
     def initialize(self) -> None:
         """Initialize the signature manager by loading or generating keys"""
+        if self.key_path == Path("/") or not os.access(self.key_path, os.W_OK):
+            raise PermissionError(f"Key path {self.key_path} is not writable")
         try:
             self._load_or_generate_keys()
             self._register_public_key()
@@ -214,7 +216,7 @@ class AuditSignatureManager:
                 if not public_key:
                     logger.error(f"Public key not found: {key_id}")
                     return False
-            
+
             if not public_key:
                 logger.error("No public key available for verification")
                 return False

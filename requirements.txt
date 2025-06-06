@@ -28,3 +28,4 @@ streamlit-shadcn-ui
 mypy
 # CIRIS MyPy Toolkit dependencies
 astunparse
+psutil>=5.9

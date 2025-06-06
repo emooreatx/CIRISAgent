@@ -51,6 +51,7 @@ from ciris_engine.guardrails import (
     OptimizationVetoGuardrail,
     EpistemicHumilityGuardrail,
 )
+from ciris_engine.telemetry import TelemetryService, SecurityFilter
 
 from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
 
@@ -186,7 +187,16 @@ class CIRISRuntime(RuntimeInterface):
         )
         
         config = self._ensure_config()
-        self.llm_service = OpenAICompatibleLLM(config.llm_services)
+        
+        # Initialize telemetry service first so other services can use it
+        self.telemetry_service = TelemetryService(
+            buffer_size=1000,
+            security_filter=SecurityFilter()
+        )
+        await self.telemetry_service.start()
+        
+        # Initialize LLM service with telemetry
+        self.llm_service = OpenAICompatibleLLM(config.llm_services, telemetry_service=self.telemetry_service)
         await self.llm_service.start()
         
         self.memory_service = LocalGraphMemoryService()
@@ -315,7 +325,8 @@ class CIRISRuntime(RuntimeInterface):
         context_builder = ContextBuilder(
             memory_service=self.memory_service,
             graphql_provider=graphql_provider,
-            app_config=self.app_config
+            app_config=self.app_config,
+            telemetry_service=self.telemetry_service
         )
         
         guardrail_orchestrator = GuardrailOrchestrator(guardrail_registry)
@@ -345,7 +356,8 @@ class CIRISRuntime(RuntimeInterface):
             context_builder,
             guardrail_orchestrator,
             self.app_config,
-            dependencies
+            dependencies,
+            telemetry_service=self.telemetry_service
         )
         
         action_dispatcher = await self._build_action_dispatcher(dependencies)
@@ -402,6 +414,15 @@ class CIRISRuntime(RuntimeInterface):
                 capabilities=["log_action", "get_audit_trail"]
             )
 
+        # Register telemetry service globally for all handlers and components
+        if self.telemetry_service:
+            self.service_registry.register_global(
+                service_type="telemetry",
+                provider=self.telemetry_service,
+                priority=Priority.HIGH,
+                capabilities=["record_metric", "update_system_snapshot"]
+            )
+        
         # Register LLM service globally so processors and DMAs can fetch it
         if self.llm_service:
             self.service_registry.register_global(
@@ -421,6 +442,7 @@ class CIRISRuntime(RuntimeInterface):
             service_registry=self.service_registry,
             shutdown_callback=dependencies.shutdown_callback,
             max_rounds=config.workflow.max_rounds,
+            telemetry_service=self.telemetry_service,
         )
         
     async def run(self, num_rounds: Optional[int] = None) -> None:
@@ -503,6 +525,7 @@ class CIRISRuntime(RuntimeInterface):
             self.llm_service,
             self.memory_service,
             self.audit_service,
+            self.telemetry_service,
             self.maintenance_service,
         ]
         

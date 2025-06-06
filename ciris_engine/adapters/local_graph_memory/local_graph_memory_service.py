@@ -16,6 +16,7 @@ from ciris_engine.schemas.graph_schemas_v1 import (
 )
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus, MemoryOpResult
 from ciris_engine.adapters.base import Service
+from ciris_engine.secrets.service import SecretsService
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +24,11 @@ logger = logging.getLogger(__name__)
 class LocalGraphMemoryService(Service):
     """Graph memory backed by the persistence database."""
 
-    def __init__(self, db_path: Optional[str] = None) -> None:
+    def __init__(self, db_path: Optional[str] = None, secrets_service: Optional[SecretsService] = None) -> None:
         super().__init__()
         self.db_path = db_path or get_sqlite_db_full_path()
         initialize_database(db_path=self.db_path)
+        self.secrets_service = secrets_service or SecretsService(db_path=self.db_path.replace('.db', '_secrets.db'))
 
     async def start(self) -> None:
         await super().start()
@@ -35,26 +37,38 @@ class LocalGraphMemoryService(Service):
         await super().stop()
 
     async def memorize(self, node: GraphNode, *args, **kwargs) -> MemoryOpResult:
-        """Store a node. Only accepts GraphNode as input."""
+        """Store a node with automatic secrets detection and processing."""
         try:
-            persistence.add_graph_node(node, db_path=self.db_path)
+            # Process secrets in node attributes before storing
+            processed_node = await self._process_secrets_for_memorize(node)
+            
+            persistence.add_graph_node(processed_node, db_path=self.db_path)
             return MemoryOpResult(status=MemoryOpStatus.OK)
         except Exception as e:
             logger.exception("Error storing node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
     async def recall(self, node: GraphNode) -> MemoryOpResult:
+        """Recall a node with automatic secrets decryption if needed."""
         try:
             stored = persistence.get_graph_node(node.id, node.scope, db_path=self.db_path)
             if stored:
-                return MemoryOpResult(status=MemoryOpStatus.OK, data=stored.attributes)
+                # Process secrets in recalled data
+                processed_data = await self._process_secrets_for_recall(stored.attributes, "recall")
+                return MemoryOpResult(status=MemoryOpStatus.OK, data=processed_data)
             return MemoryOpResult(status=MemoryOpStatus.OK, data=None)
         except Exception as e:
             logger.exception("Error recalling node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
     async def forget(self, node: GraphNode) -> MemoryOpResult:
+        """Forget a node and clean up any associated secrets."""
         try:
+            # First retrieve the node to check for secrets
+            stored = persistence.get_graph_node(node.id, node.scope, db_path=self.db_path)
+            if stored:
+                await self._process_secrets_for_forget(stored.attributes)
+            
             persistence.delete_graph_node(node.id, node.scope, db_path=self.db_path)
             return MemoryOpResult(status=MemoryOpStatus.OK)
         except Exception as e:
@@ -184,5 +198,85 @@ class LocalGraphMemoryService(Service):
             if node["type"] != NodeType.CONCEPT:
                 return False
         return True
+
+    async def _process_secrets_for_memorize(self, node: GraphNode) -> GraphNode:
+        """Process secrets in node attributes during memorization."""
+        if not node.attributes:
+            return node
+        
+        # Convert attributes to JSON string for processing
+        attributes_str = json.dumps(node.attributes)
+        
+        # Process for secrets detection and replacement
+        processed_text, secret_refs = await self.secrets_service.process_incoming_text(
+            attributes_str,
+            source_context={
+                "operation": "memorize",
+                "node_id": node.id,
+                "scope": node.scope.value
+            }
+        )
+        
+        # Create new node with processed attributes
+        processed_attributes = json.loads(processed_text) if processed_text != attributes_str else node.attributes
+        
+        # Add secret references to node metadata if any were found
+        if secret_refs:
+            processed_attributes.setdefault("_secret_refs", []).extend([ref.secret_uuid for ref in secret_refs])
+            logger.info(f"Stored {len(secret_refs)} secret references in memory node {node.id}")
+        
+        return GraphNode(
+            id=node.id,
+            type=node.type,
+            scope=node.scope,
+            attributes=processed_attributes
+        )
+
+    async def _process_secrets_for_recall(self, attributes: Dict[str, Any], action_type: str) -> Dict[str, Any]:
+        """Process secrets in recalled attributes for potential decryption."""
+        if not attributes:
+            return attributes
+        
+        # Check if there are secret references in the attributes
+        secret_refs = attributes.get("_secret_refs", [])
+        if not secret_refs:
+            return attributes
+        
+        # Auto-decrypt secrets if the action type allows it
+        should_decrypt = self.secrets_service.filter.config.should_auto_decrypt(action_type)
+        
+        if should_decrypt:
+            # Convert to JSON for processing
+            attributes_str = json.dumps(attributes)
+            
+            # Attempt to decapsulate secrets
+            decapsulated_text = await self.secrets_service.decapsulate_secrets(
+                attributes_str,
+                action_type=action_type,
+                context={
+                    "operation": "recall", 
+                    "auto_decrypt": True
+                }
+            )
+            
+            if decapsulated_text != attributes_str:
+                logger.info(f"Auto-decrypted secrets in recalled data for {action_type}")
+                return json.loads(decapsulated_text)
+        
+        return attributes
+
+    async def _process_secrets_for_forget(self, attributes: Dict[str, Any]) -> None:
+        """Clean up secrets when forgetting a node."""
+        if not attributes:
+            return
+        
+        # Check for secret references
+        secret_refs = attributes.get("_secret_refs", [])
+        if secret_refs:
+            # Note: We don't automatically delete secrets on FORGET since they might be
+            # referenced elsewhere. This would need to be a conscious decision by the agent.
+            logger.info(f"Node being forgotten contained {len(secret_refs)} secret references")
+            
+            # Could implement reference counting here in the future if needed
 
 

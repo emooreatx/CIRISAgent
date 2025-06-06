@@ -156,6 +156,13 @@ class BaseActionHandler(ABC):
             "tool",
             required_capabilities=["execute_tool"]
         )
+    
+    async def get_telemetry_service(self) -> Optional[Any]:
+        """Get telemetry service if available"""
+        return await self.dependencies.get_service(
+            self.__class__.__name__,
+            "telemetry"
+        )
 
     def get_multi_service_sink(self) -> Optional[Any]:
         """Get multi-service sink from dependencies."""

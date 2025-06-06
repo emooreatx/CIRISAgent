@@ -18,12 +18,14 @@ logger = logging.getLogger(__name__)
 class OpenAICompatibleClient(Service):
     """Client for interacting with OpenAI-compatible APIs."""
 
-    def __init__(self, config: Optional[OpenAIConfig] = None) -> None:
+    def __init__(self, config: Optional[OpenAIConfig] = None, telemetry_service: Optional[Any] = None) -> None:
         if config is None:
             app_cfg = get_config()
             self.openai_config = app_cfg.llm_services.openai
         else:
             self.openai_config = config
+        
+        self.telemetry_service = telemetry_service
 
         # Set up retry configuration specifically for OpenAI API calls
         retry_config = {
@@ -128,6 +130,12 @@ class OpenAICompatibleClient(Service):
             usage_obj = ResourceUsage(
                 tokens=getattr(usage, "total_tokens", 0)
             )
+            
+            # Record token usage in telemetry
+            if self.telemetry_service and usage_obj.tokens > 0:
+                await self.telemetry_service.record_metric("llm_tokens_used", usage_obj.tokens)
+                await self.telemetry_service.record_metric("llm_api_call")
+            
             content = response.choices[0].message.content
             return (content.strip() if content else "", usage_obj)
             
@@ -161,6 +169,12 @@ class OpenAICompatibleClient(Service):
             usage_obj = ResourceUsage(
                 tokens=getattr(usage, "total_tokens", 0)
             )
+            
+            # Record token usage in telemetry
+            if self.telemetry_service and usage_obj.tokens > 0:
+                await self.telemetry_service.record_metric("llm_tokens_used", usage_obj.tokens)
+                await self.telemetry_service.record_metric("llm_api_call_structured")
+            
             return response, usage_obj
             
         # Use base class retry with OpenAI-specific error handling
@@ -173,7 +187,7 @@ class OpenAICompatibleClient(Service):
 class OpenAICompatibleLLM(Service):
     """Adapter that exposes an OpenAICompatibleClient through the Service interface."""
 
-    def __init__(self, llm_config: Optional[LLMServicesConfig] = None) -> None:
+    def __init__(self, llm_config: Optional[LLMServicesConfig] = None, telemetry_service: Optional[Any] = None) -> None:
         retry_config = {
             "retry": {
                 "global": {
@@ -191,6 +205,7 @@ class OpenAICompatibleLLM(Service):
         }
         super().__init__(config=retry_config)
         self.llm_config = llm_config
+        self.telemetry_service = telemetry_service
         self._client: Optional[OpenAICompatibleClient] = None
 
     async def start(self) -> None:
@@ -198,7 +213,7 @@ class OpenAICompatibleLLM(Service):
         openai_conf: Optional[OpenAIConfig] = None
         if self.llm_config:
             openai_conf = self.llm_config.openai
-        self._client = OpenAICompatibleClient(config=openai_conf)
+        self._client = OpenAICompatibleClient(config=openai_conf, telemetry_service=self.telemetry_service)
 
     async def stop(self) -> None:
         self._client = None
