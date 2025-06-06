@@ -20,6 +20,9 @@ class ActionType(Enum):
     SEND_TOOL = "send_tool"
     FETCH_TOOL = "fetch_tool"
     OBSERVE_MESSAGE = "observe_message"
+    # LLM Actions
+    GENERATE_RESPONSE = "generate_response"
+    GENERATE_STRUCTURED = "generate_structured"
 
 
 
@@ -143,6 +146,38 @@ class ObserveMessageAction(ActionMessage):
     def __init__(self, handler_name: str, metadata: Dict[str, Any], message: IncomingMessage) -> None:
         super().__init__(ActionType.OBSERVE_MESSAGE, handler_name, metadata)
         self.message = message
+
+
+@dataclass
+class GenerateResponseAction(ActionMessage):
+    """Action to generate a raw text response via LLM service"""
+    messages: list
+    max_tokens: int = 1024
+    temperature: float = 0.7
+    
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], messages: list, 
+                 max_tokens: int = 1024, temperature: float = 0.7) -> None:
+        super().__init__(ActionType.GENERATE_RESPONSE, handler_name, metadata)
+        self.messages = messages
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+
+
+@dataclass  
+class GenerateStructuredAction(ActionMessage):
+    """Action to generate a structured response via LLM service"""
+    messages: list
+    response_model: Any
+    max_tokens: int = 1024
+    temperature: float = 0.0
+    
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], messages: list, 
+                 response_model: Any, max_tokens: int = 1024, temperature: float = 0.0) -> None:
+        super().__init__(ActionType.GENERATE_STRUCTURED, handler_name, metadata)
+        self.messages = messages
+        self.response_model = response_model
+        self.max_tokens = max_tokens
+        self.temperature = temperature
 
 
 DeferralMessage = SendDeferralAction

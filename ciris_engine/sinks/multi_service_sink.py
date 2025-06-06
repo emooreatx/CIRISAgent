@@ -22,6 +22,8 @@ from ciris_engine.schemas.service_actions_v1 import (
     ForgetAction,
     SendToolAction,
     FetchToolAction,
+    GenerateResponseAction,
+    GenerateStructuredAction,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
 from ..protocols.services import (
@@ -29,6 +31,7 @@ from ..protocols.services import (
     WiseAuthorityService,
     MemoryService,
     ToolService,
+    LLMService,
 )
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult
@@ -64,6 +67,8 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FORGET: 'memory',
             ActionType.SEND_TOOL: 'tool',
             ActionType.FETCH_TOOL: 'tool',
+            ActionType.GENERATE_RESPONSE: 'llm',
+            ActionType.GENERATE_STRUCTURED: 'llm',
             # Note: OBSERVE_MESSAGE removed - observation handled at adapter level
         }
     
@@ -80,6 +85,8 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FORGET: ['forget'],
             ActionType.SEND_TOOL: ['execute_tool'],
             ActionType.FETCH_TOOL: ['get_tool_result'],
+            ActionType.GENERATE_RESPONSE: ['generate_response'],
+            ActionType.GENERATE_STRUCTURED: ['generate_structured_response'],
         }
 
     async def _validate_action(self, action: ActionMessage) -> bool:
@@ -119,6 +126,10 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 await self._handle_send_tool(service, action)
             elif action_type == ActionType.FETCH_TOOL:
                 await self._handle_fetch_tool(service, action)
+            elif action_type == ActionType.GENERATE_RESPONSE:
+                await self._handle_generate_response(service, action)
+            elif action_type == ActionType.GENERATE_STRUCTURED:
+                await self._handle_generate_structured(service, action)
             else:
                 logger.error(f"No handler for action type: {action_type}")
                 
@@ -216,6 +227,95 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         except Exception as e:
             logger.error(f"Error fetching tool result for {action.correlation_id}: {e}")
             raise
+
+    async def _handle_generate_response(self, service: LLMService, action: GenerateResponseAction) -> str:
+        """Handle generate response action with filter integration"""
+        try:
+            # Generate response using LLM service
+            response = await service.generate_response(
+                messages=action.messages,
+                temperature=action.temperature,
+                max_tokens=action.max_tokens
+            )
+            
+            # Apply filtering to LLM response
+            filter_service = await self._get_filter_service()
+            if filter_service:
+                from ciris_engine.schemas.filter_schemas_v1 import FilterPriority
+                filter_result = await filter_service.filter_message(
+                    response,
+                    adapter_type="llm",
+                    is_llm_response=True
+                )
+                
+                if filter_result.priority == FilterPriority.CRITICAL:
+                    # Block critical responses and record circuit breaker failure
+                    logger.error(f"LLM response blocked by security filter: {filter_result.reasoning}")
+                    raise RuntimeError(f"LLM response blocked: {filter_result.reasoning}")
+                elif filter_result.priority == FilterPriority.HIGH:
+                    logger.warning(f"Suspicious LLM response: {filter_result.reasoning}")
+            
+            logger.info(f"Generated LLM response via {type(service).__name__}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating LLM response: {e}")
+            raise
+
+    async def _handle_generate_structured(self, service: LLMService, action: GenerateStructuredAction) -> Dict[str, Any]:
+        """Handle generate structured response action with filter integration"""
+        try:
+            # Convert response_model to schema if it's a Pydantic model
+            if hasattr(action.response_model, '__pydantic_json_schema__'):
+                response_schema = action.response_model.__pydantic_json_schema__()
+            else:
+                response_schema = action.response_model
+            
+            # Generate structured response using LLM service  
+            response = await service.generate_structured_response(
+                messages=action.messages,
+                response_schema=response_schema
+            )
+            
+            # Apply filtering to structured LLM response
+            filter_service = await self._get_filter_service()
+            if filter_service:
+                from ciris_engine.schemas.filter_schemas_v1 import FilterPriority
+                # Convert structured response to string for filtering
+                import json
+                response_str = json.dumps(response) if isinstance(response, dict) else str(response)
+                
+                filter_result = await filter_service.filter_message(
+                    response_str,
+                    adapter_type="llm",
+                    is_llm_response=True
+                )
+                
+                if filter_result.priority == FilterPriority.CRITICAL:
+                    logger.error(f"Structured LLM response blocked by security filter: {filter_result.reasoning}")
+                    raise RuntimeError(f"Structured LLM response blocked: {filter_result.reasoning}")
+                elif filter_result.priority == FilterPriority.HIGH:
+                    logger.warning(f"Suspicious structured LLM response: {filter_result.reasoning}")
+            
+            logger.info(f"Generated structured LLM response via {type(service).__name__}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating structured LLM response: {e}")
+            raise
+
+    async def _get_filter_service(self):
+        """Get the adaptive filter service for LLM response filtering"""
+        if self.service_registry:
+            try:
+                return await self.service_registry.get_service(
+                    handler="llm", 
+                    service_type="filter"
+                )
+            except Exception as e:
+                logger.warning(f"Could not get filter service: {e}")
+                return None
+        return None
 
     
     # Convenience methods for common actions
@@ -394,6 +494,56 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 return None
         except Exception as e:
             logger.error(f"Error in get_tool_result_sync: {e}")
+            raise
+
+    # LLM convenience methods
+    async def generate_response_sync(self, messages: list, handler_name: str = "llm", 
+                                   max_tokens: int = 1024, temperature: float = 0.7,
+                                   metadata: Optional[Dict] = None) -> Optional[str]:
+        """Convenience method to generate LLM response synchronously with filtering"""
+        try:
+            action = GenerateResponseAction(
+                handler_name=handler_name,
+                metadata=metadata or {},
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            
+            service = await self._get_service('llm', action)
+            if service:
+                result = await self._handle_generate_response(service, action)
+                return result
+            else:
+                logger.warning(f"No LLM service available for generate_response_sync")
+                return None
+        except Exception as e:
+            logger.error(f"Error in generate_response_sync: {e}")
+            raise
+
+    async def generate_structured_sync(self, messages: list, response_model: Any, 
+                                     handler_name: str = "llm", max_tokens: int = 1024, 
+                                     temperature: float = 0.0, metadata: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
+        """Convenience method to generate structured LLM response synchronously with filtering"""
+        try:
+            action = GenerateStructuredAction(
+                handler_name=handler_name,
+                metadata=metadata or {},
+                messages=messages,
+                response_model=response_model,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            
+            service = await self._get_service('llm', action)
+            if service:
+                result = await self._handle_generate_structured(service, action)
+                return result
+            else:
+                logger.warning(f"No LLM service available for generate_structured_sync")
+                return None
+        except Exception as e:
+            logger.error(f"Error in generate_structured_sync: {e}")
             raise
 
     # Existing convenience methods...
