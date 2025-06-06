@@ -9,6 +9,7 @@ from .network_schemas_v1 import NetworkType, AgentIdentity, NetworkPresence
 from .community_schemas_v1 import CommunityHealth, MinimalCommunityContext
 from .wisdom_schemas_v1 import WisdomSource, WisdomRequest, UniversalGuidanceProtocol
 from .telemetry_schemas_v1 import ResourceMetrics, CompactTelemetry
+from .graph_schemas_v1 import ConfigNodeType, CONFIG_SCOPE_MAP
 
 __all__ = [
     'Task', 'Thought',
@@ -30,5 +31,6 @@ __all__ = [
     'WisdomSource', 'WisdomRequest', 'UniversalGuidanceProtocol',
     
     'ResourceMetrics', 'CompactTelemetry',
+    'ConfigNodeType', 'CONFIG_SCOPE_MAP',
 ]
 
