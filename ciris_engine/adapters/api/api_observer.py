@@ -41,14 +41,21 @@ class APIObserver:
         if not isinstance(msg, IncomingMessage):
             logger.warning("APIObserver received non-IncomingMessage")
             return
-        if self.agent_id and msg.author_id == self.agent_id:
-            logger.debug("Ignoring self message %s", msg.message_id)
-            return
         
-        # Process message for secrets detection and replacement
+        # Check if this is the agent's own message
+        is_agent_message = self.agent_id and msg.author_id == self.agent_id
+        
+        # Process message for secrets detection and replacement (for all messages)
         processed_msg = await self._process_message_secrets(msg)
         
+        # Add ALL messages to history (including agent's own)
         self._history.append(processed_msg)
+        
+        # If it's the agent's message, stop here (no task creation)
+        if is_agent_message:
+            logger.debug("Added agent's own message %s to history (no task created)", msg.message_id)
+            return
+        
         await self._handle_passive_observation(processed_msg)
         await self._recall_context(processed_msg)
 

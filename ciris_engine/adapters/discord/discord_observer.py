@@ -56,11 +56,22 @@ class DiscordObserver:
         if not isinstance(msg, DiscordMessage):
             logger.warning("DiscordObserver received non-DiscordMessage")
             return
-        if self.agent_id and msg.author_id == self.agent_id:
-            logger.debug("Ignoring self message %s", msg.message_id)
-            return
         if self.monitored_channel_id and msg.channel_id != self.monitored_channel_id:
             logger.debug("Ignoring message from channel %s (not monitored)", msg.channel_id)
+            return
+        
+        # Check if this is the agent's own message
+        is_agent_message = self.agent_id and msg.author_id == self.agent_id
+        
+        # Process message for secrets detection and replacement (for all messages)
+        processed_msg = await self._process_message_secrets(msg)
+        
+        # Add ALL messages to history (including agent's own)
+        self._history.append(processed_msg)
+        
+        # If it's the agent's message, stop here (no task creation)
+        if is_agent_message:
+            logger.debug("Added agent's own message %s to history (no task created)", msg.message_id)
             return
         
         # Apply adaptive filtering to determine message priority and processing
@@ -69,15 +80,10 @@ class DiscordObserver:
             logger.debug(f"Message {msg.message_id} filtered out: {filter_result.reasoning}")
             return
         
-        # Process message for secrets detection and replacement
-        processed_msg = await self._process_message_secrets(msg)
-        
         # Add filter context to message for downstream processing
         processed_msg._filter_priority = filter_result.priority
         processed_msg._filter_context = filter_result.context_hints
         processed_msg._filter_reasoning = filter_result.reasoning
-        
-        self._history.append(processed_msg)
         
         # Process based on priority
         if filter_result.priority.value in ['critical', 'high']:
@@ -184,7 +190,7 @@ class DiscordObserver:
         deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
         wa_discord_user = DEFAULT_WA
         
-        if msg.channel_id == default_channel_id and not self._is_agent_message(msg):
+        if msg.channel_id == default_channel_id:
             # Create high-priority observation with enhanced context
             await self._create_priority_observation_result(msg, filter_result)
         elif msg.channel_id == deferral_channel_id and msg.author_name == wa_discord_user:
@@ -202,17 +208,13 @@ class DiscordObserver:
         default_channel_id = get_config().discord_channel_id
         deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
         wa_discord_user = DEFAULT_WA
-        if msg.channel_id == default_channel_id and not self._is_agent_message(msg):
+        if msg.channel_id == default_channel_id:
             await self._create_passive_observation_result(msg)
         elif msg.channel_id == deferral_channel_id and msg.author_name == wa_discord_user:
             await self._add_to_feedback_queue(msg)
         else:
             logger.debug("Ignoring message from channel %s, author %s", msg.channel_id, msg.author_name)
 
-    def _is_agent_message(self, msg: DiscordMessage) -> bool:
-        if self.agent_id and msg.author_id == self.agent_id:
-            return True
-        return msg.is_bot
 
     async def _create_passive_observation_result(self, msg: DiscordMessage) -> None:
         """Create task and thought for passive observation."""
