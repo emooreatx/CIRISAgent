@@ -234,6 +234,7 @@ class CIRISRuntime(RuntimeInterface):
         self.secrets_service = SecretsService(
             db_path=getattr(config.secrets, 'db_path', 'secrets.db') if hasattr(config, 'secrets') else 'secrets.db'
         )
+        await self.secrets_service.start()
         
         # Initialize adaptive filter service
         self.adaptive_filter_service = AdaptiveFilterService(
@@ -252,8 +253,7 @@ class CIRISRuntime(RuntimeInterface):
         
         # Initialize transaction orchestrator
         self.transaction_orchestrator = MultiServiceTransactionOrchestrator(
-            service_registry=self.service_registry,
-            action_sink=self.multi_service_sink
+            service_registry=self.service_registry
         )
         await self.transaction_orchestrator.start()
         

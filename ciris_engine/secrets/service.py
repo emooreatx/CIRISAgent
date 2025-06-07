@@ -478,3 +478,15 @@ class SecretsService(SecretsServiceInterface):
         except Exception as e:
             logger.error(f"Failed to get service stats: {e}")
             return {"error": str(e)}
+    
+    async def start(self) -> None:
+        """Start the secrets service."""
+        logger.info("SecretsService started")
+        
+    async def stop(self) -> None:
+        """Stop the secrets service and clean up resources."""
+        # Auto-forget any remaining task secrets
+        if self._auto_forget_enabled and self._current_task_secrets:
+            logger.info(f"Auto-forgetting {len(self._current_task_secrets)} task secrets on shutdown")
+            await self.auto_forget_task_secrets()
+        logger.info("SecretsService stopped")
