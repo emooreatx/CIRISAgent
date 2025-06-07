@@ -253,7 +253,8 @@ class CIRISRuntime(RuntimeInterface):
         
         # Initialize transaction orchestrator
         self.transaction_orchestrator = MultiServiceTransactionOrchestrator(
-            service_registry=self.service_registry
+            service_registry=self.service_registry,
+            action_sink=self.multi_service_sink
         )
         await self.transaction_orchestrator.start()
         
