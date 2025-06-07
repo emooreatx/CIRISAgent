@@ -86,9 +86,15 @@ async def run_with_shutdown_handler(runtime: CIRISRuntime) -> None:
 
     run_task = asyncio.create_task(runtime.run())
     await stop_event.wait()
-    run_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
+    
+    # Signal shutdown via the runtime's method instead of cancelling
+    runtime.request_shutdown("Interrupt signal received")
+    
+    # Wait for the task to complete naturally
+    try:
         await run_task
+    except asyncio.CancelledError:
+        pass
 
 
 async def load_config(config_path: Optional[str]) -> AppConfig:
