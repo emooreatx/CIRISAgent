@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ciris_engine.action_handlers.defer_handler import DeferHandler
 from ciris_engine.schemas.action_params_v1 import DeferParams, MemorizeParams
@@ -10,7 +10,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, Thou
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
-now = datetime.utcnow()
+now = datetime.now(timezone.utc)
 
 @pytest.mark.asyncio
 async def test_defer_handler_schema_driven(monkeypatch):

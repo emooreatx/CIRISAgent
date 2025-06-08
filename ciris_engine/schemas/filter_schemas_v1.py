@@ -7,7 +7,7 @@ with graph memory persistence and self-configuration support.
 
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any, Pattern
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import re
 
@@ -47,7 +47,7 @@ class FilterTrigger(BaseModel):
     true_positive_count: int = 0
     false_positive_count: int = 0
     last_triggered: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = Field(default="system")
     
     # For learned patterns
@@ -108,7 +108,7 @@ class FilterResult(BaseModel):
 
 class AdaptiveFilterConfig(BaseModel):
     """Complete filter configuration stored in graph memory"""
-    config_id: str = Field(default_factory=lambda: f"filter_config_{datetime.utcnow().timestamp()}")
+    config_id: str = Field(default_factory=lambda: f"filter_config_{datetime.now(timezone.utc).timestamp()}")
     version: int = 1
     
     # Core attention triggers (agent always sees these)
@@ -147,7 +147,7 @@ class FilterStats(BaseModel):
     by_trigger_type: Dict[TriggerType, int] = Field(default_factory=dict)
     false_positive_reports: int = 0
     true_positive_confirmations: int = 0
-    last_reset: datetime = Field(default_factory=datetime.utcnow)
+    last_reset: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FilterHealth(BaseModel):
@@ -157,4 +157,4 @@ class FilterHealth(BaseModel):
     errors: List[str] = Field(default_factory=list)
     stats: FilterStats = Field(default_factory=FilterStats)
     config_version: int = 1
-    last_updated: datetime = Field(default_factory=datetime.utcnow)
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

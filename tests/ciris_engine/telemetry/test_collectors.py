@@ -1,7 +1,7 @@
 """Tests for telemetry collectors."""
 import asyncio
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, AsyncMock
 
 from ciris_engine.telemetry.collectors import (
@@ -28,7 +28,7 @@ class MockTestCollector(BaseCollector):
         return [MetricData(
             name="test_metric",
             value=1.0,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             tags={"test": "true"}
         )]
         
@@ -61,7 +61,7 @@ async def test_collector_rate_limiting():
     class HighVolumeCollector(BaseCollector):
         async def collect_raw_metrics(self):
             # Return more metrics than allowed
-            return [MetricData(f"metric_{i}", float(i), datetime.utcnow(), {}) 
+            return [MetricData(f"metric_{i}", float(i), datetime.now(timezone.utc), {})
                    for i in range(20)]
         
         async def process_metrics(self, metrics):
@@ -164,9 +164,9 @@ async def test_aggregate_collector():
     telemetry_service = AsyncMock()
     telemetry_service._history = {
         "test_metric": [
-            (datetime.utcnow(), 1.0),
-            (datetime.utcnow(), 2.0),
-            (datetime.utcnow(), 3.0)
+            (datetime.now(timezone.utc), 1.0),
+            (datetime.now(timezone.utc), 2.0),
+            (datetime.now(timezone.utc), 3.0)
         ]
     }
     audit_service = AsyncMock()
@@ -233,9 +233,9 @@ async def test_security_filtering():
             
         async def collect_raw_metrics(self):
             return [
-                MetricData("test_metric", 5.0, datetime.utcnow(), {}),  # Should pass
-                MetricData("test_metric", 15.0, datetime.utcnow(), {}),  # Should be blocked by bounds
-                MetricData("error_metric", "user@example.com error", datetime.utcnow(), {}),  # Should be blocked by PII
+                MetricData("test_metric", 5.0, datetime.now(timezone.utc), {}),  # Should pass
+                MetricData("test_metric", 15.0, datetime.now(timezone.utc), {}),  # Should be blocked by bounds
+                MetricData("error_metric", "user@example.com error", datetime.now(timezone.utc), {}),  # Should be blocked by PII
             ]
             
         async def process_metrics(self, metrics):
@@ -252,7 +252,7 @@ async def test_security_filtering():
 
 def test_metric_data():
     """Test MetricData structure."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     metric = MetricData(
         name="test_metric",
         value=42.0,

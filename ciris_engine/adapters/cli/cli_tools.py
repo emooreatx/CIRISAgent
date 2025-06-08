@@ -1,7 +1,7 @@
 import os
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
 from ciris_engine.schemas.correlation_schemas_v1 import (
@@ -34,8 +34,8 @@ class CLIToolService(ToolService):
             action_type=tool_name,
             request_data=parameters,
             status=ServiceCorrelationStatus.PENDING,
-            created_at=datetime.utcnow().isoformat(),
-            updated_at=datetime.utcnow().isoformat(),
+            created_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
         )
         persistence.add_correlation(corr)
 
