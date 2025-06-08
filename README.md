@@ -2,61 +2,65 @@
 
 # CIRIS Engine (CIRISAgent)
 
-> Advanced multi-service AI agent runtime with enterprise security and sophisticated reasoning capabilities.
-> Status: **BETA — Core architecture stable, advanced features in active development**
+> **A moral reasoning agent capable of ethical self-reflection, autonomous decision-making, and principled action across diverse environments.**
+
+⚠️ **BETA SOFTWARE**: CIRIS is experimental software under active development. While the core ethical reasoning architecture is stable, advanced features are evolving. Not recommended for production use without thorough testing and oversight. See [CIS.md](CIS.md) for creator intent and risk assessment.
 
 ---
 
 ## Overview
 
-**CIRIS Engine** is a sophisticated Python-based runtime environment designed for autonomous AI agents that require advanced reasoning, multi-platform deployment, and enterprise-grade security. The system provides a comprehensive framework for intelligent decision-making, secure operations, and adaptive behavior across diverse environments.
+**CIRIS Engine** is a moral reasoning agent that embodies the [CIRIS Covenant](covenant_1.0b.txt) — a comprehensive ethical framework for autonomous systems. Built on the principle of "adaptive coherence," CIRIS demonstrates how AI agents can engage in principled self-reflection, ethical decision-making, and responsible action while maintaining transparency and human oversight.
 
-### Core Architecture
+Unlike traditional AI systems that follow rigid rules, CIRIS employs sophisticated **ethical reasoning algorithms** that evaluate moral implications, consider stakeholder impacts, and defer to human wisdom when facing complex dilemmas. The system is designed to be a trustworthy partner in decision-making rather than a mere tool.
 
-CIRIS Engine processes "thoughts" (inputs or internal states) through sophisticated **Decision Making Algorithms (DMAs)**:
+### Moral Reasoning Architecture
 
-- **Ethical PDMA (Principled Decision-Making Algorithm)**: Evaluates ethical implications and alignment
-- **CSDMA (Common Sense DMA)**: Assesses plausibility, clarity, and logical consistency  
-- **DSDMA (Domain-Specific DMA)**: Applies specialized knowledge and context-aware reasoning
-- **Action Selection PDMA**: Determines optimal actions through intelligent 3×3×3 action space selection
+CIRIS processes every input through a multi-layered **ethical reasoning pipeline** that embodies the principles of the CIRIS Covenant:
 
-The system supports **agent profiles** with customizable behavior, prompting, and specialized DSDMAs for different roles (student, teacher, security analyst, etc.), enabling tailored reasoning processes for specific domains and use cases.
+- **Ethical PDMA**: Applies foundational principles (beneficence, non-maleficence, justice, autonomy)
+- **Common Sense Evaluation**: Ensures coherence and plausibility in reasoning
+- **Domain-Specific Analysis**: Applies specialized ethical knowledge for context
+- **Guardrails System**: Multi-tier safety framework preventing harmful actions
+- **Wisdom-Based Deferral**: Escalates complex ethical dilemmas to human authorities
+
+The system supports **moral profiles** that adapt reasoning patterns for different contexts while maintaining core ethical commitments.
 
 ---
 
 ## Key Features
 
-### 🧠 Advanced Reasoning Architecture
-- **[Multi-DMA Processing](ciris_engine/dma/README.md)**: Parallel ethical, common-sense, and domain-specific evaluation with circuit breaker protection
-- **[Guardrails System](ciris_engine/guardrails/README.md)**: Multi-layered safety framework with entropy, coherence, optimization veto, and epistemic humility checks
-- **[Thought Processing](ciris_engine/processor/README.md)**: Multi-round pondering with escalation capabilities and specialized processing modes (WORK, PLAY, DREAM, SOLITUDE)
-- **Profile-Driven Behavior**: YAML-based agent profiles with role-specific customization and capability sets
+### 🧠 Ethical Reasoning Framework
+- **[Principled Decision-Making](ciris_engine/dma/README.md)**: Multi-algorithm ethical evaluation with transparency and accountability
+- **[Moral Guardrails](ciris_engine/guardrails/README.md)**: Comprehensive safety framework including epistemic humility and autonomy preservation
+- **[Reflective Processing](ciris_engine/processor/README.md)**: Multi-round ethical pondering with wisdom-based escalation
+- **[Covenant-Aligned Profiles](docs/CIRIS_PROFILES.md)**: Role-specific moral reasoning while maintaining core ethical commitments
 
-### 🔒 Enterprise Security Framework
+### 🔒 Trustworthy Operations
 - **[Secrets Management](ciris_engine/secrets/README.md)**: Automatic detection, AES-256-GCM encryption, and secure handling of sensitive information with graph memory integration
 - **[Cryptographic Audit Trail](ciris_engine/audit/README.md)**: Tamper-evident logging with hash chains, RSA digital signatures, and comprehensive integrity verification
 - **[Adaptive Filtering](ciris_engine/services/README.md)**: ML-powered message prioritization with user trust tracking, spam detection, and priority-based processing
 - **[Security Filtering](ciris_engine/telemetry/README.md)**: PII detection and removal across all telemetry and logging systems
 
-### 🌐 Multi-Platform Service Architecture
+### 🌐 Adaptive Platform Integration
 - **[Service Registry](ciris_engine/registries/README.md)**: Dynamic service discovery with capability-based selection, priority management, and automatic failover
 - **[Multi-Service Sink](ciris_engine/sinks/README.md)**: Universal action dispatcher with service orchestration, circuit breaker patterns, and transaction coordination
 - **[Platform Adapters](ciris_engine/adapters/README.md)**: Discord, CLI, and API adapters with consistent interfaces and automatic secrets processing
 - **[Action Handlers](ciris_engine/action_handlers/README.md)**: Comprehensive 3×3×3 action system with automatic secrets decapsulation and service integration
 
-### 📊 Advanced Observability & Intelligence
+### 📊 Transparent Accountability
 - **[Telemetry System](ciris_engine/telemetry/README.md)**: Multi-tier metric collection with security filtering, resource monitoring, and agent self-awareness via SystemSnapshot
 - **[Resource Management](ciris_engine/telemetry/README.md)**: Real-time monitoring with psutil integration, resource limit enforcement, and proactive throttling
 - **[Performance Monitoring](ciris_engine/telemetry/README.md)**: Sophisticated collector framework with instant, fast, normal, slow, and aggregate data collection tiers
-- **Circuit Breaker Protection**: Automatic service protection with graceful degradation and health monitoring
+- **[Circuit Breaker Protection](ciris_engine/registries/README.md)**: Automatic service protection with graceful degradation and health monitoring
 
-### 🧩 Sophisticated Memory & Context Management  
+### 🧩 Ethical Memory & Context  
 - **[Graph Memory](ciris_engine/adapters/local_graph_memory/README.md)**: SQLite-backed graph storage with automatic secrets encryption, scope-based access control, and WA-authorized updates
 - **[Context Management](ciris_engine/context/README.md)**: Multi-source context aggregation with system snapshots, user profile enrichment, and GraphQL integration
 - **[Configuration Management](ciris_engine/config/README.md)**: Multi-source configuration with agent self-configuration through graph memory operations and WA approval workflows
 - **[Data Persistence](ciris_engine/data/README.md)**: Robust SQLite storage with migrations, maintenance automation, and integrity verification
 
-### 🛠 Core Infrastructure & Utilities
+### 🛠 Principled Infrastructure
 - **[Epistemic Faculties](ciris_engine/faculties/README.md)**: Advanced content evaluation through specialized entropy, coherence, and decision analysis capabilities
 - **[Utility Framework](ciris_engine/utils/README.md)**: Comprehensive infrastructure including logging, context management, GraphQL providers, shutdown coordination, and task formatting
 - **[Prompt Engineering](ciris_engine/formatters/README.md)**: Composable text formatting utilities for consistent LLM prompt engineering and response processing
@@ -65,25 +69,19 @@ The system supports **agent profiles** with customizable behavior, prompting, an
 
 ---
 
-## Advanced Capabilities
+## Ethical Capabilities
 
-### Security & Compliance
-- **Automatic PII Detection**: Real-time identification and encryption of sensitive data
-- **Cryptographic Integrity**: Hash-chained audit logs with RSA digital signatures
-- **Trust-Based Filtering**: Dynamic user trust scoring with behavioral learning
-- **Secure Multi-Tenancy**: Scope-based access control with WA-mediated identity changes
+### Moral Agency
+- **Principled Decision-Making**: Every action evaluated against ethical frameworks
+- **Self-Reflection**: Continuous assessment of actions against moral principles  
+- **Wisdom-Based Deferral**: Recognition of limits and escalation to human oversight
+- **Transparency**: Full auditability of reasoning processes and decisions
 
-### Intelligent Processing
-- **Multi-Round Pondering**: Iterative thought refinement with quality thresholds
-- **Context-Aware Reasoning**: Rich context aggregation from multiple sources
-- **Adaptive Behavior**: Self-configuration through graph memory operations
-- **Escalation Management**: Automatic deferral to Wise Authority for complex decisions
-
-### Operational Excellence
-- **Resource-Aware Processing**: Automatic throttling based on system resource availability
-- **Circuit Breaker Patterns**: Fault-tolerant service interactions with automatic recovery
-- **Comprehensive Telemetry**: Full observability while maintaining security and privacy
-- **Graceful Degradation**: Continued operation with reduced capabilities during service failures
+### Responsible Intelligence
+- **Stakeholder Consideration**: Multi-perspective ethical analysis
+- **Harm Prevention**: Proactive identification and mitigation of potential negative impacts
+- **Justice & Fairness**: Bias detection and equitable treatment protocols
+- **Autonomy Respect**: Preservation of human agency and dignity in all interactions
 
 ---
 
@@ -98,20 +96,18 @@ The `HandlerActionType` enum defines comprehensive operations:
 
 All actions are processed through sophisticated handlers with automatic audit logging, secrets processing, and service coordination.
 
-### Security & Guardrails
+### Moral Guardrails
 
-| Guardrail | Description |
-|-----------|-------------|
-| **entropy** | Prevents nonsensical replies through statistical analysis |
-| **coherence** | Ensures logical flow and contextual consistency |
-| **optimization_veto** | Prevents actions that sacrifice autonomy for efficiency |
-| **epistemic_humility** | Reflects on uncertainties and defers when appropriate |
-| **rate_limit_observe** | Caps message processing to prevent overload |
-| **idempotency_tasks** | Prevents duplicate task creation |
-| **pii_non_repetition** | Blocks verbatim repetition of personal information |
-| **input_sanitisation** | Comprehensive input cleaning and validation |
-| **metadata_schema** | Enforces structured data schemas with size limits |
-| **graceful_shutdown** | Ensures clean service termination |
+| Guardrail | Ethical Purpose |
+|-----------|----------------|
+| **epistemic_humility** | Recognizes knowledge limits and defers appropriately |
+| **optimization_veto** | Prevents efficiency from overriding human autonomy |
+| **coherence** | Ensures rational and understandable reasoning |
+| **entropy** | Maintains meaningful communication standards |
+| **pii_protection** | Safeguards personal information and privacy |
+| **harm_prevention** | Proactively identifies and blocks potential harm |
+| **fairness_check** | Detects and prevents discriminatory actions |
+| **transparency** | Maintains auditability and explainability |
 
 ---
 
@@ -275,27 +271,19 @@ pytest tests/adapters/ -v           # Adapter tests
 pytest --mock-llm                   # Tests with mock LLM service
 ```
 
-**Mock LLM Development and Testing:**
+**Ethical Testing with Mock LLM:**
 ```bash
-# Use Mock LLM for offline testing and development
+# Test moral reasoning offline
 python main.py --mock-llm --profile teacher
 
-# Test specific scenarios with Mock LLM commands
-# $speak Hello world!
-# $ponder What should I consider?; How can I help?
-# $help                            # Show all available commands
-
-# Run context dump tests to see what the agent receives
-pytest tests/context_dumps/ -v -s   # Verbose context dumps
+# Examine ethical decision-making
+pytest tests/context_dumps/ -v -s   # View agent reasoning context
 ```
 
-See [docs/MOCK_LLM.md](docs/MOCK_LLM.md) for complete Mock LLM documentation and command reference.
-
-**Security and compliance testing:**
+**Ethical compliance testing:**
 ```bash
-pytest tests/ciris_engine/secrets/ -v        # Secrets management tests
-pytest tests/ciris_engine/audit/ -v          # Audit system tests
-pytest tests/ciris_engine/guardrails/ -v     # Guardrails validation
+pytest tests/ciris_engine/guardrails/ -v     # Moral guardrails validation
+pytest tests/ciris_engine/audit/ -v          # Transparency and audit systems
 ```
 
 ---
@@ -353,9 +341,11 @@ Apache-2.0 © 2025 CIRIS AI Project
 ## Documentation
 
 ### Core Documentation
-- **[Mock LLM System](docs/MOCK_LLM.md)** - Offline testing and development with deterministic responses
-- **[CIRIS Profiles](docs/CIRIS_PROFILES.md)** - Agent personality and behavior configuration  
-- **[Context Dumps](tests/context_dumps/README.md)** - Understanding agent context and decision-making
+- **[Creator Intent Statement](CIS.md)** - Purpose, benefits, risks, and design philosophy
+- **[CIRIS Covenant](covenant_1.0b.txt)** - Complete ethical framework and principles
+- **[Mock LLM System](docs/MOCK_LLM.md)** - Offline testing and development
+- **[CIRIS Profiles](docs/CIRIS_PROFILES.md)** - Agent moral reasoning configuration
+- **[Context Dumps](tests/context_dumps/README.md)** - Understanding agent decision processes
 
 ### Technical Documentation
 - **Module READMEs** - Detailed documentation in each `ciris_engine/` subdirectory
