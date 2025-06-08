@@ -24,7 +24,7 @@ def mock_secrets_service():
     service = AsyncMock(spec=SecretsService)
     
     # Mock process_incoming_text to return detected secrets
-    async def mock_process_text(text, source_context=None):
+    async def mock_process_text(text, context_hint="", source_message_id=None):
         if "sk-1234567890" in text:
             # Simulate detecting an API key
             processed_text = text.replace("sk-1234567890", "SECRET_550e8400-e29b-41d4-a716-446655440000")

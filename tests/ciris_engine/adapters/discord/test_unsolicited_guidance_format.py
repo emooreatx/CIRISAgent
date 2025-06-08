@@ -27,8 +27,7 @@ class TestUnsolicitedGuidanceFormat:
         observer = DiscordObserver(
             communication_service=mock_communication_service,
             memory_service=mock_memory_service,
-            secrets_service=mock_secrets_service,
-            priority_threshold=1.0
+            secrets_service=mock_secrets_service
         )
         return observer
 
@@ -60,7 +59,7 @@ class TestUnsolicitedGuidanceFormat:
             raw_message=None
         )
 
-    @patch('ciris_engine.adapters.discord.discord_observer.persistence')
+    @patch('ciris_engine.persistence')
     @patch('ciris_engine.adapters.discord.discord_observer.logger')
     async def test_unsolicited_guidance_task_format(self, mock_logger, mock_persistence, 
                                                    discord_observer, wa_message):
@@ -94,7 +93,7 @@ class TestUnsolicitedGuidanceFormat:
         assert created_task.context["author_id"] == wa_message.author_id
         assert created_task.context["author_name"] == wa_message.author_name
 
-    @patch('ciris_engine.adapters.discord.discord_observer.persistence')
+    @patch('ciris_engine.persistence')
     @patch('ciris_engine.adapters.discord.discord_observer.logger')
     async def test_non_wa_user_rejected(self, mock_logger, mock_persistence,
                                        discord_observer, non_wa_message):
@@ -118,7 +117,7 @@ class TestUnsolicitedGuidanceFormat:
         assert non_wa_message.author_id in error_message
         assert "is not a Wise Authority" in error_message
 
-    @patch('ciris_engine.adapters.discord.discord_observer.persistence')
+    @patch('ciris_engine.persistence')
     @patch('ciris_engine.adapters.discord.discord_observer.logger')
     async def test_guidance_format_with_different_wa_info(self, mock_logger, mock_persistence,
                                                          discord_observer):

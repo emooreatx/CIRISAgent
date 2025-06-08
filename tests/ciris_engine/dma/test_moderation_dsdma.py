@@ -116,87 +116,101 @@ class TestModerationDSDMA:
     @pytest.mark.asyncio
     async def test_evaluate_thought_context_enrichment(self):
         """Test that evaluate_thought enriches context with moderation data"""
+        from ciris_engine.schemas.dma_results_v1 import DSDMAResult
         mock_registry = Mock(spec=ServiceRegistry)
         
-        # Mock the parent evaluate_thought method
+        # Create DSDMA instance
         dsdma = ModerationDSDMA(service_registry=mock_registry)
-        dsdma._get_llm_service = AsyncMock()
         
-        # Create mock LLM service that returns a structured result
-        mock_llm = AsyncMock()
-        mock_llm.generate_structured_response = AsyncMock(return_value={
-            "score": 0.8,
-            "recommended_action": "none",
-            "flags": [],
-            "reasoning": "Test reasoning"
-        })
-        dsdma._get_llm_service.return_value = mock_llm
+        # Mock the parent evaluate_thought method to return expected result
+        async def mock_parent_evaluate_thought(self, thought_item, context):
+            return DSDMAResult(
+                domain="discord_moderation",
+                score=0.8,
+                recommended_action="none",
+                flags=[],
+                reasoning="Test reasoning"
+            )
         
-        # Create test thought
-        thought = Thought(
-            thought_id="test_thought",
-            thought_type=ThoughtType.INCOMING_MESSAGE,
-            content="Hello @everyone! THIS IS URGENT!!!",
-            channel_id="test_channel",
-            context={"channel_id": "test_channel"}
-        )
+        # Patch the super().evaluate_thought call
+        import ciris_engine.dma.dsdma_base
+        original_evaluate = ciris_engine.dma.dsdma_base.BaseDSDMA.evaluate_thought
+        ciris_engine.dma.dsdma_base.BaseDSDMA.evaluate_thought = mock_parent_evaluate_thought
         
-        thought_item = ProcessingQueueItem(
-            item_id="test_item",
-            content=thought,
-            priority=50
-        )
-        
-        # Test evaluation
-        result = await dsdma.evaluate_thought(thought_item, {})
-        
-        # Verify LLM was called
-        assert mock_llm.generate_structured_response.called
-        
-        # Verify result structure
-        assert result.score == 0.8
-        assert result.recommended_action == "none"
-        assert isinstance(result.flags, list)
-        assert result.reasoning == "Test reasoning"
+        try:
+            # Create test thought
+            thought = Thought(
+                thought_id="test_thought",
+                source_task_id="test_task",
+                thought_type=ThoughtType.OBSERVATION,
+                content="Hello @everyone! THIS IS URGENT!!!",
+                created_at="2023-01-01T00:00:00Z",
+                updated_at="2023-01-01T00:00:00Z",
+                context={"channel_id": "test_channel"}
+            )
+            
+            thought_item = ProcessingQueueItem.from_thought(thought)
+            
+            # Test evaluation
+            result = await dsdma.evaluate_thought(thought_item, {})
+            
+            # Verify result structure
+            assert result.score == 0.8
+            assert result.recommended_action == "none"
+            assert isinstance(result.flags, list)
+            assert result.reasoning == "Test reasoning"
+            
+        finally:
+            # Restore original method
+            ciris_engine.dma.dsdma_base.BaseDSDMA.evaluate_thought = original_evaluate
     
     @pytest.mark.asyncio
     async def test_evaluate_thought_low_score_recommendations(self):
         """Test that low scores trigger appropriate recommendations"""
         mock_registry = Mock(spec=ServiceRegistry)
         
+        # Create DSDMA instance  
         dsdma = ModerationDSDMA(service_registry=mock_registry)
-        dsdma._get_llm_service = AsyncMock()
         
-        # Mock LLM to return low score without recommendation
-        mock_llm = AsyncMock()
-        mock_llm.generate_structured_response = AsyncMock(return_value={
-            "score": 0.15,  # Low score
-            "recommended_action": "",  # No recommendation
-            "flags": [],
-            "reasoning": "Low alignment"
-        })
-        dsdma._get_llm_service.return_value = mock_llm
+        # Mock the parent evaluate_thought method to return low score result
+        from ciris_engine.schemas.dma_results_v1 import DSDMAResult
+        async def mock_parent_evaluate_thought(self, thought_item, context):
+            return DSDMAResult(
+                domain="discord_moderation",
+                score=0.15,  # Low score
+                recommended_action="",  # No recommendation initially
+                flags=[],
+                reasoning="Low alignment"
+            )
         
-        # Create test thought
-        thought = Thought(
-            thought_id="test_thought",
-            thought_type=ThoughtType.INCOMING_MESSAGE,
-            content="Problematic content",
-            channel_id="test_channel"
-        )
+        # Patch the super().evaluate_thought call
+        import ciris_engine.dma.dsdma_base
+        original_evaluate = ciris_engine.dma.dsdma_base.BaseDSDMA.evaluate_thought
+        ciris_engine.dma.dsdma_base.BaseDSDMA.evaluate_thought = mock_parent_evaluate_thought
         
-        thought_item = ProcessingQueueItem(
-            item_id="test_item",
-            content=thought,
-            priority=50
-        )
-        
-        # Test evaluation
-        result = await dsdma.evaluate_thought(thought_item, {})
-        
-        # Verify recommendation was added based on low score
-        assert result.score == 0.15
-        assert result.recommended_action == "timeout_consideration"
+        try:
+            # Create test thought
+            thought = Thought(
+                thought_id="test_thought",
+                source_task_id="test_task",
+                thought_type=ThoughtType.OBSERVATION,
+                content="Problematic content",
+                created_at="2023-01-01T00:00:00Z",
+                updated_at="2023-01-01T00:00:00Z"
+            )
+            
+            thought_item = ProcessingQueueItem.from_thought(thought)
+            
+            # Test evaluation
+            result = await dsdma.evaluate_thought(thought_item, {})
+            
+            # Verify recommendation was added based on low score
+            assert result.score == 0.15
+            assert result.recommended_action == "timeout_consideration"
+            
+        finally:
+            # Restore original method
+            ciris_engine.dma.dsdma_base.BaseDSDMA.evaluate_thought = original_evaluate
     
     def test_repr(self):
         """Test string representation"""

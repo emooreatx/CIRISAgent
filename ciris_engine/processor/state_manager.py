@@ -18,8 +18,8 @@ class StateTransition:
     """Represents a state transition with validation rules."""
     
     def __init__(self, from_state: AgentState, to_state: AgentState, 
-                 condition_fn: Optional[Callable[[], bool]] = None, 
-                 on_transition_fn: Optional[Callable[[], None]] = None) -> None:
+                 condition_fn: Optional[Callable[['StateManager'], bool]] = None, 
+                 on_transition_fn: Optional[Callable[['StateManager', AgentState, AgentState], None]] = None) -> None:
         self.from_state = from_state
         self.to_state = to_state
         self.condition_fn = condition_fn  # Optional validation function

@@ -16,7 +16,7 @@ from ciris_engine.secrets.tools import (
     register_secrets_tools
 )
 from ciris_engine.secrets.service import SecretsService
-from ciris_engine.secrets.filter import SecretPattern, SecretsFilterConfig
+from ciris_engine.schemas.config_schemas_v1 import SecretPattern, SecretsDetectionConfig
 from ciris_engine.schemas.tool_schemas_v1 import ToolExecutionStatus
 from ciris_engine.adapters.tool_registry import ToolRegistry
 
@@ -27,6 +27,7 @@ def mock_secrets_service():
     service = AsyncMock(spec=SecretsService)
     service.store = AsyncMock()
     service.filter = MagicMock()
+    service.audit_service = AsyncMock()
     return service
 
 
@@ -52,13 +53,13 @@ class TestSecretsTools:
             nonce=b"nonce_bytes",
             description="Test API key",
             sensitivity_level="HIGH",
-            detected_pattern="api_key",
+            detected_pattern="api_keys",
             context_hint="Test API key",
             created_at=datetime.now(),
             access_count=0,
             last_accessed=None
         )
-        mock_secrets_service.store.get_secret.return_value = mock_record
+        mock_secrets_service.store.retrieve_secret.return_value = mock_record
         
         # Test parameters
         params = RecallSecretParams(
@@ -76,8 +77,11 @@ class TestSecretsTools:
         assert result.result_data["secret_uuid"] == "test-uuid-123"
         assert "decrypted_value" not in result.result_data
         
-        # Verify audit log was called
-        mock_secrets_service.store.log_secret_access.assert_called_once()
+        # Verify store retrieve was called
+        mock_secrets_service.store.retrieve_secret.assert_called_once_with("test-uuid-123")
+        
+        # Verify audit service was called for metadata access
+        mock_secrets_service.audit_service.log_action.assert_called_once()
         
     async def test_recall_secret_success_with_decryption(self, secrets_tools, mock_secrets_service):
         """Test successful secret recall with decryption."""
@@ -91,13 +95,13 @@ class TestSecretsTools:
             nonce=b"nonce_bytes",
             description="Test API key",
             sensitivity_level="HIGH",
-            detected_pattern="api_key",
+            detected_pattern="api_keys",
             context_hint="Test API key",
             created_at=datetime.now(),
             access_count=1,
             last_accessed=datetime.now()
         )
-        mock_secrets_service.store.get_secret.return_value = mock_record
+        mock_secrets_service.store.retrieve_secret.return_value = mock_record
         mock_secrets_service.store.decrypt_secret.return_value = "sk-1234567890abcdef"
         
         # Test parameters
@@ -120,7 +124,7 @@ class TestSecretsTools:
         
     async def test_recall_secret_not_found(self, secrets_tools, mock_secrets_service):
         """Test secret recall when secret doesn't exist."""
-        mock_secrets_service.store.get_secret.return_value = None
+        mock_secrets_service.store.retrieve_secret.return_value = None
         
         params = RecallSecretParams(
             secret_uuid="nonexistent-uuid",
@@ -157,25 +161,18 @@ class TestSecretsTools:
     async def test_update_secrets_filter_get_current(self, secrets_tools, mock_secrets_service):
         """Test getting current filter configuration."""
         # Setup mock responses
-        mock_config = SecretsFilterConfig(
-            filter_id="test_filter",
-            version=1,
-            auto_decrypt_for_actions=["speak", "tool"],
-            sensitivity_overrides={"api_keys": "CRITICAL"}
-        )
-        mock_secrets_service.filter.get_config.return_value = mock_config
-        mock_secrets_service.filter.get_all_patterns.return_value = {
-            "built_in": [MagicMock(name="api_key"), MagicMock(name="password")],
-            "custom": [MagicMock(name="custom_pattern")]
-        }
+        mock_config = {"detection_config": "test_data"}
+        mock_stats = {"total_patterns": 3, "default_patterns": 2, "custom_patterns": 1}
+        mock_secrets_service.filter.export_config.return_value = mock_config
+        mock_secrets_service.filter.get_pattern_stats.return_value = mock_stats
         
         params = UpdateSecretsFilterParams(operation="get_current")
         
         result = await secrets_tools.update_secrets_filter(params)
         
         assert result.execution_status == ToolExecutionStatus.SUCCESS
-        assert "auto_decrypt_for_actions" in result.result_data["config"]
-        assert result.result_data["total_patterns"] == 3
+        assert "config" in result.result_data
+        assert "stats" in result.result_data
         
     async def test_list_secrets(self, secrets_tools, mock_secrets_service):
         """Test listing stored secrets."""
@@ -190,7 +187,7 @@ class TestSecretsTools:
                 nonce=b"nonce1",
                 description="API Key 1",
                 sensitivity_level="HIGH",
-                detected_pattern="api_key",
+                detected_pattern="api_keys",
                 context_hint="API Key 1",
                 created_at=datetime.now(),
                 access_count=5,
@@ -204,7 +201,7 @@ class TestSecretsTools:
                 nonce=b"nonce2",
                 description="Password 1",
                 sensitivity_level="CRITICAL",
-                detected_pattern="password",
+                detected_pattern="passwords",
                 context_hint="Password 1",
                 created_at=datetime.now(),
                 access_count=2,

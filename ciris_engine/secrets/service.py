@@ -10,9 +10,11 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 import logging
 
-from .filter import SecretsFilter, DetectedSecret, SecretsFilterConfig
+from .filter import SecretsFilter
 from .store import SecretsStore, SecretRecord
 from ..schemas.context_schemas_v1 import SecretReference
+from ..schemas.secrets_schemas_v1 import DetectedSecret
+from ..schemas.config_schemas_v1 import SecretsDetectionConfig
 from ..protocols.secrets_interface import SecretsServiceInterface
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,7 @@ class SecretsService(SecretsServiceInterface):
         self,
         store: Optional[SecretsStore] = None,
         filter_obj: Optional[SecretsFilter] = None,
+        detection_config: Optional[SecretsDetectionConfig] = None,
         db_path: str = "secrets.db",
         master_key: Optional[bytes] = None
     ):
@@ -39,11 +42,12 @@ class SecretsService(SecretsServiceInterface):
         Args:
             store: Secrets store instance (created if None)
             filter_obj: Secrets filter instance (created if None)
+            detection_config: Secrets detection configuration
             db_path: Database path for storage
             master_key: Master encryption key
         """
         self.store = store or SecretsStore(db_path=db_path, master_key=master_key)
-        self.filter = filter_obj or SecretsFilter()
+        self.filter = filter_obj or SecretsFilter(detection_config)
         self._auto_forget_enabled = True
         self._current_task_secrets: Dict[str, str] = {}  # UUID -> original_value
         
@@ -87,15 +91,15 @@ class SecretsService(SecretsServiceInterface):
                 context_hint=detected_secret.context_hint,
                 created_at=datetime.now(),
                 source_message_id=source_message_id,
-                auto_decapsulate_for_actions=self._get_auto_decapsulate_actions(detected_secret.sensitivity)
+                auto_decapsulate_for_actions=self._get_auto_decapsulate_actions(detected_secret.sensitivity.value)
             )
             
             # Store encrypted secret
-            stored = await self.store.store_secret(secret_record, detected_secret.original_text)
+            stored = await self.store.store_secret(detected_secret, source_message_id)
             
             if stored:
                 # Track for potential auto-forget
-                self._current_task_secrets[detected_secret.secret_uuid] = detected_secret.original_text
+                self._current_task_secrets[detected_secret.secret_uuid] = detected_secret.original_value
                 
                 # Create reference for context
                 secret_ref = SecretReference(
@@ -322,8 +326,8 @@ class SecretsService(SecretsServiceInterface):
                 if not pattern_name or not sensitivity:
                     return {"success": False, "error": "Pattern name and sensitivity required"}
                     
-                self.filter.set_sensitivity_override(pattern_name, sensitivity)
-                return {"success": True, "message": f"Set {pattern_name} sensitivity to {sensitivity}"}
+                # Note: Sensitivity overrides not supported in new config system
+                return {"success": False, "error": "Sensitivity overrides not supported in config-based system"}
                 
             elif operation == "get_current":
                 config = self.filter.export_config()
@@ -356,7 +360,7 @@ class SecretsService(SecretsServiceInterface):
         Returns:
             List of secret metadata
         """
-        secrets = await self.store.list_secrets(pattern_filter, sensitivity_filter)
+        secrets = await self.store.list_secrets(sensitivity_filter, pattern_filter)
         
         result = []
         for secret in secrets:
@@ -365,6 +369,7 @@ class SecretsService(SecretsServiceInterface):
                 "description": secret.description,
                 "sensitivity": secret.sensitivity,
                 "context_hint": secret.context_hint,
+                "pattern": secret.detected_pattern,
                 "created_at": secret.created_at.isoformat(),
                 "last_accessed": secret.last_accessed.isoformat() if secret.last_accessed else None,
                 "auto_decapsulate_actions": secret.auto_decapsulate_actions
@@ -383,7 +388,7 @@ class SecretsService(SecretsServiceInterface):
         Returns:
             True if successfully forgotten
         """
-        deleted = await self.store.delete_secret(secret_uuid, accessor)
+        deleted = await self.store.delete_secret(secret_uuid)
         
         # Remove from current task tracking
         if secret_uuid in self._current_task_secrets:

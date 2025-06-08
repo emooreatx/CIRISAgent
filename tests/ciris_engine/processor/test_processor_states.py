@@ -90,7 +90,7 @@ async def test_wakeup_processor_completion(monkeypatch):
     result = await proc.process_wakeup(0, non_blocking=True)
     print("Wakeup result:", result)  # Diagnostic print
     assert result['status'] in ('in_progress', 'success', 'completed', 'error')  # Accept error for investigation
-    assert len(proc.wakeup_tasks) == len(WakeupProcessor.WAKEUP_SEQUENCE) + 1
+    assert len(proc.wakeup_tasks) == len(proc._get_wakeup_sequence()) + 1
 
     # Mark all step tasks as completed (using the actual generated task IDs)
     for t in proc.wakeup_tasks[1:]:  # Only mark step tasks, not root

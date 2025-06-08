@@ -8,7 +8,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.secrets.store import SecretsStore
-from ciris_engine.secrets.filter import SecretsFilter, SecretPattern
+from ciris_engine.secrets.filter import SecretsFilter
+from ciris_engine.schemas.config_schemas_v1 import SecretPattern
+from ciris_engine.schemas.foundational_schemas_v1 import SensitivityLevel
 from ciris_engine.schemas.context_schemas_v1 import SecretReference
 
 
@@ -60,7 +62,7 @@ class TestSecretsService:
         # Check secret reference
         secret_ref = secret_refs[0]
         assert secret_ref.description == "API Key"
-        assert secret_ref.sensitivity == "HIGH"
+        assert secret_ref.sensitivity == SensitivityLevel.HIGH
         assert secret_ref.context_hint == "test context"
         
     @pytest.mark.asyncio
@@ -125,17 +127,19 @@ class TestSecretsService:
     async def test_decapsulate_secrets_in_parameters(self, temp_service):
         """Test automatic decapsulation of secrets in action parameters."""
         # Store a secret first
-        text = "Use token bearer_token=mytoken12345678901234567890 for auth"
+        text = "Use API key api_key=mytoken12345678901234567890 for auth"
         filtered_text, secret_refs = await temp_service.process_incoming_text(text)
         
         assert len(secret_refs) > 0
         secret_uuid = secret_refs[0].uuid
         
-        # Create parameters with secret reference
+        # Create parameters with secret reference  
+        # Use the actual description from the stored secret
+        secret_desc = secret_refs[0].description
         parameters = {
-            "url": "https://api.example.com/data",
+            "url": "https://api.example.com/data", 
             "headers": {
-                "Authorization": f"Bearer {{SECRET:{secret_uuid}:Bearer Token}}"
+                "Authorization": f"Bearer {{SECRET:{secret_uuid}:{secret_desc}}}"
             },
             "data": "some data"
         }
@@ -182,7 +186,8 @@ class TestSecretsService:
             name="custom_id",
             regex=r"CUSTOM_[A-Z0-9]{8}",
             description="Custom ID Pattern",
-            sensitivity="MEDIUM"
+            sensitivity=SensitivityLevel.MEDIUM,
+            context_hint="Custom identifier token"
         )
         
         result = await temp_service.update_filter_config(
@@ -209,7 +214,8 @@ class TestSecretsService:
             name="temp_pattern",
             regex=r"TEMP_[0-9]{4}",
             description="Temporary Pattern",
-            sensitivity="LOW"
+            sensitivity=SensitivityLevel.LOW,
+            context_hint="Temporary identifier"
         )
         
         await temp_service.update_filter_config(
@@ -250,7 +256,7 @@ class TestSecretsService:
         texts = [
             "API key: api_key=key123456789012345678901234567890",
             "Password: password=mypassword123",
-            "Token: bearer_token=token123456789012345678901234567890"
+            "Authorization: Bearer token123456789012345678901234567890"
         ]
         
         for text in texts:
@@ -269,7 +275,7 @@ class TestSecretsService:
             assert "created_at" in secret
             
         # List by pattern
-        api_secrets = await temp_service.list_stored_secrets(pattern_filter="api_key")
+        api_secrets = await temp_service.list_stored_secrets(pattern_filter="api_keys")
         assert len(api_secrets) >= 1
         assert all("API" in s["description"] for s in api_secrets)
         
@@ -277,6 +283,16 @@ class TestSecretsService:
         critical_secrets = await temp_service.list_stored_secrets(sensitivity_filter="CRITICAL")
         assert len(critical_secrets) >= 1
         assert all(s["sensitivity"] == "CRITICAL" for s in critical_secrets)
+        
+        # Test combined filters
+        high_api_secrets = await temp_service.list_stored_secrets(
+            sensitivity_filter="HIGH", 
+            pattern_filter="api_keys"
+        )
+        # Should only return HIGH sensitivity API key secrets
+        for secret in high_api_secrets:
+            assert secret["sensitivity"] == "HIGH"
+            assert secret["pattern"] == "api_keys"
         
     @pytest.mark.asyncio
     async def test_forget_secret(self, temp_service):
@@ -306,7 +322,7 @@ class TestSecretsService:
         # Store some secrets
         texts = [
             "API key: api_key=task_secret_1234567890123456789",
-            "Token: bearer_token=task_token_123456789012345678"
+            "Authorization: Bearer task_token_123456789012345678"
         ]
         
         secret_uuids = []
@@ -358,7 +374,7 @@ class TestSecretsService:
         texts = [
             "API key: api_key=stats_key_123456789012345678901",
             "Password: password=statspass123",
-            "Token: bearer_token=stats_token_12345678901234567"
+            "Authorization: Bearer stats_token_12345678901234567"
         ]
         
         for text in texts:
@@ -384,7 +400,7 @@ class TestSecretsService:
     async def test_nested_parameter_decapsulation(self, temp_service):
         """Test decapsulation in deeply nested parameter structures."""
         # Store a secret
-        text = "Token: bearer_token=nested_token_123456789012345"
+        text = "Authorization: Bearer nested_token_123456789012345"
         filtered_text, secret_refs = await temp_service.process_incoming_text(text)
         
         assert len(secret_refs) > 0
@@ -454,20 +470,20 @@ class TestSecretsService:
     async def test_sensitivity_based_auto_decapsulation(self, temp_service):
         """Test that auto-decapsulation works based on sensitivity levels."""
         # First add custom patterns for testing different sensitivity levels
-        from ciris_engine.secrets.filter import SecretPattern
-        
         low_pattern = SecretPattern(
             name="low_test",
             regex=r"low_secret_[a-z0-9]{10,}",
             description="Low Sensitivity Test",
-            sensitivity="LOW"
+            sensitivity=SensitivityLevel.LOW,
+            context_hint="Low sensitivity test token"
         )
         
         medium_pattern = SecretPattern(
             name="medium_test", 
             regex=r"medium_secret_[a-z0-9]{10,}",
             description="Medium Sensitivity Test",
-            sensitivity="MEDIUM"
+            sensitivity=SensitivityLevel.MEDIUM,
+            context_hint="Medium sensitivity test token"
         )
         
         # Add patterns

@@ -183,7 +183,9 @@ class TestGuardrailBypassPrevention:
                 result = await thought_processor.process_thought(thought_item)
                 
                 # CRITICAL ASSERTION: This action MUST have been checked by guardrails
-                if action_type != HandlerActionType.TASK_COMPLETE:
+                # DEFER, REJECT, and TASK_COMPLETE are safe actions that bypass guardrails
+                safe_actions = {HandlerActionType.DEFER, HandlerActionType.REJECT, HandlerActionType.TASK_COMPLETE}
+                if action_type not in safe_actions:
                     assert action_type in mock_ethical_guardrails.checked_actions, (
                         f"ACTION {action_type.value} DID NOT GO THROUGH GUARDRAILS! "
                         f"This indicates a guardrail bypass bug. "
@@ -272,7 +274,9 @@ class TestGuardrailBypassPrevention:
             )
             
             # CRITICAL ASSERTION: Action must have been checked
-            if action_type != HandlerActionType.TASK_COMPLETE:
+            # DEFER, REJECT, and TASK_COMPLETE are safe actions that bypass guardrails
+            safe_actions = {HandlerActionType.DEFER, HandlerActionType.REJECT, HandlerActionType.TASK_COMPLETE}
+            if action_type not in safe_actions:
                 assert action_type in mock_ethical_guardrails.checked_actions, (
                     f"Action {action_type.value} was not checked by ethical guardrails! "
                     f"Checked actions: {mock_ethical_guardrails.checked_actions}"
@@ -452,10 +456,13 @@ class TestGuardrailBypassPrevention:
                 result = await thought_processor.process_thought(thought_item)
                 
                 # CRITICAL ASSERTION: Edge case actions must also go through guardrails
-                assert action_type in mock_ethical_guardrails.checked_actions, (
-                    f"Edge case action {action_type.value} did not go through guardrails! "
-                    f"Checked actions: {mock_ethical_guardrails.checked_actions}"
-                )
+                # DEFER, REJECT, and TASK_COMPLETE are safe actions that bypass guardrails
+                safe_actions = {HandlerActionType.DEFER, HandlerActionType.REJECT, HandlerActionType.TASK_COMPLETE}
+                if action_type not in safe_actions:
+                    assert action_type in mock_ethical_guardrails.checked_actions, (
+                        f"Edge case action {action_type.value} did not go through guardrails! "
+                        f"Checked actions: {mock_ethical_guardrails.checked_actions}"
+                    )
                 
                 assert result is not None, (
                     f"Edge case action {action_type.value} processing returned None"

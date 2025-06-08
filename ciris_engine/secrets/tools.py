@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional, List, Literal
 from pydantic import BaseModel, Field
 
 from .service import SecretsService
-from .filter import SecretPattern, SecretsFilterConfig
+from ..schemas.config_schemas_v1 import SecretPattern
 from ..schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 from ..schemas.foundational_schemas_v1 import HandlerActionType
 from ..schemas.secrets_schemas_v1 import SecretRecord
@@ -250,30 +250,19 @@ class SecretsTools:
                         execution_time_ms=(datetime.now() - start_time).total_seconds() * 1000
                     )
                 
-                # Update existing pattern
-                self.secrets_service.filter.update_custom_pattern(params.pattern)
+                # Update existing pattern (remove and re-add)
+                self.secrets_service.filter.remove_custom_pattern(params.pattern.name)
+                self.secrets_service.filter.add_custom_pattern(params.pattern)
                 result_data["pattern_updated"] = params.pattern.name
                 logger.info(f"Updated custom pattern '{params.pattern.name}' by {requester_id}")
                 
             elif params.operation == "get_current":
                 # Get current filter configuration
-                config = self.secrets_service.filter.get_config()
-                patterns = self.secrets_service.filter.get_all_patterns()
+                config = self.secrets_service.filter.export_config()
+                stats = self.secrets_service.filter.get_pattern_stats()
                 
-                result_data["config"] = {
-                    "filter_id": config.filter_id,
-                    "version": config.version,
-                    "builtin_patterns_enabled": config.builtin_patterns_enabled,
-                    "auto_decrypt_for_actions": config.auto_decrypt_for_actions,
-                    "sensitivity_overrides": config.sensitivity_overrides,
-                    "disabled_patterns": config.disabled_patterns,
-                    "require_confirmation_for": config.require_confirmation_for
-                }
-                result_data["patterns"] = {
-                    "built_in": [p.name for p in patterns["built_in"]],
-                    "custom": [p.name for p in patterns["custom"]]
-                }
-                result_data["total_patterns"] = len(patterns["built_in"]) + len(patterns["custom"])
+                result_data["config"] = config
+                result_data["stats"] = stats
                 
             elif params.operation == "update_config":
                 if not params.config_updates:
@@ -285,19 +274,18 @@ class SecretsTools:
                     )
                 
                 # Update filter configuration
-                current_config = self.secrets_service.filter.get_config()
+                success = await self.secrets_service.filter.update_filter_config(params.config_updates)
                 
-                # Apply updates
-                for key, value in params.config_updates.items():
-                    if hasattr(current_config, key):
-                        setattr(current_config, key, value)
-                        result_data[f"updated_{key}"] = value
-                    else:
-                        logger.warning(f"Unknown config key: {key}")
-                
-                # Update the filter with new config
-                self.secrets_service.filter.config = current_config
-                logger.info(f"Updated filter config by {requester_id}: {list(params.config_updates.keys())}")
+                if success:
+                    result_data["updated_keys"] = list(params.config_updates.keys())
+                    logger.info(f"Updated filter config by {requester_id}: {list(params.config_updates.keys())}")
+                else:
+                    return ToolResult(
+                        tool_name="update_secrets_filter",
+                        execution_status=ToolExecutionStatus.FAILED,
+                        error_message="Failed to update filter configuration",
+                        execution_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+                    )
                 
             else:
                 return ToolResult(

@@ -370,7 +370,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         return await self.enqueue_action(action)
 
     async def execute_tool(self, handler_name: str, tool_name: str, tool_args: Dict[str, Any], 
-                          correlation_id: Optional[str] = None, metadata: Optional[Dict] = None) -> ToolResult:
+                          correlation_id: Optional[str] = None, metadata: Optional[Dict] = None) -> bool:
         """Convenience method to execute a tool"""
         action = SendToolAction(
             handler_name=handler_name,
@@ -394,7 +394,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             # Get service directly and call memorize
             service = await self._get_service('memory', action)
             if service:
-                result = await self._handle_memorize(service, action)  # type: ignore
+                result = await self._handle_memorize(service, action)
                 return result
             else:
                 logger.warning(f"No memory service available for memorize")
@@ -437,7 +437,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             # Get service directly and call forget
             service = await self._get_service('memory', action)
             if service:
-                result = await self._handle_forget(service, action)  # type: ignore
+                result = await self._handle_forget(service, action)
                 return result
             else:
                 logger.warning(f"No memory service available for forget")
@@ -487,7 +487,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             # Get service directly and call fetch
             service = await self._get_service('tool', action)
             if service:
-                result = await self._handle_fetch_tool(service, action)  # type: ignore
+                result = await self._handle_fetch_tool(service, action)
                 return result
             else:
                 logger.warning(f"No tool service available for get_tool_result_sync")

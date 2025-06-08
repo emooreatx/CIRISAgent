@@ -56,7 +56,7 @@ class SchemaRegistry:
     @classmethod
     def validate_schema(cls, name: str, data: Dict[str, Any]) -> BaseModel:
         """Validate data against a registered schema."""
-        schema = cls.schemas.get(name)  # type: ignore[union-attr]
+        schema = cls.schemas.get(name)
         if schema is None:
             raise ValueError(f"Schema '{name}' not registered")
         return schema(**data)

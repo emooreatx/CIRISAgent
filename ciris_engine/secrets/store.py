@@ -147,6 +147,25 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
         # Initialize database
         self._init_database()
         
+    def _get_auto_decapsulate_actions(self, sensitivity: str) -> List[str]:
+        """
+        Get default auto-decapsulation actions based on sensitivity.
+        
+        Args:
+            sensitivity: Secret sensitivity level (LOW, MEDIUM, HIGH, CRITICAL)
+            
+        Returns:
+            List of action types that can auto-decapsulate this secret
+        """
+        if sensitivity == "CRITICAL":
+            return []  # Require manual access for critical secrets
+        elif sensitivity == "HIGH":
+            return ["tool"]  # Only tool actions for high sensitivity
+        elif sensitivity == "MEDIUM":
+            return ["tool", "speak"]  # Tool and speak actions
+        else:  # LOW
+            return ["tool", "speak", "memorize"]  # Most actions allowed
+        
     def _init_database(self) -> None:
         """Initialize SQLite database with required tables."""
         # Ensure directory exists
@@ -231,7 +250,7 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                     last_accessed=None,
                     access_count=0,
                     source_message_id=source_id,
-                    auto_decapsulate_for_actions=[],
+                    auto_decapsulate_for_actions=self._get_auto_decapsulate_actions(secret.sensitivity.value),
                     manual_access_only=False
                 )
                 
@@ -418,23 +437,28 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                 )
                 return False
                 
-    async def list_secrets(self, sensitivity_filter: Optional[str] = None) -> List[SecretReference]:
+    async def list_secrets(self, sensitivity_filter: Optional[str] = None, pattern_filter: Optional[str] = None) -> List[SecretReference]:
         """
         List stored secrets (metadata only).
         
         Args:
             sensitivity_filter: Filter by sensitivity level
+            pattern_filter: Filter by detected pattern name
             
         Returns:
             List of SecretReference objects
         """
         try:
-            query = "SELECT secret_uuid, description, context_hint, sensitivity_level, auto_decapsulate_for_actions, created_at, last_accessed FROM secrets WHERE 1=1"
+            query = "SELECT secret_uuid, description, context_hint, sensitivity_level, detected_pattern, auto_decapsulate_for_actions, created_at, last_accessed FROM secrets WHERE 1=1"
             params = []
                 
             if sensitivity_filter:
                 query += " AND sensitivity_level = ?"
                 params.append(sensitivity_filter)
+                
+            if pattern_filter:
+                query += " AND detected_pattern = ?"
+                params.append(pattern_filter)
                 
             query += " ORDER BY created_at DESC"
             
@@ -449,9 +473,10 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                     description=row[1],
                     context_hint=row[2],
                     sensitivity=row[3],
-                    auto_decapsulate_actions=row[4].split(",") if row[4] else [],
-                    created_at=datetime.fromisoformat(row[5]),
-                    last_accessed=datetime.fromisoformat(row[6]) if row[6] else None
+                    detected_pattern=row[4],
+                    auto_decapsulate_actions=row[5].split(",") if row[5] else [],
+                    created_at=datetime.fromisoformat(row[6]),
+                    last_accessed=datetime.fromisoformat(row[7]) if row[7] else None
                 )
                 secrets.append(secret_ref)
                 
