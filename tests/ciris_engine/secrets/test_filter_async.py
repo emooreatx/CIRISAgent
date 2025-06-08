@@ -1,7 +1,7 @@
 import pytest
 
 from ciris_engine.secrets.filter import SecretsFilter
-from ciris_engine.schemas.secrets_schemas_v1 import SecretPattern
+from ciris_engine.schemas.config_schemas_v1 import SecretPattern
 from ciris_engine.schemas.foundational_schemas_v1 import SensitivityLevel
 from ciris_engine.schemas.secrets_schemas_v1 import SecretsFilterResult
 

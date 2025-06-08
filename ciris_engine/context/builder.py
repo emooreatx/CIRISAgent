@@ -9,7 +9,7 @@ from ciris_engine import persistence
 from pydantic import BaseModel
 from ciris_engine.config.env_utils import get_env_var
 from ciris_engine.secrets.service import SecretsService
-from ciris_engine.schemas.context_schemas_v1 import SecretReference
+from ciris_engine.schemas.secrets_schemas_v1 import SecretReference
 import logging
 
 logger = logging.getLogger(__name__)

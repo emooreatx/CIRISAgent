@@ -15,10 +15,11 @@ from ..schemas.foundational_schemas_v1 import SensitivityLevel
 
 from ..protocols.secrets_interface import SecretsFilterInterface
 from ..schemas.secrets_schemas_v1 import (
-    SecretPattern as SchemaSecretPattern,
-    SecretsFilter as SchemaSecretsFilter,
     DetectedSecret,
     SecretsFilterResult
+)
+from ..schemas.config_schemas_v1 import (
+    SecretsFilter as SchemaSecretsFilter
 )
 from ..schemas.config_schemas_v1 import SecretsDetectionConfig, SecretPattern as ConfigSecretPattern
 
@@ -238,7 +239,7 @@ class SecretsFilter(SecretsFilterInterface):
             patterns_matched=[s.pattern_name for s in detected_secrets]
         )
     
-    async def add_pattern(self, pattern: SchemaSecretPattern) -> bool:
+    async def add_pattern(self, pattern: ConfigSecretPattern) -> bool:
         """Add a new secret detection pattern."""
         try:
             # Convert to config SecretPattern format
@@ -267,7 +268,7 @@ class SecretsFilter(SecretsFilterInterface):
             version=1,
             builtin_patterns_enabled=self.detection_config.builtin_patterns,
             custom_patterns=[
-                SchemaSecretPattern(
+                ConfigSecretPattern(
                     name=p.name,
                     regex=p.regex,
                     description=p.description,

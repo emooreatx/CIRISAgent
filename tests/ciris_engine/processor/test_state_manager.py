@@ -1,6 +1,6 @@
 import time
 from ciris_engine.processor.state_manager import StateManager
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 
 
 def test_valid_transition_records_history():

@@ -12,8 +12,7 @@ import logging
 
 from .filter import SecretsFilter
 from .store import SecretsStore, SecretRecord
-from ..schemas.context_schemas_v1 import SecretReference
-from ..schemas.secrets_schemas_v1 import DetectedSecret
+from ..schemas.secrets_schemas_v1 import DetectedSecret, SecretReference
 from ..schemas.config_schemas_v1 import SecretsDetectionConfig
 from ..protocols.secrets_interface import SecretsServiceInterface
 
@@ -107,6 +106,7 @@ class SecretsService(SecretsServiceInterface):
                     description=detected_secret.description,
                     context_hint=detected_secret.context_hint,
                     sensitivity=detected_secret.sensitivity,
+                    detected_pattern=detected_secret.pattern_name or "unknown",
                     auto_decapsulate_actions=secret_record.auto_decapsulate_for_actions,
                     created_at=secret_record.created_at,
                     last_accessed=None
@@ -171,10 +171,10 @@ class SecretsService(SecretsServiceInterface):
         
     async def decapsulate_secrets_in_parameters(
         self,
-        parameters: Dict[str, Any],
+        parameters: Any,
         action_type: str,
         context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Any:
         """
         Automatically decapsulate secrets in action parameters.
         
@@ -190,7 +190,7 @@ class SecretsService(SecretsServiceInterface):
             return parameters
             
         # Deep copy to avoid modifying original
-        decapsulated_params = await self._deep_decapsulate(
+        decapsulated_params: Any = await self._deep_decapsulate(
             parameters, action_type, context
         )
         
@@ -211,10 +211,10 @@ class SecretsService(SecretsServiceInterface):
                 result[key] = await self._deep_decapsulate(value, action_type, context)
             return result
         elif isinstance(obj, list):
-            result: List[Any] = []
+            list_result: List[Any] = []
             for item in obj:
-                result.append(await self._deep_decapsulate(item, action_type, context))
-            return result
+                list_result.append(await self._deep_decapsulate(item, action_type, context))
+            return list_result
         else:
             return obj
             
@@ -271,65 +271,57 @@ class SecretsService(SecretsServiceInterface):
         
     async def update_filter_config(
         self,
-        operation: str,
-        **kwargs: Any
+        updates: Dict[str, Any],
+        accessor: str = "agent"
     ) -> Dict[str, Any]:  # pragma: no cover - thin wrapper
         """
         Update secrets filter configuration.
         
         Args:
-            operation: Operation type (add_pattern, remove_pattern, etc.)
-            **kwargs: Operation-specific parameters
+            updates: Dictionary of configuration updates
+            accessor: Who is making the update
             
         Returns:
             Result of configuration update
         """
         try:
-            if operation == "add_pattern":
-                pattern = kwargs.get("pattern")
-                if not pattern:
-                    return {"success": False, "error": "Pattern required"}
-                    
+            # Handle updates dictionary
+            results = []
+            
+            if "add_pattern" in updates:
+                pattern = updates["add_pattern"]
                 self.filter.add_custom_pattern(pattern)
-                return {"success": True, "message": f"Added pattern: {pattern.name}"}
+                results.append(f"Added pattern: {pattern.name}")
                 
-            elif operation == "remove_pattern":
-                pattern_name = kwargs.get("pattern_name")
-                if not pattern_name:
-                    return {"success": False, "error": "Pattern name required"}
-                    
+            if "remove_pattern" in updates:
+                pattern_name = updates["remove_pattern"]
                 removed = self.filter.remove_custom_pattern(pattern_name)
                 if removed:
-                    return {"success": True, "message": f"Removed pattern: {pattern_name}"}
+                    results.append(f"Removed pattern: {pattern_name}")
                 else:
-                    return {"success": False, "error": f"Pattern not found: {pattern_name}"}
+                    results.append(f"Pattern not found: {pattern_name}")
                     
-            elif operation == "disable_pattern":
-                pattern_name = kwargs.get("pattern_name")
-                if not pattern_name:
-                    return {"success": False, "error": "Pattern name required"}
-                    
+            if "disable_pattern" in updates:
+                pattern_name = updates["disable_pattern"]
                 self.filter.disable_pattern(pattern_name)
-                return {"success": True, "message": f"Disabled pattern: {pattern_name}"}
+                results.append(f"Disabled pattern: {pattern_name}")
                 
-            elif operation == "enable_pattern":
-                pattern_name = kwargs.get("pattern_name")
-                if not pattern_name:
-                    return {"success": False, "error": "Pattern name required"}
-                    
+            if "enable_pattern" in updates:
+                pattern_name = updates["enable_pattern"]
                 self.filter.enable_pattern(pattern_name)
-                return {"success": True, "message": f"Enabled pattern: {pattern_name}"}
+                results.append(f"Enabled pattern: {pattern_name}")
                 
-            elif operation == "set_sensitivity":
-                pattern_name = kwargs.get("pattern_name")
-                sensitivity = kwargs.get("sensitivity")
+            if "set_sensitivity" in updates:
+                config = updates["set_sensitivity"]
+                pattern_name = config.get("pattern_name")
+                sensitivity = config.get("sensitivity")
                 if not pattern_name or not sensitivity:
-                    return {"success": False, "error": "Pattern name and sensitivity required"}
-                    
-                # Note: Sensitivity overrides not supported in new config system
-                return {"success": False, "error": "Sensitivity overrides not supported in config-based system"}
+                    results.append("Error: Pattern name and sensitivity required")
+                else:
+                    # Note: Sensitivity overrides not supported in new config system
+                    results.append("Error: Sensitivity overrides not supported in config-based system")
                 
-            elif operation == "get_current":
+            if "get_current" in updates:
                 config = self.filter.export_config()
                 stats = self.filter.get_pattern_stats()
                 return {
@@ -338,44 +330,35 @@ class SecretsService(SecretsServiceInterface):
                     "stats": stats
                 }
                 
-            else:
-                return {"success": False, "error": f"Unknown operation: {operation}"}
+            return {
+                "success": True,
+                "results": results,
+                "accessor": accessor
+            }
                 
         except Exception as e:
             logger.error(f"Failed to update filter config: {e}")
             return {"success": False, "error": str(e)}
             
     async def list_stored_secrets(
-        self,
-        pattern_filter: Optional[str] = None,
-        sensitivity_filter: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, 
+        limit: int = 10
+    ) -> List[SecretReference]:
         """
         List stored secrets (metadata only, no decryption).
         
         Args:
-            pattern_filter: Filter by detection pattern
-            sensitivity_filter: Filter by sensitivity level
+            limit: Maximum number of secrets to return
             
         Returns:
-            List of secret metadata
+            List of SecretReference objects
         """
-        secrets = await self.store.list_secrets(sensitivity_filter, pattern_filter)
+        secrets = await self.store.list_secrets(sensitivity_filter=None, pattern_filter=None)
         
-        result = []
-        for secret in secrets:
-            result.append({
-                "uuid": secret.uuid,
-                "description": secret.description,
-                "sensitivity": secret.sensitivity,
-                "context_hint": secret.context_hint,
-                "pattern": secret.detected_pattern,
-                "created_at": secret.created_at.isoformat(),
-                "last_accessed": secret.last_accessed.isoformat() if secret.last_accessed else None,
-                "auto_decapsulate_actions": secret.auto_decapsulate_actions
-            })
-            
-        return result
+        # Limit the results
+        limited_secrets = secrets[:limit] if secrets else []
+        
+        return limited_secrets
         
     async def forget_secret(self, secret_uuid: str, accessor: str = "agent") -> bool:
         """
@@ -456,8 +439,8 @@ class SecretsService(SecretsServiceInterface):
             # Get storage stats
             all_secrets = await self.store.list_secrets()
             
-            sensitivity_counts = {}
-            pattern_counts = {}
+            sensitivity_counts: Dict[str, int] = {}
+            pattern_counts: Dict[str, int] = {}
             
             for secret in all_secrets:
                 # Count by sensitivity

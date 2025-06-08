@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from ciris_engine.processor.main_processor import AgentProcessor
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.utils.context_utils import build_dispatch_context
 
 @pytest.mark.asyncio

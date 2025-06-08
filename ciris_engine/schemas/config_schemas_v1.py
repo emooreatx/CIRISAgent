@@ -257,6 +257,26 @@ class SecretsAccessControlConfig(BaseModel):
     max_decryptions_per_hour: int = Field(default=20, description="Maximum decryptions per hour")
     require_confirmation_for: List[str] = Field(default_factory=lambda: ["CRITICAL"], description="Sensitivity levels requiring confirmation")
 
+
+class SecretsFilter(BaseModel):
+    """Agent-configurable secrets detection rules"""
+    filter_id: str = Field(description="Unique identifier for this filter set")
+    version: int = Field(description="Version number for updates")
+    
+    # Built-in patterns (always active)
+    builtin_patterns_enabled: bool = True
+    
+    # Agent-defined custom patterns
+    custom_patterns: List[SecretPattern] = Field(default_factory=list)
+    
+    # Pattern overrides
+    disabled_patterns: List[str] = Field(default_factory=list)
+    sensitivity_overrides: Dict[str, str] = Field(default_factory=dict)
+    
+    # Behavioral settings
+    require_confirmation_for: List[str] = Field(default=["CRITICAL"])
+    auto_decrypt_for_actions: List[str] = Field(default=["speak", "tool"])
+
 class SecretsAuditConfig(BaseModel):
     """Configuration for secrets audit logging"""
     log_all_access: bool = Field(default=True, description="Log all secret access operations")

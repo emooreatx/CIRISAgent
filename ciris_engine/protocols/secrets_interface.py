@@ -12,14 +12,16 @@ from datetime import datetime
 
 from ciris_engine.schemas.secrets_schemas_v1 import (
     SecretRecord,
-    SecretPattern, 
-    SecretsFilter,
     SecretReference,
     SecretAccessLog,
     DetectedSecret,
     SecretsFilterResult,
     RecallSecretParams,
     UpdateSecretsFilterParams
+)
+from ciris_engine.schemas.config_schemas_v1 import (
+    SecretsFilter,
+    SecretPattern
 )
 
 
