@@ -9,13 +9,14 @@ from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
 from ciris_engine.utils.constants import DEFAULT_WA
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
+from ciris_engine.adapters.base_observer import BaseObserver
 
 logger = logging.getLogger(__name__)
 
 PASSIVE_CONTEXT_LIMIT = 10
 
 
-class DiscordObserver:
+class DiscordObserver(BaseObserver[DiscordMessage]):
     """
     Observes DiscordMessage objects directly from Discord adapter, converts them into OBSERVATION
     payloads, and forwards them to the agent via MultiServiceSink. Uses only MultiServiceSink 
@@ -32,13 +33,16 @@ class DiscordObserver:
         secrets_service: Optional[SecretsService] = None,
         communication_service: Optional[Any] = None,
     ) -> None:
-        self.memory_service = memory_service
-        self.agent_id = agent_id
-        self.multi_service_sink = multi_service_sink
-        self.filter_service = filter_service
-        self.secrets_service = secrets_service or SecretsService()
+        super().__init__(
+            on_observe=lambda _: None,
+            memory_service=memory_service,
+            agent_id=agent_id,
+            multi_service_sink=multi_service_sink,
+            filter_service=filter_service,
+            secrets_service=secrets_service,
+            origin_service="discord",
+        )
         self.communication_service = communication_service
-        self._history: list[DiscordMessage] = []
 
         from ciris_engine.config.config_manager import get_config
 
@@ -105,7 +109,7 @@ class DiscordObserver:
             return
         
         # Apply adaptive filtering to determine message priority and processing
-        filter_result = await self._apply_message_filtering(msg)
+        filter_result = await self._apply_message_filtering(msg, "discord")
         if not filter_result.should_process:
             logger.debug(f"Message {msg.message_id} filtered out: {filter_result.reasoning}")
             return
@@ -126,88 +130,6 @@ class DiscordObserver:
             
         await self._recall_context(processed_msg)
 
-    async def _process_message_secrets(self, msg: DiscordMessage) -> DiscordMessage:
-        """Process message content for secrets detection and replacement."""
-        try:
-            # Process the message content for secrets
-            processed_content, secret_refs = await self.secrets_service.process_incoming_text(
-                msg.content,
-                context_hint=f"Discord message from {msg.author_name} in channel {msg.channel_id}",
-                source_message_id=msg.message_id
-            )
-            
-            # Create new message with processed content
-            processed_msg = DiscordMessage(
-                message_id=msg.message_id,
-                content=processed_content,
-                author_id=msg.author_id,
-                author_name=msg.author_name,
-                channel_id=msg.channel_id,
-                guild_id=getattr(msg, 'guild_id', None),
-                timestamp=msg.timestamp,
-                is_bot=msg.is_bot,
-                is_dm=getattr(msg, 'is_dm', False),
-                mentions_agent=getattr(msg, 'mentions_agent', False),
-                reply_to_message_id=getattr(msg, 'reply_to_message_id', None),
-                raw_message=getattr(msg, 'raw_message', None)  # Preserve the raw Discord message
-            )
-            
-            # Store secret references on the message for context
-            if secret_refs:
-                processed_msg._detected_secrets = [
-                    {
-                        "uuid": ref.secret_uuid,
-                        "context_hint": ref.context_hint,
-                        "sensitivity": ref.sensitivity
-                    }
-                    for ref in secret_refs
-                ]
-                logger.info(f"Detected and processed {len(secret_refs)} secrets in message {msg.message_id}")
-            
-            return processed_msg
-            
-        except Exception as e:
-            logger.error(f"Error processing secrets in message {msg.message_id}: {e}")
-            # Return original message if processing fails
-            return msg
-
-    async def _apply_message_filtering(self, msg: DiscordMessage):
-        """Apply adaptive filtering to incoming message"""
-        if not self.filter_service:
-            # No filter service available - create default result
-            from ciris_engine.schemas.filter_schemas_v1 import FilterResult, FilterPriority
-            return FilterResult(
-                message_id=msg.message_id,
-                priority=FilterPriority.MEDIUM,
-                triggered_filters=[],
-                should_process=True,
-                reasoning="No filter service available - processing normally"
-            )
-        
-        try:
-            # Apply filtering to the message
-            filter_result = await self.filter_service.filter_message(
-                message=msg,
-                adapter_type="discord"
-            )
-            
-            # Log filtering results for debugging
-            if filter_result.triggered_filters:
-                logger.debug(f"Message {msg.message_id} triggered filters: {filter_result.triggered_filters}")
-            
-            return filter_result
-            
-        except Exception as e:
-            logger.error(f"Error applying filter to message {msg.message_id}: {e}")
-            # Return safe default on error
-            from ciris_engine.schemas.filter_schemas_v1 import FilterResult, FilterPriority
-            return FilterResult(
-                message_id=msg.message_id,
-                priority=FilterPriority.MEDIUM,
-                triggered_filters=[],
-                should_process=True,
-                reasoning=f"Filter error, processing normally: {e}"
-            )
 
     async def _handle_priority_observation(self, msg: DiscordMessage, filter_result) -> None:
         """Handle high-priority messages with immediate processing"""
@@ -249,162 +171,6 @@ class DiscordObserver:
         else:
             logger.debug("Ignoring message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id)
 
-
-    async def _create_passive_observation_result(self, msg: DiscordMessage) -> None:
-        """Create task and thought for passive observation."""
-        try:
-            from datetime import datetime, timezone
-            import uuid
-            from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
-            from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
-            from ciris_engine import persistence
-
-            # Create task for this observation
-            task = Task(
-                task_id=str(uuid.uuid4()),
-                description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content}'",
-                status=TaskStatus.PENDING,
-                priority=0,
-                created_at=datetime.now(timezone.utc).isoformat(),
-                updated_at=datetime.now(timezone.utc).isoformat(),
-                context={
-                    "channel_id": msg.channel_id,
-                    "author_id": msg.author_id,
-                    "author_name": msg.author_name,
-                    "message_id": msg.message_id,
-                    "origin_service": "discord",
-                    "observation_type": "passive",
-                    "recent_messages": [
-                        {
-                            "id": m.message_id,
-                            "content": m.content,
-                            "author_id": m.author_id,
-                            "author_name": m.author_name,
-                            "channel_id": m.channel_id,
-                            "timestamp": getattr(m, "timestamp", "n/a"),
-                        }
-                        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
-                    ],
-                }
-            )
-            channel_id = (
-                task.context.get("channel_id")
-                if isinstance(task.context, dict)
-                else getattr(task.context, "channel_id", None)
-            )
-            assert channel_id, "Task context must include a non-empty channel_id"
-            persistence.add_task(task)
-
-            # Create thought for this task
-            thought = Thought(
-                thought_id=str(uuid.uuid4()),
-                source_task_id=task.task_id,
-                thought_type="observation",
-                status=ThoughtStatus.PENDING,
-                created_at=datetime.now(timezone.utc).isoformat(),
-                updated_at=datetime.now(timezone.utc).isoformat(),
-                round_number=0,
-                content=f"User @{msg.author_name} said: {msg.content}",
-                context=(
-                    task.context
-                    if isinstance(task.context, dict)
-                    else task.context.model_dump() if task.context else {}
-                )
-            )
-            thought_channel_id = (
-                thought.context.get("channel_id")
-                if isinstance(thought.context, dict)
-                else getattr(thought.context, "channel_id", None)
-            )
-            assert thought_channel_id, "Thought context must include a non-empty channel_id"
-            persistence.add_thought(thought)
-
-            logger.info(f"Created observation task {task.task_id} and thought {thought.thought_id} for message {msg.message_id}")
-
-        except Exception as e:
-            logger.error(f"Error creating observation task: {e}", exc_info=True)
-
-    async def _create_priority_observation_result(self, msg: DiscordMessage, filter_result) -> None:
-        """Create task and thought for priority observation with enhanced filter context."""
-        try:
-            from datetime import datetime, timezone
-            import uuid
-            from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
-            from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
-            from ciris_engine import persistence
-
-            # Determine task priority based on filter result
-            task_priority = 10 if filter_result.priority.value == 'critical' else 5
-            
-            # Create task for this priority observation
-            task = Task(
-                task_id=str(uuid.uuid4()),
-                description=f"PRIORITY: Respond to {filter_result.priority.value} message from @{msg.author_name}: '{msg.content}'",
-                status=TaskStatus.PENDING,
-                priority=task_priority,
-                created_at=datetime.now(timezone.utc).isoformat(),
-                updated_at=datetime.now(timezone.utc).isoformat(),
-                context={
-                    "channel_id": msg.channel_id,
-                    "author_id": msg.author_id,
-                    "author_name": msg.author_name,
-                    "message_id": msg.message_id,
-                    "origin_service": "discord",
-                    "observation_type": "priority",
-                    "filter_priority": filter_result.priority.value,
-                    "filter_reasoning": filter_result.reasoning,
-                    "triggered_filters": filter_result.triggered_filters,
-                    "filter_confidence": filter_result.confidence,
-                    "filter_context": filter_result.context_hints,
-                    "recent_messages": [
-                        {
-                            "id": m.message_id,
-                            "content": m.content,
-                            "author_id": m.author_id,
-                            "author_name": m.author_name,
-                            "channel_id": m.channel_id,
-                            "timestamp": getattr(m, "timestamp", "n/a"),
-                        }
-                        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
-                    ],
-                }
-            )
-            channel_id = (
-                task.context.get("channel_id")
-                if isinstance(task.context, dict)
-                else getattr(task.context, "channel_id", None)
-            )
-            assert channel_id, "Task context must include a non-empty channel_id"
-            persistence.add_task(task)
-
-            # Create thought for this task with filter context
-            thought = Thought(
-                thought_id=str(uuid.uuid4()),
-                source_task_id=task.task_id,
-                thought_type="observation",
-                status=ThoughtStatus.PENDING,
-                created_at=datetime.now(timezone.utc).isoformat(),
-                updated_at=datetime.now(timezone.utc).isoformat(),
-                round_number=0,
-                content=f"PRIORITY ({filter_result.priority.value}): User @{msg.author_name} said: {msg.content} | Filter: {filter_result.reasoning}",
-                context=(
-                    task.context
-                    if isinstance(task.context, dict)
-                    else task.context.model_dump() if task.context else {}
-                )
-            )
-            thought_channel_id = (
-                thought.context.get("channel_id")
-                if isinstance(thought.context, dict)
-                else getattr(thought.context, "channel_id", None)
-            )
-            assert thought_channel_id, "Thought context must include a non-empty channel_id"
-            persistence.add_thought(thought)
-
-            logger.info(f"Created PRIORITY observation task {task.task_id} and thought {thought.thought_id} for {filter_result.priority.value} message {msg.message_id}")
-
-        except Exception as e:
-            logger.error(f"Error creating priority observation task: {e}", exc_info=True)
 
     async def _add_to_feedback_queue(self, msg: DiscordMessage) -> None:
         """Process guidance/feedback from WA in deferral channel."""
@@ -569,41 +335,3 @@ class DiscordObserver:
         except Exception as e:
             logger.error(f"Error processing guidance message {msg.message_id}: {e}", exc_info=True)
 
-    async def _recall_context(self, msg: DiscordMessage) -> None:
-        if not self.memory_service:
-            return
-        recall_ids = {f"channel/{msg.channel_id}"}
-        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]:
-            if m.author_id:
-                recall_ids.add(f"user/{m.author_id}")
-        for rid in recall_ids:
-            for scope in (
-                GraphScope.IDENTITY,
-                GraphScope.ENVIRONMENT,
-                GraphScope.LOCAL,
-            ):
-                try:
-                    # Determine node type based on ID prefix
-                    if rid.startswith("channel/"):
-                        node_type = NodeType.CHANNEL
-                    elif rid.startswith("user/"):
-                        node_type = NodeType.USER
-                    else:
-                        node_type = NodeType.CONCEPT
-                    
-                    node = GraphNode(id=rid, type=node_type, scope=scope)
-                    await self.memory_service.recall(node)
-                except Exception:
-                    continue
-
-    async def get_recent_messages(self, limit: int = 20) -> list[Dict[str, Any]]:
-        msgs = self._history[-limit:]
-        return [
-            {
-                "id": m.message_id,
-                "content": m.content,
-                "author_id": m.author_id,
-                "timestamp": getattr(m, "timestamp", "n/a"),
-            }
-            for m in msgs
-        ]
