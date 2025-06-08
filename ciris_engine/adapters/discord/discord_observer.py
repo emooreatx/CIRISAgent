@@ -445,6 +445,25 @@ class DiscordObserver:
                         
                         # Create a new child thought for the guidance
                         # Reset round_number to 0 to give fresh rounds after deferral
+                        # Create guidance context by copying original context and adding guidance data
+                        if original_thought.context:
+                            guidance_context = original_thought.context.model_copy(update={
+                                "guidance_message_id": msg.message_id,
+                                "guidance_author": msg.author_name,
+                                "guidance_content": msg.content,
+                                "is_guidance_response": True,
+                                "original_round_number": original_thought.round_number  # Store original for reference
+                            })
+                        else:
+                            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+                            guidance_context = ThoughtContext(
+                                guidance_message_id=msg.message_id,
+                                guidance_author=msg.author_name,
+                                guidance_content=msg.content,
+                                is_guidance_response=True,
+                                original_round_number=original_thought.round_number
+                            )
+                        
                         guidance_thought = Thought(
                             thought_id=str(uuid.uuid4()),
                             source_task_id=original_task.task_id,
@@ -455,14 +474,7 @@ class DiscordObserver:
                             updated_at=datetime.now(timezone.utc).isoformat(),
                             round_number=0,  # Reset to 0 for fresh processing after guidance
                             content=f"Guidance from @{msg.author_name}: {msg.content}",
-                            context={
-                                **original_thought.context,
-                                "guidance_message_id": msg.message_id,
-                                "guidance_author": msg.author_name,
-                                "guidance_content": msg.content,
-                                "is_guidance_response": True,
-                                "original_round_number": original_thought.round_number  # Store original for reference
-                            }
+                            context=guidance_context
                         )
                         persistence.add_thought(guidance_thought)
                         logger.info(f"Created guidance thought {guidance_thought.thought_id} as child of deferred thought {referenced_thought_id}")
