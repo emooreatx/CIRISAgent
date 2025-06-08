@@ -115,5 +115,5 @@ class PlayProcessor(WorkProcessor):
         # and decide when to try novel approaches
         
         # Simple heuristic for now - experiment 20% of the time
-        import random
-        return random.random() < 0.2
+        import secrets
+        return secrets.randbelow(100) < 20

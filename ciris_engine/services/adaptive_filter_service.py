@@ -6,7 +6,7 @@ user trust tracking, and self-configuration capabilities.
 """
 
 import re
-import random
+import secrets
 import asyncio
 import logging
 from typing import Dict, Any, Optional, List, Tuple, Union
@@ -248,7 +248,8 @@ class AdaptiveFilterService(Service):
         
         # Determine processing decision
         should_process = priority != FilterPriority.IGNORE
-        should_defer = priority == FilterPriority.LOW and random.random() > 0.1  # Sample 10% of low priority
+        # Sample 10% of low priority messages (90% deferred)
+        should_defer = priority == FilterPriority.LOW and secrets.randbelow(10) > 0
         
         # Generate reasoning
         reasoning = self._generate_reasoning(triggered, priority, is_llm_response)

@@ -23,6 +23,7 @@ python-multipart
 # Testing
 pytest
 pytest-asyncio
+pytest-cov
 click
 streamlit-shadcn-ui
 mypy

@@ -8,6 +8,14 @@ from typing import Any, Dict, Deque, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Precompiled regex patterns using ASCII mode to avoid catastrophic
+# backtracking issues when scanning untrusted input.
+EMAIL_RE = re.compile(
+    r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,6}", re.ASCII
+)
+SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+PHONE_RE = re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b")
+
 
 class SecurityFilter:
     """Sanitize telemetry metrics to prevent sensitive data leaks."""
@@ -48,10 +56,8 @@ class SecurityFilter:
         return None
 
     def _contains_pii(self, text: str) -> bool:
-        email = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-        ssn = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
-        phone = re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b")
-        return bool(email.search(text) or ssn.search(text) or phone.search(text))
+        """Return True if the text contains common PII patterns."""
+        return bool(EMAIL_RE.search(text) or SSN_RE.search(text) or PHONE_RE.search(text))
 
     def _sanitize_error(self, message: str) -> str:
         message = re.sub(r"/[^\s]+", "[REDACTED]", message)

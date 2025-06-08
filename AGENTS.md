@@ -361,3 +361,12 @@ When working through this task list:
 6. **Integration testing** - Ensure new features don't break existing functionality
 
 Remember: This is mission-critical software. Quality and security are more important than speed.
+
+## ADDITIONAL GUIDELINES
+
+- All implementation details can be found in the top-level `README.md` and each module's `README.md`. Refer to those documents for background, usage, and architectural notes.
+- The development environment has full internet access. Use online resources if needed.
+- When running or testing the system, **always** use the mock LLM service (`--mock-llm`). Extend the mock implementation when debugging issues rather than calling external APIs.
+- Every code change must be mission critical and completely typed. No legacy accommodation or backward compatibility should be introduced.
+- Guardrails and sinks currently have less than 40% test coverage. Prioritize tests to bring these modules to acceptable levels.
+
