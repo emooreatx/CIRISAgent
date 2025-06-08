@@ -59,7 +59,7 @@ class TestAgentProcessorProtocolCompliance:
             
             # Mock all sub-processor methods that get called
             processor.wakeup_processor.initialize = AsyncMock()
-            processor.wakeup_processor.process_wakeup = AsyncMock(return_value={"wakeup_complete": True})
+            processor.wakeup_processor.process = AsyncMock(return_value={"wakeup_complete": True})
             processor.work_processor.initialize = AsyncMock()
             processor.dream_processor.stop_dreaming = AsyncMock()
             
@@ -147,7 +147,7 @@ class TestAgentProcessorProtocolCompliance:
         """Test that start_processing properly transitions to WAKEUP state."""
         with patch.object(agent_processor.state_manager, 'transition_to', return_value=True) as mock_transition:
             # Mock wakeup completion to avoid full processing
-            agent_processor.wakeup_processor.process_wakeup = AsyncMock(return_value={"wakeup_complete": True})
+            agent_processor.wakeup_processor.process = AsyncMock(return_value={"wakeup_complete": True})
             
             await agent_processor.start_processing()
             

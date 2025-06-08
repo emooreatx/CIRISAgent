@@ -13,13 +13,14 @@ from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStat
 from ciris_engine import persistence
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.context.builder import ContextBuilder
+from ciris_engine.protocols.processor_interface import ProcessorInterface
 
 from .base_processor import BaseProcessor
 
 logger = logging.getLogger(__name__)
 
 
-class WakeupProcessor(BaseProcessor):
+class WakeupProcessor(BaseProcessor, ProcessorInterface):
     """Handles the WAKEUP state and initialization sequence."""
     
     def _get_wakeup_sequence(self) -> List[Tuple[str, str]]:
@@ -81,9 +82,9 @@ class WakeupProcessor(BaseProcessor):
             Execute wakeup processing for one round.
             This is the required method from BaseProcessor.
             """
-            return await self.process_wakeup(round_number, non_blocking=True)
+            return await self._process_wakeup(round_number, non_blocking=True)
         
-    async def process_wakeup(self, round_number: int, non_blocking: bool = False) -> Dict[str, Any]:
+    async def _process_wakeup(self, round_number: int, non_blocking: bool = False) -> Dict[str, Any]:
         """
         Execute wakeup processing for one round.
         In non-blocking mode, creates thoughts for incomplete steps and returns immediately.
@@ -361,35 +362,6 @@ class WakeupProcessor(BaseProcessor):
                 return False
         return True
     
-    async def _process_wakeup_steps_non_blocking(self, round_number: int) -> None:
-        """In non-blocking mode, process all active step tasks and all PROCESSING/PENDING thoughts (including follow-ups)."""
-        if not self.wakeup_tasks or len(self.wakeup_tasks) < 2:
-            return
-        for i, step_task in enumerate(self.wakeup_tasks[1:]):
-            current_task = persistence.get_task_by_id(step_task.task_id)
-            if current_task and current_task.status == TaskStatus.ACTIVE:
-                existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
-                if not any(t.round_number == round_number for t in existing_thoughts):
-                    thought = await self._create_step_thought(step_task, round_number)
-                    result = await self._process_step_thought(thought)
-                    if result:
-                        await self._dispatch_step_action(result, thought, step_task)
-                    logger.info(f"Queued and dispatched non-blocking wakeup step {i+1}: {step_task.context.get('step_type', 'UNKNOWN') if step_task.context else 'UNKNOWN'}")
-        for i, step_task in enumerate(self.wakeup_tasks[1:]):
-            current_task = persistence.get_task_by_id(step_task.task_id)
-            if not current_task or current_task.status != TaskStatus.ACTIVE:
-                continue
-
-            all_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
-            for t in all_thoughts:
-                if getattr(t, 'status', None) in [ThoughtStatus.PROCESSING, ThoughtStatus.PENDING]:
-                    logger.info(
-                        f"Processing follow-up or pending thought {t.thought_id} for step {step_task.context.get('step_type', 'UNKNOWN') if step_task.context else 'UNKNOWN'}"
-                    )
-                    result = await self._process_step_thought(t)
-                    if result:
-                        await self._dispatch_step_action(result, t, step_task)
-    
     async def _create_step_thought(self, step_task: Task, round_number: int) -> Thought:
         """Create a thought for a wakeup step, ensuring context is formatted with the standard formatter."""
         # Use the new ContextBuilder to build the context for the thought
@@ -492,8 +464,25 @@ class WakeupProcessor(BaseProcessor):
         """Check if wakeup sequence is complete."""
         return self.wakeup_complete
     
-    def get_wakeup_progress(self) -> Dict[str, Any]:
-        """Get current wakeup progress."""
+
+    # ProcessorInterface implementation
+    async def start_processing(self, num_rounds: Optional[int] = None) -> None:
+        """Start the wakeup processing loop."""
+        round_num = 0
+        while not self.wakeup_complete and (num_rounds is None or round_num < num_rounds):
+            await self.process(round_num)
+            round_num += 1
+            if self.wakeup_complete:
+                break
+            await asyncio.sleep(1)  # Brief pause between rounds
+
+    async def stop_processing(self) -> None:
+        """Stop wakeup processing and clean up resources."""
+        self.wakeup_complete = True
+        logger.info("Wakeup processor stopped")
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get current wakeup processor status and metrics."""
         wakeup_sequence = self._get_wakeup_sequence()
         total_steps = len(wakeup_sequence)
         completed_steps = 0
@@ -504,9 +493,19 @@ class WakeupProcessor(BaseProcessor):
                 if status and status.status == TaskStatus.COMPLETED:
                     completed_steps += 1
         
-        return {
+        progress = {
             "complete": self.wakeup_complete,
             "total_steps": total_steps,
             "completed_steps": completed_steps,
             "progress_percent": (completed_steps / total_steps * 100) if total_steps > 0 else 0
+        }
+        
+        return {
+            "processor_type": "wakeup",
+            "wakeup_complete": self.wakeup_complete,
+            "supported_states": [state.value for state in self.get_supported_states()],
+            "progress": progress,
+            "metrics": getattr(self, 'metrics', {}),
+            "startup_channel_id": self.startup_channel_id,
+            "total_tasks": len(self.wakeup_tasks) if self.wakeup_tasks else 0
         }

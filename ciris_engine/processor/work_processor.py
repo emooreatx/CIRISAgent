@@ -13,18 +13,27 @@ from ciris_engine.processor.base_processor import BaseProcessor
 from ciris_engine.processor.task_manager import TaskManager
 from ciris_engine.processor.thought_manager import ThoughtManager
 from ciris_engine.processor.thought_processor import ThoughtProcessor
+from ciris_engine.protocols.processor_interface import ProcessorInterface
 from ciris_engine.utils.context_utils import build_dispatch_context
 
 logger = logging.getLogger(__name__)
 
 
-class WorkProcessor(BaseProcessor):
+class WorkProcessor(BaseProcessor, ProcessorInterface):
     """Handles the WORK state for normal task/thought processing."""
 
-    def __init__(self, *args, startup_channel_id: Optional[str] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        app_config,
+        thought_processor,
+        action_dispatcher,
+        services: Dict[str, Any],
+        startup_channel_id: Optional[str] = None,
+        **kwargs
+    ) -> None:
         """Initialize work processor."""
         self.startup_channel_id = startup_channel_id
-        super().__init__(*args, **kwargs)
+        super().__init__(app_config, thought_processor, action_dispatcher, services, **kwargs)
         
         workflow_config = getattr(self.app_config, 'workflow', None)
         if workflow_config:
@@ -216,20 +225,6 @@ class WorkProcessor(BaseProcessor):
         """Get duration in seconds since last activity."""
         return (datetime.now(timezone.utc) - self.last_activity_time).total_seconds()
     
-    def get_work_stats(self) -> Dict[str, Any]:
-        """Get current work processing statistics."""
-        return {
-            "last_activity": self.last_activity_time.isoformat(),
-            "idle_duration_seconds": self.get_idle_duration(),
-            "idle_rounds": self.idle_rounds,
-            "active_tasks": self.task_manager.get_active_task_count(),
-            "pending_tasks": self.task_manager.get_pending_task_count(),
-            "pending_thoughts": self.thought_manager.get_pending_thought_count(),
-            "processing_thoughts": self.thought_manager.get_processing_thought_count(),
-            "total_rounds": self.metrics.get("rounds_completed", 0),
-            "total_processed": self.metrics.get("items_processed", 0),
-            "total_errors": self.metrics.get("errors", 0)
-        }
     
     def should_transition_to_dream(self, idle_threshold: float = 300) -> bool:
         """
@@ -256,3 +251,50 @@ class WorkProcessor(BaseProcessor):
             )
         
         return False
+
+    # ProcessorInterface implementation
+    async def start_processing(self, num_rounds: Optional[int] = None) -> None:
+        """Start the work processing loop."""
+        import asyncio
+        round_num = 0
+        self._running = True
+        
+        while self._running and (num_rounds is None or round_num < num_rounds):
+            await self.process(round_num)
+            round_num += 1
+            
+            # Check if we should transition to dream state
+            if self.should_transition_to_dream():
+                logger.info("Work processor recommends transitioning to DREAM state due to inactivity")
+                break
+                
+            await asyncio.sleep(1)  # Brief pause between rounds
+
+    async def stop_processing(self) -> None:
+        """Stop work processing and clean up resources."""
+        self._running = False
+        logger.info("Work processor stopped")
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get current work processor status and metrics."""
+        work_stats = {
+            "last_activity": self.last_activity_time.isoformat(),
+            "idle_duration_seconds": self.get_idle_duration(),
+            "idle_rounds": self.idle_rounds,
+            "active_tasks": self.task_manager.get_active_task_count(),
+            "pending_tasks": self.task_manager.get_pending_task_count(),
+            "pending_thoughts": self.thought_manager.get_pending_thought_count(),
+            "processing_thoughts": self.thought_manager.get_processing_thought_count(),
+            "total_rounds": self.metrics.get("rounds_completed", 0),
+            "total_processed": self.metrics.get("items_processed", 0),
+            "total_errors": self.metrics.get("errors", 0)
+        }
+        return {
+            "processor_type": "work",
+            "supported_states": [state.value for state in self.get_supported_states()],
+            "is_running": getattr(self, '_running', False),
+            "work_stats": work_stats,
+            "metrics": getattr(self, 'metrics', {}),
+            "startup_channel_id": self.startup_channel_id,
+            "should_transition_to_dream": self.should_transition_to_dream()
+        }

@@ -8,11 +8,12 @@ from datetime import datetime, timezone
 from ciris_engine.schemas.states_v1 import AgentState
 
 from .work_processor import WorkProcessor
+from ciris_engine.protocols.processor_interface import ProcessorInterface
 
 logger = logging.getLogger(__name__)
 
 
-class PlayProcessor(WorkProcessor):
+class PlayProcessor(WorkProcessor, ProcessorInterface):
     """
     Handles the PLAY state for creative and experimental processing.
     
@@ -60,7 +61,18 @@ class PlayProcessor(WorkProcessor):
     
     def get_play_stats(self) -> Dict[str, Any]:
         """Get play-specific statistics."""
-        base_stats = self.get_work_stats()
+        base_stats = {
+            "last_activity": self.last_activity_time.isoformat(),
+            "idle_duration_seconds": self.get_idle_duration(),
+            "idle_rounds": self.idle_rounds,
+            "active_tasks": self.task_manager.get_active_task_count(),
+            "pending_tasks": self.task_manager.get_pending_task_count(),
+            "pending_thoughts": self.thought_manager.get_pending_thought_count(),
+            "processing_thoughts": self.thought_manager.get_processing_thought_count(),
+            "total_rounds": self.metrics.get("rounds_completed", 0),
+            "total_processed": self.metrics.get("items_processed", 0),
+            "total_errors": self.metrics.get("errors", 0)
+        }
         base_stats.update({
             "play_metrics": self.play_metrics.copy(),
             "mode": "play",
@@ -117,3 +129,14 @@ class PlayProcessor(WorkProcessor):
         # Simple heuristic for now - experiment 20% of the time
         import secrets
         return secrets.randbelow(100) < 20
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get current play processor status and metrics."""
+        base_status = super().get_status()
+        play_stats = self.get_play_stats()
+        base_status.update({
+            "processor_type": "play", 
+            "play_stats": play_stats,
+            "creativity_level": self._calculate_creativity_level()
+        })
+        return base_status

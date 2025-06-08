@@ -158,7 +158,7 @@ class AgentProcessor(ProcessorInterface):
         while not wakeup_complete and not self._stop_event.is_set() and (num_rounds is None or self.current_round_number < num_rounds):
             logger.info(f"=== WAKEUP Round {wakeup_round} ===")
             
-            wakeup_result = await self.wakeup_processor.process_wakeup(wakeup_round, non_blocking=True)
+            wakeup_result = await self.wakeup_processor.process(wakeup_round)
             wakeup_complete = wakeup_result.get("wakeup_complete", False)
             
             if not wakeup_complete:
@@ -439,6 +439,19 @@ class AgentProcessor(ProcessorInterface):
             processor = self.state_processors[target_state]
             await processor.initialize()
     
+    async def process(self, round_number: int) -> Dict[str, Any]:
+        """Execute one round of processing based on current state."""
+        current_state = self.state_manager.get_state()
+        processor = self.state_processors.get(current_state)
+        
+        if processor:
+            return await processor.process(round_number)
+        elif current_state == AgentState.DREAM:
+            # Dream state handled separately
+            return {"state": "dream", "round_number": round_number}
+        else:
+            return {"state": current_state.value, "round_number": round_number, "error": "No processor available"}
+
     def get_status(self) -> Dict[str, Any]:
         """Get current processor status."""
         status = {
@@ -452,16 +465,16 @@ class AgentProcessor(ProcessorInterface):
         current_state = self.state_manager.get_state()
         
         if current_state == AgentState.WAKEUP:
-            status["wakeup_progress"] = self.wakeup_processor.get_wakeup_progress()
+            status["wakeup_status"] = self.wakeup_processor.get_status()
             
         elif current_state == AgentState.WORK:
-            status.update(self.work_processor.get_work_stats())
+            status["work_status"] = self.work_processor.get_status()
             
         elif current_state == AgentState.PLAY:
-            status.update(self.play_processor.get_play_stats())
+            status["play_status"] = self.play_processor.get_status()
             
         elif current_state == AgentState.SOLITUDE:
-            status["solitude_stats"] = self.solitude_processor.get_solitude_stats()
+            status["solitude_status"] = self.solitude_processor.get_status()
             
         elif current_state == AgentState.DREAM:
             status["dream_summary"] = self.dream_processor.get_dream_summary()
