@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
@@ -36,7 +36,7 @@ class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, Memory
 
     async def send_message(self, channel_id: str, content: str) -> bool:
         response_id = str(uuid.uuid4())
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         
         response_data = {
             "channel_id": channel_id,
@@ -86,8 +86,8 @@ class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, Memory
                 action_type="fetch_guidance",
                 request_data=context,
                 status=ServiceCorrelationStatus.COMPLETED,
-                created_at=datetime.utcnow().isoformat(),
-                updated_at=datetime.utcnow().isoformat(),
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
             )
         )
         return None
@@ -97,7 +97,7 @@ class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, Memory
             "type": "deferral",
             "thought_id": thought_id,
             "reason": reason,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         if context:
             deferral_data["context"] = context

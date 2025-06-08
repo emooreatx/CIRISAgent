@@ -7,7 +7,7 @@ to balance observability with performance and security constraints.
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Callable, List
 from dataclasses import dataclass
 
@@ -40,7 +40,7 @@ class BaseCollector(ABC):
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._metrics_collected = 0
-        self._last_collection = datetime.utcnow()
+        self._last_collection = datetime.now(timezone.utc)
         
     async def start(self) -> None:
         """Start the collector."""
@@ -101,7 +101,7 @@ class BaseCollector(ABC):
             if filtered_metrics:
                 await self.process_metrics(filtered_metrics)
                 self._metrics_collected += len(filtered_metrics)
-                self._last_collection = datetime.utcnow()
+                self._last_collection = datetime.now(timezone.utc)
                 
         except Exception as e:
             logger.error(f"Error collecting metrics in {self.__class__.__name__}: {e}")
@@ -145,7 +145,7 @@ class InstantCollector(BaseCollector):
     async def collect_raw_metrics(self) -> List[MetricData]:
         """Collect critical instant metrics."""
         metrics = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # Circuit breaker states
         if self.circuit_breaker_registry:
@@ -188,7 +188,7 @@ class FastCollector(BaseCollector):
     async def collect_raw_metrics(self) -> List[MetricData]:
         """Collect fast metrics."""
         metrics = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # Active thoughts count
         if self.thought_manager:
@@ -230,7 +230,7 @@ class NormalCollector(BaseCollector):
     async def collect_raw_metrics(self) -> List[MetricData]:
         """Collect normal interval metrics."""
         metrics = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # Resource usage
         if self.resource_monitor:
@@ -282,7 +282,7 @@ class SlowCollector(BaseCollector):
     async def collect_raw_metrics(self) -> List[MetricData]:
         """Collect slow interval metrics."""
         metrics = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # Memory service stats
         if self.memory_service:
@@ -329,7 +329,7 @@ class AggregateCollector(BaseCollector):
     async def collect_raw_metrics(self) -> List[MetricData]:
         """Collect aggregate metrics."""
         metrics = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # System health rollups
         if self.telemetry_service:
@@ -362,7 +362,7 @@ class AggregateCollector(BaseCollector):
             # Audit aggregate metric collection
             await self.audit_service.log_action(
                 "telemetry_aggregation",
-                {"metrics_count": len(metrics), "timestamp": datetime.utcnow().isoformat()},
+                {"metrics_count": len(metrics), "timestamp": datetime.now(timezone.utc).isoformat()},
                 "success"
             )
             

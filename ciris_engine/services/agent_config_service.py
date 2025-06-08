@@ -8,7 +8,7 @@ for identity-critical changes.
 import asyncio
 import logging
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.graph_schemas_v1 import (
@@ -59,7 +59,7 @@ class AgentConfigService(Service):
         cache_key = f"{node_id}:{scope.value}"
         if cache_key in self._config_cache:
             cached = self._config_cache[cache_key]
-            if cached["expires"] > datetime.utcnow():
+            if cached["expires"] > datetime.now(timezone.utc):
                 logger.debug(f"Config cache hit for {config_type.value}")
                 return cached["data"]  # type: ignore[no-any-return]
             else:
@@ -81,7 +81,7 @@ class AgentConfigService(Service):
                 # Cache for configured TTL
                 self._config_cache[cache_key] = {
                     "data": config_data,
-                    "expires": datetime.utcnow() + timedelta(minutes=self._cache_ttl_minutes)
+                    "expires": datetime.now(timezone.utc) + timedelta(minutes=self._cache_ttl_minutes)
                 }
                 
                 logger.debug(f"Loaded config {config_type.value} from memory")
@@ -136,7 +136,7 @@ class AgentConfigService(Service):
             "updates": updates,
             "reason": reason,
             "thought_id": thought_id,
-            "requested_at": datetime.utcnow(),
+            "requested_at": datetime.now(timezone.utc),
             "status": "pending_wa_approval"
         }
         
@@ -180,7 +180,7 @@ class AgentConfigService(Service):
             
             # Apply updates
             updated_config = {**current_config, **updates}
-            updated_config["last_updated"] = datetime.utcnow().isoformat()
+            updated_config["last_updated"] = datetime.now(timezone.utc).isoformat()
             updated_config["update_reason"] = reason
             
             # Store updated config
@@ -189,7 +189,7 @@ class AgentConfigService(Service):
                 type=NodeType.CONFIG,
                 scope=scope,
                 attributes=updated_config,
-                updated_at=datetime.utcnow().isoformat()
+                updated_at=datetime.now(timezone.utc).isoformat()
             )
             
             result = await self.memory.memorize(node)
@@ -235,7 +235,7 @@ class AgentConfigService(Service):
             
             pending["status"] = "approved" if result.status == MemoryOpStatus.OK else "failed"
             pending["approved_by"] = approver
-            pending["approved_at"] = datetime.utcnow()
+            pending["approved_at"] = datetime.now(timezone.utc)
             
             return result.status == MemoryOpStatus.OK
         
@@ -243,7 +243,7 @@ class AgentConfigService(Service):
             logger.info(f"Identity update rejected by {approver}: {pending_id}")
             pending["status"] = "rejected"
             pending["rejected_by"] = approver
-            pending["rejected_at"] = datetime.utcnow()
+            pending["rejected_at"] = datetime.now(timezone.utc)
             
             return True
     
@@ -322,7 +322,7 @@ class AgentConfigService(Service):
                 # This would integrate with the filter service
                 return {
                     "version": 1,
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
                     "auto_adjust": True,
                     "new_user_threshold": 5
                 }
@@ -373,7 +373,7 @@ class AgentConfigService(Service):
         # For other config types, return basic structure
         return {
             "version": 1,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "enabled": True
         }
     
@@ -400,7 +400,7 @@ class AgentConfigService(Service):
                 health["warnings"].append(f"Missing critical config: {config_type.value}")
         
         # Check for old pending updates
-        cutoff = datetime.utcnow() - timedelta(hours=24)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
         old_pending = [
             pid for pid, update in self._pending_identity_updates.items()
             if update["requested_at"] < cutoff and update["status"] in ["pending_wa_approval", "wa_notified"]

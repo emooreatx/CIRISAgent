@@ -3,7 +3,7 @@ from discord.errors import Forbidden, NotFound, InvalidData, HTTPException, Conn
 import logging
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Awaitable, Optional, List, Dict, Any
 from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, FetchedMessage
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
@@ -65,8 +65,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     request_data={"channel_id": channel_id, "content": content},
                     response_data={"sent": True},
                     status=ServiceCorrelationStatus.COMPLETED,
-                    created_at=datetime.utcnow().isoformat(),
-                    updated_at=datetime.utcnow().isoformat(),
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    updated_at=datetime.now(timezone.utc).isoformat(),
                 )
             )
             return True
@@ -139,8 +139,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     request_data=context,
                     response_data=guidance,
                     status=ServiceCorrelationStatus.COMPLETED,
-                    created_at=datetime.utcnow().isoformat(),
-                    updated_at=datetime.utcnow().isoformat(),
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    updated_at=datetime.now(timezone.utc).isoformat(),
                 )
             )
             return guidance
@@ -227,8 +227,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     request_data={"thought_id": thought_id, "reason": reason},
                     response_data={"status": "sent"},
                     status=ServiceCorrelationStatus.COMPLETED,
-                    created_at=datetime.utcnow().isoformat(),
-                    updated_at=datetime.utcnow().isoformat(),
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    updated_at=datetime.now(timezone.utc).isoformat(),
                 )
             )
             return True
@@ -250,7 +250,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             "**[CIRIS Deferral Report]**",
             f"**Thought ID:** `{thought_id}`",
             f"**Reason:** {reason}",
-            f"**Timestamp:** {datetime.utcnow().isoformat()}Z"
+            f"**Timestamp:** {datetime.now(timezone.utc).isoformat()}Z"
         ]
         
         if context:
@@ -330,8 +330,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                 action_type=tool_name,
                 request_data=tool_args,
                 status=ServiceCorrelationStatus.PENDING,
-                created_at=datetime.utcnow().isoformat(),
-                updated_at=datetime.utcnow().isoformat(),
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
             )
         )
         result = await handler({**tool_args, "bot": self.client})

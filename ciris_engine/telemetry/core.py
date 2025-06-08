@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Deque, Dict, Tuple, Any
 
 from ciris_engine.adapters.base import Service
@@ -24,7 +24,7 @@ class TelemetryService(Service):
             lambda: deque(maxlen=self.buffer_size)
         )
         self._filter = security_filter or SecurityFilter()
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
 
     async def start(self) -> None:
         await super().start()
@@ -40,11 +40,11 @@ class TelemetryService(Service):
             logger.debug("Metric discarded by security filter: %s", metric_name)
             return
         name, val = sanitized
-        self._history[name].append((datetime.utcnow(), float(val)))
+        self._history[name].append((datetime.now(timezone.utc), float(val)))
 
     async def update_system_snapshot(self, snapshot: SystemSnapshot) -> None:
         """Update SystemSnapshot.telemetry with recent metrics."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = now - timedelta(hours=24)
         telemetry = CompactTelemetry()
         for name, records in self._history.items():

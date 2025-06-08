@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
 from ciris_engine.protocols.services import WiseAuthorityService
@@ -50,7 +50,7 @@ class CLIWiseAuthorityService(WiseAuthorityService):
         print("[CIRIS DEFERRAL REPORT]")
         print(f"Thought ID: {thought_id}")
         print(f"Reason: {reason}")
-        print(f"Timestamp: {datetime.utcnow().isoformat()}Z")
+        print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}Z")
         
         if context:
             if "task_id" in context:
@@ -76,8 +76,8 @@ class CLIWiseAuthorityService(WiseAuthorityService):
             request_data={"thought_id": thought_id, "reason": reason, "context": context},
             response_data={"status": "logged"},
             status=ServiceCorrelationStatus.COMPLETED,
-            created_at=datetime.utcnow().isoformat(),
-            updated_at=datetime.utcnow().isoformat(),
+            created_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
         )
         persistence.add_correlation(corr)
         return True
