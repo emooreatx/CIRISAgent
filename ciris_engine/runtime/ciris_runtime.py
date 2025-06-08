@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.processor import AgentProcessor
@@ -15,6 +15,8 @@ from ciris_engine.adapters.base import Service
 from ciris_engine import persistence
 from ciris_engine.utils.profile_loader import load_profile
 from ciris_engine.utils.constants import DEFAULT_NUM_ROUNDS
+from ciris_engine.adapters import load_adapter
+from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration
 
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.adapters.openai_compatible_llm import OpenAICompatibleLLM
@@ -72,15 +74,26 @@ class CIRISRuntime(RuntimeInterface):
     
     def __init__(
         self,
+        modes: List[str],
         profile_name: str = "default",
-        io_adapter: Optional[Any] = None,
         app_config: Optional[AppConfig] = None,
         startup_channel_id: Optional[str] = None,
+        **kwargs: Any,
     ) -> None:
         self.profile_name = profile_name
-        self.io_adapter = io_adapter
         self.app_config = app_config
         self.startup_channel_id = startup_channel_id
+        self.adapters: List[PlatformAdapter] = []
+
+        for mode in modes:
+            try:
+                adapter_class = load_adapter(mode)
+                self.adapters.append(adapter_class(self, **kwargs))
+                logger.info(f"Successfully loaded and initialized adapter for mode: {mode}")
+            except Exception as e:
+                logger.error(f"Failed to load or initialize adapter for mode '{mode}': {e}", exc_info=True)
+                # Depending on desired behavior, you might want to raise here or just log and continue
+                # For now, let's log and continue, allowing other adapters to load.
         
         self.llm_service: Optional[OpenAICompatibleLLM] = None
         self.memory_service: Optional[LocalGraphMemoryService] = None
@@ -144,17 +157,23 @@ class CIRISRuntime(RuntimeInterface):
             
             await self._load_profile()
             
-            await self._initialize_services()
+            await self._initialize_services() # Core services
+
+            await self._register_adapter_services() # Adapter-provided services
             
-            await self._build_components()
+            await self._build_components() # Agent processor and its dependencies
             
             await self._perform_startup_maintenance()
+
+            # Start adapters after core components are ready but before agent processor starts full operation
+            await asyncio.gather(*(adapter.start() for adapter in self.adapters))
+            logger.info(f"All {len(self.adapters)} adapters started.")
             
             self._initialized = True
             logger.info("CIRIS Runtime initialized successfully")
             
         except Exception as e:
-            logger.critical(f"Runtime initialization failed: {e}")
+            logger.critical(f"Runtime initialization failed: {e}", exc_info=True)
             if "maintenance" in str(e).lower():
                 logger.critical("Database maintenance failure during initialization - system cannot start safely")
             raise
@@ -283,7 +302,45 @@ class CIRISRuntime(RuntimeInterface):
             await self._request_shutdown("No maintenance service available")
             raise RuntimeError("No maintenance service available")
 
+    async def _register_adapter_services(self) -> None:
+        """Register services provided by the loaded adapters."""
+        if not self.service_registry:
+            logger.error("ServiceRegistry not initialized. Cannot register adapter services.")
+            return
 
+        for adapter in self.adapters:
+            try:
+                registrations = adapter.get_services_to_register()
+                for reg in registrations:
+                    if not isinstance(reg, ServiceRegistration):
+                        logger.error(f"Adapter {adapter.__class__.__name__} provided an invalid ServiceRegistration object: {reg}")
+                        continue
+
+                    # Ensure provider is an instance of Service
+                    if not isinstance(reg.provider, Service):
+                         logger.error(f"Adapter {adapter.__class__.__name__} service provider for {reg.service_type.value} is not a Service instance.")
+                         continue
+
+                    if reg.handlers: # Register for specific handlers
+                        for handler_name in reg.handlers:
+                            self.service_registry.register(
+                                handler=handler_name,
+                                service_type=reg.service_type.value, # Use the string value of the enum
+                                provider=reg.provider,
+                                priority=reg.priority,
+                                # capabilities=reg.capabilities # Assuming capabilities might be added to ServiceRegistration
+                            )
+                        logger.info(f"Registered {reg.service_type.value} from {adapter.__class__.__name__} for handlers: {reg.handlers}")
+                    else: # Register globally if no specific handlers
+                        self.service_registry.register_global(
+                            service_type=reg.service_type.value,
+                            provider=reg.provider,
+                            priority=reg.priority,
+                            # capabilities=reg.capabilities
+                        )
+                        logger.info(f"Registered {reg.service_type.value} globally from {adapter.__class__.__name__}")
+            except Exception as e:
+                logger.error(f"Error registering services for adapter {adapter.__class__.__name__}: {e}", exc_info=True)
 
             
     async def _build_components(self) -> None:
@@ -372,7 +429,7 @@ class CIRISRuntime(RuntimeInterface):
         
         dependencies = ActionHandlerDependencies(
             service_registry=self.service_registry,
-            io_adapter=self.io_adapter,
+            # io_adapter is no longer a direct dependency here, adapters handle IO
             shutdown_callback=lambda: self.request_shutdown(
                 "Handler requested shutdown due to critical service failure"
             ),
@@ -415,7 +472,7 @@ class CIRISRuntime(RuntimeInterface):
                 "memory_service": self.memory_service,
                 "audit_service": self.audit_service,
                 "service_registry": self.service_registry,
-                "io_adapter": self.io_adapter,
+                # "io_adapter": self.io_adapter, # Removed, adapters manage their own IO
             },
             startup_channel_id=self.startup_channel_id,
         )
@@ -530,53 +587,69 @@ class CIRISRuntime(RuntimeInterface):
                 sink_task = asyncio.create_task(self.multi_service_sink.start())
                 logger.info("Started multi-service sink as background task")
 
-            
-            # Start IO adapter
-            if self.io_adapter:
-                await self.io_adapter.start()
-                logger.info("Started IO adapter")
-            
-            # Start processing and monitor for shutdown requests
             if not self.agent_processor:
                 raise RuntimeError("Agent processor not initialized")
-                
-            # Use the provided num_rounds, or fall back to DEFAULT_NUM_ROUNDS (None = infinite)
+
             effective_num_rounds = num_rounds if num_rounds is not None else DEFAULT_NUM_ROUNDS
-            logger.info("Starting agent processing with WAKEUP sequence...")
-            processing_task = asyncio.create_task(
-                self.agent_processor.start_processing(effective_num_rounds)
-            )
-            shutdown_task = asyncio.create_task(self._shutdown_event.wait())
-            global_shutdown_task = asyncio.create_task(wait_for_global_shutdown())
-            
-            # Wait for either processing to complete or shutdown to be requested
-            done, pending = await asyncio.wait(
-                [processing_task, shutdown_task, global_shutdown_task],
-                return_when=asyncio.FIRST_COMPLETED
+            logger.info(f"Starting agent processing (num_rounds={effective_num_rounds if effective_num_rounds != -1 else 'infinite'})...")
+
+            agent_task = asyncio.create_task(
+                self.agent_processor.start_processing(effective_num_rounds),
+                name="AgentProcessorTask"
             )
             
-            # Cancel any remaining tasks
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+            adapter_tasks = [
+                asyncio.create_task(adapter.run_lifecycle(agent_task), name=f"{adapter.__class__.__name__}LifecycleTask")
+                for adapter in self.adapters
+            ]
             
-            # Check if shutdown was requested
+            # Monitor agent_task, all adapter_tasks, and shutdown events
+            all_tasks = [agent_task, *adapter_tasks, self._shutdown_event.wait(), wait_for_global_shutdown()]
+            
+            done, pending = await asyncio.wait(all_tasks, return_when=asyncio.FIRST_COMPLETED)
+
+            # Handle task completion and cancellation logic
             if self._shutdown_event.is_set() or is_global_shutdown_requested():
-                if self._shutdown_reason:
-                    logger.critical(f"GRACEFUL SHUTDOWN TRIGGERED: {self._shutdown_reason}")
-                elif is_global_shutdown_requested():
-                    logger.critical(f"GLOBAL SHUTDOWN TRIGGERED: {self._shutdown_manager.get_shutdown_reason()}")
-                else:
-                    logger.critical("GRACEFUL SHUTDOWN TRIGGERED: Unknown reason")
-                    
-                # Execute any pending global shutdown handlers
-                await self._shutdown_manager.execute_async_handlers()
+                shutdown_reason = self._shutdown_reason or self._shutdown_manager.get_shutdown_reason() or "Unknown reason"
+                logger.critical(f"GRACEFUL SHUTDOWN TRIGGERED: {shutdown_reason}")
+                # Ensure all other tasks are cancelled if a shutdown event occurred
+                for task in pending:
+                    if not task.done():
+                        task.cancel()
+                if not agent_task.done(): # Ensure agent task is cancelled if not already
+                    agent_task.cancel()
+                for ad_task in adapter_tasks: # Ensure adapter tasks are cancelled
+                    if not ad_task.done():
+                        ad_task.cancel()
+            elif agent_task in done:
+                logger.info(f"Agent processing task completed. Result: {agent_task.result() if not agent_task.cancelled() else 'Cancelled'}")
+                # If agent task finishes (e.g. num_rounds reached), signal shutdown for adapters
+                self.request_shutdown("Agent processing completed normally.")
+                for ad_task in adapter_tasks: # Adapters should react to agent_task completion via its cancellation or by observing shutdown event
+                    if not ad_task.done():
+                         ad_task.cancel() # Or rely on their run_lifecycle to exit when agent_task is done
+            else: # One of the adapter tasks finished, or an unexpected task completion
+                for task in done:
+                    if task not in [self._shutdown_event.wait(), wait_for_global_shutdown()]: # Don't log for event tasks
+                        task_name = task.get_name() if hasattr(task, 'get_name') else "Unnamed task"
+                        logger.info(f"Task '{task_name}' completed. Result: {task.result() if not task.cancelled() else 'Cancelled'}")
+                        if task.exception():
+                            logger.error(f"Task '{task_name}' raised an exception: {task.exception()}", exc_info=task.exception())
+                            self.request_shutdown(f"Task {task_name} failed: {task.exception()}")
+
+            # Await all pending tasks (including cancellations)
+            if pending:
+                await asyncio.wait(pending, return_when=asyncio.ALL_COMPLETED)
             
+            # Execute any pending global shutdown handlers
+            if self._shutdown_event.is_set() or is_global_shutdown_requested():
+                await self._shutdown_manager.execute_async_handlers()
+
         except KeyboardInterrupt:
-            logger.info("Received interrupt signal")
+            logger.info("Received interrupt signal. Requesting shutdown.")
+            self.request_shutdown("KeyboardInterrupt")
+            # Re-raise to allow outer event loop (if any) to catch it, or ensure finally block runs
+            # For this structure, self.request_shutdown and then letting it flow to finally is fine.
         except Exception as e:
             logger.error(f"Runtime error: {e}", exc_info=True)
         finally:
@@ -586,17 +659,32 @@ class CIRISRuntime(RuntimeInterface):
         """Gracefully shutdown all services."""
         logger.info("Shutting down CIRIS Runtime...")
         
+        logger.info("Initiating shutdown sequence for CIRIS Runtime...")
+        self._shutdown_event.set() # Ensure event is set for any waiting components
+
         if self.agent_processor:
+            logger.debug("Stopping agent processor...")
             await self.agent_processor.stop_processing()
+            logger.debug("Agent processor stopped.")
             
         if self.multi_service_sink:
+            logger.debug("Stopping multi-service sink...")
             await self.multi_service_sink.stop()
+            logger.debug("Multi-service sink stopped.")
+
+        logger.debug(f"Stopping {len(self.adapters)} adapters...")
+        adapter_stop_results = await asyncio.gather(
+            *(adapter.stop() for adapter in self.adapters if hasattr(adapter, 'stop')),
+            return_exceptions=True
+        )
+        for i, result in enumerate(adapter_stop_results):
+            if isinstance(result, Exception):
+                logger.error(f"Error stopping adapter {self.adapters[i].__class__.__name__}: {result}", exc_info=result)
+        logger.debug("Adapters stopped.")
             
-        if self.io_adapter:
-            await self.io_adapter.stop()
-            
+        logger.debug("Stopping core services...")
         services_to_stop = [
-            self.llm_service,
+            self.llm_service, # OpenAICompatibleLLM
             self.memory_service,
             self.audit_service,
             self.telemetry_service,

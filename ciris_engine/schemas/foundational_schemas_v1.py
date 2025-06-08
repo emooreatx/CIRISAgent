@@ -14,6 +14,15 @@ class CaseInsensitiveEnum(str, Enum):
                     return member
         return None
 
+class ServiceType(CaseInsensitiveEnum):
+    """The six core service types that can be provided by the runtime or an adapter."""
+    COMMUNICATION = "communication"
+    TOOL = "tool"
+    WISE_AUTHORITY = "wise_authority"
+    MEMORY = "memory"
+    AUDIT = "audit"
+    LLM = "llm"
+
 class HandlerActionType(CaseInsensitiveEnum):
     """Core 3×3×3 action model"""
     OBSERVE = "observe"
@@ -162,4 +171,5 @@ __all__ = [
     "ResourceUsage",
     "SchemaVersion",
     "CIRISSchemaVersion",
+    "ServiceType",
 ]
