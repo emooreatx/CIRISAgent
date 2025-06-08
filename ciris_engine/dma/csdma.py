@@ -128,11 +128,7 @@ class CSDMAEvaluator(BaseDMA):
 
         aclient = instructor.patch(llm_service.get_client().client, mode=self.instructor_mode)
 
-        thought_content_str = ""
-        if isinstance(thought_item.content, dict):
-            thought_content_str = str(thought_item.content)
-        else:
-            thought_content_str = str(thought_item.content)
+        thought_content_str = str(thought_item.content)
 
         context_summary = "Standard Earth-based physical context, unless otherwise specified in the thought."
         if hasattr(thought_item, 'initial_context') and thought_item.initial_context and "environment_context" in thought_item.initial_context:
