@@ -9,6 +9,15 @@ from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphEdge, GraphSco
 logger = logging.getLogger(__name__)
 
 
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
 def add_graph_node(node: GraphNode, db_path: Optional[str] = None) -> str:
     """Insert or replace a graph node."""
     sql = """
@@ -20,7 +29,7 @@ def add_graph_node(node: GraphNode, db_path: Optional[str] = None) -> str:
         "node_id": node.id,
         "scope": node.scope.value,
         "node_type": node.type.value,
-        "attributes_json": json.dumps(node.attributes),
+        "attributes_json": json.dumps(node.attributes, cls=DateTimeEncoder),
         "version": node.version,
         "updated_by": node.updated_by,
         "updated_at": node.updated_at or datetime.now(timezone.utc).isoformat(),
@@ -86,7 +95,7 @@ def add_graph_edge(edge: GraphEdge, db_path: Optional[str] = None) -> str:
         "scope": edge.scope.value,
         "relationship": edge.relationship,
         "weight": edge.weight,
-        "attributes_json": json.dumps(edge.attributes),
+        "attributes_json": json.dumps(edge.attributes, cls=DateTimeEncoder),
     }
     try:
         with get_db_connection(db_path=db_path) as conn:

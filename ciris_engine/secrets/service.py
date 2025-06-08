@@ -137,7 +137,7 @@ class SecretsService(SecretsServiceInterface):
         """
         # Retrieve secret record
         secret_record = await self.store.retrieve_secret(
-            secret_uuid, purpose, accessor, decrypt
+            secret_uuid, decrypt
         )
         
         if not secret_record:
@@ -236,8 +236,6 @@ class SecretsService(SecretsServiceInterface):
             # Check if this action type is allowed auto-decapsulation
             secret_record = await self.store.retrieve_secret(
                 secret_uuid, 
-                f"Auto-decapsulation for {action_type}",
-                "system",
                 decrypt=False
             )
             

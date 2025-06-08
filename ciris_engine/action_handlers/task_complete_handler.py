@@ -29,6 +29,44 @@ class TaskCompleteHandler(BaseActionHandler):
         self.logger.info(f"Handling TASK_COMPLETE for thought {thought_id} (Task: {parent_task_id}).")
         print(f"[TASK_COMPLETE_HANDLER] Processing TASK_COMPLETE for task {parent_task_id}")
 
+        # Validate that wakeup tasks have completed a SPEAK action before allowing completion
+        if parent_task_id:
+            is_wakeup = await self._is_wakeup_task(parent_task_id)
+            self.logger.debug(f"Task {parent_task_id} is_wakeup_task: {is_wakeup}")
+            if is_wakeup:
+                has_speak = await self._has_speak_action_completed(parent_task_id)
+                self.logger.debug(f"Task {parent_task_id} has_speak_action_completed: {has_speak}")
+                if not has_speak:
+                    self.logger.error(f"TASK_COMPLETE rejected for wakeup task {parent_task_id}: No SPEAK action has been completed.")
+                    print(f"[TASK_COMPLETE_HANDLER] ✗ TASK_COMPLETE rejected for wakeup task {parent_task_id}: Must SPEAK first")
+                    
+                    # Override to PONDER with instructions about the requirement to SPEAK first
+                    from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+                    from ciris_engine.schemas.action_params_v1 import PonderParams
+                    
+                    ponder_content = (
+                        f"WAKEUP TASK COMPLETION BLOCKED: You attempted to mark a wakeup task as complete "
+                        f"without first completing a SPEAK action. Each wakeup step requires you to SPEAK "
+                        f"an earnest affirmation before marking the task complete. Please review the task "
+                        f"requirements and either: 1) SPEAK an authentic affirmation if you can do so earnestly, "
+                        f"or 2) REJECT this task if you cannot speak earnestly about it, or 3) DEFER to human "
+                        f"wisdom if you are uncertain about the requirements. Task: {parent_task_id}"
+                    )
+                    
+                    ponder_result = ActionSelectionResult(
+                        selected_action=HandlerActionType.PONDER,
+                        action_parameters=PonderParams(questions=[ponder_content]),
+                        reasoning="Task completion blocked due to missing required SPEAK action for wakeup task"
+                    )
+                    
+                    persistence.update_thought_status(
+                        thought_id=thought_id,
+                        status=ThoughtStatus.FAILED,
+                        final_action=ponder_result,
+                    )
+                    await self._audit_log(HandlerActionType.TASK_COMPLETE, {**dispatch_context, "thought_id": thought_id}, outcome="blocked_override_to_ponder")
+                    return
+
         persistence.update_thought_status(
             thought_id=thought_id,
             status=final_thought_status,
@@ -57,4 +95,59 @@ class TaskCompleteHandler(BaseActionHandler):
                     print(f"[TASK_COMPLETE_HANDLER] ✗ Failed to update task {parent_task_id} status")
         else:
             self.logger.error(f"Could not find parent task ID for thought {thought_id} to mark as complete.")
+
+    async def _is_wakeup_task(self, task_id: str) -> bool:
+        """Check if a task is part of the wakeup sequence."""
+        task = persistence.get_task_by_id(task_id)
+        if not task:
+            return False
+        
+        # Check if this is the root wakeup task
+        if task_id == "WAKEUP_ROOT":
+            return True
+        
+        # Check if parent task is the wakeup root
+        if getattr(task, 'parent_task_id', None) == "WAKEUP_ROOT":
+            return True
+        
+        # Check if task context indicates it's a wakeup step
+        if task.context and isinstance(task.context, dict):
+            step_type = task.context.get("step_type")
+            if step_type in ["VERIFY_IDENTITY", "VALIDATE_INTEGRITY", "EVALUATE_RESILIENCE", "ACCEPT_INCOMPLETENESS", "EXPRESS_GRATITUDE"]:
+                return True
+        
+        return False
+
+    async def _has_speak_action_completed(self, task_id: str) -> bool:
+        """Check if a SPEAK action has been successfully completed for the given task."""
+        thoughts = persistence.get_thoughts_by_task_id(task_id)
+        self.logger.debug(f"Checking SPEAK completion for task {task_id}: found {len(thoughts)} thoughts")
+        
+        for thought in thoughts:
+            self.logger.debug(f"Thought {thought.thought_id}: status={thought.status}")
+            if thought.status == ThoughtStatus.COMPLETED:
+                # Check if the final action was SPEAK
+                final_action = getattr(thought, 'final_action', None)
+                self.logger.debug(f"Thought {thought.thought_id}: final_action={final_action}")
+                
+                if final_action:
+                    # Handle different final_action formats
+                    selected_action = None
+                    if hasattr(final_action, 'selected_action'):
+                        selected_action = final_action.selected_action
+                    elif hasattr(final_action, 'action_type'):
+                        selected_action = final_action.action_type
+                    elif isinstance(final_action, dict) and 'selected_action' in final_action:
+                        selected_action = final_action['selected_action']
+                    elif isinstance(final_action, dict) and 'action_type' in final_action:
+                        selected_action = final_action['action_type']
+                    
+                    self.logger.debug(f"Thought {thought.thought_id}: selected_action={selected_action}")
+                    
+                    if selected_action == HandlerActionType.SPEAK or selected_action == 'speak':
+                        self.logger.debug(f"Found completed SPEAK action in thought {thought.thought_id} for task {task_id}")
+                        return True
+        
+        self.logger.debug(f"No completed SPEAK action found for task {task_id}")
+        return False
 

@@ -41,6 +41,13 @@ class ThoughtStatus(CaseInsensitiveEnum):
     FAILED = "failed"
     DEFERRED = "deferred"
 
+class SensitivityLevel(CaseInsensitiveEnum):
+    """Security sensitivity levels for secrets and sensitive information."""
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
 class ObservationSourceType(CaseInsensitiveEnum):
     CHAT_MESSAGE = "chat_message"
     FEEDBACK_PACKAGE = "feedback_package"

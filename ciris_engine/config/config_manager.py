@@ -47,6 +47,10 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
             discord_channel_id_env = get_env_var("DISCORD_CHANNEL_ID")
             if discord_channel_id_env and not config_data.get("discord_channel_id"):
                 config_data["discord_channel_id"] = discord_channel_id_env
+            
+            discord_deferral_channel_id_env = get_env_var("DISCORD_DEFERRAL_CHANNEL_ID")
+            if discord_deferral_channel_id_env and not config_data.get("discord_deferral_channel_id"):
+                config_data["discord_deferral_channel_id"] = discord_deferral_channel_id_env
             _app_config = AppConfig(**config_data)
             # Load environment variables for OpenAI config
             _app_config.llm_services.openai.load_env_vars()
@@ -63,6 +67,10 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
         discord_channel_id_env = get_env_var("DISCORD_CHANNEL_ID")
         if discord_channel_id_env and not _app_config.discord_channel_id:
             _app_config.discord_channel_id = discord_channel_id_env
+        
+        discord_deferral_channel_id_env = get_env_var("DISCORD_DEFERRAL_CHANNEL_ID")
+        if discord_deferral_channel_id_env and not _app_config.discord_deferral_channel_id:
+            _app_config.discord_deferral_channel_id = discord_deferral_channel_id_env
         # Load environment variables for OpenAI config
         _app_config.llm_services.openai.load_env_vars()
         if create_if_not_exists:

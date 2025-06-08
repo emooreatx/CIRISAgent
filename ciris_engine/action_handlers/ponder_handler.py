@@ -137,9 +137,15 @@ class PonderHandler(BaseActionHandler):
                 },
             )
             
+            # Get the original task context to maintain thread
+            original_task = persistence.get_task_by_id(thought.source_task_id)
+            task_context = f"Task ID: {thought.source_task_id}"
+            if original_task:
+                task_context = f"Original Task: {original_task.description}"
+            
             follow_up_content = (
-                f"CIRIS_FOLLOW_UP_THOUGHT: This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
-                f"Pondered questions: {questions_list}. "
+                f"CIRIS_FOLLOW_UP_THOUGHT: This is a follow-up thought from a PONDER action performed on a prior thought related to {task_context}. "
+                f"Pondered questions: {questions_list}. IF THE GUARDRAIL FAILED YOU MAY NEED TO TRY AGAIN!"
                 "If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
             from .helpers import create_follow_up_thought
@@ -174,8 +180,14 @@ class PonderHandler(BaseActionHandler):
                 dispatch_context,
                 {"thought_id": thought.thought_id, "status": ThoughtStatus.FAILED.value, "ponder_type": "update_failed"},
             )
+            # Get the original task context to maintain thread  
+            original_task = persistence.get_task_by_id(thought.source_task_id)
+            task_context = f"Task ID: {thought.source_task_id}"
+            if original_task:
+                task_context = f"Original Task: {original_task.description}"
+                
             follow_up_content = (
-                f"This is a follow-up thought from a FAILED PONDER action performed on parent task {thought.source_task_id}. "
+                f"This is a follow-up thought from a FAILED PONDER action performed on parent task {task_context}. "
                 f"Pondered questions: {questions_list}. "
                 "The update failed. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )

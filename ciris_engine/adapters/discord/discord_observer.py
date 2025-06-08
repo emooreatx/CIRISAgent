@@ -189,14 +189,15 @@ class DiscordObserver:
         default_channel_id = get_config().discord_channel_id
         deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
         wa_discord_user = DEFAULT_WA
+        authorized_user_id = "537080239679864862"  # Your Discord user ID
         
         if msg.channel_id == default_channel_id:
             # Create high-priority observation with enhanced context
             await self._create_priority_observation_result(msg, filter_result)
-        elif msg.channel_id == deferral_channel_id and msg.author_name == wa_discord_user:
+        elif msg.channel_id == deferral_channel_id and (msg.author_id == authorized_user_id or msg.author_name == wa_discord_user):
             await self._add_to_feedback_queue(msg)
         else:
-            logger.debug("Ignoring priority message from channel %s, author %s", msg.channel_id, msg.author_name)
+            logger.debug("Ignoring priority message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id)
 
     async def _handle_passive_observation(self, msg: DiscordMessage) -> None:
         from ciris_engine.config.config_manager import get_config
@@ -208,12 +209,14 @@ class DiscordObserver:
         default_channel_id = get_config().discord_channel_id
         deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
         wa_discord_user = DEFAULT_WA
+        authorized_user_id = "537080239679864862"  # Your Discord user ID
+        
         if msg.channel_id == default_channel_id:
             await self._create_passive_observation_result(msg)
-        elif msg.channel_id == deferral_channel_id and msg.author_name == wa_discord_user:
+        elif msg.channel_id == deferral_channel_id and (msg.author_id == authorized_user_id or msg.author_name == wa_discord_user):
             await self._add_to_feedback_queue(msg)
         else:
-            logger.debug("Ignoring message from channel %s, author %s", msg.channel_id, msg.author_name)
+            logger.debug("Ignoring message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id)
 
 
     async def _create_passive_observation_result(self, msg: DiscordMessage) -> None:
@@ -373,27 +376,116 @@ class DiscordObserver:
             logger.error(f"Error creating priority observation task: {e}", exc_info=True)
 
     async def _add_to_feedback_queue(self, msg: DiscordMessage) -> None:
+        """Process guidance/feedback from WA in deferral channel."""
         try:
-            if self.multi_service_sink:
-                success = await self.multi_service_sink.send_message(
-                    handler_name="DiscordObserver",
-                    channel_id=msg.channel_id,
-                    content=f"[WA_FEEDBACK] {msg.content}",
-                    metadata={
-                        "message_type": "wa_feedback",
-                        "original_message_id": msg.message_id,
-                        "wa_user": msg.author_name,
-                        "source": "discord_observer"
-                    }
-                )
-                if success:
-                    logger.info(f"Enqueued WA feedback message {msg.message_id} from {msg.author_name}")
+            from datetime import datetime, timezone
+            import uuid
+            import re
+            from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+            from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+            from ciris_engine import persistence
+
+            # Check if this is a reply to a deferral report
+            thought_id_match = None
+            referenced_thought_id = None
+            
+            # First check if this message is replying to another message
+            if hasattr(msg, '_raw_message') and msg._raw_message and hasattr(msg._raw_message, 'reference'):
+                ref = msg._raw_message.reference
+                if ref and ref.resolved:
+                    # Check if the referenced message contains a thought ID
+                    ref_content = ref.resolved.content
+                    thought_id_pattern = r'Thought ID:\s*`([a-f0-9-]+)`'
+                    match = re.search(thought_id_pattern, ref_content)
+                    if match:
+                        referenced_thought_id = match.group(1)
+                        logger.info(f"Found reply to deferral for thought ID: {referenced_thought_id}")
+            
+            # If not a reply, check if the message itself mentions a thought ID
+            if not referenced_thought_id:
+                thought_id_pattern = r'(?:thought\s+id|thought_id|re:\s*thought)[\s:]*([a-f0-9-]+)'
+                match = re.search(thought_id_pattern, msg.content, re.IGNORECASE)
+                if match:
+                    referenced_thought_id = match.group(1)
+                    logger.info(f"Found thought ID reference in message: {referenced_thought_id}")
+            
+            if referenced_thought_id:
+                # This is guidance for a specific deferred thought
+                # Find the original thought and its task
+                original_thought = persistence.get_thought(referenced_thought_id)
+                if original_thought and original_thought.status == ThoughtStatus.DEFERRED:
+                    # Reactivate the original task
+                    original_task = persistence.get_task(original_thought.source_task_id)
+                    if original_task:
+                        persistence.update_task_status(original_task.task_id, TaskStatus.ACTIVE)
+                        logger.info(f"Reactivated task {original_task.task_id} due to guidance")
+                        
+                        # Create a new child thought for the guidance
+                        # Reset round_number to 0 to give fresh rounds after deferral
+                        guidance_thought = Thought(
+                            thought_id=str(uuid.uuid4()),
+                            source_task_id=original_task.task_id,
+                            parent_thought_id=referenced_thought_id,
+                            thought_type="guidance",
+                            status=ThoughtStatus.PENDING,
+                            created_at=datetime.now(timezone.utc).isoformat(),
+                            updated_at=datetime.now(timezone.utc).isoformat(),
+                            round_number=0,  # Reset to 0 for fresh processing after guidance
+                            content=f"Guidance from @{msg.author_name}: {msg.content}",
+                            context={
+                                **original_thought.context,
+                                "guidance_message_id": msg.message_id,
+                                "guidance_author": msg.author_name,
+                                "guidance_content": msg.content,
+                                "is_guidance_response": True,
+                                "original_round_number": original_thought.round_number  # Store original for reference
+                            }
+                        )
+                        persistence.add_thought(guidance_thought)
+                        logger.info(f"Created guidance thought {guidance_thought.thought_id} as child of deferred thought {referenced_thought_id}")
+                        return
                 else:
-                    logger.warning(f"Failed to enqueue WA feedback message {msg.message_id}")
-            else:
-                logger.warning("No multi_service_sink available for WA feedback routing")
+                    logger.warning(f"Thought {referenced_thought_id} not found or not deferred")
+            
+            # If we get here, it's unsolicited guidance - create a new task
+            task = Task(
+                task_id=str(uuid.uuid4()),
+                description=f"Process unsolicited guidance from @{msg.author_name}: '{msg.content}'",
+                status=TaskStatus.PENDING,
+                priority=8,  # High priority for guidance
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                context={
+                    "channel_id": msg.channel_id,
+                    "author_id": msg.author_id,
+                    "author_name": msg.author_name,
+                    "message_id": msg.message_id,
+                    "origin_service": "discord",
+                    "observation_type": "unsolicited_guidance",
+                    "is_guidance": True,
+                    "guidance_content": msg.content,
+                }
+            )
+            persistence.add_task(task)
+
+            # Create thought for this guidance
+            thought = Thought(
+                thought_id=str(uuid.uuid4()),
+                source_task_id=task.task_id,
+                thought_type="observation",
+                status=ThoughtStatus.PENDING,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                round_number=0,
+                content=f"Unsolicited guidance from @{msg.author_name}: {msg.content}",
+                context=task.context
+            )
+            persistence.add_thought(thought)
+
+            logger.info(f"Created unsolicited guidance task {task.task_id} and thought {thought.thought_id}")
+                
         except Exception as e:
-            logger.error(f"Error adding WA feedback message {msg.message_id} to queue: {e}")
+            logger.error(f"Error processing guidance message {msg.message_id}: {e}", exc_info=True)
 
     async def _recall_context(self, msg: DiscordMessage) -> None:
         if not self.memory_service:

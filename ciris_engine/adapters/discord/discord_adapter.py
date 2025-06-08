@@ -44,8 +44,9 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         
         self.token = token
         self.client = bot
-        self.guidance_channel_id = guidance_channel_id
+        # Guidance and deferral use the same channel
         self.deferral_channel_id = deferral_channel_id
+        self.guidance_channel_id = deferral_channel_id  # Deprecated, same as deferral
         self.tool_registry = tool_registry
         self.on_message_callback = on_message
         self._tool_results = {}
@@ -96,7 +97,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         if channel is None:
             channel = await self.client.fetch_channel(int(channel_id))
         
-        if channel:
+        if channel and hasattr(channel, 'history'):
             messages: List[FetchedMessage] = []
             async for message in channel.history(limit=limit):
                 messages.append(
@@ -149,28 +150,50 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
 
     async def _fetch_guidance_impl(self, context: dict, **kwargs) -> dict:
         """Internal implementation of fetch_guidance for retry wrapping"""
-        channel = self.client.get_channel(int(self.guidance_channel_id))
+        if not self.deferral_channel_id:
+            logger.error("DiscordAdapter: No deferral channel configured for guidance")
+            raise RuntimeError("Deferral channel not configured.")
+            
+        channel = self.client.get_channel(int(self.deferral_channel_id))
         if channel is None:
-            channel = await self.client.fetch_channel(int(self.guidance_channel_id))
+            channel = await self.client.fetch_channel(int(self.deferral_channel_id))
         if channel is None:
-            logger.error(f"DiscordAdapter: Could not find guidance channel {self.guidance_channel_id}")
-            raise RuntimeError("Guidance channel not found.")
+            logger.error(f"DiscordAdapter: Could not find deferral channel {self.deferral_channel_id}")
+            raise RuntimeError("Deferral channel not found.")
         
-        # Post the guidance request
+        # Post the guidance request to deferral channel
         request_content = f"[CIRIS Guidance Request]\nContext: ```json\n{context}\n```"
-        await channel.send(request_content)
+        if hasattr(channel, 'send'):
+            request_message = await channel.send(request_content)
+        else:
+            logger.error(f"Channel {self.deferral_channel_id} does not support sending messages")
+            return {"guidance": None}
         
-        # For demo: fetch the latest bot response as guidance (in real use, implement a more robust protocol)
-        async for message in channel.history(limit=10):
-            if message.author.bot and message.content.startswith("[CIRIS Guidance Reply]"):
-                # Parse guidance from message
-                try:
-                    # Assume guidance is in a code block after the prefix
-                    guidance = message.content.split('```', 1)[-1].rsplit('```', 1)[0]
-                    return {"guidance": guidance}
-                except Exception:
+        # Check recent messages from registered WAs (Wise Authorities)
+        if hasattr(channel, 'history'):
+            async for message in channel.history(limit=10):
+                # Skip bot messages and our own request
+                if message.author.bot or message.id == request_message.id:
                     continue
-        logger.warning("DiscordAdapter: No guidance reply found in channel history.")
+                    
+                # TODO: Check if author is a registered WA
+                # For now, accept any human message as potential guidance
+                guidance_content = message.content.strip()
+                
+                # Check if it's a reply to our guidance request
+                is_reply = (hasattr(message, 'reference') and 
+                           message.reference and 
+                           message.reference.message_id == request_message.id)
+                
+                return {
+                    "guidance": guidance_content,
+                    "is_reply": is_reply,
+                    "is_unsolicited": not is_reply,
+                    "author_id": str(message.author.id),
+                    "author_name": message.author.display_name
+                }
+        
+        logger.warning("DiscordAdapter: No guidance found in deferral channel.")
         return {"guidance": None}
 
     async def send_deferral(self, thought_id: str, reason: str) -> bool:

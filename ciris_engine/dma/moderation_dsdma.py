@@ -121,22 +121,31 @@ class ModerationDSDMA(BaseDSDMA):
         
         Adds moderation-specific context enrichment before calling parent evaluation.
         """
+        logger.debug(f"ModerationDSDMA starting evaluation for thought {thought_item.thought_id}")
         # Enrich context with moderation-specific information
         moderation_context = current_context.copy()
         
         # Extract channel-specific moderation history if available
         if hasattr(thought_item, 'context') and thought_item.context:
-            channel_id = thought_item.context.get('channel_id')
-            if channel_id:
-                moderation_context['active_channel'] = channel_id
-                # Could add channel-specific rules or history here
+            try:
+                channel_id = thought_item.context.get('channel_id')
+                if channel_id:
+                    moderation_context['active_channel'] = channel_id
+                    # Could add channel-specific rules or history here
+            except (AttributeError, KeyError, TypeError):
+                # thought_item.context might not be a dict or might not have get method
+                logger.debug("Could not extract channel_id from thought context - not critical for moderation")
         
         # Check for user context that might affect moderation
         if hasattr(thought_item, 'context') and thought_item.context:
-            if 'user_profiles' in thought_item.context:
-                # Flag new users for gentler treatment
-                moderation_context['user_status'] = 'established'  # Default
-                # Real implementation would check user history
+            try:
+                if 'user_profiles' in thought_item.context:
+                    # Flag new users for gentler treatment
+                    moderation_context['user_status'] = 'established'  # Default
+                    # Real implementation would check user history
+            except (AttributeError, KeyError, TypeError):
+                # thought_item.context might not support 'in' operator
+                logger.debug("Could not check user_profiles in thought context - not critical for moderation")
         
         # Add thought metadata that affects moderation
         thought_content = str(thought_item.content)

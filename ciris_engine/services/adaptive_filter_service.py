@@ -36,7 +36,7 @@ class AdaptiveFilterService(Service):
         self._config_node_id = "config/filter_config"
         self._message_buffer: Dict[str, List[Tuple[datetime, Any]]] = {}
         self._stats = FilterStats()
-        self._init_task = None
+        self._init_task: Optional[asyncio.Task[None]] = None
     
     async def start(self) -> None:
         """Start the service and load configuration"""

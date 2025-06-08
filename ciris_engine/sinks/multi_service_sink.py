@@ -5,7 +5,7 @@ based on action type, with circuit breaker patterns and fallback support.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Union, Callable, List, Awaitable
+from typing import Any, Dict, Optional, Union, Callable, List, Awaitable, cast
 from dataclasses import asdict
 import json
 from abc import ABC, abstractmethod
@@ -109,27 +109,27 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         
         try:
             if action_type == ActionType.SEND_MESSAGE:
-                await self._handle_send_message(service, action)
+                await self._handle_send_message(service, cast(SendMessageAction, action))
             elif action_type == ActionType.FETCH_MESSAGES:
-                await self._handle_fetch_messages(service, action)
+                await self._handle_fetch_messages(service, cast(FetchMessagesAction, action))
             elif action_type == ActionType.FETCH_GUIDANCE:
-                await self._handle_fetch_guidance(service, action)
+                await self._handle_fetch_guidance(service, cast(FetchGuidanceAction, action))
             elif action_type == ActionType.SEND_DEFERRAL:
-                await self._handle_send_deferral(service, action)
+                await self._handle_send_deferral(service, cast(SendDeferralAction, action))
             elif action_type == ActionType.MEMORIZE:
-                await self._handle_memorize(service, action)
+                await self._handle_memorize(service, cast(MemorizeAction, action))
             elif action_type == ActionType.RECALL:
-                await self._handle_recall(service, action)
+                await self._handle_recall(service, cast(RecallAction, action))
             elif action_type == ActionType.FORGET:
-                await self._handle_forget(service, action)
+                await self._handle_forget(service, cast(ForgetAction, action))
             elif action_type == ActionType.SEND_TOOL:
-                await self._handle_send_tool(service, action)
+                await self._handle_send_tool(service, cast(SendToolAction, action))
             elif action_type == ActionType.FETCH_TOOL:
-                await self._handle_fetch_tool(service, action)
+                await self._handle_fetch_tool(service, cast(FetchToolAction, action))
             elif action_type == ActionType.GENERATE_RESPONSE:
-                await self._handle_generate_response(service, action)
+                await self._handle_generate_response(service, cast(GenerateResponseAction, action))
             elif action_type == ActionType.GENERATE_STRUCTURED:
-                await self._handle_generate_structured(service, action)
+                await self._handle_generate_structured(service, cast(GenerateStructuredAction, action))
             else:
                 logger.error(f"No handler for action type: {action_type}")
                 

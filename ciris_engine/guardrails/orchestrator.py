@@ -24,7 +24,14 @@ class GuardrailOrchestrator:
         thought: Thought,
         dma_results_dict: Dict[str, Any],
     ) -> GuardrailResult:
-        if action_result.selected_action == HandlerActionType.TASK_COMPLETE:
+        # Actions that should bypass guardrails (already safe non-actions)
+        exempt_actions = {
+            HandlerActionType.TASK_COMPLETE,
+            HandlerActionType.DEFER,
+            HandlerActionType.REJECT
+        }
+        
+        if action_result.selected_action in exempt_actions:
             return GuardrailResult(
                 original_action=action_result,
                 final_action=action_result,
