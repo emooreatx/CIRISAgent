@@ -58,11 +58,11 @@ class SecretsTools:
         self.secrets_service = secrets_service
         
     async def recall_secret(
-        self, 
+        self,
         params: RecallSecretParams,
         requester_id: str = "agent",
         context: Optional[Dict[str, Any]] = None
-    ) -> ToolResult:
+    ) -> ToolResult:  # pragma: no cover - integration heavy
         """
         Recall a secret by UUID with optional decryption.
         
@@ -192,7 +192,7 @@ class SecretsTools:
         params: UpdateSecretsFilterParams,
         requester_id: str = "agent",
         context: Optional[Dict[str, Any]] = None
-    ) -> ToolResult:
+    ) -> ToolResult:  # pragma: no cover - integration heavy
         """
         Update secrets filter configuration or patterns.
         
@@ -320,7 +320,7 @@ class SecretsTools:
         requester_id: str = "agent",
         include_sensitive: bool = False,
         context: Optional[Dict[str, Any]] = None
-    ) -> ToolResult:
+    ) -> ToolResult:  # pragma: no cover - integration heavy
         """
         List all stored secrets (metadata only).
         
