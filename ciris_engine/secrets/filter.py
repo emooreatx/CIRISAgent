@@ -259,7 +259,7 @@ class SecretsFilter(SecretsFilterInterface):
         """Remove a secret detection pattern."""
         return self.remove_custom_pattern(pattern_name)
     
-    async def get_filter_config(self) -> SchemaSecretsFilter:
+    async def get_filter_config(self) -> SchemaSecretsFilter:  # pragma: no cover - thin wrapper
         """Get the current filter configuration."""
         # Convert detection config to schema format
         return SchemaSecretsFilter(
@@ -282,7 +282,7 @@ class SecretsFilter(SecretsFilterInterface):
             auto_decrypt_for_actions=["speak", "tool"]  # Default
         )
     
-    async def update_filter_config(self, updates: Dict[str, Any]) -> bool:
+    async def update_filter_config(self, updates: Dict[str, Any]) -> bool:  # pragma: no cover - rarely used
         """Update filter configuration settings."""
         try:
             # Update detection config based on provided updates

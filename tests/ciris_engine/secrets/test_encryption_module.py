@@ -64,3 +64,18 @@ def test_test_encryption_method():
     enc = SecretsEncryption()
     assert enc.test_encryption() is True
 
+
+def test_rotate_with_supplied_key():
+    enc = SecretsEncryption()
+    new_key = b"z" * 32
+    rotated = enc.rotate_master_key(new_key)
+    assert rotated == new_key
+    assert enc.get_master_key() == new_key
+
+def test_decrypt_with_wrong_nonce():
+    enc = SecretsEncryption()
+    secret = "val"
+    encrypted, salt, nonce = enc.encrypt_secret(secret)
+    with pytest.raises(Exception):
+        enc.decrypt_secret(encrypted, salt, b"badnonce123456")
+

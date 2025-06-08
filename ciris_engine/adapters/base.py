@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import random
+import secrets
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, Callable, TypeVar
 
@@ -75,7 +75,8 @@ class Service(ABC):
                     # Calculate exponential backoff with jitter
                     delay = min(base_delay * (backoff_multiplier ** (attempt - 1)), max_delay)
                     # Add jitter (±jitter_range% of delay) to avoid thundering herd
-                    jitter = delay * jitter_range * (2 * random.random() - 1)
+                    rand_fraction = secrets.randbits(53) / float(1 << 53)
+                    jitter = delay * jitter_range * (2 * rand_fraction - 1)
                     final_delay = max(0.1, delay + jitter)
                     
                     logger.info(
