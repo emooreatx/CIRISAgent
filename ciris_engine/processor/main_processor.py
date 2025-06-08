@@ -15,6 +15,7 @@ from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.utils.context_utils import build_dispatch_context
 
 from ciris_engine.processor.thought_processor import ThoughtProcessor
+from ciris_engine.protocols.processor_interface import ProcessorInterface
 if TYPE_CHECKING:
     from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 
@@ -30,7 +31,7 @@ from ciris_engine.utils.shutdown_manager import request_global_shutdown
 logger = logging.getLogger(__name__)
 
 
-class AgentProcessor:
+class AgentProcessor(ProcessorInterface):
     """
     Main agent processor that orchestrates task processing, thought generation,
     and state management using v1 schemas.

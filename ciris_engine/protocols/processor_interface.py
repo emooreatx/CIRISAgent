@@ -1,13 +1,17 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 class ProcessorInterface(ABC):
     """Contract for main agent processors."""
 
     @abstractmethod
-    async def handle_observation(self, observation: Dict[str, Any]) -> None:
-        """Given an incoming observation, run the full pipeline."""
+    async def start_processing(self, num_rounds: Optional[int] = None) -> None:
+        """Start the main agent processing loop."""
 
     @abstractmethod
-    def shutdown(self) -> None:
-        """Cleanly tear down processor resources."""
+    async def stop_processing(self) -> None:
+        """Stop processing and clean up resources."""
+
+    @abstractmethod
+    def get_status(self) -> Dict[str, Any]:
+        """Get current processor status and metrics."""
