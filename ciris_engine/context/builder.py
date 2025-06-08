@@ -9,8 +9,9 @@ from ciris_engine import persistence
 from pydantic import BaseModel
 from ciris_engine.config.env_utils import get_env_var
 from ciris_engine.secrets.service import SecretsService
-from ciris_engine.schemas.secrets_schemas_v1 import SecretReference
 import logging
+from .system_snapshot import build_system_snapshot as _build_snapshot
+from .secrets_snapshot import build_secrets_snapshot as _secrets_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -155,162 +156,15 @@ class ContextBuilder:
         thought: Any  # Accept Thought or ProcessingQueueItem
     ) -> SystemSnapshot:
         """Build system snapshot for the thought."""
-        from ciris_engine.schemas.context_schemas_v1 import ThoughtSummary
-        thought_summary = None
-        if thought:
-            status_val = getattr(thought, 'status', None)
-            if status_val is not None and hasattr(status_val, 'value'):
-                status_val = status_val.value
-            elif status_val is not None:
-                status_val = str(status_val)
-            thought_type_val = getattr(thought, 'thought_type', None)
-            thought_summary = ThoughtSummary(
-                thought_id=getattr(thought, 'thought_id', None),
-                content=getattr(thought, 'content', None),
-                status=status_val,
-                source_task_id=getattr(thought, 'source_task_id', None),
-                thought_type=thought_type_val,
-                ponder_count=getattr(thought, 'ponder_count', None)
-            )
-
-        # Mission-critical channel_id resolution with type safety
-        channel_id = None
-        
-        def safe_extract_channel_id(context: Any, source_name: str) -> Optional[str]:
-            """Type-safe channel_id extraction."""
-            if not context:
-                return None
-                
-            try:
-                if isinstance(context, dict):
-                    cid = context.get('channel_id')
-                    return str(cid) if cid is not None else None
-                elif hasattr(context, 'channel_id'):
-                    cid = getattr(context, 'channel_id', None)
-                    return str(cid) if cid is not None else None
-            except Exception as e:
-                logger.error(f"Error extracting channel_id from {source_name}: {e}")
-            
-            return None
-        
-        # Try task context first
-        if task and task.context:
-            channel_id = safe_extract_channel_id(task.context, "task.context")
-        
-        # Try thought context if not found
-        if not channel_id and thought and thought.context:
-            channel_id = safe_extract_channel_id(thought.context, "thought.context")
-        
-        if channel_id and self.memory_service:
-            channel_node = GraphNode(
-                id=f"channel/{channel_id}",
-                type=NodeType.CHANNEL,
-                scope=GraphScope.LOCAL
-            )
-            channel_info = await self.memory_service.recall(channel_node)
-
-        recent_tasks_list: List[Any] = []
-        db_recent_tasks = persistence.get_recent_completed_tasks(10)
-        from ciris_engine.schemas.context_schemas_v1 import TaskSummary
-        for t_obj in db_recent_tasks:
-            if isinstance(t_obj, TaskSummary):
-                pass
-            elif isinstance(t_obj, BaseModel):
-                recent_tasks_list.append(TaskSummary(**t_obj.model_dump()))
-        top_tasks_list: List[Any] = []
-        db_top_tasks = persistence.get_top_tasks(10)
-        for t_obj in db_top_tasks:
-            if isinstance(t_obj, TaskSummary):
-                pass
-            elif isinstance(t_obj, BaseModel):
-                top_tasks_list.append(TaskSummary(**t_obj.model_dump()))
-        current_task_summary = None
-        if task:
-            from ciris_engine.schemas.context_schemas_v1 import TaskSummary
-            if isinstance(task, TaskSummary):
-                current_task_summary = task
-            elif isinstance(task, BaseModel):
-                current_task_summary = TaskSummary(**task.model_dump())
-            elif isinstance(task, dict):
-                current_task_summary = TaskSummary(**task)
-            else:
-                current_task_summary = None
-
-        # Get secrets information for the snapshot
-        secrets_data = await self._build_secrets_snapshot()
-        
-        context_data = {
-            "current_task_details": current_task_summary,
-            "current_thought_summary": thought_summary,
-            "system_counts": {
-                "total_tasks": persistence.count_tasks(),
-                "total_thoughts": persistence.count_thoughts(),
-                "pending_tasks": persistence.count_tasks(TaskStatus.PENDING),
-                "pending_thoughts": persistence.count_thoughts(),
-            },
-            "top_pending_tasks_summary": top_tasks_list,
-            "recently_completed_tasks_summary": recent_tasks_list,
-            "channel_id": channel_id,
-            **secrets_data
-        }
-        if self.graphql_provider:
-            graphql_extra_raw = await self.graphql_provider.enrich_context(task, thought)
-            graphql_extra_processed: Dict[str, Any] = {}
-            if "user_profiles" in graphql_extra_raw and isinstance(graphql_extra_raw["user_profiles"], dict):
-                graphql_extra_processed["user_profiles"] = {}
-                for key, profile_obj in graphql_extra_raw["user_profiles"].items():
-                    graphql_extra_processed["user_profiles"][key] = profile_obj
-            for key, value in graphql_extra_raw.items():
-                if key not in graphql_extra_processed:
-                    graphql_extra_processed[key] = value
-            context_data.update(graphql_extra_processed)
-        
-        snapshot = SystemSnapshot(**context_data)
-        
-        # Update snapshot with telemetry data if service is available
-        if self.telemetry_service:
-            await self.telemetry_service.update_system_snapshot(snapshot)
-        
-        return snapshot
+        return await _build_snapshot(
+            task,
+            thought,
+            memory_service=self.memory_service,
+            graphql_provider=self.graphql_provider,
+            telemetry_service=self.telemetry_service,
+            secrets_service=self.secrets_service,
+        )
 
     async def _build_secrets_snapshot(self) -> Dict[str, Any]:
         """Build secrets information for SystemSnapshot."""
-        try:
-            # Get recent secrets (limit to last 10 for context)
-            all_secrets = await self.secrets_service.store.list_all_secrets()
-            recent_secrets = sorted(all_secrets, key=lambda s: s.created_at, reverse=True)[:10]
-            
-            # Convert to SecretReference objects for the snapshot
-            detected_secrets = [
-                SecretReference(
-                    uuid=secret.secret_uuid,
-                    description=secret.description,
-                    context_hint=secret.context_hint,
-                    sensitivity=secret.sensitivity_level,
-                    detected_pattern=getattr(secret, 'detected_pattern', 'unknown'),
-                    auto_decapsulate_actions=secret.auto_decapsulate_for_actions,
-                    created_at=secret.created_at,
-                    last_accessed=secret.last_accessed
-                )
-                for secret in recent_secrets
-            ]
-            
-            # Get filter version
-            filter_version = self.secrets_service.filter.config.version
-            
-            # Get total count
-            total_secrets = len(all_secrets)
-            
-            return {
-                "detected_secrets": detected_secrets,
-                "secrets_filter_version": filter_version,
-                "total_secrets_stored": total_secrets
-            }
-            
-        except Exception as e:
-            logger.error(f"Error building secrets snapshot: {e}")
-            return {
-                "detected_secrets": [],
-                "secrets_filter_version": 0,
-                "total_secrets_stored": 0
-            }
+        return await _secrets_snapshot(self.secrets_service)
