@@ -1,5 +1,54 @@
 [
   {
+    "module": "ciris_engine/telemetry/collectors.py",
+    "line": 22,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": null
+  },
+  {
+    "module": "ciris_engine/telemetry/collectors.py",
+    "line": 23,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": null
+  },
+  {
+    "module": "ciris_engine/telemetry/collectors.py",
+    "line": 24,
+    "action": "refactor_type",
+    "from_type": "datetime",
+    "to_type": null
+  },
+  {
+    "module": "ciris_engine/processor/processing_queue.py",
+    "line": 17,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "ThoughtType"
+  },
+  {
+    "module": "ciris_engine/processor/processing_queue.py",
+    "line": 25,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "ThoughtType"
+  },
+  {
+    "module": "ciris_engine/processor/processing_queue.py",
+    "line": 26,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "ThoughtType"
+  },
+  {
+    "module": "ciris_engine/processor/processing_queue.py",
+    "line": 28,
+    "action": "refactor_type",
+    "from_type": "ThoughtContent",
+    "to_type": "ThoughtType"
+  },
+  {
     "module": "ciris_engine/audit/hash_chain.py",
     "line": 24,
     "action": "refactor_type",
@@ -13,25 +62,102 @@
     "to_type": null
   },
   {
-    "module": "ciris_engine/registries/base.py",
-    "line": 30,
+    "module": "ciris_engine/dma/dsdma_base.py",
+    "line": 75,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "DSDMAResult"
+  },
+  {
+    "module": "ciris_engine/dma/dsdma_base.py",
+    "line": 78,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "DSDMAResult"
   },
   {
-    "module": "ciris_engine/registries/base.py",
-    "line": 31,
+    "module": "ciris_engine/secrets/tools.py",
+    "line": 24,
     "action": "refactor_type",
-    "from_type": "Priority",
-    "to_type": null
+    "from_type": "str",
+    "to_type": "UpdateSecretsFilterParams"
   },
   {
-    "module": "ciris_engine/registries/base.py",
-    "line": 32,
+    "module": "ciris_engine/secrets/tools.py",
+    "line": 25,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "UpdateSecretsFilterParams"
+  },
+  {
+    "module": "ciris_engine/secrets/tools.py",
+    "line": 26,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "UpdateSecretsFilterParams"
+  },
+  {
+    "module": "ciris_engine/secrets/service.py",
+    "line": 193,
     "action": "refactor_type",
     "from_type": "Any",
-    "to_type": null
+    "to_type": "SecretRecord"
+  },
+  {
+    "module": "ciris_engine/guardrails/registry.py",
+    "line": 11,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "GuardrailInterface"
+  },
+  {
+    "module": "ciris_engine/guardrails/registry.py",
+    "line": 13,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "GuardrailInterface"
+  },
+  {
+    "module": "ciris_engine/guardrails/registry.py",
+    "line": 14,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "GuardrailInterface"
+  },
+  {
+    "module": "ciris_engine/registries/base.py",
+    "line": 37,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "CircuitBreakerConfig"
+  },
+  {
+    "module": "ciris_engine/registries/base.py",
+    "line": 38,
+    "action": "refactor_type",
+    "from_type": "Priority",
+    "to_type": "CircuitBreakerConfig"
+  },
+  {
+    "module": "ciris_engine/registries/base.py",
+    "line": 39,
+    "action": "refactor_type",
+    "from_type": "Any",
+    "to_type": "CircuitBreakerConfig"
+  },
+  {
+    "module": "ciris_engine/registries/base.py",
+    "line": 43,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "CircuitBreakerConfig"
+  },
+  {
+    "module": "ciris_engine/registries/base.py",
+    "line": 44,
+    "action": "refactor_type",
+    "from_type": "SelectionStrategy",
+    "to_type": "CircuitBreakerConfig"
   },
   {
     "module": "ciris_engine/registries/circuit_breaker.py",
@@ -62,291 +188,816 @@
     "to_type": null
   },
   {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 16,
+    "module": "ciris_engine/schemas/community_schemas_v1.py",
+    "line": 11,
     "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
+    "from_type": "int",
+    "to_type": "CommunityHealth"
   },
   {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 17,
+    "module": "ciris_engine/schemas/community_schemas_v1.py",
+    "line": 12,
     "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
+    "from_type": "int",
+    "to_type": "CommunityHealth"
   },
   {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 18,
+    "module": "ciris_engine/schemas/community_schemas_v1.py",
+    "line": 13,
     "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
+    "from_type": "int",
+    "to_type": "CommunityHealth"
   },
   {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "module": "ciris_engine/schemas/community_schemas_v1.py",
+    "line": 14,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "CommunityHealth"
+  },
+  {
+    "module": "ciris_engine/schemas/community_schemas_v1.py",
+    "line": 19,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "CommunityHealth"
+  },
+  {
+    "module": "ciris_engine/schemas/community_schemas_v1.py",
     "line": 20,
     "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
+    "from_type": "int",
+    "to_type": "CommunityHealth"
   },
   {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 21,
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 36,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 37,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 39,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 41,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 42,
     "action": "refactor_type",
     "from_type": "bool",
-    "to_type": null
+    "to_type": "FilterPriority"
   },
   {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 45,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 46,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 47,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 48,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 50,
+    "action": "refactor_type",
+    "from_type": "datetime",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 51,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 55,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 60,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 61,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 62,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 63,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 64,
+    "action": "refactor_type",
+    "from_type": "datetime",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 65,
+    "action": "refactor_type",
+    "from_type": "datetime",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 66,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 71,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 72,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 78,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 79,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 80,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 83,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 84,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 85,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 86,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 90,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 91,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 96,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 99,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 100,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 101,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 102,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 111,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 112,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 127,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 131,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 132,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 133,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 134,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 138,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 139,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 144,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 145,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 148,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 149,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 150,
+    "action": "refactor_type",
+    "from_type": "datetime",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 155,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 159,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/filter_schemas_v1.py",
+    "line": 160,
+    "action": "refactor_type",
+    "from_type": "datetime",
+    "to_type": "FilterPriority"
+  },
+  {
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
+    "line": 21,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
+    "line": 22,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
+    "line": 24,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
+    "line": 25,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
     "line": 26,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "PonderParams"
   },
   {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 27,
-    "action": "refactor_type",
-    "from_type": "bytes",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 28,
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
+    "line": 33,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "PonderParams"
   },
   {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 29,
-    "action": "refactor_type",
-    "from_type": "bytes",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 30,
-    "action": "refactor_type",
-    "from_type": "bytes",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 32,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
     "line": 34,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "PonderParams"
   },
   {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 35,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
     "line": 37,
     "action": "refactor_type",
-    "from_type": "datetime",
-    "to_type": null
+    "from_type": "str",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
+    "line": 38,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
+    "line": 39,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
+    "line": 40,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/agent_core_schemas_v1.py",
+    "line": 42,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/processing_schemas_v1.py",
+    "line": 16,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "DSDMAResult"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
     "line": 39,
     "action": "refactor_type",
-    "from_type": "int",
-    "to_type": null
+    "from_type": "str",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 40,
+    "action": "refactor_type",
+    "from_type": "bytes",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 41,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 42,
+    "action": "refactor_type",
+    "from_type": "bytes",
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
     "line": 43,
     "action": "refactor_type",
-    "from_type": "bool",
-    "to_type": null
+    "from_type": "bytes",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 45,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 47,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
     "line": 48,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 49,
+    "line": 50,
     "action": "refactor_type",
-    "from_type": "int",
-    "to_type": null
+    "from_type": "datetime",
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
     "line": 52,
     "action": "refactor_type",
-    "from_type": "bool",
-    "to_type": null
+    "from_type": "int",
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 68,
+    "line": 56,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 63,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 64,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 65,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 66,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 67,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
     "line": 69,
     "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 70,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 71,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 73,
-    "action": "refactor_type",
     "from_type": "datetime",
-    "to_type": null
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 75,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 76,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 78,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
     "line": 79,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
     "line": 80,
     "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 82,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 83,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
+    "from_type": "datetime",
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
     "line": 84,
     "action": "refactor_type",
-    "from_type": "datetime",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 88,
-    "action": "refactor_type",
     "from_type": "bool",
-    "to_type": null
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 94,
+    "line": 90,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 91,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 92,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
+    "line": 93,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
     "line": 95,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
     "line": 96,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 97,
+    "line": 101,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 99,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 100,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 105,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": null
-  },
-  {
-    "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 107,
+    "line": 103,
     "action": "refactor_type",
     "from_type": "int",
-    "to_type": null
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 115,
+    "line": 111,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 116,
+    "line": 112,
     "action": "refactor_type",
     "from_type": "str",
-    "to_type": null
+    "to_type": "SecretPattern"
   },
   {
     "module": "ciris_engine/schemas/secrets_schemas_v1.py",
-    "line": 117,
+    "line": 113,
     "action": "refactor_type",
     "from_type": "bool",
-    "to_type": null
+    "to_type": "SecretPattern"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 26,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 27,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 28,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 30,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 31,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 32,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 40,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 43,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 46,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 47,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/wisdom_schemas_v1.py",
+    "line": 50,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SchemaVersion"
   },
   {
     "module": "ciris_engine/schemas/guardrails_config_v1.py",
@@ -496,74 +1147,1523 @@
     "to_type": null
   },
   {
-    "module": "ciris_engine/schemas/context_schemas_v1.py",
-    "line": 10,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": "CompactTelemetry"
-  },
-  {
-    "module": "ciris_engine/schemas/context_schemas_v1.py",
-    "line": 19,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": "CompactTelemetry"
-  },
-  {
-    "module": "ciris_engine/schemas/context_schemas_v1.py",
-    "line": 36,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": "CompactTelemetry"
-  },
-  {
-    "module": "ciris_engine/schemas/context_schemas_v1.py",
-    "line": 37,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": "CompactTelemetry"
-  },
-  {
-    "module": "ciris_engine/schemas/context_schemas_v1.py",
-    "line": 38,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": "CompactTelemetry"
-  },
-  {
-    "module": "ciris_engine/schemas/context_schemas_v1.py",
-    "line": 39,
-    "action": "refactor_type",
-    "from_type": "str",
-    "to_type": "CompactTelemetry"
-  },
-  {
-    "module": "ciris_engine/schemas/context_schemas_v1.py",
-    "line": 41,
-    "action": "refactor_type",
-    "from_type": "datetime",
-    "to_type": "CompactTelemetry"
-  },
-  {
-    "module": "ciris_engine/schemas/context_schemas_v1.py",
-    "line": 54,
-    "action": "refactor_type",
-    "from_type": "int",
-    "to_type": "CompactTelemetry"
-  },
-  {
-    "module": "ciris_engine/schemas/context_schemas_v1.py",
+    "module": "ciris_engine/schemas/graph_schemas_v1.py",
     "line": 55,
     "action": "refactor_type",
-    "from_type": "int",
-    "to_type": "CompactTelemetry"
+    "from_type": "str",
+    "to_type": "GraphScope"
   },
   {
-    "module": "ciris_engine/schemas/context_schemas_v1.py",
+    "module": "ciris_engine/schemas/graph_schemas_v1.py",
     "line": 59,
     "action": "refactor_type",
     "from_type": "int",
-    "to_type": "CompactTelemetry"
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/graph_schemas_v1.py",
+    "line": 67,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/graph_schemas_v1.py",
+    "line": 68,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/graph_schemas_v1.py",
+    "line": 69,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/graph_schemas_v1.py",
+    "line": 71,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 33,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 40,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 41,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 52,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 53,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 74,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 75,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 116,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 130,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 131,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 132,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 154,
+    "action": "refactor_type",
+    "from_type": "list",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 155,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 156,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 169,
+    "action": "refactor_type",
+    "from_type": "list",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 170,
+    "action": "refactor_type",
+    "from_type": "Any",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 171,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/service_actions_v1.py",
+    "line": 172,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "IncomingMessage"
+  },
+  {
+    "module": "ciris_engine/schemas/action_params_v1.py",
+    "line": 7,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/action_params_v1.py",
+    "line": 19,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/action_params_v1.py",
+    "line": 24,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/action_params_v1.py",
+    "line": 35,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/action_params_v1.py",
+    "line": 40,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/action_params_v1.py",
+    "line": 71,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "GraphScope"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 13,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 14,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 15,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 23,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 24,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 25,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 26,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 28,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 29,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 33,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 37,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 39,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 40,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 42,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 43,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 68,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 79,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 80,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 81,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 97,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 98,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 102,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 103,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 115,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 116,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 117,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 118,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 119,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 123,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 124,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 125,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 129,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 130,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 131,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 132,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 133,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 140,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 141,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 142,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 146,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 147,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 148,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 150,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 151,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 155,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 156,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 157,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 255,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 256,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 257,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 263,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 264,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 267,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 282,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 283,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 284,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 288,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 290,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 294,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 325,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 326,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 330,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 331,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 332,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 333,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 337,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 338,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 339,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 343,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 344,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 345,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 346,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 347,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 348,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 349,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 356,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 357,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 358,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 359,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 363,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 364,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 365,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 369,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 373,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 374,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 384,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 385,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 389,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 402,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 403,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 404,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 405,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 409,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 410,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 411,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 415,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 416,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 417,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 421,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 422,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 423,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 427,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 435,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 436,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 440,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 441,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 442,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 446,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 447,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 448,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 449,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 450,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 454,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 455,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 456,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 467,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 468,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 469,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 470,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 489,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 490,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 494,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 497,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/config_schemas_v1.py",
+    "line": 498,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "PersistenceVerificationConfig"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 24,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 25,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 31,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 37,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 41,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 43,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 45,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 48,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 49,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 52,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 58,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 59,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 67,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 70,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 76,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 77,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 78,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 80,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 86,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 88,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/feedback_schemas_v1.py",
+    "line": 89,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 27,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 28,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 29,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 31,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 64,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 65,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 66,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 67,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 68,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 69,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 70,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 71,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 72,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 73,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/resource_schemas_v1.py",
+    "line": 74,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "ResourceLimit"
+  },
+  {
+    "module": "ciris_engine/schemas/foundational_schemas_v1.py",
+    "line": 61,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/foundational_schemas_v1.py",
+    "line": 62,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/foundational_schemas_v1.py",
+    "line": 63,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/foundational_schemas_v1.py",
+    "line": 64,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/foundational_schemas_v1.py",
+    "line": 80,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/foundational_schemas_v1.py",
+    "line": 81,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/foundational_schemas_v1.py",
+    "line": 106,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "SchemaVersion"
+  },
+  {
+    "module": "ciris_engine/schemas/correlation_schemas_v1.py",
+    "line": 13,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "ServiceCorrelationStatus"
+  },
+  {
+    "module": "ciris_engine/schemas/correlation_schemas_v1.py",
+    "line": 14,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "ServiceCorrelationStatus"
+  },
+  {
+    "module": "ciris_engine/schemas/correlation_schemas_v1.py",
+    "line": 15,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "ServiceCorrelationStatus"
+  },
+  {
+    "module": "ciris_engine/schemas/correlation_schemas_v1.py",
+    "line": 16,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "ServiceCorrelationStatus"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 22,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 23,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 25,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 27,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 39,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 43,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 45,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 46,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 50,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 53,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/deferral_schemas_v1.py",
+    "line": 55,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "FeedbackSource"
+  },
+  {
+    "module": "ciris_engine/schemas/context_schemas_v1.py",
+    "line": 12,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "CommunityHealth"
+  },
+  {
+    "module": "ciris_engine/schemas/context_schemas_v1.py",
+    "line": 21,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "CommunityHealth"
+  },
+  {
+    "module": "ciris_engine/schemas/context_schemas_v1.py",
+    "line": 47,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "CommunityHealth"
+  },
+  {
+    "module": "ciris_engine/schemas/context_schemas_v1.py",
+    "line": 48,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "CommunityHealth"
+  },
+  {
+    "module": "ciris_engine/schemas/context_schemas_v1.py",
+    "line": 52,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "CommunityHealth"
   },
   {
     "module": "ciris_engine/schemas/audit_schemas_v1.py",
@@ -601,6 +2701,251 @@
     "to_type": null
   },
   {
+    "module": "ciris_engine/schemas/tool_schemas_v1.py",
+    "line": 16,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "ToolExecutionStatus"
+  },
+  {
+    "module": "ciris_engine/schemas/dma_results_v1.py",
+    "line": 31,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/dma_results_v1.py",
+    "line": 79,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/dma_results_v1.py",
+    "line": 86,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/dma_results_v1.py",
+    "line": 94,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/dma_results_v1.py",
+    "line": 95,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "PonderParams"
+  },
+  {
+    "module": "ciris_engine/schemas/guardrails_schemas_v1.py",
+    "line": 13,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "GuardrailStatus"
+  },
+  {
+    "module": "ciris_engine/schemas/guardrails_schemas_v1.py",
+    "line": 28,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "GuardrailStatus"
+  },
+  {
+    "module": "ciris_engine/schemas/network_schemas_v1.py",
+    "line": 20,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "NetworkType"
+  },
+  {
+    "module": "ciris_engine/schemas/network_schemas_v1.py",
+    "line": 24,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "NetworkType"
+  },
+  {
+    "module": "ciris_engine/schemas/network_schemas_v1.py",
+    "line": 25,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "NetworkType"
+  },
+  {
+    "module": "ciris_engine/schemas/network_schemas_v1.py",
+    "line": 29,
+    "action": "refactor_type",
+    "from_type": "str",
+    "to_type": "NetworkType"
+  },
+  {
+    "module": "ciris_engine/schemas/network_schemas_v1.py",
+    "line": 30,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "NetworkType"
+  },
+  {
+    "module": "ciris_engine/schemas/network_schemas_v1.py",
+    "line": 32,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "NetworkType"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 11,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 12,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 13,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 14,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 20,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 21,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 22,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 23,
+    "action": "refactor_type",
+    "from_type": "float",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 27,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 28,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 29,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 30,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 32,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 33,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 34,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 35,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 36,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 38,
+    "action": "refactor_type",
+    "from_type": "bool",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 39,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 40,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
+    "module": "ciris_engine/schemas/telemetry_schemas_v1.py",
+    "line": 42,
+    "action": "refactor_type",
+    "from_type": "int",
+    "to_type": "ResourceMetrics"
+  },
+  {
     "module": "ciris_engine/schemas/epistemic_schemas_v1.py",
     "line": 10,
     "action": "refactor_type",
@@ -618,12 +2963,12 @@
     "module": "ciris_engine/persistence/utils.py",
     "line": 11,
     "action": "replace_dict",
-    "to_type": "ThoughtContext"
+    "to_type": "TaskStatus"
   },
   {
     "module": "ciris_engine/persistence/utils.py",
     "line": 44,
     "action": "replace_dict",
-    "to_type": "ThoughtContext"
+    "to_type": "TaskStatus"
   }
 ]

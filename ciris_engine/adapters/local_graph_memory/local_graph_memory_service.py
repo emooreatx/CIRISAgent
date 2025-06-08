@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects."""
     
-    def default(self, obj):
+    def default(self, obj: Any) -> Any:
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
@@ -47,7 +47,7 @@ class LocalGraphMemoryService(Service, MemoryService):
     async def stop(self) -> None:
         await super().stop()
 
-    async def memorize(self, node: GraphNode, *args, **kwargs) -> MemoryOpResult:
+    async def memorize(self, node: GraphNode, *args: Any, **kwargs: Any) -> MemoryOpResult:
         """Store a node with automatic secrets detection and processing."""
         try:
             # Process secrets in node attributes before storing
@@ -109,7 +109,7 @@ class LocalGraphMemoryService(Service, MemoryService):
                 reason="Invalid identity update format"
             )
         # Check for required WA authorization
-        if not update_data.get("wa_authorized"):  # type: ignore[union-attr]
+        if not update_data.get("wa_authorized"):
             return MemoryOpResult(
                 status=MemoryOpStatus.DENIED,
                 reason="Identity updates require WA authorization"
@@ -203,7 +203,7 @@ class LocalGraphMemoryService(Service, MemoryService):
         required_fields = ["wa_user_id", "wa_authorized", "update_timestamp"]
         if not all(field in update_data for field in required_fields):
             return False
-        for node in update_data.get("nodes", []):  # type: ignore[union-attr]
+        for node in update_data.get("nodes", []):
             if "id" not in node or "type" not in node:
                 return False
             if node["type"] != NodeType.CONCEPT:
