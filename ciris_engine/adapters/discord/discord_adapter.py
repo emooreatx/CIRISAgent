@@ -164,7 +164,15 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         # Post the guidance request to deferral channel
         request_content = f"[CIRIS Guidance Request]\nContext: ```json\n{context}\n```"
         if hasattr(channel, 'send'):
-            request_message = await channel.send(request_content)
+            # For guidance requests, we need to track the first message
+            chunks = self._split_message(request_content)
+            request_message = None
+            for i, chunk in enumerate(chunks):
+                if len(chunks) > 1 and i > 0:
+                    chunk = f"*(Continued from previous message)*\n\n{chunk}"
+                sent_msg = await channel.send(chunk)
+                if i == 0:
+                    request_message = sent_msg  # Track first message for replies
         else:
             logger.error(f"Channel {self.deferral_channel_id} does not support sending messages")
             return {"guidance": None}
@@ -278,11 +286,19 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         
         report = "\n".join(report_lines)
         
-        # Split long reports to avoid Discord message limits
-        if len(report) > 2000:
-            await channel.send(report[:1997] + "...")
-        else:
-            await channel.send(report)
+        # Use the split message functionality
+        chunks = self._split_message(report)
+        for i, chunk in enumerate(chunks):
+            if len(chunks) > 1:
+                if i == 0:
+                    chunk = f"{chunk}\n\n*(Report continues...)*"
+                elif i < len(chunks) - 1:
+                    chunk = f"*(Continued from previous report)*\n\n{chunk}\n\n*(Report continues...)*"
+                else:
+                    chunk = f"*(Continued from previous report)*\n\n{chunk}"
+            await channel.send(chunk)
+            if i < len(chunks) - 1:
+                await asyncio.sleep(0.5)
 
     # --- ToolService ---
     async def execute_tool(self, tool_name: str, tool_args: dict) -> dict:
@@ -371,6 +387,48 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             channel_id, content
         )
 
+    def _split_message(self, content: str, max_length: int = 1950) -> List[str]:
+        """Split a message into chunks that fit Discord's character limit.
+        
+        Args:
+            content: The message content to split
+            max_length: Maximum length per message (default 1950 to leave room for formatting)
+            
+        Returns:
+            List of message chunks
+        """
+        if len(content) <= max_length:
+            return [content]
+        
+        chunks = []
+        lines = content.split('\n')
+        current_chunk = ""
+        
+        for line in lines:
+            # If a single line is longer than max_length, split it
+            if len(line) > max_length:
+                # First, add any accumulated content
+                if current_chunk:
+                    chunks.append(current_chunk.rstrip())
+                    current_chunk = ""
+                
+                # Split the long line
+                for i in range(0, len(line), max_length):
+                    chunks.append(line[i:i + max_length])
+            else:
+                # Check if adding this line would exceed the limit
+                if len(current_chunk) + len(line) + 1 > max_length:
+                    chunks.append(current_chunk.rstrip())
+                    current_chunk = line + '\n'
+                else:
+                    current_chunk += line + '\n'
+        
+        # Add any remaining content
+        if current_chunk:
+            chunks.append(current_chunk.rstrip())
+        
+        return chunks
+
     async def _send_output_impl(self, channel_id: str, content: str, **kwargs) -> None:
         """Internal implementation of send_output for retry wrapping"""
         if hasattr(self.client, 'wait_until_ready'):
@@ -380,7 +438,25 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         if channel is None:
             channel = await self.client.fetch_channel(int(channel_id))
         if channel:
-            await channel.send(content)
+            # Split long messages
+            chunks = self._split_message(content)
+            
+            # Send each chunk
+            for i, chunk in enumerate(chunks):
+                # Add continuation indicator for multi-part messages
+                if len(chunks) > 1:
+                    if i == 0:
+                        chunk = f"{chunk}\n\n*(Message continues...)*"
+                    elif i < len(chunks) - 1:
+                        chunk = f"*(Continued from previous message)*\n\n{chunk}\n\n*(Message continues...)*"
+                    else:
+                        chunk = f"*(Continued from previous message)*\n\n{chunk}"
+                
+                await channel.send(chunk)
+                
+                # Small delay between messages to avoid rate limiting
+                if i < len(chunks) - 1:
+                    await asyncio.sleep(0.5)
         else:
             logger.error(f"Could not find Discord channel with ID {channel_id}")
             raise RuntimeError(f"Discord channel {channel_id} not found")

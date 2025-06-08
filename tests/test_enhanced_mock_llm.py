@@ -73,9 +73,9 @@ class TestEnhancedMockLLM:
         assert "echo_memory_query:previous conversations" in result.rationale
     
     def test_forced_action_override(self):
-        """Test forcing specific actions via MOCK_FORCE_ACTION flag."""
+        """Test forcing specific actions via $ command syntax."""
         messages = [
-            {"role": "user", "content": "MOCK_FORCE_ACTION:memorize - Store this information."}
+            {"role": "user", "content": "$memorize concept/test CONCEPT LOCAL - Store this information."}
         ]
         
         result = create_response(ActionSelectionResult, messages=messages)
@@ -86,7 +86,7 @@ class TestEnhancedMockLLM:
     def test_error_injection_ethical_dma(self):
         """Test error injection in ethical DMA responses."""
         messages = [
-            {"role": "user", "content": "MOCK_INJECT_ERROR - Analyze this ethical dilemma."}
+            {"role": "user", "content": "$error - Analyze this ethical dilemma."}
         ]
         
         result = create_response(EthicalDMAResult, messages=messages)
@@ -98,7 +98,7 @@ class TestEnhancedMockLLM:
     def test_error_injection_common_sense_dma(self):
         """Test error injection in common sense DMA responses."""
         messages = [
-            {"role": "user", "content": "MOCK_INJECT_ERROR - Check plausibility."}
+            {"role": "user", "content": "$error - Check plausibility."}
         ]
         
         result = create_response(CSDMAResult, messages=messages)
@@ -110,7 +110,7 @@ class TestEnhancedMockLLM:
     def test_custom_rationale(self):
         """Test custom rationale injection."""
         messages = [
-            {"role": "user", "content": 'MOCK_RATIONALE:"Custom test reasoning" - Make a decision.'}
+            {"role": "user", "content": '$rationale "Custom test reasoning" - Make a decision.'}
         ]
         
         result = create_response(ActionSelectionResult, messages=messages)
@@ -120,7 +120,7 @@ class TestEnhancedMockLLM:
     def test_testing_mode_flag(self):
         """Test testing mode activation."""
         messages = [
-            {"role": "user", "content": "MOCK_TEST_MODE - Run in testing configuration."}
+            {"role": "user", "content": "$test - Run in testing configuration."}
         ]
         
         context = extract_context_from_messages(messages)

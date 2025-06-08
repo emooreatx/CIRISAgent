@@ -149,12 +149,11 @@ class PonderHandler(BaseActionHandler):
             original_task = persistence.get_task_by_id(thought.source_task_id)
             task_context = f"Task ID: {thought.source_task_id}"
             if original_task:
-                task_context = f"Original Task: {original_task.description}"
+                task_context = original_task.description
             
             follow_up_content = (
-                f"CIRIS_FOLLOW_UP_THOUGHT: This is a follow-up thought from a PONDER action performed on a prior thought related to {task_context}. "
-                f"Pondered questions: {questions_list}. IF THE GUARDRAIL FAILED YOU MAY NEED TO TRY AGAIN!"
-                "If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+                f"You are thinking about how or if to act on \"{task_context}\" and had these concerns or questions: {questions_list}. "
+                f"Please re-evaluate \"{task_context}\" and choose a response, or no response, as you see fit."
             )
             from .helpers import create_follow_up_thought
             follow_up = create_follow_up_thought(

@@ -119,6 +119,7 @@ class DiscordRuntime(CIRISRuntime):
             self.discord_observer.multi_service_sink = self.multi_service_sink
             self.discord_observer.memory_service = self.memory_service  
             self.discord_observer.agent_id = getattr(self, 'agent_id', None)
+            self.discord_observer.communication_service = self.discord_adapter
             await self.discord_observer.start()
             logger.info("DiscordObserver configured and started with runtime services")
 

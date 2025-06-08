@@ -30,12 +30,14 @@ class DiscordObserver:
         multi_service_sink: Optional[MultiServiceActionSink] = None,
         filter_service: Optional[Any] = None,
         secrets_service: Optional[SecretsService] = None,
+        communication_service: Optional[Any] = None,
     ) -> None:
         self.memory_service = memory_service
         self.agent_id = agent_id
         self.multi_service_sink = multi_service_sink
         self.filter_service = filter_service
         self.secrets_service = secrets_service or SecretsService()
+        self.communication_service = communication_service
         self._history: list[DiscordMessage] = []
 
         from ciris_engine.config.config_manager import get_config
@@ -43,6 +45,25 @@ class DiscordObserver:
         if monitored_channel_id is None:
             monitored_channel_id = get_config().discord_channel_id
         self.monitored_channel_id: Optional[str] = monitored_channel_id
+
+    async def _send_deferral_message(self, content: str) -> None:
+        """Send a message to the deferral channel."""
+        if not self.communication_service:
+            logger.warning("No communication service available to send deferral message")
+            return
+        
+        from ciris_engine.config.config_manager import get_config
+        deferral_channel_id = get_config().discord_deferral_channel_id
+        
+        if not deferral_channel_id:
+            logger.warning("No deferral channel configured")
+            return
+        
+        try:
+            await self.communication_service.send_message(deferral_channel_id, content)
+            logger.debug(f"Sent deferral response: {content[:100]}...")
+        except Exception as e:
+            logger.error(f"Failed to send deferral message: {e}")
 
     async def start(self) -> None:
         """Start the observer - no polling needed since we receive messages directly."""
@@ -388,6 +409,18 @@ class DiscordObserver:
     async def _add_to_feedback_queue(self, msg: DiscordMessage) -> None:
         """Process guidance/feedback from WA in deferral channel."""
         try:
+            # First validate that the user is a wise authority
+            from ciris_engine.utils.constants import DEFAULT_WA
+            wa_discord_user = DEFAULT_WA
+            authorized_user_id = "537080239679864862"  # Your Discord user ID
+            
+            is_wise_authority = (msg.author_id == authorized_user_id or msg.author_name == wa_discord_user)
+            
+            if not is_wise_authority:
+                error_msg = f"🚫 **Not Authorized**: User `{msg.author_name}` (ID: `{msg.author_id}`) is not a Wise Authority. Not proceeding with guidance processing."
+                logger.warning(f"Non-WA user {msg.author_name} ({msg.author_id}) attempted to provide guidance")
+                await self._send_deferral_message(error_msg)
+                return
             from datetime import datetime, timezone
             import uuid
             import re
@@ -436,14 +469,29 @@ class DiscordObserver:
                 # This is guidance for a specific deferred thought
                 # Find the original thought and its task
                 original_thought = persistence.get_thought_by_id(referenced_thought_id)
-                if original_thought and original_thought.status == ThoughtStatus.DEFERRED:
-                    # Reactivate the original task
+                if original_thought is None:
+                    error_msg = f"❌ **Error**: Thought `{referenced_thought_id}` not found in database"
+                    logger.warning(f"Thought {referenced_thought_id} not found in database")
+                    await self._send_deferral_message(error_msg)
+                elif original_thought.status != ThoughtStatus.DEFERRED:
+                    error_msg = f"❌ **Error**: Thought `{referenced_thought_id}` found but status is `{original_thought.status}`, not `DEFERRED`"
+                    logger.warning(f"Thought {referenced_thought_id} found but status is {original_thought.status}, not DEFERRED")
+                    await self._send_deferral_message(error_msg)
+                else:
+                    # Reactivate the original task  
                     original_task = persistence.get_task_by_id(original_thought.source_task_id)
                     if original_task:
                         persistence.update_task_status(original_task.task_id, TaskStatus.ACTIVE)
                         logger.info(f"Reactivated task {original_task.task_id} due to guidance")
                         
-                        # Create a new child thought for the guidance
+                        # Extract deferral reason from the original thought's final_action
+                        deferral_reason = "Unknown deferral reason"
+                        if original_thought.final_action and isinstance(original_thought.final_action, dict):
+                            action_params = original_thought.final_action.get('action_parameters', {})
+                            if isinstance(action_params, dict) and 'reason' in action_params:
+                                deferral_reason = action_params['reason']
+                        
+                        # Create a new thought with PROCESSING status that includes original content + deferral reason + WA response
                         # Reset round_number to 0 to give fresh rounds after deferral
                         # Create guidance context by copying original context and adding guidance data
                         if original_thought.context:
@@ -452,7 +500,9 @@ class DiscordObserver:
                                 "guidance_author": msg.author_name,
                                 "guidance_content": msg.content,
                                 "is_guidance_response": True,
-                                "original_round_number": original_thought.round_number  # Store original for reference
+                                "original_round_number": original_thought.round_number,  # Store original for reference
+                                "original_thought_id": referenced_thought_id,
+                                "deferral_reason": deferral_reason
                             })
                         else:
                             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
@@ -461,31 +511,43 @@ class DiscordObserver:
                                 guidance_author=msg.author_name,
                                 guidance_content=msg.content,
                                 is_guidance_response=True,
-                                original_round_number=original_thought.round_number
+                                original_round_number=original_thought.round_number,
+                                original_thought_id=referenced_thought_id,
+                                deferral_reason=deferral_reason
                             )
+                        
+                        # Combine content with WA response last to ensure it's acted upon
+                        combined_content = f"ORIGINAL THOUGHT: {original_thought.content}\n\n" \
+                                         f"DEFERRED WITH QUESTION FOR WA: {deferral_reason}\n\n" \
+                                         f"WISE AUTHORITY RESPONSE: {msg.content}"
                         
                         guidance_thought = Thought(
                             thought_id=str(uuid.uuid4()),
                             source_task_id=original_task.task_id,
                             parent_thought_id=referenced_thought_id,
                             thought_type="guidance",
-                            status=ThoughtStatus.PENDING,
+                            status=ThoughtStatus.PROCESSING,  # Set to PROCESSING status
                             created_at=datetime.now(timezone.utc).isoformat(),
                             updated_at=datetime.now(timezone.utc).isoformat(),
                             round_number=0,  # Reset to 0 for fresh processing after guidance
-                            content=f"Guidance from @{msg.author_name}: {msg.content}",
+                            content=combined_content,
                             context=guidance_context
                         )
                         persistence.add_thought(guidance_thought)
                         logger.info(f"Created guidance thought {guidance_thought.thought_id} as child of deferred thought {referenced_thought_id}")
+                        
+                        # Send success confirmation
+                        success_msg = f"✅ **Guidance Received**: Successfully processed guidance for thought `{referenced_thought_id}`\n" \
+                                     f"📝 **Task**: Reactivated task `{original_task.task_id}`\n" \
+                                     f"🧠 **New Thought**: Created guidance thought `{guidance_thought.thought_id}`\n" \
+                                     f"🔄 **Status**: Ready for processing"
+                        await self._send_deferral_message(success_msg)
                         return
-                else:
-                    logger.warning(f"Thought {referenced_thought_id} not found or not deferred")
             
             # If we get here, it's unsolicited guidance - create a new task
             task = Task(
                 task_id=str(uuid.uuid4()),
-                description=f"Process unsolicited guidance from @{msg.author_name}: '{msg.content}'",
+                description=f"Guidance received from authorized WA {msg.author_name} (ID: {msg.author_id}) please act accordingly",
                 status=TaskStatus.PENDING,
                 priority=8,  # High priority for guidance
                 created_at=datetime.now(timezone.utc).isoformat(),
