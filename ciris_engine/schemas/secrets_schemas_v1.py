@@ -8,8 +8,25 @@ and management of sensitive information within the CIRIS pipeline.
 from datetime import datetime
 from typing import List, Dict, Optional, Any, Literal, Tuple
 from pydantic import BaseModel, Field
+from enum import Enum
 import uuid
 from .foundational_schemas_v1 import SensitivityLevel
+
+
+class SecretType(str, Enum):
+    """Standard secret types with default detection patterns"""
+    API_KEYS = "api_keys"
+    BEARER_TOKENS = "bearer_tokens" 
+    PASSWORDS = "passwords"
+    URLS_WITH_AUTH = "urls_with_auth"
+    PRIVATE_KEYS = "private_keys"
+    CREDIT_CARDS = "credit_cards"
+    SOCIAL_SECURITY = "social_security"
+    AWS_ACCESS_KEY = "aws_access_key"
+    AWS_SECRET_KEY = "aws_secret_key"
+    GITHUB_TOKEN = "github_token"
+    SLACK_TOKEN = "slack_token"
+    DISCORD_TOKEN = "discord_token"
 
 
 class SecretPattern(BaseModel):
@@ -70,6 +87,7 @@ class SecretReference(BaseModel):
     description: str
     context_hint: str
     sensitivity: str
+    detected_pattern: str
     auto_decapsulate_actions: List[str]
     created_at: datetime
     last_accessed: Optional[datetime]
@@ -79,7 +97,7 @@ class SecretAccessLog(BaseModel):
     """Audit log for secret access"""
     access_id: str = Field(description="Unique access identifier")
     secret_uuid: str = Field(description="Secret that was accessed")
-    access_type: Literal["VIEW", "DECRYPT", "UPDATE", "DELETE"]
+    access_type: Literal["VIEW", "DECRYPT", "UPDATE", "DELETE", "STORE"]
     accessor: str = Field(description="Who/what accessed the secret")
     purpose: str = Field(description="Stated purpose for access")
     timestamp: datetime
@@ -132,91 +150,6 @@ class UpdateSecretsFilterParams(BaseModel):
     config_updates: Optional[Dict[str, Any]] = None
 
 
-# Built-in Secret Patterns
-
-BUILTIN_SECRET_PATTERNS = [
-    SecretPattern(
-        name="api_keys",
-        regex=r"(?i)api[_-]?key[s]?[\s:=]+['\"]?([a-z0-9]{20,})['\"]?",
-        description="API Key",
-        sensitivity=SensitivityLevel.HIGH,
-        context_hint="API authentication key"
-    ),
-    SecretPattern(
-        name="bearer_tokens",
-        regex=r"(?i)bearer[\s]+([a-z0-9\-_.]{20,})",
-        description="Bearer Token",
-        sensitivity=SensitivityLevel.HIGH, 
-        context_hint="Bearer authentication token"
-    ),
-    SecretPattern(
-        name="passwords",
-        regex=r"(?i)password[s]?[\s:=]+['\"]?([^\s'\"]{8,})['\"]?",
-        description="Password",
-        sensitivity=SensitivityLevel.CRITICAL,
-        context_hint="Password credential"
-    ),
-    SecretPattern(
-        name="urls_with_auth",
-        regex=r"https?://[^:]+:[^@]+@[^\s]+",
-        description="URL with Authentication",
-        sensitivity=SensitivityLevel.HIGH,
-        context_hint="Authenticated URL"
-    ),
-    SecretPattern(
-        name="private_keys",
-        regex=r"-----BEGIN [A-Z ]+PRIVATE KEY-----",
-        description="Private Key",
-        sensitivity=SensitivityLevel.CRITICAL,
-        context_hint="Cryptographic private key"
-    ),
-    SecretPattern(
-        name="credit_cards",
-        regex=r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b",
-        description="Credit Card Number",
-        sensitivity=SensitivityLevel.CRITICAL,
-        context_hint="Payment card number"
-    ),
-    SecretPattern(
-        name="social_security",
-        regex=r"\b\d{3}-\d{2}-\d{4}\b",
-        description="Social Security Number",
-        sensitivity=SensitivityLevel.CRITICAL,
-        context_hint="Social Security Number"
-    ),
-    SecretPattern(
-        name="aws_access_key",
-        regex=r"AKIA[0-9A-Z]{16}",
-        description="AWS Access Key",
-        sensitivity=SensitivityLevel.HIGH,
-        context_hint="AWS access key"
-    ),
-    SecretPattern(
-        name="aws_secret_key",
-        regex=r"(?i)aws[_-]?secret[_-]?access[_-]?key[\s:=]+['\"]?([a-z0-9/+=]{40})['\"]?",
-        description="AWS Secret Key",
-        sensitivity=SensitivityLevel.CRITICAL,
-        context_hint="AWS secret access key"
-    ),
-    SecretPattern(
-        name="github_token",
-        regex=r"gh[ps]_[a-zA-Z0-9]{36}",
-        description="GitHub Token",
-        sensitivity=SensitivityLevel.HIGH,
-        context_hint="GitHub access token"
-    ),
-    SecretPattern(
-        name="slack_token",
-        regex=r"xox[baprs]-([0-9a-zA-Z]{10,48})",
-        description="Slack Token",
-        sensitivity=SensitivityLevel.HIGH,
-        context_hint="Slack API token"
-    ),
-    SecretPattern(
-        name="discord_token",
-        regex=r"[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}",
-        description="Discord Bot Token",
-        sensitivity=SensitivityLevel.HIGH,
-        context_hint="Discord bot token"
-    ),
-]
+# Built-in secret patterns are now defined in config_schemas_v1.py
+# to allow agent self-configuration. Import them if needed:
+# from ciris_engine.schemas.config_schemas_v1 import SecretsDetectionConfig

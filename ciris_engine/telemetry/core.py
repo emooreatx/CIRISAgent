@@ -50,7 +50,7 @@ class TelemetryService(Service):
         for name, records in self._history.items():
             filtered_records = [r for r in records if r[0] > cutoff]
             self._history[name] = deque(filtered_records, maxlen=self.buffer_size)
-            records = filtered_records
+            records = self._history[name]
             count = len(records)
             if name == "message_processed":
                 telemetry.messages_processed_24h = count

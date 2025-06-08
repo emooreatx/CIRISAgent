@@ -1,0 +1,37 @@
+[run]
+source = ciris_engine
+omit = 
+    */tests/*
+    */test_*.py
+    */__pycache__/*
+    */migrations/*
+    */conftest.py
+    */venv/*
+    */.venv/*
+    */env/*
+    */build/*
+    */dist/*
+    setup.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+
+show_missing = True
+skip_covered = False
+precision = 2
+
+[xml]
+output = coverage.xml
+
+[html]
+directory = htmlcov

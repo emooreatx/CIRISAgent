@@ -240,7 +240,10 @@ def action_selection(context=None):
             action = HandlerActionType.SPEAK
             params = SpeakParams(content=error_msg, channel_id="test")
             
-        rationale = f"Executing {forced_action} action from mock command"
+        # Include context pattern in rationale
+        context_patterns = [item for item in context if item.startswith("forced_action:")]
+        context_info = f" {context_patterns[0]}" if context_patterns else ""
+        rationale = f"Executing {forced_action} action from mock command{context_info}"
         
     elif show_help:
         action = HandlerActionType.SPEAK
@@ -287,14 +290,20 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
     elif user_speech:
         action = HandlerActionType.SPEAK
         params = SpeakParams(content=f"Mock response to: {user_speech}", channel_id="test")
-        rationale = f"Responding to user speech: {user_speech}"
+        # Include context pattern in rationale
+        context_patterns = [item for item in context if item.startswith("echo_user_speech:")]
+        context_info = f" {context_patterns[0]}" if context_patterns else ""
+        rationale = f"Responding to user speech: {user_speech}{context_info}"
         
     elif memory_query:
         action = HandlerActionType.RECALL
         params = RecallParams(
             node=GraphNode(id=f"query/{memory_query}", type=NodeType.CONCEPT, scope=GraphScope.LOCAL)
         )
-        rationale = f"Recalling memory for: {memory_query}"
+        # Include context pattern in rationale  
+        context_patterns = [item for item in context if item.startswith("echo_memory_query:")]
+        context_info = f" {context_patterns[0]}" if context_patterns else ""
+        rationale = f"Recalling memory for: {memory_query}{context_info}"
         
     else:
         # Default ponder action

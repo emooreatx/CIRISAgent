@@ -192,8 +192,8 @@ async def test_cli_observer_message_filtering(cli_observer, filter_service):
         await cli_observer.handle_incoming_message(malicious_msg)
     
     assert filter_service.call_count == 1
-    # Malicious message should be filtered out (not added to history)
-    assert len(cli_observer._history) == 1  # Still just the normal message
+    # Malicious message should be escalated (added to history for moderation)
+    assert len(cli_observer._history) == 2  # Both normal and malicious messages for review
 
 
 @pytest.mark.asyncio

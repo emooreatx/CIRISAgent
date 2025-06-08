@@ -421,7 +421,10 @@ class SignedAuditService(AuditService):
                 ))
                 
                 self._db_connection.commit()
-                return cursor.lastrowid
+                row_id = cursor.lastrowid
+                if row_id is None:
+                    raise RuntimeError("Failed to get lastrowid for audit anchor")
+                return row_id
             
             root_id = await asyncio.to_thread(_create_anchor)
             

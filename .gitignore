@@ -18,6 +18,16 @@ data_archive/
 :memory:
 .env
 
+# Coverage and CI reports
+coverage.xml
+htmlcov/
+.coverage
+bandit-report.json
+flake8-report.txt
+pylint-report.txt
+test-results.xml
+.scannerwork/
+
 # CIRISGUI artifacts
 CIRISGUI/apps/agui/.next/
 CIRISGUI/apps/agui/node_modules/

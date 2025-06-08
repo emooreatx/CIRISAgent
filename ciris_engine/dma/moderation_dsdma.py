@@ -172,12 +172,58 @@ class ModerationDSDMA(BaseDSDMA):
         """
         Check if the thought contains triggers requiring human moderator involvement.
         """
-        # Check for escalation triggers from domain knowledge
-        escalation_triggers = self.domain_specific_knowledge.get('escalation_triggers', [])
-        
         content_lower = thought_content.lower()
-        for trigger in escalation_triggers:
-            if any(word in content_lower for word in trigger.lower().split()):
+        
+        # Define specific keyword patterns for each escalation category
+        escalation_patterns = {
+            "self_harm_keywords": ["hurt myself", "kill myself", "suicide", "self-harm", "end my life", "don't want to live"],
+            "violence_keywords": ["kill", "murder", "violence", "hurt", "attack", "fight", "punch", "beat up"],
+            "conflict_keywords": ["complex interpersonal", "conflict", "dispute", "harassment", "bullying"],
+            "legal_keywords": ["legal issues", "lawsuit", "illegal", "copyright", "dmca", "law enforcement"],
+            "tos_keywords": ["serious tos", "terms of service", "violation", "ban", "permanent"],
+            "crypto_spam": ["bitcoin", "crypto", "nft", "pump and dump", "moonshot", "diamond hands", "hodl", "shitcoin", "altcoin", "trading signals"],
+            "porn_spam": ["nude", "naked", "xxx", "porn", "adult content", "nsfw", "only fans", "onlyfans", "cam girl", "escort"],
+            "server_invite_spam": ["discord.gg/", "discord.com/invite/", "join my server", "better server", "active server", "invite link"]
+        }
+        
+        # Check for self-harm indicators
+        for keyword in escalation_patterns["self_harm_keywords"]:
+            if keyword in content_lower:
+                return True
+                
+        # Check for violence indicators  
+        for keyword in escalation_patterns["violence_keywords"]:
+            if keyword in content_lower:
+                return True
+                
+        # Check for conflict indicators
+        for keyword in escalation_patterns["conflict_keywords"]:
+            if keyword in content_lower:
+                return True
+                
+        # Check for legal indicators
+        for keyword in escalation_patterns["legal_keywords"]:
+            if keyword in content_lower:
+                return True
+                
+        # Check for ToS indicators
+        for keyword in escalation_patterns["tos_keywords"]:
+            if keyword in content_lower:
+                return True
+                
+        # Check for crypto spam (escalate if repeat offense)
+        for keyword in escalation_patterns["crypto_spam"]:
+            if keyword in content_lower and ("repeat_offense" in flags or "multi_channel_spam" in flags):
+                return True
+                
+        # Check for porn spam (escalate if repeat offense)
+        for keyword in escalation_patterns["porn_spam"]:
+            if keyword in content_lower and ("repeat_offense" in flags or "multi_channel_spam" in flags):
+                return True
+                
+        # Check for server invite spam (escalate if repeat offense)
+        for keyword in escalation_patterns["server_invite_spam"]:
+            if keyword in content_lower and ("repeat_offense" in flags or "multi_channel_spam" in flags):
                 return True
         
         # Check flags for complexity indicators

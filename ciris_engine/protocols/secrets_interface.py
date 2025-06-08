@@ -135,12 +135,13 @@ class SecretsStoreInterface(ABC):
         pass
     
     @abstractmethod
-    async def list_secrets(self, sensitivity_filter: Optional[str] = None) -> List[SecretReference]:
+    async def list_secrets(self, sensitivity_filter: Optional[str] = None, pattern_filter: Optional[str] = None) -> List[SecretReference]:
         """
         List all stored secrets (metadata only)
         
         Args:
             sensitivity_filter: Optional filter by sensitivity level
+            pattern_filter: Optional filter by detected pattern name
             
         Returns:
             List of SecretReference objects
