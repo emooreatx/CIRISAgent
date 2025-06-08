@@ -8,12 +8,13 @@ from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeTyp
 from ciris_engine.utils.constants import DEFAULT_WA
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
+from ciris_engine.adapters.base_observer import BaseObserver
 
 logger = logging.getLogger(__name__)
 
 PASSIVE_CONTEXT_LIMIT = 10
 
-class APIObserver:
+class APIObserver(BaseObserver[IncomingMessage]):
     def __init__(
         self,
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]],
@@ -23,13 +24,16 @@ class APIObserver:
         api_adapter: Optional[Any] = None,
         secrets_service: Optional[SecretsService] = None,
     ) -> None:
-        self.on_observe = on_observe
-        self.memory_service = memory_service
-        self.agent_id = agent_id
-        self.multi_service_sink = multi_service_sink
+        super().__init__(
+            on_observe,
+            memory_service,
+            agent_id,
+            multi_service_sink,
+            None,
+            secrets_service,
+            origin_service="api",
+        )
         self.api_adapter = api_adapter
-        self.secrets_service = secrets_service or SecretsService()
-        self._history: list[IncomingMessage] = []
 
     async def start(self) -> None:
         pass
@@ -59,48 +63,6 @@ class APIObserver:
         await self._handle_passive_observation(processed_msg)
         await self._recall_context(processed_msg)
 
-    async def _process_message_secrets(self, msg: IncomingMessage) -> IncomingMessage:
-        """Process message content for secrets detection and replacement."""
-        try:
-            # Process the message content for secrets
-            processed_content, secret_refs = await self.secrets_service.process_incoming_text(
-                msg.content,
-                context_hint=f"API message from {msg.author_id} in channel {msg.channel_id}",
-                source_message_id=msg.message_id
-            )
-            
-            # Create new message with processed content
-            processed_msg = IncomingMessage(
-                message_id=msg.message_id,
-                content=processed_content,
-                author_id=msg.author_id,
-                author_name=msg.author_name,
-                channel_id=msg.channel_id,
-                timestamp=getattr(msg, 'timestamp', None),
-                is_bot=getattr(msg, 'is_bot', False),
-                is_dm=getattr(msg, 'is_dm', False),
-                mentions_agent=getattr(msg, 'mentions_agent', False),
-                reply_to_message_id=getattr(msg, 'reply_to_message_id', None)
-            )
-            
-            # Store secret references on the message for context
-            if secret_refs:
-                processed_msg._detected_secrets = [
-                    {
-                        "uuid": ref.secret_uuid,
-                        "context_hint": ref.context_hint,
-                        "sensitivity": ref.sensitivity
-                    }
-                    for ref in secret_refs
-                ]
-                logger.info(f"Detected and processed {len(secret_refs)} secrets in API message {msg.message_id}")
-            
-            return processed_msg
-            
-        except Exception as e:
-            logger.error(f"Error processing secrets in API message {msg.message_id}: {e}")
-            # Return original message if processing fails
-            return msg
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
         from ciris_engine.utils.constants import (
@@ -125,158 +87,3 @@ class APIObserver:
             return True
         return getattr(msg, "is_bot", False)
 
-    async def _create_passive_observation_result(self, msg: IncomingMessage) -> None:
-        """Create task and thought for passive observation."""
-        try:
-            from datetime import datetime, timezone
-            import uuid
-            from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
-            from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
-            from ciris_engine import persistence
-
-            task = Task(
-                task_id=str(uuid.uuid4()),
-                description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content}'",
-                status=TaskStatus.PENDING,
-                priority=0,
-                created_at=datetime.now(timezone.utc).isoformat(),
-                updated_at=datetime.now(timezone.utc).isoformat(),
-                context={
-                    "channel_id": msg.channel_id,
-                    "author_id": msg.author_id,
-                    "author_name": msg.author_name,
-                    "message_id": msg.message_id,
-                    "origin_service": "api",
-                    "observation_type": "passive",
-                    "recent_messages": [
-                        {
-                            "id": m.message_id,
-                            "content": m.content,
-                            "author_id": m.author_id,
-                            "author_name": m.author_name,
-                            "channel_id": m.channel_id,
-                            "timestamp": getattr(m, "timestamp", "n/a"),
-                        }
-                        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
-                    ],
-                }
-            )
-            channel_id = (
-                task.context.get("channel_id")
-                if isinstance(task.context, dict)
-                else getattr(task.context, "channel_id", None)
-            )
-            assert channel_id, "Task context must include a non-empty channel_id"
-            persistence.add_task(task)
-
-            thought = Thought(
-                thought_id=str(uuid.uuid4()),
-                source_task_id=task.task_id,
-                thought_type="observation",
-                status=ThoughtStatus.PENDING,
-                created_at=datetime.now(timezone.utc).isoformat(),
-                updated_at=datetime.now(timezone.utc).isoformat(),
-                round_number=0,
-                content=f"User @{msg.author_name} said: {msg.content}",
-                context=(
-                    task.context
-                    if isinstance(task.context, dict)
-                    else task.context.model_dump() if task.context else {}
-                )
-            )
-            thought_channel_id = (
-                thought.context.get("channel_id")
-                if isinstance(thought.context, dict)
-                else getattr(thought.context, "channel_id", None)
-            )
-            assert thought_channel_id, "Thought context must include a non-empty channel_id"
-            persistence.add_thought(thought)
-
-            logger.info(f"Created observation task {task.task_id} and thought {thought.thought_id} for message {msg.message_id}")
-
-        except Exception as e:
-            logger.error(f"Error creating observation task: {e}", exc_info=True)
-
-    async def _add_to_feedback_queue(self, msg: IncomingMessage) -> None:
-        try:
-            if self.multi_service_sink:
-                success = await self.multi_service_sink.send_message(
-                    handler_name="APIObserver",
-                    channel_id=msg.channel_id,
-                    content=f"[WA_FEEDBACK] {msg.content}",
-                    metadata={
-                        "message_type": "wa_feedback",
-                        "original_message_id": msg.message_id,
-                        "wa_user": msg.author_name,
-                        "source": "api_observer"
-                    }
-                )
-                if success:
-                    logger.info(f"Enqueued WA feedback message {msg.message_id} from {msg.author_name}")
-                else:
-                    logger.warning(f"Failed to enqueue WA feedback message {msg.message_id}")
-            else:
-                logger.warning("No multi_service_sink available for WA feedback routing")
-        except Exception as e:
-            logger.error(f"Error adding WA feedback message {msg.message_id} to queue: {e}")
-
-    async def _recall_context(self, msg: IncomingMessage) -> None:
-        if not self.memory_service:
-            return
-        recall_ids = {f"channel/{msg.channel_id}"}
-        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]:
-            if m.author_id:
-                recall_ids.add(f"user/{m.author_id}")
-        for rid in recall_ids:
-            for scope in (
-                GraphScope.IDENTITY,
-                GraphScope.ENVIRONMENT,
-                GraphScope.LOCAL,
-            ):
-                try:
-                    # Determine node type based on ID prefix
-                    if rid.startswith("channel/"):
-                        node_type = NodeType.CHANNEL
-                    elif rid.startswith("user/"):
-                        node_type = NodeType.USER
-                    else:
-                        node_type = NodeType.CONCEPT
-                    
-                    node = GraphNode(id=rid, type=node_type, scope=scope)
-                    await self.memory_service.recall(node)
-                except Exception:
-                    continue
-
-    async def get_recent_messages(self, limit: int = 20) -> list[Dict[str, Any]]:
-        all_messages: List[Any] = []
-        
-        # Get recent input messages from history
-        recent_history = self._history[-limit*2:]  # Get more history to account for responses
-        
-        for msg in recent_history:
-            # Add the user's input message
-            all_messages.append({
-                "id": msg.message_id,
-                "content": msg.content,
-                "author_id": msg.author_id,
-                "timestamp": getattr(msg, "timestamp", "n/a"),
-            })
-            
-            # Add any agent responses for this channel
-            if self.api_adapter and hasattr(self.api_adapter, 'channel_messages'):
-                channel_responses = self.api_adapter.channel_messages.get(msg.channel_id, [])
-                
-                # Add responses that came after this message (simple approach for now)
-                for response in channel_responses:
-                    all_messages.append(response)
-        
-        # Remove duplicates and sort by timestamp if available
-        seen_ids = set()
-        unique_messages: List[Any] = []
-        for msg in all_messages:
-            if msg["id"] not in seen_ids:
-                seen_ids.add(msg["id"])
-                unique_messages.append(msg)
-        
-        # Return the most recent messages up to the limit
-        return unique_messages[-limit:]
