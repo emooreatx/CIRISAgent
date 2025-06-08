@@ -83,7 +83,15 @@ class PonderHandler(BaseActionHandler):
             
             defer_handler = self.dependencies.action_dispatcher.get_handler(HandlerActionType.DEFER)
             if defer_handler:
-                await defer_handler.handle(defer_result, thought, dispatch_context)
+                # Enhance dispatch context with max rounds information
+                enhanced_context = dispatch_context.copy()
+                enhanced_context.update({
+                    "max_rounds_reached": True,
+                    "attempted_action": "ponder_max_rounds",
+                    "ponder_count": new_ponder_count,
+                    "ponder_notes": questions_list
+                })
+                await defer_handler.handle(defer_result, thought, enhanced_context)
                 return None
             else:
                 logger.error("Defer handler not available. Setting status to DEFERRED directly.")

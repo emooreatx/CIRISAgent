@@ -55,6 +55,7 @@ class MockLLMConfig:
         self.filter_pattern = None  # Regex filter for context display
         self.debug_dma = False  # Show DMA evaluation details
         self.debug_guardrails = False  # Show guardrail processing details
+        self.show_help = False  # Show help documentation
 
 
 # Global config instance
@@ -141,6 +142,10 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
     if "MOCK_DEBUG_GUARDRAILS" in full_content:
         _mock_config.debug_guardrails = True
         context_items.append("debug_guardrails_enabled")
+    
+    if "MOCK_HELP" in full_content:
+        _mock_config.show_help = True
+        context_items.append("show_help_requested")
     
     return context_items
 

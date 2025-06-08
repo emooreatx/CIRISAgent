@@ -79,6 +79,7 @@ class DiscordMessage(IncomingMessage):
 
     is_bot: bool = False
     is_dm: bool = False
+    raw_message: Optional[Any] = Field(default=None, exclude=True)  # Discord.py message object
 
     def __init__(self, **data: Any) -> None:
         if "destination_id" not in data and "channel_id" in data:

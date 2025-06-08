@@ -56,13 +56,20 @@ class TaskCompleteHandler(BaseActionHandler):
                     ponder_result = ActionSelectionResult(
                         selected_action=HandlerActionType.PONDER,
                         action_parameters=PonderParams(questions=[ponder_content]),
-                        reasoning="Task completion blocked due to missing required SPEAK action for wakeup task"
+                        rationale="Wakeup task attempted completion without first performing SPEAK action - overriding to PONDER for guidance"
                     )
+                    
+                    # Convert to serializable dict for database storage
+                    ponder_result_dict = {
+                        "selected_action": ponder_result.selected_action.value,
+                        "action_parameters": ponder_result.action_parameters.model_dump() if ponder_result.action_parameters else None,
+                        "rationale": ponder_result.rationale
+                    }
                     
                     persistence.update_thought_status(
                         thought_id=thought_id,
                         status=ThoughtStatus.FAILED,
-                        final_action=ponder_result,
+                        final_action=ponder_result_dict,
                     )
                     await self._audit_log(HandlerActionType.TASK_COMPLETE, {**dispatch_context, "thought_id": thought_id}, outcome="blocked_override_to_ponder")
                     return

@@ -45,7 +45,26 @@ class DeferHandler(BaseActionHandler):
             wa_service = await self.get_wa_service()
             if wa_service:
                 try:
-                    await wa_service.send_deferral(thought_id, defer_params_obj.reason)
+                    # Build rich context for deferral
+                    deferral_context = {
+                        "task_id": thought.source_task_id,
+                        "thought_content": thought.content if hasattr(thought, 'content') else "",
+                        "priority": getattr(defer_params_obj, 'priority', 'medium'),
+                        "attempted_action": dispatch_context.get('attempted_action', 'unknown'),
+                        "max_rounds_reached": dispatch_context.get('max_rounds_reached', False)
+                    }
+                    
+                    # Add task description if available
+                    if thought.source_task_id:
+                        task = persistence.get_task_by_id(thought.source_task_id)
+                        if task and hasattr(task, 'description'):
+                            deferral_context["task_description"] = task.description
+                    
+                    # Add conversation context if available
+                    if "conversation_context" in dispatch_context:
+                        deferral_context["conversation_context"] = dispatch_context["conversation_context"]
+                    
+                    await wa_service.send_deferral(thought_id, defer_params_obj.reason, deferral_context)
                 except Exception as e:
                     self.logger.error(f"WiseAuthorityService deferral failed for thought {thought_id}: {e}")
             else:
@@ -58,7 +77,14 @@ class DeferHandler(BaseActionHandler):
             wa_service = await self.get_wa_service()
             if wa_service:
                 try:
-                    await wa_service.send_deferral(thought_id, "parameter_error")
+                    # Build minimal context for error case
+                    error_context = {
+                        "task_id": thought.source_task_id,
+                        "thought_content": thought.content if hasattr(thought, 'content') else "",
+                        "error_type": "parameter_parsing_error",
+                        "attempted_action": dispatch_context.get('attempted_action', 'defer')
+                    }
+                    await wa_service.send_deferral(thought_id, "parameter_error", error_context)
                 except Exception as e_sink_fallback:
                     self.logger.error(
                         f"Fallback deferral submission failed for thought {thought_id}: {e_sink_fallback}"

@@ -36,6 +36,13 @@ def action_selection(context=None):
             custom_rationale = item.split(":", 1)[1]
             break
     
+    # Check for help request
+    show_help = False
+    for item in context:
+        if item == "show_help_requested":
+            show_help = True
+            break
+    
     # Determine action based on context
     if forced_action:
         action = getattr(HandlerActionType, forced_action.upper(), HandlerActionType.PONDER)
@@ -59,6 +66,41 @@ def action_selection(context=None):
             # Default to speak for other actions
             params = SpeakParams(content="Forced action response", channel_id="test")
         rationale = f"Forced action: {forced_action}. " + " ".join(context)
+    elif show_help:
+        action = HandlerActionType.SPEAK
+        help_text = """📋 CIRIS Mock LLM Commands Help
+
+🎛️ **Action Control Commands:**
+• MOCK_FORCE_ACTION:speak         - Force SPEAK action
+• MOCK_FORCE_ACTION:recall        - Force RECALL action  
+• MOCK_FORCE_ACTION:memorize      - Force MEMORIZE action
+• MOCK_FORCE_ACTION:tool          - Force TOOL action
+• MOCK_FORCE_ACTION:observe       - Force OBSERVE action
+• MOCK_FORCE_ACTION:ponder        - Force PONDER action
+• MOCK_FORCE_ACTION:defer         - Force DEFER action
+• MOCK_FORCE_ACTION:reject        - Force REJECT action
+• MOCK_FORCE_ACTION:forget        - Force FORGET action
+• MOCK_FORCE_ACTION:task_complete - Force TASK_COMPLETE action
+
+🔧 **Testing & Debug Commands:**
+• MOCK_TEST_MODE                  - Enable testing mode with enhanced logging
+• MOCK_INJECT_ERROR              - Inject error conditions for testing
+• MOCK_RATIONALE:"custom text"   - Set custom rationale for actions
+• MOCK_SHOW_CONTEXT              - Display full context in response
+• MOCK_FILTER_CONTEXT:"regex"    - Filter context display by regex pattern
+• MOCK_ECHO_FULL                 - Echo complete context received
+• MOCK_DEBUG_DMA                 - Show DMA evaluation details
+• MOCK_DEBUG_GUARDRAILS         - Show guardrail processing details
+• MOCK_HELP                      - Show this help message
+
+💡 **Usage Examples:**
+• "MOCK_FORCE_ACTION:speak Hello world"
+• "MOCK_FORCE_ACTION:defer This is too complex"
+• "MOCK_RATIONALE:"Testing custom reasoning" MOCK_FORCE_ACTION:ponder"
+
+The mock LLM provides deterministic responses for testing all CIRIS agent functionality offline."""
+        params = SpeakParams(content=help_text, channel_id="test")
+        rationale = "Providing Mock LLM help documentation"
     elif user_speech:
         action = HandlerActionType.SPEAK
         params = SpeakParams(content=f"Mock response to: {user_speech}", channel_id="test")

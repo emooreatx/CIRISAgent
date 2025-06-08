@@ -92,24 +92,29 @@ class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, Memory
         )
         return None
 
-    async def send_deferral(self, thought_id: str, reason: str) -> bool:
-        self.responses[f"deferral_{thought_id}"] = {
+    async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
+        deferral_data = {
             "type": "deferral",
             "thought_id": thought_id,
             "reason": reason,
             "timestamp": datetime.utcnow().isoformat(),
         }
+        if context:
+            deferral_data["context"] = context
+        
+        self.responses[f"deferral_{thought_id}"] = deferral_data
+        
         persistence.add_correlation(
             ServiceCorrelation(
                 correlation_id=f"deferral_{thought_id}",
                 service_type="api",
                 handler_name="APIAdapter",
                 action_type="send_deferral",
-                request_data={"thought_id": thought_id, "reason": reason},
-                response_data=self.responses[f"deferral_{thought_id}"],
+                request_data={"thought_id": thought_id, "reason": reason, "context": context},
+                response_data=deferral_data,
                 status=ServiceCorrelationStatus.COMPLETED,
-                created_at=self.responses[f"deferral_{thought_id}"]["timestamp"],
-                updated_at=self.responses[f"deferral_{thought_id}"]["timestamp"],
+                created_at=deferral_data["timestamp"],
+                updated_at=deferral_data["timestamp"],
             )
         )
         return True

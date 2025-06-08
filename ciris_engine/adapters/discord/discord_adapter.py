@@ -196,7 +196,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         logger.warning("DiscordAdapter: No guidance found in deferral channel.")
         return {"guidance": None}
 
-    async def send_deferral(self, thought_id: str, reason: str) -> bool:
+    async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
         """Send a deferral report to the configured deferral channel."""
         if not self.client or not self.deferral_channel_id:
             logger.error("DiscordAdapter: Deferral channel or client not configured.")
@@ -206,7 +206,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             correlation_id = str(uuid.uuid4())
             await self.retry_with_backoff(
                 self._send_deferral_impl,
-                thought_id, reason,
+                thought_id, reason, context,
                 operation_name="send_deferral",
                 config_key="discord_api"
             )
@@ -228,7 +228,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to send deferral to Discord: {e}")
             return False
 
-    async def _send_deferral_impl(self, thought_id: str, reason: str, **kwargs) -> None:
+    async def _send_deferral_impl(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None, **kwargs) -> None:
         """Internal implementation of send_deferral for retry wrapping"""
         channel = self.client.get_channel(int(self.deferral_channel_id))
         if channel is None:
@@ -237,8 +237,52 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.error(f"DiscordAdapter: Could not find deferral channel {self.deferral_channel_id}")
             raise RuntimeError("Deferral channel not found.")
         
-        report = f"[CIRIS Deferral Report]\nThought ID: `{thought_id}`\nReason: {reason}"
-        await channel.send(report)
+        # Build richer deferral report
+        report_lines = [
+            "**[CIRIS Deferral Report]**",
+            f"**Thought ID:** `{thought_id}`",
+            f"**Reason:** {reason}",
+            f"**Timestamp:** {datetime.utcnow().isoformat()}Z"
+        ]
+        
+        if context:
+            if "task_id" in context:
+                report_lines.append(f"**Task ID:** `{context['task_id']}`")
+            
+            if "task_description" in context:
+                task_desc = context["task_description"]
+                if len(task_desc) > 200:
+                    task_desc = task_desc[:197] + "..."
+                report_lines.append(f"**Task:** {task_desc}")
+            
+            if "thought_content" in context:
+                thought_content = context["thought_content"]
+                if len(thought_content) > 300:
+                    thought_content = thought_content[:297] + "..."
+                report_lines.append(f"**Thought:** {thought_content}")
+            
+            if "conversation_context" in context:
+                conv_context = context["conversation_context"]
+                if len(conv_context) > 400:
+                    conv_context = conv_context[:397] + "..."
+                report_lines.append(f"**Context:** {conv_context}")
+            
+            if "priority" in context:
+                report_lines.append(f"**Priority:** {context['priority']}")
+            
+            if "attempted_action" in context:
+                report_lines.append(f"**Attempted Action:** {context['attempted_action']}")
+            
+            if "max_rounds_reached" in context and context["max_rounds_reached"]:
+                report_lines.append("**Note:** Maximum processing rounds reached")
+        
+        report = "\n".join(report_lines)
+        
+        # Split long reports to avoid Discord message limits
+        if len(report) > 2000:
+            await channel.send(report[:1997] + "...")
+        else:
+            await channel.send(report)
 
     # --- ToolService ---
     async def execute_tool(self, tool_name: str, tool_args: dict) -> dict:
@@ -352,7 +396,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             channel_id=str(message.channel.id),
             is_bot=message.author.bot,
             is_dm=isinstance(message.channel, discord.DMChannel),
-            _raw_message=message
+            raw_message=message
         )
         if self.on_message_callback:
             await self.on_message_callback(incoming)

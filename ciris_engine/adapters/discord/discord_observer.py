@@ -56,8 +56,17 @@ class DiscordObserver:
         if not isinstance(msg, DiscordMessage):
             logger.warning("DiscordObserver received non-DiscordMessage")
             return
-        if self.monitored_channel_id and msg.channel_id != self.monitored_channel_id:
-            logger.debug("Ignoring message from channel %s (not monitored)", msg.channel_id)
+        # Accept messages from both monitored channel and deferral channel
+        from ciris_engine.config.config_manager import get_config
+        config = get_config()
+        deferral_channel_id = config.discord_deferral_channel_id
+        
+        # Check if message is from a monitored channel
+        is_from_monitored = (self.monitored_channel_id and msg.channel_id == self.monitored_channel_id)
+        is_from_deferral = (deferral_channel_id and msg.channel_id == deferral_channel_id)
+        
+        if not (is_from_monitored or is_from_deferral):
+            logger.debug("Ignoring message from channel %s (not monitored or deferral)", msg.channel_id)
             return
         
         # Check if this is the agent's own message
@@ -118,7 +127,8 @@ class DiscordObserver:
                 is_bot=msg.is_bot,
                 is_dm=getattr(msg, 'is_dm', False),
                 mentions_agent=getattr(msg, 'mentions_agent', False),
-                reply_to_message_id=getattr(msg, 'reply_to_message_id', None)
+                reply_to_message_id=getattr(msg, 'reply_to_message_id', None),
+                raw_message=getattr(msg, 'raw_message', None)  # Preserve the raw Discord message
             )
             
             # Store secret references on the message for context
@@ -390,16 +400,29 @@ class DiscordObserver:
             referenced_thought_id = None
             
             # First check if this message is replying to another message
-            if hasattr(msg, '_raw_message') and msg._raw_message and hasattr(msg._raw_message, 'reference'):
-                ref = msg._raw_message.reference
-                if ref and ref.resolved:
-                    # Check if the referenced message contains a thought ID
-                    ref_content = ref.resolved.content
-                    thought_id_pattern = r'Thought ID:\s*`([a-f0-9-]+)`'
-                    match = re.search(thought_id_pattern, ref_content)
-                    if match:
-                        referenced_thought_id = match.group(1)
-                        logger.info(f"Found reply to deferral for thought ID: {referenced_thought_id}")
+            logger.info(f"Checking reply detection for message {msg.message_id}")
+            if hasattr(msg, 'raw_message') and msg.raw_message:
+                logger.info(f"Message has raw_message: {msg.raw_message.id}")
+                if hasattr(msg.raw_message, 'reference'):
+                    ref = msg.raw_message.reference
+                    logger.info(f"Message reference: {ref}")
+                    if ref and ref.resolved:
+                        # Check if the referenced message contains a thought ID
+                        ref_content = ref.resolved.content
+                        logger.info(f"Referenced message content: {ref_content}")
+                        thought_id_pattern = r'\*\*Thought ID:\*\*\s*`([a-f0-9-]+)`'
+                        match = re.search(thought_id_pattern, ref_content)
+                        if match:
+                            referenced_thought_id = match.group(1)
+                            logger.info(f"Found reply to deferral for thought ID: {referenced_thought_id}")
+                        else:
+                            logger.info(f"No thought ID pattern found in referenced message")
+                    else:
+                        logger.info(f"Reference not resolved or None")
+                else:
+                    logger.info(f"Message has no reference attribute")
+            else:
+                logger.info(f"Message has no raw_message")
             
             # If not a reply, check if the message itself mentions a thought ID
             if not referenced_thought_id:
@@ -412,10 +435,10 @@ class DiscordObserver:
             if referenced_thought_id:
                 # This is guidance for a specific deferred thought
                 # Find the original thought and its task
-                original_thought = persistence.get_thought(referenced_thought_id)
+                original_thought = persistence.get_thought_by_id(referenced_thought_id)
                 if original_thought and original_thought.status == ThoughtStatus.DEFERRED:
                     # Reactivate the original task
-                    original_task = persistence.get_task(original_thought.source_task_id)
+                    original_task = persistence.get_task_by_id(original_thought.source_task_id)
                     if original_task:
                         persistence.update_task_status(original_task.task_id, TaskStatus.ACTIVE)
                         logger.info(f"Reactivated task {original_task.task_id} due to guidance")
@@ -467,22 +490,7 @@ class DiscordObserver:
                 }
             )
             persistence.add_task(task)
-
-            # Create thought for this guidance
-            thought = Thought(
-                thought_id=str(uuid.uuid4()),
-                source_task_id=task.task_id,
-                thought_type="observation",
-                status=ThoughtStatus.PENDING,
-                created_at=datetime.now(timezone.utc).isoformat(),
-                updated_at=datetime.now(timezone.utc).isoformat(),
-                round_number=0,
-                content=f"Unsolicited guidance from @{msg.author_name}: {msg.content}",
-                context=task.context
-            )
-            persistence.add_thought(thought)
-
-            logger.info(f"Created unsolicited guidance task {task.task_id} and thought {thought.thought_id}")
+            logger.info(f"Created unsolicited guidance task {task.task_id} - seed thought will be generated automatically")
                 
         except Exception as e:
             logger.error(f"Error processing guidance message {msg.message_id}: {e}", exc_info=True)
