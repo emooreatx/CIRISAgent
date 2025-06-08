@@ -84,11 +84,7 @@ class BaseDSDMA(BaseDMA):
 
         aclient = instructor.patch(llm_service.get_client().client, mode=self.instructor_mode)
 
-        thought_content_str = ""
-        if isinstance(thought_item.content, dict):
-            thought_content_str = str(thought_item.content)
-        else:
-            thought_content_str = str(thought_item.content)
+        thought_content_str = str(thought_item.content)
 
         context_str = str(current_context) if current_context else "No specific platform context provided."
         rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General domain guidance") if isinstance(self.domain_specific_knowledge, dict) else "General domain guidance"
