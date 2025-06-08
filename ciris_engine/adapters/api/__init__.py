@@ -1,2 +1,2 @@
-from .api_adapter import APIAdapter
-from .api_observer import APIObserver
+from .adapter import ApiPlatform
+Adapter = ApiPlatform
