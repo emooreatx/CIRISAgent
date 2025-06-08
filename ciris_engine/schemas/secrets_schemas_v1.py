@@ -6,11 +6,14 @@ and management of sensitive information within the CIRIS pipeline.
 """
 
 from datetime import datetime
-from typing import List, Dict, Optional, Any, Literal, Tuple
+from typing import List, Dict, Optional, Any, Literal, Tuple, TYPE_CHECKING
 from pydantic import BaseModel, Field
 from enum import Enum
 import uuid
 from .foundational_schemas_v1 import SensitivityLevel
+
+if TYPE_CHECKING:
+    from .config_schemas_v1 import SecretPattern
 
 
 class SecretType(str, Enum):
@@ -29,14 +32,6 @@ class SecretType(str, Enum):
     DISCORD_TOKEN = "discord_token"
 
 
-class SecretPattern(BaseModel):
-    """Agent-defined secret detection pattern"""
-    name: str = Field(description="Pattern name")
-    regex: str = Field(description="Regular expression pattern") 
-    description: str = Field(description="Human-readable description")
-    sensitivity: SensitivityLevel
-    context_hint: str = Field(description="Safe description for context")
-    enabled: bool = True
 
 
 class SecretRecord(BaseModel):
@@ -61,24 +56,6 @@ class SecretRecord(BaseModel):
     manual_access_only: bool = False
 
 
-class SecretsFilter(BaseModel):
-    """Agent-configurable secrets detection rules"""
-    filter_id: str = Field(description="Unique identifier for this filter set")
-    version: int = Field(description="Version number for updates")
-    
-    # Built-in patterns (always active)
-    builtin_patterns_enabled: bool = True
-    
-    # Agent-defined custom patterns
-    custom_patterns: List[SecretPattern] = Field(default_factory=list)
-    
-    # Pattern overrides
-    disabled_patterns: List[str] = Field(default_factory=list)
-    sensitivity_overrides: Dict[str, str] = Field(default_factory=dict)
-    
-    # Behavioral settings
-    require_confirmation_for: List[str] = Field(default=["CRITICAL"])
-    auto_decrypt_for_actions: List[str] = Field(default=["speak", "tool"])
 
 
 class SecretReference(BaseModel):
@@ -141,7 +118,7 @@ class UpdateSecretsFilterParams(BaseModel):
     operation: Literal["add_pattern", "remove_pattern", "update_pattern", "get_current"]
     
     # For add_pattern/update_pattern
-    pattern: Optional[SecretPattern] = None
+    pattern: Optional["SecretPattern"] = None
     
     # For remove_pattern  
     pattern_name: Optional[str] = None

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from ciris_engine.processor.base_processor import BaseProcessor
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
-from ciris_engine.schemas.states import AgentState
+from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, ThoughtType

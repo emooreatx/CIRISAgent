@@ -5,6 +5,7 @@ from .wisdom_schemas_v1 import WisdomRequest
 from .community_schemas_v1 import CommunityHealth
 from .telemetry_schemas_v1 import CompactTelemetry
 from .resource_schemas_v1 import ResourceSnapshot
+from .secrets_schemas_v1 import SecretReference
 
 class TaskSummary(BaseModel):
     """Summary of a task for context."""
@@ -32,15 +33,6 @@ class UserProfile(BaseModel):
     display_name: Optional[str] = None
     model_config = ConfigDict(extra="allow")
 
-class SecretReference(BaseModel):
-    """Non-sensitive reference to a stored secret for agent introspection"""
-    uuid: str
-    description: str
-    context_hint: str
-    sensitivity: str
-    auto_decapsulate_actions: List[str]
-    created_at: datetime
-    last_accessed: Optional[datetime]
 
 class SystemSnapshot(BaseModel):
     current_task_details: Optional[TaskSummary] = None
