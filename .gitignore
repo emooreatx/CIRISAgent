@@ -35,3 +35,4 @@ CIRISGUI/apps/agui/dist/
 CIRISGUI/apps/ciris-api/__pycache__/
 
 node_modules
+*.pem
