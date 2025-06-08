@@ -24,8 +24,6 @@ async def load_profile(profile_path: Optional[Path]) -> Optional[AgentProfile]:
     """
     if profile_path is None:
         profile_path = DEFAULT_PROFILE_PATH
-    elif not isinstance(profile_path, Path):
-        profile_path = Path(profile_path)
 
     if not profile_path.exists() or not profile_path.is_file():
         if profile_path != DEFAULT_PROFILE_PATH:
