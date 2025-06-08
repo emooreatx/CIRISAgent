@@ -10,7 +10,7 @@ import random
 import asyncio
 import logging
 from typing import Dict, Any, Optional, List, Tuple, Union
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.filter_schemas_v1 import (
@@ -236,7 +236,7 @@ class AdaptiveFilterService(Service):
                         priority = filter_trigger.priority
                     
                     # Update filter statistics
-                    filter_trigger.last_triggered = datetime.utcnow()
+                    filter_trigger.last_triggered = datetime.now(timezone.utc)
                     filter_trigger.true_positive_count += 1
                     
             except Exception as e:
@@ -333,7 +333,7 @@ class AdaptiveFilterService(Service):
     
     async def _check_frequency(self, user_id: str, count_threshold: int, time_window: int) -> bool:
         """Check if user has exceeded message frequency threshold"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=time_window)
         
         if user_id not in self._message_buffer:
@@ -364,13 +364,13 @@ class AdaptiveFilterService(Service):
         if user_id not in self._config.user_profiles:
             self._config.user_profiles[user_id] = UserTrustProfile(
                 user_id=user_id,
-                first_seen=datetime.utcnow(),
-                last_seen=datetime.utcnow()
+                first_seen=datetime.now(timezone.utc),
+                last_seen=datetime.now(timezone.utc)
             )
         
         profile = self._config.user_profiles[user_id]
         profile.message_count += 1
-        profile.last_seen = datetime.utcnow()
+        profile.last_seen = datetime.now(timezone.utc)
         
         # Adjust trust based on filter results
         if priority == FilterPriority.CRITICAL and triggered:
@@ -419,7 +419,7 @@ class AdaptiveFilterService(Service):
             return str(message.id)
         elif isinstance(message, dict):
             return str(message.get('message_id') or message.get('id', 'unknown'))
-        return f"msg_{datetime.utcnow().timestamp()}"
+        return f"msg_{datetime.now(timezone.utc).timestamp()}"
     
     def _is_direct_message(self, message: Any, adapter_type: str) -> bool:
         """Check if message is a direct message"""
@@ -514,7 +514,7 @@ class AdaptiveFilterService(Service):
             errors=errors,
             stats=self._stats,
             config_version=self._config.version if self._config else 0,
-            last_updated=datetime.utcnow()
+            last_updated=datetime.now(timezone.utc)
         )
     
     async def add_filter_trigger(self, trigger: FilterTrigger, trigger_list: str = "review") -> bool:
