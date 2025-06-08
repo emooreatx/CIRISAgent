@@ -88,9 +88,6 @@ class OpenAICompatibleClient(Service):
 
     @staticmethod
     def extract_json(raw: str) -> Dict[str, Any]:
-        if not isinstance(raw, str):
-            logger.warning("extract_json received non-string input")
-            return {"error": "Invalid input type"}
         match_markdown = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
         if match_markdown:
             json_str = match_markdown.group(1)
@@ -102,10 +99,12 @@ class OpenAICompatibleClient(Service):
             else:
                 json_str = raw.strip()
         try:
-            return json.loads(json_str)
+            parsed: Dict[str, Any] = json.loads(json_str)
+            return parsed
         except json.JSONDecodeError:
             try:
-                return json.loads(json_str.replace("'", '"'))
+                parsed_retry: Dict[str, Any] = json.loads(json_str.replace("'", '"'))
+                return parsed_retry
             except json.JSONDecodeError:
                 return {"error": f"Failed to parse JSON. Raw content snippet: {raw}"}
 
@@ -114,7 +113,7 @@ class OpenAICompatibleClient(Service):
         messages: List[Dict[str, str]],
         max_tokens: int = 1024,
         temperature: float = 0.7,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[str, ResourceUsage]:
         logger.debug(f"Raw LLM call with messages: {messages}")
         

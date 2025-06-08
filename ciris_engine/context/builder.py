@@ -287,6 +287,7 @@ class ContextBuilder:
                     description=secret.description,
                     context_hint=secret.context_hint,
                     sensitivity=secret.sensitivity_level,
+                    detected_pattern=getattr(secret, 'detected_pattern', 'unknown'),
                     auto_decapsulate_actions=secret.auto_decapsulate_for_actions,
                     created_at=secret.created_at,
                     last_accessed=secret.last_accessed

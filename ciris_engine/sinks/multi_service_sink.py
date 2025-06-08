@@ -464,10 +464,23 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             service = await self._get_service('tool', action)
             if service:
                 result = await self._handle_send_tool(service, action)
+                # Ensure we return a proper ToolResult
+                if isinstance(result, dict):
+                    from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
+                    return ToolResult(
+                        tool_name=action.tool_name,
+                        execution_status=ToolExecutionStatus.SUCCESS,
+                        result_data=result
+                    )
                 return result
             else:
                 logger.warning(f"No tool service available for execute_tool_sync")
-                return None
+                from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
+                return ToolResult(
+                    tool_name="unknown",
+                    execution_status=ToolExecutionStatus.NOT_FOUND,
+                    error_message="No tool service available"
+                )
         except Exception as e:
             logger.error(f"Error in execute_tool_sync: {e}")
             raise
@@ -480,14 +493,23 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             action = FetchToolAction(
                 handler_name=handler_name,
                 metadata=metadata or {},
+                tool_name="fetch_result",  # Add required tool_name
                 correlation_id=correlation_id,
-                timeout=timeout
+                timeout=timeout or 30.0  # Ensure timeout is float, not Optional[float]
             )
             
             # Get service directly and call fetch
             service = await self._get_service('tool', action)
             if service:
                 result = await self._handle_fetch_tool(service, action)
+                # Ensure we return a proper ToolResult
+                if isinstance(result, dict):
+                    from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
+                    return ToolResult(
+                        tool_name=action.tool_name,
+                        execution_status=ToolExecutionStatus.SUCCESS,
+                        result_data=result
+                    )
                 return result
             else:
                 logger.warning(f"No tool service available for get_tool_result_sync")
