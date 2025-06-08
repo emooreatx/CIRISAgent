@@ -8,11 +8,18 @@ import re
 import uuid
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Literal, Any
+from typing import Dict, List, Optional, Tuple, Literal, Any, cast
 from dataclasses import dataclass
 from pydantic import BaseModel, Field
+from ..schemas.foundational_schemas_v1 import SensitivityLevel
 
 from ..protocols.secrets_interface import SecretsFilterInterface
+from ..schemas.secrets_schemas_v1 import (
+    SecretPattern as SchemaSecretPattern,
+    SecretsFilter as SchemaSecretsFilter,
+    DetectedSecret as SchemaDetectedSecret,
+    SecretsFilterResult
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +29,7 @@ class SecretPattern(BaseModel):
     name: str = Field(description="Pattern name")
     regex: str = Field(description="Regular expression pattern")
     description: str = Field(description="Human-readable description")
-    sensitivity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    sensitivity: SensitivityLevel
     enabled: bool = True
 
 
@@ -54,7 +61,7 @@ class DetectedSecret:
     replacement_text: str
     pattern_name: str
     description: str
-    sensitivity: str
+    sensitivity: SensitivityLevel
     context_hint: str
     start_pos: int
     end_pos: int
@@ -84,73 +91,73 @@ class SecretsFilter(SecretsFilterInterface):
                 name="api_key",
                 regex=r"(?i)api[_-]?key[s]?[\s:=]+['\"]?[a-z0-9_-]{15,}['\"]?",
                 description="API Key",
-                sensitivity="HIGH"
+                sensitivity=SensitivityLevel.HIGH
             ),
             "bearer_token": SecretPattern(
                 name="bearer_token", 
                 regex=r"(?i)bearer[_-]?token[s]?[\s:=]+['\"]?[a-z0-9\-_.]{20,}['\"]?",
                 description="Bearer Token",
-                sensitivity="HIGH"
+                sensitivity=SensitivityLevel.HIGH
             ),
             "password": SecretPattern(
                 name="password",
                 regex=r"(?i)password[s]?[\s:=]+['\"]?[^\s'\"]{8,}['\"]?",
                 description="Password",
-                sensitivity="CRITICAL"
+                sensitivity=SensitivityLevel.CRITICAL
             ),
             "url_with_auth": SecretPattern(
                 name="url_with_auth",
                 regex=r"https?://[^:]+:[^@]+@[^\s]+",
                 description="URL with Authentication", 
-                sensitivity="HIGH"
+                sensitivity=SensitivityLevel.HIGH
             ),
             "private_key": SecretPattern(
                 name="private_key",
                 regex=r"-----BEGIN [A-Z ]+PRIVATE KEY-----",
                 description="Private Key",
-                sensitivity="CRITICAL"
+                sensitivity=SensitivityLevel.CRITICAL
             ),
             "credit_card": SecretPattern(
                 name="credit_card",
                 regex=r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b",
                 description="Credit Card Number",
-                sensitivity="CRITICAL"
+                sensitivity=SensitivityLevel.CRITICAL
             ),
             "social_security": SecretPattern(
                 name="social_security",
                 regex=r"\b\d{3}-\d{2}-\d{4}\b",
                 description="Social Security Number",
-                sensitivity="CRITICAL"
+                sensitivity=SensitivityLevel.CRITICAL
             ),
             "aws_access_key": SecretPattern(
                 name="aws_access_key",
                 regex=r"(?i)(?:AKIA|ASIA)[0-9A-Z]{16}",
                 description="AWS Access Key ID",
-                sensitivity="HIGH"
+                sensitivity=SensitivityLevel.HIGH
             ),
             "aws_secret_key": SecretPattern(
                 name="aws_secret_key", 
                 regex=r"(?i)aws[_-]?secret[_-]?access[_-]?key[s]?[\s:=]+['\"]?[a-z0-9/+=]{40}['\"]?",
                 description="AWS Secret Access Key",
-                sensitivity="CRITICAL"
+                sensitivity=SensitivityLevel.CRITICAL
             ),
             "github_token": SecretPattern(
                 name="github_token",
                 regex=r"(?i)github[_-]?token[s]?[\s:=]+['\"]?ghp_[a-z0-9]{36}['\"]?",
                 description="GitHub Personal Access Token",
-                sensitivity="HIGH"
+                sensitivity=SensitivityLevel.HIGH
             ),
             "slack_token": SecretPattern(
                 name="slack_token",
                 regex=r"(?i)xox[bpars]-[0-9]{12}-[0-9]{12}-[a-z0-9]{24}",
                 description="Slack Token",
-                sensitivity="HIGH"
+                sensitivity=SensitivityLevel.HIGH
             ),
             "discord_token": SecretPattern(
                 name="discord_token",
                 regex=r"(?i)discord[_-]?token[s]?[\s:=]+['\"]?[a-z0-9]{50,}['\"]?",
                 description="Discord Bot Token",
-                sensitivity="HIGH"
+                sensitivity=SensitivityLevel.HIGH
             )
         }
         
@@ -345,19 +352,44 @@ class SecretsFilter(SecretsFilterInterface):
         logger.info(f"Imported secrets filter config version {self.config.version}")
     
     # Implement SecretsFilterInterface methods
-    async def filter_content(self, content: str, source_id: Optional[str] = None) -> Any:
+    async def filter_content(self, content: str, source_id: Optional[str] = None) -> SecretsFilterResult:
         """Filter content for secrets using the text filtering method."""
         # Return a simple result for interface compatibility
         filtered_text, detected_secrets = self.filter_text(content)
-        return {
-            "filtered_content": filtered_text,
-            "detected_secrets": detected_secrets
-        }
+        
+        # Convert local DetectedSecret to schema format
+        schema_secrets = []
+        for secret in detected_secrets:
+            schema_secret = SchemaDetectedSecret(
+                original_value=secret.original_text,
+                secret_uuid=secret.secret_uuid,
+                pattern_name=secret.pattern_name,
+                description=secret.description,
+                sensitivity=secret.sensitivity,
+                context_hint=secret.context_hint,
+                replacement_text=secret.replacement_text
+            )
+            schema_secrets.append(schema_secret)
+        
+        return SecretsFilterResult(
+            filtered_content=filtered_text,
+            detected_secrets=schema_secrets,
+            secrets_found=len(detected_secrets),
+            patterns_matched=[s.pattern_name for s in detected_secrets]
+        )
     
-    async def add_pattern(self, pattern: SecretPattern) -> bool:
+    async def add_pattern(self, pattern: SchemaSecretPattern) -> bool:
         """Add a new secret detection pattern."""
         try:
-            self.add_custom_pattern(pattern)
+            # Convert to local SecretPattern format
+            local_pattern = SecretPattern(
+                name=pattern.name,
+                regex=pattern.regex,
+                description=pattern.description,
+                sensitivity=pattern.sensitivity,
+                enabled=True
+            )
+            self.add_custom_pattern(local_pattern)
             return True
         except Exception:
             return False
@@ -366,9 +398,28 @@ class SecretsFilter(SecretsFilterInterface):
         """Remove a secret detection pattern."""
         return self.remove_custom_pattern(pattern_name)
     
-    async def get_filter_config(self) -> SecretsFilterConfig:
+    async def get_filter_config(self) -> SchemaSecretsFilter:
         """Get the current filter configuration."""
-        return self.config
+        # Convert local config to schema format
+        return SchemaSecretsFilter(
+            filter_id=self.config.filter_id,
+            version=self.config.version,
+            builtin_patterns_enabled=self.config.builtin_patterns_enabled,
+            custom_patterns=[
+                SchemaSecretPattern(
+                    name=p.name,
+                    regex=p.regex,
+                    description=p.description,
+                    sensitivity=p.sensitivity,
+                    context_hint=p.description,  # Use description as context hint
+                    enabled=p.enabled
+                ) for p in self.config.custom_patterns
+            ],
+            disabled_patterns=self.config.disabled_patterns,
+            sensitivity_overrides=self.config.sensitivity_overrides,
+            require_confirmation_for=self.config.require_confirmation_for,
+            auto_decrypt_for_actions=self.config.auto_decrypt_for_actions
+        )
     
     async def update_filter_config(self, updates: Dict[str, Any]) -> bool:
         """Update filter configuration settings."""

@@ -41,6 +41,13 @@ class ThoughtStatus(CaseInsensitiveEnum):
     FAILED = "failed"
     DEFERRED = "deferred"
 
+class SensitivityLevel(CaseInsensitiveEnum):
+    """Security sensitivity levels for secrets and sensitive information."""
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
 class ObservationSourceType(CaseInsensitiveEnum):
     CHAT_MESSAGE = "chat_message"
     FEEDBACK_PACKAGE = "feedback_package"
@@ -72,6 +79,7 @@ class DiscordMessage(IncomingMessage):
 
     is_bot: bool = False
     is_dm: bool = False
+    raw_message: Optional[Any] = Field(default=None, exclude=True)  # Discord.py message object
 
     def __init__(self, **data: Any) -> None:
         if "destination_id" not in data and "channel_id" in data:

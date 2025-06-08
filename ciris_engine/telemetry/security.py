@@ -24,9 +24,6 @@ class SecurityFilter:
         }
 
     def sanitize(self, metric_name: str, value: Any) -> Tuple[str, Any] | None:
-        if not isinstance(metric_name, str):
-            return None
-
         # Rate limiting
         if not self._check_rate_limit(metric_name):
             logger.debug("Metric %s rate limited", metric_name)

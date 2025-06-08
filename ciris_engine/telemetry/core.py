@@ -48,8 +48,9 @@ class TelemetryService(Service):
         cutoff = now - timedelta(hours=24)
         telemetry = CompactTelemetry()
         for name, records in self._history.items():
-            records = [r for r in records if r[0] > cutoff]
-            self._history[name] = deque(records, maxlen=self.buffer_size)
+            filtered_records = [r for r in records if r[0] > cutoff]
+            self._history[name] = deque(filtered_records, maxlen=self.buffer_size)
+            records = filtered_records
             count = len(records)
             if name == "message_processed":
                 telemetry.messages_processed_24h = count

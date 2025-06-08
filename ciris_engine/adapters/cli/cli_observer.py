@@ -81,8 +81,19 @@ class CLIObserver:
         if not isinstance(msg, IncomingMessage):
             logger.warning("CLIObserver received non-IncomingMessage")
             return
-        if self.agent_id and msg.author_id == self.agent_id:
-            logger.debug("Ignoring self message %s", msg.message_id)
+        
+        # Check if this is the agent's own message
+        is_agent_message = self.agent_id and msg.author_id == self.agent_id
+        
+        # Process message for secrets detection and replacement (for all messages)
+        processed_msg = await self._process_message_secrets(msg)
+        
+        # Add ALL messages to history (including agent's own)
+        self._history.append(processed_msg)
+        
+        # If it's the agent's message, stop here (no task creation)
+        if is_agent_message:
+            logger.debug("Added agent's own message %s to history (no task created)", msg.message_id)
             return
         
         # Apply adaptive filtering to determine message priority and processing
@@ -91,15 +102,10 @@ class CLIObserver:
             logger.debug(f"Message {msg.message_id} filtered out: {filter_result.reasoning}")
             return
         
-        # Process message for secrets detection and replacement
-        processed_msg = await self._process_message_secrets(msg)
-        
         # Add filter context to message for downstream processing
         processed_msg._filter_priority = filter_result.priority
         processed_msg._filter_context = filter_result.context_hints
         processed_msg._filter_reasoning = filter_result.reasoning
-        
-        self._history.append(processed_msg)
         
         # Process based on priority
         if filter_result.priority.value in ['critical', 'high']:
@@ -118,12 +124,8 @@ class CLIObserver:
             # Process the message content for secrets
             processed_content, secret_refs = await self.secrets_service.process_incoming_text(
                 msg.content,
-                source_context={
-                    "message_id": msg.message_id,
-                    "channel_id": msg.channel_id,
-                    "author_id": msg.author_id,
-                    "operation": "message_processing"
-                }
+                context_hint=f"CLI message from {msg.author_id}",
+                source_message_id=msg.message_id
             )
             
             # Create new message with processed content

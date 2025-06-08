@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class AgentConfigService(Service):
     """Service for agent self-configuration through graph memory"""
     
-    def __init__(self, memory_service, wa_service=None, filter_service=None):
+    def __init__(self, memory_service: Any, wa_service: Any = None, filter_service: Any = None) -> None:
         super().__init__()
         self.memory = memory_service
         self.wa_service = wa_service
@@ -32,12 +32,12 @@ class AgentConfigService(Service):
         self._pending_identity_updates: Dict[str, Any] = {}
         self._cache_ttl_minutes = 5
     
-    async def start(self):
+    async def start(self) -> None:
         """Start the configuration service"""
         await super().start()
         logger.info("Agent Configuration Service started")
     
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the configuration service"""
         await super().stop()
         logger.info("Agent Configuration Service stopped")
@@ -61,7 +61,7 @@ class AgentConfigService(Service):
             cached = self._config_cache[cache_key]
             if cached["expires"] > datetime.utcnow():
                 logger.debug(f"Config cache hit for {config_type.value}")
-                return cached["data"]
+                return cached["data"]  # type: ignore[no-any-return]
             else:
                 # Remove expired entry
                 del self._config_cache[cache_key]
@@ -85,7 +85,7 @@ class AgentConfigService(Service):
                 }
                 
                 logger.debug(f"Loaded config {config_type.value} from memory")
-                return config_data
+                return config_data  # type: ignore[no-any-return]
             else:
                 logger.debug(f"No config found for {config_type.value}")
                 return None
@@ -201,10 +201,10 @@ class AgentConfigService(Service):
                     del self._config_cache[cache_key]
                 
                 logger.info(f"Successfully updated config {config_type.value}")
-                return result
+                return result  # type: ignore[no-any-return]
             else:
                 logger.error(f"Failed to update config {config_type.value}: {result.error}")
-                return result
+                return result  # type: ignore[no-any-return]
                 
         except Exception as e:
             logger.error(f"Error updating config {config_type.value}: {e}")
@@ -379,7 +379,7 @@ class AgentConfigService(Service):
     
     async def get_config_health(self) -> Dict[str, Any]:
         """Get health status of configuration system"""
-        health = {
+        health: Dict[str, Any] = {
             "healthy": True,
             "warnings": [],
             "errors": [],

@@ -76,13 +76,14 @@ class WiseAuthorityService(Protocol):
         ...
     
     @abstractmethod
-    async def send_deferral(self, thought_id: str, reason: str) -> bool:
+    async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
         """
         Send a thought for deferral to wise authority.
         
         Args:
             thought_id: The ID of the thought to defer
             reason: Reason for deferral
+            context: Additional context about the thought and task
             
         Returns:
             True if deferral was submitted successfully

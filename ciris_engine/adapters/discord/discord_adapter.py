@@ -44,8 +44,9 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         
         self.token = token
         self.client = bot
-        self.guidance_channel_id = guidance_channel_id
+        # Guidance and deferral use the same channel
         self.deferral_channel_id = deferral_channel_id
+        self.guidance_channel_id = deferral_channel_id  # Deprecated, same as deferral
         self.tool_registry = tool_registry
         self.on_message_callback = on_message
         self._tool_results = {}
@@ -96,7 +97,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         if channel is None:
             channel = await self.client.fetch_channel(int(channel_id))
         
-        if channel:
+        if channel and hasattr(channel, 'history'):
             messages: List[FetchedMessage] = []
             async for message in channel.history(limit=limit):
                 messages.append(
@@ -149,31 +150,61 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
 
     async def _fetch_guidance_impl(self, context: dict, **kwargs) -> dict:
         """Internal implementation of fetch_guidance for retry wrapping"""
-        channel = self.client.get_channel(int(self.guidance_channel_id))
+        if not self.deferral_channel_id:
+            logger.error("DiscordAdapter: No deferral channel configured for guidance")
+            raise RuntimeError("Deferral channel not configured.")
+            
+        channel = self.client.get_channel(int(self.deferral_channel_id))
         if channel is None:
-            channel = await self.client.fetch_channel(int(self.guidance_channel_id))
+            channel = await self.client.fetch_channel(int(self.deferral_channel_id))
         if channel is None:
-            logger.error(f"DiscordAdapter: Could not find guidance channel {self.guidance_channel_id}")
-            raise RuntimeError("Guidance channel not found.")
+            logger.error(f"DiscordAdapter: Could not find deferral channel {self.deferral_channel_id}")
+            raise RuntimeError("Deferral channel not found.")
         
-        # Post the guidance request
+        # Post the guidance request to deferral channel
         request_content = f"[CIRIS Guidance Request]\nContext: ```json\n{context}\n```"
-        await channel.send(request_content)
+        if hasattr(channel, 'send'):
+            # For guidance requests, we need to track the first message
+            chunks = self._split_message(request_content)
+            request_message = None
+            for i, chunk in enumerate(chunks):
+                if len(chunks) > 1 and i > 0:
+                    chunk = f"*(Continued from previous message)*\n\n{chunk}"
+                sent_msg = await channel.send(chunk)
+                if i == 0:
+                    request_message = sent_msg  # Track first message for replies
+        else:
+            logger.error(f"Channel {self.deferral_channel_id} does not support sending messages")
+            return {"guidance": None}
         
-        # For demo: fetch the latest bot response as guidance (in real use, implement a more robust protocol)
-        async for message in channel.history(limit=10):
-            if message.author.bot and message.content.startswith("[CIRIS Guidance Reply]"):
-                # Parse guidance from message
-                try:
-                    # Assume guidance is in a code block after the prefix
-                    guidance = message.content.split('```', 1)[-1].rsplit('```', 1)[0]
-                    return {"guidance": guidance}
-                except Exception:
+        # Check recent messages from registered WAs (Wise Authorities)
+        if hasattr(channel, 'history'):
+            async for message in channel.history(limit=10):
+                # Skip bot messages and our own request
+                if message.author.bot or message.id == request_message.id:
                     continue
-        logger.warning("DiscordAdapter: No guidance reply found in channel history.")
+                    
+                # TODO: Check if author is a registered WA
+                # For now, accept any human message as potential guidance
+                guidance_content = message.content.strip()
+                
+                # Check if it's a reply to our guidance request
+                is_reply = (hasattr(message, 'reference') and 
+                           message.reference and 
+                           message.reference.message_id == request_message.id)
+                
+                return {
+                    "guidance": guidance_content,
+                    "is_reply": is_reply,
+                    "is_unsolicited": not is_reply,
+                    "author_id": str(message.author.id),
+                    "author_name": message.author.display_name
+                }
+        
+        logger.warning("DiscordAdapter: No guidance found in deferral channel.")
         return {"guidance": None}
 
-    async def send_deferral(self, thought_id: str, reason: str) -> bool:
+    async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
         """Send a deferral report to the configured deferral channel."""
         if not self.client or not self.deferral_channel_id:
             logger.error("DiscordAdapter: Deferral channel or client not configured.")
@@ -183,7 +214,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             correlation_id = str(uuid.uuid4())
             await self.retry_with_backoff(
                 self._send_deferral_impl,
-                thought_id, reason,
+                thought_id, reason, context,
                 operation_name="send_deferral",
                 config_key="discord_api"
             )
@@ -205,7 +236,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to send deferral to Discord: {e}")
             return False
 
-    async def _send_deferral_impl(self, thought_id: str, reason: str, **kwargs) -> None:
+    async def _send_deferral_impl(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None, **kwargs) -> None:
         """Internal implementation of send_deferral for retry wrapping"""
         channel = self.client.get_channel(int(self.deferral_channel_id))
         if channel is None:
@@ -214,8 +245,60 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.error(f"DiscordAdapter: Could not find deferral channel {self.deferral_channel_id}")
             raise RuntimeError("Deferral channel not found.")
         
-        report = f"[CIRIS Deferral Report]\nThought ID: `{thought_id}`\nReason: {reason}"
-        await channel.send(report)
+        # Build richer deferral report
+        report_lines = [
+            "**[CIRIS Deferral Report]**",
+            f"**Thought ID:** `{thought_id}`",
+            f"**Reason:** {reason}",
+            f"**Timestamp:** {datetime.utcnow().isoformat()}Z"
+        ]
+        
+        if context:
+            if "task_id" in context:
+                report_lines.append(f"**Task ID:** `{context['task_id']}`")
+            
+            if "task_description" in context:
+                task_desc = context["task_description"]
+                if len(task_desc) > 200:
+                    task_desc = task_desc[:197] + "..."
+                report_lines.append(f"**Task:** {task_desc}")
+            
+            if "thought_content" in context:
+                thought_content = context["thought_content"]
+                if len(thought_content) > 300:
+                    thought_content = thought_content[:297] + "..."
+                report_lines.append(f"**Thought:** {thought_content}")
+            
+            if "conversation_context" in context:
+                conv_context = context["conversation_context"]
+                if len(conv_context) > 400:
+                    conv_context = conv_context[:397] + "..."
+                report_lines.append(f"**Context:** {conv_context}")
+            
+            if "priority" in context:
+                report_lines.append(f"**Priority:** {context['priority']}")
+            
+            if "attempted_action" in context:
+                report_lines.append(f"**Attempted Action:** {context['attempted_action']}")
+            
+            if "max_rounds_reached" in context and context["max_rounds_reached"]:
+                report_lines.append("**Note:** Maximum processing rounds reached")
+        
+        report = "\n".join(report_lines)
+        
+        # Use the split message functionality
+        chunks = self._split_message(report)
+        for i, chunk in enumerate(chunks):
+            if len(chunks) > 1:
+                if i == 0:
+                    chunk = f"{chunk}\n\n*(Report continues...)*"
+                elif i < len(chunks) - 1:
+                    chunk = f"*(Continued from previous report)*\n\n{chunk}\n\n*(Report continues...)*"
+                else:
+                    chunk = f"*(Continued from previous report)*\n\n{chunk}"
+            await channel.send(chunk)
+            if i < len(chunks) - 1:
+                await asyncio.sleep(0.5)
 
     # --- ToolService ---
     async def execute_tool(self, tool_name: str, tool_args: dict) -> dict:
@@ -304,6 +387,48 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             channel_id, content
         )
 
+    def _split_message(self, content: str, max_length: int = 1950) -> List[str]:
+        """Split a message into chunks that fit Discord's character limit.
+        
+        Args:
+            content: The message content to split
+            max_length: Maximum length per message (default 1950 to leave room for formatting)
+            
+        Returns:
+            List of message chunks
+        """
+        if len(content) <= max_length:
+            return [content]
+        
+        chunks = []
+        lines = content.split('\n')
+        current_chunk = ""
+        
+        for line in lines:
+            # If a single line is longer than max_length, split it
+            if len(line) > max_length:
+                # First, add any accumulated content
+                if current_chunk:
+                    chunks.append(current_chunk.rstrip())
+                    current_chunk = ""
+                
+                # Split the long line
+                for i in range(0, len(line), max_length):
+                    chunks.append(line[i:i + max_length])
+            else:
+                # Check if adding this line would exceed the limit
+                if len(current_chunk) + len(line) + 1 > max_length:
+                    chunks.append(current_chunk.rstrip())
+                    current_chunk = line + '\n'
+                else:
+                    current_chunk += line + '\n'
+        
+        # Add any remaining content
+        if current_chunk:
+            chunks.append(current_chunk.rstrip())
+        
+        return chunks
+
     async def _send_output_impl(self, channel_id: str, content: str, **kwargs) -> None:
         """Internal implementation of send_output for retry wrapping"""
         if hasattr(self.client, 'wait_until_ready'):
@@ -313,7 +438,25 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         if channel is None:
             channel = await self.client.fetch_channel(int(channel_id))
         if channel:
-            await channel.send(content)
+            # Split long messages
+            chunks = self._split_message(content)
+            
+            # Send each chunk
+            for i, chunk in enumerate(chunks):
+                # Add continuation indicator for multi-part messages
+                if len(chunks) > 1:
+                    if i == 0:
+                        chunk = f"{chunk}\n\n*(Message continues...)*"
+                    elif i < len(chunks) - 1:
+                        chunk = f"*(Continued from previous message)*\n\n{chunk}\n\n*(Message continues...)*"
+                    else:
+                        chunk = f"*(Continued from previous message)*\n\n{chunk}"
+                
+                await channel.send(chunk)
+                
+                # Small delay between messages to avoid rate limiting
+                if i < len(chunks) - 1:
+                    await asyncio.sleep(0.5)
         else:
             logger.error(f"Could not find Discord channel with ID {channel_id}")
             raise RuntimeError(f"Discord channel {channel_id} not found")
@@ -329,7 +472,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             channel_id=str(message.channel.id),
             is_bot=message.author.bot,
             is_dm=isinstance(message.channel, discord.DMChannel),
-            _raw_message=message
+            raw_message=message
         )
         if self.on_message_callback:
             await self.on_message_callback(incoming)

@@ -404,7 +404,7 @@ class SignedAuditService(AuditService):
             if summary["total_entries"] == 0:
                 return {"error": "No entries in audit chain"}
             
-            def _create_anchor() -> None:
+            def _create_anchor() -> int:
                 if not self._db_connection:
                     raise RuntimeError("Database connection not available")
                 cursor = self._db_connection.cursor()

@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import List, Dict, Optional, Any, Literal, Tuple
 from pydantic import BaseModel, Field
 import uuid
+from .foundational_schemas_v1 import SensitivityLevel
 
 
 class SecretPattern(BaseModel):
@@ -16,7 +17,7 @@ class SecretPattern(BaseModel):
     name: str = Field(description="Pattern name")
     regex: str = Field(description="Regular expression pattern") 
     description: str = Field(description="Human-readable description")
-    sensitivity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    sensitivity: SensitivityLevel
     context_hint: str = Field(description="Safe description for context")
     enabled: bool = True
 
@@ -30,7 +31,7 @@ class SecretRecord(BaseModel):
     nonce: bytes = Field(description="AES-GCM nonce")
     
     description: str = Field(description="Human-readable description")
-    sensitivity_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    sensitivity_level: SensitivityLevel
     detected_pattern: str = Field(description="Pattern that detected this secret")
     context_hint: str = Field(description="Safe context description")
     
@@ -95,7 +96,7 @@ class DetectedSecret(BaseModel):
     secret_uuid: str = Field(description="Generated UUID for this secret")
     pattern_name: str = Field(description="Detection pattern that found this secret")
     description: str = Field(description="Human-readable description")
-    sensitivity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    sensitivity: SensitivityLevel
     context_hint: str = Field(description="Safe context description")
     replacement_text: str = Field(description="Text to replace secret with in context")
 
@@ -138,84 +139,84 @@ BUILTIN_SECRET_PATTERNS = [
         name="api_keys",
         regex=r"(?i)api[_-]?key[s]?[\s:=]+['\"]?([a-z0-9]{20,})['\"]?",
         description="API Key",
-        sensitivity="HIGH",
+        sensitivity=SensitivityLevel.HIGH,
         context_hint="API authentication key"
     ),
     SecretPattern(
         name="bearer_tokens",
         regex=r"(?i)bearer[\s]+([a-z0-9\-_.]{20,})",
         description="Bearer Token",
-        sensitivity="HIGH", 
+        sensitivity=SensitivityLevel.HIGH, 
         context_hint="Bearer authentication token"
     ),
     SecretPattern(
         name="passwords",
         regex=r"(?i)password[s]?[\s:=]+['\"]?([^\s'\"]{8,})['\"]?",
         description="Password",
-        sensitivity="CRITICAL",
+        sensitivity=SensitivityLevel.CRITICAL,
         context_hint="Password credential"
     ),
     SecretPattern(
         name="urls_with_auth",
         regex=r"https?://[^:]+:[^@]+@[^\s]+",
         description="URL with Authentication",
-        sensitivity="HIGH",
+        sensitivity=SensitivityLevel.HIGH,
         context_hint="Authenticated URL"
     ),
     SecretPattern(
         name="private_keys",
         regex=r"-----BEGIN [A-Z ]+PRIVATE KEY-----",
         description="Private Key",
-        sensitivity="CRITICAL",
+        sensitivity=SensitivityLevel.CRITICAL,
         context_hint="Cryptographic private key"
     ),
     SecretPattern(
         name="credit_cards",
         regex=r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b",
         description="Credit Card Number",
-        sensitivity="CRITICAL",
+        sensitivity=SensitivityLevel.CRITICAL,
         context_hint="Payment card number"
     ),
     SecretPattern(
         name="social_security",
         regex=r"\b\d{3}-\d{2}-\d{4}\b",
         description="Social Security Number",
-        sensitivity="CRITICAL",
+        sensitivity=SensitivityLevel.CRITICAL,
         context_hint="Social Security Number"
     ),
     SecretPattern(
         name="aws_access_key",
         regex=r"AKIA[0-9A-Z]{16}",
         description="AWS Access Key",
-        sensitivity="HIGH",
+        sensitivity=SensitivityLevel.HIGH,
         context_hint="AWS access key"
     ),
     SecretPattern(
         name="aws_secret_key",
         regex=r"(?i)aws[_-]?secret[_-]?access[_-]?key[\s:=]+['\"]?([a-z0-9/+=]{40})['\"]?",
         description="AWS Secret Key",
-        sensitivity="CRITICAL",
+        sensitivity=SensitivityLevel.CRITICAL,
         context_hint="AWS secret access key"
     ),
     SecretPattern(
         name="github_token",
         regex=r"gh[ps]_[a-zA-Z0-9]{36}",
         description="GitHub Token",
-        sensitivity="HIGH",
+        sensitivity=SensitivityLevel.HIGH,
         context_hint="GitHub access token"
     ),
     SecretPattern(
         name="slack_token",
         regex=r"xox[baprs]-([0-9a-zA-Z]{10,48})",
         description="Slack Token",
-        sensitivity="HIGH",
+        sensitivity=SensitivityLevel.HIGH,
         context_hint="Slack API token"
     ),
     SecretPattern(
         name="discord_token",
         regex=r"[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}",
         description="Discord Bot Token",
-        sensitivity="HIGH",
+        sensitivity=SensitivityLevel.HIGH,
         context_hint="Discord bot token"
     ),
 ]

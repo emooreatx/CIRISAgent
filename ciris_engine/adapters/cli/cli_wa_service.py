@@ -2,7 +2,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from ciris_engine.protocols.services import WiseAuthorityService
 from ciris_engine.schemas.correlation_schemas_v1 import (
@@ -33,20 +33,47 @@ class CLIWiseAuthorityService(WiseAuthorityService):
             logger.error(f"Failed to get CLI guidance: {e}")
             return None
 
-    async def send_deferral(self, thought_id: str, reason: str) -> bool:
-        """Log deferral to CLI output"""
-        self.deferral_log.append({
+    async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
+        """Log deferral to CLI output with rich context"""
+        deferral_entry = {
             "thought_id": thought_id,
             "reason": reason,
             "timestamp": asyncio.get_event_loop().time()
-        })
-        print(f"\n[DEFERRAL] Thought {thought_id}: {reason}")
+        }
+        if context:
+            deferral_entry["context"] = context
+        
+        self.deferral_log.append(deferral_entry)
+        
+        # Enhanced CLI deferral output
+        print(f"\n{'='*60}")
+        print("[CIRIS DEFERRAL REPORT]")
+        print(f"Thought ID: {thought_id}")
+        print(f"Reason: {reason}")
+        print(f"Timestamp: {datetime.utcnow().isoformat()}Z")
+        
+        if context:
+            if "task_id" in context:
+                print(f"Task ID: {context['task_id']}")
+            if "task_description" in context:
+                print(f"Task: {context['task_description']}")
+            if "thought_content" in context and context["thought_content"]:
+                print(f"Thought: {context['thought_content'][:200]}{'...' if len(context['thought_content']) > 200 else ''}")
+            if "priority" in context:
+                print(f"Priority: {context['priority']}")
+            if "attempted_action" in context:
+                print(f"Attempted Action: {context['attempted_action']}")
+            if "max_rounds_reached" in context and context["max_rounds_reached"]:
+                print("Note: Maximum processing rounds reached")
+        
+        print(f"{'='*60}")
+        
         corr = ServiceCorrelation(
             correlation_id=str(uuid.uuid4()),
             service_type="cli",
             handler_name="CLIWiseAuthorityService",
             action_type="send_deferral",
-            request_data={"thought_id": thought_id, "reason": reason},
+            request_data={"thought_id": thought_id, "reason": reason, "context": context},
             response_data={"status": "logged"},
             status=ServiceCorrelationStatus.COMPLETED,
             created_at=datetime.utcnow().isoformat(),

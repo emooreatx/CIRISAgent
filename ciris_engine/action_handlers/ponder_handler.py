@@ -83,7 +83,15 @@ class PonderHandler(BaseActionHandler):
             
             defer_handler = self.dependencies.action_dispatcher.get_handler(HandlerActionType.DEFER)
             if defer_handler:
-                await defer_handler.handle(defer_result, thought, dispatch_context)
+                # Enhance dispatch context with max rounds information
+                enhanced_context = dispatch_context.copy()
+                enhanced_context.update({
+                    "max_rounds_reached": True,
+                    "attempted_action": "ponder_max_rounds",
+                    "ponder_count": new_ponder_count,
+                    "ponder_notes": questions_list
+                })
+                await defer_handler.handle(defer_result, thought, enhanced_context)
                 return None
             else:
                 logger.error("Defer handler not available. Setting status to DEFERRED directly.")
@@ -137,10 +145,15 @@ class PonderHandler(BaseActionHandler):
                 },
             )
             
+            # Get the original task context to maintain thread
+            original_task = persistence.get_task_by_id(thought.source_task_id)
+            task_context = f"Task ID: {thought.source_task_id}"
+            if original_task:
+                task_context = original_task.description
+            
             follow_up_content = (
-                f"CIRIS_FOLLOW_UP_THOUGHT: This is a follow-up thought from a PONDER action performed on parent task {thought.source_task_id}. "
-                f"Pondered questions: {questions_list}. "
-                "If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+                f"You are thinking about how or if to act on \"{task_context}\" and had these concerns or questions: {questions_list}. "
+                f"Please re-evaluate \"{task_context}\" and choose a response, or no response, as you see fit."
             )
             from .helpers import create_follow_up_thought
             follow_up = create_follow_up_thought(
@@ -174,8 +187,14 @@ class PonderHandler(BaseActionHandler):
                 dispatch_context,
                 {"thought_id": thought.thought_id, "status": ThoughtStatus.FAILED.value, "ponder_type": "update_failed"},
             )
+            # Get the original task context to maintain thread  
+            original_task = persistence.get_task_by_id(thought.source_task_id)
+            task_context = f"Task ID: {thought.source_task_id}"
+            if original_task:
+                task_context = f"Original Task: {original_task.description}"
+                
             follow_up_content = (
-                f"This is a follow-up thought from a FAILED PONDER action performed on parent task {thought.source_task_id}. "
+                f"This is a follow-up thought from a FAILED PONDER action performed on parent task {task_context}. "
                 f"Pondered questions: {questions_list}. "
                 "The update failed. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )

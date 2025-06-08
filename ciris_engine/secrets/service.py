@@ -137,7 +137,7 @@ class SecretsService(SecretsServiceInterface):
         """
         # Retrieve secret record
         secret_record = await self.store.retrieve_secret(
-            secret_uuid, purpose, accessor, decrypt
+            secret_uuid, decrypt
         )
         
         if not secret_record:
@@ -202,12 +202,12 @@ class SecretsService(SecretsServiceInterface):
         if isinstance(obj, str):
             return await self._decapsulate_string(obj, action_type, context)
         elif isinstance(obj, dict):
-            result = {}
+            result: Dict[str, Any] = {}
             for key, value in obj.items():
                 result[key] = await self._deep_decapsulate(value, action_type, context)
             return result
         elif isinstance(obj, list):
-            result = []
+            result: List[Any] = []
             for item in obj:
                 result.append(await self._deep_decapsulate(item, action_type, context))
             return result
@@ -236,8 +236,6 @@ class SecretsService(SecretsServiceInterface):
             # Check if this action type is allowed auto-decapsulation
             secret_record = await self.store.retrieve_secret(
                 secret_uuid, 
-                f"Auto-decapsulation for {action_type}",
-                "system",
                 decrypt=False
             )
             
@@ -270,7 +268,7 @@ class SecretsService(SecretsServiceInterface):
     async def update_filter_config(
         self,
         operation: str,
-        **kwargs
+        **kwargs: Any
     ) -> Dict[str, Any]:
         """
         Update secrets filter configuration.
@@ -363,16 +361,13 @@ class SecretsService(SecretsServiceInterface):
         result = []
         for secret in secrets:
             result.append({
-                "uuid": secret.secret_uuid,
+                "uuid": secret.uuid,
                 "description": secret.description,
-                "sensitivity": secret.sensitivity_level,
-                "pattern": secret.detected_pattern,
+                "sensitivity": secret.sensitivity,
                 "context_hint": secret.context_hint,
                 "created_at": secret.created_at.isoformat(),
                 "last_accessed": secret.last_accessed.isoformat() if secret.last_accessed else None,
-                "access_count": secret.access_count,
-                "auto_decapsulate_actions": secret.auto_decapsulate_for_actions,
-                "manual_access_only": secret.manual_access_only
+                "auto_decapsulate_actions": secret.auto_decapsulate_actions
             })
             
         return result
@@ -461,14 +456,11 @@ class SecretsService(SecretsServiceInterface):
             
             for secret in all_secrets:
                 # Count by sensitivity
-                sensitivity_counts[secret.sensitivity_level] = (
-                    sensitivity_counts.get(secret.sensitivity_level, 0) + 1
+                sensitivity_counts[secret.sensitivity] = (
+                    sensitivity_counts.get(secret.sensitivity, 0) + 1
                 )
                 
-                # Count by pattern
-                pattern_counts[secret.detected_pattern] = (
-                    pattern_counts.get(secret.detected_pattern, 0) + 1
-                )
+                # Note: SecretReference doesn't have detected_pattern, skip pattern counting
                 
             return {
                 "filter_stats": filter_stats,
@@ -484,3 +476,15 @@ class SecretsService(SecretsServiceInterface):
         except Exception as e:
             logger.error(f"Failed to get service stats: {e}")
             return {"error": str(e)}
+    
+    async def start(self) -> None:
+        """Start the secrets service."""
+        logger.info("SecretsService started")
+        
+    async def stop(self) -> None:
+        """Stop the secrets service and clean up resources."""
+        # Auto-forget any remaining task secrets
+        if self._auto_forget_enabled and self._current_task_secrets:
+            logger.info(f"Auto-forgetting {len(self._current_task_secrets)} task secrets on shutdown")
+            await self.auto_forget_task_secrets()
+        logger.info("SecretsService stopped")

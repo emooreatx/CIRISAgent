@@ -394,10 +394,15 @@ class AgentProcessor:
                 await asyncio.sleep(1)
             
             # Brief delay between rounds
-            delay = 1.0  # TODO: Get from config
+            # Get delay from config, default to 1.0
+            delay = 1.0
+            if hasattr(self.app_config, 'workflow') and hasattr(self.app_config.workflow, 'round_delay_seconds'):
+                delay = self.app_config.workflow.round_delay_seconds
             
-            # Longer delay for certain states
-            if current_state == AgentState.SOLITUDE:
+            # State-specific delays override config
+            if current_state == AgentState.WORK:
+                delay = 3.0  # 3 second delay in work mode as requested
+            elif current_state == AgentState.SOLITUDE:
                 delay = 10.0  # Slower pace in solitude
             elif current_state == AgentState.DREAM:
                 delay = 5.0  # Check dream state periodically

@@ -61,6 +61,7 @@ The system supports **agent profiles** with customizable behavior, prompting, an
 - **[Utility Framework](ciris_engine/utils/README.md)**: Comprehensive infrastructure including logging, context management, GraphQL providers, shutdown coordination, and task formatting
 - **[Prompt Engineering](ciris_engine/formatters/README.md)**: Composable text formatting utilities for consistent LLM prompt engineering and response processing
 - **[Service Coordination](ciris_engine/services/README.md)**: Adaptive filter service, agent configuration service, and multi-service transaction orchestrator
+- **[Mock LLM System](docs/MOCK_LLM.md)**: Deterministic testing framework with `$` command syntax for offline development and debugging
 
 ---
 
@@ -140,12 +141,13 @@ CIRIS Agent/
 │   ├── sinks/             # Multi-service action coordination
 │   ├── telemetry/         # Observability and resource monitoring
 │   └── utils/             # Core infrastructure utilities
-├── ciris_profiles/        # Agent behavior profiles
+├── ciris_profiles/        # Agent behavior profiles (see docs/CIRIS_PROFILES.md)
 ├── ciris_adk/            # Adapter Development Kit
 ├── ciris_sdk/            # Client SDK for external integrations
 ├── CIRISVoice/           # Voice interaction capabilities
 ├── CIRISGUI/             # Web-based management interface
 ├── tests/                # Comprehensive test suite
+│   ├── context_dumps/     # Context analysis and debugging tools
 ├── docker/               # Container deployment
 └── main.py               # Unified entry point
 ```
@@ -216,6 +218,8 @@ Choose from specialized profiles in `ciris_profiles/`:
 - **student**: Learning-focused with curiosity-driven exploration
 - **echo**: Simple response echoing for testing
 
+See [docs/CIRIS_PROFILES.md](docs/CIRIS_PROFILES.md) for comprehensive profile documentation.
+
 ---
 
 ## Advanced Configuration
@@ -270,6 +274,22 @@ pytest tests/integration/ -v        # Integration tests only
 pytest tests/adapters/ -v           # Adapter tests
 pytest --mock-llm                   # Tests with mock LLM service
 ```
+
+**Mock LLM Development and Testing:**
+```bash
+# Use Mock LLM for offline testing and development
+python main.py --mock-llm --profile teacher
+
+# Test specific scenarios with Mock LLM commands
+# $speak Hello world!
+# $ponder What should I consider?; How can I help?
+# $help                            # Show all available commands
+
+# Run context dump tests to see what the agent receives
+pytest tests/context_dumps/ -v -s   # Verbose context dumps
+```
+
+See [docs/MOCK_LLM.md](docs/MOCK_LLM.md) for complete Mock LLM documentation and command reference.
 
 **Security and compliance testing:**
 ```bash
@@ -330,4 +350,24 @@ Apache-2.0 © 2025 CIRIS AI Project
 
 ---
 
-*For detailed technical documentation, see individual module README files throughout the codebase. For deployment guides and advanced configuration, refer to the `docs/` directory.*
+## Documentation
+
+### Core Documentation
+- **[Mock LLM System](docs/MOCK_LLM.md)** - Offline testing and development with deterministic responses
+- **[CIRIS Profiles](docs/CIRIS_PROFILES.md)** - Agent personality and behavior configuration  
+- **[Context Dumps](tests/context_dumps/README.md)** - Understanding agent context and decision-making
+
+### Technical Documentation
+- **Module READMEs** - Detailed documentation in each `ciris_engine/` subdirectory
+- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Production deployment and configuration
+- **[Security Setup](docs/SECURITY_SETUP.md)** - Security configuration and best practices
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+
+### Development Resources
+- **[Installation Guide](docs/INSTALLATION.md)** - Detailed setup instructions
+- **[Contributing Guide](CONTRIBUTING.md)** - Development workflow and standards
+- **[API Documentation](CIRISGUI/README.md)** - REST API and GUI interface
+
+---
+
+*For additional technical documentation, see individual module README files throughout the codebase.*

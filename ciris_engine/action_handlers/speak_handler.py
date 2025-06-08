@@ -108,10 +108,12 @@ class SpeakHandler(BaseActionHandler):
 
         follow_up_text = (
             f"""
+            NEXT ACTION IS TASK COMPLETE!
             CIRIS_FOLLOW_UP_THOUGHT: YOU Spoke, as a result of your action: '{params.content}' in channel 
             {params.channel_id} as a response to task: {task_description}. The next 
             action is probably TASK COMPLETE to mark the original task as handled.
             Do NOT speak again unless DRASTICALLY necessary.
+            NEXT ACTION IS TASK COMPLETE UNLESS YOU NEED TO MEMORIZE SOMETHING!
             """
             if success
             else f"CIRIS_FOLLOW_UP_THOUGHT: SPEAK action failed for thought {thought_id}."

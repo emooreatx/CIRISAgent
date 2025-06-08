@@ -55,6 +55,7 @@ class MockLLMConfig:
         self.filter_pattern = None  # Regex filter for context display
         self.debug_dma = False  # Show DMA evaluation details
         self.debug_guardrails = False  # Show guardrail processing details
+        self.show_help = False  # Show help documentation
 
 
 # Global config instance
@@ -72,6 +73,10 @@ def set_mock_config(**kwargs):
 def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
     """Extract context information from messages using regex patterns."""
     context_items = []
+    
+    # Store original messages for $context display
+    import json
+    context_items.append(f"__messages__:{json.dumps(messages)}")
     
     # Look for actual thought content in messages
     actual_thought_content = ""
@@ -109,38 +114,53 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
             except Exception:
                 continue
     
-    # Check for testing flags and commands
-    if "MOCK_TEST_MODE" in full_content:
+    # Check for testing flags and commands with new $ syntax
+    if "$test" in full_content:
         _mock_config.testing_mode = True
         context_items.append("testing_mode_enabled")
     
-    if match := re.search(r'MOCK_FORCE_ACTION:(\w+)', full_content):
-        _mock_config.force_action = match.group(1)
-        context_items.append(f"forced_action:{match.group(1)}")
+    # Direct action commands (e.g., $speak, $recall, etc.)
+    action_match = re.search(r'\$(\w+)(?:\s+(.+?))?(?=\$|$)', full_content)
+    if action_match:
+        action = action_match.group(1).lower()
+        params = action_match.group(2) if action_match.group(2) else ""
+        
+        # Validate action and store it
+        valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder', 
+                        'defer', 'reject', 'forget', 'task_complete']
+        if action in valid_actions:
+            _mock_config.force_action = action
+            context_items.append(f"forced_action:{action}")
+            if params:
+                context_items.append(f"action_params:{params}")
     
-    if "MOCK_INJECT_ERROR" in full_content:
+    if "$error" in full_content:
         _mock_config.inject_error = True
         context_items.append("error_injection_enabled")
     
-    if match := re.search(r'MOCK_RATIONALE:"([^"]+)"', full_content):
+    if match := re.search(r'\$rationale\s+"([^"]+)"', full_content):
         _mock_config.custom_rationale = match.group(1)
         context_items.append(f"custom_rationale:{match.group(1)}")
     
-    if "MOCK_SHOW_CONTEXT" in full_content:
+    if "$context" in full_content:
         _mock_config.echo_context = True
         context_items.append("echo_context_enabled")
     
-    if match := re.search(r'MOCK_FILTER_CONTEXT:"([^"]+)"', full_content):
+    if match := re.search(r'\$filter\s+"([^"]+)"', full_content):
         _mock_config.filter_pattern = match.group(1)
         context_items.append(f"filter_pattern:{match.group(1)}")
     
-    if "MOCK_DEBUG_DMA" in full_content:
+    if "$debug_dma" in full_content:
         _mock_config.debug_dma = True
         context_items.append("debug_dma_enabled")
         
-    if "MOCK_DEBUG_GUARDRAILS" in full_content:
+    if "$debug_guardrails" in full_content:
         _mock_config.debug_guardrails = True
         context_items.append("debug_guardrails_enabled")
+    
+    if "$help" in full_content:
+        _mock_config.show_help = True
+        context_items.append("show_help_requested")
     
     return context_items
 

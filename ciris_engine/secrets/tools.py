@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from .service import SecretsService
 from .filter import SecretPattern, SecretsFilterConfig
 from ..schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
+from ..schemas.foundational_schemas_v1 import HandlerActionType
 from ..schemas.secrets_schemas_v1 import SecretRecord
 
 logger = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ class SecretsTools:
         
         try:
             # Retrieve the secret record
-            secret_record = await self.secrets_service.store.get_secret(params.secret_uuid)
+            secret_record = await self.secrets_service.store.retrieve_secret(params.secret_uuid)
             
             if not secret_record:
                 logger.warning(f"Secret not found: {params.secret_uuid}")
@@ -105,30 +106,41 @@ class SecretsTools:
                     decrypted_value = await self.secrets_service.store.decrypt_secret(params.secret_uuid)
                     result_data["decrypted_value"] = decrypted_value
                     
-                    # Log access attempt
-                    await self.secrets_service.store.log_secret_access(
-                        secret_uuid=params.secret_uuid,
-                        requester_id=requester_id,
-                        purpose=params.purpose,
-                        access_type="decrypt",
-                        granted=True,
-                        context=context or {}
-                    )
+                    # Log access via audit service
+                    if hasattr(self.secrets_service, 'audit_service') and self.secrets_service.audit_service:
+                        await self.secrets_service.audit_service.log_action(
+                            HandlerActionType.TOOL,
+                            {
+                                "tool_name": "decrypt_secret",
+                                "secret_uuid": params.secret_uuid,
+                                "requester_id": requester_id,
+                                "purpose": params.purpose,
+                                "access_type": "decrypt",
+                                "granted": True
+                            },
+                            outcome="success"
+                        )
                     
                     logger.info(f"Secret {params.secret_uuid} decrypted for {requester_id}: {params.purpose}")
                     
                 except Exception as e:
                     logger.error(f"Failed to decrypt secret {params.secret_uuid}: {e}")
                     
-                    # Log failed access
-                    await self.secrets_service.store.log_secret_access(
-                        secret_uuid=params.secret_uuid,
-                        requester_id=requester_id,
-                        purpose=params.purpose,
-                        access_type="decrypt",
-                        granted=False,
-                        context={"error": str(e)}
-                    )
+                    # Log failed access via audit service
+                    if hasattr(self.secrets_service, 'audit_service') and self.secrets_service.audit_service:
+                        await self.secrets_service.audit_service.log_action(
+                            HandlerActionType.TOOL,
+                            {
+                                "tool_name": "decrypt_secret",
+                                "secret_uuid": params.secret_uuid,
+                                "requester_id": requester_id,
+                                "purpose": params.purpose,
+                                "access_type": "decrypt",
+                                "granted": False,
+                                "error": str(e)
+                            },
+                            outcome="failed"
+                        )
                     
                     return ToolResult(
                         tool_name="recall_secret",
@@ -137,14 +149,19 @@ class SecretsTools:
                         execution_time_ms=(datetime.now() - start_time).total_seconds() * 1000
                     )
             else:
-                # Log metadata access
-                await self.secrets_service.store.log_secret_access(
-                    secret_uuid=params.secret_uuid,
-                    requester_id=requester_id,
-                    purpose=params.purpose,
-                    access_type="metadata",
-                    granted=True,
-                    context=context or {}
+                # Log metadata access via audit service
+                if hasattr(self.secrets_service, 'audit_service') and self.secrets_service.audit_service:
+                    await self.secrets_service.audit_service.log_action(
+                        HandlerActionType.TOOL,
+                        {
+                            "tool_name": "recall_secret",
+                            "secret_uuid": params.secret_uuid,
+                            "requester_id": requester_id,
+                            "purpose": params.purpose,
+                            "access_type": "metadata",
+                            "granted": True
+                        },
+                        outcome="success"
                 )
                 
                 logger.info(f"Secret {params.secret_uuid} metadata accessed by {requester_id}: {params.purpose}")

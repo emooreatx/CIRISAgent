@@ -48,13 +48,10 @@ class AuditService(Service):
         await super().start()
         
         # Use retry logic for initial file creation
-        async def _create_log_file() -> None:
+        async def create_file() -> None:
             await asyncio.to_thread(self.log_path.touch, exist_ok=True)
-            
-        await self.retry_with_backoff(
-            _create_log_file,
-            **self.get_retry_config("file_operation")
-        )
+        
+        await self.retry_with_backoff(create_file)  # type: ignore[unused-coroutine]
 
     async def stop(self) -> None:
         # Flush any remaining buffered entries before stopping
@@ -182,15 +179,16 @@ class AuditService(Service):
         entries_to_write = self._buffer.copy()
         self._buffer.clear()
         
-        async def _perform_flush() -> None:
-            await asyncio.to_thread(self._write_entries, entries_to_write)
-            if await self._should_rotate():
-                await self._rotate_log()
-                
-        await self.retry_with_backoff(
-            _perform_flush,
-            **self.get_retry_config("file_operation")
-        )
+        async def perform_flush() -> None:
+            await self._perform_flush_operation(entries_to_write)
+        
+        await self.retry_with_backoff(perform_flush)  # type: ignore[unused-coroutine]
+
+    async def _perform_flush_operation(self, entries_to_write: List[AuditLogEntry]) -> None:
+        """Helper method for flush operation."""
+        await asyncio.to_thread(self._write_entries, entries_to_write)
+        if await self._should_rotate():
+            await self._rotate_log()
 
     async def _should_rotate(self) -> bool:
         if not self.log_path.exists():
@@ -200,15 +198,12 @@ class AuditService(Service):
 
     async def _rotate_log(self) -> None:
         """Simple rotation: rename current log and start new."""
-        async def _perform_rotation() -> None:
-            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            rotated = self.log_path.with_name(f"{self.log_path.stem}_{ts}.jsonl")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        rotated = self.log_path.with_name(f"{self.log_path.stem}_{ts}.jsonl")
+        async def perform_rotation() -> None:
             await asyncio.to_thread(self.log_path.rename, rotated)
-            
-        await self.retry_with_backoff(
-            _perform_rotation,
-            **self.get_retry_config("file_operation")
-        )
+        
+        await self.retry_with_backoff(perform_rotation)  # type: ignore[unused-coroutine]
 
     def _generate_summary(
         self, handler_action: HandlerActionType, context: Dict[str, Any], outcome: Optional[str] = None

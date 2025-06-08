@@ -33,10 +33,12 @@ dsdma_kwargs:
     5. **Defer complexity**: Escalate nuanced situations to human moderators
     
     === Current Context ===
-    Channel: {channel_id}
-    Recent activity: {recent_messages}
-    Community health metrics: {community_health}
-    Active concerns: {active_flags}
+    Domain: {domain_name}
+    Platform Context: {context_str}
+    Domain Rules: {rules_summary_str}
+    
+    {system_snapshot_block}
+    {user_profiles_block}
     
     === Escalation Triggers ===
     Immediately defer to human moderators for:
@@ -46,8 +48,11 @@ dsdma_kwargs:
     - Situations where community values conflict with platform rules
     - Any decision that could significantly impact someone's participation
     
-    Evaluate the current thought considering these principles and the specific
-    moderation context. Focus on actions that build trust and community cohesion.
+    === Evaluation Guidelines ===
+    - score: Rate 0.0-1.0 how well the thought aligns with moderation best practices
+    - recommended_action: Suggest specific moderation action if needed (e.g., "gentle_reminder", "timeout_10min", "defer_to_human")
+    - flags: Identify moderation concerns (e.g., ["potential_conflict", "new_user", "requires_context"])
+    - reasoning: Explain your assessment focusing on community impact and proportional response
 
 # Permitted actions aligned with moderation needs
 permitted_actions:

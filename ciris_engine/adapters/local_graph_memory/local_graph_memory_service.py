@@ -3,6 +3,7 @@ import logging
 from typing import Optional, Any, Dict, List
 import asyncio
 import json
+from datetime import datetime
 
 from ciris_engine.config.config_manager import get_sqlite_db_full_path
 from ciris_engine.persistence import initialize_database, get_db_connection
@@ -20,6 +21,15 @@ from ciris_engine.protocols.services import MemoryService
 from ciris_engine.secrets.service import SecretsService
 
 logger = logging.getLogger(__name__)
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 class LocalGraphMemoryService(Service, MemoryService):
@@ -206,7 +216,7 @@ class LocalGraphMemoryService(Service, MemoryService):
             return node
         
         # Convert attributes to JSON string for processing
-        attributes_str = json.dumps(node.attributes)
+        attributes_str = json.dumps(node.attributes, cls=DateTimeEncoder)
         
         # Process for secrets detection and replacement
         processed_text, secret_refs = await self.secrets_service.process_incoming_text(
@@ -244,7 +254,7 @@ class LocalGraphMemoryService(Service, MemoryService):
         
         if should_decrypt:
             # Convert to JSON for processing
-            attributes_str = json.dumps(attributes)
+            attributes_str = json.dumps(attributes, cls=DateTimeEncoder)
             
             # Attempt to decapsulate secrets
             decapsulated_text = await self.secrets_service.decapsulate_secrets(

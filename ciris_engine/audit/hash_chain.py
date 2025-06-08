@@ -202,7 +202,7 @@ class AuditHashChain:
             return 1  # Found tampering but no specific errors
             
         # Sort to find the first error by sequence number
-        tampered_sequences: List[Any] = []
+        tampered_sequences: List[int] = []
         for error in errors:
             # Look for specific error patterns
             import re
