@@ -2,7 +2,7 @@
 Solitude processor for minimal processing and reflection state.
 """
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.states_v1 import AgentState
@@ -10,11 +10,12 @@ from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
 from ciris_engine import persistence
 
 from .base_processor import BaseProcessor
+from ciris_engine.protocols.processor_interface import ProcessorInterface
 
 logger = logging.getLogger(__name__)
 
 
-class SolitudeProcessor(BaseProcessor):
+class SolitudeProcessor(BaseProcessor, ProcessorInterface):
     """
     Handles the SOLITUDE state for minimal processing and reflection.
     In this state, the agent:
@@ -215,11 +216,43 @@ class SolitudeProcessor(BaseProcessor):
         
         return conditions
     
-    def get_solitude_stats(self) -> Dict[str, Any]:
-        """Get statistics about solitude processing."""
-        return {
+
+    # ProcessorInterface implementation
+    async def start_processing(self, num_rounds: Optional[int] = None) -> None:
+        """Start the solitude processing loop."""
+        import asyncio
+        round_num = 0
+        self._running = True
+        
+        while self._running and (num_rounds is None or round_num < num_rounds):
+            result = await self.process(round_num)
+            round_num += 1
+            
+            # Check if we should exit solitude
+            if result.get("should_exit_solitude"):
+                logger.info(f"Exiting solitude: {result.get('exit_reason', 'Unknown reason')}")
+                break
+                
+            await asyncio.sleep(2)  # Slower pace in solitude
+
+    async def stop_processing(self) -> None:
+        """Stop solitude processing and clean up resources."""
+        self._running = False
+        logger.info("Solitude processor stopped")
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get current solitude processor status and metrics."""
+        solitude_stats = {
             "reflection_data": self.reflection_data.copy(),
             "critical_threshold": self.critical_priority_threshold,
             "total_rounds": self.metrics.get("rounds_completed", 0),
             "cleanup_performed": self.reflection_data.get("cleanup_performed", False)
+        }
+        return {
+            "processor_type": "solitude",
+            "supported_states": [state.value for state in self.get_supported_states()],
+            "is_running": getattr(self, '_running', False),
+            "solitude_stats": solitude_stats,
+            "metrics": getattr(self, 'metrics', {}),
+            "critical_threshold": self.critical_priority_threshold
         }

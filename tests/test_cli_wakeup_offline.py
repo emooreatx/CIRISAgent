@@ -101,11 +101,11 @@ async def test_wakeup_sequence_offline(monkeypatch):
     monkeypatch.setattr(main, 'load_config', AsyncMock(return_value=cfg))
     monkeypatch.setattr(main, 'create_runtime', lambda *a, **k: runtime)
     await runtime.initialize()
-    result = await runtime.agent_processor.wakeup_processor.process_wakeup(0, non_blocking=True)
+    result = await runtime.agent_processor.wakeup_processor.process(0)
     assert result['status'] == 'in_progress'
     for t in runtime.agent_processor.wakeup_processor.wakeup_tasks[1:]:
         db.update_task_status(t.task_id, TaskStatus.COMPLETED)
-    result = await runtime.agent_processor.wakeup_processor.process_wakeup(1, non_blocking=True)
+    result = await runtime.agent_processor.wakeup_processor.process(1)
     assert result['wakeup_complete']
 
 @pytest.mark.asyncio

@@ -15,3 +15,7 @@ class ProcessorInterface(ABC):
     @abstractmethod
     def get_status(self) -> Dict[str, Any]:
         """Get current processor status and metrics."""
+
+    @abstractmethod
+    async def process(self, round_number: int) -> Dict[str, Any]:
+        """Execute one round of processing."""
