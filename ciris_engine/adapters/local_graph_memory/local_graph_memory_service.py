@@ -3,7 +3,8 @@ import logging
 from typing import Optional, Any, Dict, List
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from uuid import uuid4
 
 from ciris_engine.config.config_manager import get_sqlite_db_full_path
 from ciris_engine.persistence import initialize_database, get_db_connection
@@ -14,6 +15,7 @@ from ciris_engine.schemas.graph_schemas_v1 import (
     GraphNode,
     NodeType,
     GraphEdge,
+    TSDBGraphNode,
 )
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus, MemoryOpResult
 from ciris_engine.protocols.services import MemoryService
@@ -284,5 +286,161 @@ class LocalGraphMemoryService(MemoryService):
             logger.info(f"Node being forgotten contained {len(secret_refs)} secret references")
             
             # Could implement reference counting here in the future if needed
+    
+    async def recall_timeseries(self, scope: str = "default", hours: int = 24, correlation_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """
+        Recall time-series data from TSDB correlations.
+        
+        Args:
+            scope: The memory scope to search (mapped to TSDB tags)
+            hours: Number of hours to look back
+            correlation_types: Optional filter by correlation types
+            
+        Returns:
+            List of time-series data points from correlations
+        """
+        try:
+            # Import correlation models here to avoid circular imports
+            from ciris_engine.persistence.models.correlations import get_correlations_by_type_and_time
+            from ciris_engine.schemas.correlation_schemas_v1 import CorrelationType
+            
+            # Calculate time window
+            end_time = datetime.now(timezone.utc)
+            start_time = end_time - timedelta(hours=hours)
+            
+            # Default correlation types if not specified
+            if correlation_types is None:
+                correlation_types = [CorrelationType.METRIC_DATAPOINT, CorrelationType.LOG_ENTRY, CorrelationType.AUDIT_EVENT]
+            
+            # Query correlations for each type
+            all_correlations = []
+            for corr_type in correlation_types:
+                correlations = get_correlations_by_type_and_time(
+                    correlation_type=corr_type,
+                    start_time=start_time,
+                    end_time=end_time,
+                    limit=1000,  # Large limit for time series data
+                    db_path=self.db_path
+                )
+                
+                # Filter by scope if it's in tags
+                for correlation in correlations:
+                    tags = correlation.get('tags', {})
+                    if isinstance(tags, str):
+                        try:
+                            tags = json.loads(tags)
+                        except json.JSONDecodeError:
+                            tags = {}
+                    
+                    # Include if scope matches or if no scope filtering requested
+                    if scope == "default" or tags.get('scope') == scope:
+                        all_correlations.append({
+                            'timestamp': correlation.get('timestamp'),
+                            'correlation_type': correlation.get('correlation_type'),
+                            'metric_name': correlation.get('metric_name'),
+                            'metric_value': correlation.get('metric_value'),
+                            'log_level': correlation.get('log_level'),
+                            'action_type': correlation.get('action_type'),
+                            'tags': tags,
+                            'request_data': correlation.get('request_data'),
+                            'response_data': correlation.get('response_data')
+                        })
+            
+            # Sort by timestamp
+            all_correlations.sort(key=lambda x: x.get('timestamp', ''))
+            
+            return all_correlations
+            
+        except Exception as e:
+            logger.exception(f"Error recalling timeseries data: {e}")
+            return []
+    
+    async def memorize_metric(self, metric_name: str, value: float, tags: Optional[Dict[str, str]] = None, scope: str = "local") -> MemoryOpResult:
+        """
+        Convenience method to memorize a metric as both a graph node and TSDB correlation.
+        """
+        try:
+            # Import correlation models here to avoid circular imports
+            from ciris_engine.persistence.models.correlations import add_correlation
+            from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, CorrelationType, ServiceCorrelationStatus
+            
+            # Create specialized TSDB graph node for the metric
+            node = TSDBGraphNode.create_metric_node(
+                metric_name=metric_name,
+                value=value,
+                tags=tags,
+                scope=GraphScope(scope),
+                retention_policy="raw"
+            )
+            
+            # Store in graph memory
+            memory_result = await self.memorize(node)
+            
+            # Also store as TSDB correlation
+            correlation = ServiceCorrelation(
+                correlation_id=str(uuid4()),
+                service_type="memory",
+                handler_name="memory_service",
+                action_type="memorize_metric",
+                correlation_type=CorrelationType.METRIC_DATAPOINT,
+                timestamp=datetime.now(timezone.utc),
+                metric_name=metric_name,
+                metric_value=value,
+                tags={**tags, "scope": scope} if tags else {"scope": scope},
+                status=ServiceCorrelationStatus.COMPLETED,
+                retention_policy="raw"
+            )
+            
+            add_correlation(correlation, db_path=self.db_path)
+            
+            return memory_result
+            
+        except Exception as e:
+            logger.exception(f"Error memorizing metric {metric_name}: {e}")
+            return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
+    
+    async def memorize_log(self, log_message: str, log_level: str = "INFO", tags: Optional[Dict[str, str]] = None, scope: str = "local") -> MemoryOpResult:
+        """
+        Convenience method to memorize a log entry as both a graph node and TSDB correlation.
+        """
+        try:
+            # Import correlation models here to avoid circular imports
+            from ciris_engine.persistence.models.correlations import add_correlation
+            from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, CorrelationType, ServiceCorrelationStatus
+            
+            # Create specialized TSDB graph node for the log entry
+            node = TSDBGraphNode.create_log_node(
+                log_message=log_message,
+                log_level=log_level,
+                tags=tags,
+                scope=GraphScope(scope),
+                retention_policy="raw"
+            )
+            
+            # Store in graph memory
+            memory_result = await self.memorize(node)
+            
+            # Also store as TSDB correlation
+            correlation = ServiceCorrelation(
+                correlation_id=str(uuid4()),
+                service_type="memory",
+                handler_name="memory_service", 
+                action_type="memorize_log",
+                correlation_type=CorrelationType.LOG_ENTRY,
+                timestamp=datetime.now(timezone.utc),
+                log_level=log_level,
+                tags={**tags, "scope": scope, "message": log_message} if tags else {"scope": scope, "message": log_message},
+                request_data={"message": log_message, "log_level": log_level},
+                status=ServiceCorrelationStatus.COMPLETED,
+                retention_policy="raw"
+            )
+            
+            add_correlation(correlation, db_path=self.db_path)
+            
+            return memory_result
+            
+        except Exception as e:
+            logger.exception(f"Error memorizing log entry: {e}")
+            return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
 

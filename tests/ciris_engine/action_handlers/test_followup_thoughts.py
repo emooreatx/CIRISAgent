@@ -62,11 +62,15 @@ async def test_speak_handler_creates_followup(monkeypatch):
     assert follow_up.content is not None and isinstance(follow_up.content, str) and follow_up.content.strip() != ""
 
 @pytest.mark.asyncio
-async def test_recall_handler_creates_followup():
+async def test_recall_handler_creates_followup(monkeypatch):
     memory_service = AsyncMock()
     memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
     deps = ActionHandlerDependencies()
-    deps.persistence = MagicMock()
+    
+    # Mock the persistence module functions
+    add_thought_mock = MagicMock()
+    monkeypatch.setattr('ciris_engine.action_handlers.recall_handler.persistence.add_thought', add_thought_mock)
+    
     audit_service = MagicMock()
     audit_service.log_action = AsyncMock()
     async def get_service(handler, service_type, **kwargs):
@@ -96,7 +100,7 @@ async def test_recall_handler_creates_followup():
     params = RecallParams(node=node)
     result = ActionSelectionResult(selected_action=HandlerActionType.RECALL, action_parameters=params, rationale="r")
     await handler.handle(result, thought, {"wa_authorized": True})
-    follow_up = deps.persistence.add_thought.call_args[0][0]
+    follow_up = add_thought_mock.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
     for k, v in base_ctx.items():
         if k == "channel_id":
@@ -106,11 +110,15 @@ async def test_recall_handler_creates_followup():
     assert follow_up.content is not None and isinstance(follow_up.content, str)
 
 @pytest.mark.asyncio
-async def test_forget_handler_creates_followup():
+async def test_forget_handler_creates_followup(monkeypatch):
     memory_service = AsyncMock()
     memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
     deps = ActionHandlerDependencies()
-    deps.persistence = MagicMock()
+    
+    # Mock the persistence module functions
+    add_thought_mock = MagicMock()
+    monkeypatch.setattr('ciris_engine.action_handlers.forget_handler.persistence.add_thought', add_thought_mock)
+    
     audit_service = MagicMock()
     audit_service.log_action = AsyncMock()
     async def get_service(handler, service_type, **kwargs):
@@ -140,7 +148,7 @@ async def test_forget_handler_creates_followup():
     params = ForgetParams(node=node, reason="No longer needed")
     result = ActionSelectionResult(selected_action=HandlerActionType.FORGET, action_parameters=params, rationale="r")
     await handler.handle(result, thought, {"wa_authorized": True})
-    follow_up = deps.persistence.add_thought.call_args[0][0]
+    follow_up = add_thought_mock.call_args[0][0]
     assert follow_up.parent_thought_id == thought.thought_id
     for k, v in base_ctx.items():
         if k == "channel_id":

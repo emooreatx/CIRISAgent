@@ -24,6 +24,11 @@ from ciris_engine.schemas.service_actions_v1 import (
     FetchToolAction,
     GenerateResponseAction,
     GenerateStructuredAction,
+    RecordMetricAction,
+    QueryTelemetryAction,
+    RecordLogAction,
+    LogAuditEventAction,
+    QueryAuditTrailAction,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
 from ..protocols.services import (
@@ -32,6 +37,8 @@ from ..protocols.services import (
     MemoryService,
     ToolService,
     LLMService,
+    TelemetryService,
+    AuditService,
 )
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult
@@ -70,6 +77,13 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.GENERATE_RESPONSE: 'llm',
             ActionType.GENERATE_STRUCTURED: 'llm',
             # Note: OBSERVE_MESSAGE removed - observation handled at adapter level
+            # TSDB/Telemetry actions
+            ActionType.RECORD_METRIC: 'telemetry',
+            ActionType.QUERY_TELEMETRY: 'telemetry',
+            ActionType.RECORD_LOG: 'telemetry',
+            # Audit actions
+            ActionType.LOG_AUDIT_EVENT: 'audit',
+            ActionType.QUERY_AUDIT_TRAIL: 'audit',
         }
     
     @property
@@ -87,6 +101,13 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FETCH_TOOL: ['get_tool_result'],
             ActionType.GENERATE_RESPONSE: ['generate_response'],
             ActionType.GENERATE_STRUCTURED: ['generate_structured_response'],
+            # TSDB/Telemetry capabilities
+            ActionType.RECORD_METRIC: ['record_metric'],
+            ActionType.QUERY_TELEMETRY: ['query_telemetry'],
+            ActionType.RECORD_LOG: ['record_log'],
+            # Audit capabilities
+            ActionType.LOG_AUDIT_EVENT: ['log_event'],
+            ActionType.QUERY_AUDIT_TRAIL: ['query_audit_trail'],
         }
 
     async def _validate_action(self, action: ActionMessage) -> bool:
@@ -130,6 +151,16 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 await self._handle_generate_response(service, cast(GenerateResponseAction, action))
             elif action_type == ActionType.GENERATE_STRUCTURED:
                 await self._handle_generate_structured(service, cast(GenerateStructuredAction, action))
+            elif action_type == ActionType.RECORD_METRIC:
+                await self._handle_record_metric(service, cast(RecordMetricAction, action))
+            elif action_type == ActionType.QUERY_TELEMETRY:
+                await self._handle_query_telemetry(service, cast(QueryTelemetryAction, action))
+            elif action_type == ActionType.RECORD_LOG:
+                await self._handle_record_log(service, cast(RecordLogAction, action))
+            elif action_type == ActionType.LOG_AUDIT_EVENT:
+                await self._handle_log_audit_event(service, cast(LogAuditEventAction, action))
+            elif action_type == ActionType.QUERY_AUDIT_TRAIL:
+                await self._handle_query_audit_trail(service, cast(QueryAuditTrailAction, action))
             else:
                 logger.error(f"No handler for action type: {action_type}")
                 
@@ -302,6 +333,74 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             
         except Exception as e:
             logger.error(f"Error generating structured LLM response: {e}")
+            raise
+
+    async def _handle_record_metric(self, service: TelemetryService, action: RecordMetricAction) -> bool:
+        """Handle record metric action"""
+        try:
+            success = await service.record_metric(action.metric_name, action.value, action.tags)
+            if success:
+                logger.info(f"Recorded metric {action.metric_name}={action.value} via {type(service).__name__}")
+            else:
+                logger.warning(f"Failed to record metric {action.metric_name} via {type(service).__name__}")
+            return success
+        except Exception as e:
+            logger.error(f"Error recording metric {action.metric_name}: {e}")
+            raise
+
+    async def _handle_query_telemetry(self, service: TelemetryService, action: QueryTelemetryAction) -> Any:
+        """Handle query telemetry action"""
+        try:
+            results = await service.query_telemetry(
+                metric_names=action.metric_names,
+                start_time=action.start_time,
+                end_time=action.end_time,
+                tags=action.tags,
+                limit=action.limit
+            )
+            logger.info(f"Retrieved {len(results)} telemetry data points via {type(service).__name__}")
+            return results
+        except Exception as e:
+            logger.error(f"Error querying telemetry data: {e}")
+            raise
+
+    async def _handle_record_log(self, service: TelemetryService, action: RecordLogAction) -> bool:
+        """Handle record log action"""
+        try:
+            success = await service.record_log(action.log_message, action.log_level, action.tags)
+            if success:
+                logger.info(f"Recorded log entry [{action.log_level}] via {type(service).__name__}")
+            else:
+                logger.warning(f"Failed to record log entry via {type(service).__name__}")
+            return success
+        except Exception as e:
+            logger.error(f"Error recording log entry: {e}")
+            raise
+
+    async def _handle_log_audit_event(self, service: AuditService, action: LogAuditEventAction) -> None:
+        """Handle log audit event action"""
+        try:
+            await service.log_event(action.event_type, action.event_data)
+            logger.info(f"Logged audit event {action.event_type} via {type(service).__name__}")
+        except Exception as e:
+            logger.error(f"Error logging audit event {action.event_type}: {e}")
+            raise
+
+    async def _handle_query_audit_trail(self, service: AuditService, action: QueryAuditTrailAction) -> Any:
+        """Handle query audit trail action"""
+        try:
+            results = await service.query_audit_trail(
+                start_time=action.start_time,
+                end_time=action.end_time,
+                action_types=action.action_types,
+                thought_id=action.thought_id,
+                task_id=action.task_id,
+                limit=action.limit
+            )
+            logger.info(f"Retrieved {len(results)} audit trail entries via {type(service).__name__}")
+            return results
+        except Exception as e:
+            logger.error(f"Error querying audit trail: {e}")
             raise
 
     async def _get_filter_service(self) -> Any:

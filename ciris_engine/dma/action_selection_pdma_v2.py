@@ -78,7 +78,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
         # Initialize components
         self.context_builder = ActionSelectionContextBuilder(self.prompts)
         self.parameter_processor = ActionParameterProcessor()
-        self.faculty_integration = FacultyIntegration(faculties or {}) if faculties else None
+        self.faculty_integration = FacultyIntegration(faculties) if faculties else None
 
     async def evaluate(
         self, 
@@ -276,4 +276,5 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
         )
 
     def __repr__(self) -> str:
-        return f"<ActionSelectionPDMAEvaluator model='{self.model_name}' faculties={len(self.faculties) if self.faculties else 0}>"
+        faculty_count = len(self.faculties) if self.faculties else 0
+        return f"<ActionSelectionPDMAEvaluator model='{self.model_name}' faculties={faculty_count}>"
