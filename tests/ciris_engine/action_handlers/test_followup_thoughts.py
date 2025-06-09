@@ -16,10 +16,19 @@ from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 @pytest.mark.asyncio
 async def test_speak_handler_creates_followup(monkeypatch):
     add_thought_mock = MagicMock()
+    add_correlation_mock = MagicMock()
+    get_task_by_id_mock = MagicMock(return_value=MagicMock(task_id="task1"))
+    
     monkeypatch.setattr('ciris_engine.action_handlers.speak_handler.persistence.add_thought', add_thought_mock)
+    monkeypatch.setattr('ciris_engine.action_handlers.speak_handler.persistence.add_correlation', add_correlation_mock)
+    monkeypatch.setattr('ciris_engine.action_handlers.speak_handler.persistence.get_task_by_id', get_task_by_id_mock)
+    
     deps = MagicMock()
     deps.persistence = MagicMock()
     deps.persistence.add_thought = add_thought_mock
+    deps.persistence.add_correlation = add_correlation_mock
+    deps.persistence.get_task_by_id = get_task_by_id_mock
+    
     audit_service = MagicMock()
     audit_service.log_action = AsyncMock()
     deps.get_service = AsyncMock(return_value=audit_service)
