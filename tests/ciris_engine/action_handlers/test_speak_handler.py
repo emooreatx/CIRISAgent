@@ -48,8 +48,13 @@ async def test_speak_handler_schema_driven(monkeypatch):
 
     update_thought = MagicMock()
     add_thought = MagicMock()
+    add_correlation = MagicMock()
+    get_task_by_id = MagicMock()
+    get_task_by_id.return_value = MagicMock(description="Test task")
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_thought)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
+    monkeypatch.setattr("ciris_engine.persistence.add_correlation", add_correlation)
+    monkeypatch.setattr("ciris_engine.persistence.get_task_by_id", get_task_by_id)
 
     await handler.handle(action_result, thought, {"channel_id": "123"})
 

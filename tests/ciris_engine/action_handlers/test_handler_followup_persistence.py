@@ -167,7 +167,9 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
         patch_module = hasattr(handler_mod, 'persistence')
         if patch_module:
             with patch.object(handler_mod.persistence, 'add_thought', side_effect=lambda t, db_path_=None: add_thought(t, db_path=db_path)), \
-                 patch.object(handler_mod.persistence, 'update_thought_status', side_effect=lambda **kwargs: None):
+                 patch.object(handler_mod.persistence, 'update_thought_status', side_effect=lambda **kwargs: None), \
+                 patch.object(handler_mod.persistence, 'add_correlation', side_effect=lambda c, db_path_=None: c.correlation_id), \
+                 patch.object(handler_mod.persistence, 'get_task_by_id', side_effect=lambda task_id, db_path_=None: make_task(task_id)):
                 handler = handler_cls(deps)
                 result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale="r")
                 dispatch_context = {"channel_id": "c1", "wa_authorized": True}
@@ -178,6 +180,8 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
             deps.persistence = MagicMock()
             deps.persistence.add_thought = lambda t, db_path_=None: add_thought(t, db_path=db_path)
             deps.persistence.update_thought_status = lambda **kwargs: None
+            deps.persistence.add_correlation = lambda c, db_path_=None: c.correlation_id
+            deps.persistence.get_task_by_id = lambda task_id, db_path_=None: make_task(task_id)
             handler = handler_cls(deps)
             result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale="r")
             dispatch_context = {"channel_id": "c1", "wa_authorized": True}
