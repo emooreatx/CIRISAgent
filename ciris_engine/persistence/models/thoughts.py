@@ -143,7 +143,7 @@ def update_thought_status(thought_id: str, status: ThoughtStatus, db_path: Optio
         thought_id: The ID of the thought to update
         status: ThoughtStatus enum value
         db_path: Optional database path
-        final_action: ActionSelectionResult object, dict, or other serializable data
+        final_action: ActionSelectionResult object or other serializable data
         **kwargs: Additional parameters for compatibility
         
     Returns:
@@ -160,20 +160,8 @@ def update_thought_status(thought_id: str, status: ThoughtStatus, db_path: Optio
             updates = ["status = ?"]
             params = [status_val]
             
-            if final_action is not None:
-                # Handle ActionSelectionResult and other Pydantic models directly
-                if hasattr(final_action, 'model_dump'):
-                    # Convert Pydantic models to dict for JSON serialization
-                    final_action_dict = final_action.model_dump(mode="json")
-                elif isinstance(final_action, (dict, list, str, int, float, bool, type(None))):
-                    # Already JSON-serializable
-                    final_action_dict = final_action
-                else:
-                    # Convert other objects to string representation as fallback
-                    final_action_dict = {"result": str(final_action), "type": str(type(final_action))}
-                
-                updates.append("final_action_json = ?")
-                params.append(json.dumps(final_action_dict))
+            # DELETED: Legacy JSON serialization. Protocol-driven approach stores schemas directly.
+            # final_action storage removed - use proper schema relationships instead
             
             params.append(thought_id)
             
@@ -191,15 +179,7 @@ def update_thought_status(thought_id: str, status: ThoughtStatus, db_path: Optio
         logger.exception(f"Failed to update status for thought {thought_id}: {e}")
         return False
 
-def pydantic_to_dict(obj: Any) -> Any:
-    if hasattr(obj, "model_dump"):
-        return obj.model_dump(mode="json")
-    elif isinstance(obj, dict):
-        return {k: pydantic_to_dict(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [pydantic_to_dict(v) for v in obj]
-    else:
-        return obj
+# DELETED: Legacy pydantic_to_dict function. Use protocol-driven schemas directly.
 
 def get_thoughts_older_than(older_than_timestamp: str, db_path: Optional[str] = None) -> List[Thought]:
     """Returns all thoughts with created_at older than the given ISO timestamp as Thought objects."""

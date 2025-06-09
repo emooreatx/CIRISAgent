@@ -88,3 +88,43 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
         logger.exception("Failed to fetch correlation %s: %s", correlation_id, e)
         return None
 
+
+def get_correlations_by_task_and_action(task_id: str, action_type: str, status: Optional[ServiceCorrelationStatus] = None, db_path: Optional[str] = None) -> List[ServiceCorrelation]:
+    """Get correlations for a specific task and action type."""
+    sql = """
+        SELECT * FROM service_correlations 
+        WHERE action_type = ?
+        AND json_extract(request_data, '$.task_id') = ?
+    """
+    params = [action_type, task_id]
+    
+    if status is not None:
+        sql += " AND status = ?"
+        params.append(status.value)
+    
+    sql += " ORDER BY created_at DESC"
+    
+    try:
+        with get_db_connection(db_path=db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            
+            correlations = []
+            for row in rows:
+                correlations.append(ServiceCorrelation(
+                    correlation_id=row["correlation_id"],
+                    service_type=row["service_type"],
+                    handler_name=row["handler_name"],
+                    action_type=row["action_type"],
+                    request_data=json.loads(row["request_data"]) if row["request_data"] else None,
+                    response_data=json.loads(row["response_data"]) if row["response_data"] else None,
+                    status=ServiceCorrelationStatus(row["status"]),
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                ))
+            return correlations
+    except Exception as e:
+        logger.exception("Failed to fetch correlations for task %s and action %s: %s", task_id, action_type, e)
+        return []
+

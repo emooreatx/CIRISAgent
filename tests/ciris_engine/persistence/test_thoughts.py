@@ -11,7 +11,6 @@ from ciris_engine.persistence import (
     delete_thoughts_by_ids,
     count_thoughts,
     update_thought_status,
-    pydantic_to_dict,
 )
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, ThoughtType
@@ -139,11 +138,7 @@ def test_update_thought_status():
     finally:
         os.unlink(db_path)
 
-def test_pydantic_to_dict():
-    th = make_thought("th12")
-    d = pydantic_to_dict(th)
-    assert isinstance(d, dict)
-    assert d["thought_id"] == "th12"
+# DELETED: Legacy test for pydantic_to_dict. Use protocol-driven schemas directly.
 
 
 @pytest.mark.asyncio

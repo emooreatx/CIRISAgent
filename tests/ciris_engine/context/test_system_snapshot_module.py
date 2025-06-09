@@ -49,15 +49,17 @@ async def test_build_system_snapshot_integration():
     memory_service.recall.return_value = {}
     graphql_provider.enrich_context.return_value = {"extra": 1}
 
-    secret = MagicMock()
-    secret.secret_uuid = "uuid"
-    secret.description = "desc"
-    secret.context_hint = "hint"
-    secret.sensitivity_level = "HIGH"
-    secret.auto_decapsulate_for_actions = []
-    secret.created_at = datetime.now()
-    secret.last_accessed = None
-    secret.detected_pattern = "pattern"
+    from ciris_engine.schemas.secrets_schemas_v1 import SecretReference
+    secret = SecretReference(
+        uuid="test-uuid",
+        description="Test secret",
+        context_hint="Test API key",
+        sensitivity="HIGH",
+        auto_decapsulate_actions=[],
+        created_at=datetime.now(),
+        last_accessed=None,
+        detected_pattern="api_key"
+    )
     secrets_service.store.list_all_secrets.return_value = [secret]
     secrets_service.filter.config.version = 2
 

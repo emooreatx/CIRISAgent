@@ -55,12 +55,10 @@ class ContextBuilder:
                 if isinstance(context, dict):
                     cid = context.get('channel_id')
                     if cid is not None:
-                        logger.info(f"Channel ID '{cid}' resolved from {source_name}")
                         return str(cid)
                 elif hasattr(context, 'channel_id'):
                     cid = getattr(context, 'channel_id', None)
                     if cid is not None:
-                        logger.info(f"Channel ID '{cid}' resolved from {source_name}")
                         return str(cid)
             except Exception as e:
                 logger.error(f"Error extracting channel_id from {source_name}: {e}")
@@ -85,7 +83,6 @@ class ContextBuilder:
             if env_channel_id:
                 channel_id = env_channel_id
                 resolution_source = "DISCORD_CHANNEL_ID env var"
-                logger.info(f"Channel ID '{channel_id}' resolved from {resolution_source}")
         
         # 4. App config (structured fallback)
         if not channel_id and self.app_config:
@@ -96,7 +93,6 @@ class ContextBuilder:
                     if config_channel_id:
                         channel_id = str(config_channel_id)
                         resolution_source = f"app_config.{attr}"
-                        logger.info(f"Channel ID '{channel_id}' resolved from {resolution_source}")
                         break
         
         # 5. Mode-based fallback (last resort)
@@ -113,8 +109,7 @@ class ContextBuilder:
                 channel_id = 'DISCORD_DEFAULT'
                 resolution_source = "Discord mode fallback"
             
-            if channel_id:
-                logger.info(f"Channel ID '{channel_id}' resolved from {resolution_source}")
+            # Removed verbose logging - adapters handle channel resolution
         
         # Final validation and logging
         if not channel_id:
@@ -123,7 +118,7 @@ class ContextBuilder:
             channel_id = 'UNKNOWN'
             resolution_source = "emergency fallback"
         
-        logger.info(f"Final channel_id resolution: '{channel_id}' from {resolution_source}")
+        # Removed verbose logging - use debug level only
         # Apply resolved channel_id to system snapshot
         if channel_id and hasattr(system_snapshot_data, 'channel_id'):
             system_snapshot_data.channel_id = channel_id

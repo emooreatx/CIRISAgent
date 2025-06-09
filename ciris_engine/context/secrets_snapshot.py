@@ -12,23 +12,12 @@ async def build_secrets_snapshot(secrets_service: SecretsService) -> Dict[str, A
         all_secrets = await secrets_service.store.list_all_secrets()
         recent_secrets = sorted(all_secrets, key=lambda s: s.created_at, reverse=True)[:10]
 
-        # Convert to SecretReference objects for the snapshot
-        detected_secrets: List[SecretReference] = [
-            SecretReference(
-                uuid=secret.secret_uuid,
-                description=secret.description,
-                context_hint=secret.context_hint,
-                sensitivity=secret.sensitivity_level,
-                detected_pattern=getattr(secret, 'detected_pattern', 'unknown'),
-                auto_decapsulate_actions=secret.auto_decapsulate_for_actions,
-                created_at=secret.created_at,
-                last_accessed=secret.last_accessed,
-            )
-            for secret in recent_secrets
-        ]
+        # The list_all_secrets() already returns SecretReference objects, so just use them directly
+        detected_secrets: List[SecretReference] = recent_secrets
 
         # Get filter version
-        filter_version = secrets_service.filter.config.version
+        filter_config = await secrets_service.filter.get_filter_config()
+        filter_version = filter_config.version
 
         # Get total count
         total_secrets = len(all_secrets)

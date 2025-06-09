@@ -65,7 +65,6 @@ class PonderHandler(BaseActionHandler):
         if new_ponder_count >= self.max_rounds:
             logger.warning(f"Thought ID {thought.thought_id} has reached max rounds ({self.max_rounds}) after this ponder. Deferring to defer handler.")
             
-            thought.ponder_count = new_ponder_count
             existing_notes = thought.ponder_notes or []
             thought.ponder_notes = existing_notes + questions_list
             
@@ -126,7 +125,6 @@ class PonderHandler(BaseActionHandler):
         )
         
         if success:
-            thought.ponder_count = new_ponder_count
             existing_notes = thought.ponder_notes or []
             thought.ponder_notes = existing_notes + questions_list
             thought.status = next_status
@@ -151,9 +149,9 @@ class PonderHandler(BaseActionHandler):
             if original_task:
                 task_context = original_task.description
             
-            follow_up_content = (
-                f"You are thinking about how or if to act on \"{task_context}\" and had these concerns or questions: {questions_list}. "
-                f"Please re-evaluate \"{task_context}\" and choose a response, or no response, as you see fit."
+            # Generate more dynamic follow-up content based on ponder count
+            follow_up_content = self._generate_ponder_follow_up_content(
+                task_context, questions_list, new_ponder_count, thought
             )
             from .helpers import create_follow_up_thought
             follow_up = create_follow_up_thought(
@@ -214,3 +212,52 @@ class PonderHandler(BaseActionHandler):
                 setattr(follow_up.context, k, v)
             persistence.add_thought(follow_up)
             return None
+    
+    def _generate_ponder_follow_up_content(
+        self, 
+        task_context: str, 
+        questions_list: list, 
+        ponder_count: int,
+        thought: Thought
+    ) -> str:
+        """Generate dynamic follow-up content based on ponder count and previous failures."""
+        
+        base_questions = questions_list.copy()
+        
+        # Add ponder-count specific guidance
+        if ponder_count == 1:
+            follow_up_content = (
+                f"You are considering how to act on: \"{task_context}\"\n"
+                f"Initial concerns: {base_questions}\n"
+                f"Please re-evaluate and choose an appropriate response."
+            )
+        elif ponder_count == 2:
+            follow_up_content = (
+                f"Second consideration for: \"{task_context}\"\n"
+                f"Previous concerns: {base_questions}\n"
+                f"Your first attempt didn't pass guardrails. Try a different approach - perhaps more conservative, "
+                f"more detailed, or consider if no action is needed."
+            )
+        elif ponder_count == 3:
+            follow_up_content = (
+                f"Third attempt at: \"{task_context}\"\n"
+                f"Ongoing concerns: {base_questions}\n"
+                f"Two previous attempts failed guardrails. Consider: Is this task actually necessary? "
+                f"Would a completely different action type work better? Should you defer for human guidance?"
+            )
+        elif ponder_count >= 4:
+            follow_up_content = (
+                f"Multiple attempts ({ponder_count}) at: \"{task_context}\"\n"
+                f"Persistent issues: {base_questions}\n"
+                f"This task has been repeatedly blocked by guardrails. Consider: "
+                f"1) Is the task inherently problematic? "
+                f"2) Should you defer to human oversight? "
+                f"3) Is there a fundamentally different approach? "
+                f"4) Should this task be marked as complete without action?"
+            )
+        
+        # Add context from previous ponder notes if available
+        if thought.ponder_notes:
+            follow_up_content += f"\n\nPrevious ponder history: {thought.ponder_notes[-3:]}"  # Last 3 entries
+            
+        return follow_up_content

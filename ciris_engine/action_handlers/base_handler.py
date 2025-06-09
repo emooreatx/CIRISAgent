@@ -238,7 +238,7 @@ class BaseActionHandler(ABC):
             f"_send_notification: Available services debug - handler='{self.__class__.__name__}', service_type='communication'"
         )
         if self.dependencies.service_registry:
-            available_services = await self.dependencies.service_registry.get_provider_info(
+            available_services = self.dependencies.service_registry.get_provider_info(
                 handler=self.__class__.__name__,
                 service_type="communication"
             )
@@ -344,12 +344,15 @@ class BaseActionHandler(ABC):
         result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,  # The original thought that led to this action
         dispatch_context: Dict[str, Any]  # Context from the dispatcher (e.g., channel_id, author_name)
-    ) -> None:  # Handlers will manage their own follow-ups and status updates
+    ) -> Optional[str]:  # Return follow-up thought ID if created
         """
         Handles the action.
         Implementations should:
         1. Perform the action.
         2. Update the original thought's status in persistence.
         3. Create necessary follow-up thoughts in persistence.
+        
+        Returns:
+            Optional[str]: ID of follow-up thought if one was created
         """
         pass

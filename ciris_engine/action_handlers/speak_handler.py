@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from pydantic import ValidationError
 
@@ -42,7 +42,7 @@ class SpeakHandler(BaseActionHandler):
         result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,
         dispatch_context: Dict[str, Any]
-    ) -> None:
+    ) -> Optional[str]:
         thought_id = thought.thought_id
 
         try:
@@ -70,10 +70,10 @@ class SpeakHandler(BaseActionHandler):
                 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
                 fu.context = ThoughtContext.model_validate(context_data)
                 persistence.add_thought(fu)
+                return fu.thought_id
             except Exception as fe:
                 await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, fe)
                 raise FollowUpCreationError from fe
-            return
 
         if not params.channel_id:
             params.channel_id = await self._get_channel_id(thought, dispatch_context) or self.snore_channel_id
@@ -106,6 +106,29 @@ class SpeakHandler(BaseActionHandler):
             final_action=result,
         )
 
+        # Create correlation for tracking action completion
+        from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
+        import uuid
+        from datetime import datetime, timezone
+        
+        correlation = ServiceCorrelation(
+            correlation_id=str(uuid.uuid4()),
+            service_type="communication",
+            handler_name="SpeakHandler",
+            action_type="speak",
+            request_data={
+                "task_id": thought.source_task_id,
+                "thought_id": thought_id,
+                "channel_id": params.channel_id,
+                "content": str(params.content)
+            },
+            response_data={"success": success, "final_status": final_thought_status.value},
+            status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
+        )
+        persistence.add_correlation(correlation)
+
         follow_up_text = (
             f"""
             NEXT ACTION IS TASK COMPLETE!
@@ -137,6 +160,7 @@ class SpeakHandler(BaseActionHandler):
                 {**dispatch_context, "thought_id": thought_id, "event_summary": event_summary},
                 outcome="success" if success else "failed",
             )
+            follow_up_thought_id = new_follow_up.thought_id
         except Exception as e:
             await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, e)
             raise FollowUpCreationError from e
@@ -147,4 +171,6 @@ class SpeakHandler(BaseActionHandler):
                 thought.context = ThoughtContext(system_snapshot=SystemSnapshot(channel_id=params.channel_id))
             if not getattr(thought.context.system_snapshot, "channel_id", None):
                 thought.context.system_snapshot.channel_id = params.channel_id
+        
+        return follow_up_thought_id
 

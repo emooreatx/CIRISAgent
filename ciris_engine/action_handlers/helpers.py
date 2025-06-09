@@ -51,7 +51,7 @@ def create_follow_up_thought(
         round_number=parent_round,
         content=content,
         context=ctx,
-        ponder_count=0,
+        ponder_count=parent.ponder_count + 1,
         ponder_notes=None,
         parent_thought_id=parent.thought_id,
         final_action={},

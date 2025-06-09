@@ -94,6 +94,7 @@ async def async_main(
         "port": port, # For API adapter
         "interactive": not no_interactive, # For CLI adapter
         "discord_bot_token": discord_bot_token, # For Discord adapter
+        "discord_monitored_channel_id": os.environ.get("DISCORD_CHANNEL_ID"), # For Discord adapter monitoring
         # Add other adapter-specific configs here as needed
     }
 
