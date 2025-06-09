@@ -15,151 +15,233 @@ from ciris_engine.protocols.services import (
     WiseAuthorityService,
     ToolService,
     MemoryService,
+    AuditService,
 )
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult, MemoryOpStatus
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
-class APIAdapter(CommunicationService, WiseAuthorityService, ToolService, MemoryService):
-    """Adapter for HTTP API communication, WA, tools, and memory interactions."""
+
+class APICommunicationService(CommunicationService):
+    """API-based communication service implementation."""
 
     def __init__(self) -> None:
+        super().__init__()
         self.responses: Dict[str, Any] = {}  # response_id -> response_data
         self.channel_messages: Dict[str, List[Dict[str, Any]]] = {}  # channel_id -> list of messages
-        self.tool_results: Dict[str, Any] = {}
-        self.memory: Dict[str, Dict[str, Any]] = {}
-        self.tools: Dict[str, Any] = {"echo": lambda args: {"result": args}}
 
     async def start(self) -> None:
-        pass
+        """Start the API communication service."""
+        await super().start()
 
     async def stop(self) -> None:
-        pass
+        """Stop the API communication service."""
+        await super().stop()
 
     async def send_message(self, channel_id: str, content: str) -> bool:
         response_id = str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc).isoformat()
         
-        response_data = {
-            "channel_id": channel_id,
-            "content": content,
-            "timestamp": timestamp,
-        }
-        
-        # Store by response ID (for compatibility)
-        self.responses[response_id] = response_data
-        
-        # Store by channel ID for easy retrieval
         if channel_id not in self.channel_messages:
             self.channel_messages[channel_id] = []
-        
-        self.channel_messages[channel_id].append({
-            "id": response_id,
+            
+        message = {
+            "response_id": response_id,
             "content": content,
-            "author_id": "ciris_agent",
             "timestamp": timestamp,
-        })
+            "channel_id": channel_id
+        }
         
-        persistence.add_correlation(
-            ServiceCorrelation(
-                correlation_id=response_id,
-                service_type="api",
-                handler_name="APIAdapter",
-                action_type="send_message",
-                request_data={"channel_id": channel_id, "content": content},
-                response_data=response_data,
-                status=ServiceCorrelationStatus.COMPLETED,
-                created_at=timestamp,
-                updated_at=timestamp,
-            )
-        )
+        self.channel_messages[channel_id].append(message)
+        self.responses[response_id] = message
         return True
 
     async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
-        return []
+        if channel_id not in self.channel_messages:
+            return []
+        
+        messages = self.channel_messages[channel_id][-limit:]
+        return [
+            FetchedMessage(
+                message_id=msg["response_id"],
+                author_id="api_system",
+                author_name="API System",
+                content=msg["content"],
+                timestamp=msg["timestamp"],
+                channel_id=channel_id
+            )
+            for msg in messages
+        ]
+
+
+class APIWiseAuthorityService(WiseAuthorityService):
+    """API-based wise authority service implementation."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.deferrals: List[Dict[str, Any]] = []
+
+    async def start(self) -> None:
+        """Start the API wise authority service."""
+        await super().start()
+
+    async def stop(self) -> None:
+        """Stop the API wise authority service."""
+        await super().stop()
 
     async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:
-        correlation_id = str(uuid.uuid4())
-        persistence.add_correlation(
-            ServiceCorrelation(
-                correlation_id=correlation_id,
-                service_type="api",
-                handler_name="APIAdapter",
-                action_type="fetch_guidance",
-                request_data=context,
-                status=ServiceCorrelationStatus.COMPLETED,
-                created_at=datetime.now(timezone.utc).isoformat(),
-                updated_at=datetime.now(timezone.utc).isoformat(),
-            )
-        )
-        return None
+        return f"API guidance for context: {context.get('summary', 'No context')}"
 
     async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
-        deferral_data = {
-            "type": "deferral",
+        deferral = {
             "thought_id": thought_id,
             "reason": reason,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "context": context or {},
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
-        if context:
-            deferral_data["context"] = context
-        
-        self.responses[f"deferral_{thought_id}"] = deferral_data
-        
-        persistence.add_correlation(
-            ServiceCorrelation(
-                correlation_id=f"deferral_{thought_id}",
-                service_type="api",
-                handler_name="APIAdapter",
-                action_type="send_deferral",
-                request_data={"thought_id": thought_id, "reason": reason, "context": context},
-                response_data=deferral_data,
-                status=ServiceCorrelationStatus.COMPLETED,
-                created_at=deferral_data["timestamp"],
-                updated_at=deferral_data["timestamp"],
-            )
-        )
+        self.deferrals.append(deferral)
         return True
 
-    # --- ToolService ---
+
+class APIToolService(ToolService):
+    """API-based tool service implementation."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.tool_results: Dict[str, Any] = {}
+        self.tools: Dict[str, Any] = {"echo": lambda args: {"result": args}}
+
+    async def start(self) -> None:
+        """Start the API tool service."""
+        await super().start()
+
+    async def stop(self) -> None:
+        """Stop the API tool service."""
+        await super().stop()
+
     async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        correlation_id = str(uuid.uuid4())
+        
         if tool_name in self.tools:
             result = self.tools[tool_name](parameters)
-            correlation_id = str(uuid.uuid4())
             self.tool_results[correlation_id] = result
-            return {"correlation_id": correlation_id, **result}
-        return {"error": f"Tool '{tool_name}' not found"}
+            return {"correlation_id": correlation_id, "result": result}
+        else:
+            error = {"error": f"Tool '{tool_name}' not found"}
+            self.tool_results[correlation_id] = error
+            return {"correlation_id": correlation_id, **error}
 
     async def get_available_tools(self) -> List[str]:
         return list(self.tools.keys())
 
     async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
-        return self.tool_results.get(correlation_id)  # type: ignore[union-attr]
+        return self.tool_results.get(correlation_id)
 
-    async def validate_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
-        return True
 
-    # --- MemoryService ---
-    async def memorize(self, node) -> MemoryOpResult:
+class APIMemoryService(MemoryService):
+    """API-based memory service implementation."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.memory: Dict[str, Dict[str, Any]] = {}
+
+    async def start(self) -> None:
+        """Start the API memory service."""
+        await super().start()
+
+    async def stop(self) -> None:
+        """Stop the API memory service."""
+        await super().stop()
+
+    async def memorize(self, node: GraphNode) -> MemoryOpResult:
         try:
-            self.memory[node.id] = node.__dict__
+            self.memory[node.id] = {
+                "id": node.id,
+                "type": node.type,
+                "scope": node.scope,
+                "attributes": node.attributes,
+                "version": node.version,
+                "updated_by": node.updated_by,
+                "updated_at": node.updated_at,
+            }
             return MemoryOpResult(status=MemoryOpStatus.OK)
-        except Exception as e:  # pragma: no cover - shouldn't happen in tests
+        except Exception as e:
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
-    async def recall(self, node) -> MemoryOpResult:
+    async def recall(self, node: GraphNode) -> MemoryOpResult:
         try:
             data = self.memory.get(node.id)
             return MemoryOpResult(status=MemoryOpStatus.OK, data=data)
-        except Exception as e:  # pragma: no cover - shouldn't happen in tests
+        except Exception as e:
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
-    async def forget(self, node) -> MemoryOpResult:
+    async def forget(self, node: GraphNode) -> MemoryOpResult:
         try:
-            existed = self.memory.pop(node.id, None) is not None
-            status = MemoryOpStatus.OK if existed else MemoryOpStatus.DENIED
-            reason = None if existed else "Not found"
-            return MemoryOpResult(status=status, reason=reason)
-        except Exception as e:  # pragma: no cover - shouldn't happen in tests
+            if node.id in self.memory:
+                del self.memory[node.id]
+            return MemoryOpResult(status=MemoryOpStatus.OK)
+        except Exception as e:
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
-    async def search_memories(self, query: str, scope: str = "default", limit: int = 10) -> List[Dict[str, Any]]:
-        return [v for v in self.memory.values() if query in str(v)]
+
+class APIAuditService(AuditService):
+    """API-based audit service implementation."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.audit_logs: List[Dict[str, Any]] = []
+        self.guardrail_logs: List[Dict[str, Any]] = []
+        self.events: List[Dict[str, Any]] = []
+
+    async def start(self) -> None:
+        """Start the API audit service."""
+        await super().start()
+
+    async def stop(self) -> None:
+        """Stop the API audit service."""
+        await super().stop()
+
+    async def log_action(self, action_type: HandlerActionType, context: Dict[str, Any], outcome: Optional[str] = None) -> bool:
+        """Log an action for audit purposes."""
+        try:
+            audit_entry = {
+                "id": str(uuid.uuid4()),
+                "action_type": action_type.value if hasattr(action_type, 'value') else str(action_type),
+                "context": context,
+                "outcome": outcome,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            self.audit_logs.append(audit_entry)
+            return True
+        except Exception:
+            return False
+
+    async def log_event(self, event_type: str, event_data: Dict[str, Any]) -> None:
+        """Log a general event."""
+        event = {
+            "id": str(uuid.uuid4()),
+            "event_type": event_type,
+            "event_data": event_data,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        self.events.append(event)
+
+    async def log_guardrail_event(self, guardrail_name: str, action_type: str, result: Dict[str, Any]) -> None:
+        """Log guardrail check events."""
+        guardrail_entry = {
+            "id": str(uuid.uuid4()),
+            "guardrail_name": guardrail_name,
+            "action_type": action_type,
+            "result": result,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        self.guardrail_logs.append(guardrail_entry)
+
+    async def get_audit_trail(self, entity_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get audit trail for an entity."""
+        # Filter logs by entity_id in context and return most recent
+        matching_logs = [
+            log for log in self.audit_logs 
+            if log.get("context", {}).get("entity_id") == entity_id
+        ]
+        return matching_logs[-limit:] if matching_logs else []

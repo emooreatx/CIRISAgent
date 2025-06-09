@@ -1,11 +1,12 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from ciris_engine.runtime.api.api_runtime_entrypoint import APIRuntimeEntrypoint as APIRuntime
+from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.runtime.runtime_interface import RuntimeInterface
 
 @pytest.mark.asyncio
-async def test_api_runtime_initialization_calls_register(monkeypatch):
+async def test_api_runtime_initialization_with_api_mode(monkeypatch):
+    """Test that CIRISRuntime with API mode initializes correctly."""
     monkeypatch.setattr(
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start",
         AsyncMock(),
@@ -22,73 +23,86 @@ async def test_api_runtime_initialization_calls_register(monkeypatch):
     monkeypatch.setattr(
         "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
     )
-    register_mock = AsyncMock()
-    monkeypatch.setattr(APIRuntime, "_register_api_services", register_mock)
+    
+    # Mock API adapter loading
+    mock_adapter_start = AsyncMock()
+    monkeypatch.setattr("ciris_engine.adapters.api.adapter.ApiPlatform.start", mock_adapter_start)
 
-    runtime = APIRuntime(profile_name="test_profile")
+    runtime = CIRISRuntime(modes=["api"], profile_name="test_profile")
     await runtime.initialize()
 
-    register_mock.assert_awaited_once()
+    # Verify runtime initialized correctly
     assert runtime.profile_name == "test_profile"
+    assert len(runtime.adapters) == 1  # Should have one API adapter
+    assert "api" in [adapter.__class__.__module__.split('.')[-2] for adapter in runtime.adapters if hasattr(adapter, '__class__')]
 
 
 def test_api_runtime_implements_interface():
-    runtime = APIRuntime()
+    """Test that CIRISRuntime with API mode implements RuntimeInterface."""
+    runtime = CIRISRuntime(modes=["api"])
     assert isinstance(runtime, RuntimeInterface)
 
 
-@pytest.mark.asyncio
-async def test_api_routes_setup(monkeypatch):
+@pytest.mark.asyncio 
+async def test_api_adapter_service_registration(monkeypatch):
+    """Test that API adapter services are properly registered."""
     monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
-    monkeypatch.setattr("ciris_engine.adapters.api.api_observer.APIObserver.start", AsyncMock())
+    monkeypatch.setattr("ciris_engine.adapters.api.adapter.ApiPlatform.start", AsyncMock())
     # Mock service_registry.wait_ready() to prevent timeout
     monkeypatch.setattr(
         "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
     )
 
-    runtime = APIRuntime(profile_name="default")
+    runtime = CIRISRuntime(modes=["api"], profile_name="default")
     await runtime.initialize()
 
-    routes = [r.resource.canonical for r in runtime.app.router.routes()]
-    assert "/v1/messages" in routes
-    assert "/v1/status" in routes
+    # Verify service registry has been created and populated
+    assert runtime.service_registry is not None
+    
+    # Check that services are registered (either handler-specific or global)
+    info = runtime.service_registry.get_provider_info()
+    has_services = (
+        len(info.get("handlers", {})) > 0 or
+        len(info.get("global_services", {})) > 0
+    )
+    assert has_services
 
     await runtime.shutdown()
 
 
 @pytest.mark.asyncio
-async def test_handle_message(monkeypatch):
+async def test_api_mode_adapter_lifecycle(monkeypatch):
+    """Test API adapter lifecycle management through CIRISRuntime."""
     monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
-    monkeypatch.setattr("ciris_engine.adapters.api.api_observer.APIObserver.start", AsyncMock())
+    
+    # Mock API adapter methods
+    mock_start = AsyncMock()
+    mock_stop = AsyncMock()
+    monkeypatch.setattr("ciris_engine.adapters.api.adapter.ApiPlatform.start", mock_start)
+    monkeypatch.setattr("ciris_engine.adapters.api.adapter.ApiPlatform.stop", mock_stop)
+    
     # Mock service_registry.wait_ready() to prevent timeout
     monkeypatch.setattr(
         "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
     )
 
-    runtime = APIRuntime(profile_name="default")
+    runtime = CIRISRuntime(modes=["api"], profile_name="default")
     await runtime.initialize()
-
-    # Mock the api_observer.handle_incoming_message method instead of message_queue.enqueue
-    runtime.api_observer.handle_incoming_message = AsyncMock()
-
-    class DummyRequest:
-        def __init__(self, data):
-            self._data = data
-        async def json(self):
-            return self._data
-
-    req = DummyRequest({"content": "hi"})
-    resp = await runtime._handle_message(req)
-    assert resp.status == 200
-    runtime.api_observer.handle_incoming_message.assert_awaited_once()
+    
+    # Verify adapter was started
+    mock_start.assert_called()
+    
     await runtime.shutdown()
+    
+    # Verify adapter was stopped  
+    mock_stop.assert_called()

@@ -16,6 +16,7 @@ class CLIToolService(ToolService):
     """Simple ToolService providing local filesystem browsing."""
 
     def __init__(self) -> None:
+        super().__init__()
         self._results: Dict[str, Dict[str, Any]] = {}
         self._tools = {
             "list_files": self._list_files,
@@ -24,6 +25,14 @@ class CLIToolService(ToolService):
             "shell_command": self._shell_command,
             "search_text": self._search_text,
         }
+
+    async def start(self) -> None:
+        """Start the CLI tool service."""
+        await super().start()
+
+    async def stop(self) -> None:
+        """Stop the CLI tool service."""
+        await super().stop()
 
     async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         correlation_id = parameters.get("correlation_id", str(uuid.uuid4()))

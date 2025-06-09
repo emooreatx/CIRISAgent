@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from ciris_engine.runtime.discord_runtime import DiscordRuntime
+from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 
 
 @pytest.mark.live
@@ -17,7 +17,7 @@ async def test_discord_runtime_service_registry_live():
     if not token or not channel:
         pytest.skip("Discord credentials not provided")
 
-    runtime = DiscordRuntime(token=token, startup_channel_id=channel)
+    runtime = CIRISRuntime(modes=["discord"], profile_name="default", discord_bot_token=token, startup_channel_id=channel)
     await runtime.initialize()
 
     info = runtime.service_registry.get_provider_info()
@@ -36,4 +36,4 @@ async def test_discord_runtime_service_registry_live():
     for handler in expected_handlers:
         assert handler in handlers, f"{handler} missing in registry"
 
-    await runtime.shutdown()
+    await runtime.stop()

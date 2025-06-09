@@ -6,7 +6,13 @@ from aiohttp import web
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration, CIRISRuntime
 from ciris_engine.registries.base import Priority
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType, IncomingMessage
-from ciris_engine.adapters.api.api_adapter import APIAdapter  # Actual service provider
+from ciris_engine.adapters.api.api_adapter import (
+    APICommunicationService, 
+    APIWiseAuthorityService, 
+    APIToolService, 
+    APIMemoryService,
+    APIAuditService
+)
 from ciris_engine.adapters.api.api_observer import APIObserver # Handles incoming messages
 
 logger = logging.getLogger(__name__)
@@ -14,7 +20,14 @@ logger = logging.getLogger(__name__)
 class ApiPlatform(PlatformAdapter):
     def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
         self.runtime = runtime
-        self.api_adapter = APIAdapter()
+        
+        # Create separate service instances
+        self.communication_service = APICommunicationService()
+        self.wa_service = APIWiseAuthorityService()
+        self.tool_service = APIToolService()
+        self.memory_service = APIMemoryService()
+        self.audit_service = APIAuditService()
+        
         self.host = kwargs.get("host", "0.0.0.0")
         self.port = int(kwargs.get("port", 8080))
         self.app = web.Application()
@@ -26,7 +39,7 @@ class ApiPlatform(PlatformAdapter):
             on_observe=self._default_observe_callback,
             memory_service=getattr(self.runtime, 'memory_service', None),
             multi_service_sink=getattr(self.runtime, 'multi_service_sink', None),
-            api_adapter=self.api_adapter
+            api_adapter=self.communication_service  # Use communication service for observer
         )
         self._setup_routes()
 
@@ -87,15 +100,17 @@ class ApiPlatform(PlatformAdapter):
             return web.json_response({"error": str(e)}, status=500)
 
     def get_services_to_register(self) -> List[ServiceRegistration]:
-        comm_handlers = ["SpeakHandler", "ObserveHandler", "ToolHandler"]
+        comm_handlers = ["SpeakHandler", "ObserveHandler"]
         memory_handlers = ["MemorizeHandler", "RecallHandler", "ForgetHandler"]
         wa_handlers = ["DeferHandler", "SpeakHandler"]
+        audit_handlers = ["TaskCompleteHandler", "ObserveHandler", "DeferHandler"]
 
         registrations = [
-            ServiceRegistration(ServiceType.COMMUNICATION, self.api_adapter, Priority.HIGH, comm_handlers),
-            ServiceRegistration(ServiceType.TOOL, self.api_adapter, Priority.HIGH, ["ToolHandler"]),
-            ServiceRegistration(ServiceType.WISE_AUTHORITY, self.api_adapter, Priority.HIGH, wa_handlers),
-            ServiceRegistration(ServiceType.MEMORY, self.api_adapter, Priority.HIGH, memory_handlers),
+            ServiceRegistration(ServiceType.COMMUNICATION, self.communication_service, Priority.HIGH, comm_handlers),
+            ServiceRegistration(ServiceType.TOOL, self.tool_service, Priority.HIGH, ["ToolHandler"]),
+            ServiceRegistration(ServiceType.WISE_AUTHORITY, self.wa_service, Priority.HIGH, wa_handlers),
+            ServiceRegistration(ServiceType.MEMORY, self.memory_service, Priority.HIGH, memory_handlers),
+            ServiceRegistration(ServiceType.AUDIT, self.audit_service, Priority.HIGH, audit_handlers),
         ]
         logger.info(f"ApiPlatform: Services to register: {[(reg.service_type.value, reg.handlers) for reg in registrations]}")
         return registrations

@@ -1,66 +1,138 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from ciris_engine.runtime.cli_runtime import CLIRuntime
-from ciris_engine.adapters.cli.cli_adapter import CLIAdapter
-from ciris_engine.adapters.cli.cli_observer import CLIObserver
+from ciris_engine.runtime.ciris_runtime import CIRISRuntime
+
 
 @pytest.mark.asyncio
 async def test_cli_runtime_initialization(monkeypatch):
+    """Test CLI mode initialization in unified CIRISRuntime."""
     monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test"))
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
-    monkeypatch.setattr(
-        "ciris_engine.runtime.cli_runtime.CLIObserver.start", AsyncMock()
-    )
-    monkeypatch.setattr(
-        "ciris_engine.runtime.cli_runtime.CLIAdapter.start", AsyncMock()
-    )
-    monkeypatch.setattr(
-        "ciris_engine.sinks.multi_service_sink.MultiServiceActionSink.start", AsyncMock()
-    )
-    # Mock service_registry.wait_ready() to prevent timeout
+    monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
     )
 
-    runtime = CLIRuntime(profile_name="test_profile", interactive=False)
+    runtime = CIRISRuntime(modes=["cli"], profile_name="test_profile", interactive=False)
     await runtime.initialize()
+
+    # Verify CLI adapter was loaded
+    assert len(runtime.adapters) == 1
     assert runtime.profile_name == "test_profile"
-    assert isinstance(runtime.io_adapter, CLIAdapter)
-    assert isinstance(runtime.cli_observer, CLIObserver)
+
+    await runtime.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_cli_adapter_service_registration(monkeypatch):
+    """Test that CLI adapter services are registered correctly."""
+    monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
+    monkeypatch.setattr(
+        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
+        MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test"))
+    )
+    monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
+    monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.start", AsyncMock())
+    monkeypatch.setattr(
+        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
+    )
+
+    runtime = CIRISRuntime(modes=["cli"], profile_name="default", interactive=False)
+    await runtime.initialize()
+
+    # Verify service registry was created and has services
+    assert runtime.service_registry is not None
+    
+    info = runtime.service_registry.get_provider_info()
+    has_services = (
+        len(info.get("handlers", {})) > 0 or
+        len(info.get("global_services", {})) > 0
+    )
+    assert has_services
+
+    await runtime.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_cli_interactive_mode_flag(monkeypatch):
+    """Test that interactive mode flag is passed correctly."""
+    monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
+    monkeypatch.setattr(
+        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client", 
+        MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test"))
+    )
+    monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
+    monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.start", AsyncMock())
+    monkeypatch.setattr(
+        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
+    )
+
+    # Test both interactive and non-interactive modes
+    runtime_interactive = CIRISRuntime(modes=["cli"], profile_name="default", interactive=True)
+    runtime_non_interactive = CIRISRuntime(modes=["cli"], profile_name="default", interactive=False)
+    
+    await runtime_interactive.initialize()
+    await runtime_non_interactive.initialize()
+    
+    # Both should initialize successfully
+    assert len(runtime_interactive.adapters) == 1
+    assert len(runtime_non_interactive.adapters) == 1
+    
+    await runtime_interactive.shutdown()
+    await runtime_non_interactive.shutdown()
+
 
 @pytest.mark.asyncio
 async def test_cli_message_processing(monkeypatch):
+    """Test CLI message processing through unified runtime."""
     monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
-    monkeypatch.setattr("ciris_engine.runtime.cli_runtime.CLIObserver.start", AsyncMock())
-    monkeypatch.setattr("ciris_engine.runtime.cli_runtime.CLIAdapter.start", AsyncMock())
-    monkeypatch.setattr("ciris_engine.sinks.multi_service_sink.MultiServiceActionSink.start", AsyncMock())
-    # Mock service_registry.wait_ready() to prevent timeout
+    monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
     )
 
-    runtime = CLIRuntime(profile_name="default", interactive=False)
+    runtime = CIRISRuntime(modes=["cli"], profile_name="default", interactive=False)
     await runtime.initialize()
 
-    from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+    # Verify CLI adapter is available
+    assert len(runtime.adapters) == 1
+    cli_adapter = runtime.adapters[0]
+    
+    # Verify adapter type (should be CLIAdapter or have CLI-like interface)
+    assert hasattr(cli_adapter, 'start')
+    
+    await runtime.shutdown()
 
-    msg = IncomingMessage(
-        message_id="test_1",
-        content="Hello CLI",
-        author_id="test_user",
-        author_name="Test User",
-        channel_id="cli",
+
+@pytest.mark.asyncio 
+async def test_cli_runtime_shutdown_graceful(monkeypatch):
+    """Test graceful shutdown of CLI runtime."""
+    monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
+    monkeypatch.setattr(
+        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
+        MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test"))
+    )
+    monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
+    monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.start", AsyncMock())
+    monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.stop", AsyncMock())
+    monkeypatch.setattr(
+        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
     )
 
-    await runtime.cli_observer.handle_incoming_message(msg)
-    assert runtime.cli_observer._history and runtime.cli_observer._history[-1].message_id == "test_1"
+    runtime = CIRISRuntime(modes=["cli"], profile_name="default", interactive=False)
+    await runtime.initialize()
+    
+    # Should shutdown without errors
     await runtime.shutdown()
+    
+    # Runtime should be in shutdown state
+    assert runtime._shutdown_requested

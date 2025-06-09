@@ -1,9 +1,11 @@
 """
 Service protocols for the CIRIS Agent registry system.
 These protocols define clear contracts for different types of services.
+All service implementations must inherit from the Service base class for lifecycle management.
 """
-from typing import Protocol, Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List
 from abc import abstractmethod
+from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.foundational_schemas_v1 import (
     HandlerActionType,
     IncomingMessage,
@@ -14,8 +16,9 @@ from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult
 from ciris_engine.schemas.network_schemas_v1 import AgentIdentity, NetworkPresence
 from ciris_engine.schemas.community_schemas_v1 import MinimalCommunityContext
 
-class CommunicationService(Protocol):
-    """Protocol for communication services (Discord, Veilid, etc)"""
+
+class CommunicationService(Service):
+    """Abstract base class for communication services (Discord, Veilid, etc)"""
     
     @abstractmethod
     async def send_message(self, channel_id: str, content: str) -> bool:
@@ -59,8 +62,8 @@ class CommunicationService(Protocol):
         return ["send_message", "fetch_messages"]
 
 
-class WiseAuthorityService(Protocol):
-    """Protocol for Wise Authority services"""
+class WiseAuthorityService(Service):
+    """Abstract base class for Wise Authority services"""
     
     @abstractmethod
     async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:
@@ -99,8 +102,8 @@ class WiseAuthorityService(Protocol):
         return ["fetch_guidance", "send_deferral"]
 
 
-class MemoryService(Protocol):
-    """Protocol for memory services"""
+class MemoryService(Service):
+    """Abstract base class for memory services"""
     
     @abstractmethod
     async def memorize(self, node: GraphNode) -> MemoryOpResult:
@@ -140,11 +143,8 @@ class MemoryService(Protocol):
         return ["memorize", "recall", "forget"]
 
 
-
-
-
-class ToolService(Protocol):
-    """Protocol for tool services (LLM tools, external APIs, etc.)"""
+class ToolService(Service):
+    """Abstract base class for tool services (LLM tools, external APIs, etc.)"""
     
     @abstractmethod
     async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -206,8 +206,8 @@ class ToolService(Protocol):
         return ["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
 
 
-class AuditService(Protocol):
-    """Protocol for audit and logging services"""
+class AuditService(Service):
+    """Abstract base class for audit and logging services"""
     
     @abstractmethod
     async def log_action(self, action_type: HandlerActionType, context: Dict[str, Any], outcome: Optional[str] = None) -> bool:
@@ -270,8 +270,8 @@ class AuditService(Protocol):
         return ["log_action", "get_audit_trail"]
 
 
-class LLMService(Protocol):
-    """Protocol for Large Language Model services"""
+class LLMService(Service):
+    """Abstract base class for Large Language Model services"""
     
     @abstractmethod
     async def generate_response(
@@ -328,8 +328,8 @@ class LLMService(Protocol):
         return ["generate_response", "generate_structured_response"]
 
 
-class NetworkService(Protocol):
-    """Protocol for network participation services"""
+class NetworkService(Service):
+    """Abstract base class for network participation services"""
     
     @abstractmethod
     async def register_agent(self, identity: AgentIdentity) -> bool:
@@ -351,8 +351,9 @@ class NetworkService(Protocol):
         """Query network for information"""
         ...
 
-class CommunityService(Protocol):
-    """Protocol for community-aware services"""
+
+class CommunityService(Service):
+    """Abstract base class for community-aware services"""
     
     @abstractmethod
     async def get_community_context(self, community_id: str) -> MinimalCommunityContext:

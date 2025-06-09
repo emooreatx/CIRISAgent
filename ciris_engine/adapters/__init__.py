@@ -3,7 +3,22 @@ import importlib
 import logging
 from ciris_engine.protocols.adapter_interface import PlatformAdapter
 
-__all__ = ["load_adapter", "PlatformAdapter"]
+# Import common adapter services
+from .cirisnode_client import CIRISNodeClient
+from .local_audit_log import AuditService
+from .signed_audit_service import SignedAuditService
+from .openai_compatible_llm import OpenAICompatibleLLM
+from .tool_registry import ToolRegistry
+
+__all__ = [
+    "load_adapter", 
+    "PlatformAdapter",
+    "CIRISNodeClient",
+    "AuditService", 
+    "SignedAuditService",
+    "OpenAICompatibleLLM",
+    "ToolRegistry"
+]
 
 logger = logging.getLogger(__name__)
 
