@@ -1,9 +1,10 @@
 import asyncio
 from unittest.mock import AsyncMock
 import pytest
+from typing import List
 
 import main
-from ciris_engine.runtime.cli_runtime import CLIRuntime
+from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from tests.adapters.mock_llm import MockLLMService
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
@@ -90,8 +91,25 @@ def create_test_runtime(monkeypatch):
     monkeypatch.setenv('OPENAI_API_KEY', 'x')
     monkeypatch.setattr('ciris_engine.runtime.ciris_runtime.OpenAICompatibleLLM', MockLLMService)
     config = AppConfig(workflow=WorkflowConfig(max_rounds=1), llm_services=LLMServicesConfig(openai=OpenAIConfig(model_name='mock-model')))
-    runtime = CLIRuntime(profile_name='default', interactive=False)
-    return runtime, config
+    
+    # Mock CIRISRuntime properly
+    runtime_mock = AsyncMock(spec=CIRISRuntime)
+    runtime_mock.agent_processor = AsyncMock()
+    runtime_mock.agent_processor.wakeup_processor = AsyncMock()
+    runtime_mock.agent_processor.wakeup_processor.process = AsyncMock()
+    runtime_mock.agent_processor.wakeup_processor.wakeup_tasks = []
+    runtime_mock.initialize = AsyncMock()
+    
+    # Mock the constructor
+    original_new = CIRISRuntime.__new__
+    
+    def mock_new(cls, *args, **kwargs):
+        return runtime_mock
+    
+    monkeypatch.setattr(CIRISRuntime, '__new__', mock_new)
+    monkeypatch.setattr(CIRISRuntime, '__init__', lambda self, *args, **kwargs: None)
+    
+    return runtime_mock, config
 
 @pytest.mark.asyncio
 async def test_wakeup_sequence_offline(monkeypatch):
@@ -99,23 +117,44 @@ async def test_wakeup_sequence_offline(monkeypatch):
     patch_persistence(monkeypatch, db)
     runtime, cfg = create_test_runtime(monkeypatch)
     monkeypatch.setattr(main, 'load_config', AsyncMock(return_value=cfg))
-    monkeypatch.setattr(main, 'create_runtime', lambda *a, **k: runtime)
+    
+    # Set up mock wakeup processor behavior
+    runtime.agent_processor.wakeup_processor.process.side_effect = [
+        {'status': 'in_progress'},  # First call
+        {'wakeup_complete': True}   # Second call
+    ]
+    
+    # Create some mock tasks
+    from ciris_engine.schemas.agent_core_schemas_v1 import Task
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    mock_tasks = [
+        Task(task_id='task1', description='Task 1', status=TaskStatus.ACTIVE, created_at=now, updated_at=now),
+        Task(task_id='task2', description='Task 2', status=TaskStatus.ACTIVE, created_at=now, updated_at=now),
+    ]
+    runtime.agent_processor.wakeup_processor.wakeup_tasks = mock_tasks
+    
     await runtime.initialize()
     result = await runtime.agent_processor.wakeup_processor.process(0)
     assert result['status'] == 'in_progress'
+    
+    # Update task status
     for t in runtime.agent_processor.wakeup_processor.wakeup_tasks[1:]:
         db.update_task_status(t.task_id, TaskStatus.COMPLETED)
+        
     result = await runtime.agent_processor.wakeup_processor.process(1)
     assert result['wakeup_complete']
 
 @pytest.mark.asyncio
 async def test_run_runtime_timeout(monkeypatch):
-    async def slow_run():
+    async def slow_run(num_rounds=None):
         await asyncio.sleep(0.2)
     
-    runtime = AsyncMock()
+    runtime = AsyncMock(spec=CIRISRuntime)
     runtime.run = AsyncMock(side_effect=slow_run)
     runtime.shutdown = AsyncMock()
+    runtime._shutdown_event = asyncio.Event()  # Add the shutdown event
+    
     await main._run_runtime(runtime, timeout=0.1)
     runtime.run.assert_awaited()
     runtime.shutdown.assert_awaited()

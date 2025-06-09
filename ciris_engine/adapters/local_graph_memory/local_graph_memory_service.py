@@ -16,7 +16,6 @@ from ciris_engine.schemas.graph_schemas_v1 import (
     GraphEdge,
 )
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus, MemoryOpResult
-from ciris_engine.adapters.base import Service
 from ciris_engine.protocols.services import MemoryService
 from ciris_engine.secrets.service import SecretsService
 
@@ -32,7 +31,7 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-class LocalGraphMemoryService(Service, MemoryService):
+class LocalGraphMemoryService(MemoryService):
     """Graph memory backed by the persistence database."""
 
     def __init__(self, db_path: Optional[str] = None, secrets_service: Optional[SecretsService] = None) -> None:

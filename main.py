@@ -11,11 +11,12 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 
 import click
 
-from ciris_engine.main import create_runtime, load_config
+from ciris_engine.main import load_config
+from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.utils.logging_config import setup_basic_logging
 from ciris_engine.processor.task_manager import TaskManager
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
@@ -40,7 +41,7 @@ def _create_thought() -> Thought:
     )
 
 
-async def _execute_handler(runtime, handler: str, params: Optional[str]) -> None:
+async def _execute_handler(runtime: CIRISRuntime, handler: str, params: Optional[str]) -> None:
     handler_type = HandlerActionType[handler.upper()]
     dispatcher = runtime.agent_processor.action_dispatcher
     handler_instance = dispatcher.handlers.get(handler_type)
@@ -56,7 +57,7 @@ async def _execute_handler(runtime, handler: str, params: Optional[str]) -> None
     await handler_instance.handle(result, thought, {"channel_id": runtime.startup_channel_id})
 
 
-async def _run_runtime(runtime, timeout: Optional[int], num_rounds: Optional[int] = None) -> None:
+async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds: Optional[int] = None) -> None:
     """Run the runtime with optional timeout and graceful shutdown."""
     timeout_task = None
     shutdown_manager = get_shutdown_manager()
@@ -147,8 +148,6 @@ def main(
             click.echo("DISCORD_BOT_TOKEN not set, falling back to CLI mode")
             selected_mode = "cli"
 
-
-
         interactive = not no_interactive if selected_mode == "cli" else True
 
         if mock_llm:
@@ -156,10 +155,20 @@ def main(
             import ciris_engine.runtime.ciris_runtime as runtime_module
             runtime_module.OpenAICompatibleLLM = MockLLMService  # patch
 
-        runtime = create_runtime(
-            selected_mode,
-            profile,
-            app_config,
+        # Convert single mode to list for new runtime
+        modes: List[str] = [selected_mode]
+        
+        # Set startup_channel_id
+        startup_channel_id = getattr(app_config, 'startup_channel_id', None)
+        if hasattr(app_config, 'discord_channel_id'):
+            startup_channel_id = app_config.discord_channel_id
+
+        # Create runtime using new CIRISRuntime directly
+        runtime = CIRISRuntime(
+            modes=modes,
+            profile_name=profile,
+            app_config=app_config,
+            startup_channel_id=startup_channel_id,
             interactive=interactive,
             host=host,
             port=port,
@@ -189,4 +198,3 @@ def main(
 
 if __name__ == "__main__":
     main()
-

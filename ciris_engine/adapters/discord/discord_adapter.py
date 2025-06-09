@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 
-class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolService):
+class DiscordAdapter(CommunicationService):
     """
     Discord adapter implementing CommunicationService, WiseAuthorityService, and ToolService protocols.
     Provides communication, guidance/deferral, and tool functionality without an internal event queue.

@@ -17,7 +17,16 @@ class CLIWiseAuthorityService(WiseAuthorityService):
     """CLI-based WA service that prompts user for guidance"""
 
     def __init__(self) -> None:
+        super().__init__()
         self.deferral_log: List[Dict[str, Any]] = []
+
+    async def start(self) -> None:
+        """Start the CLI wise authority service."""
+        await super().start()
+
+    async def stop(self) -> None:
+        """Stop the CLI wise authority service."""
+        await super().stop()
 
     async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:
         """Prompt user for guidance on deferred decision"""
