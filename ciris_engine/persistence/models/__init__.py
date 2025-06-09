@@ -23,7 +23,6 @@ from .thoughts import (
     get_thoughts_by_task_id,
     count_thoughts,
     delete_thoughts_by_ids,
-    pydantic_to_dict,
 )
 from .deferral import save_deferral_report_mapping, get_deferral_report_context
 from .graph import (
@@ -63,7 +62,6 @@ __all__ = [
     "get_thoughts_by_task_id",
     "count_thoughts",
     "delete_thoughts_by_ids",
-    "pydantic_to_dict",
     "save_deferral_report_mapping",
     "get_deferral_report_context",
     "add_graph_node",
