@@ -33,6 +33,6 @@ def test_cli_offline_non_interactive(monkeypatch):
 
     monkeypatch.setattr(main, "asyncio", types.SimpleNamespace(run=fake_run))
 
-    result = CliRunner().invoke(main.main, ["--mode", "cli", "--no-interactive", "--mock-llm"])
+    result = CliRunner().invoke(main.main, ["--modes", "cli", "--no-interactive", "--mock-llm"])
     assert result.exit_code == 0
     runtime_mock.initialize.assert_called_once()

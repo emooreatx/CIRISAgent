@@ -604,7 +604,9 @@ class CIRISRuntime(RuntimeInterface):
             ]
             
             # Monitor agent_task, all adapter_tasks, and shutdown events
-            all_tasks = [agent_task, *adapter_tasks, self._shutdown_event.wait(), wait_for_global_shutdown()]
+            shutdown_event_task = asyncio.create_task(self._shutdown_event.wait(), name="ShutdownEventWait")
+            global_shutdown_task = asyncio.create_task(wait_for_global_shutdown(), name="GlobalShutdownWait")
+            all_tasks = [agent_task, *adapter_tasks, shutdown_event_task, global_shutdown_task]
             
             done, pending = await asyncio.wait(all_tasks, return_when=asyncio.FIRST_COMPLETED)
 
@@ -630,7 +632,7 @@ class CIRISRuntime(RuntimeInterface):
                          ad_task.cancel() # Or rely on their run_lifecycle to exit when agent_task is done
             else: # One of the adapter tasks finished, or an unexpected task completion
                 for task in done:
-                    if task not in [self._shutdown_event.wait(), wait_for_global_shutdown()]: # Don't log for event tasks
+                    if task not in [shutdown_event_task, global_shutdown_task]: # Don't log for event tasks
                         task_name = task.get_name() if hasattr(task, 'get_name') else "Unnamed task"
                         logger.info(f"Task '{task_name}' completed. Result: {task.result() if not task.cancelled() else 'Cancelled'}")
                         if task.exception():

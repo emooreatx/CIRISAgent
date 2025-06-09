@@ -15,14 +15,13 @@ from typing import Optional, List
 
 import click
 
-from ciris_engine.main import load_config
+from ciris_engine.main import load_config, run_with_shutdown_handler
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.utils.logging_config import setup_basic_logging
 from ciris_engine.processor.task_manager import TaskManager
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
-from ciris_engine.utils.shutdown_manager import get_shutdown_manager
 
 logger = logging.getLogger(__name__)
 
@@ -59,70 +58,47 @@ async def _execute_handler(runtime: CIRISRuntime, handler: str, params: Optional
 
 async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds: Optional[int] = None) -> None:
     """Run the runtime with optional timeout and graceful shutdown."""
-    timeout_task = None
-    shutdown_manager = get_shutdown_manager()
-    
-    try:
-        if timeout:
-            # Create a timeout task that will trigger global shutdown
-            async def timeout_handler():
-                await asyncio.sleep(timeout)
-                logger.info(f"Timeout of {timeout} seconds reached, initiating graceful shutdown...")
-                shutdown_manager.request_shutdown(f"Runtime timeout after {timeout} seconds")
-            
-            timeout_task = asyncio.create_task(timeout_handler())
-            
-        # Run the runtime (this will handle global shutdown internally)
-        await runtime.run(num_rounds=num_rounds)
-            
-    except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received, requesting shutdown...")
-        shutdown_manager.request_shutdown("Keyboard interrupt received")
-    except Exception as e:
-        logger.error(f"Runtime error: {e}", exc_info=True)
-        shutdown_manager.request_shutdown(f"Runtime error: {e}")
-    finally:
-        # Cancel the timeout task if it's still running
-        if timeout_task and not timeout_task.done():
-            timeout_task.cancel()
-            try:
-                await timeout_task
-            except asyncio.CancelledError:
-                pass
-        
-        # Always ensure proper shutdown if it hasn't been called yet
+    if timeout:
+        # Use asyncio.wait_for for timeout handling  
         try:
+            await asyncio.wait_for(runtime.run(num_rounds=num_rounds), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.info(f"Timeout of {timeout} seconds reached, shutting down...")
+            runtime.request_shutdown(f"Runtime timeout after {timeout} seconds")
             await runtime.shutdown()
-        except Exception as e:
-            logger.error(f"Error during final shutdown: {e}", exc_info=True)
+    else:
+        # Run without timeout
+        await runtime.run(num_rounds=num_rounds)
 
 
 @click.command()
-@click.option("--mode", type=click.Choice(["auto", "discord", "cli", "api"]), default="auto", help="Runtime mode")
+@click.option("--modes", "modes_list", multiple=True, default=["auto"], help="One or more adapter modes to run (e.g., cli, api, discord).")
 @click.option("--profile", default="default", help="Agent profile name")
-@click.option("--config", type=click.Path(exists=True), help="Path to app config")
+@click.option("--config", "config_file_path", type=click.Path(exists=True), help="Path to app config")
 @click.option("--task", multiple=True, help="Task description to add before starting")
 @click.option("--timeout", type=int, help="Maximum runtime duration in seconds")
 @click.option("--handler", help="Direct handler to execute and exit")
 @click.option("--params", help="JSON parameters for handler execution")
-@click.option("--host", default="0.0.0.0", help="API host")
-@click.option("--port", default=8080, type=int, help="API port")
+@click.option("--host", "api_host", default="0.0.0.0", help="API host")
+@click.option("--port", "api_port", default=8080, type=int, help="API port")
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
-@click.option("--no-interactive/--interactive", default=False, help="Disable interactive CLI input (start agent automatically)")
+@click.option("--no-interactive/--interactive", "cli_interactive", default=True, help="Enable/disable interactive CLI input")
+@click.option("--discord-token", "discord_bot_token", default=os.environ.get("DISCORD_BOT_TOKEN"), help="Discord bot token")
 @click.option("--mock-llm/--no-mock-llm", default=False, help="Use the mock LLM service for offline testing")
 @click.option("--num-rounds", type=int, help="Maximum number of processing rounds (default: infinite)")
 def main(
-    mode: str,
+    modes_list: tuple[str, ...],
     profile: str,
-    config: Optional[str],
+    config_file_path: Optional[str],
     task: tuple[str],
     timeout: Optional[int],
     handler: Optional[str],
     params: Optional[str],
-    host: str,
-    port: int,
+    api_host: str,
+    api_port: int,
     debug: bool,
-    no_interactive: bool,
+    cli_interactive: bool,
+    discord_bot_token: Optional[str],
     mock_llm: bool,
     num_rounds: Optional[int],
 ) -> None:
@@ -138,25 +114,23 @@ def main(
                 "For a local model set OPENAI_API_BASE, OPENAI_MODEL_NAME and provide any OPENAI_API_KEY."
             )
 
-        app_config = await load_config(config)
+        app_config = await load_config(config_file_path)
 
-        selected_mode = mode
-        if mode == "auto":
-            selected_mode = "discord" if get_env_var("DISCORD_BOT_TOKEN") else "cli"
+        # Handle mode auto-detection
+        selected_modes = list(modes_list)
+        if "auto" in selected_modes:
+            selected_modes.remove("auto")
+            auto_mode = "discord" if discord_bot_token or get_env_var("DISCORD_BOT_TOKEN") else "cli"
+            selected_modes.append(auto_mode)
 
-        if selected_mode == "discord" and not get_env_var("DISCORD_BOT_TOKEN"):
+        if "discord" in selected_modes and not (discord_bot_token or get_env_var("DISCORD_BOT_TOKEN")):
             click.echo("DISCORD_BOT_TOKEN not set, falling back to CLI mode")
-            selected_mode = "cli"
-
-        interactive = not no_interactive if selected_mode == "cli" else True
+            selected_modes = ["cli" if m == "discord" else m for m in selected_modes]
 
         if mock_llm:
             from tests.adapters.mock_llm import MockLLMService  # type: ignore
             import ciris_engine.runtime.ciris_runtime as runtime_module
             runtime_module.OpenAICompatibleLLM = MockLLMService  # patch
-
-        # Convert single mode to list for new runtime
-        modes: List[str] = [selected_mode]
         
         # Set startup_channel_id
         startup_channel_id = getattr(app_config, 'startup_channel_id', None)
@@ -165,13 +139,14 @@ def main(
 
         # Create runtime using new CIRISRuntime directly
         runtime = CIRISRuntime(
-            modes=modes,
+            modes=selected_modes,
             profile_name=profile,
             app_config=app_config,
             startup_channel_id=startup_channel_id,
-            interactive=interactive,
-            host=host,
-            port=port,
+            interactive=cli_interactive,
+            host=api_host,
+            port=api_port,
+            discord_bot_token=discord_bot_token,
         )
         await runtime.initialize()
 
