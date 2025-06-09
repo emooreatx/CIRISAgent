@@ -135,12 +135,12 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         """Handle high-priority messages with immediate processing"""
         from ciris_engine.config.config_manager import get_config
         from ciris_engine.utils.constants import (
-            DISCORD_DEFERRAL_CHANNEL_ID,
             DEFAULT_WA,
         )
 
-        default_channel_id = get_config().discord_channel_id
-        deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
+        config = get_config()
+        default_channel_id = config.discord_channel_id
+        deferral_channel_id = config.discord_deferral_channel_id
         wa_discord_user = DEFAULT_WA
         authorized_user_id = "537080239679864862"  # Your Discord user ID
         
@@ -155,12 +155,12 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
     async def _handle_passive_observation(self, msg: DiscordMessage) -> None:
         from ciris_engine.config.config_manager import get_config
         from ciris_engine.utils.constants import (
-            DISCORD_DEFERRAL_CHANNEL_ID,
             DEFAULT_WA,
         )
 
-        default_channel_id = get_config().discord_channel_id
-        deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
+        config = get_config()
+        default_channel_id = config.discord_channel_id
+        deferral_channel_id = config.discord_deferral_channel_id
         wa_discord_user = DEFAULT_WA
         authorized_user_id = "537080239679864862"  # Your Discord user ID
         

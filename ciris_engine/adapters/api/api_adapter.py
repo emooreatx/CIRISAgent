@@ -54,6 +54,24 @@ class APICommunicationService(CommunicationService):
         
         self.channel_messages[channel_id].append(message)
         self.responses[response_id] = message
+        
+        # Add correlation tracking
+        from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
+        from ciris_engine import persistence
+        
+        correlation = ServiceCorrelation(
+            correlation_id=response_id,
+            service_type="api",
+            handler_name="APICommunicationService",
+            action_type="send_message",
+            request_data={"channel_id": channel_id, "content": content},
+            response_data={"response_id": response_id, "sent": True},
+            status=ServiceCorrelationStatus.COMPLETED,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        persistence.add_correlation(correlation)
+        
         return True
 
     async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:

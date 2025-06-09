@@ -17,8 +17,7 @@ class ServiceRegistration:
     provider: Service
     priority: Priority = Priority.NORMAL
     handlers: List[str] = dataclasses.field(default_factory=list)
-    # You can add other parameters from ServiceRegistry.register if needed
-    # e.g., capabilities, metadata
+    capabilities: List[str] = dataclasses.field(default_factory=list)
 
 @runtime_checkable
 class PlatformAdapter(Protocol):

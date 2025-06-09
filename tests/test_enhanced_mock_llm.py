@@ -143,16 +143,16 @@ class TestEnhancedMockLLM:
         assert "echo_channel:general" in context_str
         assert "echo_memory_query:greetings" in context_str
     
-    def test_default_ponder_action(self):
-        """Test default PONDER action when no specific context triggers."""
+    def test_default_speak_action(self):
+        """Test default SPEAK action when no specific context triggers."""
         messages = [
             {"role": "user", "content": "Just a regular message with no special patterns."}
         ]
         
         result = create_response(ActionSelectionResult, messages=messages)
         
-        assert result.selected_action == HandlerActionType.PONDER
-        assert "What should I do next?" in str(result.action_parameters)
+        assert result.selected_action == HandlerActionType.SPEAK
+        assert "Hello! How can I help you?" in str(result.action_parameters)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,9 @@ def action_selection(context=None):
     """Mock ActionSelectionResult with passing values and protocol-compliant types."""
     context = context or []
     
+    # Debug: Print context to see what's being detected
+    print(f"[ACTION_SELECTION_DEBUG] Context: {context}")
+    
     # Extract messages from context if available
     messages = []
     for item in context:
@@ -306,10 +309,19 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
         rationale = f"Recalling memory for: {memory_query}{context_info}"
         
     else:
-        # Default ponder action
-        action = HandlerActionType.PONDER
-        params = PonderParams(questions=["What should I do next?"])
-        rationale = "No specific context detected, defaulting to ponder action."
+        # Check if this is a follow-up thought (has action_performed context)
+        is_followup = any("action_performed:" in item or "FOLLOW_UP_THOUGHT" in item for item in context)
+        
+        if is_followup:
+            # Follow-up thought → TASK_COMPLETE
+            action = HandlerActionType.TASK_COMPLETE
+            params = {}
+            rationale = "Follow-up thought should complete the task."
+        else:
+            # Default: new task → SPEAK
+            action = HandlerActionType.SPEAK
+            params = SpeakParams(content="Hello! How can I help you?", channel_id="test")
+            rationale = "Default action for new tasks is to speak."
     
     # Use custom rationale if provided, otherwise use the generated rationale
     final_rationale = custom_rationale if custom_rationale else rationale

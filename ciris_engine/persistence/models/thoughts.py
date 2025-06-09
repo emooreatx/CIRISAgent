@@ -136,14 +136,15 @@ def count_thoughts(db_path: Optional[str] = None) -> int:
         logger.exception(f"Failed to count PENDING or PROCESSING thoughts: {e}")
     return count
 
-def update_thought_status(thought_id: str, status: ThoughtStatus, db_path: Optional[str] = None, **kwargs: Any) -> bool:
-    """Update the status of a thought by ID. 
+def update_thought_status(thought_id: str, status: ThoughtStatus, db_path: Optional[str] = None, final_action: Optional[Any] = None, **kwargs: Any) -> bool:
+    """Update the status of a thought by ID and optionally final_action. 
     
     Args:
         thought_id: The ID of the thought to update
         status: ThoughtStatus enum value
         db_path: Optional database path
-        **kwargs: Ignored compatibility parameters
+        final_action: ActionSelectionResult object or other serializable data
+        **kwargs: Additional parameters for compatibility
         
     Returns:
         bool: True if updated, False otherwise

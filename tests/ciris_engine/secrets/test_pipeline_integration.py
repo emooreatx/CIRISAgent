@@ -204,27 +204,25 @@ class TestContextBuilderSecrets:
         
         # Mock store with secrets
         mock_store = AsyncMock()
-        from ciris_engine.schemas.secrets_schemas_v1 import SecretRecord
-        mock_secret = SecretRecord(
-            secret_uuid="test-uuid",
-            encrypted_value=b"encrypted",
-            encryption_key_ref="key1",
-            salt=b"salt",
-            nonce=b"nonce",
+        from ciris_engine.schemas.secrets_schemas_v1 import SecretReference
+        mock_secret = SecretReference(
+            uuid="test-uuid",
             description="Test secret",
-            sensitivity_level="HIGH",
-            detected_pattern="api_key",
             context_hint="Test API key",
+            sensitivity="HIGH",
+            detected_pattern="api_key",
+            auto_decapsulate_actions=[],
             created_at=datetime.now(),
-            access_count=0,
             last_accessed=None
         )
         mock_store.list_all_secrets.return_value = [mock_secret]
         mock_secrets_service.store = mock_store
         
         # Mock filter
-        mock_filter = MagicMock()
-        mock_filter.config.version = 1
+        mock_filter = AsyncMock()
+        mock_config = MagicMock()
+        mock_config.version = 1
+        mock_filter.get_filter_config.return_value = mock_config
         mock_secrets_service.filter = mock_filter
         
         # Create context builder

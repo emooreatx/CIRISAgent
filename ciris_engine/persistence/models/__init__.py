@@ -37,6 +37,7 @@ from .correlations import (
     add_correlation,
     update_correlation,
     get_correlation,
+    get_correlations_by_task_and_action,
 )
 
 __all__ = [
@@ -73,4 +74,5 @@ __all__ = [
     "add_correlation",
     "update_correlation",
     "get_correlation",
+    "get_correlations_by_task_and_action",
 ]

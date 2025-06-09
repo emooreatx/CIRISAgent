@@ -221,7 +221,7 @@ class ThoughtManager:
             content=content,
             parent_thought_id=parent_thought.thought_id,
             context=context,
-            ponder_count=0,
+            ponder_count=parent_thought.ponder_count + 1,
             ponder_notes=None,
             final_action={},
         )

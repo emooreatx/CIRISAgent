@@ -106,11 +106,11 @@ class ApiPlatform(PlatformAdapter):
         audit_handlers = ["TaskCompleteHandler", "ObserveHandler", "DeferHandler"]
 
         registrations = [
-            ServiceRegistration(ServiceType.COMMUNICATION, self.communication_service, Priority.HIGH, comm_handlers),
-            ServiceRegistration(ServiceType.TOOL, self.tool_service, Priority.HIGH, ["ToolHandler"]),
-            ServiceRegistration(ServiceType.WISE_AUTHORITY, self.wa_service, Priority.HIGH, wa_handlers),
-            ServiceRegistration(ServiceType.MEMORY, self.memory_service, Priority.HIGH, memory_handlers),
-            ServiceRegistration(ServiceType.AUDIT, self.audit_service, Priority.HIGH, audit_handlers),
+            ServiceRegistration(ServiceType.COMMUNICATION, self.communication_service, Priority.HIGH, comm_handlers, ["send_message", "receive_message"]),
+            ServiceRegistration(ServiceType.TOOL, self.tool_service, Priority.HIGH, ["ToolHandler"], ["execute_tool", "list_tools"]),
+            ServiceRegistration(ServiceType.WISE_AUTHORITY, self.wa_service, Priority.HIGH, wa_handlers, ["defer_to_human", "provide_guidance"]),
+            ServiceRegistration(ServiceType.MEMORY, self.memory_service, Priority.HIGH, memory_handlers, ["memorize", "recall", "forget"]),
+            ServiceRegistration(ServiceType.AUDIT, self.audit_service, Priority.HIGH, audit_handlers, ["log_action", "get_audit_trail"]),
         ]
         logger.info(f"ApiPlatform: Services to register: {[(reg.service_type.value, reg.handlers) for reg in registrations]}")
         return registrations

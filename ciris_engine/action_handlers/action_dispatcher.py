@@ -115,8 +115,13 @@ class ActionDispatcher:
                 await self.telemetry_service.record_metric("handler_invoked_total")
             
             # The handler's `handle` method will take care of everything.
-            await handler_instance.handle(action_selection_result, thought, dispatch_context)
-            print(f"[DISPATCHER] Handler {handler_instance.__class__.__name__} completed for action {action_type.value} on thought {thought.thought_id}")
+            follow_up_thought_id = await handler_instance.handle(action_selection_result, thought, dispatch_context)
+            
+            # Log completion with follow-up thought ID if available
+            completion_msg = f"[DISPATCHER] Handler {handler_instance.__class__.__name__} completed for action {action_type.value} on thought {thought.thought_id}"
+            if follow_up_thought_id:
+                completion_msg += f" - created follow-up thought {follow_up_thought_id}"
+            print(completion_msg)
             
             # Record successful handler completion
             if self.telemetry_service:

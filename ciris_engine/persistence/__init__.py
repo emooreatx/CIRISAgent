@@ -44,6 +44,7 @@ from .models import (
     add_correlation,
     update_correlation,
     get_correlation,
+    get_correlations_by_task_and_action,
 )
 from .analytics import (
     get_pending_thoughts_for_active_tasks,
@@ -92,8 +93,9 @@ __all__ = [
     "delete_graph_edge",
     "get_edges_for_node",
     "add_correlation",
-    "update_correlation",
+    "update_correlation", 
     "get_correlation",
+    "get_correlations_by_task_and_action",
     "get_pending_thoughts_for_active_tasks",
     "count_pending_thoughts_for_active_tasks",
     "count_active_tasks",

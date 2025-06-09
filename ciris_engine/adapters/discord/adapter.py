@@ -81,9 +81,9 @@ class DiscordPlatform(PlatformAdapter):
         wa_handlers = ["DeferHandler", "SpeakHandler"]
 
         registrations = [
-            ServiceRegistration(ServiceType.COMMUNICATION, self.discord_adapter, Priority.HIGH, comm_handlers),
-            ServiceRegistration(ServiceType.WISE_AUTHORITY, self.discord_adapter, Priority.HIGH, wa_handlers),
-            ServiceRegistration(ServiceType.TOOL, self.discord_adapter, Priority.HIGH, ["ToolHandler"]),
+            ServiceRegistration(ServiceType.COMMUNICATION, self.discord_adapter, Priority.HIGH, comm_handlers, ["send_message", "receive_message"]),
+            ServiceRegistration(ServiceType.WISE_AUTHORITY, self.discord_adapter, Priority.HIGH, wa_handlers, ["defer_to_human", "provide_guidance"]),
+            ServiceRegistration(ServiceType.TOOL, self.discord_adapter, Priority.HIGH, ["ToolHandler"], ["execute_tool", "list_tools"]),
         ]
         logger.info(f"DiscordPlatform: Services to register: {[(reg.service_type.value, reg.handlers) for reg in registrations]}")
         return registrations

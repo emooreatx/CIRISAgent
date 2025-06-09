@@ -328,7 +328,7 @@ class CIRISRuntime(RuntimeInterface):
                                 service_type=reg.service_type.value, # Use the string value of the enum
                                 provider=reg.provider,
                                 priority=reg.priority,
-                                # capabilities=reg.capabilities # Assuming capabilities might be added to ServiceRegistration
+                                capabilities=reg.capabilities
                             )
                         logger.info(f"Registered {reg.service_type.value} from {adapter.__class__.__name__} for handlers: {reg.handlers}")
                     else: # Register globally if no specific handlers
@@ -336,7 +336,7 @@ class CIRISRuntime(RuntimeInterface):
                             service_type=reg.service_type.value,
                             provider=reg.provider,
                             priority=reg.priority,
-                            # capabilities=reg.capabilities
+                            capabilities=reg.capabilities
                         )
                         logger.info(f"Registered {reg.service_type.value} globally from {adapter.__class__.__name__}")
             except Exception as e:

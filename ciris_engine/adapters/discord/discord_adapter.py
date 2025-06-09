@@ -24,7 +24,6 @@ class DiscordAdapter(CommunicationService):
     Provides communication, guidance/deferral, and tool functionality without an internal event queue.
     """
     def __init__(self, token: str,
-                 guidance_channel_id: str = None, deferral_channel_id: str = None,
                  tool_registry: Optional[Any] = None, bot: discord.Client = None,
                  on_message: Optional[Callable[[DiscordMessage], Awaitable[None]]] = None) -> None:
         retry_config = {
@@ -44,9 +43,6 @@ class DiscordAdapter(CommunicationService):
         
         self.token = token
         self.client = bot
-        # Guidance and deferral use the same channel
-        self.deferral_channel_id = deferral_channel_id
-        self.guidance_channel_id = deferral_channel_id  # Deprecated, same as deferral
         self.tool_registry = tool_registry
         self.on_message_callback = on_message
         self._tool_results = {}
@@ -118,7 +114,10 @@ class DiscordAdapter(CommunicationService):
     # --- WiseAuthorityService ---
     async def fetch_guidance(self, context: dict) -> dict:
         """Send a guidance request to the configured guidance channel and wait for a response."""
-        if not self.client or not self.guidance_channel_id:
+        from ciris_engine.config.config_manager import get_config
+        
+        deferral_channel_id = get_config().discord_deferral_channel_id
+        if not self.client or not deferral_channel_id:
             logger.error("DiscordAdapter: Guidance channel or client not configured.")
             raise RuntimeError("Guidance channel or client not configured.")
 
@@ -150,15 +149,18 @@ class DiscordAdapter(CommunicationService):
 
     async def _fetch_guidance_impl(self, context: dict, **kwargs) -> dict:
         """Internal implementation of fetch_guidance for retry wrapping"""
-        if not self.deferral_channel_id:
+        from ciris_engine.config.config_manager import get_config
+        
+        deferral_channel_id = get_config().discord_deferral_channel_id
+        if not deferral_channel_id:
             logger.error("DiscordAdapter: No deferral channel configured for guidance")
             raise RuntimeError("Deferral channel not configured.")
             
-        channel = self.client.get_channel(int(self.deferral_channel_id))
+        channel = self.client.get_channel(int(deferral_channel_id))
         if channel is None:
-            channel = await self.client.fetch_channel(int(self.deferral_channel_id))
+            channel = await self.client.fetch_channel(int(deferral_channel_id))
         if channel is None:
-            logger.error(f"DiscordAdapter: Could not find deferral channel {self.deferral_channel_id}")
+            logger.error(f"DiscordAdapter: Could not find deferral channel {deferral_channel_id}")
             raise RuntimeError("Deferral channel not found.")
         
         # Post the guidance request to deferral channel
@@ -206,7 +208,10 @@ class DiscordAdapter(CommunicationService):
 
     async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
         """Send a deferral report to the configured deferral channel."""
-        if not self.client or not self.deferral_channel_id:
+        from ciris_engine.config.config_manager import get_config
+        
+        deferral_channel_id = get_config().discord_deferral_channel_id
+        if not self.client or not deferral_channel_id:
             logger.error("DiscordAdapter: Deferral channel or client not configured.")
             return False
         
@@ -238,11 +243,14 @@ class DiscordAdapter(CommunicationService):
 
     async def _send_deferral_impl(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None, **kwargs) -> None:
         """Internal implementation of send_deferral for retry wrapping"""
-        channel = self.client.get_channel(int(self.deferral_channel_id))
+        from ciris_engine.config.config_manager import get_config
+        
+        deferral_channel_id = get_config().discord_deferral_channel_id
+        channel = self.client.get_channel(int(deferral_channel_id))
         if channel is None:
-            channel = await self.client.fetch_channel(int(self.deferral_channel_id))
+            channel = await self.client.fetch_channel(int(deferral_channel_id))
         if channel is None:
-            logger.error(f"DiscordAdapter: Could not find deferral channel {self.deferral_channel_id}")
+            logger.error(f"DiscordAdapter: Could not find deferral channel {deferral_channel_id}")
             raise RuntimeError("Deferral channel not found.")
         
         # Build richer deferral report

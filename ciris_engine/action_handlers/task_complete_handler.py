@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
@@ -18,7 +18,7 @@ class TaskCompleteHandler(BaseActionHandler):
         result: ActionSelectionResult,
         thought: Thought,
         dispatch_context: Dict[str, Any]
-    ) -> None:
+    ) -> Optional[str]:
         thought_id = thought.thought_id
         parent_task_id = thought.source_task_id
 
@@ -72,7 +72,7 @@ class TaskCompleteHandler(BaseActionHandler):
                         final_action=ponder_result_dict,
                     )
                     await self._audit_log(HandlerActionType.TASK_COMPLETE, {**dispatch_context, "thought_id": thought_id}, outcome="blocked_override_to_ponder")
-                    return
+                    return None
 
         persistence.update_thought_status(
             thought_id=thought_id,
@@ -102,6 +102,8 @@ class TaskCompleteHandler(BaseActionHandler):
                     print(f"[TASK_COMPLETE_HANDLER] ✗ Failed to update task {parent_task_id} status")
         else:
             self.logger.error(f"Could not find parent task ID for thought {thought_id} to mark as complete.")
+        
+        return None
 
     async def _is_wakeup_task(self, task_id: str) -> bool:
         """Check if a task is part of the wakeup sequence."""
@@ -126,35 +128,22 @@ class TaskCompleteHandler(BaseActionHandler):
         return False
 
     async def _has_speak_action_completed(self, task_id: str) -> bool:
-        """Check if a SPEAK action has been successfully completed for the given task."""
-        thoughts = persistence.get_thoughts_by_task_id(task_id)
-        self.logger.debug(f"Checking SPEAK completion for task {task_id}: found {len(thoughts)} thoughts")
+        """Check if a SPEAK action has been successfully completed for the given task using correlation system."""
+        from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelationStatus
         
-        for thought in thoughts:
-            self.logger.debug(f"Thought {thought.thought_id}: status={thought.status}")
-            if thought.status == ThoughtStatus.COMPLETED:
-                # Check if the final action was SPEAK
-                final_action = getattr(thought, 'final_action', None)
-                self.logger.debug(f"Thought {thought.thought_id}: final_action={final_action}")
-                
-                if final_action:
-                    # Handle different final_action formats
-                    selected_action = None
-                    if hasattr(final_action, 'selected_action'):
-                        selected_action = final_action.selected_action
-                    elif hasattr(final_action, 'action_type'):
-                        selected_action = final_action.action_type
-                    elif isinstance(final_action, dict) and 'selected_action' in final_action:
-                        selected_action = final_action['selected_action']
-                    elif isinstance(final_action, dict) and 'action_type' in final_action:
-                        selected_action = final_action['action_type']
-                    
-                    self.logger.debug(f"Thought {thought.thought_id}: selected_action={selected_action}")
-                    
-                    if selected_action == HandlerActionType.SPEAK or selected_action == 'speak':
-                        self.logger.debug(f"Found completed SPEAK action in thought {thought.thought_id} for task {task_id}")
-                        return True
+        # Use the correlation system to check for completed SPEAK actions
+        correlations = persistence.get_correlations_by_task_and_action(
+            task_id=task_id, 
+            action_type="speak",
+            status=ServiceCorrelationStatus.COMPLETED
+        )
         
-        self.logger.debug(f"No completed SPEAK action found for task {task_id}")
+        self.logger.debug(f"Found {len(correlations)} completed SPEAK correlations for task {task_id}")
+        
+        if correlations:
+            self.logger.debug(f"Found completed SPEAK action correlation for task {task_id}")
+            return True
+        
+        self.logger.debug(f"No completed SPEAK action correlation found for task {task_id}")
         return False
 

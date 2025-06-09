@@ -89,19 +89,22 @@ class CliPlatform(PlatformAdapter):
                 service_type=ServiceType.COMMUNICATION,
                 provider=self.cli_adapter,
                 priority=Priority.NORMAL,
-                handlers=comms_handlers
+                handlers=comms_handlers,
+                capabilities=["send_message", "receive_message"]
             ),
             ServiceRegistration(
                 service_type=ServiceType.TOOL,
                 provider=self.cli_tool_service,
                 priority=Priority.NORMAL,
-                handlers=["ToolHandler"]
+                handlers=["ToolHandler"],
+                capabilities=["execute_tool", "list_tools"]
             ),
             ServiceRegistration(
                 service_type=ServiceType.WISE_AUTHORITY,
                 provider=self.cli_wa_service,
                 priority=Priority.NORMAL,
-                handlers=["DeferHandler", "SpeakHandler"]
+                handlers=["DeferHandler", "SpeakHandler"],
+                capabilities=["defer_to_human", "provide_guidance"]
             ),
         ]
         logger.info(f"CliPlatform: Services to register: {[(reg.service_type.value, reg.handlers) for reg in registrations]}")
