@@ -7,6 +7,7 @@ from ciris_engine.protocols.adapter_interface import PlatformAdapter
 from .cirisnode_client import CIRISNodeClient
 from .local_audit_log import AuditService
 from .signed_audit_service import SignedAuditService
+from .tsdb_audit_service import TSDBSignedAuditService
 from .openai_compatible_llm import OpenAICompatibleLLM
 from .tool_registry import ToolRegistry
 
@@ -16,6 +17,7 @@ __all__ = [
     "CIRISNodeClient",
     "AuditService", 
     "SignedAuditService",
+    "TSDBSignedAuditService",
     "OpenAICompatibleLLM",
     "ToolRegistry"
 ]

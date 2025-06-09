@@ -14,6 +14,14 @@ from ciris_engine.adapters.api.api_adapter import (
     APIAuditService
 )
 from ciris_engine.adapters.api.api_observer import APIObserver # Handles incoming messages
+from ciris_engine.runtime.api.api_comms import APICommsRoutes
+from ciris_engine.runtime.api.api_memory import APIMemoryRoutes  
+from ciris_engine.runtime.api.api_tools import APIToolsRoutes
+from ciris_engine.runtime.api.api_audit import APIAuditRoutes
+from ciris_engine.runtime.api.api_logs import APILogsRoutes
+from ciris_engine.runtime.api.api_wa import APIWARoutes
+from ciris_engine.runtime.api.api_system import APISystemRoutes
+from ciris_engine.telemetry.comprehensive_collector import ComprehensiveTelemetryCollector
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +41,7 @@ class ApiPlatform(PlatformAdapter):
         self.app = web.Application()
         self.runner: Optional[web.AppRunner] = None
         self.site: Optional[web.TCPSite] = None
-        self._web_server_stopped_event = asyncio.Event()
+        self._web_server_stopped_event: Optional[asyncio.Event] = None
 
         self.api_observer = APIObserver(
             on_observe=self._default_observe_callback,
@@ -41,7 +49,19 @@ class ApiPlatform(PlatformAdapter):
             multi_service_sink=getattr(self.runtime, 'multi_service_sink', None),
             api_adapter=self.communication_service  # Use communication service for observer
         )
+        
+        # Initialize comprehensive telemetry collector
+        self.telemetry_collector = ComprehensiveTelemetryCollector(self.runtime)
+        
         self._setup_routes()
+
+    def _ensure_stop_event(self) -> None:
+        """Ensure stop event is created when needed in async context."""
+        if self._web_server_stopped_event is None:
+            try:
+                self._web_server_stopped_event = asyncio.Event()
+            except RuntimeError:
+                logger.warning("Cannot create stop event outside of async context")
 
     async def _default_observe_callback(self, data: Dict[str, Any]) -> None:
         logger.debug(f"ApiPlatform: Default observe callback received data: {data}")
@@ -65,8 +85,34 @@ class ApiPlatform(PlatformAdapter):
             logger.warning("ApiPlatform: multi_service_sink not available on runtime for observe callback.")
 
     def _setup_routes(self) -> None:
+        # Legacy route for backwards compatibility
         self.app.router.add_post("/api/v1/message", self._handle_incoming_api_message)
-        logger.info("ApiPlatform: Basic API routes set up. (/api/v1/message)")
+        
+        # Register comprehensive API routes
+        comms_routes = APICommsRoutes(self.api_observer, self.communication_service)
+        comms_routes.register(self.app)
+        
+        # Register other API route modules
+        memory_routes = APIMemoryRoutes(getattr(self.runtime, 'multi_service_sink', None))
+        memory_routes.register(self.app)
+        
+        tools_routes = APIToolsRoutes(getattr(self.runtime, 'multi_service_sink', None))
+        tools_routes.register(self.app)
+        
+        audit_routes = APIAuditRoutes(self.audit_service)
+        audit_routes.register(self.app)
+        
+        logs_routes = APILogsRoutes(getattr(self.runtime, 'multi_service_sink', None))
+        logs_routes.register(self.app)
+        
+        wa_routes = APIWARoutes(self.wa_service)
+        wa_routes.register(self.app)
+        
+        # Register system telemetry and control routes
+        system_routes = APISystemRoutes(self.telemetry_collector)
+        system_routes.register(self.app)
+        
+        logger.info("ApiPlatform: Comprehensive API routes registered (v1/messages, v1/memory, v1/tools, v1/audit, v1/logs, v1/wa, v1/system)")
 
     async def _handle_incoming_api_message(self, request: web.Request) -> web.Response:
         try:
@@ -128,18 +174,26 @@ class ApiPlatform(PlatformAdapter):
         self.site = web.TCPSite(self.runner, self.host, self.port)
         await self.site.start()
         logger.info(f"ApiPlatform: API server running on http://{self.host}:{self.port}")
-        self._web_server_stopped_event.clear()
+        
+        self._ensure_stop_event()
+        if self._web_server_stopped_event:
+            self._web_server_stopped_event.clear()
+
+        tasks_to_wait = [agent_run_task]
+        if self._web_server_stopped_event:
+            tasks_to_wait.append(asyncio.create_task(self._web_server_stopped_event.wait()))
 
         done, pending = await asyncio.wait(
-            [agent_run_task, self._web_server_stopped_event.wait()],
+            tasks_to_wait,
             return_when=asyncio.FIRST_COMPLETED
         )
 
-        if self._web_server_stopped_event.is_set():
+        if self._web_server_stopped_event and self._web_server_stopped_event.is_set():
             logger.info("ApiPlatform: Web server stop event received, lifecycle ending.")
         if agent_run_task in done:
             logger.info(f"ApiPlatform: Agent run task completed (Result: {agent_run_task.result() if not agent_run_task.cancelled() else 'Cancelled'}). Signalling web server shutdown.")
-            self._web_server_stopped_event.set()
+            if self._web_server_stopped_event:
+                self._web_server_stopped_event.set()
 
         for task in pending:
             task.cancel()
@@ -171,7 +225,8 @@ class ApiPlatform(PlatformAdapter):
 
     async def stop(self) -> None:
         logger.info("ApiPlatform: Stopping...")
-        self._web_server_stopped_event.set()
+        if self._web_server_stopped_event:
+            self._web_server_stopped_event.set()
 
         await self._shutdown_server_components()
 

@@ -108,10 +108,18 @@ class AgentProcessor(ProcessorInterface):
         
         # Processing control
         self.current_round_number = 0
-        self._stop_event = asyncio.Event()
+        self._stop_event: Optional[asyncio.Event] = None
         self._processing_task: Optional[asyncio.Task] = None
 
         logger.info("AgentProcessor initialized with v1 schemas and modular processors")
+
+    def _ensure_stop_event(self) -> None:
+        """Ensure stop event is created when needed in async context."""
+        if self._stop_event is None:
+            try:
+                self._stop_event = asyncio.Event()
+            except RuntimeError:
+                logger.warning("Cannot create stop event outside of async context")
 
     @property
     def action_dispatcher(self) -> "ActionDispatcher":
@@ -143,7 +151,9 @@ class AgentProcessor(ProcessorInterface):
             logger.warning("Processing is already running")
             return
         
-        self._stop_event.clear()
+        self._ensure_stop_event()
+        if self._stop_event:
+            self._stop_event.clear()
         logger.info(f"Starting agent processing (rounds: {num_rounds or 'infinite'})")
         
         if not self.state_manager.transition_to(AgentState.WAKEUP):
@@ -155,7 +165,7 @@ class AgentProcessor(ProcessorInterface):
         wakeup_complete = False
         wakeup_round = 0
         
-        while not wakeup_complete and not self._stop_event.is_set() and (num_rounds is None or self.current_round_number < num_rounds):
+        while not wakeup_complete and not (self._stop_event and self._stop_event.is_set()) and (num_rounds is None or self.current_round_number < num_rounds):
             logger.info(f"=== WAKEUP Round {wakeup_round} ===")
             
             wakeup_result = await self.wakeup_processor.process(wakeup_round)
@@ -203,7 +213,8 @@ class AgentProcessor(ProcessorInterface):
         except Exception as e:
             logger.error(f"Processing loop error: {e}", exc_info=True)
         finally:
-            self._stop_event.set()
+            if self._stop_event:
+                self._stop_event.set()
 
     async def _process_pending_thoughts_async(self) -> int:
         """
@@ -311,7 +322,8 @@ class AgentProcessor(ProcessorInterface):
             return
         
         logger.info("Stopping processing loop...")
-        self._stop_event.set()
+        if self._stop_event:
+            self._stop_event.set()
         
         if self.state_manager.get_state() == AgentState.DREAM:
             await self.dream_processor.stop_dreaming()
@@ -341,7 +353,7 @@ class AgentProcessor(ProcessorInterface):
         """Main processing loop with state management."""
         round_count = 0
         
-        while not self._stop_event.is_set():
+        while not (self._stop_event and self._stop_event.is_set()):
             if num_rounds is not None and round_count >= num_rounds:
                 logger.info(f"Reached target rounds ({num_rounds}), requesting graceful shutdown")
                 request_global_shutdown(f"Processing completed after {num_rounds} rounds")
@@ -408,10 +420,13 @@ class AgentProcessor(ProcessorInterface):
             elif current_state == AgentState.DREAM:
                 delay = 5.0  # Check dream state periodically
             
-            if delay > 0 and not self._stop_event.is_set():
+            if delay > 0 and not (self._stop_event and self._stop_event.is_set()):
                 try:
-                    await asyncio.wait_for(self._stop_event.wait(), timeout=delay)
-                    break  # Stop event was set
+                    if self._stop_event:
+                        await asyncio.wait_for(self._stop_event.wait(), timeout=delay)
+                        break  # Stop event was set
+                    else:
+                        await asyncio.sleep(delay)
                 except asyncio.TimeoutError:
                     pass  # Continue processing
         

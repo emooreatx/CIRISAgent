@@ -25,7 +25,23 @@ class ShutdownManager:
         self._shutdown_handlers: List[Callable[[], None]] = []
         self._async_shutdown_handlers: List[Callable[[], None]] = []
         self._lock = Lock()
-        self._shutdown_event = asyncio.Event() if asyncio._get_running_loop() else None
+        # Initialize as None, create event lazily when needed in async context
+        self._shutdown_event: Optional[asyncio.Event] = None
+        self._try_create_event()
+    
+    def _try_create_event(self) -> None:
+        """
+        Try to create an asyncio.Event if we're in an async context.
+        Fails silently if not in async context - event will be created later when needed.
+        """
+        try:
+            # Use get_running_loop() which raises RuntimeError if no loop is running
+            # This is safer than the private _get_running_loop()
+            asyncio.get_running_loop()
+            self._shutdown_event = asyncio.Event()
+        except RuntimeError:
+            # No running loop, will create event later when needed
+            self._shutdown_event = None
         
     def register_shutdown_handler(self, handler: Callable[[], None], is_async: bool = False) -> None:
         """
@@ -59,6 +75,10 @@ class ShutdownManager:
             self._shutdown_reason = reason
             
         logger.critical(f"GLOBAL SHUTDOWN REQUESTED: {reason}")
+        
+        # Try to create event if we don't have one and we're in async context
+        if not self._shutdown_event:
+            self._try_create_event()
         
         if self._shutdown_event:
             self._shutdown_event.set()
@@ -104,13 +124,15 @@ class ShutdownManager:
         """Wait for a shutdown request (async context only)."""
         if not self._shutdown_event:
             # Create event if we're now in async context
-            try:
-                self._shutdown_event = asyncio.Event()
-                if self._shutdown_requested:
-                    self._shutdown_event.set()
-            except RuntimeError:
-                logger.warning("Cannot create event outside of async context")
+            self._try_create_event()
+            
+            if not self._shutdown_event:
+                logger.warning("Cannot create shutdown event - not in async context")
                 return
+            
+            # If shutdown was already requested, set the event
+            if self._shutdown_requested:
+                self._shutdown_event.set()
         
         await self._shutdown_event.wait()
     

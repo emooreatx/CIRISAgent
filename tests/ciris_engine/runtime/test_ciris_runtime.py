@@ -228,6 +228,9 @@ class TestCIRISRuntime:
             app_config=mock_app_config
         )
         
+        # Initialize shutdown event
+        runtime._ensure_shutdown_event()
+        
         assert not runtime._shutdown_event.is_set()
         assert runtime._shutdown_reason is None
         

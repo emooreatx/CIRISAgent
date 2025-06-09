@@ -6,6 +6,7 @@ import instructor
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.registries.base import ServiceRegistry
 from .base_dma import BaseDMA
+from ciris_engine.protocols.dma_interface import EthicalDMAInterface
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult
 from ciris_engine.formatters import format_user_profiles, format_system_snapshot
 from ciris_engine.utils import COVENANT_TEXT
@@ -15,7 +16,7 @@ DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
 
 logger = logging.getLogger(__name__)
 
-class EthicalPDMAEvaluator(BaseDMA):
+class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
     """
     Evaluates a thought against core ethical principles using an LLM
     and returns a structured EthicalDMAResult using the 'instructor' library.
@@ -27,12 +28,15 @@ class EthicalPDMAEvaluator(BaseDMA):
         model_name: str = DEFAULT_OPENAI_MODEL_NAME,
         max_retries: int = 2,
         prompt_overrides: Optional[Dict[str, str]] = None,
+        **kwargs: Any
     ) -> None:
         super().__init__(
             service_registry=service_registry,
             model_name=model_name,
             max_retries=max_retries,
+            prompt_overrides=prompt_overrides,
             instructor_mode=instructor.Mode.JSON,
+            **kwargs
         )
         self.DEFAULT_PROMPT_TEMPLATE: Dict[str, str] = {
             "system_guidance_header": 
@@ -54,7 +58,7 @@ class EthicalPDMAEvaluator(BaseDMA):
         self.prompt_template = {**self.DEFAULT_PROMPT_TEMPLATE, **(prompt_overrides or {})}
         logger.info(f"EthicalPDMAEvaluator initialized with model: {self.model_name}")
 
-    async def evaluate(self, thought_item: ProcessingQueueItem, context: ThoughtContext) -> EthicalDMAResult:
+    async def evaluate(self, thought_item: ProcessingQueueItem, context: Optional[ThoughtContext] = None, **kwargs: Any) -> EthicalDMAResult:
         original_thought_content = str(thought_item.content)
         logger.debug(f"Evaluating thought ID {thought_item.thought_id}")
 

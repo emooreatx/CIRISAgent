@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from ciris_engine.persistence import get_db_connection
-from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
+from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +13,19 @@ def add_correlation(corr: ServiceCorrelation, db_path: Optional[str] = None) -> 
     sql = """
         INSERT INTO service_correlations (
             correlation_id, service_type, handler_name, action_type,
-            request_data, response_data, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            request_data, response_data, status, created_at, updated_at,
+            correlation_type, timestamp, metric_name, metric_value, log_level,
+            trace_id, span_id, parent_span_id, tags, retention_policy
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
+    # Convert timestamp to ISO string if it's a datetime object
+    timestamp_str = None
+    if corr.timestamp:
+        if isinstance(corr.timestamp, datetime):
+            timestamp_str = corr.timestamp.isoformat()
+        else:
+            timestamp_str = str(corr.timestamp)
+    
     params = (
         corr.correlation_id,
         corr.service_type,
@@ -26,6 +36,16 @@ def add_correlation(corr: ServiceCorrelation, db_path: Optional[str] = None) -> 
         corr.status.value,
         corr.created_at or datetime.now(timezone.utc).isoformat(),
         corr.updated_at or datetime.now(timezone.utc).isoformat(),
+        corr.correlation_type.value,
+        timestamp_str,
+        corr.metric_name,
+        corr.metric_value,
+        corr.log_level,
+        corr.trace_id,
+        corr.span_id,
+        corr.parent_span_id,
+        json.dumps(corr.tags) if corr.tags else None,
+        corr.retention_policy,
     )
     try:
         with get_db_connection(db_path=db_path) as conn:
@@ -72,6 +92,14 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
             cursor.execute(sql, (correlation_id,))
             row = cursor.fetchone()
             if row:
+                # Parse timestamp if present
+                timestamp = None
+                if row["timestamp"]:
+                    try:
+                        timestamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        timestamp = None
+                
                 return ServiceCorrelation(
                     correlation_id=row["correlation_id"],
                     service_type=row["service_type"],
@@ -82,6 +110,17 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                     status=ServiceCorrelationStatus(row["status"]),
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
+                    # New TSDB fields
+                    correlation_type=CorrelationType(row["correlation_type"] or "service_interaction"),
+                    timestamp=timestamp,
+                    metric_name=row["metric_name"],
+                    metric_value=row["metric_value"],
+                    log_level=row["log_level"],
+                    trace_id=row["trace_id"],
+                    span_id=row["span_id"],
+                    parent_span_id=row["parent_span_id"],
+                    tags=json.loads(row["tags"]) if row["tags"] else {},
+                    retention_policy=row["retention_policy"] or "raw",
                 )
             return None
     except Exception as e:
@@ -112,6 +151,14 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
             
             correlations = []
             for row in rows:
+                # Parse timestamp if present
+                timestamp = None
+                if row["timestamp"]:
+                    try:
+                        timestamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        timestamp = None
+                
                 correlations.append(ServiceCorrelation(
                     correlation_id=row["correlation_id"],
                     service_type=row["service_type"],
@@ -122,9 +169,171 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                     status=ServiceCorrelationStatus(row["status"]),
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
+                    # New TSDB fields
+                    correlation_type=CorrelationType(row["correlation_type"] or "service_interaction"),
+                    timestamp=timestamp,
+                    metric_name=row["metric_name"],
+                    metric_value=row["metric_value"],
+                    log_level=row["log_level"],
+                    trace_id=row["trace_id"],
+                    span_id=row["span_id"],
+                    parent_span_id=row["parent_span_id"],
+                    tags=json.loads(row["tags"]) if row["tags"] else {},
+                    retention_policy=row["retention_policy"] or "raw",
                 ))
             return correlations
     except Exception as e:
         logger.exception("Failed to fetch correlations for task %s and action %s: %s", task_id, action_type, e)
+        return []
+
+
+def get_correlations_by_type_and_time(
+    correlation_type: CorrelationType,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    metric_names: Optional[List[str]] = None,
+    log_levels: Optional[List[str]] = None,
+    limit: int = 1000,
+    db_path: Optional[str] = None
+) -> List[ServiceCorrelation]:
+    """Get correlations by type with optional time filtering for TSDB queries."""
+    sql = "SELECT * FROM service_correlations WHERE correlation_type = ?"
+    params = [correlation_type.value]
+    
+    if start_time:
+        sql += " AND timestamp >= ?"
+        params.append(start_time)
+    
+    if end_time:
+        sql += " AND timestamp <= ?"
+        params.append(end_time)
+    
+    if metric_names:
+        placeholders = ",".join("?" * len(metric_names))
+        sql += f" AND metric_name IN ({placeholders})"
+        params.extend(metric_names)
+    
+    if log_levels:
+        placeholders = ",".join("?" * len(log_levels))
+        sql += f" AND log_level IN ({placeholders})"
+        params.extend(log_levels)
+    
+    sql += " ORDER BY timestamp DESC LIMIT ?"
+    params.append(limit)
+    
+    try:
+        with get_db_connection(db_path=db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            
+            correlations = []
+            for row in rows:
+                timestamp = None
+                if row["timestamp"]:
+                    try:
+                        timestamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        timestamp = None
+                
+                correlations.append(ServiceCorrelation(
+                    correlation_id=row["correlation_id"],
+                    service_type=row["service_type"],
+                    handler_name=row["handler_name"],
+                    action_type=row["action_type"],
+                    request_data=json.loads(row["request_data"]) if row["request_data"] else None,
+                    response_data=json.loads(row["response_data"]) if row["response_data"] else None,
+                    status=ServiceCorrelationStatus(row["status"]),
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                    correlation_type=CorrelationType(row["correlation_type"] or "service_interaction"),
+                    timestamp=timestamp,
+                    metric_name=row["metric_name"],
+                    metric_value=row["metric_value"],
+                    log_level=row["log_level"],
+                    trace_id=row["trace_id"],
+                    span_id=row["span_id"],
+                    parent_span_id=row["parent_span_id"],
+                    tags=json.loads(row["tags"]) if row["tags"] else {},
+                    retention_policy=row["retention_policy"] or "raw",
+                ))
+            return correlations
+    except Exception as e:
+        logger.exception("Failed to fetch correlations by type %s: %s", correlation_type, e)
+        return []
+
+
+def get_metrics_timeseries(
+    metric_name: str,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    tags: Optional[Dict[str, str]] = None,
+    limit: int = 1000,
+    db_path: Optional[str] = None
+) -> List[ServiceCorrelation]:
+    """Get metric correlations as time series data."""
+    sql = """
+        SELECT * FROM service_correlations 
+        WHERE correlation_type = 'metric_datapoint' 
+        AND metric_name = ?
+    """
+    params = [metric_name]
+    
+    if start_time:
+        sql += " AND timestamp >= ?"
+        params.append(start_time)
+    
+    if end_time:
+        sql += " AND timestamp <= ?"
+        params.append(end_time)
+    
+    # Simple tag filtering - would need more sophisticated JSON querying for complex cases
+    if tags:
+        for key, value in tags.items():
+            sql += " AND json_extract(tags, ?) = ?"
+            params.extend([f"$.{key}", value])
+    
+    sql += " ORDER BY timestamp ASC LIMIT ?"
+    params.append(limit)
+    
+    try:
+        with get_db_connection(db_path=db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            
+            correlations = []
+            for row in rows:
+                timestamp = None
+                if row["timestamp"]:
+                    try:
+                        timestamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        timestamp = None
+                
+                correlations.append(ServiceCorrelation(
+                    correlation_id=row["correlation_id"],
+                    service_type=row["service_type"],
+                    handler_name=row["handler_name"],
+                    action_type=row["action_type"],
+                    request_data=json.loads(row["request_data"]) if row["request_data"] else None,
+                    response_data=json.loads(row["response_data"]) if row["response_data"] else None,
+                    status=ServiceCorrelationStatus(row["status"]),
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                    correlation_type=CorrelationType(row["correlation_type"] or "service_interaction"),
+                    timestamp=timestamp,
+                    metric_name=row["metric_name"],
+                    metric_value=row["metric_value"],
+                    log_level=row["log_level"],
+                    trace_id=row["trace_id"],
+                    span_id=row["span_id"],
+                    parent_span_id=row["parent_span_id"],
+                    tags=json.loads(row["tags"]) if row["tags"] else {},
+                    retention_policy=row["retention_policy"] or "raw",
+                ))
+            return correlations
+    except Exception as e:
+        logger.exception("Failed to fetch metrics timeseries for %s: %s", metric_name, e)
         return []
 

@@ -5,6 +5,7 @@ import instructor
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.registries.base import ServiceRegistry
 from .base_dma import BaseDMA
+from ciris_engine.protocols.dma_interface import CSDMAInterface
 from ciris_engine.schemas.dma_results_v1 import CSDMAResult
 from ciris_engine.config.config_manager import get_config
 from ciris_engine.formatters import (
@@ -38,7 +39,7 @@ Your response MUST be a single JSON object adhering to the provided schema, with
 
 """
 
-class CSDMAEvaluator(BaseDMA):
+class CSDMAEvaluator(BaseDMA, CSDMAInterface):
     """
     Evaluates a thought for common-sense plausibility using an LLM
     and returns a structured CSDMAResult using the 'instructor' library.
@@ -52,6 +53,7 @@ class CSDMAEvaluator(BaseDMA):
         environmental_kg: Optional[Any] = None,
         task_specific_kg: Optional[Any] = None,
         prompt_overrides: Optional[Dict[str, str]] = None,
+        **kwargs: Any
     ) -> None:
 
         app_config = get_config()
@@ -70,7 +72,9 @@ class CSDMAEvaluator(BaseDMA):
             service_registry=service_registry,
             model_name=resolved_model,
             max_retries=max_retries,
+            prompt_overrides=prompt_overrides,
             instructor_mode=instructor_mode,
+            **kwargs
         )
 
         self.prompt_overrides = prompt_overrides or {}
@@ -205,7 +209,7 @@ class CSDMAEvaluator(BaseDMA):
                 raw_llm_response=f"Exception: {str(e)}"
             )
 
-    async def evaluate(self, thought_item: ProcessingQueueItem) -> CSDMAResult:
+    async def evaluate(self, thought_item: ProcessingQueueItem, **kwargs: Any) -> CSDMAResult:
         """Alias for evaluate_thought to satisfy BaseDMA."""
         return await self.evaluate_thought(thought_item)
 

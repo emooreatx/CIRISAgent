@@ -4,11 +4,14 @@ import asyncio
 import logging
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
-from typing import Deque, Dict, Tuple, Any
+from typing import Deque, Dict, Tuple, Any, Optional
+from uuid import uuid4
 
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.telemetry_schemas_v1 import CompactTelemetry
 from ciris_engine.schemas.context_schemas_v1 import SystemSnapshot
+from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
+from ciris_engine.persistence.models.correlations import add_correlation
 from .security import SecurityFilter
 
 logger = logging.getLogger(__name__)
@@ -34,13 +37,59 @@ class TelemetryService(Service):
         await super().stop()
         logger.info("Telemetry service stopped")
 
-    async def record_metric(self, metric_name: str, value: float = 1.0) -> None:
+    async def record_metric(self, metric_name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None) -> None:
         sanitized = self._filter.sanitize(metric_name, value)
         if sanitized is None:
             logger.debug("Metric discarded by security filter: %s", metric_name)
             return
         name, val = sanitized
-        self._history[name].append((datetime.now(timezone.utc), float(val)))
+        
+        # Enhanced metric with tags and timestamp
+        timestamp = datetime.now(timezone.utc)
+        metric_entry = {
+            'timestamp': timestamp,
+            'value': float(val),
+            'tags': tags or {}
+        }
+        
+        # Store both simple format for backward compatibility and enhanced format
+        self._history[name].append((timestamp, float(val)))
+        
+        # Store enhanced metrics in separate history for TSDB capabilities
+        if not hasattr(self, '_enhanced_history'):
+            self._enhanced_history: Dict[str, Deque[Dict[str, Any]]] = defaultdict(
+                lambda: deque(maxlen=self.buffer_size)
+            )
+        
+        self._enhanced_history[name].append(metric_entry)
+        
+        # Store metric in TSDB as correlation
+        try:
+            metric_correlation = ServiceCorrelation(
+                correlation_id=str(uuid4()),
+                service_type="telemetry",
+                handler_name="telemetry_service",
+                action_type="record_metric",
+                correlation_type=CorrelationType.METRIC_DATAPOINT,
+                timestamp=timestamp,
+                metric_name=name,
+                metric_value=float(val),
+                tags=tags or {},
+                status=ServiceCorrelationStatus.COMPLETED,
+                retention_policy="raw"
+            )
+            
+            # Store asynchronously without blocking metric recording
+            asyncio.create_task(self._store_metric_correlation(metric_correlation))
+        except Exception as e:
+            logger.error(f"Failed to create metric correlation: {e}")
+
+    async def _store_metric_correlation(self, correlation: ServiceCorrelation) -> None:
+        """Store metric correlation in TSDB asynchronously."""
+        try:
+            add_correlation(correlation)
+        except Exception as e:
+            logger.error(f"Failed to store metric correlation in TSDB: {e}")
 
     async def update_system_snapshot(self, snapshot: SystemSnapshot) -> None:
         """Update SystemSnapshot.telemetry with recent metrics."""
