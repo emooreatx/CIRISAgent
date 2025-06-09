@@ -135,4 +135,4 @@ async def test_cli_runtime_shutdown_graceful(monkeypatch):
     await runtime.shutdown()
     
     # Runtime should be in shutdown state
-    assert runtime._shutdown_requested
+    assert runtime._shutdown_event.is_set()

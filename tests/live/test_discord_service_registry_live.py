@@ -36,4 +36,4 @@ async def test_discord_runtime_service_registry_live():
     for handler in expected_handlers:
         assert handler in handlers, f"{handler} missing in registry"
 
-    await runtime.stop()
+    await runtime.shutdown()

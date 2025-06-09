@@ -114,10 +114,13 @@ async def test_current_task_details_is_summary():
 
 
 @pytest.mark.asyncio
-async def test_app_config_channel_fallback():
+async def test_app_config_channel_fallback(monkeypatch):
     class DummyConfig:
         agent_mode = 'cli'
 
+    # Clear DISCORD_CHANNEL_ID env var to test app_config fallback
+    monkeypatch.delenv("DISCORD_CHANNEL_ID", raising=False)
+    
     builder = ContextBuilder(app_config=DummyConfig())
     thought = make_thought()
     ctx = await builder.build_thought_context(thought)
