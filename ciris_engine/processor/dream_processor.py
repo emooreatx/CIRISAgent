@@ -47,8 +47,16 @@ class DreamProcessor:
             "start_time": None,
             "end_time": None
         }
-        self._stop_event = asyncio.Event()
+        self._stop_event: Optional[asyncio.Event] = None
         self._dream_task: Optional[asyncio.Task] = None
+    
+    def _ensure_stop_event(self) -> None:
+        """Ensure stop event is created when needed in async context."""
+        if self._stop_event is None:
+            try:
+                self._stop_event = asyncio.Event()
+            except RuntimeError:
+                logger.warning("Cannot create stop event outside of async context")
     
     async def start_dreaming(self, duration: Optional[float] = None) -> None:
         """
@@ -61,7 +69,9 @@ class DreamProcessor:
             logger.warning("Dream cycle already running")
             return
         
-        self._stop_event.clear()
+        self._ensure_stop_event()
+        if self._stop_event:
+            self._stop_event.clear()
         self.dream_metrics["start_time"] = datetime.now(timezone.utc).isoformat()
         self.dream_metrics["total_dreams"] += 1
         
@@ -76,7 +86,8 @@ class DreamProcessor:
 
         if self._dream_task and not self._dream_task.done():
             logger.info("Stopping active dream cycle...")
-            self._stop_event.set()
+            if self._stop_event:
+                self._stop_event.set()
             
             try:
                 await asyncio.wait_for(self._dream_task, timeout=10.0)
@@ -118,7 +129,7 @@ class DreamProcessor:
             start_time = asyncio.get_event_loop().time()
             end_time = start_time + duration if duration else float('inf')
             
-            while not self._stop_event.is_set():
+            while not (self._stop_event and self._stop_event.is_set()):
                 if asyncio.get_event_loop().time() >= end_time:
                     logger.info(f"Dream duration ({duration}s) reached")
                     break
@@ -126,11 +137,14 @@ class DreamProcessor:
                 await self._dream_pulse()
                 
                 try:
-                    await asyncio.wait_for(
-                        self._stop_event.wait(),
-                        timeout=self.pulse_interval
-                    )
-                    break
+                    if self._stop_event:
+                        await asyncio.wait_for(
+                            self._stop_event.wait(),
+                            timeout=self.pulse_interval
+                        )
+                        break
+                    else:
+                        await asyncio.sleep(self.pulse_interval)
                 except asyncio.TimeoutError:
                     pass
             
@@ -139,7 +153,8 @@ class DreamProcessor:
         except Exception as e:
             logger.error(f"Error in dream loop: {e}", exc_info=True)
         finally:
-            self._stop_event.set()
+            if self._stop_event:
+                self._stop_event.set()
     
     async def _dream_pulse(self) -> None:
         """Execute a single dream pulse (snore)."""

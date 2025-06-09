@@ -1,6 +1,6 @@
 import asyncio
 import dataclasses
-from typing import List, Protocol, runtime_checkable
+from typing import Any, List, Protocol, runtime_checkable
 
 from ciris_engine.registries.base import Priority
 from ciris_engine.adapters.base import Service
@@ -26,7 +26,7 @@ class PlatformAdapter(Protocol):
     responsible for both inbound (listening) and outbound (acting) logic.
     """
 
-    def __init__(self, runtime: "CIRISRuntime", **kwargs) -> None:
+    def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
         """Initializes the adapter with a reference to the core runtime."""
         ...
 
@@ -38,7 +38,7 @@ class PlatformAdapter(Protocol):
         """Starts any inbound listeners and performs async setup."""
         ...
 
-    async def run_lifecycle(self, agent_run_task: asyncio.Task) -> None:
+    async def run_lifecycle(self, agent_run_task: asyncio.Task[Any]) -> None:
         """Manages the platform's main event loop concurrently with the agent task."""
         ...
 

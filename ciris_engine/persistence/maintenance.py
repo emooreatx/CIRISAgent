@@ -35,16 +35,26 @@ class DatabaseMaintenanceService:
         self.archive_older_than_hours = archive_older_than_hours
         self.valid_root_task_ids = {"WAKEUP_ROOT"}
         self._maintenance_task: Optional[asyncio.Task] = None
-        self._shutdown_event = asyncio.Event()
+        self._shutdown_event: Optional[asyncio.Event] = None
+
+    def _ensure_shutdown_event(self) -> None:
+        """Ensure shutdown event is created when needed in async context."""
+        if self._shutdown_event is None:
+            try:
+                self._shutdown_event = asyncio.Event()
+            except RuntimeError:
+                logger.warning("Cannot create shutdown event outside of async context")
 
     async def start(self) -> None:
         """Start the maintenance service with periodic tasks."""
         # If you have a parent class, call super().start()
+        self._ensure_shutdown_event()
         self._maintenance_task = asyncio.create_task(self._maintenance_loop())
 
     async def stop(self) -> None:
         """Properly stop the maintenance service."""
-        self._shutdown_event.set()
+        if self._shutdown_event:
+            self._shutdown_event.set()
         if self._maintenance_task:
             try:
                 await asyncio.wait_for(self._maintenance_task, timeout=5.0)
@@ -55,12 +65,15 @@ class DatabaseMaintenanceService:
 
     async def _maintenance_loop(self) -> None:
         """Periodic maintenance loop."""
-        while not self._shutdown_event.is_set():
+        while not (self._shutdown_event and self._shutdown_event.is_set()):
             try:
-                await asyncio.wait_for(
-                    self._shutdown_event.wait(),
-                    timeout=3600  # Run every hour
-                )
+                if self._shutdown_event:
+                    await asyncio.wait_for(
+                        self._shutdown_event.wait(),
+                        timeout=3600  # Run every hour
+                    )
+                else:
+                    await asyncio.sleep(3600)  # Run every hour
             except asyncio.TimeoutError:
                 await self._perform_periodic_maintenance()
 

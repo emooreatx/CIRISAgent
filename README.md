@@ -51,6 +51,8 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 
 ### 📊 Transparent Accountability
 - **[Telemetry System](ciris_engine/telemetry/README.md)**: Multi-tier metric collection with security filtering, resource monitoring, and agent self-awareness via SystemSnapshot
+- **[Time Series Database (TSDB)](FSD/TELEMETRY.md)**: Built-in TSDB for unified storage of metrics, logs, and audit events with time-based queries and cross-correlation analysis
+- **[API System](ciris_engine/adapters/api/README.md)**: Comprehensive HTTP REST API with real-time telemetry endpoints, processor control, and TSDB data access
 - **[Resource Management](ciris_engine/telemetry/README.md)**: Real-time monitoring with psutil integration, resource limit enforcement, and proactive throttling
 - **[Performance Monitoring](ciris_engine/telemetry/README.md)**: Sophisticated collector framework with instant, fast, normal, slow, and aggregate data collection tiers
 - **[Circuit Breaker Protection](ciris_engine/registries/README.md)**: Automatic service protection with graceful degradation and health monitoring

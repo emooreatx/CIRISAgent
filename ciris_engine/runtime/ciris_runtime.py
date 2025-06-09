@@ -113,11 +113,19 @@ class CIRISRuntime(RuntimeInterface):
         
         self.profile: Optional[AgentProfile] = None
         
-        self._shutdown_event = asyncio.Event()
+        self._shutdown_event: Optional[asyncio.Event] = None
         self._shutdown_reason: Optional[str] = None
         self._shutdown_manager = get_shutdown_manager()
         
         self._initialized = False
+    
+    def _ensure_shutdown_event(self) -> None:
+        """Ensure shutdown event is created when needed in async context."""
+        if self._shutdown_event is None:
+            try:
+                self._shutdown_event = asyncio.Event()
+            except RuntimeError:
+                logger.warning("Cannot create shutdown event outside of async context")
     
     def _ensure_config(self) -> AppConfig:
         """Ensure app_config is available, raise if not."""
@@ -127,13 +135,17 @@ class CIRISRuntime(RuntimeInterface):
     
     def request_shutdown(self, reason: str = "Shutdown requested") -> None:
         """Request a graceful shutdown of the runtime."""
-        if self._shutdown_event.is_set():
+        self._ensure_shutdown_event()
+        
+        if self._shutdown_event and self._shutdown_event.is_set():
             logger.debug(f"Shutdown already requested, ignoring duplicate request: {reason}")
             return
         
         logger.critical(f"RUNTIME SHUTDOWN REQUESTED: {reason}")
         self._shutdown_reason = reason
-        self._shutdown_event.set()
+        
+        if self._shutdown_event:
+            self._shutdown_event.set()
         
         self._shutdown_manager.request_shutdown(f"Runtime: {reason}")
 
@@ -604,14 +616,20 @@ class CIRISRuntime(RuntimeInterface):
             ]
             
             # Monitor agent_task, all adapter_tasks, and shutdown events
-            shutdown_event_task = asyncio.create_task(self._shutdown_event.wait(), name="ShutdownEventWait")
+            self._ensure_shutdown_event()
+            shutdown_event_task = None
+            if self._shutdown_event:
+                shutdown_event_task = asyncio.create_task(self._shutdown_event.wait(), name="ShutdownEventWait")
+            
             global_shutdown_task = asyncio.create_task(wait_for_global_shutdown(), name="GlobalShutdownWait")
-            all_tasks = [agent_task, *adapter_tasks, shutdown_event_task, global_shutdown_task]
+            all_tasks = [agent_task, *adapter_tasks, global_shutdown_task]
+            if shutdown_event_task:
+                all_tasks.append(shutdown_event_task)
             
             done, pending = await asyncio.wait(all_tasks, return_when=asyncio.FIRST_COMPLETED)
 
             # Handle task completion and cancellation logic
-            if self._shutdown_event.is_set() or is_global_shutdown_requested():
+            if (self._shutdown_event and self._shutdown_event.is_set()) or is_global_shutdown_requested():
                 shutdown_reason = self._shutdown_reason or self._shutdown_manager.get_shutdown_reason() or "Unknown reason"
                 logger.critical(f"GRACEFUL SHUTDOWN TRIGGERED: {shutdown_reason}")
                 # Ensure all other tasks are cancelled if a shutdown event occurred
@@ -644,7 +662,7 @@ class CIRISRuntime(RuntimeInterface):
                 await asyncio.wait(pending, return_when=asyncio.ALL_COMPLETED)
             
             # Execute any pending global shutdown handlers
-            if self._shutdown_event.is_set() or is_global_shutdown_requested():
+            if (self._shutdown_event and self._shutdown_event.is_set()) or is_global_shutdown_requested():
                 await self._shutdown_manager.execute_async_handlers()
 
         except KeyboardInterrupt:
@@ -662,7 +680,9 @@ class CIRISRuntime(RuntimeInterface):
         logger.info("Shutting down CIRIS Runtime...")
         
         logger.info("Initiating shutdown sequence for CIRIS Runtime...")
-        self._shutdown_event.set() # Ensure event is set for any waiting components
+        self._ensure_shutdown_event()
+        if self._shutdown_event:
+            self._shutdown_event.set() # Ensure event is set for any waiting components
 
         if self.agent_processor:
             logger.debug("Stopping agent processor...")

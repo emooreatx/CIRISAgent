@@ -77,7 +77,7 @@ CREATE INDEX IF NOT EXISTS idx_graph_edges_scope ON graph_edges(scope);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges(source_node_id);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges(target_node_id);
 
--- Service correlations table
+-- Service correlations table with TSDB capabilities
 CREATE TABLE IF NOT EXISTS service_correlations (
     correlation_id TEXT PRIMARY KEY,
     service_type TEXT NOT NULL,
@@ -87,10 +87,38 @@ CREATE TABLE IF NOT EXISTS service_correlations (
     response_data TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- TSDB fields for unified telemetry storage
+    correlation_type TEXT NOT NULL DEFAULT 'service_interaction',
+    timestamp TEXT, -- ISO8601 timestamp for time queries
+    metric_name TEXT, -- For metric correlations
+    metric_value REAL, -- For metric correlations
+    log_level TEXT, -- For log correlations
+    trace_id TEXT, -- For distributed tracing
+    span_id TEXT, -- For trace spans
+    parent_span_id TEXT, -- For trace hierarchy
+    tags TEXT, -- JSON object for flexible tagging
+    retention_policy TEXT NOT NULL DEFAULT 'raw' -- raw, hourly_summary, daily_summary
 );
+
+-- Core indexes
 CREATE INDEX IF NOT EXISTS idx_correlations_status ON service_correlations(status);
 CREATE INDEX IF NOT EXISTS idx_correlations_handler ON service_correlations(handler_name);
+
+-- TSDB indexes for efficient queries
+CREATE INDEX IF NOT EXISTS idx_correlations_type ON service_correlations(correlation_type);
+CREATE INDEX IF NOT EXISTS idx_correlations_timestamp ON service_correlations(timestamp);
+CREATE INDEX IF NOT EXISTS idx_correlations_metric_name ON service_correlations(metric_name);
+CREATE INDEX IF NOT EXISTS idx_correlations_log_level ON service_correlations(log_level);
+CREATE INDEX IF NOT EXISTS idx_correlations_trace_id ON service_correlations(trace_id);
+CREATE INDEX IF NOT EXISTS idx_correlations_span_id ON service_correlations(span_id);
+CREATE INDEX IF NOT EXISTS idx_correlations_retention ON service_correlations(retention_policy);
+
+-- Composite indexes for common TSDB query patterns
+CREATE INDEX IF NOT EXISTS idx_correlations_type_timestamp ON service_correlations(correlation_type, timestamp);
+CREATE INDEX IF NOT EXISTS idx_correlations_metric_timestamp ON service_correlations(metric_name, timestamp);
+CREATE INDEX IF NOT EXISTS idx_correlations_log_level_timestamp ON service_correlations(log_level, timestamp);
 
 -- Signed Audit Trail System (integrated from migration 003)
 -- Adds cryptographic integrity to audit logs with hash chaining and digital signatures

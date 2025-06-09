@@ -26,7 +26,15 @@ class BaseMultiServiceSink(ABC):
         self.fallback_channel_id = fallback_channel_id
         self._queue: asyncio.Queue[ActionMessage] = asyncio.Queue(maxsize=max_queue_size)
         self._processing = False
-        self._stop_event = asyncio.Event()
+        self._stop_event: Optional[asyncio.Event] = None
+
+    def _ensure_stop_event(self) -> None:
+        """Ensure stop event is created when needed in async context."""
+        if self._stop_event is None:
+            try:
+                self._stop_event = asyncio.Event()
+            except RuntimeError:
+                logger.warning("Cannot create stop event outside of async context")
 
     @property
     @abstractmethod
@@ -52,21 +60,28 @@ class BaseMultiServiceSink(ABC):
 
     async def start(self) -> None:
         self._processing = True
-        self._stop_event.clear()
+        self._ensure_stop_event()
+        if self._stop_event:
+            self._stop_event.clear()
         await self._start_processing()
 
     async def stop(self) -> None:
         self._processing = False
-        self._stop_event.set()
+        if self._stop_event:
+            self._stop_event.set()
 
     async def _start_processing(self) -> None:
         logger.info(f"Starting {self.__class__.__name__} processing")
         while self._processing and not is_global_shutdown_requested():
             try:
                 action_task = asyncio.create_task(self._queue.get())
-                stop_task = asyncio.create_task(self._stop_event.wait())
+                tasks_to_wait = [action_task]
+                if self._stop_event:
+                    stop_task = asyncio.create_task(self._stop_event.wait())
+                    tasks_to_wait.append(stop_task)
+                
                 done, pending = await asyncio.wait(
-                    [action_task, stop_task],
+                    tasks_to_wait,
                     return_when=asyncio.FIRST_COMPLETED,
                     timeout=1.0
                 )
@@ -76,7 +91,8 @@ class BaseMultiServiceSink(ABC):
                         await task
                     except asyncio.CancelledError:
                         pass
-                if stop_task in done:
+                # Check if stop task is in done (only if we created a stop task)
+                if self._stop_event and len(tasks_to_wait) > 1 and tasks_to_wait[1] in done:
                     logger.info(f"Stop event received for {self.__class__.__name__}")
                     break
                 if action_task in done:

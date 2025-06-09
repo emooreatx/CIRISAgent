@@ -3,10 +3,14 @@ import logging
 from aiohttp import web
 from pathlib import Path
 import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 class APILogsRoutes:
+    def __init__(self, multi_service_sink: Any = None) -> None:
+        self.multi_service_sink = multi_service_sink
+        
     def register(self, app: web.Application) -> None:
         app.router.add_get('/v1/logs/{filename}', self._handle_logs)
 

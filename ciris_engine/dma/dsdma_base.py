@@ -8,6 +8,7 @@ from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import DSDMAResult
 from ciris_engine.registries.base import ServiceRegistry
 from .base_dma import BaseDMA
+from ciris_engine.protocols.dma_interface import DSDMAInterface
 from ciris_engine.formatters import (
     format_user_profiles,
     format_system_snapshot,
@@ -21,7 +22,7 @@ from ciris_engine.config.config_manager import get_config
 
 logger = logging.getLogger(__name__)
 
-class BaseDSDMA(BaseDMA):
+class BaseDSDMA(BaseDMA, DSDMAInterface):
     """
     Abstract Base Class for Domain-Specific Decision-Making Algorithms.
     Handles instructor client patching based on global config.
@@ -42,7 +43,8 @@ class BaseDSDMA(BaseDMA):
                  service_registry: ServiceRegistry,
                  model_name: Optional[str] = None,
                  domain_specific_knowledge: Optional[Dict[str, Any]] = None,
-                 prompt_template: Optional[str] = None) -> None:
+                 prompt_template: Optional[str] = None,
+                 **kwargs: Any) -> None:
         
         app_config = get_config()
         resolved_model = model_name or app_config.llm_services.openai.model_name
@@ -61,6 +63,7 @@ class BaseDSDMA(BaseDMA):
             model_name=resolved_model,
             max_retries=2,
             instructor_mode=instructor_mode,
+            **kwargs
         )
 
         self.domain_name = domain_name
@@ -213,10 +216,11 @@ class BaseDSDMA(BaseDMA):
             )
 
     async def evaluate(
-        self, thought_item: ProcessingQueueItem, current_context: Dict[str, Any]
+        self, thought_item: ProcessingQueueItem, current_context: Optional[Dict[str, Any]] = None, **kwargs: Any
     ) -> DSDMAResult:
         """Alias for evaluate_thought to satisfy BaseDMA."""
-        return await self.evaluate_thought(thought_item, current_context)
+        context = current_context or {}
+        return await self.evaluate_thought(thought_item, context)
 
     def __repr__(self) -> str:
         return f"<BaseDSDMA domain='{self.domain_name}'>"

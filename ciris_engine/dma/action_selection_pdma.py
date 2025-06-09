@@ -35,6 +35,8 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
 from ciris_engine.schemas.config_schemas_v1 import DEFAULT_OPENAI_MODEL_NAME
 from ciris_engine.registries.base import ServiceRegistry
 from .base_dma import BaseDMA
+from ciris_engine.protocols.dma_interface import ActionSelectionDMAInterface
+from ciris_engine.protocols.faculties import EpistemicFaculty
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
 from ciris_engine.utils import COVENANT_TEXT
@@ -54,7 +56,7 @@ DEFAULT_TEMPLATE = """{system_header}
 {closing_reminder}"""
 
 
-class ActionSelectionPDMAEvaluator(BaseDMA):
+class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
     """
     The second PDMA in the sequence. It takes the original thought and the outputs
     of the Ethical PDMA, CSDMA, and DSDMA, then performs a PDMA process
@@ -73,8 +75,10 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
         model_name: str = DEFAULT_OPENAI_MODEL_NAME,
         max_retries: int = 2,
         prompt_overrides: Optional[Dict[str, str]] = None,
+        faculties: Optional[Dict[str, EpistemicFaculty]] = None,
         *,
         instructor_mode: instructor.Mode = instructor.Mode.JSON,
+        **kwargs: Any
     ) -> None:
         """
         Initialize ActionSelectionPDMAEvaluator.
@@ -89,7 +93,10 @@ class ActionSelectionPDMAEvaluator(BaseDMA):
             service_registry=service_registry,
             model_name=model_name,
             max_retries=max_retries,
+            prompt_overrides=prompt_overrides,
+            faculties=faculties,
             instructor_mode=instructor_mode,
+            **kwargs
         )
         self.prompt = {**self.DEFAULT_PROMPT, **(prompt_overrides or {})}
 
@@ -360,7 +367,12 @@ Adhere strictly to the schema for your JSON output.
             )
         return main_user_content_prompt
 
-    async def evaluate(self, triaged_inputs: Dict[str, Any]) -> ActionSelectionResult:
+    async def evaluate(
+        self, 
+        triaged_inputs: Dict[str, Any],
+        enable_recursive_evaluation: bool = False,
+        **kwargs: Any
+    ) -> ActionSelectionResult:
         original_thought: Thought = triaged_inputs[
             "original_thought"
         ]  # For logging & post-processing
@@ -658,6 +670,79 @@ Adhere strictly to the schema for your JSON output.
                 rationale=f"Fallback due to General Exception: {str(e)}",
                 raw_llm_response=f"Exception: {str(e)}",
             )
+    
+    async def recursive_evaluate_with_faculties(
+        self,
+        triaged_inputs: Dict[str, Any],
+        guardrail_failure_context: Dict[str, Any]
+    ) -> ActionSelectionResult:
+        """Perform recursive evaluation using epistemic faculties.
+        
+        Called when guardrails fail and recursive evaluation is enabled.
+        Uses faculties to provide additional insight before action selection.
+        
+        Args:
+            triaged_inputs: Combined inputs from previous DMAs
+            guardrail_failure_context: Context about the guardrail failure
+            
+        Returns:
+            ActionSelectionResult with faculty-enhanced reasoning
+        """
+        original_thought: Thought = triaged_inputs["original_thought"]
+        
+        logger.info(f"Starting recursive evaluation with faculties for thought {original_thought.thought_id}")
+        
+        # Apply faculties to the problematic content
+        faculty_results = {}
+        if self.faculties:
+            faculty_results = await self.apply_faculties(
+                content=str(original_thought.content),
+                context={
+                    **guardrail_failure_context,
+                    "evaluation_context": "recursive_guardrail_failure"
+                }
+            )
+            logger.debug(f"Faculty evaluation results: {faculty_results}")
+        
+        # Enhance the user content with faculty insights
+        faculty_insights_str = ""
+        if faculty_results:
+            faculty_insights_str = "\n\nEPISTEMIC FACULTY INSIGHTS:\n"
+            for faculty_name, result in faculty_results.items():
+                faculty_insights_str += f"- {faculty_name}: {result}\n"
+            faculty_insights_str += "\nConsider these faculty evaluations in your decision-making process.\n"
+        
+        # Add faculty insights to triaged inputs
+        enhanced_inputs = {
+            **triaged_inputs,
+            "faculty_evaluations": faculty_results,
+            "guardrail_context": guardrail_failure_context,
+            "recursive_evaluation": True
+        }
+        
+        # Override the main user content preparation to include faculty insights
+        original_prepare_method = self._prepare_main_user_content
+        
+        def enhanced_prepare_main_user_content(inputs: Dict[str, Any]) -> str:
+            original_content = original_prepare_method(inputs)
+            return original_content + faculty_insights_str
+        
+        # Temporarily replace the method
+        self._prepare_main_user_content = enhanced_prepare_main_user_content
+        
+        try:
+            # Perform enhanced evaluation with faculty insights
+            result = await self.evaluate(enhanced_inputs, enable_recursive_evaluation=False)
+            
+            # Add metadata about recursive evaluation
+            result.rationale += f"\n\nNote: This decision was made through recursive evaluation with epistemic faculties due to guardrail failure. Faculty insights were incorporated into the reasoning process."
+            
+            logger.info(f"Recursive evaluation completed for thought {original_thought.thought_id}: {result.selected_action.value}")
+            return result
+            
+        finally:
+            # Restore original method
+            self._prepare_main_user_content = original_prepare_method
 
     def _is_wakeup_task(self, task_id: str) -> bool:
         """

@@ -24,6 +24,7 @@ from .collectors import (
     CollectorManager,
     MetricData
 )
+from .log_collector import LogCorrelationCollector, TSDBLogHandler
 
 __all__ = [
     "ResourceMonitor",
@@ -38,4 +39,6 @@ __all__ = [
     "AggregateCollector",
     "CollectorManager",
     "MetricData",
+    "LogCorrelationCollector",
+    "TSDBLogHandler",
 ]
