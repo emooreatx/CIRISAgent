@@ -106,14 +106,36 @@ class DiscordPlatform(PlatformAdapter):
 
         try:
             self._discord_client_task = asyncio.create_task(self.client.start(self.token), name="DiscordClientTask")
-            logger.info("DiscordPlatform: Discord client start initiated. Waiting for client to be ready...")
-            await self.client.wait_until_ready()
-            logger.info(f"DiscordPlatform: Discord client ready! Logged in as: {self.client.user}")
-
+            logger.info("DiscordPlatform: Discord client start initiated.")
+            
+            # Wait for either the Discord client to be ready or the agent task to complete
+            ready_task = asyncio.create_task(self.client.wait_until_ready(), name="DiscordReadyWait")
+            
             done, pending = await asyncio.wait(
-                [agent_run_task, self._discord_client_task],
+                [agent_run_task, self._discord_client_task, ready_task],
                 return_when=asyncio.FIRST_COMPLETED
             )
+            
+            # Check if Discord client is ready
+            if ready_task in done and not ready_task.exception():
+                logger.info(f"DiscordPlatform: Discord client ready! Logged in as: {self.client.user}")
+                # Cancel the ready task since we've confirmed it's ready
+                if not ready_task.done():
+                    ready_task.cancel()
+                
+                # Now wait for either agent completion or Discord client failure
+                done, pending = await asyncio.wait(
+                    [agent_run_task, self._discord_client_task],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+            elif ready_task in done and ready_task.exception():
+                logger.error(f"DiscordPlatform: Discord client failed to become ready: {ready_task.exception()}")
+                # Cancel other tasks since Discord failed to initialize
+                for task in pending:
+                    task.cancel()
+                if not agent_run_task.done():
+                    agent_run_task.cancel()
+                return
 
             for task in pending:
                 task.cancel()
