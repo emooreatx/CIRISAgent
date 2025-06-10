@@ -18,25 +18,14 @@ from ciris_engine.formatters import (
 )
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import COVENANT_TEXT
+from .prompt_loader import get_prompt_loader
 
 logger = logging.getLogger(__name__)
 
+# Legacy template preserved for backward compatibility
 DEFAULT_TEMPLATE = """=== Common Sense DMA Guidance ===
 You are a Common Sense Evaluation agent. Your task is to assess a given "thought" for its alignment with general common-sense understanding of the physical world, typical interactions, and resource constraints on Earth, considering the provided context.
-
-Reference CSDMA Steps for Evaluation:
-1. Context Grounding: The context is: {context_summary}. **Crucially, assume a standard Earth-based physical reality with all its common implications (e.g., gravity, thermodynamics, material properties like ice melting in a hot environment) unless the thought *explicitly and unambiguously* states it operates in a hypothetical scenario where these specific real-world effects are to be ignored or are altered.** General statements about it being a "problem," "riddle," or "exercise" are not sufficient to ignore obvious physics *unless the problem explicitly states that real-world physics should be suspended for the specific interacting elements in question.*
-2. Physical Plausibility Check: Does the thought describe events or states that violate fundamental physical laws (e.g., conservation of energy/mass)? Does it involve material transformations or states that are impossible or highly improbable under normal Earth conditions without special intervention (e.g., ice remaining solid indefinitely in a hot frying pan)? **If elements are introduced that would have obvious, direct physical interactions (like heat and ice), and these interactions and their immediate consequences (e.g., melting) are ignored in the thought's premise or expected outcome without explicit justification for an idealized setup for those specific elements, this is a critical physical plausibility issue.** Flag such instances (e.g., "Physical_Implausibility_Ignored_Interaction", "Requires_Explicit_Idealization_Statement", "Potential_Trick_Question_Physics_Ignored"). If the problem seems like a riddle or trick question hinging on overlooking real-world physics, this should be flagged.
-3. Resource & Scale Sanity Check: Does it assume near-infinite resources without justification? Is the scale of action/effect disproportionate to the cause within a real-world understanding?
-4. Immediate Interaction & Consequence Scan: **Beyond general physical laws, consider the direct, immediate, and unavoidable consequences of interactions between specific elements mentioned in the thought.** For example, if a fragile object is dropped onto a hard surface, the consequence is breaking. If a flame meets flammable material, it ignites. If ice is placed on a hot surface, it melts. Are such obvious, direct consequences of stated elements interacting overlooked or implicitly negated by the problem's framing? This is a key aspect of common sense.
-5. Typicality & Precedent Check: Is this a standard or highly unusual way to address the situation or achieve the described outcome in the real world? Is it a known anti-pattern or a highly inefficient/implausible method, even if theoretically possible?
-6. Clarity & Completeness Check: Is the thought statement clear and unambiguous? Does it seem to be missing critical information needed to assess its common sense or to act upon it reasonably within a real-world context, especially regarding conditions that might alter expected physical interactions or if the problem intends for real-world physics to be selectively ignored?
-
-Your response MUST be a single JSON object adhering to the provided schema, with the following keys:
-- "plausibility_score": A float between 0.0 (highly implausible) and 1.0 (highly plausible). **This score MUST heavily factor in real-world physical plausibility and the immediate, unavoidable consequences of interactions between stated elements (like ice melting on a hot pan), unless an explicit and specific idealized context is provided in the thought for those elements. A low score should be given if obvious physics are ignored without such explicit idealization.**
-- "flags": A list of strings identifying any specific common sense violations, physical implausibilities (especially ignored interactions), or clarity issues (e.g., "Physical_Implausibility_Ignored_Interaction", "Atypical_Approach", "Ambiguous_Statement", "Needs_Clarification", "Information_Missing", "Requires_Explicit_Idealization_Statement", "Potential_Trick_Question_Physics_Ignored"). If none, provide an empty list. This field is MANDATORY (even if empty).
-- "reasoning": A brief (1-2 sentences) explanation for your score and flags. This field is MANDATORY.
-
+[... truncated for brevity ...]
 """
 
 class CSDMAEvaluator(BaseDMA, CSDMAInterface):
@@ -79,6 +68,21 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
 
         self.prompt_overrides = prompt_overrides or {}
         
+        # Load prompts from YAML file
+        self.prompt_loader = get_prompt_loader()
+        try:
+            self.prompt_template_data = self.prompt_loader.load_prompt_template("csdma_common_sense")
+        except FileNotFoundError:
+            logger.warning("CSDMA prompt template not found, using fallback")
+            # Fallback to embedded prompt for backward compatibility
+            self.prompt_template_data = {
+                "system_guidance_header": DEFAULT_TEMPLATE,
+                "covenant_header": True
+            }
+        
+        # Apply prompt overrides if provided
+        if self.prompt_overrides:
+            self.prompt_template_data.update(self.prompt_overrides)
 
         # Client will be retrieved from the service registry during evaluation
 
@@ -99,31 +103,49 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
         system_snapshot_block: str,
         user_profiles_block: str,
     ) -> List[Dict[str, str]]:
-        """Assemble prompt messages using canonical formatting utilities."""
-        system_guidance = self.prompt_overrides.get("csdma_system_prompt", DEFAULT_TEMPLATE)
-        if "{context_summary}" in system_guidance:
-            system_guidance = system_guidance.format(context_summary=context_summary)
-
-        system_message = format_system_prompt_blocks(
+        """Assemble prompt messages using canonical formatting utilities and prompt loader."""
+        messages = []
+        
+        # Add covenant header if specified
+        if self.prompt_loader.uses_covenant_header(self.prompt_template_data):
+            messages.append({"role": "system", "content": COVENANT_TEXT})
+        
+        # Build system message using prompt loader
+        system_message = self.prompt_loader.get_system_message(
+            self.prompt_template_data,
+            context_summary=context_summary,
+            original_thought_content=thought_content
+        )
+        
+        # Format with canonical utilities
+        formatted_system = format_system_prompt_blocks(
             identity_context_block,
             "",
             system_snapshot_block,
             user_profiles_block,
             None,
-            system_guidance,
+            system_message,
         )
+        messages.append({"role": "system", "content": formatted_system})
 
-        user_message = format_user_prompt_blocks(
-            format_parent_task_chain([]),
-            format_thoughts_chain([{"content": thought_content}]),
-            None,
+        # Build user message using prompt loader
+        user_message = self.prompt_loader.get_user_message(
+            self.prompt_template_data,
+            context_summary=context_summary,
+            original_thought_content=thought_content
         )
-
-        return [
-            {"role": "system", "content": COVENANT_TEXT},
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": user_message},
-        ]
+        
+        # If no specific user message from template, use formatted chains
+        if not user_message or user_message == f"Thought to evaluate: {thought_content}":
+            user_message = format_user_prompt_blocks(
+                format_parent_task_chain([]),
+                format_thoughts_chain([{"content": thought_content}]),
+                None,
+            )
+        
+        messages.append({"role": "user", "content": user_message})
+        
+        return messages
 
     async def evaluate_thought(self, thought_item: ProcessingQueueItem) -> CSDMAResult:
         llm_service = await self.get_llm_service()

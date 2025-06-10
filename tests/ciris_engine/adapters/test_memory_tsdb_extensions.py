@@ -69,27 +69,39 @@ class TestMemoryTSDBExtensions:
     @pytest.mark.asyncio 
     async def test_recall_timeseries_with_mock_data(self, memory_service):
         """Test recall_timeseries with mocked correlation data"""
-        # Mock the correlation query function
+        from datetime import datetime, timezone
+        from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, CorrelationType, ServiceCorrelationStatus
+        
+        # Mock the correlation query function with proper ServiceCorrelation objects
         mock_correlations = [
-            {
-                'correlation_id': 'test-123',
-                'timestamp': '2024-06-09T10:00:00Z',
-                'correlation_type': 'METRIC_DATAPOINT',
-                'metric_name': 'test_metric',
-                'metric_value': 42.5,
-                'tags': '{"scope": "local", "source": "test"}',
-                'request_data': None,
-                'response_data': None
-            },
-            {
-                'correlation_id': 'test-456',
-                'timestamp': '2024-06-09T10:15:00Z',
-                'correlation_type': 'LOG_ENTRY',
-                'log_level': 'INFO',
-                'tags': '{"scope": "local", "message": "Test log"}',
-                'request_data': '{"message": "Test log", "log_level": "INFO"}',
-                'response_data': None
-            }
+            ServiceCorrelation(
+                correlation_id='test-123',
+                service_type='test_service',
+                handler_name='test_handler',
+                action_type='test_action',
+                timestamp=datetime(2024, 6, 9, 10, 0, 0, tzinfo=timezone.utc),
+                correlation_type=CorrelationType.METRIC_DATAPOINT,
+                metric_name='test_metric',
+                metric_value=42.5,
+                tags={"scope": "local", "source": "test"},
+                status=ServiceCorrelationStatus.COMPLETED,
+                created_at='2024-06-09T10:00:00Z',
+                updated_at='2024-06-09T10:00:00Z'
+            ),
+            ServiceCorrelation(
+                correlation_id='test-456',
+                service_type='test_service',
+                handler_name='test_handler',
+                action_type='test_action',
+                timestamp=datetime(2024, 6, 9, 10, 15, 0, tzinfo=timezone.utc),
+                correlation_type=CorrelationType.LOG_ENTRY,
+                log_level='INFO',
+                tags={"scope": "local", "message": "Test log"},
+                request_data={"message": "Test log", "log_level": "INFO"},
+                status=ServiceCorrelationStatus.COMPLETED,
+                created_at='2024-06-09T10:15:00Z',
+                updated_at='2024-06-09T10:15:00Z'
+            )
         ]
         
         with patch('ciris_engine.persistence.models.correlations.get_correlations_by_type_and_time') as mock_query:
@@ -105,23 +117,38 @@ class TestMemoryTSDBExtensions:
     @pytest.mark.asyncio
     async def test_recall_timeseries_with_scope_filtering(self, memory_service):
         """Test recall_timeseries with scope filtering"""
+        from datetime import datetime, timezone
+        from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, CorrelationType, ServiceCorrelationStatus
+        
         mock_correlations = [
-            {
-                'correlation_id': 'test-123',
-                'timestamp': '2024-06-09T10:00:00Z',
-                'correlation_type': 'METRIC_DATAPOINT',
-                'metric_name': 'test_metric',
-                'metric_value': 42.5,
-                'tags': '{"scope": "local"}',
-            },
-            {
-                'correlation_id': 'test-456', 
-                'timestamp': '2024-06-09T10:15:00Z',
-                'correlation_type': 'METRIC_DATAPOINT',
-                'metric_name': 'other_metric',
-                'metric_value': 100.0,
-                'tags': '{"scope": "global"}',
-            }
+            ServiceCorrelation(
+                correlation_id='test-123',
+                service_type='test_service',
+                handler_name='test_handler',
+                action_type='test_action',
+                timestamp=datetime(2024, 6, 9, 10, 0, 0, tzinfo=timezone.utc),
+                correlation_type=CorrelationType.METRIC_DATAPOINT,
+                metric_name='test_metric',
+                metric_value=42.5,
+                tags={"scope": "local"},
+                status=ServiceCorrelationStatus.COMPLETED,
+                created_at='2024-06-09T10:00:00Z',
+                updated_at='2024-06-09T10:00:00Z'
+            ),
+            ServiceCorrelation(
+                correlation_id='test-456',
+                service_type='test_service',
+                handler_name='test_handler',
+                action_type='test_action',
+                timestamp=datetime(2024, 6, 9, 10, 15, 0, tzinfo=timezone.utc),
+                correlation_type=CorrelationType.METRIC_DATAPOINT,
+                metric_name='other_metric',
+                metric_value=100.0,
+                tags={"scope": "global"},
+                status=ServiceCorrelationStatus.COMPLETED,
+                created_at='2024-06-09T10:15:00Z',
+                updated_at='2024-06-09T10:15:00Z'
+            )
         ]
         
         with patch('ciris_engine.persistence.models.correlations.get_correlations_by_type_and_time') as mock_query:
@@ -153,6 +180,7 @@ class TestMemoryTSDBExtensions:
     @pytest.mark.asyncio
     async def test_recall_timeseries_time_window(self, memory_service):
         """Test recall_timeseries with custom time window"""
+        from datetime import datetime
         with patch('ciris_engine.persistence.models.correlations.get_correlations_by_type_and_time') as mock_query:
             mock_query.return_value = []
             
@@ -161,8 +189,12 @@ class TestMemoryTSDBExtensions:
             
             # Verify the time window was calculated correctly
             call_args = mock_query.call_args[1]
-            start_time = call_args['start_time']
-            end_time = call_args['end_time']
+            start_time_str = call_args['start_time']
+            end_time_str = call_args['end_time']
+            
+            # Convert ISO strings back to datetime objects for comparison
+            start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+            end_time = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
             
             time_diff = end_time - start_time
             assert abs(time_diff.total_seconds() - (48 * 3600)) < 60  # Within 1 minute tolerance
@@ -253,15 +285,24 @@ class TestMemoryTSDBExtensions:
     @pytest.mark.asyncio
     async def test_recall_timeseries_json_tag_parsing(self, memory_service):
         """Test that recall_timeseries correctly parses JSON tags"""
+        from datetime import datetime, timezone
+        from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, CorrelationType, ServiceCorrelationStatus
+        
         mock_correlations = [
-            {
-                'correlation_id': 'test-123',
-                'timestamp': '2024-06-09T10:00:00Z',
-                'correlation_type': 'METRIC_DATAPOINT',
-                'metric_name': 'test_metric',
-                'metric_value': 42.5,
-                'tags': '{"scope": "local", "environment": "test"}',  # JSON string
-            }
+            ServiceCorrelation(
+                correlation_id='test-123',
+                service_type='test_service',
+                handler_name='test_handler',
+                action_type='test_action',
+                timestamp=datetime(2024, 6, 9, 10, 0, 0, tzinfo=timezone.utc),
+                correlation_type=CorrelationType.METRIC_DATAPOINT,
+                metric_name='test_metric',
+                metric_value=42.5,
+                tags={"scope": "local", "environment": "test"},  # Already parsed dict
+                status=ServiceCorrelationStatus.COMPLETED,
+                created_at='2024-06-09T10:00:00Z',
+                updated_at='2024-06-09T10:00:00Z'
+            )
         ]
         
         with patch('ciris_engine.persistence.models.correlations.get_correlations_by_type_and_time') as mock_query:

@@ -19,6 +19,7 @@ from ciris_engine.utils import COVENANT_TEXT
 from pydantic import BaseModel, Field
 from instructor.exceptions import InstructorRetryException
 from ciris_engine.config.config_manager import get_config
+from .prompt_loader import get_prompt_loader
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,21 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
 
         self.domain_name = domain_name
         self.domain_specific_knowledge = domain_specific_knowledge if domain_specific_knowledge else {}
-        self.prompt_template = prompt_template if prompt_template is not None else (self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE is not None else "")
+        
+        # Load prompts from YAML file
+        self.prompt_loader = get_prompt_loader()
+        try:
+            self.prompt_template_data = self.prompt_loader.load_prompt_template("dsdma_base")
+        except FileNotFoundError:
+            logger.warning(f"DSDMA base prompt template not found for domain '{domain_name}', using fallback")
+            # Fallback to embedded prompt for backward compatibility
+            self.prompt_template_data = {
+                "system_guidance_header": self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE else "",
+                "covenant_header": True
+            }
+        
+        # Legacy prompt_template support
+        self.prompt_template = prompt_template if prompt_template is not None else self.prompt_template_data.get("system_guidance_header", "")
 
         logger.info(
             f"BaseDSDMA '{self.domain_name}' initialized with model: {self.model_name}, instructor_mode: {self.instructor_mode.name}"

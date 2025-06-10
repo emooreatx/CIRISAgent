@@ -499,4 +499,76 @@ class AgentProcessor(ProcessorInterface):
         for state, processor in self.state_processors.items():
             status["processor_metrics"][state.value] = processor.get_metrics()
         
+        # Add detailed queue status
+        status["queue_status"] = self._get_detailed_queue_status()
+        
         return status
+    
+    def _get_detailed_queue_status(self) -> Dict[str, Any]:
+        """Get detailed processing queue status information."""
+        try:
+            # Get thought counts by status
+            from ciris_engine import persistence
+            from ciris_engine.schemas.agent_core_schemas_v1 import ThoughtStatus
+            
+            pending_count = persistence.count_thoughts_by_status(ThoughtStatus.PENDING)
+            processing_count = persistence.count_thoughts_by_status(ThoughtStatus.PROCESSING)
+            completed_count = persistence.count_thoughts_by_status(ThoughtStatus.COMPLETED)
+            failed_count = persistence.count_thoughts_by_status(ThoughtStatus.FAILED)
+            
+            # Get recent thought activity
+            recent_thoughts = []
+            try:
+                # Get last 5 thoughts for activity overview
+                from ciris_engine.persistence.models.thoughts import get_recent_thoughts
+                recent_data = get_recent_thoughts(limit=5)
+                for thought_data in recent_data:
+                    recent_thoughts.append({
+                        "thought_id": thought_data.get("thought_id", "unknown"),
+                        "thought_type": thought_data.get("thought_type", "unknown"),
+                        "status": thought_data.get("status", "unknown"),
+                        "created_at": thought_data.get("created_at", "unknown"),
+                        "content_preview": str(thought_data.get("content", ""))[:100] + "..." if len(str(thought_data.get("content", ""))) > 100 else str(thought_data.get("content", ""))
+                    })
+            except Exception as e:
+                logger.warning(f"Could not fetch recent thoughts: {e}")
+                recent_thoughts = []
+            
+            # Get task information
+            task_info = {}
+            try:
+                if hasattr(self, 'work_processor') and self.work_processor:
+                    task_info = {
+                        "active_tasks": self.work_processor.task_manager.get_active_task_count(),
+                        "pending_tasks": self.work_processor.task_manager.get_pending_task_count(),
+                    }
+            except Exception as e:
+                logger.warning(f"Could not fetch task info: {e}")
+                task_info = {"error": str(e)}
+            
+            return {
+                "thought_counts": {
+                    "pending": pending_count,
+                    "processing": processing_count,
+                    "completed": completed_count,
+                    "failed": failed_count,
+                    "total": pending_count + processing_count + completed_count + failed_count
+                },
+                "recent_activity": recent_thoughts,
+                "task_summary": task_info,
+                "queue_health": {
+                    "has_pending_work": pending_count > 0,
+                    "has_processing_work": processing_count > 0,
+                    "has_recent_failures": failed_count > 0,
+                    "queue_utilization": "high" if pending_count + processing_count > 10 else "medium" if pending_count + processing_count > 3 else "low"
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error getting detailed queue status: {e}", exc_info=True)
+            return {
+                "error": str(e),
+                "thought_counts": {"error": "Could not fetch counts"},
+                "recent_activity": [],
+                "task_summary": {"error": "Could not fetch task info"},
+                "queue_health": {"error": "Could not determine health"}
+            }

@@ -198,7 +198,11 @@ def get_correlations_by_type_and_time(
 ) -> List[ServiceCorrelation]:
     """Get correlations by type with optional time filtering for TSDB queries."""
     sql = "SELECT * FROM service_correlations WHERE correlation_type = ?"
-    params = [correlation_type.value]
+    # Handle both enum and string types
+    if hasattr(correlation_type, 'value'):
+        params = [correlation_type.value]
+    else:
+        params = [str(correlation_type)]
     
     if start_time:
         sql += " AND timestamp >= ?"

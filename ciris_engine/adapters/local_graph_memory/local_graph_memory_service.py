@@ -308,24 +308,43 @@ class LocalGraphMemoryService(MemoryService):
             end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(hours=hours)
             
+            # Convert to ISO format strings for database query
+            start_time_str = start_time.isoformat()
+            end_time_str = end_time.isoformat()
+            
             # Default correlation types if not specified
             if correlation_types is None:
                 correlation_types = [CorrelationType.METRIC_DATAPOINT, CorrelationType.LOG_ENTRY, CorrelationType.AUDIT_EVENT]
+            else:
+                # Convert string types to enum if needed
+                from ciris_engine.schemas.correlation_schemas_v1 import CorrelationType
+                converted_types = []
+                for corr_type in correlation_types:
+                    if isinstance(corr_type, str):
+                        try:
+                            converted_types.append(CorrelationType(corr_type))
+                        except ValueError:
+                            # Try enum name lookup
+                            converted_types.append(getattr(CorrelationType, corr_type, corr_type))
+                    else:
+                        converted_types.append(corr_type)
+                correlation_types = converted_types
             
             # Query correlations for each type
             all_correlations = []
             for corr_type in correlation_types:
                 correlations = get_correlations_by_type_and_time(
                     correlation_type=corr_type,
-                    start_time=start_time,
-                    end_time=end_time,
+                    start_time=start_time_str,
+                    end_time=end_time_str,
                     limit=1000,  # Large limit for time series data
                     db_path=self.db_path
                 )
                 
                 # Filter by scope if it's in tags
                 for correlation in correlations:
-                    tags = correlation.get('tags', {})
+                    # Access Pydantic model attributes directly
+                    tags = correlation.tags if hasattr(correlation, 'tags') and correlation.tags else {}
                     if isinstance(tags, str):
                         try:
                             tags = json.loads(tags)
@@ -335,15 +354,17 @@ class LocalGraphMemoryService(MemoryService):
                     # Include if scope matches or if no scope filtering requested
                     if scope == "default" or tags.get('scope') == scope:
                         all_correlations.append({
-                            'timestamp': correlation.get('timestamp'),
-                            'correlation_type': correlation.get('correlation_type'),
-                            'metric_name': correlation.get('metric_name'),
-                            'metric_value': correlation.get('metric_value'),
-                            'log_level': correlation.get('log_level'),
-                            'action_type': correlation.get('action_type'),
+                            'timestamp': correlation.timestamp,
+                            'correlation_type': correlation.correlation_type,
+                            'metric_name': getattr(correlation, 'metric_name', None),
+                            'metric_value': getattr(correlation, 'metric_value', None),
+                            'log_level': getattr(correlation, 'log_level', None),
+                            'action_type': getattr(correlation, 'action_type', None),
                             'tags': tags,
-                            'request_data': correlation.get('request_data'),
-                            'response_data': correlation.get('response_data')
+                            'request_data': getattr(correlation, 'request_data', None),
+                            'response_data': getattr(correlation, 'response_data', None),
+                            'content': getattr(correlation, 'content', None),
+                            'data_type': corr_type.value if hasattr(corr_type, 'value') else str(corr_type)
                         })
             
             # Sort by timestamp
