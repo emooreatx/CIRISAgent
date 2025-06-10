@@ -55,8 +55,25 @@ class MultiServiceTransactionOrchestrator(Service):
         """Placeholder rollback logic."""
         logger.warning("Rolling back transaction %s", tx_id)
 
-    async def get_status(self, tx_id: str) -> Optional[Dict[str, str]]:
-        """Get status of a transaction."""
+    async def get_status(self, tx_id: Optional[str] = None) -> Dict[str, Any]:
+        """Get status of a specific transaction or overall service status."""
+        if tx_id is not None:
+            # Return specific transaction status
+            tx_status = self.transactions.get(tx_id)
+            if tx_status is not None:
+                return tx_status
+            else:
+                return {"status": "not_found"}
+        else:
+            # Return overall service status
+            return {
+                "active_transactions": len(self.transactions),
+                "service_type": "transaction_orchestrator",
+                "transactions": dict(self.transactions)
+            }
+    
+    def get_transaction_status(self, tx_id: str) -> Optional[Dict[str, str]]:
+        """Get status of a specific transaction."""
         return self.transactions.get(tx_id)
 
     def get_service_health(self) -> Dict[str, Any]:

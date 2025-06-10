@@ -161,8 +161,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 await self._handle_log_audit_event(service, cast(LogAuditEventAction, action))
             elif action_type == ActionType.QUERY_AUDIT_TRAIL:
                 await self._handle_query_audit_trail(service, cast(QueryAuditTrailAction, action))
-            else:
-                logger.error(f"No handler for action type: {action_type}")
                 
         except Exception as e:
             logger.error(f"Error executing {action_type} on service {type(service).__name__}: {e}")
@@ -571,7 +569,8 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                         execution_status=ToolExecutionStatus.SUCCESS,
                         result_data=result
                     )
-                return result
+                from ciris_engine.schemas.tool_schemas_v1 import ToolResult
+                return cast(ToolResult, result)
             else:
                 logger.warning(f"No tool service available for execute_tool_sync")
                 from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
@@ -609,7 +608,8 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                         execution_status=ToolExecutionStatus.SUCCESS,
                         result_data=result
                     )
-                return result
+                from ciris_engine.schemas.tool_schemas_v1 import ToolResult
+                return cast(Optional[ToolResult], result)
             else:
                 logger.warning(f"No tool service available for get_tool_result_sync")
                 return None

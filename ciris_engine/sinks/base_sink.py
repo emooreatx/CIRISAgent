@@ -4,7 +4,7 @@ Base sink class for multi-service sinks.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Union
 from dataclasses import asdict
 from abc import ABC, abstractmethod
 from ciris_engine.schemas.service_actions_v1 import ActionType, ActionMessage
@@ -75,7 +75,7 @@ class BaseMultiServiceSink(ABC):
         while self._processing and not is_global_shutdown_requested():
             try:
                 action_task = asyncio.create_task(self._queue.get())
-                tasks_to_wait = [action_task]
+                tasks_to_wait: List[asyncio.Task[Any]] = [action_task]
                 if self._stop_event:
                     stop_task = asyncio.create_task(self._stop_event.wait())
                     tasks_to_wait.append(stop_task)

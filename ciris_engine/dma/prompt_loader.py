@@ -69,7 +69,7 @@ class DMAPromptLoader:
             logger.error(f"Failed to load template {template_path}: {e}")
             raise
     
-    def get_system_message(self, template_data: Dict[str, Any], **kwargs) -> str:
+    def get_system_message(self, template_data: Dict[str, Any], **kwargs: Any) -> str:
         """
         Build a system message from template data and variables.
         
@@ -108,7 +108,7 @@ class DMAPromptLoader:
         
         return '\n\n'.join(system_parts)
     
-    def get_user_message(self, template_data: Dict[str, Any], **kwargs) -> str:
+    def get_user_message(self, template_data: Dict[str, Any], **kwargs: Any) -> str:
         """
         Build a user message from template data and variables.
         
@@ -120,7 +120,7 @@ class DMAPromptLoader:
             Formatted user message string
         """
         if 'context_integration' in template_data:
-            return template_data['context_integration'].format(**kwargs)
+            return str(template_data['context_integration']).format(**kwargs)
         else:
             # Fallback for basic context integration
             return f"Thought to evaluate: {kwargs.get('original_thought_content', '')}"
@@ -135,7 +135,7 @@ class DMAPromptLoader:
         Returns:
             True if covenant header should be used
         """
-        return template_data.get('covenant_header', False)
+        return bool(template_data.get('covenant_header', False))
 
 # Global instance for convenience
 _default_loader = None

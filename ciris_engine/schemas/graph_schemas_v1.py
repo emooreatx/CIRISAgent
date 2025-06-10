@@ -100,7 +100,7 @@ class TSDBGraphNode(GraphNode):
     retention_policy: str = "raw"  # "raw", "aggregated", "downsampled"
     aggregation_period: Optional[str] = None  # "1m", "5m", "1h", "1d"
     
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         """Initialize TSDBGraphNode with proper defaults"""
         # Set default ID based on data type and timestamp if not provided
         if 'id' not in data:

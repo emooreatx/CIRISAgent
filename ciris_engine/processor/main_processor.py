@@ -535,7 +535,7 @@ class AgentProcessor(ProcessorInterface):
                 recent_thoughts = []
             
             # Get task information
-            task_info = {}
+            task_info: Dict[str, Any] = {}
             try:
                 if hasattr(self, 'work_processor') and self.work_processor:
                     task_info = {

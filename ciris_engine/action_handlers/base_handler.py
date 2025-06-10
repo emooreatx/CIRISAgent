@@ -31,6 +31,8 @@ class ActionHandlerDependencies:
         shutdown_callback: Optional[Callable[[], None]] = None,
         secrets_service: Optional[SecretsService] = None,
         multi_service_sink: Optional[Any] = None,
+        memory_service: Optional[Any] = None,
+        audit_service: Optional[Any] = None,
     ) -> None:
         self.service_registry = service_registry
         self.io_adapter = io_adapter
@@ -38,6 +40,8 @@ class ActionHandlerDependencies:
         self.shutdown_callback = shutdown_callback
         self.secrets_service = secrets_service or None
         self.multi_service_sink = multi_service_sink
+        self.memory_service = memory_service
+        self.audit_service = audit_service
         self._shutdown_requested = False
     
     def request_graceful_shutdown(self, reason: str = "Handler requested shutdown") -> None:

@@ -57,10 +57,8 @@ class ProcessingQueueItem(BaseModel):
             resolved_content = raw_content
         elif isinstance(raw_content, str):
             resolved_content = ThoughtContent(text=raw_content)
-        elif isinstance(raw_content, dict):
+        else:  # isinstance(raw_content, dict)
             resolved_content = ThoughtContent(**raw_content)
-        else:
-            resolved_content = ThoughtContent(text=str(raw_content))
         return cls(
             thought_id=thought_instance.thought_id,
             source_task_id=thought_instance.source_task_id,
