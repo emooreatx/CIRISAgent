@@ -2,7 +2,7 @@
 from typing import Dict, Any, Optional, List
 
 
-def format_user_profiles(profiles: Optional[Dict[str, Any]], max_profiles: int = 5) -> str:
+def format_user_profiles(profiles: Optional[Dict[str, Any]]) -> str:
     """Copy of format_user_profiles_for_prompt with new module path."""
     # *** copied logic – do not modify yet ***
     if not profiles or not isinstance(profiles, dict):

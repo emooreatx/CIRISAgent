@@ -290,11 +290,10 @@ class AgentProcessor(ProcessorInterface):
                     thought=thought, 
                     task=task, 
                     app_config=self.app_config, 
-                    startup_channel_id=self.startup_channel_id, 
                     round_number=self.current_round_number
                 )
-                if hasattr(self, "discord_service"):
-                    dispatch_context["discord_service"] = self.discord_service
+                # Services should be accessed via service registry, not passed in context
+                # to avoid serialization issues during audit logging
                 
                 await self.action_dispatcher.dispatch(
                     action_selection_result=result,

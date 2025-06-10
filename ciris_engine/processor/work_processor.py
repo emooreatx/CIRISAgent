@@ -178,19 +178,12 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
             thought=thought_obj, 
             task=task, 
             app_config=self.app_config, 
-            startup_channel_id=getattr(self, 'startup_channel_id', None), 
             round_number=getattr(item, 'round_number', 0),
             extra_context=getattr(item, 'initial_context', {})
         )
         
-        if hasattr(self, 'services') and self.services:
-            dispatch_context.update({"services": self.services})
-            
-            if "discord_service" in self.services:
-                dispatch_context["discord_service"] = self.services["discord_service"]
-        
-        if hasattr(self, 'discord_service'):
-            dispatch_context["discord_service"] = self.discord_service
+        # Services should be accessed via service registry, not passed in context
+        # to avoid serialization issues during audit logging
         
         try:
             await self.dispatch_action(result, thought_obj, dispatch_context)

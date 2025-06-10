@@ -36,10 +36,15 @@ class GraphQLContextProvider:
             self.client = graphql_client
         self.memory_service = memory_service
 
-    async def enrich_context(self, task, thought) -> Dict[str, Any]:
+    async def enrich_context(self, task, thought=None) -> Dict[str, Any]:
         authors: set[str] = set()
         if task and isinstance(task.context, dict):
             name = task.context.get("author_name")
+            if name:
+                authors.add(name)
+        # Also check thought context for author information
+        if thought and hasattr(thought, 'context') and isinstance(thought.context, dict):
+            name = thought.context.get("author_name")
             if name:
                 authors.add(name)
         history: List[Dict[str, Any]] = []

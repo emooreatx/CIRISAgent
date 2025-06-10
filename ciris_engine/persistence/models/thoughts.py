@@ -136,7 +136,7 @@ def count_thoughts(db_path: Optional[str] = None) -> int:
         logger.exception(f"Failed to count PENDING or PROCESSING thoughts: {e}")
     return count
 
-def update_thought_status(thought_id: str, status: ThoughtStatus, db_path: Optional[str] = None, final_action: Optional[Any] = None, **kwargs: Any) -> bool:
+def update_thought_status(thought_id: str, status: ThoughtStatus, db_path: Optional[str] = None, final_action: Optional[Any] = None) -> bool:
     """Update the status of a thought by ID and optionally final_action. 
     
     Args:

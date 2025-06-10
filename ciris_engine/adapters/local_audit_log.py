@@ -119,10 +119,6 @@ class AuditService(Service):
 
     async def query_audit_log(
         self,
-        start_time: Optional[str] = None,
-        end_time: Optional[str] = None,
-        event_types: Optional[List[str]] = None,
-        thought_id: Optional[str] = None,
     ) -> List[AuditLogEntry]:
         """Query audit logs with filters."""
         # Placeholder: implement log search logic as needed

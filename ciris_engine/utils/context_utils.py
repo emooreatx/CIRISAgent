@@ -7,7 +7,6 @@ def build_dispatch_context(
     thought: Any, 
     task: Optional[Any] = None, 
     app_config: Optional[Any] = None, 
-    startup_channel_id: Optional[str] = None, 
     round_number: Optional[int] = None, 
     extra_context: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
@@ -18,7 +17,6 @@ def build_dispatch_context(
         thought: The thought object being processed
         task: Optional task associated with the thought
         app_config: Optional app configuration for determining origin service
-        startup_channel_id: Optional fallback channel ID
         round_number: Optional round number for processing
         extra_context: Optional additional context to merge
     
