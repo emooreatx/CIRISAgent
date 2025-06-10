@@ -15,7 +15,7 @@ from typing import Optional, List
 
 import click
 
-from ciris_engine.main import load_config, run_with_shutdown_handler
+from ciris_engine.utils.runtime_utils import load_config, run_with_shutdown_handler
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.utils.logging_config import setup_basic_logging
 from ciris_engine.processor.task_manager import TaskManager
