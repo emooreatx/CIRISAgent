@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 
 
-async def discord_delete_message(bot: discord.Client, channel_id: int, message_id: int, **kwargs: Any) -> ToolResult:
+async def discord_delete_message(bot: discord.Client, channel_id: int, message_id: int) -> ToolResult:
     try:
         channel = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
         if hasattr(channel, 'fetch_message'):
@@ -28,7 +28,7 @@ async def discord_delete_message(bot: discord.Client, channel_id: int, message_i
             error_message=str(e),
         )
 
-async def discord_timeout_user(bot: discord.Client, guild_id: int, user_id: int, duration_seconds: int, reason: Optional[str] = None, **kwargs: Any) -> ToolResult:
+async def discord_timeout_user(bot: discord.Client, guild_id: int, user_id: int, duration_seconds: int, reason: Optional[str] = None) -> ToolResult:
     try:
         guild = bot.get_guild(guild_id) or await bot.fetch_guild(guild_id)
         member = guild.get_member(user_id) or await guild.fetch_member(user_id)
@@ -47,7 +47,7 @@ async def discord_timeout_user(bot: discord.Client, guild_id: int, user_id: int,
             error_message=str(e),
         )
 
-async def discord_ban_user(bot: discord.Client, guild_id: int, user_id: int, reason: Optional[str] = None, delete_message_days: int = 0, **kwargs: Any) -> ToolResult:
+async def discord_ban_user(bot: discord.Client, guild_id: int, user_id: int, reason: Optional[str] = None, delete_message_days: int = 0) -> ToolResult:
     try:
         guild = bot.get_guild(guild_id) or await bot.fetch_guild(guild_id)
         user = await guild.fetch_member(user_id)
@@ -64,7 +64,7 @@ async def discord_ban_user(bot: discord.Client, guild_id: int, user_id: int, rea
             error_message=str(e),
         )
 
-async def discord_kick_user(bot: discord.Client, guild_id: int, user_id: int, reason: Optional[str] = None, **kwargs: Any) -> ToolResult:
+async def discord_kick_user(bot: discord.Client, guild_id: int, user_id: int, reason: Optional[str] = None) -> ToolResult:
     try:
         guild = bot.get_guild(guild_id) or await bot.fetch_guild(guild_id)
         user = await guild.fetch_member(user_id)

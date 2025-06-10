@@ -150,7 +150,12 @@ class ForgetHandler(BaseActionHandler):
             outcome="success" if success else "failed",
         )
 
-    def _can_forget(self, params, dispatch_context) -> bool:
+    def _can_forget(self, params, dispatch_context: dict) -> bool:
+        # Check if this is a sensitive scope that requires WA authorization
+        if hasattr(params, 'node') and hasattr(params.node, 'scope'):
+            scope = params.node.scope
+            if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT):
+                return dispatch_context.get("wa_authorized", False)
         return True
 
     async def _audit_forget_operation(self, params, dispatch_context, result) -> None:

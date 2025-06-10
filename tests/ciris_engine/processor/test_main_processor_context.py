@@ -43,7 +43,6 @@ async def test_build_dispatch_context_modes(agent_mode, task_channel_id, expecte
         thought=thought, 
         task=task, 
         app_config=app_config, 
-        startup_channel_id=None, 
         round_number=0
     )
     assert context["channel_id"] == str(expected_channel_id)

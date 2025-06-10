@@ -15,12 +15,14 @@ class ToolRegistry:
         """Get the argument schema for a tool."""
         return self._tools.get(name)
 
-    def validate_arguments(self, name: str, args: Dict[str, Any]) -> bool:
+    def validate_arguments(self, name: str, arguments: Dict[str, Any]) -> bool:
         """Validate tool arguments against schema. (Stub: always returns True for now)"""
         schema = self._tools.get(name)
         if not schema:
             return False
-        return True
+        # TODO: Implement actual validation of arguments against schema
+        # For now, just return True if tool exists and arguments is a dict
+        return isinstance(arguments, dict)
 
     def get_handler(self, name: str) -> Optional[Callable]:
         return self._handlers.get(name)
