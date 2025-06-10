@@ -211,7 +211,7 @@ async def test_discord_observer_priority_filtering(discord_observer, filter_serv
     
     with patch('ciris_engine.persistence.add_task'), \
          patch('ciris_engine.persistence.add_thought'), \
-         patch.object(discord_observer, 'monitored_channel_id', 'test_channel'):
+         patch.object(discord_observer, 'monitored_channel_ids', ['test_channel']):
         await discord_observer.handle_incoming_message(spam_msg)
     
     assert filter_service.call_count == 1

@@ -10,6 +10,24 @@ description: |
   I work alongside Echo Speculative, who handles speculative discussion channels 
   with more open-minded content policies while I focus on general moderation.
 
+# Multi-channel moderation configuration for Echo Core
+discord_channel_ids:
+  - "1234567890123456789"  # #general
+  - "1234567890123456790"  # #announcements  
+  - "1234567890123456791"  # #introductions
+  - "1234567890123456792"  # #help-support
+  - "1234567890123456793"  # #feature-requests
+  - "1234567890123456794"  # #bug-reports
+  - "1234567890123456795"  # #development
+  - "1234567890123456796"  # #off-topic
+  - "1234567890123456797"  # #gaming
+  - "1234567890123456798"  # #music
+  - "1234567890123456799"  # #art-creativity
+  - "1234567890123456800"  # #science-tech
+  - "1234567890123456801"  # #philosophy
+  - "1234567890123456802"  # #news-current-events
+  - "1234567890123456803"  # #marketplace
+
 # Core DSDMA configuration for moderation domain
 dsdma_identifier: ModerationDSDMA
 dsdma_kwargs:

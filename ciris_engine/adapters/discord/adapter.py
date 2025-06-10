@@ -44,6 +44,7 @@ class DiscordPlatform(PlatformAdapter):
 
         self.discord_observer = DiscordObserver(
             monitored_channel_id=kwargs.get("discord_monitored_channel_id"),
+            monitored_channel_ids=kwargs.get("discord_monitored_channel_ids"),
             memory_service=getattr(self.runtime, 'memory_service', None),
             agent_id=getattr(self.runtime, 'agent_id', None),
             multi_service_sink=getattr(self.runtime, 'multi_service_sink', None),
