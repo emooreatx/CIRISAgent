@@ -221,7 +221,9 @@ default_profile: "default"
 agent_profiles: {}
 
 # Runtime Configuration
-discord_channel_id: null
+discord_channel_ids: null  # List of Discord channel IDs to monitor
+discord_channel_id: null   # Single Discord channel ID (deprecated - use discord_channel_ids)
+discord_deferral_channel_id: null  # Channel for deferrals and WA guidance
 agent_mode: ""
 cli_channel_id: null
 api_channel_id: null

@@ -10,6 +10,13 @@ description: |
   I work alongside Echo Core, who handles general Discord moderation with a more 
   conservative approach to content while I welcome the unconventional ideas they redirect.
 
+# Multi-channel moderation configuration for Echo Speculative
+discord_channel_ids:
+  - "2234567890123456789"  # #ai-human-alignment
+  - "2234567890123456790"  # #speculative-science
+  - "2234567890123456791"  # #consciousness-studies
+  - "2234567890123456792"  # #fringe-theories
+
 # Core DSDMA configuration for speculative moderation
 dsdma_identifier: ModerationDSDMA
 dsdma_kwargs:

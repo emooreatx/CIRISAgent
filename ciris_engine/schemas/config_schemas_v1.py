@@ -489,7 +489,8 @@ class AppConfig(BaseModel):
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
     default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
-    discord_channel_id: Optional[str] = None
+    discord_channel_ids: Optional[List[str]] = Field(default=None, description="List of Discord channel IDs to monitor")
+    discord_channel_id: Optional[str] = Field(default=None, description="Primary Discord channel ID (deprecated - use discord_channel_ids)")
     discord_deferral_channel_id: Optional[str] = Field(default=None, description="Channel ID for Discord deferrals and guidance")
     agent_mode: str = Field(default="", description="Runtime mode: 'cli', 'discord', 'api'")
     cli_channel_id: Optional[str] = Field(default=None, description="Channel ID for CLI mode")
