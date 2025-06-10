@@ -19,6 +19,7 @@ from ciris_engine.dma.dsdma_base import BaseDSDMA
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import DSDMAResult
 from ciris_engine.registries.base import ServiceRegistry
+from .prompt_loader import get_prompt_loader
 
 logger = logging.getLogger(__name__)
 
@@ -102,16 +103,27 @@ class ModerationDSDMA(BaseDSDMA):
                 }
             }
         
-        # Use the provided template or default
-        template = prompt_template if prompt_template is not None else self.DEFAULT_TEMPLATE
-        
+        # Initialize parent class first
         super().__init__(
             domain_name=domain_name,
             service_registry=service_registry,
             model_name=model_name,
             domain_specific_knowledge=domain_specific_knowledge,
-            prompt_template=template
+            prompt_template=prompt_template
         )
+        
+        # Override with moderation-specific prompt template
+        self.prompt_loader = get_prompt_loader()
+        try:
+            self.prompt_template_data = self.prompt_loader.load_prompt_template("moderation_dsdma")
+        except FileNotFoundError:
+            logger.warning("Moderation DSDMA prompt template not found, using default")
+            # Use provided template or default
+            template = prompt_template if prompt_template is not None else self.DEFAULT_TEMPLATE
+            self.prompt_template_data = {
+                "system_guidance_header": template,
+                "covenant_header": True
+            }
         
         logger.info(f"ModerationDSDMA initialized for domain '{domain_name}'")
     

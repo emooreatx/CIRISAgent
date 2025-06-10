@@ -46,7 +46,11 @@ async def test_forget_handler_schema_driven(monkeypatch):
     deps = ActionHandlerDependencies()
     deps.get_service = AsyncMock(return_value=memory_service)
     deps.memory_service = memory_service
-    deps.persistence = MagicMock()
+    
+    # Mock the persistence module functions
+    add_thought_mock = MagicMock()
+    monkeypatch.setattr('ciris_engine.action_handlers.forget_handler.persistence.add_thought', add_thought_mock)
+    
     handler = ForgetHandler(deps)
 
     node = GraphNode(id="USER".lower(), type=NodeType.USER, scope=GraphScope.LOCAL)
@@ -65,7 +69,7 @@ async def test_forget_handler_schema_driven(monkeypatch):
         attributes={},
     )
     memory_service.forget.assert_awaited_with(expected_node)
-    deps.persistence.add_thought.assert_called_once()
+    add_thought_mock.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -77,7 +81,11 @@ async def test_recall_handler_schema_driven(monkeypatch):
     deps = ActionHandlerDependencies()
     deps.get_service = AsyncMock(return_value=memory_service)
     deps.memory_service = memory_service
-    deps.persistence = MagicMock()
+    
+    # Mock the persistence module functions
+    add_thought_mock = MagicMock()
+    monkeypatch.setattr('ciris_engine.action_handlers.recall_handler.persistence.add_thought', add_thought_mock)
+    
     handler = RecallHandler(deps)
 
     node = GraphNode(id="USER".lower(), type=NodeType.USER, scope=GraphScope.LOCAL)
@@ -96,7 +104,7 @@ async def test_recall_handler_schema_driven(monkeypatch):
         attributes={},
     )
     memory_service.recall.assert_awaited_with(expected_node)
-    deps.persistence.add_thought.assert_called_once()
+    add_thought_mock.assert_called_once()
 
 
 @pytest.mark.asyncio

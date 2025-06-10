@@ -20,7 +20,7 @@ __all__ = [
     'DeferParams', 'MemorizeParams', 'RecallParams', 'ForgetParams',
     'ActionType', 'ActionMessage', 'SendMessageAction', 'FetchMessagesAction',
     'FetchGuidanceAction', 'SendDeferralAction', 'MemorizeAction', 'RecallAction',
-    'ForgetAction', 'SendToolAction', 'FetchToolAction', 'ObserveMessageAction',
+    'ForgetAction', 'SendToolAction', 'FetchToolAction',
     'MemoryOpStatus', 'MemoryOpAction', 'MemoryOpResult',
     'ServiceCorrelationStatus', 'ServiceCorrelation',
     

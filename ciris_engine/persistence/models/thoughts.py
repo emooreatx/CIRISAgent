@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from ciris_engine.persistence import get_db_connection
 import asyncio
 from ciris_engine.persistence.utils import map_row_to_thought
@@ -194,4 +194,26 @@ def get_thoughts_older_than(older_than_timestamp: str, db_path: Optional[str] = 
                 thoughts.append(map_row_to_thought(row))
     except Exception as e:
         logger.exception(f"Failed to get thoughts older than {older_than_timestamp}: {e}")
+    return thoughts
+
+def get_recent_thoughts(limit: int = 10, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Get recent thoughts as dictionaries for status reporting."""
+    sql = "SELECT * FROM thoughts ORDER BY created_at DESC LIMIT ?"
+    thoughts = []
+    try:
+        with get_db_connection(db_path=db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (limit,))
+            rows = cursor.fetchall()
+            for row in rows:
+                thoughts.append({
+                    "thought_id": row["thought_id"],
+                    "thought_type": row["thought_type"],
+                    "status": row["status"],
+                    "created_at": row["created_at"],
+                    "content": row["content"],
+                    "source_task_id": row["source_task_id"]
+                })
+    except Exception as e:
+        logger.exception(f"Failed to get recent thoughts: {e}")
     return thoughts

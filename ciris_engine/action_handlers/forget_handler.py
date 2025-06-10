@@ -8,6 +8,7 @@ from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
 from typing import Optional
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from ciris_engine import persistence
 import logging
 from pydantic import ValidationError
 
@@ -37,7 +38,7 @@ class ForgetHandler(BaseActionHandler):
                 })
                 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
                 follow_up.context = ThoughtContext.model_validate(context_data)
-                self.dependencies.persistence.add_thought(follow_up)
+                persistence.add_thought(follow_up)
                 await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
                 return
         if not isinstance(params, ForgetParams):
@@ -55,7 +56,7 @@ class ForgetHandler(BaseActionHandler):
             })
             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
             follow_up.context = ThoughtContext.model_validate(context_data)
-            self.dependencies.persistence.add_thought(follow_up)
+            persistence.add_thought(follow_up)
             await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
             return
         if not self._can_forget(params, dispatch_context):
@@ -73,7 +74,7 @@ class ForgetHandler(BaseActionHandler):
             })
             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
             follow_up.context = ThoughtContext.model_validate(context_data)
-            self.dependencies.persistence.add_thought(follow_up)
+            persistence.add_thought(follow_up)
             return
         memory_service: Optional[MemoryService] = await self.get_memory_service()
 
@@ -83,7 +84,7 @@ class ForgetHandler(BaseActionHandler):
                 parent=thought,
                 content=f"FORGET action failed: MemoryService unavailable for thought {thought_id}"
             )
-            self.dependencies.persistence.add_thought(follow_up)
+            persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.FORGET,
                 {**dispatch_context, "thought_id": thought_id},
@@ -107,7 +108,7 @@ class ForgetHandler(BaseActionHandler):
             })
             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
             follow_up.context = ThoughtContext.model_validate(context_data)
-            self.dependencies.persistence.add_thought(follow_up)
+            persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.FORGET,
                 {**dispatch_context, "thought_id": thought_id},
@@ -142,7 +143,7 @@ class ForgetHandler(BaseActionHandler):
         })
         from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
         follow_up.context = ThoughtContext.model_validate(context_data)
-        self.dependencies.persistence.add_thought(follow_up)
+        persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.FORGET,
             {**dispatch_context, "thought_id": thought_id},

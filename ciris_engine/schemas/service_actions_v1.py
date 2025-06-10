@@ -2,7 +2,8 @@
 Action and message types for multi-service sinks.
 """
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
+from datetime import datetime
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from enum import Enum
@@ -19,10 +20,17 @@ class ActionType(Enum):
     FORGET = "forget"
     SEND_TOOL = "send_tool"
     FETCH_TOOL = "fetch_tool"
-    OBSERVE_MESSAGE = "observe_message"
+    # Note: OBSERVE_MESSAGE removed - observation handled at adapter level
     # LLM Actions
     GENERATE_RESPONSE = "generate_response"
     GENERATE_STRUCTURED = "generate_structured"
+    # TSDB/Telemetry Actions
+    RECORD_METRIC = "record_metric"
+    QUERY_TELEMETRY = "query_telemetry"
+    RECORD_LOG = "record_log"
+    # Audit Actions
+    LOG_AUDIT_EVENT = "log_audit_event"
+    QUERY_AUDIT_TRAIL = "query_audit_trail"
 
 
 
@@ -139,16 +147,6 @@ class FetchToolAction(ActionMessage):
 
 
 @dataclass
-class ObserveMessageAction(ActionMessage):
-    """Action to observe/process a message"""
-    message: IncomingMessage
-
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], message: IncomingMessage) -> None:
-        super().__init__(ActionType.OBSERVE_MESSAGE, handler_name, metadata)
-        self.message = message
-
-
-@dataclass
 class GenerateResponseAction(ActionMessage):
     """Action to generate a raw text response via LLM service"""
     messages: list
@@ -181,3 +179,96 @@ class GenerateStructuredAction(ActionMessage):
 
 
 DeferralMessage = SendDeferralAction
+
+
+# TSDB/Telemetry Actions
+
+@dataclass
+class RecordMetricAction(ActionMessage):
+    """Action to record a metric via telemetry service"""
+    metric_name: str
+    value: float
+    tags: Optional[Dict[str, str]] = None
+    
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], metric_name: str, 
+                 value: float, tags: Optional[Dict[str, str]] = None) -> None:
+        super().__init__(ActionType.RECORD_METRIC, handler_name, metadata)
+        self.metric_name = metric_name
+        self.value = value
+        self.tags = tags
+
+
+@dataclass
+class QueryTelemetryAction(ActionMessage):
+    """Action to query telemetry data via telemetry service"""
+    metric_names: Optional[List[str]] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    tags: Optional[Dict[str, str]] = None
+    limit: int = 1000
+    
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], 
+                 metric_names: Optional[List[str]] = None, start_time: Optional[datetime] = None,
+                 end_time: Optional[datetime] = None, tags: Optional[Dict[str, str]] = None,
+                 limit: int = 1000) -> None:
+        super().__init__(ActionType.QUERY_TELEMETRY, handler_name, metadata)
+        self.metric_names = metric_names
+        self.start_time = start_time
+        self.end_time = end_time
+        self.tags = tags
+        self.limit = limit
+
+
+@dataclass
+class RecordLogAction(ActionMessage):
+    """Action to record a log entry via telemetry service"""
+    log_message: str
+    log_level: str = "INFO"
+    tags: Optional[Dict[str, str]] = None
+    
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], log_message: str,
+                 log_level: str = "INFO", tags: Optional[Dict[str, str]] = None) -> None:
+        super().__init__(ActionType.RECORD_LOG, handler_name, metadata)
+        self.log_message = log_message
+        self.log_level = log_level
+        self.tags = tags
+
+
+# Audit Actions
+
+@dataclass
+class LogAuditEventAction(ActionMessage):
+    """Action to log an audit event via audit service"""
+    event_type: str
+    event_data: Dict[str, Any]
+    outcome: Optional[str] = None
+    
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], event_type: str,
+                 event_data: Dict[str, Any], outcome: Optional[str] = None) -> None:
+        super().__init__(ActionType.LOG_AUDIT_EVENT, handler_name, metadata)
+        self.event_type = event_type
+        self.event_data = event_data
+        self.outcome = outcome
+
+
+@dataclass
+class QueryAuditTrailAction(ActionMessage):
+    """Action to query audit trail via audit service"""
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    action_types: Optional[List[str]] = None
+    thought_id: Optional[str] = None
+    task_id: Optional[str] = None
+    limit: int = 100
+    
+    def __init__(self, handler_name: str, metadata: Dict[str, Any],
+                 start_time: Optional[datetime] = None, end_time: Optional[datetime] = None,
+                 action_types: Optional[List[str]] = None, thought_id: Optional[str] = None,
+                 task_id: Optional[str] = None, limit: int = 100) -> None:
+        super().__init__(ActionType.QUERY_AUDIT_TRAIL, handler_name, metadata)
+        self.start_time = start_time
+        self.end_time = end_time
+        self.action_types = action_types
+        self.thought_id = thought_id
+        self.task_id = task_id
+        self.limit = limit

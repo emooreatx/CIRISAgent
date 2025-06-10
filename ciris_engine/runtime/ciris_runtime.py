@@ -359,6 +359,9 @@ class CIRISRuntime(RuntimeInterface):
         """Build all processing components."""
         if not self.llm_service:
             raise RuntimeError("LLM service not initialized")
+        
+        if not self.service_registry:
+            raise RuntimeError("Service registry not initialized")
             
         config = self._ensure_config()
         llm_client = self.llm_service.get_client()
@@ -445,10 +448,10 @@ class CIRISRuntime(RuntimeInterface):
             shutdown_callback=lambda: self.request_shutdown(
                 "Handler requested shutdown due to critical service failure"
             ),
+            multi_service_sink=self.multi_service_sink,
+            memory_service=self.memory_service,
+            audit_service=self.audit_service,
         )
-        dependencies.multi_service_sink = self.multi_service_sink
-        dependencies.memory_service = self.memory_service
-        dependencies.audit_service = self.audit_service
         
         register_global_shutdown_handler(
             lambda: self.request_shutdown("Global shutdown manager triggered"),
@@ -622,7 +625,7 @@ class CIRISRuntime(RuntimeInterface):
                 shutdown_event_task = asyncio.create_task(self._shutdown_event.wait(), name="ShutdownEventWait")
             
             global_shutdown_task = asyncio.create_task(wait_for_global_shutdown(), name="GlobalShutdownWait")
-            all_tasks = [agent_task, *adapter_tasks, global_shutdown_task]
+            all_tasks: List[asyncio.Task[Any]] = [agent_task, *adapter_tasks, global_shutdown_task]
             if shutdown_event_task:
                 all_tasks.append(shutdown_event_task)
             

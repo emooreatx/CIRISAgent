@@ -5,6 +5,7 @@ All service implementations must inherit from the Service base class for lifecyc
 """
 from typing import Optional, Dict, Any, List
 from abc import abstractmethod
+from datetime import datetime
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.foundational_schemas_v1 import (
     HandlerActionType,
@@ -12,7 +13,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     FetchedMessage,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
-from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult, MemoryOpStatus
 from ciris_engine.schemas.network_schemas_v1 import AgentIdentity, NetworkPresence
 from ciris_engine.schemas.community_schemas_v1 import MinimalCommunityContext
 
@@ -134,13 +135,57 @@ class MemoryService(Service):
         """
         return []
     
+    async def recall_timeseries(self, scope: str = "default", hours: int = 24, correlation_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """
+        Recall time-series data from TSDB correlations.
+        
+        Args:
+            scope: The memory scope to search
+            hours: Number of hours to look back
+            correlation_types: Optional filter by correlation types (e.g., ['METRIC_DATAPOINT', 'LOG_ENTRY'])
+            
+        Returns:
+            List of time-series data points from correlations
+        """
+        return []
+    
+    async def memorize_metric(self, metric_name: str, value: float, tags: Optional[Dict[str, str]] = None, scope: str = "local") -> MemoryOpResult:
+        """
+        Convenience method to memorize a metric as both a graph node and TSDB correlation.
+        
+        Args:
+            metric_name: Name of the metric
+            value: Metric value
+            tags: Optional tags for the metric
+            scope: Memory scope
+            
+        Returns:
+            Memory operation result
+        """
+        return MemoryOpResult(status=MemoryOpStatus.DENIED, error="Not implemented")
+    
+    async def memorize_log(self, log_message: str, log_level: str = "INFO", tags: Optional[Dict[str, str]] = None, scope: str = "local") -> MemoryOpResult:
+        """
+        Convenience method to memorize a log entry as both a graph node and TSDB correlation.
+        
+        Args:
+            log_message: Log message content
+            log_level: Log level (INFO, WARNING, ERROR, etc.)
+            tags: Optional tags for the log entry
+            scope: Memory scope
+            
+        Returns:
+            Memory operation result
+        """
+        return MemoryOpResult(status=MemoryOpStatus.DENIED, error="Not implemented")
+    
     async def is_healthy(self) -> bool:
         """Health check for circuit breaker"""
         return True
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["memorize", "recall", "forget"]
+        return ["memorize", "recall", "forget", "search_memories", "recall_timeseries", "memorize_metric", "memorize_log"]
 
 
 class ToolService(Service):
@@ -261,13 +306,39 @@ class AuditService(Service):
         """
         ...
     
+    async def query_audit_trail(
+        self,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        action_types: Optional[List[str]] = None,
+        thought_id: Optional[str] = None,
+        task_id: Optional[str] = None,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Query audit trail with time-series filtering (TSDB-enabled services).
+        
+        Args:
+            start_time: Start of time range
+            end_time: End of time range  
+            action_types: Filter by specific action types
+            thought_id: Filter by thought ID
+            task_id: Filter by task ID
+            limit: Maximum number of results
+            
+        Returns:
+            List of audit entries matching criteria
+        """
+        # Default implementation for non-TSDB services
+        return await self.get_audit_trail("", limit)
+    
     async def is_healthy(self) -> bool:
         """Health check for circuit breaker"""
         return True
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["log_action", "get_audit_trail"]
+        return ["log_action", "log_event", "log_guardrail_event", "get_audit_trail", "query_audit_trail"]
 
 
 class LLMService(Service):
@@ -364,3 +435,90 @@ class CommunityService(Service):
     async def report_community_metric(self, metric: str, value: int) -> bool:
         """Report a community health metric (0-100 scale)"""
         ...
+
+
+class TelemetryService(Service):
+    """Abstract base class for telemetry and metrics services"""
+    
+    @abstractmethod
+    async def record_metric(self, metric_name: str, value: float, tags: Optional[Dict[str, str]] = None) -> bool:
+        """
+        Record a metric value with optional tags.
+        
+        Args:
+            metric_name: Name of the metric
+            value: Metric value
+            tags: Optional tags for categorization and filtering
+            
+        Returns:
+            True if metric was recorded successfully
+        """
+        ...
+    
+    @abstractmethod
+    async def get_metrics_history(self, metric_name: str, hours: int = 24) -> List[Dict[str, Any]]:
+        """
+        Get historical metric data.
+        
+        Args:
+            metric_name: Name of the metric to retrieve
+            hours: Number of hours of history to retrieve
+            
+        Returns:
+            List of metric data points with timestamps
+        """
+        ...
+    
+    async def record_log(self, log_message: str, log_level: str = "INFO", tags: Optional[Dict[str, str]] = None) -> bool:
+        """
+        Record a log entry for time-series analysis.
+        
+        Args:
+            log_message: Log message content
+            log_level: Log level (INFO, WARNING, ERROR, etc.)
+            tags: Optional tags for categorization
+            
+        Returns:
+            True if log was recorded successfully
+        """
+        return True
+    
+    async def query_telemetry(
+        self,
+        metric_names: Optional[List[str]] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        tags: Optional[Dict[str, str]] = None,
+        limit: int = 1000
+    ) -> List[Dict[str, Any]]:
+        """
+        Query telemetry data with time-series filtering.
+        
+        Args:
+            metric_names: Optional list of metric names to filter by
+            start_time: Start of time range
+            end_time: End of time range
+            tags: Optional tag filters
+            limit: Maximum number of results
+            
+        Returns:
+            List of telemetry data points
+        """
+        return []
+    
+    async def get_system_health(self) -> Dict[str, Any]:
+        """
+        Get overall system health metrics.
+        
+        Returns:
+            Dictionary with health status and key metrics
+        """
+        return {"status": "unknown", "metrics": {}}
+    
+    async def is_healthy(self) -> bool:
+        """Health check for circuit breaker"""
+        return True
+    
+    async def get_capabilities(self) -> List[str]:
+        """Return list of capabilities this service supports."""
+        return ["record_metric", "get_metrics_history", "record_log", "query_telemetry", "get_system_health"]

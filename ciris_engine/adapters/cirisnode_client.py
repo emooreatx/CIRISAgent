@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
 
 import httpx
 
@@ -130,7 +130,7 @@ class CIRISNodeClient(Service):
 
     async def run_simplebench(self, model_id: str, agent_id: str) -> Dict[str, Any]:
         """Run the simple bench benchmark for the given model."""
-        result = await self._post("/simplebench", {"model_id": model_id, "agent_id": agent_id})
+        result = cast(Dict[str, Any], await self._post("/simplebench", {"model_id": model_id, "agent_id": agent_id}))
         audit_service = await self._get_audit_service()
         if audit_service:
             await audit_service.log_action(
@@ -146,7 +146,7 @@ class CIRISNodeClient(Service):
 
     async def run_he300(self, model_id: str, agent_id: str) -> Dict[str, Any]:
         """Run the HE-300 benchmark for the given model."""
-        result = await self._post("/he300", {"model_id": model_id, "agent_id": agent_id})
+        result = cast(Dict[str, Any], await self._post("/he300", {"model_id": model_id, "agent_id": agent_id}))
         audit_service = await self._get_audit_service()
         if audit_service:
             await audit_service.log_action(
@@ -162,7 +162,7 @@ class CIRISNodeClient(Service):
 
     async def run_chaos_tests(self, agent_id: str, scenarios: List[str]) -> List[Dict[str, Any]]:
         """Run chaos test scenarios and return verdicts."""
-        result = await self._post("/chaos", {"agent_id": agent_id, "scenarios": scenarios})
+        result = cast(List[Dict[str, Any]], await self._post("/chaos", {"agent_id": agent_id, "scenarios": scenarios}))
         audit_service = await self._get_audit_service()
         if audit_service:
             await audit_service.log_action(
@@ -178,7 +178,7 @@ class CIRISNodeClient(Service):
 
     async def run_wa_service(self, service: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Call a WA service on CIRISNode."""
-        result = await self._post(f"/wa/{service}", payload)
+        result = cast(Dict[str, Any], await self._post(f"/wa/{service}", payload))
         audit_service = await self._get_audit_service()
         if audit_service:
             await audit_service.log_action(
@@ -194,7 +194,7 @@ class CIRISNodeClient(Service):
 
     async def log_event(self, event_payload: Dict[str, Any]) -> Dict[str, Any]:
         """Send an event payload to CIRISNode for storage."""
-        result = await self._post("/events", event_payload)
+        result = cast(Dict[str, Any], await self._post("/events", event_payload))
         audit_service = await self._get_audit_service()
         if audit_service:
             await audit_service.log_action(
@@ -215,10 +215,10 @@ class CIRISNodeClient(Service):
         agent_id: str,
     ) -> List[Dict[str, Any]]:
         """Retrieve benchmark prompts from CIRISNode."""
-        result = await self._get(
+        result = cast(List[Dict[str, Any]], await self._get(
             f"/bench/{benchmark}/prompts",
             {"model_id": model_id, "agent_id": agent_id},
-        )
+        ))
         audit_service = await self._get_audit_service()
         if audit_service:
             await audit_service.log_action(
@@ -240,10 +240,10 @@ class CIRISNodeClient(Service):
         answers: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Send benchmark answers back to CIRISNode."""
-        result = await self._put(
+        result = cast(Dict[str, Any], await self._put(
             f"/bench/{benchmark}/answers",
             {"model_id": model_id, "agent_id": agent_id, "answers": answers},
-        )
+        ))
         audit_service = await self._get_audit_service()
         if audit_service:
             await audit_service.log_action(
