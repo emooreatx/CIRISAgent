@@ -41,7 +41,8 @@ class ThoughtProcessor:
 
     async def process_thought(
         self,
-        thought_item: ProcessingQueueItem
+        thought_item: ProcessingQueueItem,
+        context: Optional[Dict[str, Any]] = None
     ) -> Optional[ActionSelectionResult]:
         """Main processing pipeline - coordinates the components."""
         # Record thought processing start
