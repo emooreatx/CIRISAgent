@@ -131,11 +131,31 @@ def main(
             from tests.adapters.mock_llm import MockLLMService  # type: ignore
             import ciris_engine.runtime.ciris_runtime as runtime_module
             runtime_module.OpenAICompatibleLLM = MockLLMService  # patch
+            app_config.mock_llm = True  # Set the flag in config for other components
         
         # Set startup_channel_id
         startup_channel_id = getattr(app_config, 'startup_channel_id', None)
         if hasattr(app_config, 'discord_channel_id'):
             startup_channel_id = app_config.discord_channel_id
+        
+        # Set channel_id based on mode
+        if "api" in selected_modes:
+            app_config.api_channel_id = f"{api_host}:{api_port}"
+            if not startup_channel_id:
+                startup_channel_id = app_config.api_channel_id
+        elif "cli" in selected_modes:
+            # Use user@hostname for CLI channel_id
+            import getpass
+            import socket
+            try:
+                username = getpass.getuser()
+                hostname = socket.gethostname()
+                app_config.cli_channel_id = f"{username}@{hostname}"
+            except Exception:
+                # Fallback to generic if we can't get user/hostname
+                app_config.cli_channel_id = "cli_terminal"
+            if not startup_channel_id:
+                startup_channel_id = app_config.cli_channel_id
 
         # Create runtime using new CIRISRuntime directly
         runtime = CIRISRuntime(

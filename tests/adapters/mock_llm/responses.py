@@ -1,5 +1,6 @@
 import re
 import json
+import logging
 from types import SimpleNamespace
 from typing import Any, List, Dict, Optional
 
@@ -9,6 +10,8 @@ from ciris_engine.schemas.dma_results_v1 import (
     DSDMAResult,
     ActionSelectionResult,
 )
+
+logger = logging.getLogger(__name__)
 from ciris_engine.schemas.feedback_schemas_v1 import (
     OptimizationVetoResult,
     EpistemicHumilityResult,
@@ -184,8 +187,8 @@ def _attach_extras(obj: Any) -> Any:
             # Fallback for other objects
             content_json = json.dumps(obj.__dict__ if hasattr(obj, '__dict__') else str(obj))
     except Exception as e:
-        print(f"[MOCK_LLM_ERROR] Failed to serialize object {type(obj)}: {e}")
-        print(f"[MOCK_LLM_ERROR] Object content: {obj}")
+        logger.error(f"Failed to serialize object {type(obj)}: {e}")
+        logger.error(f"Object content: {obj}")
         content_json = '{"error": "serialization_failed"}'
     
     object.__setattr__(obj, "finish_reason", "stop")
@@ -349,23 +352,23 @@ def create_response(response_model: Any, messages: List[Dict[str, Any]] = None, 
     # Extract context from messages
     context = extract_context_from_messages(messages)
     # Debug for any structured calls
-    print(f"[MOCK_LLM_DEBUG] Request for: {response_model}")
+    logger.debug(f"Request for: {response_model}")
     # Get the appropriate handler
     handler = _RESPONSE_MAP.get(response_model)
     if handler:
-        print(f"[MOCK_LLM_DEBUG] Found handler: {handler.__name__}")
+        logger.debug(f"Found handler: {handler.__name__}")
         import inspect
         sig = inspect.signature(handler)
         if 'context' in sig.parameters:
             result = handler(context=context)
         else:
             result = handler()
-        print(f"[MOCK_LLM_DEBUG] Handler returned: {type(result)}")
+        logger.debug(f"Handler returned: {type(result)}")
         return result
     # Handle None response models - these should not happen in a properly structured system
     if response_model is None:
-        print(f"[MOCK_LLM_WARNING] Received None response_model - this indicates unstructured LLM call")
-        print(f"[MOCK_LLM_WARNING] Context: {context}")
+        logger.warning("Received None response_model - this indicates unstructured LLM call")
+        logger.warning(f"Context: {context}")
         return SimpleNamespace(
             finish_reason="stop",
             _raw_response={"mock": True},

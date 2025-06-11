@@ -100,10 +100,12 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
                 self.idle_rounds = 0
                 round_metrics["was_idle"] = False
             else:
-                # Handle idle state
+                # Handle idle state - DISABLED
                 round_metrics["was_idle"] = True
-                self.idle_rounds += 1
-                await self._handle_idle_state(round_number)
+                # Idle mode disabled - no automatic transitions
+                # self.idle_rounds += 1
+                # await self._handle_idle_state(round_number)
+                logger.debug(f"Round {round_number}: No thoughts to process (idle mode disabled)")
             
             # Update metrics
             self.metrics["rounds_completed"] += 1
@@ -223,26 +225,15 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
         """
         Check if we should recommend transitioning to DREAM state.
         
+        DISABLED: Idle mode transitions are disabled.
+        
         Args:
             idle_threshold: Seconds of idle time before recommending DREAM
         
         Returns:
-            True if DREAM state is recommended
+            Always returns False (idle mode disabled)
         """
-        if self.get_idle_duration() < idle_threshold:
-            return False
-        
-        if (self.task_manager.get_active_task_count() == 0 and
-            self.task_manager.get_pending_task_count() == 0 and
-            self.thought_manager.get_pending_thought_count() == 0):
-            return True
-        
-        if self.idle_rounds > 10:
-            logger.warning(
-                f"Been idle for {self.idle_rounds} rounds despite having work. "
-                "Consider checking for stuck tasks/thoughts."
-            )
-        
+        # Idle mode disabled - no automatic transitions
         return False
 
     # ProcessorInterface implementation

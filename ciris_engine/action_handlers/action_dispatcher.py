@@ -106,7 +106,7 @@ class ActionDispatcher:
                     f"Service registry not ready for handler {handler_instance.__class__.__name__}; action aborted"
                 )
                 return
-        print(f"[DISPATCHER] Dispatching action {action_type.value} for thought {thought.thought_id} to handler {handler_instance.__class__.__name__}")
+        # Logging handled by logger.info above
         
         try:
             # Record handler invocation

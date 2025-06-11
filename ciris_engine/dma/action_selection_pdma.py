@@ -481,6 +481,17 @@ Adhere strictly to the schema for your JSON output.
                 "closing_reminder", self.DEFAULT_PROMPT["closing_reminder"]
             ),
         )
+        
+        # Add follow-up context for mock LLM when enabled
+        original_thought: Thought = triaged_inputs["original_thought"]
+        try:
+            from ciris_engine.config.config_manager import get_config
+            app_config = get_config()
+            if getattr(app_config, 'mock_llm', False) and original_thought.parent_thought_id:
+                system_guidance += "\n\n[MOCK_LLM_CONTEXT]: This is a follow-up thought (has parent_thought_id)."
+        except Exception:
+            # Silently continue if config access fails
+            pass
 
         identity_block = ""
         # Use processing_context_data obtained from triaged_inputs
