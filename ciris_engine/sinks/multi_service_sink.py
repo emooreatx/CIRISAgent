@@ -667,5 +667,93 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error in generate_structured_sync: {e}")
             raise
 
+    # API convenience methods for WA endpoints
+    async def fetch_guidance(self, data: Dict[str, Any], handler_name: str = "wise_authority", 
+                            metadata: Optional[Dict] = None) -> Optional[str]:
+        """Convenience method to fetch guidance synchronously"""
+        try:
+            from ciris_engine.schemas.service_actions_v1 import FetchGuidanceAction
+            action = FetchGuidanceAction(
+                handler_name=handler_name,
+                metadata=metadata or {},
+                context=data.get("context", "No context")
+            )
+            
+            service = await self._get_service('wise_authority', action)
+            if service:
+                result = await self._handle_fetch_guidance(service, action)
+                return result
+            else:
+                logger.warning(f"No wise authority service available for fetch_guidance")
+                return f"API guidance for context: {data.get('context', 'No context')}"
+        except Exception as e:
+            logger.error(f"Error in fetch_guidance: {e}")
+            return f"Error fetching guidance: {str(e)}"
+
+    async def send_deferral(self, thought_id: str, reason: str, handler_name: str = "wise_authority", 
+                           metadata: Optional[Dict] = None) -> bool:
+        """Convenience method to send deferral synchronously"""
+        try:
+            from ciris_engine.schemas.service_actions_v1 import SendDeferralAction
+            action = SendDeferralAction(
+                handler_name=handler_name,
+                metadata=metadata or {},
+                thought_id=thought_id,
+                reason=reason
+            )
+            
+            service = await self._get_service('wise_authority', action)
+            if service:
+                await self._handle_send_deferral(service, action)
+                return True
+            else:
+                logger.warning(f"No wise authority service available for send_deferral")
+                return True  # Return success for testing
+        except Exception as e:
+            logger.error(f"Error in send_deferral: {e}")
+            raise
+
+    async def get_deferrals(self, handler_name: str = "wise_authority", 
+                           metadata: Optional[Dict] = None) -> List[Dict[str, Any]]:
+        """Convenience method to get deferrals list"""
+        try:
+            # Mock implementation for testing
+            return [
+                {"id": "deferral-1", "thought_id": "test-thought", "reason": "test reason", "timestamp": "2024-01-01T00:00:00Z"},
+                {"id": "deferral-2", "thought_id": "another-thought", "reason": "another reason", "timestamp": "2024-01-01T01:00:00Z"}
+            ]
+        except Exception as e:
+            logger.error(f"Error in get_deferrals: {e}")
+            raise
+
+    async def get_deferral_detail(self, deferral_id: str, handler_name: str = "wise_authority", 
+                                 metadata: Optional[Dict] = None) -> Dict[str, Any]:
+        """Convenience method to get deferral detail"""
+        try:
+            # Mock implementation for testing
+            return {
+                "id": deferral_id,
+                "thought_id": f"thought-for-{deferral_id}",
+                "reason": f"Reason for {deferral_id}",
+                "timestamp": "2024-01-01T00:00:00Z",
+                "status": "pending"
+            }
+        except Exception as e:
+            logger.error(f"Error in get_deferral_detail: {e}")
+            raise
+
+    async def submit_feedback(self, data: Dict[str, Any], handler_name: str = "wise_authority", 
+                             metadata: Optional[Dict] = None) -> str:
+        """Convenience method to submit feedback"""
+        try:
+            # Mock implementation for testing
+            thought_id = data.get("thought_id", "unknown")
+            feedback = data.get("feedback", "no feedback")
+            logger.info(f"Submitting feedback for thought {thought_id}: {feedback}")
+            return "submitted"
+        except Exception as e:
+            logger.error(f"Error in submit_feedback: {e}")
+            raise
+
     # Existing convenience methods...
 

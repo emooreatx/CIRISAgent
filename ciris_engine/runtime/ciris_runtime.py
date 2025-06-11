@@ -117,6 +117,9 @@ class CIRISRuntime(RuntimeInterface):
         self._shutdown_reason: Optional[str] = None
         self._shutdown_manager = get_shutdown_manager()
         
+        # Store preload tasks to be loaded after WORK state transition
+        self._preload_tasks: List[str] = []
+        
         self._initialized = False
     
     def _ensure_shutdown_event(self) -> None:
@@ -152,6 +155,15 @@ class CIRISRuntime(RuntimeInterface):
     async def _request_shutdown(self, reason: str = "Shutdown requested") -> None:
         """Async wrapper used during initialization failures."""
         self.request_shutdown(reason)
+    
+    def set_preload_tasks(self, tasks: List[str]) -> None:
+        """Set tasks to be loaded after successful WORK state transition."""
+        self._preload_tasks = tasks.copy()
+        logger.info(f"Set {len(self._preload_tasks)} preload tasks to be loaded after WORK state transition")
+    
+    def get_preload_tasks(self) -> List[str]:
+        """Get the list of preload tasks."""
+        return self._preload_tasks.copy()
         
     async def initialize(self) -> None:
         """Initialize all components and services."""
@@ -490,6 +502,7 @@ class CIRISRuntime(RuntimeInterface):
                 # "io_adapter": self.io_adapter, # Removed, adapters manage their own IO
             },
             startup_channel_id=self.startup_channel_id,
+            runtime=self,  # Pass runtime reference for preload tasks
         )
         
     async def _register_core_services(self) -> None:

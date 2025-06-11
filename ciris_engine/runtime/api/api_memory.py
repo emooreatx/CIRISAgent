@@ -51,7 +51,12 @@ class APIMemoryRoutes:
             value = data.get("value")
             if not key:
                 return web.json_response({"error": "Missing key"}, status=400)
-            node = GraphNode(id=key, type=NodeType.CONCEPT, scope=GraphScope(scope), attributes={"value": value})
+            # Convert string scope to GraphScope enum
+            try:
+                graph_scope = GraphScope(scope)
+            except ValueError:
+                graph_scope = GraphScope.LOCAL  # Fallback to LOCAL scope
+            node = GraphNode(id=key, type=NodeType.CONCEPT, scope=graph_scope, attributes={"value": value})
             # Use the multi_service_sink to memorize
             result = await self.multi_service_sink.memorize(node)
             if hasattr(result, "status") and result.status == MemoryOpStatus.OK:

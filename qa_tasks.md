@@ -7,6 +7,7 @@ This QA plan tests all 9 action handlers using the Mock LLM in API mode. The Moc
 ### API Mode Setup
 
 **API Server**: `127.0.0.1:8080` (default)
+**API Endpoint**: `/v1/messages` (for sending messages with mock LLM commands)
 **Channel ID**: Uses the API socket address (`127.0.0.1:8080`) as the channel identifier
 **Mock LLM**: Replaces OpenAI service with deterministic test responses
 
@@ -27,10 +28,12 @@ The Mock LLM supports direct action commands for precise testing:
 
 ### Testing Method
 
-1. Start API server: `python main.py --mock-llm --modes api --timeout 60`
-2. Use API endpoints to create tasks with specific mock commands
-3. Monitor logs at `logs/latest.log` for handler execution
-4. Verify expected behaviors and follow-up thought creation
+1. Start the API server in the background:
+   `python main.py --mock-llm --modes api --timeout 60 > server.log 2>&1 &`
+   - Omit `--timeout` to leave the server running indefinitely.
+2. Send messages to `/v1/messages` endpoint with mock commands in the content field.
+3. Monitor `server.log` or `logs/latest.log` to ensure the runtime stays in work mode after wakeup.
+4. Verify expected behaviors and follow-up thought creation.
 
 ---
 
@@ -42,12 +45,13 @@ The Mock LLM supports direct action commands for precise testing:
 
 #### 1.1 Basic SPEAK Action
 ```bash
-# Create task that forces SPEAK action
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+# Send message with SPEAK command
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$speak Hello from QA testing!",
-    "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
+    "content": "$speak Hello from QA testing!",
+    "author_id": "qa_tester", 
+    "channel_id": "127.0.0.1:8080"
   }'
 ```
 
@@ -100,11 +104,12 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 2.1 Basic MEMORIZE Action
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$memorize test_concept CONCEPT LOCAL",
-    "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
+    "content": "$memorize test_concept CONCEPT LOCAL",
+    "author_id": "qa_tester", 
+    "channel_id": "127.0.0.1:8080"
   }'
 ```
 

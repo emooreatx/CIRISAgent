@@ -9,6 +9,8 @@ import os
 import asyncio
 import json
 import logging
+import signal
+import sys
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -24,6 +26,42 @@ from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 
 logger = logging.getLogger(__name__)
+
+
+def setup_signal_handlers(runtime: CIRISRuntime) -> None:
+    """Setup signal handlers for graceful shutdown."""
+    shutdown_initiated = {"value": False}  # Use dict to allow modification in nested function
+    
+    def signal_handler(signum, frame):
+        if shutdown_initiated["value"]:
+            logger.warning(f"Signal {signum} received again, forcing immediate exit")
+            sys.exit(1)
+        
+        shutdown_initiated["value"] = True
+        logger.info(f"Received signal {signum}, requesting graceful shutdown...")
+        
+        try:
+            runtime.request_shutdown(f"Signal {signum}")
+        except Exception as e:
+            logger.error(f"Error during shutdown request: {e}")
+            sys.exit(1)
+    
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
+
+def setup_global_exception_handler() -> None:
+    """Setup global exception handler to catch all uncaught exceptions."""
+    def handle_exception(exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            # Let KeyboardInterrupt be handled by signal handlers
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        
+        logger.error("UNCAUGHT EXCEPTION:", exc_info=(exc_type, exc_value, exc_traceback))
+        logger.error("This should never happen - please report this bug!")
+
+    sys.excepthook = handle_exception
 
 
 def _create_thought() -> Thought:
@@ -58,17 +96,30 @@ async def _execute_handler(runtime: CIRISRuntime, handler: str, params: Optional
 
 async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds: Optional[int] = None) -> None:
     """Run the runtime with optional timeout and graceful shutdown."""
-    if timeout:
-        # Use asyncio.wait_for for timeout handling  
+    try:
+        if timeout:
+            # Use asyncio.wait_for for timeout handling  
+            try:
+                await asyncio.wait_for(runtime.run(num_rounds=num_rounds), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.info(f"Timeout of {timeout} seconds reached, shutting down...")
+                runtime.request_shutdown(f"Runtime timeout after {timeout} seconds")
+                await runtime.shutdown()
+        else:
+            # Run without timeout
+            await runtime.run(num_rounds=num_rounds)
+    except KeyboardInterrupt:
+        logger.info("Received interrupt signal, shutting down gracefully...")
+        runtime.request_shutdown("User interrupt")
+        await runtime.shutdown()
+    except Exception as e:
+        logger.error(f"FATAL ERROR: Unhandled exception in runtime: {e}", exc_info=True)
         try:
-            await asyncio.wait_for(runtime.run(num_rounds=num_rounds), timeout=timeout)
-        except asyncio.TimeoutError:
-            logger.info(f"Timeout of {timeout} seconds reached, shutting down...")
-            runtime.request_shutdown(f"Runtime timeout after {timeout} seconds")
+            runtime.request_shutdown(f"Fatal error: {e}")
             await runtime.shutdown()
-    else:
-        # Run without timeout
-        await runtime.run(num_rounds=num_rounds)
+        except Exception as shutdown_error:
+            logger.error(f"Error during emergency shutdown: {shutdown_error}", exc_info=True)
+        raise  # Re-raise to ensure non-zero exit code
 
 
 @click.command()
@@ -132,6 +183,7 @@ def main(
             import ciris_engine.runtime.ciris_runtime as runtime_module
             runtime_module.OpenAICompatibleLLM = MockLLMService  # patch
             app_config.mock_llm = True  # Set the flag in config for other components
+
         
         # Set startup_channel_id
         startup_channel_id = getattr(app_config, 'startup_channel_id', None)
@@ -157,6 +209,9 @@ def main(
             if not startup_channel_id:
                 startup_channel_id = app_config.cli_channel_id
 
+        # Setup global exception handling
+        setup_global_exception_handler()
+        
         # Create runtime using new CIRISRuntime directly
         runtime = CIRISRuntime(
             modes=selected_modes,
@@ -169,12 +224,13 @@ def main(
             discord_bot_token=discord_bot_token,
         )
         await runtime.initialize()
+        
+        # Setup signal handlers for graceful shutdown
+        setup_signal_handlers(runtime)
 
-        # Preload tasks
-        if task:
-            tm = TaskManager()
-            for desc in task:
-                tm.create_task(desc, context={"channel_id": runtime.startup_channel_id})
+        # Store preload tasks to be loaded after WORK state transition
+        preload_tasks = list(task) if task else []
+        runtime.set_preload_tasks(preload_tasks)
 
         if handler:
             await _execute_handler(runtime, handler, params)

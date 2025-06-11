@@ -1,0 +1,5 @@
+{
+  "content": "$recall test_concept CONCEPT LOCAL",
+  "author_id": "qa_tester",
+  "channel_id": "127.0.0.1:8080"
+}

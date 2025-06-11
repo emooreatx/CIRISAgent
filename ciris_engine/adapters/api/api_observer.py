@@ -66,21 +66,26 @@ class APIObserver(BaseObserver[IncomingMessage]):
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
         from ciris_engine.utils.constants import (
-            API_CHANNEL_ID,
             API_DEFERRAL_CHANNEL_ID,
             WA_API_USER,
             DEFAULT_WA,
         )
 
-        default_channel_id = API_CHANNEL_ID
+        # API channel is now the socket address (e.g., "127.0.0.1:8080")
+        # Process all messages that aren't from the agent itself
         deferral_channel_id = API_DEFERRAL_CHANNEL_ID
         wa_api_user = WA_API_USER or DEFAULT_WA
-        if msg.channel_id == default_channel_id and not self._is_agent_message(msg):
-            await self._create_passive_observation_result(msg)
+        
+        if not self._is_agent_message(msg):
+            # Handle regular API messages (any channel that isn't a deferral channel)
+            if msg.channel_id != deferral_channel_id:
+                await self._create_passive_observation_result(msg)
+            else:
+                logger.debug("Ignoring message from non-deferral channel %s", msg.channel_id)
         elif msg.channel_id == deferral_channel_id and msg.author_name == wa_api_user:
             await self._add_to_feedback_queue(msg)
         else:
-            logger.debug("Ignoring message from channel %s, author %s", msg.channel_id, msg.author_name)
+            logger.debug("Ignoring agent message from channel %s, author %s", msg.channel_id, msg.author_name)
 
     def _is_agent_message(self, msg: IncomingMessage) -> bool:
         if self.agent_id and msg.author_id == self.agent_id:

@@ -45,6 +45,7 @@ class AgentProcessor(ProcessorInterface):
         action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any],
         startup_channel_id: Optional[str] = None,
+        runtime: Optional[Any] = None,
     ) -> None:
         """Initialize the agent processor with v1 configuration."""
         self.app_config = app_config
@@ -53,6 +54,7 @@ class AgentProcessor(ProcessorInterface):
         self._action_dispatcher = action_dispatcher  # Store internally
         self.services = services
         self.startup_channel_id = startup_channel_id
+        self.runtime = runtime  # Store runtime reference for preload tasks
         
         # Initialize state manager
         self.state_manager = StateManager(initial_state=AgentState.SHUTDOWN)
@@ -89,10 +91,11 @@ class AgentProcessor(ProcessorInterface):
             services=services
         )
         
+        # Dream processor is initialized but will not be automatically entered via idle logic
         self.dream_processor = DreamProcessor(
-            app_config=app_config,  # Added
-            profile=self.active_profile,  # Use the active profile directly
-            service_registry=services.get("service_registry"),  # Pass service registry
+            app_config=app_config,
+            profile=self.active_profile,
+            service_registry=services.get("service_registry"),
             cirisnode_url=app_config.cirisnode.base_url if hasattr(app_config, 'cirisnode') else "https://localhost:8001"
         )
         
@@ -112,6 +115,28 @@ class AgentProcessor(ProcessorInterface):
         self._processing_task: Optional[asyncio.Task] = None
 
         logger.info("AgentProcessor initialized with v1 schemas and modular processors")
+
+    async def _load_preload_tasks(self) -> None:
+        """Load preload tasks after successful WORK state transition."""
+        try:
+            if self.runtime and hasattr(self.runtime, "get_preload_tasks"):
+                preload_tasks = self.runtime.get_preload_tasks()
+                if preload_tasks:
+                    logger.info(f"Loading {len(preload_tasks)} preload tasks after WORK state transition")
+                    from ciris_engine.processor.task_manager import TaskManager
+                    tm = TaskManager()
+                    for desc in preload_tasks:
+                        try:
+                            tm.create_task(desc, context={"channel_id": self.startup_channel_id})
+                            logger.info(f"Created preload task: {desc}")
+                        except Exception as e:
+                            logger.error(f"Error creating preload task '{desc}': {e}", exc_info=True)
+                else:
+                    logger.debug("No preload tasks to load")
+            else:
+                logger.debug("Runtime does not support preload tasks")
+        except Exception as e:
+            logger.error(f"Error loading preload tasks: {e}", exc_info=True)
 
     def _ensure_stop_event(self) -> None:
         """Ensure stop event is created when needed in async context."""
@@ -195,6 +220,9 @@ class AgentProcessor(ProcessorInterface):
 
         self.state_manager.update_state_metadata("wakeup_complete", True)
 
+        # Load preload tasks after successful WORK state transition
+        await self._load_preload_tasks()
+
         if hasattr(self, "runtime") and hasattr(self.runtime, "start_interactive_console"):
             print("[STATE] Initializing interactive console for user input...")
             try:
@@ -218,58 +246,86 @@ class AgentProcessor(ProcessorInterface):
 
     async def _process_pending_thoughts_async(self) -> int:
         """
-        Process all pending thoughts asynchronously.
+        Process all pending thoughts asynchronously with comprehensive error handling.
         This is the key to non-blocking operation - it processes ALL thoughts,
         not just wakeup thoughts.
         """
-        pending_thoughts = persistence.get_pending_thoughts_for_active_tasks()
-        
-        max_active = 10
-        if hasattr(self.app_config, 'workflow') and self.app_config.workflow:
-            max_active = getattr(self.app_config.workflow, 'max_active_thoughts', 10)
-        
-        limited_thoughts = pending_thoughts[:max_active]
-        
-        logger.info(f"Found {len(pending_thoughts)} PENDING thoughts, processing {len(limited_thoughts)} (max_active_thoughts: {max_active})")
-        
-        if not limited_thoughts:
+        try:
+            pending_thoughts = persistence.get_pending_thoughts_for_active_tasks()
+            
+            max_active = 10
+            if hasattr(self.app_config, 'workflow') and self.app_config.workflow:
+                max_active = getattr(self.app_config.workflow, 'max_active_thoughts', 10)
+            
+            limited_thoughts = pending_thoughts[:max_active]
+            
+            logger.info(f"Found {len(pending_thoughts)} PENDING thoughts, processing {len(limited_thoughts)} (max_active_thoughts: {max_active})")
+            
+            if not limited_thoughts:
+                return 0
+            
+            processed_count = 0
+            failed_count = 0
+            
+            batch_size = 5
+            
+            for i in range(0, len(limited_thoughts), batch_size):
+                try:
+                    batch = limited_thoughts[i:i + batch_size]
+                    
+                    tasks: List[Any] = []
+                    for thought in batch:
+                        try:
+                            persistence.update_thought_status(
+                                thought_id=thought.thought_id,
+                                status=ThoughtStatus.PROCESSING
+                            )
+                            
+                            task = self._process_single_thought(thought)
+                            tasks.append(task)
+                        except Exception as e:
+                            logger.error(f"Error preparing thought {thought.thought_id} for processing: {e}", exc_info=True)
+                            failed_count += 1
+                            continue
+                    
+                    if not tasks:
+                        continue
+                    
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    
+                    for result, thought in zip(results, batch):
+                        try:
+                            if isinstance(result, Exception):
+                                logger.error(f"Error processing thought {thought.thought_id}: {result}")
+                                persistence.update_thought_status(
+                                    thought_id=thought.thought_id,
+                                    status=ThoughtStatus.FAILED,
+                                    final_action={"error": str(result)}
+                                )
+                                failed_count += 1
+                            else:
+                                processed_count += 1
+                        except Exception as e:
+                            logger.error(f"Error handling result for thought {thought.thought_id}: {e}", exc_info=True)
+                            failed_count += 1
+                            
+                except Exception as e:
+                    logger.error(f"Error processing thought batch {i//batch_size + 1}: {e}", exc_info=True)
+                    failed_count += len(batch) if 'batch' in locals() else batch_size
+            
+            if failed_count > 0:
+                logger.warning(f"Thought processing completed with {failed_count} failures out of {len(limited_thoughts)} attempts")
+            
+            return processed_count
+            
+        except Exception as e:
+            logger.error(f"CRITICAL: Error in _process_pending_thoughts_async: {e}", exc_info=True)
+            # Don't re-raise to avoid breaking the main loop
             return 0
-        
-        processed_count = 0
-        
-        batch_size = 5
-        
-        for i in range(0, len(limited_thoughts), batch_size):
-            batch = limited_thoughts[i:i + batch_size]
-            
-            tasks: List[Any] = []
-            for thought in batch:
-                persistence.update_thought_status(
-                    thought_id=thought.thought_id,
-                    status=ThoughtStatus.PROCESSING
-                )
-                
-                task = self._process_single_thought(thought)
-                tasks.append(task)
-            
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            for result, thought in zip(results, batch):
-                if isinstance(result, Exception):
-                    logger.error(f"Error processing thought {thought.thought_id}: {result}")
-                    persistence.update_thought_status(
-                        thought_id=thought.thought_id,
-                        status=ThoughtStatus.FAILED,
-                        final_action={"error": str(result)}
-                    )
-                else:
-                    processed_count += 1
-        
-        return processed_count
 
 
     async def _process_single_thought(self, thought: Thought) -> bool:
-        """Process a single thought and dispatch its action, with DMA fallback."""
+        """Process a single thought and dispatch its action, with comprehensive error handling."""
         try:
             # Create processing queue item
             item = ProcessingQueueItem.from_thought(thought)
@@ -278,40 +334,80 @@ class AgentProcessor(ProcessorInterface):
             processor = self.state_processors.get(self.state_manager.get_state())  # type: ignore[union-attr]
             if processor is None:
                 logger.error(f"No processor found for state {self.state_manager.get_state()}")
+                persistence.update_thought_status(
+                    thought_id=thought.thought_id,
+                    status=ThoughtStatus.FAILED,
+                    final_action={"error": f"No processor for state {self.state_manager.get_state()}"}
+                )
                 return False
 
             # Use fallback-aware process_thought_item
-            result = await processor.process_thought_item(item, context={"origin": "wakeup_async"})
+            try:
+                result = await processor.process_thought_item(item, context={"origin": "wakeup_async"})
+            except Exception as e:
+                logger.error(f"Error in processor.process_thought_item for thought {thought.thought_id}: {e}", exc_info=True)
+                persistence.update_thought_status(
+                    thought_id=thought.thought_id,
+                    status=ThoughtStatus.FAILED,
+                    final_action={"error": f"Processor error: {e}"}
+                )
+                return False
 
             if result:
-                # Get the task for context
-                task = persistence.get_task_by_id(thought.source_task_id)
-                dispatch_context = build_dispatch_context(
-                    thought=thought, 
-                    task=task, 
-                    app_config=self.app_config, 
-                    round_number=self.current_round_number
-                )
-                # Services should be accessed via service registry, not passed in context
-                # to avoid serialization issues during audit logging
-                
-                await self.action_dispatcher.dispatch(
-                    action_selection_result=result,
-                    thought=thought,
-                    dispatch_context=dispatch_context
-                )
-                return True
-            else:
-                # Check if the thought was already handled (e.g., TASK_COMPLETE)
-                updated_thought = await persistence.async_get_thought_by_id(thought.thought_id)
-                if updated_thought and updated_thought.status in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED]:
-                    logger.debug(f"Thought {thought.thought_id} was already handled with status {updated_thought.status.value}")
+                try:
+                    # Get the task for context
+                    task = persistence.get_task_by_id(thought.source_task_id)
+                    dispatch_context = build_dispatch_context(
+                        thought=thought, 
+                        task=task, 
+                        app_config=self.app_config, 
+                        round_number=self.current_round_number
+                    )
+                    # Services should be accessed via service registry, not passed in context
+                    # to avoid serialization issues during audit logging
+                    
+                    await self.action_dispatcher.dispatch(
+                        action_selection_result=result,
+                        thought=thought,
+                        dispatch_context=dispatch_context
+                    )
                     return True
-                else:
-                    logger.warning(f"No result from processing thought {thought.thought_id}")
+                except Exception as e:
+                    logger.error(f"Error in action_dispatcher.dispatch for thought {thought.thought_id}: {e}", exc_info=True)
+                    persistence.update_thought_status(
+                        thought_id=thought.thought_id,
+                        status=ThoughtStatus.FAILED,
+                        final_action={"error": f"Dispatch error: {e}"}
+                    )
+                    return False
+            else:
+                try:
+                    # Check if the thought was already handled (e.g., TASK_COMPLETE)
+                    updated_thought = await persistence.async_get_thought_by_id(thought.thought_id)
+                    if updated_thought and updated_thought.status in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED]:
+                        logger.debug(f"Thought {thought.thought_id} was already handled with status {updated_thought.status.value}")
+                        return True
+                    else:
+                        logger.warning(f"No result from processing thought {thought.thought_id}")
+                        persistence.update_thought_status(
+                            thought_id=thought.thought_id,
+                            status=ThoughtStatus.FAILED,
+                            final_action={"error": "No processing result and thought not already handled"}
+                        )
+                        return False
+                except Exception as e:
+                    logger.error(f"Error checking thought status for {thought.thought_id}: {e}", exc_info=True)
                     return False
         except Exception as e:
-            logger.error(f"Error processing thought {thought.thought_id}: {e}", exc_info=True)
+            logger.error(f"CRITICAL: Unhandled error processing thought {thought.thought_id}: {e}", exc_info=True)
+            try:
+                persistence.update_thought_status(
+                    thought_id=thought.thought_id,
+                    status=ThoughtStatus.FAILED,
+                    final_action={"error": f"Critical processing error: {e}"}
+                )
+            except Exception as update_error:
+                logger.error(f"Failed to update thought status after critical error: {update_error}", exc_info=True)
             raise
     
     async def stop_processing(self) -> None:
@@ -324,7 +420,7 @@ class AgentProcessor(ProcessorInterface):
         if self._stop_event:
             self._stop_event.set()
         
-        if self.state_manager.get_state() == AgentState.DREAM:
+        if self.state_manager.get_state() == AgentState.DREAM and self.dream_processor:
             await self.dream_processor.stop_dreaming()
         
         for processor in self.state_processors.values():
@@ -349,87 +445,118 @@ class AgentProcessor(ProcessorInterface):
             self._processing_task = None
     
     async def _processing_loop(self, num_rounds: Optional[int] = None) -> None:
-        """Main processing loop with state management."""
+        """Main processing loop with state management and comprehensive exception handling."""
         round_count = 0
+        consecutive_errors = 0
+        max_consecutive_errors = 5
         
-        while not (self._stop_event and self._stop_event.is_set()):
-            if num_rounds is not None and round_count >= num_rounds:
-                logger.info(f"Reached target rounds ({num_rounds}), requesting graceful shutdown")
-                request_global_shutdown(f"Processing completed after {num_rounds} rounds")
-                break
-            
-            # Update round number
-            # self.thought_processor.advance_round()  # Removed nonexistent method
-            self.current_round_number += 1
-            
-            # Check for automatic state transitions
-            next_state = self.state_manager.should_auto_transition()
-            if next_state:
-                await self._handle_state_transition(next_state)
-            
-            # Process based on current state
-            current_state = self.state_manager.get_state()
-            
-            # Get processor for current state
-            processor = self.state_processors.get(current_state)
-            
-            if processor:
-                # Use the appropriate processor
+        try:
+            while not (self._stop_event and self._stop_event.is_set()):
                 try:
-                    result = await processor.process(self.current_round_number)
-                    round_count += 1
+                    if num_rounds is not None and round_count >= num_rounds:
+                        logger.info(f"Reached target rounds ({num_rounds}), requesting graceful shutdown")
+                        request_global_shutdown(f"Processing completed after {num_rounds} rounds")
+                        break
                     
-                    # Check for state transition recommendations
+                    # Update round number
+                    # self.thought_processor.advance_round()  # Removed nonexistent method
+                    self.current_round_number += 1
+                    
+                    # Check for automatic state transitions
+                    next_state = self.state_manager.should_auto_transition()
+                    if next_state:
+                        await self._handle_state_transition(next_state)
+                    
+                    # Process based on current state
+                    current_state = self.state_manager.get_state()
+                    
+                    # Get processor for current state
+                    processor = self.state_processors.get(current_state)
+                    
+                    if processor:
+                        # Use the appropriate processor
+                        try:
+                            result = await processor.process(self.current_round_number)
+                            round_count += 1
+                            consecutive_errors = 0  # Reset error counter on success
+                            
+                            # Check for state transition recommendations
+                            if current_state == AgentState.WORK:
+                                # Dream processor exists but no automatic idle-based transition to DREAM state
+                                pass
+                            
+                            elif current_state == AgentState.SOLITUDE and processor == self.solitude_processor:
+                                if result.get("should_exit_solitude"):
+                                    logger.info(f"Exiting solitude: {result.get('exit_reason', 'Unknown reason')}")
+                                    await self._handle_state_transition(AgentState.WORK)
+                                    
+                        except Exception as e:
+                            consecutive_errors += 1
+                            logger.error(f"Error in {processor} for state {current_state}: {e}", exc_info=True)
+                            
+                            if consecutive_errors >= max_consecutive_errors:
+                                logger.error(f"Too many consecutive processing errors ({consecutive_errors}), requesting shutdown")
+                                request_global_shutdown(f"Processing errors: {consecutive_errors} consecutive failures")
+                                break
+                            
+                            # Add backoff delay after errors
+                            await asyncio.sleep(min(consecutive_errors * 2, 30))
+                            
+                    elif current_state == AgentState.DREAM:
+                        # Dream processing is handled by dream_processor
+                        await asyncio.sleep(5)  # Check periodically
+                        
+                    elif current_state == AgentState.SHUTDOWN:
+                        # In shutdown state, exit the loop
+                        logger.info("In SHUTDOWN state, exiting processing loop")
+                        break
+                        
+                    else:
+                        logger.warning(f"No processor for state: {current_state}")
+                        await asyncio.sleep(1)
+                    
+                    # Brief delay between rounds
+                    # Get delay from config, default to 1.0
+                    delay = 1.0
+                    if hasattr(self.app_config, 'workflow') and hasattr(self.app_config.workflow, 'round_delay_seconds'):
+                        delay = self.app_config.workflow.round_delay_seconds
+                    
+                    # State-specific delays override config
                     if current_state == AgentState.WORK:
-                        # Dream mode disabled - no automatic transition to DREAM state
-                        pass
+                        delay = 3.0  # 3 second delay in work mode as requested
+                    elif current_state == AgentState.SOLITUDE:
+                        delay = 10.0  # Slower pace in solitude
+                    elif current_state == AgentState.DREAM:
+                        delay = 5.0  # Check dream state periodically
                     
-                    elif current_state == AgentState.SOLITUDE and processor == self.solitude_processor:
-                        if result.get("should_exit_solitude"):
-                            logger.info(f"Exiting solitude: {result.get('exit_reason', 'Unknown reason')}")
-                            await self._handle_state_transition(AgentState.WORK)
+                    if delay > 0 and not (self._stop_event and self._stop_event.is_set()):
+                        try:
+                            if self._stop_event:
+                                await asyncio.wait_for(self._stop_event.wait(), timeout=delay)
+                                break  # Stop event was set
+                            else:
+                                await asyncio.sleep(delay)
+                        except asyncio.TimeoutError:
+                            pass  # Continue processing
                             
                 except Exception as e:
-                    logger.error(f"Error in {processor} for state {current_state}: {e}", exc_info=True)
+                    consecutive_errors += 1
+                    logger.error(f"CRITICAL: Unhandled error in processing loop round {self.current_round_number}: {e}", exc_info=True)
                     
-            elif current_state == AgentState.DREAM:
-                # Dream processing is handled by dream_processor
-                await asyncio.sleep(5)  # Check periodically
-                
-            elif current_state == AgentState.SHUTDOWN:
-                # In shutdown state, exit the loop
-                logger.info("In SHUTDOWN state, exiting processing loop")
-                break
-                
-            else:
-                logger.warning(f"No processor for state: {current_state}")
-                await asyncio.sleep(1)
-            
-            # Brief delay between rounds
-            # Get delay from config, default to 1.0
-            delay = 1.0
-            if hasattr(self.app_config, 'workflow') and hasattr(self.app_config.workflow, 'round_delay_seconds'):
-                delay = self.app_config.workflow.round_delay_seconds
-            
-            # State-specific delays override config
-            if current_state == AgentState.WORK:
-                delay = 3.0  # 3 second delay in work mode as requested
-            elif current_state == AgentState.SOLITUDE:
-                delay = 10.0  # Slower pace in solitude
-            elif current_state == AgentState.DREAM:
-                delay = 5.0  # Check dream state periodically
-            
-            if delay > 0 and not (self._stop_event and self._stop_event.is_set()):
-                try:
-                    if self._stop_event:
-                        await asyncio.wait_for(self._stop_event.wait(), timeout=delay)
-                        break  # Stop event was set
-                    else:
-                        await asyncio.sleep(delay)
-                except asyncio.TimeoutError:
-                    pass  # Continue processing
-        
-        logger.info("Processing loop finished")
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"Processing loop has failed {consecutive_errors} consecutive times, requesting shutdown")
+                        request_global_shutdown(f"Critical processing loop failure: {consecutive_errors} consecutive errors")
+                        break
+                    
+                    # Emergency backoff after critical errors
+                    await asyncio.sleep(min(consecutive_errors * 5, 60))
+                    
+        except Exception as e:
+            logger.error(f"FATAL: Catastrophic error in processing loop: {e}", exc_info=True)
+            request_global_shutdown(f"Catastrophic processing loop error: {e}")
+            raise
+        finally:
+            logger.info("Processing loop finished")
     
     async def _handle_state_transition(self, target_state: AgentState) -> None:
         """Handle transitioning to a new state."""
@@ -440,14 +567,17 @@ class AgentProcessor(ProcessorInterface):
             return
         
         if target_state == AgentState.DREAM:
-            duration = 600
-            await self.dream_processor.start_dreaming(duration)
+            logger.info("DREAM state transition requested - dream processor is available but not automatically triggered")
+            # Manual dream transitions can still work if explicitly requested
+            # Automatic idle-based dream transitions are disabled
             
         elif target_state == AgentState.WORK and current_state == AgentState.DREAM:
-            await self.dream_processor.stop_dreaming()
-            
-            summary = self.dream_processor.get_dream_summary()
-            logger.info(f"Dream summary: {summary}")
+            if self.dream_processor:
+                await self.dream_processor.stop_dreaming()
+                summary = self.dream_processor.get_dream_summary()
+                logger.info(f"Dream summary: {summary}")
+            else:
+                logger.info("Dream processor not available, no cleanup needed")
             
         if target_state in self.state_processors:
             processor = self.state_processors[target_state]
@@ -491,7 +621,10 @@ class AgentProcessor(ProcessorInterface):
             status["solitude_status"] = self.solitude_processor.get_status()
             
         elif current_state == AgentState.DREAM:
-            status["dream_summary"] = self.dream_processor.get_dream_summary()
+            if self.dream_processor:
+                status["dream_summary"] = self.dream_processor.get_dream_summary()
+            else:
+                status["dream_summary"] = {"state": "unavailable", "error": "Dream processor not available"}
         
         # Add processor metrics
         status["processor_metrics"] = {}

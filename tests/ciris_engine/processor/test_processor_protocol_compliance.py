@@ -534,18 +534,24 @@ class TestAgentProcessor:
     async def test_start_processing(self, agent_processor):
         """Test AgentProcessor start_processing method."""
         with patch.object(agent_processor.wakeup_processor, 'initialize'), \
-             patch.object(agent_processor.wakeup_processor, 'process') as mock_process, \
-             patch.object(agent_processor, '_process_pending_thoughts_async', return_value=0):
+             patch.object(agent_processor.wakeup_processor, 'process') as mock_wakeup_process, \
+             patch.object(agent_processor.work_processor, 'initialize'), \
+             patch.object(agent_processor.work_processor, 'process') as mock_work_process, \
+             patch.object(agent_processor, '_process_pending_thoughts_async', return_value=0), \
+             patch.object(agent_processor, '_processing_loop') as mock_loop:
             
-            mock_process.return_value = {"wakeup_complete": True}
+            mock_wakeup_process.return_value = {"wakeup_complete": True}
+            mock_work_process.return_value = {"work_complete": True}
             
             # Mock state transitions
             agent_processor.state_manager.transition_to = MagicMock(return_value=True)
             
-            # Test with limited rounds to avoid infinite loop
+            # Test with limited rounds to avoid infinite loop - mock the processing loop
             await agent_processor.start_processing(num_rounds=1)
             
-            mock_process.assert_called()
+            mock_wakeup_process.assert_called()
+            # The processing loop should be started
+            mock_loop.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_stop_processing(self, agent_processor):
