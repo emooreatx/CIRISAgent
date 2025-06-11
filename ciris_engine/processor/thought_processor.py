@@ -57,14 +57,13 @@ class ThoughtProcessor:
                 await self.telemetry_service.record_metric("thought_not_found")
             return None
 
-        # 2. Build context (use provided context or build new one)
-        if context is None:
-            context = await self.context_builder.build_thought_context(thought)
+        # 2. Build context (always build proper ThoughtContext for DMA orchestrator)
+        thought_context = await self.context_builder.build_thought_context(thought)
         # Store the fresh context on the queue item so DMA executor can use it
-        if hasattr(context, "model_dump"):
-            thought_item.initial_context = context.model_dump()
+        if hasattr(thought_context, "model_dump"):
+            thought_item.initial_context = thought_context.model_dump()
         else:
-            thought_item.initial_context = context
+            thought_item.initial_context = thought_context
 
         # 3. Run DMAs
         # profile_name is not an accepted argument by run_initial_dmas.
@@ -75,7 +74,7 @@ class ThoughtProcessor:
         try:
             dma_results = await self.dma_orchestrator.run_initial_dmas(
                 thought_item=thought_item,
-                processing_context=context,
+                processing_context=thought_context,
             )
         except DMAFailure as dma_err:
             logger.error(
@@ -104,7 +103,7 @@ class ThoughtProcessor:
             action_result = await self.dma_orchestrator.run_action_selection(
                 thought_item=thought_item,
                 actual_thought=thought,
-                processing_context=context,  # This is the ThoughtContext
+                processing_context=thought_context,  # This is the ThoughtContext
                 dma_results=dma_results,
                 profile_name=profile_name,
             )
@@ -164,7 +163,7 @@ class ThoughtProcessor:
         # 7. Handle special cases (PONDER, DEFER overrides)
         logger.info(f"ThoughtProcessor: Handling special cases for {thought.thought_id}")
         final_result = await self._handle_special_cases(
-            guardrail_result, thought, context
+            guardrail_result, thought, thought_context
         )
 
         # 8. Ensure we return the final result

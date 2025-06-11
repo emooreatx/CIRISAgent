@@ -185,11 +185,9 @@ class ThoughtManager:
         for item in batch:
             try:
                 # v1 schema: update_thought_status doesn't have round_processed param
-                # We'll need to update persistence layer or handle differently
                 success = persistence.update_thought_status(
                     thought_id=item.thought_id,
                     status=ThoughtStatus.PROCESSING,
-                    round_processed=round_number,  # This might need adaptation
                 )
                 if success:
                     updated_items.append(item)

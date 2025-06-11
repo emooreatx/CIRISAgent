@@ -23,7 +23,7 @@ class APIWARoutes:
             data = {}
         try:
             guidance = await self.multi_service_sink.fetch_guidance(data)
-            return web.json_response({"guidance": guidance})
+            return web.json_response({"result": guidance, "guidance": guidance})
         except Exception as e:
             logger.error(f"Error fetching guidance: {e}")
             return web.json_response({"guidance": None, "error": str(e)}, status=500)
