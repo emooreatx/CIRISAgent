@@ -12,8 +12,8 @@ def action_selection(context=None):
     """Mock ActionSelectionResult with passing values and protocol-compliant types."""
     context = context or []
     
-    # Debug: Print context to see what's being detected
-    print(f"[ACTION_SELECTION_DEBUG] Context: {context}")
+    # Debug context parsing (disabled for less verbose output)
+    # print(f"[ACTION_SELECTION_DEBUG] Context: {context}")
     
     # Extract messages from context if available
     messages = []
@@ -26,19 +26,17 @@ def action_selection(context=None):
                 pass
             break
     
-    # Extract user speech for appropriate response
-    user_speech = ""
+    # Extract user input 
+    user_input = ""
     for item in context:
-        if item.startswith("echo_user_speech:"):
-            user_speech = item.split(":", 1)[1]
+        if item.startswith("user_input:") or item.startswith("task:") or item.startswith("content:"):
+            user_input = item.split(":", 1)[1].strip()
             break
     
-    # Extract memory query for recall action
-    memory_query = ""
-    for item in context:
-        if item.startswith("echo_memory_query:"):
-            memory_query = item.split(":", 1)[1]
-            break
+    # Extract user speech (non-command input)
+    user_speech = ""
+    if user_input and not user_input.startswith("$"):
+        user_speech = user_input
     
     # Check for forced actions (testing)
     forced_action = None
@@ -290,38 +288,32 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
         params = SpeakParams(content=help_text, channel_id="test")
         rationale = "Providing Mock LLM help documentation"
         
+    # Removed the weird ? recall command - only $recall is supported
+        
     elif user_speech:
+        # Regular user input - always speak
         action = HandlerActionType.SPEAK
         params = SpeakParams(content=f"Mock response to: {user_speech}", channel_id="test")
-        # Include context pattern in rationale
-        context_patterns = [item for item in context if item.startswith("echo_user_speech:")]
-        context_info = f" {context_patterns[0]}" if context_patterns else ""
-        rationale = f"Responding to user speech: {user_speech}{context_info}"
-        
-    elif memory_query:
-        action = HandlerActionType.RECALL
-        params = RecallParams(
-            node=GraphNode(id=f"query/{memory_query}", type=NodeType.CONCEPT, scope=GraphScope.LOCAL)
-        )
-        # Include context pattern in rationale  
-        context_patterns = [item for item in context if item.startswith("echo_memory_query:")]
-        context_info = f" {context_patterns[0]}" if context_patterns else ""
-        rationale = f"Recalling memory for: {memory_query}{context_info}"
+        rationale = f"Responding to user: {user_speech}"
         
     else:
-        # Check if this is a follow-up thought (has action_performed context)
-        is_followup = any("action_performed:" in item or "FOLLOW_UP_THOUGHT" in item for item in context)
+        # Check if this is a follow-up thought using the mock LLM context pattern
+        is_followup = any("MOCK_LLM_CONTEXT" in str(item) and "follow-up thought" in str(item) for item in context)
+        
+        # Also check for legacy patterns for backwards compatibility
+        if not is_followup:
+            is_followup = any("action_performed:" in item or "FOLLOW_UP" in str(item) or "followup" in str(item).lower() for item in context)
         
         if is_followup:
             # Follow-up thought → TASK_COMPLETE
             action = HandlerActionType.TASK_COMPLETE
             params = {}
-            rationale = "Follow-up thought should complete the task."
+            rationale = "Completing follow-up thought"
         else:
             # Default: new task → SPEAK
             action = HandlerActionType.SPEAK
             params = SpeakParams(content="Hello! How can I help you?", channel_id="test")
-            rationale = "Default action for new tasks is to speak."
+            rationale = "Default speak action for new task"
     
     # Use custom rationale if provided, otherwise use the generated rationale
     final_rationale = custom_rationale if custom_rationale else rationale

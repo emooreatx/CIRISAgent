@@ -495,6 +495,7 @@ class AppConfig(BaseModel):
     agent_mode: str = Field(default="", description="Runtime mode: 'cli', 'discord', 'api'")
     cli_channel_id: Optional[str] = Field(default=None, description="Channel ID for CLI mode")
     api_channel_id: Optional[str] = Field(default=None, description="Channel ID for API mode")
+    mock_llm: bool = Field(default=False, description="Use mock LLM for testing instead of real OpenAI API")
     data_archive_dir: str = Field(default="data_archive", description="Directory for archived data")
     archive_older_than_hours: int = Field(default=24, description="Archive data older than this many hours")
 

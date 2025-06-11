@@ -1,10 +1,13 @@
 from types import SimpleNamespace
 from typing import Any, Optional
 import instructor
+import logging
 
 from ciris_engine.adapters.base import Service
 
 from .responses import create_response
+
+logger = logging.getLogger(__name__)
 
 
 class MockInstructorClient:
@@ -18,7 +21,7 @@ class MockInstructorClient:
         # This is the instructor-patched version that should always receive response_model
         if response_model is None:
             # This should NOT happen - instructor always passes response_model
-            print(f"[MOCK_LLM_ERROR] MockInstructorClient received response_model=None - this indicates a bug!")
+            logger.error("MockInstructorClient received response_model=None - this indicates a bug!")
             raise ValueError("Instructor client should always receive response_model")
         
         # Forward to base client with response_model preserved
@@ -35,11 +38,11 @@ class MockPatchedClient:
     
     async def _patched_create(self, *args, **kwargs):
         """Intercept instructor-patched calls and route to our mock."""
-        print(f"[MOCK_LLM_DEBUG] Patched client _create called with kwargs: {list(kwargs.keys())}")
+        logger.debug(f"Patched client _create called with kwargs: {list(kwargs.keys())}")
         
         # Extract the response_model from kwargs
         response_model = kwargs.get('response_model')
-        print(f"[MOCK_LLM_DEBUG] Patched client response_model: {response_model}")
+        logger.debug(f"Patched client response_model: {response_model}")
         
         # Route to the original mock client's _create method
         return await self.original_client._create(*args, **kwargs)
@@ -68,7 +71,7 @@ class MockLLMClient:
 
     def _mock_instructor_patch(self, client, mode=None, **kwargs):
         """Override instructor.patch to return our mock patched client."""
-        print(f"[MOCK_LLM_DEBUG] instructor.patch called on {type(client)} with mode {mode}")
+        logger.debug(f"instructor.patch called on {type(client)} with mode {mode}")
         
         # If they're trying to patch our mock client, return our special patched version
         if client is self or client is self.client:
@@ -82,7 +85,7 @@ class MockLLMClient:
         Create method that instructor.patch() will call.
         Must return responses in OpenAI API format for instructor to parse correctly.
         """
-        print(f"[MOCK_LLM_DEBUG] _create called with response_model: {response_model}")
+        logger.debug(f"_create called with response_model: {response_model}")
         
         # Extract messages for context analysis  
         messages = kwargs.get('messages', [])
@@ -93,7 +96,7 @@ class MockLLMClient:
         # Call our response generator with messages as explicit parameter
         response = create_response(response_model, messages=messages, **filtered_kwargs)
         
-        print(f"[MOCK_LLM_DEBUG] Generated response type: {type(response)}")
+        logger.debug(f"Generated response type: {type(response)}")
         return response
     
     def __getattr__(self, name):

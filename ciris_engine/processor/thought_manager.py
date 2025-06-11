@@ -236,15 +236,14 @@ class ThoughtManager:
     def handle_idle_state(self, round_number: int) -> bool:
         """
         Handle idle state when no thoughts are pending.
-        Returns True if a job thought was created.
+        DISABLED: Idle mode is disabled.
+        Returns False (no job thoughts created).
         """
+        # Idle mode disabled - no automatic job creation
         logger.debug(
-            "ThoughtManager.handle_idle_state invoked for round %s", round_number
+            "ThoughtManager.handle_idle_state called but idle mode is disabled for round %s", 
+            round_number
         )
-
-        # TODO: Implement idle state handling logic
-
-        
         return False
     
     def get_pending_thought_count(self) -> int:
