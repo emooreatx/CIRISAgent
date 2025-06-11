@@ -233,12 +233,16 @@ class ThoughtManager:
             logger.error(f"Failed to create follow-up thought: {e}")
             return None
     
-    def handle_idle_state(self) -> bool:
+    def handle_idle_state(self, round_number: int) -> bool:
         """
         Handle idle state when no thoughts are pending.
         Returns True if a job thought was created.
         """
-        #TODO: Implement idle state handling logic
+        logger.debug(
+            "ThoughtManager.handle_idle_state invoked for round %s", round_number
+        )
+
+        # TODO: Implement idle state handling logic
 
         
         return False
