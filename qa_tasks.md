@@ -27,10 +27,12 @@ The Mock LLM supports direct action commands for precise testing:
 
 ### Testing Method
 
-1. Start API server: `python main.py --mock-llm --modes api --timeout 60`
-2. Use API endpoints to create tasks with specific mock commands
-3. Monitor logs at `logs/latest.log` for handler execution
-4. Verify expected behaviors and follow-up thought creation
+1. Start the API server in the background:
+   `python main.py --mock-llm --modes api --timeout 60 > server.log 2>&1 &`
+   - Omit `--timeout` to leave the server running indefinitely.
+2. Use API endpoints to create tasks with specific mock commands.
+3. Monitor `server.log` or `logs/latest.log` to ensure the runtime stays in work mode after wakeup.
+4. Verify expected behaviors and follow-up thought creation.
 
 ---
 

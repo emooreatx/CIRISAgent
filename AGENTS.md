@@ -1,9 +1,9 @@
 # CIRIS Agent Implementation Task List
 
 ## Document Status
-**Version**: 1.0.0  
+**Version**: 1.1.0
 **Status**: ✅ COMPLETE
-**Last Updated**: 2025-06-30
+**Last Updated**: 2025-06-11
 
 ## Overview
 
@@ -37,242 +37,30 @@ CIRIS Agents are responsible for:
 4. **Fail Secure**: Any failure must default to safe operation
 5. **Humble Assessment**: Only mark tasks complete when fully tested and integrated
 
-## 🎯 HIGH PRIORITY TASKS (Blockers for Beta)
+## 🎯 HISTORICAL TASK SUMMARY
 
-### Task Group A: Audit System Integration
-**Est: 3-5 days | Priority: CRITICAL | Dependencies: None**
+All pre-beta implementation tasks have been completed. Key areas covered:
 
-#### A1: Create Audit System Tests
-**File**: `tests/ciris_engine/audit/test_audit_integration.py`
-**Status**: ✅ COMPLETE
+- **Audit System Integration** – signed hash chain, migration 003, and full test suite
+- **Telemetry System** – real-time metrics with security filtering and snapshot integration
+- **Network & Community Schemas** – optimized structures for local and network presence
+- **Secrets Service** – memory integration and auto-forget logic
 
-```python
-# Required test coverage:
-# - Hash chain integrity verification
-# - RSA signature generation and verification  
-# - Database migration 003 application
-# - Integration with existing audit service
-# - Performance impact validation
-# - Error handling and recovery
-# - Key rotation procedures
-```
+These historical tasks remain for reference but require no further action.
 
-**Success Criteria**:
-- [ ] All crypto components have 100% test coverage
-- [ ] Performance overhead < 5% of normal operation
-- [ ] Migration applies successfully on existing databases
-- [ ] Audit service uses signed trail without breaking existing functionality
+## 🔧 CURRENT PRIORITY TASKS
 
-#### A2: Integrate Signed Audit Trail with LocalAuditLog
-**File**: `ciris_engine/adapters/local_audit_log.py`
-**Status**: ✅ COMPLETE
+### Task Group QA: Mock LLM Expansion
+**Goal**: Extend and test the mock LLM using `qa_tasks.md` for robust API validation.
 
-```python
-# Integration requirements:
-# - Modify existing audit service to use AuditHashChain
-# - Add signature verification to audit reads
-# - Implement graceful fallback if signing fails
-# - Add configuration options for enabling/disabling
-# - Maintain backwards compatibility
-```
+1. **Implement deterministic command coverage** – ensure `$speak`, `$memorize`, `$recall`, `$ponder`, `$observe`, `$tool`, `$defer`, `$reject`, `$forget`, and `$task_complete` are parsed correctly.
+2. **Add integration tests** verifying each command triggers the proper action handler in API mode (`tests/adapters/mock_llm`).
+3. **Run QA checklist** from `qa_tasks.md` against the API server in mock mode. Start the server with `python main.py --mock-llm --modes api --timeout 60 > server.log 2>&1 &` (omit the timeout for long sessions) and review `server.log` or `logs/latest.log` for handler output.
+4. **Document** new mock LLM capabilities and update examples in `README.md`.
 
-**Success Criteria**:
-- [ ] Existing audit functionality unchanged
-- [ ] New entries are hash-chained and signed
-- [ ] Verification occurs on audit read operations
-- [ ] Configuration controls feature activation
+*Status Update (QA Session)*: Verified SPEAK and MEMORIZE handlers via `/v1/messages` using mock LLM.
 
-#### A3: Apply Database Migration 003 Safely
-**File**: `ciris_engine/persistence/migration_runner.py`
-**Status**: ✅ COMPLETE
-
-```python
-# Migration runner requirements:
-# - Safe application of migration 003
-# - Rollback procedures if migration fails
-# - Backup creation before migration
-# - Validation of migration success
-# - No data loss during upgrade
-```
-
-**Success Criteria**:
-- [ ] Migration applies without data loss
-- [ ] Rollback works correctly
-- [ ] Existing audit logs remain intact
-- [ ] New schema validates correctly
-
-### Task Group B: Telemetry System Implementation  
-**Est: 2-3 days | Priority: HIGH | Dependencies: A2**
-
-#### B1: Implement Core Telemetry Service
-**File**: `ciris_engine/telemetry/core.py`
-**Status**: ✅ COMPLETE
-
-```python
-# Core service requirements:
-# - Metric collection with security filtering
-# - Integration with SystemSnapshot
-# - Memory-efficient buffering
-# - Tiered collection intervals (50ms, 250ms, 1s, 5s, 30s)
-# - Thread-safe operations
-```
-
-**Success Criteria**:
-- [ ] SystemSnapshot contains real-time telemetry data
-- [ ] Memory usage < 10MB for telemetry system
-- [ ] No PII or sensitive data in metrics
-- [ ] Performance impact < 1% of normal operation
-
-#### B2: Create Security Filter Implementation
-**File**: `ciris_engine/telemetry/security.py`
-**Status**: ✅ COMPLETE
-
-```python
-# Security filter requirements:
-# - PII detection and removal
-# - Metric bounds validation
-# - Rate limiting per metric type
-# - Sanitization of error messages
-# - Audit trail for filtered metrics
-```
-
-**Success Criteria**:
-- [ ] No PII leaks through telemetry
-- [ ] All metrics are bounds-checked
-- [ ] Rate limiting prevents DoS
-- [ ] Security tests pass 100%
-
-#### B3: Update SystemSnapshot Integration
-**File**: `ciris_engine/schemas/context_schemas_v1.py`
-**Status**: ✅ COMPLETE
-
-```python
-# Integration requirements:
-# - Add TelemetrySnapshot to SystemSnapshot
-# - Ensure real-time updates from TelemetryService
-# - Maintain backwards compatibility
-# - Add validation for telemetry data
-```
-
-**Success Criteria**:
-- [ ] Agent can access its own metrics via SystemSnapshot
-- [ ] Telemetry updates in real-time
-- [ ] No breaking changes to existing code
-- [ ] Validation prevents invalid telemetry data
-
-### Task Group C: Network Schema Implementation
-**Est: 2-3 days | Priority: HIGH | Dependencies: None**
-
-#### C1: Create Network Schema Files
-**File**: `ciris_engine/schemas/network_schemas_v1.py`
-**Status**: ✅ COMPLETE
-
-```python
-# From NETWORK_SCHEMAS.md specifications:
-# - NetworkType enum (LOCAL, CIRISNODE, DISCORD)
-# - AgentIdentity with minimal memory footprint
-# - NetworkPresence for discovery
-# - Memory optimization (integers vs floats, epochs vs ISO8601)
-```
-
-**Success Criteria**:
-- [ ] All schemas serialize to < 1KB each
-- [ ] Memory usage tested on Raspberry Pi
-- [ ] Type validation works correctly
-- [ ] Integration with existing schemas
-
-#### C2: Create Community Schema Files
-**File**: `ciris_engine/schemas/community_schemas_v1.py`
-**Status**: ✅ COMPLETE
-
-```python
-# Community awareness requirements:
-# - CommunityHealth with 0-100 integer metrics
-# - MinimalCommunityContext for resource constraints
-# - Single community tracking to save memory
-```
-
-**Success Criteria**:
-- [ ] Single community context < 4KB memory
-- [ ] Health metrics use single bytes
-- [ ] Integration with graph memory
-
-#### C3: Create Wisdom Schema Files
-**File**: `ciris_engine/schemas/wisdom_schemas_v1.py`
-**Status**: ✅ COMPLETE
-
-```python
-# Wisdom-seeking requirements:
-# - WisdomRequest for isolation scenarios
-# - UniversalGuidanceProtocol as last resort
-# - Clear activation criteria (72+ hours isolation)
-# - Integration with deferral system
-```
-
-**Success Criteria**:
-- [ ] UGP only activates after proper escalation
-- [ ] Integration with existing WA deferral
-- [ ] Clear audit trail for UGP activation
-- [ ] Prevents bypass of normal deferral
-
-#### C4: Update Schema Registry and Exports
-**Files**: `ciris_engine/schemas/__init__.py`, `ciris_engine/schemas/schema_registry.py`
-**Status**: ✅ COMPLETE
-
-```python
-# Registry requirements:
-# - Add all new schemas to registry
-# - Update exports in __init__.py
-# - Maintain backwards compatibility
-# - Add version tracking
-```
-
-**Success Criteria**:
-- [ ] All new schemas accessible via imports
-- [ ] Schema registry contains all schemas
-- [ ] No breaking changes to existing imports
-- [ ] Version tracking works correctly
-
-## 🔧 MEDIUM PRIORITY TASKS (Quality & Robustness)
-
-### Task Group D: Secrets System Enhancement
-**Est: 1-2 days | Priority: MEDIUM | Dependencies: None**
-
-#### D1: Complete Secrets Service Implementation
-**Files**: `ciris_engine/secrets/filter.py`, `ciris_engine/secrets/store.py`, `ciris_engine/secrets/service.py`, `ciris_engine/secrets/tools.py`
-**Status**: ✅ COMPLETE
-
-```python
-# Secrets system completion:
-# - Implement missing components referenced in __init__.py
-# - Integration with graph memory for RECALL/MEMORIZE/FORGET
-# - Auto-FORGET behavior after task completion
-# - Agent tools for secrets management
-```
-
-**Success Criteria**:
-- [ ] All imports in secrets/__init__.py work
-- [ ] RECALL/MEMORIZE/FORGET work with secrets
-- [ ] Auto-FORGET prevents secret accumulation
-- [ ] Agent can manage detection patterns
-
-#### D2: Create Secrets Integration Tests
-**File**: `tests/ciris_engine/secrets/test_secrets_integration.py`
-**Status**: ✅ COMPLETE
-
-```python
-# Integration test requirements:
-# - End-to-end secret detection and storage
-# - Graph memory integration testing
-# - Auto-FORGET behavior validation
-# - Performance impact testing
-```
-
-**Success Criteria**:
-- [ ] Secrets detected and stored correctly
-- [ ] Graph memory operations work with secrets
-- [ ] Auto-FORGET cleans up after tasks
-- [ ] Performance overhead < 2%
+Progress is tracked in this document under *Task Group QA* until complete.
 
 ## 📋 TASK EXECUTION INSTRUCTIONS
 

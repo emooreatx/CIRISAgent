@@ -132,6 +132,7 @@ def main(
             import ciris_engine.runtime.ciris_runtime as runtime_module
             runtime_module.OpenAICompatibleLLM = MockLLMService  # patch
             app_config.mock_llm = True  # Set the flag in config for other components
+
         
         # Set startup_channel_id
         startup_channel_id = getattr(app_config, 'startup_channel_id', None)
