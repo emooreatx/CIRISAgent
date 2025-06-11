@@ -42,9 +42,30 @@ class DiscordPlatform(PlatformAdapter):
         else:
             logger.warning("DiscordPlatform: DiscordAdapter may not have 'attach_to_client' method.")
 
+        # Get channel IDs from kwargs first, then fall back to app_config
+        monitored_channel_ids = kwargs.get("discord_monitored_channel_ids")
+        monitored_channel_id = kwargs.get("discord_monitored_channel_id")
+        
+        # If not provided in kwargs, get from runtime's app_config
+        if not monitored_channel_ids and not monitored_channel_id:
+            if hasattr(self.runtime, 'app_config') and self.runtime.app_config:
+                if self.runtime.app_config.discord_channel_ids:
+                    monitored_channel_ids = self.runtime.app_config.discord_channel_ids
+                    logger.info(f"DiscordPlatform: Using {len(monitored_channel_ids)} channels from app_config: {monitored_channel_ids}")
+                elif self.runtime.app_config.discord_channel_id:
+                    monitored_channel_id = self.runtime.app_config.discord_channel_id
+                    logger.info(f"DiscordPlatform: Using single channel from app_config: {monitored_channel_id}")
+            else:
+                logger.warning("DiscordPlatform: No channel configuration found in kwargs or app_config")
+        else:
+            if monitored_channel_ids:
+                logger.info(f"DiscordPlatform: Using {len(monitored_channel_ids)} channels from kwargs: {monitored_channel_ids}")
+            elif monitored_channel_id:
+                logger.info(f"DiscordPlatform: Using single channel from kwargs: {monitored_channel_id}")
+        
         self.discord_observer = DiscordObserver(
-            monitored_channel_id=kwargs.get("discord_monitored_channel_id"),
-            monitored_channel_ids=kwargs.get("discord_monitored_channel_ids"),
+            monitored_channel_id=monitored_channel_id,
+            monitored_channel_ids=monitored_channel_ids,
             memory_service=getattr(self.runtime, 'memory_service', None),
             agent_id=getattr(self.runtime, 'agent_id', None),
             multi_service_sink=getattr(self.runtime, 'multi_service_sink', None),

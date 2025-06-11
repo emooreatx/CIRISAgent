@@ -349,3 +349,134 @@ class TestSecretsStore:
         final_retrieved = await temp_store.retrieve_secret(sample_detected_secret.secret_uuid)
         # Should be 6 total (5 concurrent + 1 final)
         assert final_retrieved.access_count == 6
+
+    @pytest.mark.asyncio
+    async def test_reencrypt_all_empty_store(self, temp_store):
+        """Test re-encryption with no secrets in store."""
+        new_key = b"new_master_key_32_bytes_long!!" # 33 bytes - fix this
+        new_key = b"new_master_key_exactly_32bytes!!"  # Exactly 32 bytes
+        result = await temp_store.reencrypt_all(new_key)
+        assert result is True
+        
+    @pytest.mark.asyncio
+    async def test_reencrypt_all_with_secrets(self, temp_store, sample_detected_secret):
+        """Test re-encryption of existing secrets."""
+        # Store a secret
+        original_secret = await temp_store.store_secret(sample_detected_secret)
+        original_value = sample_detected_secret.original_value
+        
+        # Verify it can be retrieved and decrypted
+        retrieved_before = await temp_store.retrieve_secret(sample_detected_secret.secret_uuid)
+        decrypted_before = await temp_store.decrypt_secret_value(retrieved_before)
+        assert decrypted_before == original_value
+        
+        # Store the old encryption data for comparison
+        old_encrypted_value = retrieved_before.encrypted_value
+        old_salt = retrieved_before.salt
+        old_nonce = retrieved_before.nonce
+        
+        # Re-encrypt with new key
+        new_key = b"new_master_key_exactly_32bytes!!"  # Exactly 32 bytes
+        result = await temp_store.reencrypt_all(new_key)
+        assert result is True
+        
+        # Verify secret can still be retrieved and decrypted with new key
+        retrieved_after = await temp_store.retrieve_secret(sample_detected_secret.secret_uuid)
+        assert retrieved_after is not None
+        decrypted_after = await temp_store.decrypt_secret_value(retrieved_after)
+        assert decrypted_after == original_value
+        
+        # Verify encryption data has changed
+        assert retrieved_after.encrypted_value != old_encrypted_value
+        assert retrieved_after.salt != old_salt
+        assert retrieved_after.nonce != old_nonce
+        assert retrieved_after.encryption_key_ref == "master_key_v2"
+        
+    @pytest.mark.asyncio
+    async def test_reencrypt_all_multiple_secrets(self, temp_store):
+        """Test re-encryption of multiple secrets."""
+        # Store multiple secrets
+        secrets_data = [
+            ("uuid1", "secret_value_1", "API Key 1", "api_keys"),
+            ("uuid2", "secret_value_2", "Password 1", "passwords"),
+            ("uuid3", "secret_value_3", "Token 1", "bearer_tokens")
+        ]
+        
+        stored_secrets = []
+        for uuid, value, desc, pattern in secrets_data:
+            from ciris_engine.schemas.secrets_schemas_v1 import DetectedSecret
+            from ciris_engine.schemas.foundational_schemas_v1 import SensitivityLevel
+            
+            detected_secret = DetectedSecret(
+                secret_uuid=uuid,
+                original_value=value,
+                pattern_name=pattern,
+                description=desc,
+                sensitivity=SensitivityLevel.HIGH,
+                context_hint="test",
+                replacement_text=f"{{SECRET:{uuid}:{desc}}}"
+            )
+            await temp_store.store_secret(detected_secret)
+            stored_secrets.append((uuid, value))
+        
+        # Re-encrypt all
+        new_key = b"new_master_key_exactly_32bytes!!"  # Exactly 32 bytes
+        result = await temp_store.reencrypt_all(new_key)
+        assert result is True
+        
+        # Verify all secrets can still be decrypted
+        for uuid, original_value in stored_secrets:
+            retrieved = await temp_store.retrieve_secret(uuid)
+            assert retrieved is not None
+            decrypted = await temp_store.decrypt_secret_value(retrieved)
+            assert decrypted == original_value
+            assert retrieved.encryption_key_ref == "master_key_v2"
+            
+    @pytest.mark.asyncio 
+    async def test_reencrypt_all_partial_failure(self, temp_store):
+        """Test re-encryption when one secret fails to decrypt."""
+        # Store a valid secret
+        from ciris_engine.schemas.secrets_schemas_v1 import DetectedSecret
+        from ciris_engine.schemas.foundational_schemas_v1 import SensitivityLevel
+        
+        valid_secret = DetectedSecret(
+            secret_uuid="valid-uuid",
+            original_value="valid_secret",
+            pattern_name="api_keys",
+            description="Valid Secret",
+            sensitivity=SensitivityLevel.HIGH,
+            context_hint="test",
+            replacement_text="{SECRET:valid-uuid:Valid Secret}"
+        )
+        await temp_store.store_secret(valid_secret)
+        
+        # Manually corrupt a secret in the database to simulate decryption failure
+        import sqlite3
+        with sqlite3.connect(temp_store.db_path) as conn:
+            conn.execute("""
+                INSERT INTO secrets (
+                    secret_uuid, encrypted_value, encryption_key_ref, salt, nonce,
+                    description, sensitivity_level, detected_pattern, context_hint,
+                    created_at, access_count, auto_decapsulate_for_actions, manual_access_only
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                "corrupted-uuid",
+                b"corrupted_data",  # Invalid encrypted data
+                "master_key_v1",
+                b"fake_salt_16byt",
+                b"fake_nonce_",
+                "Corrupted Secret",
+                "HIGH",
+                "api_keys",
+                "test",
+                "2023-01-01T00:00:00",
+                0,
+                "tool",
+                0
+            ))
+            conn.commit()
+        
+        # Re-encryption should fail due to corrupted secret
+        new_key = b"new_master_key_exactly_32bytes!!"  # Exactly 32 bytes
+        result = await temp_store.reencrypt_all(new_key)
+        assert result is False

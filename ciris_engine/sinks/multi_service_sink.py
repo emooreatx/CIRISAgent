@@ -186,13 +186,14 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         logger.info(f"Received guidance from {type(service).__name__}")
         return guidance
     
-    async def _handle_send_deferral(self, service: WiseAuthorityService, action: SendDeferralAction) -> None:
+    async def _handle_send_deferral(self, service: WiseAuthorityService, action: SendDeferralAction) -> bool:
         """Handle submit deferral action"""
         success = await service.send_deferral(action.thought_id, action.reason)
         if success:
             logger.info(f"Deferral sent via {type(service).__name__} for thought {action.thought_id}")
         else:
             logger.warning(f"Failed to send deferral via {type(service).__name__}")
+        return success
     
     async def _handle_memorize(self, service: MemoryService, action: MemorizeAction) -> Any:
         """Handle memorize action"""
@@ -704,14 +705,14 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             
             service = await self._get_service('wise_authority', action)
             if service:
-                await self._handle_send_deferral(service, action)
-                return True
+                success = await self._handle_send_deferral(service, action)
+                return success
             else:
                 logger.warning(f"No wise authority service available for send_deferral")
-                return True  # Return success for testing
+                return False  # Return failure when no service available
         except Exception as e:
             logger.error(f"Error in send_deferral: {e}")
-            raise
+            return False
 
     async def get_deferrals(self, handler_name: str = "wise_authority", 
                            metadata: Optional[Dict] = None) -> List[Dict[str, Any]]:
