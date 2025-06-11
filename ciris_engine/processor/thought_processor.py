@@ -57,8 +57,9 @@ class ThoughtProcessor:
                 await self.telemetry_service.record_metric("thought_not_found")
             return None
 
-        # 2. Build context
-        context = await self.context_builder.build_thought_context(thought)
+        # 2. Build context (use provided context or build new one)
+        if context is None:
+            context = await self.context_builder.build_thought_context(thought)
         # Store the fresh context on the queue item so DMA executor can use it
         if hasattr(context, "model_dump"):
             thought_item.initial_context = context.model_dump()
