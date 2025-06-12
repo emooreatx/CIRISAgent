@@ -3,6 +3,7 @@ import logging
 from typing import List, Any, Dict, Optional
 
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration, CIRISRuntime
+from .config import CLIAdapterConfig
 from ciris_engine.registries.base import Priority
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType, IncomingMessage
 
@@ -16,7 +17,17 @@ logger = logging.getLogger(__name__)
 class CliPlatform(PlatformAdapter):
     def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
         self.runtime = runtime
-        self.interactive = bool(kwargs.get("interactive", True))
+        
+        # Initialize configuration with defaults and override from kwargs
+        self.config = CLIAdapterConfig()
+        if "interactive" in kwargs:
+            self.config.interactive = bool(kwargs["interactive"])
+        
+        # Load environment variables
+        self.config.load_env_vars()
+        
+        # Use config values
+        self.interactive = self.config.interactive
 
         self.cli_adapter = CLIAdapter() # For sending messages
         self.cli_tool_service = CLIToolService()
@@ -31,7 +42,7 @@ class CliPlatform(PlatformAdapter):
             multi_service_sink=getattr(self.runtime, 'multi_service_sink', None),
             filter_service=getattr(self.runtime, 'adaptive_filter_service', None), # Assuming this is the intended filter service
             secrets_service=getattr(self.runtime, 'secrets_service', None),
-            interactive=self.interactive
+            interactive=self.config.interactive
         )
 
     async def _handle_observe_event(self, payload: Any) -> None: # payload can be Dict or IncomingMessage
@@ -104,7 +115,7 @@ class CliPlatform(PlatformAdapter):
                 provider=self.cli_wa_service,
                 priority=Priority.NORMAL,
                 handlers=["DeferHandler", "SpeakHandler"],
-                capabilities=["defer_to_human", "provide_guidance"]
+                capabilities=["send_deferral", "fetch_guidance"]
             ),
         ]
         logger.info(f"CliPlatform: Services to register: {[(reg.service_type.value, reg.handlers) for reg in registrations]}")

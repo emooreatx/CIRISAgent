@@ -198,6 +198,13 @@ CIRIS Agent/
 python main.py --profile default  # Auto-detects Discord/CLI based on token availability
 ```
 
+**API Server mode:**
+```bash
+python main.py --modes api --host 0.0.0.0 --port 8000
+```
+
+For comprehensive API documentation, see [docs/api_reference.md](docs/api_reference.md).
+
 **Specific runtime modes:**
 ```bash
 python main.py --mode cli --profile teacher    # CLI-only mode

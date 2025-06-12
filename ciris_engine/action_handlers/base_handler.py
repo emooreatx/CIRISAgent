@@ -86,9 +86,20 @@ class ActionHandlerDependencies:
         """Get a service from the registry with automatic fallback to legacy services"""
         service = None
         
-        # Try to get from service registry first
+        # Try to get from service registry first with timeout to prevent hanging
         if self.service_registry:
-            service = await self.service_registry.get_service(handler, service_type, **kwargs)
+            try:
+                import asyncio
+                service = await asyncio.wait_for(
+                    self.service_registry.get_service(handler, service_type, **kwargs),
+                    timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Service registry lookup timed out for {handler}.{service_type}")
+                service = None
+            except Exception as e:
+                logger.warning(f"Service registry lookup failed for {handler}.{service_type}: {e}")
+                service = None
         
         # Fallback to legacy services if available
         if not service and hasattr(self, service_type):

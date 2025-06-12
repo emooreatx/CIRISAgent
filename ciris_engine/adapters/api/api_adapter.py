@@ -1,4 +1,6 @@
 import uuid
+import os
+import subprocess
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
@@ -127,7 +129,10 @@ class APIToolService(ToolService):
     def __init__(self) -> None:
         super().__init__()
         self.tool_results: Dict[str, Any] = {}
-        self.tools: Dict[str, Any] = {"echo": lambda args: {"result": args}}
+        self.tools: Dict[str, Any] = {
+            "echo": lambda args: {"result": args},
+            "ls_home": self._ls_home_tool
+        }
 
     async def start(self) -> None:
         """Start the API tool service."""
@@ -136,6 +141,64 @@ class APIToolService(ToolService):
     async def stop(self) -> None:
         """Stop the API tool service."""
         await super().stop()
+
+    def _ls_home_tool(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Sample tool that lists contents of the agent's home directory."""
+        try:
+            # Get the agent's home directory (current working directory)
+            home_dir = os.getcwd()
+            
+            # List directory contents
+            try:
+                contents = os.listdir(home_dir)
+                contents.sort()
+                
+                # Get detailed info for each item
+                detailed_contents = []
+                for item in contents:
+                    item_path = os.path.join(home_dir, item)
+                    try:
+                        stat_info = os.stat(item_path)
+                        item_info = {
+                            "name": item,
+                            "type": "directory" if os.path.isdir(item_path) else "file",
+                            "size": stat_info.st_size if os.path.isfile(item_path) else None,
+                            "modified": datetime.fromtimestamp(stat_info.st_mtime).isoformat()
+                        }
+                        detailed_contents.append(item_info)
+                    except OSError:
+                        # Handle permission errors or other OS errors
+                        detailed_contents.append({
+                            "name": item,
+                            "type": "unknown",
+                            "error": "Cannot access item details"
+                        })
+                
+                return {
+                    "success": True,
+                    "home_directory": home_dir,
+                    "contents": detailed_contents,
+                    "total_items": len(contents)
+                }
+                
+            except PermissionError:
+                return {
+                    "success": False,
+                    "error": f"Permission denied accessing {home_dir}",
+                    "home_directory": home_dir
+                }
+            except OSError as e:
+                return {
+                    "success": False,
+                    "error": f"OS error: {str(e)}",
+                    "home_directory": home_dir
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Unexpected error: {str(e)}"
+            }
 
     async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         correlation_id = str(uuid.uuid4())

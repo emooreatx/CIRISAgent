@@ -4,6 +4,7 @@ from typing import List, Any, Dict, Optional
 from aiohttp import web
 
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration, CIRISRuntime
+from .config import APIAdapterConfig
 from ciris_engine.registries.base import Priority
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType, IncomingMessage
 from ciris_engine.adapters.api.api_adapter import (
@@ -14,13 +15,13 @@ from ciris_engine.adapters.api.api_adapter import (
     APIAuditService
 )
 from ciris_engine.adapters.api.api_observer import APIObserver # Handles incoming messages
-from ciris_engine.runtime.api.api_comms import APICommsRoutes
-from ciris_engine.runtime.api.api_memory import APIMemoryRoutes  
-from ciris_engine.runtime.api.api_tools import APIToolsRoutes
-from ciris_engine.runtime.api.api_audit import APIAuditRoutes
-from ciris_engine.runtime.api.api_logs import APILogsRoutes
-from ciris_engine.runtime.api.api_wa import APIWARoutes
-from ciris_engine.runtime.api.api_system import APISystemRoutes
+from ciris_engine.adapters.api.api_comms import APICommsRoutes
+from ciris_engine.adapters.api.api_memory import APIMemoryRoutes  
+from ciris_engine.adapters.api.api_tools import APIToolsRoutes
+from ciris_engine.adapters.api.api_audit import APIAuditRoutes
+from ciris_engine.adapters.api.api_logs import APILogsRoutes
+from ciris_engine.adapters.api.api_wa import APIWARoutes
+from ciris_engine.adapters.api.api_system import APISystemRoutes
 from ciris_engine.telemetry.comprehensive_collector import ComprehensiveTelemetryCollector
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,16 @@ class ApiPlatform(PlatformAdapter):
     def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
         self.runtime = runtime
         
+        # Initialize configuration with defaults and override from kwargs
+        self.config = APIAdapterConfig()
+        if "host" in kwargs and kwargs["host"] is not None:
+            self.config.host = kwargs["host"]
+        if "port" in kwargs and kwargs["port"] is not None:
+            self.config.port = int(kwargs["port"])
+        
+        # Load environment variables
+        self.config.load_env_vars()
+        
         # Create separate service instances
         self.communication_service = APICommunicationService()
         self.wa_service = APIWiseAuthorityService()
@@ -36,8 +47,9 @@ class ApiPlatform(PlatformAdapter):
         self.memory_service = APIMemoryService()
         self.audit_service = APIAuditService()
         
-        self.host = kwargs.get("host", "0.0.0.0")
-        self.port = int(kwargs.get("port", 8080))
+        # Use config values
+        self.host = self.config.host
+        self.port = self.config.port
         self.app = web.Application()
         self.runner: Optional[web.AppRunner] = None
         self.site: Optional[web.TCPSite] = None
@@ -154,7 +166,7 @@ class ApiPlatform(PlatformAdapter):
         registrations = [
             ServiceRegistration(ServiceType.COMMUNICATION, self.communication_service, Priority.HIGH, comm_handlers, ["send_message", "receive_message"]),
             ServiceRegistration(ServiceType.TOOL, self.tool_service, Priority.HIGH, ["ToolHandler"], ["execute_tool", "list_tools"]),
-            ServiceRegistration(ServiceType.WISE_AUTHORITY, self.wa_service, Priority.HIGH, wa_handlers, ["defer_to_human", "provide_guidance"]),
+            ServiceRegistration(ServiceType.WISE_AUTHORITY, self.wa_service, Priority.HIGH, wa_handlers, ["send_deferral", "fetch_guidance"]),
             ServiceRegistration(ServiceType.MEMORY, self.memory_service, Priority.HIGH, memory_handlers, ["memorize", "recall", "forget"]),
             ServiceRegistration(ServiceType.AUDIT, self.audit_service, Priority.HIGH, audit_handlers, ["log_action", "get_audit_trail"]),
         ]

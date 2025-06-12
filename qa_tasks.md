@@ -64,11 +64,12 @@ curl -X POST http://127.0.0.1:8080/v1/messages \
 
 #### 1.2 SPEAK with Long Content
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$speak This is a very long message that tests content handling and truncation behavior in the SPEAK handler. It should handle long content gracefully without breaking the system or causing buffer overflows.",
-    "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
+    "content": "$speak This is a very long message that tests content handling and truncation behavior in the SPEAK handler. It should handle long content gracefully without breaking the system or causing buffer overflows.",
+    "author_id": "qa_tester", 
+    "channel_id": "127.0.0.1:8080"
   }'
 ```
 
@@ -80,10 +81,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 #### 1.3 SPEAK Error Handling
 ```bash
 # Test with invalid channel to trigger error path
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$speak Error test message",
+    "content": "$speak Error test message",
     "context": {"author_id": "qa_tester", "channel_id": "invalid_channel"}
   }'
 ```
@@ -121,10 +122,10 @@ curl -X POST http://127.0.0.1:8080/v1/messages \
 
 #### 2.2 MEMORIZE User Information
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$memorize user_123 USER LOCAL",
+    "content": "$memorize user_123 USER LOCAL",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -136,10 +137,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 2.3 MEMORIZE Invalid Parameters
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$memorize invalid_node INVALID_TYPE INVALID_SCOPE",
+    "content": "$memorize invalid_node INVALID_TYPE INVALID_SCOPE",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -160,18 +161,18 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 #### 3.1 Basic RECALL Action
 ```bash
 # First memorize something to recall
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$memorize test_recall_data CONCEPT LOCAL",
+    "content": "$memorize test_recall_data CONCEPT LOCAL",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 
 # Then recall it
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$recall test_recall_data CONCEPT LOCAL",
+    "content": "$recall test_recall_data CONCEPT LOCAL",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -183,10 +184,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 3.2 RECALL Non-existent Data
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$recall nonexistent_data CONCEPT LOCAL",
+    "content": "$recall nonexistent_data CONCEPT LOCAL",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -206,10 +207,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 4.1 First PONDER Action
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$ponder What should I do next?; How can I help better?",
+    "content": "$ponder What should I do next?; How can I help better?",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -223,10 +224,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 #### 4.2 Multiple PONDER Actions (Escalation)
 ```bash
 # Trigger multiple ponder cycles to test escalation
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$ponder Still not sure what to do; Need more guidance; This is getting complex",
+    "content": "$ponder Still not sure what to do; Need more guidance; This is getting complex",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -258,10 +259,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 5.1 Passive OBSERVE Action
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$observe 127.0.0.1:8080 false",
+    "content": "$observe 127.0.0.1:8080 false",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -273,10 +274,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 5.2 Active OBSERVE Action
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$observe 127.0.0.1:8080 true",
+    "content": "$observe 127.0.0.1:8080 true",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -288,10 +289,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 5.3 OBSERVE Invalid Channel
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$observe invalid_channel true",
+    "content": "$observe invalid_channel true",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -311,26 +312,28 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 6.1 Basic TOOL Action
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$tool list_files path=/tmp",
-    "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
+    "content": "$tool ls_home",
+    "author_id": "qa_tester", 
+    "channel_id": "127.0.0.1:8080"
   }'
 ```
 
 **Expected Results**:
-- Tool service called with parameters
+- Tool service called with ls_home tool
 - Correlation ID created for tracking
 - Wait for tool results (30 second timeout)
+- Returns home directory listing with file details
 - Follow-up thought suggests TASK_COMPLETE on success
 
 #### 6.2 TOOL with JSON Parameters
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$tool read_file {\"path\": \"/etc/hostname\"}",
+    "content": "$tool read_file {\"path\": \"/etc/hostname\"}",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -342,10 +345,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 6.3 TOOL Invalid/Missing Tool
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$tool nonexistent_tool param=value",
+    "content": "$tool nonexistent_tool param=value",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -365,10 +368,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 7.1 Basic DEFER Action
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$defer This task requires human judgment due to ethical complexity",
+    "content": "$defer This task requires human judgment due to ethical complexity",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -381,10 +384,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 7.2 DEFER with Complex Context
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$defer Complex ethical decision involving multiple stakeholders and potential harm scenarios",
+    "content": "$defer Complex ethical decision involving multiple stakeholders and potential harm scenarios",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080", "urgency": "high"}
   }'
 ```
@@ -415,10 +418,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 8.1 Basic REJECT Action
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$reject This request violates ethical guidelines and cannot be fulfilled",
+    "content": "$reject This request violates ethical guidelines and cannot be fulfilled",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -431,10 +434,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 8.2 REJECT with User Notification
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$reject Request cannot be processed due to policy violations",
+    "content": "$reject Request cannot be processed due to policy violations",
     "context": {"author_id": "user123", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -465,18 +468,18 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 #### 9.1 Basic FORGET Action
 ```bash
 # First memorize something to forget
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$memorize temp_data CONCEPT LOCAL",
+    "content": "$memorize temp_data CONCEPT LOCAL",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 
 # Then forget it
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$forget temp_data User requested data deletion",
+    "content": "$forget temp_data User requested data deletion",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -488,10 +491,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 9.2 FORGET Sensitive Data (Authorization Required)
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$forget sensitive_identity_data Privacy compliance request",
+    "content": "$forget sensitive_identity_data Privacy compliance request",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -503,10 +506,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 
 #### 9.3 FORGET Non-existent Data
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$forget nonexistent_data Cleanup request",
+    "content": "$forget nonexistent_data Cleanup request",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 ```
@@ -527,10 +530,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/tasks \
 #### 10.1 Basic TASK_COMPLETE Action
 ```bash
 # Create a simple task and complete it
-curl -X POST http://127.0.0.1:8080/api/v1/tasks \
+curl -X POST http://127.0.0.1:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{
-    "description": "$speak Task complete test",
+    "content": "$speak Task complete test",
     "context": {"author_id": "qa_tester", "channel_id": "127.0.0.1:8080"}
   }'
 

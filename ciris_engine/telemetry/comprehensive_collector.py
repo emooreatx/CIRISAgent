@@ -151,8 +151,25 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
             if hasattr(self.runtime, 'agent_processor') and self.runtime.agent_processor:
                 processor = self.runtime.agent_processor
                 
-                # Get basic state
-                is_running = getattr(processor, '_running', False)
+                # Get basic state - check if processor is actively running
+                # First check if processor has an active processing task
+                has_active_task = (
+                    hasattr(processor, '_processing_task') and 
+                    processor._processing_task is not None and 
+                    not processor._processing_task.done()
+                )
+                
+                # Check if processor is in a running state (not SHUTDOWN)
+                from ciris_engine.schemas.states_v1 import AgentState
+                current_state = None
+                if hasattr(processor, 'state_manager') and processor.state_manager:
+                    current_state = processor.state_manager.get_state()
+                
+                is_running = (
+                    has_active_task and 
+                    current_state is not None and 
+                    current_state != AgentState.SHUTDOWN
+                )
                 current_round = getattr(processor, 'current_round', 0)
                 
                 # Get queue information if available
@@ -216,11 +233,14 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
         try:
             # Check adapter health
             adapters = await self.get_adapters_info()
-            adapter_health = [a for a in adapters if a.status == "active"]
-            if len(adapter_health) == 0:
+            active_adapters = [a for a in adapters if a.status == "active"]
+            if len(adapters) == 0:
+                health_details["adapters"] = "no_adapters"
+                overall_health = "critical"
+            elif len(active_adapters) == 0:
                 health_details["adapters"] = "no_active_adapters"
                 overall_health = "critical"
-            elif len(adapter_health) < len(adapters):
+            elif len(active_adapters) < len(adapters):
                 health_details["adapters"] = "some_adapters_inactive"
                 if overall_health == "healthy":
                     overall_health = "degraded"
@@ -436,34 +456,81 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
             elif hasattr(adapter, '_running'):
                 return "active" if adapter._running else "inactive"
             else:
-                return "unknown"
+                # If adapter is in runtime.adapters list, assume it's active
+                return "active"
         except Exception:
             return "error"
     
     async def _get_service_health(self, provider: Any) -> str:
         """Get service health status"""
         try:
+            # Check for is_healthy() method (HealthCheckProtocol)
             if hasattr(provider.instance, 'is_healthy'):
-                is_healthy = await provider.instance.is_healthy()
-                return "healthy" if is_healthy else "degraded"
-            elif provider.circuit_breaker:
+                try:
+                    is_healthy = await provider.instance.is_healthy()
+                    return "healthy" if is_healthy else "degraded"
+                except Exception as e:
+                    logger.debug(f"is_healthy() failed for {provider.name}: {e}")
+                    # Fall through to other checks
+            
+            # Check for get_health() method (like AdaptiveFilterService)
+            if hasattr(provider.instance, 'get_health'):
+                try:
+                    health_result = await provider.instance.get_health()
+                    # Handle different return types
+                    if hasattr(health_result, 'is_healthy'):
+                        return "healthy" if health_result.is_healthy else "degraded"
+                    elif isinstance(health_result, dict):
+                        if health_result.get('is_healthy') or health_result.get('status') == 'healthy':
+                            return "healthy"
+                        else:
+                            return "degraded"
+                    else:
+                        return "healthy"  # If method exists and doesn't error, assume healthy
+                except Exception as e:
+                    logger.debug(f"get_health() failed for {provider.name}: {e}")
+                    # Fall through to other checks
+            
+            # Check for health_check() method (base Service class)
+            if hasattr(provider.instance, 'health_check'):
+                try:
+                    health_result = await provider.instance.health_check()
+                    # Base Service.health_check returns dict with status
+                    if isinstance(health_result, dict):
+                        status = health_result.get('status', 'unknown')
+                        return "healthy" if status == "healthy" else "degraded"
+                    else:
+                        return "healthy"  # If method exists and doesn't error, assume healthy
+                except Exception as e:
+                    logger.debug(f"health_check() failed for {provider.name}: {e}")
+                    # Fall through to circuit breaker check
+            
+            # Check circuit breaker state as fallback
+            if hasattr(provider, 'circuit_breaker') and provider.circuit_breaker:
                 state = provider.circuit_breaker.state
-                if state == "closed":
+                # CircuitState enum values need to be converted to string
+                state_value = state.value if hasattr(state, 'value') else str(state)
+                if state_value == "closed":
                     return "healthy"
-                elif state == "half_open":
+                elif state_value == "half_open":
                     return "degraded"
                 else:
                     return "failed"
-            else:
-                return "unknown"
-        except Exception:
-            return "unknown"
+            
+            # If service is registered and no explicit health check available, assume healthy
+            return "healthy"
+            
+        except Exception as e:
+            logger.warning(f"Error checking health for service {provider.name}: {e}")
+            return "degraded"
     
     def _get_circuit_breaker_state(self, provider: Any) -> str:
         """Get circuit breaker state"""
         try:
-            if provider.circuit_breaker:
-                return provider.circuit_breaker.state
+            if hasattr(provider, 'circuit_breaker') and provider.circuit_breaker:
+                state = provider.circuit_breaker.state
+                # CircuitState enum values need to be converted to string
+                return state.value if hasattr(state, 'value') else str(state)
         except Exception:
             pass
         return "unknown"

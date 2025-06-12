@@ -522,4 +522,10 @@ class DiscordAdapter(CommunicationService):
             logger.info("Discord adapter stopped successfully")
         except Exception as e:
             logger.exception(f"Error stopping Discord adapter: {e}")
-            raise
+
+    async def is_healthy(self) -> bool:
+        """Check if the Discord adapter is healthy"""
+        try:
+            return self.client is not None and not self.client.is_closed()
+        except Exception:
+            return False
