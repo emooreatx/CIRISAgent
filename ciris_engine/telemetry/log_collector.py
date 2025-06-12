@@ -8,7 +8,7 @@ enabling time-series queries and agent introspection of log data.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 from uuid import uuid4
 
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType

@@ -46,7 +46,7 @@ class TestMessagePipelineIntegration:
     async def test_discord_observer_processes_secrets(self, mock_secrets_service):
         """Test that DiscordObserver detects and processes secrets in messages."""
         observer = DiscordObserver(
-            monitored_channel_id="test_channel",
+            monitored_channel_ids=["test_channel"],
             secrets_service=mock_secrets_service
         )
         
@@ -255,7 +255,7 @@ class TestEndToEndFlow:
         """Test secrets flow from message processing to action execution."""
         # Setup: Message contains secret
         observer = DiscordObserver(
-            monitored_channel_id="test_channel",
+            monitored_channel_ids=["test_channel"],
             secrets_service=mock_secrets_service
         )
         

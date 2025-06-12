@@ -11,8 +11,8 @@ import sqlite3
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any, Union
-from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
+from datetime import datetime
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding

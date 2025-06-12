@@ -7,11 +7,7 @@ the agent's ability to reason about and use secrets safely.
 import re
 import uuid
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Literal, Any, cast
-from dataclasses import dataclass
-from pydantic import BaseModel, Field
-from ..schemas.foundational_schemas_v1 import SensitivityLevel
+from typing import Dict, List, Optional, Tuple, Any
 
 from ..protocols.secrets_interface import SecretsFilterInterface
 from ..schemas.secrets_schemas_v1 import (

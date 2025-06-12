@@ -1,11 +1,10 @@
 import logging
 from typing import Dict, Any
 
-from pydantic import BaseModel
 
 from ciris_engine.schemas import Thought, RejectParams, ThoughtStatus, TaskStatus, HandlerActionType, ActionSelectionResult
 from ciris_engine import persistence
-from .base_handler import BaseActionHandler, ActionHandlerDependencies
+from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
 

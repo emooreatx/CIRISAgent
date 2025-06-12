@@ -25,20 +25,24 @@ def test_save_and_load_config(tmp_path):
 def test_env_override(monkeypatch, tmp_path):
     """Environment variables should not override explicit config values."""
     config_path = tmp_path / "test_config.json"
+    # This test is for load_config_from_file, which doesn't have the complex profile/adapter loading.
+    # It loads AppConfig directly. If AppConfig no longer has discord_home_channel_id, this test needs to target a different field
+    # or be re-evaluated for its purpose. For now, let's assume it was testing a generic top-level env var interaction.
+    # We'll use a different, valid AppConfig field for the test.
     with open(config_path, "w") as f:
-        json.dump({"discord_channel_id": "file-val"}, f)
+        json.dump({"log_level": "file-val"}, f)
 
-    monkeypatch.setenv("DISCORD_CHANNEL_ID", "env-override")
+    monkeypatch.setenv("LOG_LEVEL", "env-override") # LOG_LEVEL is a valid AppConfig field handled by _apply_env_defaults
     config = config_manager.load_config_from_file(config_file_path=config_path)
-    assert config.discord_channel_id == "file-val"
+    assert config.log_level == "file-val"
 
 
 def test_env_fallback(monkeypatch, tmp_path):
     """Environment variable used when value missing in config."""
-    config_path = tmp_path / "missing.json"
-    monkeypatch.setenv("DISCORD_CHANNEL_ID", "env-val")
+    config_path = tmp_path / "missing.json" # File doesn't exist, so AppConfig defaults will be used, then env fallbacks.
+    monkeypatch.setenv("LOG_LEVEL", "env-val")
     config = config_manager.load_config_from_file(config_file_path=config_path)
-    assert config.discord_channel_id == "env-val"
+    assert config.log_level == "env-val"
 
 def test_get_config_file_path_and_root():
     path = config_manager.get_config_file_path()

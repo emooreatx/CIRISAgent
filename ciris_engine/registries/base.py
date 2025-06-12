@@ -5,8 +5,7 @@ Provides unified registration and discovery for services, adapters, and tools
 with priority-based fallbacks and circuit breaker patterns for resilience.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, Protocol, Union
+from typing import Dict, List, Any, Optional, Protocol
 from dataclasses import dataclass
 from enum import Enum
 import logging

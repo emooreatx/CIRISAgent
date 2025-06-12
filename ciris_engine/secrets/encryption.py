@@ -5,7 +5,6 @@ Provides AES-256-GCM encryption with per-secret keys derived from a master key.
 Implements secure key derivation, rotation, and forward secrecy.
 """
 
-import os
 import secrets
 from typing import Tuple, Optional
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM

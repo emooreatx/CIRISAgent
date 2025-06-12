@@ -37,7 +37,7 @@ class TestDiscordAdapterConfig:
         
         # Channel configuration
         assert config.monitored_channel_ids == []
-        assert config.primary_channel_id is None
+        assert config.home_channel_id is None
         assert config.deferral_channel_id is None
         
         # Bot behavior
@@ -126,30 +126,30 @@ class TestDiscordAdapterConfig:
         config.status = "invalid"
         assert config.get_status() == discord.Status.online
     
-    def test_config_primary_channel(self):
-        """Test primary channel ID logic"""
+    def test_config_home_channel(self):
+        """Test home channel ID logic"""
         config = DiscordAdapterConfig()
         
         # No channels configured
-        assert config.get_primary_channel_id() is None
+        assert config.get_home_channel_id() is None
         
-        # Primary channel set explicitly
-        config.primary_channel_id = "123456"
-        assert config.get_primary_channel_id() == "123456"
+        # Home channel set explicitly
+        config.home_channel_id = "123456"
+        assert config.get_home_channel_id() == "123456"
         
-        # No primary but monitored channels exist
-        config.primary_channel_id = None
+        # No home but monitored channels exist
+        config.home_channel_id = None
         config.monitored_channel_ids = ["789012", "345678"]
-        assert config.get_primary_channel_id() == "789012"
+        assert config.get_home_channel_id() == "789012"
     
     @patch('ciris_engine.config.env_utils.get_env_var')
     def test_config_env_loading(self, mock_get_env):
-        """Test loading configuration from environment variables"""
-        # Mock environment variables
+        """Test loading configuration from environment variables (legacy and new fields)"""
+        # Mock environment variables (legacy and new)
         env_vars = {
             'DISCORD_BOT_TOKEN': 'env_token_123',
-            'DISCORD_CHANNEL_ID': '123456',
-            'DISCORD_CHANNEL_IDS': '789012,345678,901234',
+            'DISCORD_CHANNEL_ID': '123456',  # legacy single channel
+            'DISCORD_CHANNEL_IDS': '789012,345678,901234',  # new multi-channel
             'DISCORD_DEFERRAL_CHANNEL_ID': '567890',
             'WA_USER_ID': 'admin_user_123',
             'DISCORD_COMMAND_PREFIX': '$'
@@ -163,13 +163,13 @@ class TestDiscordAdapterConfig:
         config = DiscordAdapterConfig()
         config.load_env_vars()
         
-        # Verify all environment variables were loaded
+        # Verify all environment variables were loaded and mapped to new fields
         assert config.bot_token == 'env_token_123'
-        assert config.primary_channel_id == '123456'
-        assert '123456' in config.monitored_channel_ids
-        assert '789012' in config.monitored_channel_ids
-        assert '345678' in config.monitored_channel_ids
-        assert '901234' in config.monitored_channel_ids
+        # home_channel_id should be set from DISCORD_CHANNEL_ID
+        assert config.home_channel_id == '123456'
+        # monitored_channel_ids should include both legacy and new env values
+        expected_channels = {'123456', '789012', '345678', '901234'}
+        assert set(config.monitored_channel_ids) == expected_channels
         assert config.deferral_channel_id == '567890'
         assert 'admin_user_123' in config.admin_user_ids
         assert config.command_prefix == '$'
@@ -350,9 +350,6 @@ class TestDiscordPlatform:
         """Mock CIRIS runtime"""
         runtime = MagicMock()
         runtime.app_config = MagicMock()
-        runtime.app_config.discord_channel_ids = ["123456", "789012"]
-        runtime.app_config.discord_channel_id = "123456"
-        runtime.app_config.discord_deferral_channel_id = "345678"
         runtime.memory_service = MagicMock()
         runtime.agent_id = "test_agent"
         runtime.multi_service_sink = MagicMock()
@@ -418,8 +415,6 @@ class TestDiscordPlatform:
             assert platform.runtime == mock_runtime
             assert platform.token == "test_token"
             assert platform.config.bot_token == "test_token"
-            assert platform.config.monitored_channel_ids == ["123456", "789012"]
-            assert platform.config.deferral_channel_id == "345678"
         finally:
             # Restore original environment
             if original_token:
@@ -445,8 +440,7 @@ class TestDiscordPlatform:
             platform = DiscordPlatform(
                 mock_runtime,
                 discord_bot_token="test_token",
-                discord_monitored_channel_ids=["999888", "777666"],
-                discord_monitored_channel_id="555444"
+                discord_monitored_channel_ids=["999888", "777666", "555444"]
             )
             
             expected_channels = ["999888", "777666", "555444"]
@@ -649,22 +643,21 @@ class TestDiscordObserver:
         """Mock configuration manager"""
         with patch('ciris_engine.config.config_manager.get_config') as mock_get_config:
             mock_config_obj = MagicMock()
-            mock_config_obj.discord_channel_ids = ["123456", "789012"]
-            mock_config_obj.discord_channel_id = "123456"
-            mock_config_obj.discord_deferral_channel_id = "567890"
             mock_get_config.return_value = mock_config_obj
             yield mock_config_obj
     
     def test_observer_initialization_with_channels(self, mock_services, mock_config):
         """Test observer initialization with explicit channels"""
         observer = DiscordObserver(
-            monitored_channel_id="123456",
             monitored_channel_ids=["123456", "789012"],
+            deferral_channel_id="567890",
+            wa_user_ids=["537080239679864862"],
             **mock_services
         )
         
-        assert observer.monitored_channel_id == "123456"
         assert observer.monitored_channel_ids == ["123456", "789012"]
+        assert observer.deferral_channel_id == "567890"
+        assert observer.wa_user_ids == ["537080239679864862"]
         assert observer.memory_service == mock_services['memory_service']
         assert observer.agent_id == mock_services['agent_id']
         assert observer.communication_service == mock_services['communication_service']
@@ -673,20 +666,20 @@ class TestDiscordObserver:
         """Test observer initialization using config manager"""
         observer = DiscordObserver(**mock_services)
         
-        # Should use config values when no channels provided
-        assert observer.monitored_channel_ids == ["123456", "789012"]
-        assert observer.monitored_channel_id == "123456"
+        # Should use empty defaults when no channels provided
+        assert observer.monitored_channel_ids == []
+        assert observer.deferral_channel_id is None
+        assert observer.wa_user_ids == []
     
     def test_observer_initialization_legacy_single_channel(self, mock_services, mock_config):
-        """Test observer initialization with legacy single channel"""
-        # Mock config with only single channel
-        mock_config.discord_channel_ids = []
-        mock_config.discord_channel_id = "999888"
-        
-        observer = DiscordObserver(**mock_services)
+        """Test observer initialization with single channel in list"""
+        # Observer should use provided channel list
+        observer = DiscordObserver(
+            monitored_channel_ids=["999888"],
+            **mock_services
+        )
         
         assert observer.monitored_channel_ids == ["999888"]
-        assert observer.monitored_channel_id == "999888"
     
     @pytest.mark.asyncio
     async def test_start_and_stop(self, mock_services, mock_config):
@@ -746,6 +739,7 @@ class TestDiscordObserver:
         """Test handling message from deferral channel"""
         observer = DiscordObserver(
             monitored_channel_ids=["123456"],
+            deferral_channel_id="567890",
             **mock_services
         )
         
@@ -935,6 +929,9 @@ class TestDiscordObserver:
         mock_comm = mock_services['communication_service']
         mock_comm.send_message = AsyncMock()
         
+        # Set up deferral channel for test
+        observer.deferral_channel_id = "567890"
+        
         await observer._send_deferral_message("Test deferral content")
         
         mock_comm.send_message.assert_called_once_with("567890", "Test deferral content")
@@ -954,13 +951,13 @@ class TestDiscordObserver:
     @pytest.mark.asyncio
     async def test_send_deferral_message_no_channel_configured(self, mock_services, mock_config):
         """Test sending deferral message without deferral channel configured"""
-        # Remove deferral channel from config
-        mock_config.discord_deferral_channel_id = None
-        
         observer = DiscordObserver(
             monitored_channel_ids=["123456"],
             **mock_services
         )
+        
+        # Ensure no deferral channel is set
+        observer.deferral_channel_id = None
         
         mock_comm = mock_services['communication_service']
         mock_comm.send_message = AsyncMock()

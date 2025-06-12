@@ -21,11 +21,9 @@ class CLIAdapter(CommunicationService):
 
     async def start(self) -> None:
         """CLI adapter has no startup actions."""
-        pass
 
     async def stop(self) -> None:
         """CLI adapter has no background tasks to stop."""
-        pass
 
     async def send_message(self, channel_id: str, content: str) -> bool:
         correlation_id = str(uuid.uuid4())

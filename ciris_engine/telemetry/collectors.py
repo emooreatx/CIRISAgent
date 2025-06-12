@@ -8,7 +8,7 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Optional, Callable, List
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 
 from .security import SecurityFilter
@@ -109,12 +109,10 @@ class BaseCollector(ABC):
     @abstractmethod
     async def collect_raw_metrics(self) -> List[MetricData]:
         """Collect raw metrics. Override in subclasses."""
-        pass
         
     @abstractmethod
     async def process_metrics(self, metrics: List[MetricData]) -> None:
         """Process filtered metrics. Override in subclasses."""
-        pass
         
     def get_stats(self) -> Dict[str, Any]:
         """Get collector statistics."""

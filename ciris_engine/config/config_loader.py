@@ -1,11 +1,15 @@
-import os
 import asyncio
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 import yaml
 
-from ciris_engine.schemas.config_schemas_v1 import AppConfig
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from .env_utils import get_env_var
+
+if TYPE_CHECKING:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
 
 
 def _deep_merge(base: Dict[str, Any], update: Dict[str, Any]) -> Dict[str, Any]:
@@ -36,9 +40,7 @@ def _apply_env_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
     """Fill missing config fields from environment variables."""
     
     # Discord configuration
-    discord_id = get_env_var("DISCORD_CHANNEL_ID")
-    if discord_id and not config.get("discord_channel_id"):
-        config["discord_channel_id"] = discord_id
+    # Platform-specific configuration is handled by individual adapters
     
     # Runtime configuration
     log_level = get_env_var("LOG_LEVEL")
@@ -153,18 +155,52 @@ class ConfigLoader:
         """Load config with profile overlay."""
 
         base_path = Path(config_path or "config/base.yaml")
-        profile_path = Path("ciris_profiles") / f"{profile_name}.yaml"
+        profile_overlay_path = Path("ciris_profiles") / f"{profile_name}.yaml"
 
-        base_config = await _load_yaml(base_path)
-        profile_config = await _load_yaml(profile_path)
-        merged = _merge_configs(base_config, profile_config)
-        merged = _apply_env_defaults(merged)
+        base_config_data = await _load_yaml(base_path)
+        profile_data = await _load_yaml(profile_overlay_path)
         
-        app_config = AppConfig(**merged)
+        # Apply general env defaults to base config
+        base_config_data = _apply_env_defaults(base_config_data)
         
-        # Load environment variables for all configuration sections that support it
-        app_config.llm_services.openai.load_env_vars()
-        app_config.secrets.load_env_vars()
-        app_config.cirisnode.load_env_vars()
+        app_config = AppConfig(**base_config_data)
+        
+        # Load environment variables for general top-level config sections that support it
+        if hasattr(app_config, 'llm_services') and hasattr(app_config.llm_services, 'openai') and hasattr(app_config.llm_services.openai, 'load_env_vars'):
+            app_config.llm_services.openai.load_env_vars()
+        if hasattr(app_config, 'secrets') and hasattr(app_config.secrets, 'load_env_vars'):
+            app_config.secrets.load_env_vars()
+        if hasattr(app_config, 'cirisnode') and hasattr(app_config.cirisnode, 'load_env_vars'):
+            app_config.cirisnode.load_env_vars()
+
+        # Process the agent profile if profile data exists
+        active_profile = None
+        if profile_data:
+            # Create agent profile from profile data
+            # If profile_data has a 'name' field, treat it as an AgentProfile
+            # Otherwise, treat it as config overlays to merge
+            if 'name' in profile_data or any(key in profile_data for key in ['dsdma_identifier', 'permitted_actions', 'discord_config', 'api_config', 'cli_config']):
+                # This looks like an AgentProfile definition
+                from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+                
+                # Create DiscordAdapterConfig if discord_config data exists or if we need env var loading
+                if 'discord_config' in profile_data:
+                    discord_config = DiscordAdapterConfig(**profile_data['discord_config'])
+                else:
+                    # Create empty DiscordAdapterConfig to enable env var loading
+                    discord_config = DiscordAdapterConfig()
+                
+                # Load env vars for Discord adapter config
+                discord_config.load_env_vars()
+                profile_data['discord_config'] = discord_config
+                
+                # Create the agent profile
+                active_profile = AgentProfile(**profile_data)
+                app_config.agent_profiles[profile_name] = active_profile
+            else:
+                # This looks like config overlays - merge with app config
+                merged_data = _merge_configs(base_config_data, profile_data)
+                app_config = AppConfig(**merged_data)
+
         
         return app_config

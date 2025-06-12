@@ -21,7 +21,7 @@ def test_run_discord_uses_env(monkeypatch):
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime.__new__", lambda cls, *args, **kwargs: runtime_mock)
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime.__init__", lambda self, *args, **kwargs: None)
     
-    monkeypatch.setattr(main, "load_config", AsyncMock(return_value=MagicMock(discord_channel_id="111")))
+    monkeypatch.setattr(main, "load_config", AsyncMock(return_value=MagicMock(discord_home_channel_id="111")))
     monkeypatch.setattr(main, "_run_runtime", AsyncMock())
 
     import asyncio as real_asyncio

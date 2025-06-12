@@ -1,7 +1,6 @@
 """API system endpoints for comprehensive telemetry and system control."""
 import logging
 from aiohttp import web
-import json
 from typing import Any
 
 logger = logging.getLogger(__name__)

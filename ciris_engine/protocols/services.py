@@ -9,7 +9,6 @@ from datetime import datetime
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.foundational_schemas_v1 import (
     HandlerActionType,
-    IncomingMessage,
     FetchedMessage,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
@@ -348,7 +347,6 @@ class LLMService(Service):
     async def generate_response(
         self, 
         messages: List[Dict[str, str]], 
-        model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None
     ) -> str:
@@ -370,8 +368,7 @@ class LLMService(Service):
     async def generate_structured_response(
         self,
         messages: List[Dict[str, str]],
-        response_schema: Dict[str, Any],
-        model: Optional[str] = None
+        response_schema: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Generate a structured response conforming to schema.

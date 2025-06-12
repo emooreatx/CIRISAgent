@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, ThoughtType
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, ThoughtType
 from ciris_engine import persistence
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 

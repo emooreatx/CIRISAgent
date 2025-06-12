@@ -1,5 +1,4 @@
 import logging
-from abc import ABC
 from typing import Dict, Any, Optional, List
 
 import instructor

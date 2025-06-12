@@ -5,10 +5,8 @@ based on action type, with circuit breaker patterns and fallback support.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Union, Callable, List, Awaitable, cast
+from typing import Any, Dict, Optional, List, cast
 from dataclasses import asdict
-import json
-from abc import ABC, abstractmethod
 
 from ciris_engine.schemas.service_actions_v1 import (
     ActionType,
@@ -42,7 +40,6 @@ from ..protocols.services import (
 )
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult
-from ..registries.circuit_breaker import CircuitBreakerError
 from .base_sink import BaseMultiServiceSink
 
 logger = logging.getLogger(__name__)

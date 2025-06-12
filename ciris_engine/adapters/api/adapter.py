@@ -22,6 +22,7 @@ from ciris_engine.adapters.api.api_audit import APIAuditRoutes
 from ciris_engine.adapters.api.api_logs import APILogsRoutes
 from ciris_engine.adapters.api.api_wa import APIWARoutes
 from ciris_engine.adapters.api.api_system import APISystemRoutes
+from ciris_engine.adapters.api.api_runtime_control import APIRuntimeControlRoutes
 from ciris_engine.telemetry.comprehensive_collector import ComprehensiveTelemetryCollector
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,16 @@ class ApiPlatform(PlatformAdapter):
         if "port" in kwargs and kwargs["port"] is not None:
             self.config.port = int(kwargs["port"])
         
-        # Load environment variables
+        # Load configuration from profile if available
+        profile = getattr(runtime, 'agent_profile', None)
+        if profile and profile.api_config:
+            # Update config with profile settings
+            for key, value in profile.api_config.dict().items():
+                if hasattr(self.config, key):
+                    setattr(self.config, key, value)
+                    logger.debug(f"ApiPlatform: Set config {key} = {value} from profile")
+        
+        # Load environment variables (can override profile settings)
         self.config.load_env_vars()
         
         # Create separate service instances
@@ -64,6 +74,14 @@ class ApiPlatform(PlatformAdapter):
         
         # Initialize comprehensive telemetry collector
         self.telemetry_collector = ComprehensiveTelemetryCollector(self.runtime)
+        
+        # Initialize runtime control service
+        from ciris_engine.runtime.runtime_control import RuntimeControlService
+        self.runtime_control_service = RuntimeControlService(
+            telemetry_collector=self.telemetry_collector,
+            adapter_manager=getattr(self.runtime, 'adapter_manager', None),
+            config_manager=getattr(self.runtime, 'config_manager', None)
+        )
         
         self._setup_routes()
 
@@ -124,7 +142,11 @@ class ApiPlatform(PlatformAdapter):
         system_routes = APISystemRoutes(self.telemetry_collector)
         system_routes.register(self.app)
         
-        logger.info("ApiPlatform: Comprehensive API routes registered (v1/messages, v1/memory, v1/tools, v1/audit, v1/logs, v1/wa, v1/system)")
+        # Register runtime control routes
+        runtime_control_routes = APIRuntimeControlRoutes(self.runtime_control_service)
+        runtime_control_routes.register(self.app)
+        
+        logger.info("ApiPlatform: Comprehensive API routes registered (v1/messages, v1/memory, v1/tools, v1/audit, v1/logs, v1/wa, v1/system, v1/runtime)")
 
     async def _handle_incoming_api_message(self, request: web.Request) -> web.Response:
         try:

@@ -3,7 +3,7 @@ Community awareness with minimal memory footprint.
 A rural deployment might track just one community at a time.
 """
 from pydantic import BaseModel, Field
-from typing import Dict, Optional
+from typing import Optional
 from .versioning import SchemaVersion
 
 class CommunityHealth(BaseModel):

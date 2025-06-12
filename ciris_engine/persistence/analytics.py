@@ -1,7 +1,7 @@
 from ciris_engine.persistence.models import tasks as task_ops
 from ciris_engine.persistence.models import thoughts as thought_ops
-from ciris_engine.persistence import count_tasks, get_all_tasks, get_task_by_id
-from ciris_engine.persistence import count_thoughts, get_thoughts_by_task_id
+from ciris_engine.persistence import count_tasks
+from ciris_engine.persistence import count_thoughts
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 from typing import Optional, List, Any
 

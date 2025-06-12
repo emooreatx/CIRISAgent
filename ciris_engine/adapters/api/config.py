@@ -30,8 +30,8 @@ class APIAdapterConfig(BaseModel):
     # Channel configuration
     default_channel_id: Optional[str] = Field(default=None, description="Default channel ID for API messages")
     
-    def get_channel_id(self, host: str, port: int) -> str:
-        """Get the channel ID for this API instance."""
+    def get_home_channel_id(self, host: str, port: int) -> str:
+        """Get the home channel ID for this API adapter instance."""
         if self.default_channel_id:
             return self.default_channel_id
         return f"{host}:{port}"

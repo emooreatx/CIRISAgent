@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List
 import logging
 
 import instructor
@@ -7,7 +7,6 @@ from pathlib import Path
 
 import yaml
 
-from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import (
     Thought,
 )
@@ -30,7 +29,6 @@ from ciris_engine.schemas.action_params_v1 import (
 from ciris_engine.schemas.action_params_v1 import ToolParams
 from ciris_engine.schemas.foundational_schemas_v1 import (
     HandlerActionType,
-    SchemaVersion,
 )
 from ciris_engine.schemas.config_schemas_v1 import DEFAULT_OPENAI_MODEL_NAME
 from ciris_engine.registries.base import ServiceRegistry
@@ -38,14 +36,14 @@ from .base_dma import BaseDMA
 from ciris_engine.protocols.dma_interface import ActionSelectionDMAInterface
 from ciris_engine.protocols.faculties import EpistemicFaculty
 from instructor.exceptions import InstructorRetryException
-from ciris_engine.utils import DEFAULT_WA, ENGINE_OVERVIEW_TEMPLATE
+from ciris_engine.utils import ENGINE_OVERVIEW_TEMPLATE
 from ciris_engine.utils import COVENANT_TEXT
 from ciris_engine.formatters import (
     format_system_snapshot,
     format_user_profiles,
     format_system_prompt_blocks,
 )
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 

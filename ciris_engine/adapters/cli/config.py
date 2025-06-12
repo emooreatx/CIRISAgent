@@ -2,7 +2,6 @@
 
 from pydantic import BaseModel, Field
 from typing import Optional
-import os
 import getpass
 import socket
 
@@ -32,8 +31,8 @@ class CLIAdapterConfig(BaseModel):
     # Tool integration
     enable_cli_tools: bool = Field(default=True, description="Enable CLI-specific tools")
     
-    def get_channel_id(self) -> str:
-        """Get the channel ID for this CLI instance."""
+    def get_home_channel_id(self) -> str:
+        """Get the home channel ID for this CLI adapter instance."""
         if self.default_channel_id:
             return self.default_channel_id
             

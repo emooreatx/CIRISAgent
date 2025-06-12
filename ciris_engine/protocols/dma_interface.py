@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Protocol, TypeVar, Generic, Union
-from pathlib import Path
+from typing import Any, Dict, Optional, Protocol, TypeVar, Generic
 from pydantic import BaseModel
 
 from ciris_engine.processor.processing_queue import ProcessingQueueItem

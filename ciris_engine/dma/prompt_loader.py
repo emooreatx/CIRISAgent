@@ -5,7 +5,6 @@ This module provides functionality to load prompts from YAML files,
 separating prompt content from business logic for better maintainability.
 """
 
-import os
 import yaml
 import logging
 from typing import Dict, Any, Optional

@@ -5,7 +5,6 @@ Implements the TelemetryInterface protocol to collect detailed system state
 including adapters, services, configuration, and processor information.
 """
 
-import asyncio
 import logging
 import psutil
 from datetime import datetime, timezone, timedelta
@@ -21,18 +20,20 @@ from ciris_engine.protocols.telemetry_interface import (
     ConfigurationSnapshot
 )
 from ciris_engine.schemas.telemetry_schemas_v1 import CompactTelemetry
-from ciris_engine.telemetry.core import TelemetryService
+from ciris_engine.runtime.adapter_manager import RuntimeAdapterManager
 
 
 logger = logging.getLogger(__name__)
 
 
 class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterface):
-    """Comprehensive telemetry collector with processor control capabilities"""
+    """Comprehensive telemetry collector with processor control and adapter management capabilities"""
     
     def __init__(self, runtime: Any) -> None:
         self.runtime = runtime
         self.start_time = datetime.now(timezone.utc)
+        # Initialize adapter manager
+        self.adapter_manager = RuntimeAdapterManager(runtime)
         
     async def get_telemetry_snapshot(self) -> TelemetrySnapshot:
         """Get a complete snapshot of current system telemetry"""

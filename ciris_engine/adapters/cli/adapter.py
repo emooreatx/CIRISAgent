@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import List, Any, Dict, Optional
+from typing import List, Any, Optional
 
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration, CIRISRuntime
 from .config import CLIAdapterConfig
@@ -23,7 +23,16 @@ class CliPlatform(PlatformAdapter):
         if "interactive" in kwargs:
             self.config.interactive = bool(kwargs["interactive"])
         
-        # Load environment variables
+        # Load configuration from profile if available
+        profile = getattr(runtime, 'agent_profile', None)
+        if profile and profile.cli_config:
+            # Update config with profile settings
+            for key, value in profile.cli_config.dict().items():
+                if hasattr(self.config, key):
+                    setattr(self.config, key, value)
+                    logger.debug(f"CliPlatform: Set config {key} = {value} from profile")
+        
+        # Load environment variables (can override profile settings)
         self.config.load_env_vars()
         
         # Use config values
@@ -42,7 +51,8 @@ class CliPlatform(PlatformAdapter):
             multi_service_sink=getattr(self.runtime, 'multi_service_sink', None),
             filter_service=getattr(self.runtime, 'adaptive_filter_service', None), # Assuming this is the intended filter service
             secrets_service=getattr(self.runtime, 'secrets_service', None),
-            interactive=self.config.interactive
+            interactive=self.config.interactive,
+            config=self.config
         )
 
     async def _handle_observe_event(self, payload: Any) -> None: # payload can be Dict or IncomingMessage

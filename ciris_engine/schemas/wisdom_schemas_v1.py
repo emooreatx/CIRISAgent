@@ -9,7 +9,7 @@ IMPORTANT: Universal Guidance Protocol is a LAST RESORT when:
 - High urgency task that cannot wait longer
 """
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import List
 from enum import Enum
 from .versioning import SchemaVersion
 

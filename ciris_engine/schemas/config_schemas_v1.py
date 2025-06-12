@@ -1,8 +1,13 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, TYPE_CHECKING
 
 from .guardrails_config_v1 import GuardrailsConfig
 from .foundational_schemas_v1 import SensitivityLevel
+
+if TYPE_CHECKING:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
 
 DEFAULT_SQLITE_DB_FILENAME = "ciris_engine.db"
 DEFAULT_DATA_DIR = "data"
@@ -14,8 +19,6 @@ class DatabaseConfig(BaseModel):
     data_directory: str = DEFAULT_DATA_DIR
     graph_memory_filename: str = Field(default="graph_memory.pkl", alias="graph_memory_filename")
 
-from .agent_core_schemas_v1 import Task, Thought
-from .action_params_v1 import *
 from .foundational_schemas_v1 import HandlerActionType
 
 class WorkflowConfig(BaseModel):
@@ -72,6 +75,11 @@ class AgentProfile(BaseModel):
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     guardrails_config: Optional[GuardrailsConfig] = None
+    
+    # Adapter-specific configurations
+    discord_config: Optional['DiscordAdapterConfig'] = Field(default=None, description="Discord adapter specific configuration")
+    api_config: Optional['APIAdapterConfig'] = Field(default=None, description="API adapter specific configuration")  
+    cli_config: Optional['CLIAdapterConfig'] = Field(default=None, description="CLI adapter specific configuration")
 
 class CIRISNodeConfig(BaseModel):
     """Configuration for communicating with CIRISNode service."""
@@ -489,16 +497,10 @@ class AppConfig(BaseModel):
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
     default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
-    discord_channel_ids: Optional[List[str]] = Field(default=None, description="List of Discord channel IDs to monitor")
-    discord_channel_id: Optional[str] = Field(default=None, description="Primary Discord channel ID (deprecated - use discord_channel_ids)")
-    discord_deferral_channel_id: Optional[str] = Field(default=None, description="Channel ID for Discord deferrals and guidance")
     agent_mode: str = Field(default="", description="Runtime mode: 'cli', 'discord', 'api'")
-    cli_channel_id: Optional[str] = Field(default=None, description="Channel ID for CLI mode")
-    api_channel_id: Optional[str] = Field(default=None, description="Channel ID for API mode")
     mock_llm: bool = Field(default=False, description="Use mock LLM for testing instead of real OpenAI API")
     data_archive_dir: str = Field(default="data_archive", description="Directory for archived data")
     archive_older_than_hours: int = Field(default=24, description="Archive data older than this many hours")
-
-DMA_RETRY_LIMIT = 3
-GUARDRAIL_RETRY_LIMIT = 2
-DMA_TIMEOUT_SECONDS = 30.0
+    
+    # Global home channel (set by highest priority communication adapter)
+    home_channel: Optional[str] = Field(default=None, description="Primary home channel ID for the agent, set by the highest priority communication adapter")

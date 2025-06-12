@@ -12,9 +12,9 @@ class DiscordAdapterConfig(BaseModel):
     bot_token: Optional[str] = Field(default=None, description="Discord bot token")
     
     # Channel configuration
-    monitored_channel_ids: List[str] = Field(default_factory=list, description="List of Discord channel IDs to monitor")
-    primary_channel_id: Optional[str] = Field(default=None, description="Primary Discord channel ID for main interactions")
-    deferral_channel_id: Optional[str] = Field(default=None, description="Channel ID for Discord deferrals and guidance")
+    monitored_channel_ids: List[str] = Field(default_factory=list, description="List of Discord channel IDs to monitor for incoming messages")
+    home_channel_id: Optional[str] = Field(default=None, description="Home channel ID for wakeup and primary agent communication")
+    deferral_channel_id: Optional[str] = Field(default=None, description="Channel ID for Discord deferrals and guidance from WA")
     
     # Bot behavior
     command_prefix: str = Field(default="!", description="Command prefix for Discord bot commands")
@@ -78,12 +78,12 @@ class DiscordAdapterConfig(BaseModel):
         }
         return status_map.get(self.status.lower(), discord.Status.online)
     
-    def get_primary_channel_id(self) -> Optional[str]:
-        """Get the primary channel ID."""
-        if self.primary_channel_id:
-            return self.primary_channel_id
+    def get_home_channel_id(self) -> Optional[str]:
+        """Get the home channel ID for this Discord adapter."""
+        if self.home_channel_id:
+            return self.home_channel_id
         if self.monitored_channel_ids:
-            return self.monitored_channel_ids[0]
+            return self.monitored_channel_ids[0]  # Default to first monitored channel if no explicit home channel
         return None
 
     def load_env_vars(self) -> None:
@@ -95,12 +95,19 @@ class DiscordAdapterConfig(BaseModel):
         if env_token:
             self.bot_token = env_token
             
-        # Channel IDs
-        env_channel = get_env_var("DISCORD_CHANNEL_ID")
-        if env_channel:
-            self.primary_channel_id = env_channel
-            if env_channel not in self.monitored_channel_ids:
-                self.monitored_channel_ids.append(env_channel)
+        # Home channel ID
+        env_home_channel = get_env_var("DISCORD_HOME_CHANNEL_ID")
+        if env_home_channel:
+            self.home_channel_id = env_home_channel
+            if env_home_channel not in self.monitored_channel_ids:
+                self.monitored_channel_ids.append(env_home_channel)
+                
+        # Legacy support for DISCORD_CHANNEL_ID -> home channel
+        env_legacy_channel = get_env_var("DISCORD_CHANNEL_ID")
+        if env_legacy_channel and not self.home_channel_id:
+            self.home_channel_id = env_legacy_channel
+            if env_legacy_channel not in self.monitored_channel_ids:
+                self.monitored_channel_ids.append(env_legacy_channel)
                 
         env_channels = get_env_var("DISCORD_CHANNEL_IDS")
         if env_channels:

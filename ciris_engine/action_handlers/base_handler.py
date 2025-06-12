@@ -1,13 +1,11 @@
 import logging
 from typing import Any, Dict, Optional, Type, Callable
 from abc import ABC, abstractmethod
-import asyncio
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
-from ciris_engine import persistence
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
 from ciris_engine.secrets.service import SecretsService
@@ -370,4 +368,3 @@ class BaseActionHandler(ABC):
         Returns:
             Optional[str]: ID of follow-up thought if one was created
         """
-        pass

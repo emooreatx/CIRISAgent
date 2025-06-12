@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 class CircuitBreakerError(Exception):
     """Exception raised when circuit breaker is open and service is unavailable"""
-    pass
 
 
 class CircuitState(Enum):

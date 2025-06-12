@@ -3,13 +3,10 @@ State management for the CIRISAgent processor.
 Handles transitions between WAKEUP, DREAM, PLAY, WORK, SOLITUDE, and SHUTDOWN states.
 """
 import logging
-from enum import Enum
 from typing import Optional, Dict, Any, Callable
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.states_v1 import AgentState
-from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 
 logger = logging.getLogger(__name__)
 

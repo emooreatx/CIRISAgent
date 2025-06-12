@@ -18,6 +18,16 @@ from ciris_engine.schemas.service_actions_v1 import GenerateResponseAction, Gene
 from ciris_engine.schemas.filter_schemas_v1 import FilterResult, FilterPriority
 
 
+# Mock config for all tests in this module
+@pytest.fixture(autouse=True)
+def mock_config():
+    with patch('ciris_engine.config.config_manager.get_config') as mock_get_config:
+        mock_config_obj = MagicMock()
+        mock_config_obj.discord_home_channel_id = "test_channel"
+        mock_get_config.return_value = mock_config_obj
+        yield mock_config_obj
+
+
 class MockFilterService:
     """Mock filter service for testing"""
     

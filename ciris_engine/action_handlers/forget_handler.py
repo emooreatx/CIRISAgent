@@ -1,8 +1,8 @@
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import ForgetParams
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode
-from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpStatus
+from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+from ciris_engine.adapters.local_graph_memory import MemoryOpStatus
 from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
@@ -159,4 +159,21 @@ class ForgetHandler(BaseActionHandler):
         return True
 
     async def _audit_forget_operation(self, params, dispatch_context, result) -> None:
-        pass
+        # Check if audit should be skipped for this forget operation
+        if hasattr(params, 'no_audit') and params.no_audit:
+            return
+            
+        # Audit the forget operation while preserving privacy of the forgotten content
+        audit_data = {
+            "forget_key": params.node.id,
+            "forget_scope": params.node.scope.value,
+            "operation_result": str(result.status) if hasattr(result, 'status') else str(result),
+            "timestamp": dispatch_context.get("timestamp"),
+            "thought_id": dispatch_context.get("thought_id")
+        }
+        
+        await self._audit_log(
+            HandlerActionType.FORGET,
+            {**dispatch_context, **audit_data},
+            outcome="forget_executed"
+        )

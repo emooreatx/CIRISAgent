@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional, Dict, Any
-from datetime import datetime
 
 class AuditLogEntry(BaseModel):
     """Schema for audit log entries."""

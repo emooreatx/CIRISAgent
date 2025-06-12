@@ -26,13 +26,11 @@ class Service(ABC):
     async def start(self) -> None:
         """Starts the service and any background tasks it manages."""
         logger.info(f"Starting service: {self.service_name}")
-        pass
 
     @abstractmethod
     async def stop(self) -> None:
         """Stops the service and cleans up resources."""
         logger.info(f"Stopping service: {self.service_name}")
-        pass
 
     async def retry_with_backoff(
         self,

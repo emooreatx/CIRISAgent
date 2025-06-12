@@ -1,11 +1,7 @@
-import asyncio
-from typing import Callable, Awaitable, Dict, Any, Optional, List
-import os
+from typing import Callable, Awaitable, Dict, Any, Optional
 import logging
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
-from ciris_engine.utils.constants import DEFAULT_WA
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.adapters.base_observer import BaseObserver
@@ -36,9 +32,13 @@ class APIObserver(BaseObserver[IncomingMessage]):
         self.api_adapter = api_adapter
 
     async def start(self) -> None:
+        # API observer does not require explicit startup procedures
+        # as it handles messages on-demand through the API endpoint
         pass
 
     async def stop(self) -> None:
+        # API observer does not maintain persistent connections
+        # so no cleanup is required on shutdown
         pass
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:

@@ -45,12 +45,10 @@ class BaseProcessor(ABC):
     @abstractmethod
     def get_supported_states(self) -> List[AgentState]:
         """Return list of states this processor can handle."""
-        pass
     
     @abstractmethod
     async def can_process(self, state: AgentState) -> bool:
         """Check if this processor can handle the current state."""
-        pass
     
     @abstractmethod
     async def process(self, round_number: int) -> Dict[str, Any]:
@@ -58,7 +56,6 @@ class BaseProcessor(ABC):
         Execute processing for one round.
         Returns metrics/results from the processing.
         """
-        pass
     
     async def initialize(self) -> bool:
         """
@@ -136,12 +133,10 @@ class BaseProcessor(ABC):
         """Force a PONDER action for the given thought item. Override in subclass for custom logic."""
         logger.info(f"Forcing PONDER for thought {item.thought_id}")
         # Implement actual logic in subclass
-        pass
 
     async def force_defer(self, item: ProcessingQueueItem, context: Optional[Dict[str, Any]] = None) -> None:
         """Force a DEFER action for the given thought item. Override in subclass for custom logic."""
         logger.info(f"Forcing DEFER for thought {item.thought_id}")
-        pass
     
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}>"

@@ -72,6 +72,10 @@ class TestUnsolicitedGuidanceFormat:
         # Mock the deferral message sending
         discord_observer._send_deferral_message = AsyncMock()
         
+        # Set up observer with WA configuration
+        discord_observer.wa_user_ids = ["537080239679864862"]
+        discord_observer.deferral_channel_id = "deferral_channel"
+        
         # Process the WA message
         await discord_observer._add_to_feedback_queue(wa_message)
         
@@ -101,6 +105,10 @@ class TestUnsolicitedGuidanceFormat:
         
         # Mock the deferral message sending
         discord_observer._send_deferral_message = AsyncMock()
+        
+        # Set up observer with WA configuration (doesn't include non-WA user)
+        discord_observer.wa_user_ids = ["537080239679864862"]
+        discord_observer.deferral_channel_id = "deferral_channel"
         
         # Process the non-WA message
         await discord_observer._add_to_feedback_queue(non_wa_message)
@@ -140,6 +148,10 @@ class TestUnsolicitedGuidanceFormat:
         mock_persistence.get_thought_by_id.return_value = None
         mock_persistence.add_task.return_value = None
         discord_observer._send_deferral_message = AsyncMock()
+        
+        # Set up observer with WA configuration
+        discord_observer.wa_user_ids = ["537080239679864862"]
+        discord_observer.deferral_channel_id = "deferral_channel"
         
         for case in test_cases:
             wa_msg = DiscordMessage(

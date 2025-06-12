@@ -26,7 +26,16 @@ class DiscordPlatform(PlatformAdapter):
         if "discord_bot_token" in kwargs:
             self.config.bot_token = kwargs["discord_bot_token"]
         
-        # Load environment variables
+        # Load configuration from profile if available
+        profile = getattr(runtime, 'agent_profile', None)
+        if profile and profile.discord_config:
+            # Update config with profile settings
+            for key, value in profile.discord_config.items():
+                if hasattr(self.config, key):
+                    setattr(self.config, key, value)
+                    logger.debug(f"DiscordPlatform: Set config {key} = {value} from profile")
+        
+        # Load environment variables (can override profile settings)
         self.config.load_env_vars()
         
         # Validate required configuration
@@ -59,32 +68,20 @@ class DiscordPlatform(PlatformAdapter):
             self.config.monitored_channel_ids.extend(kwargs_channel_ids)
         if kwargs_channel_id and kwargs_channel_id not in self.config.monitored_channel_ids:
             self.config.monitored_channel_ids.append(kwargs_channel_id)
-            if not self.config.primary_channel_id:
-                self.config.primary_channel_id = kwargs_channel_id
+            if not self.config.home_channel_id:
+                self.config.home_channel_id = kwargs_channel_id
         
-        # Fall back to app_config if still no channels configured
+        # Discord configuration should be provided via kwargs or environment variables
         if not self.config.monitored_channel_ids:
-            if hasattr(self.runtime, 'app_config') and self.runtime.app_config:
-                if self.runtime.app_config.discord_channel_ids:
-                    self.config.monitored_channel_ids = self.runtime.app_config.discord_channel_ids.copy()
-                    logger.info(f"DiscordPlatform: Using {len(self.config.monitored_channel_ids)} channels from app_config: {self.config.monitored_channel_ids}")
-                elif self.runtime.app_config.discord_channel_id:
-                    self.config.monitored_channel_ids = [self.runtime.app_config.discord_channel_id]
-                    self.config.primary_channel_id = self.runtime.app_config.discord_channel_id
-                    logger.info(f"DiscordPlatform: Using single channel from app_config: {self.runtime.app_config.discord_channel_id}")
-                
-                # Handle deferral channel from app_config
-                if hasattr(self.runtime.app_config, 'discord_deferral_channel_id') and self.runtime.app_config.discord_deferral_channel_id:
-                    self.config.deferral_channel_id = self.runtime.app_config.discord_deferral_channel_id
-            else:
-                logger.warning("DiscordPlatform: No channel configuration found in kwargs or app_config")
+            logger.warning("DiscordPlatform: No channel configuration found. Please provide channel IDs via constructor kwargs or environment variables.")
         
         if self.config.monitored_channel_ids:
             logger.info(f"DiscordPlatform: Using {len(self.config.monitored_channel_ids)} channels: {self.config.monitored_channel_ids}")
         
         self.discord_observer = DiscordObserver(
-            monitored_channel_id=self.config.get_primary_channel_id(),
             monitored_channel_ids=self.config.monitored_channel_ids,
+            deferral_channel_id=self.config.deferral_channel_id,
+            wa_user_ids=self.config.admin_user_ids,
             memory_service=getattr(self.runtime, 'memory_service', None),
             agent_id=getattr(self.runtime, 'agent_id', None),
             multi_service_sink=getattr(self.runtime, 'multi_service_sink', None),

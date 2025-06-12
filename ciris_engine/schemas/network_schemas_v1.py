@@ -3,7 +3,7 @@ Minimal network awareness schemas for resource-constrained deployments.
 Designed to work on systems with <512MB RAM and intermittent connectivity.
 """
 from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
+from typing import Optional
 from enum import Enum
 from .versioning import SchemaVersion
 

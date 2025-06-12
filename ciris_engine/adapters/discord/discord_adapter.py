@@ -6,8 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Callable, Awaitable, Optional, List, Dict, Any
 from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, FetchedMessage
-from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
-from ciris_engine.adapters.base import Service
+from ciris_engine.protocols.services import CommunicationService
 from ciris_engine.schemas.correlation_schemas_v1 import (
     ServiceCorrelation,
     ServiceCorrelationStatus,

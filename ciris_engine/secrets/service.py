@@ -4,15 +4,13 @@ Secrets Management Service for CIRIS Agent.
 Coordinates secrets detection, storage, and retrieval with full audit trail
 and integration with the agent's action pipeline.
 """
-import asyncio
-import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 import logging
 
 from .filter import SecretsFilter
 from .store import SecretsStore, SecretRecord
-from ..schemas.secrets_schemas_v1 import DetectedSecret, SecretReference
+from ..schemas.secrets_schemas_v1 import SecretReference
 from ..schemas.config_schemas_v1 import SecretsDetectionConfig
 from ..protocols.secrets_interface import SecretsServiceInterface
 

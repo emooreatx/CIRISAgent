@@ -5,12 +5,11 @@ Uses v1 schemas and integrates state management.
 import asyncio
 import logging
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
-from datetime import datetime, timezone
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine import persistence
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus, Task
+from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.utils.context_utils import build_dispatch_context
 

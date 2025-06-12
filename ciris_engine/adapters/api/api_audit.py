@@ -76,7 +76,7 @@ class APIAuditRoutes:
                                 if action_types and entry.get("action_type") not in action_types:
                                     continue
                                 entries.append(entry)
-                            except:
+                            except (json.JSONDecodeError, ValueError, KeyError):
                                 continue
                 return web.json_response({"entries": entries[-limit:]})
         except Exception as e:

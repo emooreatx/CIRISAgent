@@ -1,7 +1,7 @@
 """API WA (Wise Authority) endpoints for CIRISAgent, using the multi_service_sink for backend logic."""
 import logging
 from aiohttp import web
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

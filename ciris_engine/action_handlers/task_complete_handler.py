@@ -5,7 +5,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
-from .base_handler import BaseActionHandler, ActionHandlerDependencies
+from .base_handler import BaseActionHandler
 
 
 logger = logging.getLogger(__name__)

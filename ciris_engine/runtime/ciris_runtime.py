@@ -5,9 +5,8 @@ New simplified runtime that properly orchestrates all components.
 """
 import asyncio
 import logging
-import os
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any, List
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.processor import AgentProcessor
@@ -33,7 +32,6 @@ from ciris_engine.utils.shutdown_manager import (
 )
 
 from ciris_engine.registries.base import ServiceRegistry, Priority
-from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 
 from ciris_engine.processor.thought_processor import ThoughtProcessor

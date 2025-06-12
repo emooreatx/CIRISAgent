@@ -4,7 +4,7 @@ Base sink class for multi-service sinks.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, List, Union
+from typing import Any, Dict, Optional, List
 from dataclasses import asdict
 from abc import ABC, abstractmethod
 from ciris_engine.schemas.service_actions_v1 import ActionType, ActionMessage

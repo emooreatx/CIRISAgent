@@ -3,7 +3,7 @@ import logging
 from aiohttp import web
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
-from typing import Any, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

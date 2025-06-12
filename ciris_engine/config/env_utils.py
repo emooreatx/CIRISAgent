@@ -37,11 +37,3 @@ def get_env_var(name: str, default: Optional[str] = None) -> Optional[str]:
     return default
 
 
-def get_discord_channel_id(config: Optional[object] = None) -> Optional[str]:
-    from ciris_engine.schemas.config_schemas_v1 import AppConfig
-
-    if config and hasattr(config, "discord_channel_id"):
-        channel_id = getattr(config, "discord_channel_id", None)
-        if isinstance(channel_id, str):
-            return channel_id
-    return get_env_var("DISCORD_CHANNEL_ID")
