@@ -44,10 +44,10 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 - **[Security Filtering](ciris_engine/telemetry/README.md)**: PII detection and removal across all telemetry and logging systems
 
 ### 🌐 Adaptive Platform Integration
-- **[Service Registry](ciris_engine/registries/README.md)**: Dynamic service discovery with capability-based selection, priority management, and automatic failover
-- **[Multi-Service Sink](ciris_engine/sinks/README.md)**: Universal action dispatcher with service orchestration, circuit breaker patterns, and transaction coordination
-- **[Platform Adapters](ciris_engine/adapters/README.md)**: Discord, CLI, and API adapters with consistent interfaces and automatic secrets processing
-- **[Action Handlers](ciris_engine/action_handlers/README.md)**: Comprehensive 3×3×3 action system with automatic secrets decapsulation and service integration
+- **[Service Registry](ciris_engine/registries/README.md)**: Dynamic service discovery with priority groups, selection strategies (FALLBACK/ROUND_ROBIN), circuit breaker protection, and capability-based routing
+- **[Multi-Service Transaction Manager](ciris_engine/sinks/README.md)**: Universal action dispatcher with service orchestration, priority-based selection, circuit breaker patterns, and transaction coordination
+- **[Platform Adapters](ciris_engine/adapters/README.md)**: Discord, CLI, and API adapters with consistent interfaces, service registration, and automatic secrets processing
+- **[Action Handlers](ciris_engine/action_handlers/README.md)**: Comprehensive 3×3×3 action system with automatic secrets decapsulation and multi-service integration
 
 ### 📊 Transparent Accountability
 - **[Telemetry System](ciris_engine/telemetry/README.md)**: Multi-tier metric collection with security filtering, resource monitoring, and agent self-awareness via SystemSnapshot
@@ -55,7 +55,8 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 - **[API System](ciris_engine/adapters/api/README.md)**: Comprehensive HTTP REST API with real-time telemetry endpoints, processor control, and TSDB data access
 - **[Resource Management](ciris_engine/telemetry/README.md)**: Real-time monitoring with psutil integration, resource limit enforcement, and proactive throttling
 - **[Performance Monitoring](ciris_engine/telemetry/README.md)**: Sophisticated collector framework with instant, fast, normal, slow, and aggregate data collection tiers
-- **[Circuit Breaker Protection](ciris_engine/registries/README.md)**: Automatic service protection with graceful degradation and health monitoring
+- **[Circuit Breaker Protection](ciris_engine/registries/README.md)**: Automatic service protection with graceful degradation, health monitoring, and runtime reset capabilities
+- **[Service Management](docs/api/runtime-control.md)**: Comprehensive service registry management with priority configuration, health monitoring, circuit breaker control, and selection strategy tuning
 
 ### 🧩 Ethical Memory & Context  
 - **[Graph Memory](ciris_engine/adapters/local_graph_memory/README.md)**: SQLite-backed graph storage with automatic secrets encryption, scope-based access control, and WA-authorized updates
@@ -107,6 +108,18 @@ curl -X PUT http://localhost:8080/v1/runtime/config \
     "validation_level": "strict"
   }'
 
+# Manage service priorities and selection strategies
+curl -X PUT http://localhost:8080/v1/runtime/services/OpenAIProvider_123/priority \
+  -H "Content-Type: application/json" \
+  -d '{
+    "priority": "CRITICAL",
+    "priority_group": 0,
+    "strategy": "FALLBACK"
+  }'
+
+# Reset circuit breakers for failing services
+curl -X POST http://localhost:8080/v1/runtime/services/circuit-breakers/reset
+
 # Switch agent profiles
 curl -X POST http://localhost:8080/v1/runtime/profiles/teacher/load
 ```
@@ -119,7 +132,8 @@ curl -X POST http://localhost:8080/v1/runtime/profiles/teacher/load
 
 ### 📊 Operational Insights
 - **[Real-Time Monitoring](docs/api/runtime-control.md)**: Live system status, resource usage, and health metrics
-- **[Service Health Tracking](ciris_engine/registries/README.md)**: Circuit breaker states and service availability
+- **[Service Health Tracking](ciris_engine/registries/README.md)**: Circuit breaker states, service availability, and priority group monitoring
+- **[Service Selection Analytics](docs/api/runtime-control.md)**: Detailed insights into service selection logic, strategy effectiveness, and load distribution
 - **[Configuration History](ciris_engine/config/README.md)**: Track all configuration changes with rationale and rollback capability
 - **[Adapter Lifecycle Management](ciris_engine/runtime/README.md)**: Complete visibility into adapter loading, unloading, and status
 

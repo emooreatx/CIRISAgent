@@ -146,7 +146,4 @@ def get_prompt_loader() -> DMAPromptLoader:
         _default_loader = DMAPromptLoader()
     return _default_loader
 
-def load_dma_template(template_name: str) -> Dict[str, Any]:
-    """Convenience function to load a DMA template."""
-    loader = get_prompt_loader()
-    return loader.load_prompt_template(template_name)
+# Removed unused load_dma_template function

@@ -98,7 +98,7 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         Returns:
             Dictionary mapping faculty name to evaluation result
         """
-        results = {}
+        results: Dict[str, Any] = {}
         
         if not self.faculties:
             return results

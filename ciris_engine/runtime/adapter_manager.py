@@ -5,7 +5,6 @@ Provides dynamic adapter loading/unloading capabilities during runtime,
 extending the existing processor control capabilities with adapter lifecycle management.
 """
 
-import asyncio
 import logging
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
@@ -13,9 +12,6 @@ from datetime import datetime, timezone
 
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration
 from ciris_engine.adapters import load_adapter
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
-from ciris_engine.config.config_loader import ConfigLoader
-from ciris_engine.registries.base import ServiceRegistry
 
 
 logger = logging.getLogger(__name__)
@@ -156,6 +152,19 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 }
             
             instance = self.loaded_adapters[adapter_id]
+            
+            # Check if this would leave us without any communication-capable adapters
+            communication_adapters = [
+                aid for aid, inst in self.loaded_adapters.items() 
+                if inst.mode in ['discord', 'api', 'cli'] and aid != adapter_id
+            ]
+            
+            if len(communication_adapters) == 0:
+                return {
+                    "success": False,
+                    "error": f"Cannot unload adapter '{adapter_id}': This would remove all communication-capable adapters. At least one adapter with communication capabilities (discord, api, or cli) must remain loaded to maintain system access."
+                }
+            
             logger.info(f"Unloading adapter {adapter_id}")
             
             # Stop the adapter
@@ -212,18 +221,48 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             
             logger.info(f"Reloading adapter {adapter_id} with new config")
             
-            # Unload the existing adapter
-            unload_result = await self.unload_adapter(adapter_id)
-            if not unload_result["success"]:
-                return unload_result
+            # Stop the existing adapter without full unload
+            if instance.is_running:
+                await instance.adapter.stop()
+                instance.is_running = False
             
-            # Load with new configuration
-            load_result = await self.load_adapter(mode, adapter_id, config_params)
+            # Unregister services
+            await self._unregister_adapter_services(instance)
             
-            if load_result["success"]:
-                logger.info(f"Successfully reloaded adapter {adapter_id}")
+            # Remove from runtime adapters list
+            if instance.adapter in self.runtime.adapters:
+                self.runtime.adapters.remove(instance.adapter)
             
-            return load_result
+            # Load adapter class with new config
+            adapter_class = load_adapter(mode)
+            adapter_kwargs = config_params or {}
+            adapter = adapter_class(self.runtime, **adapter_kwargs)
+            
+            # Start the adapter
+            await adapter.start()
+            
+            # Add to runtime adapters list
+            self.runtime.adapters.append(adapter)
+            
+            # Update the instance with new adapter and config
+            instance.adapter = adapter
+            instance.config_params = config_params or {}
+            instance.is_running = True
+            instance.services_registered = []
+            instance.loaded_at = datetime.now(timezone.utc)
+            
+            # Register services
+            await self._register_adapter_services(instance)
+            
+            logger.info(f"Successfully reloaded adapter {adapter_id}")
+            
+            return {
+                "success": True,
+                "adapter_id": adapter_id,
+                "mode": mode,
+                "services_registered": len(instance.services_registered),
+                "loaded_at": instance.loaded_at.isoformat()
+            }
             
         except Exception as e:
             logger.error(f"Failed to reload adapter {adapter_id}: {e}", exc_info=True)
@@ -477,7 +516,9 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                             service_type=reg.service_type.value,
                             provider=reg.provider,
                             priority=reg.priority,
-                            capabilities=reg.capabilities
+                            capabilities=reg.capabilities,
+                            priority_group=reg.priority_group,
+                            strategy=reg.strategy
                         )
                         instance.services_registered.append(f"{handler_name}:{service_key}")
                 else:  # Register globally
@@ -485,7 +526,9 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                         service_type=reg.service_type.value,
                         provider=reg.provider,
                         priority=reg.priority,
-                        capabilities=reg.capabilities
+                        capabilities=reg.capabilities,
+                        priority_group=reg.priority_group,
+                        strategy=reg.strategy
                     )
                     instance.services_registered.append(f"global:{service_key}")
                 
@@ -511,3 +554,23 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             
         except Exception as e:
             logger.error(f"Error unregistering services for adapter {instance.adapter_id}: {e}", exc_info=True)
+
+    def get_communication_adapter_status(self) -> Dict[str, Any]:
+        """Get status of communication-capable adapters for safety checks."""
+        communication_adapters = [
+            {"adapter_id": aid, "mode": inst.mode, "is_running": inst.is_running}
+            for aid, inst in self.loaded_adapters.items() 
+            if inst.mode in ['discord', 'api', 'cli']
+        ]
+        
+        running_communication_adapters = [
+            adapter for adapter in communication_adapters if adapter["is_running"]
+        ]
+        
+        return {
+            "total_communication_adapters": len(communication_adapters),
+            "running_communication_adapters": len(running_communication_adapters),
+            "communication_adapters": communication_adapters,
+            "safe_to_unload": len(running_communication_adapters) > 1,
+            "warning_message": "Only one communication adapter remaining. Unloading it would isolate the system." if len(running_communication_adapters) <= 1 else None
+        }

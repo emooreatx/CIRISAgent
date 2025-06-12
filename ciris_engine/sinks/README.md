@@ -1,6 +1,15 @@
-# Sinks Module
+# Multi-Service Transaction Manager (Sinks)
 
-The sinks module implements a sophisticated multi-service data routing and processing pattern that serves as the central action dispatcher and service orchestrator for the CIRIS agent. It provides unified routing of actions to appropriate services with built-in reliability, circuit breaker patterns, and comprehensive security filtering.
+The sinks module implements a sophisticated multi-service transaction manager that serves as the central action dispatcher and service orchestrator for the CIRIS agent. It provides unified routing of actions to appropriate services with priority-based selection, configurable selection strategies (FALLBACK/ROUND_ROBIN), circuit breaker patterns, and comprehensive security filtering.
+
+## Service Selection & Transaction Management
+
+The transaction manager handles service selection strategy by service type, not by adapter, implementing the sophisticated service registry capabilities:
+
+- **Priority Groups**: Services organized in groups (0, 1, 2, etc.) with lower numbers tried first
+- **Selection Strategies**: FALLBACK (redundancy) or ROUND_ROBIN (load balancing) per service type
+- **Circuit Breaker Integration**: Automatic fault tolerance with health monitoring
+- **Transaction Coordination**: Ensures data consistency across multi-service operations
 
 ## Architecture
 
@@ -71,15 +80,20 @@ async def enqueue_action(self, action: ActionMessage) -> None:
         # Implement backpressure or fallback strategies
 ```
 
-#### 2. Service Resolution
+#### 2. Service Resolution with Priority Management
 ```python
 async def _get_service(self, service_type: str, capabilities: List[str] = None) -> Any:
-    """Resolve service through registry with capability matching"""
+    """Resolve service through registry with priority-based selection"""
     service = await self.service_registry.get_service(
         handler="MultiServiceSink",
         service_type=service_type,
         required_capabilities=capabilities or []
     )
+    # Registry automatically handles:
+    # - Priority group selection (0, 1, 2, etc.)
+    # - Strategy application (FALLBACK/ROUND_ROBIN)
+    # - Circuit breaker health checks
+    # - Load balancing for ROUND_ROBIN services
     return service
 ```
 
@@ -441,6 +455,88 @@ class AgentController:
         await self.sink.memorize(f"User said: {user_input}")
 ```
 
+## Service Strategy Management Examples
+
+### Load-Balanced LLM Pool Configuration
+```python
+# Configure multiple LLM services with different strategies
+class LLMServiceManager:
+    async def setup_llm_services(self):
+        # Primary production LLM (Group 0 - FALLBACK)
+        await self.service_registry.register(
+            handler="MultiServiceSink",
+            service_type="llm",
+            provider=openai_primary,
+            priority=Priority.CRITICAL,
+            priority_group=0,
+            strategy=SelectionStrategy.FALLBACK
+        )
+        
+        # Load-balanced backup pool (Group 1 - ROUND_ROBIN)
+        backup_llms = [anthropic_claude, openai_backup, together_ai]
+        for llm in backup_llms:
+            await self.service_registry.register(
+                handler="MultiServiceSink", 
+                service_type="llm",
+                provider=llm,
+                priority=Priority.HIGH,
+                priority_group=1,
+                strategy=SelectionStrategy.ROUND_ROBIN
+            )
+        
+        # Local fallback (Group 2 - FALLBACK)
+        await self.service_registry.register(
+            handler="MultiServiceSink",
+            service_type="llm",
+            provider=local_llm,
+            priority=Priority.FALLBACK,
+            priority_group=2,
+            strategy=SelectionStrategy.FALLBACK
+        )
+```
+
+### Multi-Service Transaction Example
+```python
+async def process_complex_user_request(self, user_input: str, channel_id: str):
+    """Handle multi-step operation with transaction-like coordination"""
+    
+    # Step 1: Memory recall (uses configured memory service strategy)
+    context = await self.sink.recall(f"context for user {channel_id}")
+    
+    # Step 2: LLM generation (uses priority group LLM selection)
+    response = await self.sink.generate_response(
+        prompt=user_input,
+        context=context
+    )
+    
+    # Step 3: Memory storage (transactional consistency)
+    await self.sink.memorize(f"User: {user_input}\nResponse: {response}")
+    
+    # Step 4: Communication (uses communication service priority)
+    await self.sink.send_message(channel_id, response)
+    
+    # All steps automatically benefit from:
+    # - Service health monitoring
+    # - Circuit breaker protection  
+    # - Priority-based selection
+    # - Load balancing where configured
+```
+
+### Runtime Service Management Integration
+```python
+# The transaction manager automatically adapts to runtime service changes
+async def handle_service_reconfiguration(self):
+    """Automatically adapt to runtime service priority changes"""
+    
+    # Service priorities can be updated via API without restart
+    # curl -X PUT /v1/runtime/services/OpenAIProvider_123/priority \
+    #   -d '{"priority": "HIGH", "priority_group": 1, "strategy": "ROUND_ROBIN"}'
+    
+    # Transaction manager automatically uses new configuration
+    response = await self.sink.generate_response("test prompt")
+    # Will now use updated priority/strategy settings
+```
+
 ---
 
-The sinks module provides a robust, secure, and scalable foundation for data routing throughout the CIRIS architecture, enabling loose coupling between components while maintaining strong reliability and security guarantees through centralized service orchestration.
+The Multi-Service Transaction Manager provides a robust, secure, and scalable foundation for coordinated multi-service operations throughout the CIRIS architecture. It implements service-level selection strategy management (not adapter-level), enabling sophisticated priority-based routing, load balancing, and fault tolerance while maintaining strong consistency guarantees across distributed service operations.

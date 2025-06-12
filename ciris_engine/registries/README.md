@@ -1,6 +1,24 @@
 # Service Registry System
 
-The registries module provides a sophisticated service discovery and fault tolerance system for the CIRIS agent architecture. It implements priority-based service selection, circuit breaker patterns, and comprehensive health monitoring to ensure robust service management across all system components.
+The registries module provides a sophisticated service discovery and fault tolerance system for the CIRIS agent architecture. It implements multi-tier priority management, configurable selection strategies (FALLBACK/ROUND_ROBIN), circuit breaker patterns, and comprehensive health monitoring to ensure robust service management across all system components.
+
+## Service Selection Architecture
+
+### Priority Groups & Selection Strategies
+The service registry employs a two-tier priority system:
+
+1. **Priority Groups** (0, 1, 2, etc.): Major priority tiers - lower numbers tried first
+2. **Priority Levels** within groups: CRITICAL(0), HIGH(1), NORMAL(2), LOW(3), FALLBACK(9)
+3. **Selection Strategies**: FALLBACK (first available) or ROUND_ROBIN (load balanced)
+
+**Example Workflow:**
+```
+Priority Group 0: [OpenAI(CRITICAL), Anthropic(HIGH)] - FALLBACK strategy
+Priority Group 1: [LocalLLM1(NORMAL), LocalLLM2(NORMAL)] - ROUND_ROBIN strategy  
+Priority Group 2: [MockLLM(FALLBACK)] - FALLBACK strategy
+```
+
+Selection tries Group 0 first (OpenAI → Anthropic), then Group 1 (round-robin between LocalLLMs), finally Group 2 (MockLLM).
 
 ## Architecture
 
@@ -29,9 +47,13 @@ class Priority(Enum):
 #### **Selection Strategies**
 ```python
 class SelectionStrategy(Enum):
-    FALLBACK = "fallback"      # First available in priority order
-    ROUND_ROBIN = "round_robin"  # Rotate through providers
+    FALLBACK = "fallback"      # First available in priority order - for redundancy
+    ROUND_ROBIN = "round_robin"  # Rotate through providers - for load balancing
 ```
+
+**Strategy Behaviors:**
+- **FALLBACK**: Always tries services in the same priority order until one succeeds. Ideal for primary/backup configurations.
+- **ROUND_ROBIN**: Cycles through available services to distribute load evenly. Perfect for load-balanced service pools.
 
 ### Service Provider Management
 
@@ -586,6 +608,79 @@ def get_stats(self) -> dict:
 - **Circuit breaker states**: Real-time fault tolerance status
 - **Service resolution latency**: Time taken for service discovery
 
+## Runtime Service Management
+
+### Service Priority Configuration
+Services can be reconfigured at runtime through the API:
+
+```bash
+# Update service priority and strategy
+curl -X PUT http://localhost:8080/v1/runtime/services/OpenAIProvider_123/priority \
+  -H "Content-Type: application/json" \
+  -d '{
+    "priority": "CRITICAL",
+    "priority_group": 0, 
+    "strategy": "FALLBACK"
+  }'
+
+# Get service health and configuration
+curl http://localhost:8080/v1/runtime/services/health
+
+# Reset circuit breakers for failed services
+curl -X POST http://localhost:8080/v1/runtime/services/circuit-breakers/reset
+```
+
+### Service Selection Analytics
+The registry provides detailed insights into service selection behavior:
+
+```python
+# Get comprehensive service analytics
+analytics = await runtime_control.get_service_selection_explanation()
+
+# Monitor service health in real-time  
+health = await runtime_control.get_service_health_status()
+print(f"Overall health: {health['overall_health']}")
+print(f"Services: {health['total_services']} total, {health['healthy_services']} healthy")
+```
+
+### Load Balancing Examples
+
+**High-Availability LLM Configuration:**
+```python
+# Primary production service (Group 0)
+registry.register(
+    service_type="llm",
+    provider=openai_primary,
+    priority=Priority.CRITICAL,
+    priority_group=0,
+    strategy=SelectionStrategy.FALLBACK
+)
+
+# Load-balanced backup pool (Group 1)  
+for i, llm in enumerate(backup_llm_pool):
+    registry.register(
+        service_type="llm",
+        provider=llm,
+        priority=Priority.NORMAL,
+        priority_group=1,
+        strategy=SelectionStrategy.ROUND_ROBIN
+    )
+
+# Emergency fallback (Group 2)
+registry.register(
+    service_type="llm", 
+    provider=local_llm,
+    priority=Priority.FALLBACK,
+    priority_group=2,
+    strategy=SelectionStrategy.FALLBACK
+)
+```
+
+This configuration ensures:
+1. Primary service gets all requests when healthy
+2. Backup pool shares load when primary fails
+3. Local LLM provides emergency coverage
+
 ---
 
-The registries module provides robust service management capabilities that enable CIRIS to maintain high availability and fault tolerance through intelligent service discovery, automatic failover, and comprehensive health monitoring while supporting complex multi-runtime architectures.
+The registries module provides robust service management capabilities that enable CIRIS to maintain high availability and fault tolerance through intelligent service discovery, priority-based selection strategies, automatic failover, and comprehensive health monitoring while supporting complex multi-runtime architectures with real-time configuration management.

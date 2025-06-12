@@ -15,6 +15,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <li><Link href="/comms">Communications</Link></li>
               <li><Link href="/memory">Memory</Link></li>
               <li><Link href="/tools">Tools</Link></li>
+              <li><Link href="/runtime">Runtime Control</Link></li>
+              <li><Link href="/system">System Status</Link></li>
+              <li><Link href="/config">Configuration</Link></li>
+              <li><Link href="/services">Services</Link></li>
               <li><Link href="/wa">WA</Link></li>
               <li><Link href="/logs">Logs</Link></li>
             </ul>

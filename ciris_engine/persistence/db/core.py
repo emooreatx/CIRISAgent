@@ -23,14 +23,7 @@ def get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
-def get_task_table_schema_sql() -> str:
-    return tasks_table_v1
-
-def get_thought_table_schema_sql() -> str:
-    return thoughts_table_v1
-
-def get_feedback_mappings_table_schema_sql() -> str:
-    return feedback_mappings_table_v1
+# Removed unused schema getter functions - only graph schemas are used
 
 def get_graph_nodes_table_schema_sql() -> str:
     return graph_nodes_table_v1

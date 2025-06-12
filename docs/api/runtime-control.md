@@ -4,11 +4,13 @@
 
 The CIRIS Agent Runtime Control API provides comprehensive management capabilities for the agent system during operation. These endpoints enable dynamic reconfiguration, debugging, and monitoring without requiring system restarts.
 
+**Note**: The adapter management system uses `adapter` to specify adapter types (cli, discord, api, etc.) throughout the API.
+
 **Base URL**: `/v1/runtime/`
 
 ## Key Features
 
-- **Hot-Swappable Adapters**: Load/unload platform adapters (Discord, CLI, API) at runtime
+- **Hot-Swappable Adapters**: Load/unload platform adapters (Discord, CLI, API) at runtime with support for multiple instances
 - **Live Configuration**: Update configuration values with validation and rollback support
 - **Processor Control**: Single-stepping, pause/resume for debugging
 - **Profile Management**: Switch between agent profiles dynamically
@@ -125,6 +127,28 @@ Content-Type: application/json
 ### Load Adapter
 Load a new adapter instance at runtime with specified configuration.
 
+**Note**: Multiple instances of the same adapter type can run simultaneously with different IDs and configurations.
+
+**Supported Adapter Types**:
+- `cli` - Command-line interface adapter
+- `discord` - Discord bot adapter  
+- `api` - HTTP API server adapter
+
+**Configuration Parameters**:
+
+**Discord Adapter**:
+- `bot_token` (required) - Discord bot token
+- `channel_id` (required) - Home channel ID for the bot
+
+**API Adapter**:
+- `host` (optional) - Server host (default: 0.0.0.0)
+- `port` (optional) - Server port (default: 8080)
+
+**CLI Adapter**:
+- No specific parameters required
+
+**Auto-Generated Adapter IDs**: If `adapter_id` is not provided, it will be auto-generated as `{adapter_type}_{counter}` (e.g., "discord_1", "api_2").
+
 ```http
 POST /v1/runtime/adapters
 Content-Type: application/json
@@ -133,9 +157,8 @@ Content-Type: application/json
   "adapter_type": "discord",
   "adapter_id": "discord_bot_prod",
   "config": {
-    "token": "your_bot_token",
-    "home_channel": "general",
-    "enabled_channels": ["general", "dev"]
+    "bot_token": "your_bot_token",
+    "channel_id": "123456789012345678"
   },
   "auto_start": true
 }
@@ -146,10 +169,9 @@ Content-Type: application/json
 {
   "success": true,
   "adapter_id": "discord_bot_prod",
-  "adapter_type": "discord",
-  "timestamp": "2025-06-11T10:30:00Z",
-  "status": "active",
-  "message": "Adapter loaded and started successfully"
+  "adapter": "discord",
+  "services_registered": 3,
+  "loaded_at": "2025-06-11T10:30:00Z"
 }
 ```
 
@@ -168,10 +190,9 @@ DELETE /v1/runtime/adapters/discord_bot_prod?force=true
 {
   "success": true,
   "adapter_id": "discord_bot_prod",
-  "adapter_type": "discord",
-  "timestamp": "2025-06-11T10:30:00Z",
-  "status": "inactive",
-  "message": "Adapter unloaded successfully"
+  "adapter": "discord",
+  "services_unregistered": 3,
+  "was_running": true
 }
 ```
 
@@ -187,19 +208,21 @@ GET /v1/runtime/adapters
 [
   {
     "adapter_id": "api_main",
-    "adapter_type": "api",
-    "status": "active",
-    "capabilities": ["http_api", "rest_endpoints"],
-    "load_time": "2025-06-11T09:00:00Z",
-    "last_activity": "2025-06-11T10:44:00Z"
+    "adapter": "api",
+    "is_running": true,
+    "health_status": "healthy",
+    "services_count": 2,
+    "loaded_at": "2025-06-11T09:00:00Z",
+    "config_params": {"host": "0.0.0.0", "port": 8080}
   },
   {
     "adapter_id": "discord_bot_prod", 
-    "adapter_type": "discord",
-    "status": "active",
-    "capabilities": ["chat", "commands"],
-    "load_time": "2025-06-11T10:30:00Z",
-    "last_activity": "2025-06-11T10:45:00Z"
+    "adapter": "discord",
+    "is_running": true,
+    "health_status": "healthy",
+    "services_count": 3,
+    "loaded_at": "2025-06-11T10:30:00Z",
+    "config_params": {"bot_token": "[REDACTED]", "channel_id": "123456789012345678"}
   }
 ]
 ```
@@ -215,21 +238,13 @@ GET /v1/runtime/adapters/discord_bot_prod
 ```json
 {
   "adapter_id": "discord_bot_prod",
-  "adapter_type": "discord", 
-  "status": "active",
+  "adapter": "discord",
   "config": {
-    "token": "[REDACTED]",
-    "home_channel": "general",
-    "enabled_channels": ["general", "dev"]
-  },
-  "capabilities": ["chat", "commands"],
-  "channels": ["general", "dev"],
-  "metadata": {
-    "class": "DiscordPlatform",
-    "instance_id": "140123456789"
+    "bot_token": "[REDACTED]",
+    "channel_id": "123456789012345678"
   },
   "load_time": "2025-06-11T10:30:00Z",
-  "last_activity": "2025-06-11T10:45:00Z"
+  "is_running": true
 }
 ```
 
@@ -647,17 +662,12 @@ GET /v1/runtime/snapshot
   "adapters": [
     {
       "adapter_id": "api_main",
-      "adapter_type": "api",
-      "status": "active",
-      "config": {"host": "0.0.0.0", "port": 8080},
-      "capabilities": ["http_api"],
-      "channels": [],
-      "metadata": {
-        "class": "ApiPlatform",
-        "instance_id": "140123456789"
-      },
-      "load_time": "2025-06-11T09:00:00Z",
-      "last_activity": "2025-06-11T10:44:00Z"
+      "adapter": "api",
+      "is_running": true,
+      "health_status": "healthy",
+      "config_params": {"host": "0.0.0.0", "port": 8080},
+      "services_count": 2,
+      "loaded_at": "2025-06-11T09:00:00Z"
     }
   ],
   "configuration": {
@@ -767,26 +777,24 @@ GET /v1/audit/query?action=runtime_control.*&start_time=2025-06-11T10:00:00Z
 # Get current Discord adapter info
 curl -X GET http://localhost:8080/v1/runtime/adapters/discord_main
 
-# Update home channel configuration  
-curl -X PUT http://localhost:8080/v1/runtime/config \
-  -H "Content-Type: application/json" \
-  -d '{
-    "path": "discord.home_channel",
-    "value": "new-general",
-    "scope": "session",
-    "validation_level": "strict"
-  }'
-
-# Reload Discord adapter with new config
+# Unload existing Discord adapter
 curl -X DELETE http://localhost:8080/v1/runtime/adapters/discord_main
+
+# Load Discord adapter with new configuration
 curl -X POST http://localhost:8080/v1/runtime/adapters \
   -H "Content-Type: application/json" \
   -d '{
     "adapter_type": "discord", 
     "adapter_id": "discord_main",
-    "config": {"home_channel": "new-general"},
+    "config": {
+      "bot_token": "your_new_token",
+      "channel_id": "987654321012345678"
+    },
     "auto_start": true
   }'
+
+# Verify the new adapter is running
+curl -X GET http://localhost:8080/v1/runtime/adapters/discord_main
 ```
 
 ### 2. Debug Processor Issues
@@ -804,6 +812,42 @@ curl -X POST http://localhost:8080/v1/runtime/processor/step
 
 # Resume normal processing
 curl -X POST http://localhost:8080/v1/runtime/processor/resume
+```
+
+### 2.5. Load Multiple Adapters
+
+```bash
+# Load multiple Discord bots for different servers
+curl -X POST http://localhost:8080/v1/runtime/adapters \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adapter_type": "discord",
+    "adapter_id": "discord_server1",
+    "config": {"bot_token": "token1", "channel_id": "123456789"},
+    "auto_start": true
+  }'
+
+curl -X POST http://localhost:8080/v1/runtime/adapters \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adapter_type": "discord", 
+    "adapter_id": "discord_server2",
+    "config": {"bot_token": "token2", "channel_id": "987654321"},
+    "auto_start": true
+  }'
+
+# Load API adapter on different port
+curl -X POST http://localhost:8080/v1/runtime/adapters \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adapter_type": "api",
+    "adapter_id": "api_alt",
+    "config": {"host": "127.0.0.1", "port": 8081},
+    "auto_start": true
+  }'
+
+# List all adapters to verify
+curl -X GET http://localhost:8080/v1/runtime/adapters
 ```
 
 ### 3. Switch Agent Profiles

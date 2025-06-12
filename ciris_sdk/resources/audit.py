@@ -16,3 +16,17 @@ class AuditResource:
             params["event_type"] = event_type
         resp = await self._transport.request("GET", "/v1/audit", params=params)
         return resp.json()
+
+    async def query(self, query: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Query audit logs with advanced filters."""
+        resp = await self._transport.request("POST", "/v1/audit/query", json=query)
+        return resp.json()
+
+    async def log(self, event_type: str, event_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Log a custom audit entry."""
+        payload = {
+            "event_type": event_type,
+            "event_data": event_data
+        }
+        resp = await self._transport.request("POST", "/v1/audit/log", json=payload)
+        return resp.json()

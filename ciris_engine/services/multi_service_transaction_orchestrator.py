@@ -79,5 +79,6 @@ class MultiServiceTransactionOrchestrator(Service):
     def get_service_health(self) -> Dict[str, Any]:
         """Get basic provider info from the registry."""
         if self.registry:
-            return self.registry.get_provider_info()
+            provider_info = self.registry.get_provider_info()
+            return provider_info if isinstance(provider_info, dict) else {}
         return {}

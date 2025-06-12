@@ -10,6 +10,9 @@ from .resources.tools import ToolsResource
 from .resources.guidance import GuidanceResource
 from .resources.audit import AuditResource
 from .resources.logs import LogsResource
+from .resources.runtime import RuntimeResource
+from .resources.system import SystemResource
+from .resources.services import ServicesResource
 from .exceptions import CIRISTimeoutError, CIRISConnectionError
 
 class CIRISClient:
@@ -32,6 +35,9 @@ class CIRISClient:
         self.guidance = GuidanceResource(self._transport)
         self.audit = AuditResource(self._transport)
         self.logs = LogsResource(self._transport)
+        self.runtime = RuntimeResource(self._transport)
+        self.system = SystemResource(self._transport)
+        self.services = ServicesResource(self._transport)
 
     async def __aenter__(self) -> "CIRISClient":
         await self._transport.__aenter__()
