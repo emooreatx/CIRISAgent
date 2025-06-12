@@ -25,11 +25,13 @@ class RuntimeControlService(RuntimeControlInterface):
         self,
         telemetry_collector=None,
         adapter_manager: Optional[RuntimeAdapterManager] = None,
-        config_manager: Optional[ConfigManagerService] = None
+        config_manager: Optional[ConfigManagerService] = None,
+        service_registry=None
     ):
         self.telemetry_collector = telemetry_collector
         self.adapter_manager = adapter_manager or RuntimeAdapterManager()
         self.config_manager = config_manager or ConfigManagerService()
+        self.service_registry = service_registry
         self._processor_status = ProcessorStatus.RUNNING
         self._start_time = datetime.now(timezone.utc)
         self._last_config_change: Optional[datetime] = None
@@ -40,10 +42,31 @@ class RuntimeControlService(RuntimeControlInterface):
         try:
             await self.adapter_manager.initialize()
             await self.config_manager.initialize()
-            logger.info("Runtime control service initialized")
+            
+            # Check if audit service is available
+            audit_service = await self.get_audit_service()
+            audit_status = "enabled" if audit_service else "not available"
+            
+            logger.info(f"Runtime control service initialized - audit logging {audit_status}")
+            print(f"[RUNTIME_CONTROL] Service initialized with audit logging {audit_status}")
+            
+            if audit_service:
+                logger.debug("Runtime control service will log all operations to signed audit service")
+            else:
+                logger.debug("Runtime control service will only maintain local event history")
+                
         except Exception as e:
             logger.error(f"Failed to initialize runtime control service: {e}")
             raise
+
+    async def get_audit_service(self):
+        """Get the audit service from the service registry."""
+        if not self.service_registry:
+            return None
+        return await self.service_registry.get_service(
+            "RuntimeControlService",
+            "audit"
+        )
 
     # Processor Control Methods
     async def single_step(self) -> ProcessorControlResponse:
@@ -205,7 +228,19 @@ class RuntimeControlService(RuntimeControlInterface):
         auto_start: bool = True
     ) -> AdapterOperationResponse:
         """Load a new adapter instance."""
-        return await self.adapter_manager.load_adapter(adapter_type, adapter_id, config, auto_start)
+        try:
+            result = await self.adapter_manager.load_adapter(adapter_type, adapter_id, config, auto_start)
+            await self._record_event(
+                "adapter_control", 
+                "load", 
+                success=result.success, 
+                result={"adapter_type": adapter_type, "adapter_id": adapter_id, "auto_start": auto_start},
+                error=result.error if not result.success else None
+            )
+            return result
+        except Exception as e:
+            await self._record_event("adapter_control", "load", success=False, error=str(e))
+            raise
 
     async def unload_adapter(
         self,
@@ -213,7 +248,19 @@ class RuntimeControlService(RuntimeControlInterface):
         force: bool = False
     ) -> AdapterOperationResponse:
         """Unload an adapter instance."""
-        return await self.adapter_manager.unload_adapter(adapter_id, force)
+        try:
+            result = await self.adapter_manager.unload_adapter(adapter_id, force)
+            await self._record_event(
+                "adapter_control", 
+                "unload", 
+                success=result.success, 
+                result={"adapter_id": adapter_id, "force": force},
+                error=result.error if not result.success else None
+            )
+            return result
+        except Exception as e:
+            await self._record_event("adapter_control", "unload", success=False, error=str(e))
+            raise
 
     async def list_adapters(self) -> List[Dict[str, Any]]:
         """List all loaded adapters."""
@@ -251,9 +298,19 @@ class RuntimeControlService(RuntimeControlInterface):
             )
             if result.success:
                 self._last_config_change = result.timestamp
+            
+            # Audit the configuration change
+            await self._record_event(
+                "config_control",
+                "update",
+                success=result.success,
+                result={"path": path, "scope": scope.value, "validation_level": validation_level.value, "reason": reason},
+                error=result.error if not result.success else None
+            )
             return result
         except Exception as e:
             logger.error(f"Failed to update config: {e}")
+            await self._record_event("config_control", "update", success=False, error=str(e))
             return ConfigOperationResponse(
                 success=False,
                 operation="update_config",
@@ -290,9 +347,19 @@ class RuntimeControlService(RuntimeControlInterface):
                 self._last_config_change = result.timestamp
                 # Notify adapter manager of profile change
                 await self.adapter_manager.on_profile_changed(profile_name)
+            
+            # Audit the profile reload
+            await self._record_event(
+                "config_control",
+                "reload_profile",
+                success=result.success,
+                result={"profile_name": profile_name, "scope": scope.value},
+                error=result.error if not result.success else None
+            )
             return result
         except Exception as e:
             logger.error(f"Failed to reload profile: {e}")
+            await self._record_event("config_control", "reload_profile", success=False, error=str(e))
             return ConfigOperationResponse(
                 success=False,
                 operation="reload_profile",
@@ -612,7 +679,7 @@ class RuntimeControlService(RuntimeControlInterface):
         result: Any = None,
         error: Optional[str] = None
     ) -> None:
-        """Record an event in the history."""
+        """Record an event in the history and audit service."""
         try:
             event = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -623,11 +690,56 @@ class RuntimeControlService(RuntimeControlInterface):
                 "error": error
             }
             
+            # Console output following action dispatcher pattern
+            status = "COMPLETED" if success else "FAILED"
+            completion_msg = f"[RUNTIME_CONTROL] {category}.{action} {status}"
+            if result:
+                # Add concise result info to console
+                if isinstance(result, dict):
+                    result_summary = ", ".join([f"{k}={v}" for k, v in result.items()][:3])  # Limit to first 3 items
+                    completion_msg += f" ({result_summary})"
+                else:
+                    completion_msg += f" (result: {str(result)[:50]})"  # Limit length
+            if error:
+                completion_msg += f" - ERROR: {error[:100]}"  # Limit error length
+            print(completion_msg)
+            
+            # Logging at appropriate levels
+            if success:
+                logger.info(f"Runtime control action succeeded: {category}.{action}")
+                logger.debug(f"Runtime control action details: {category}.{action} - Result: {result}")
+            else:
+                logger.error(f"Runtime control action failed: {category}.{action} - Error: {error}")
+                if result:
+                    logger.debug(f"Runtime control action partial result: {category}.{action} - Result: {result}")
+            
+            # Record in local history for quick access
             self._events_history.append(event)
             
             # Limit history size
             if len(self._events_history) > 1000:
                 self._events_history = self._events_history[-1000:]
+            
+            # Also log to the global signed audit service
+            audit_service = await self.get_audit_service()
+            if audit_service:
+                audit_context = {
+                    "runtime_control_action": f"{category}.{action}",
+                    "success": success,
+                    "timestamp": event["timestamp"]
+                }
+                if result:
+                    audit_context["result"] = result
+                if error:
+                    audit_context["error"] = error
+                
+                outcome = "success" if success else "failed"
+                await audit_service.log_action(
+                    f"runtime_control.{category}.{action}",
+                    audit_context,
+                    outcome
+                )
+                logger.debug(f"Runtime control action audited: {category}.{action}")
                 
         except Exception as e:
             logger.error(f"Failed to record event: {e}")

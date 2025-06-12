@@ -80,7 +80,8 @@ class ApiPlatform(PlatformAdapter):
         self.runtime_control_service = RuntimeControlService(
             telemetry_collector=self.telemetry_collector,
             adapter_manager=getattr(self.runtime, 'adapter_manager', None),
-            config_manager=getattr(self.runtime, 'config_manager', None)
+            config_manager=getattr(self.runtime, 'config_manager', None),
+            service_registry=getattr(self.runtime, 'service_registry', None)
         )
         
         self._setup_routes()
