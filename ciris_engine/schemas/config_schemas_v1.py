@@ -523,7 +523,6 @@ def ensure_models_rebuilt():
     if _models_rebuilt:
         return
     
-    print("[DEBUG] Starting model rebuild process...")
     imported_configs = {}
     
     # Try to import each adapter config individually
@@ -540,9 +539,8 @@ def ensure_models_rebuilt():
             module = importlib.import_module(module_name)
             adapter_class = getattr(module, class_name)
             imported_configs[class_name] = adapter_class
-            print(f"[DEBUG] Imported {class_name}: {adapter_class}")
-        except Exception as e:
-            print(f"[DEBUG] Failed to import {class_name}: {e}")
+        except Exception:
+            pass  # Silently skip if adapter module not available
     
     # Only rebuild if we successfully imported something
     if imported_configs:
@@ -556,17 +554,11 @@ def ensure_models_rebuilt():
             setattr(current_module, name, cls)
         
         try:
-            print("[DEBUG] Rebuilding AgentProfile...")
             AgentProfile.model_rebuild()
-            print("[DEBUG] Rebuilding AppConfig...")
             AppConfig.model_rebuild()
-            print("[DEBUG] Model rebuild completed successfully")
             _models_rebuilt = True
-        except Exception as e:
-            print(f"[DEBUG] Model rebuild failed: {e}")
-    else:
-        print("[DEBUG] No adapters imported, skipping rebuild")
+        except Exception:
+            pass  # Continue without rebuild if it fails
 
-# Call the function immediately when the module is imported
-print("[DEBUG] Module config_schemas_v1.py loaded, calling ensure_models_rebuilt...")
-ensure_models_rebuilt()
+# Don't call ensure_models_rebuilt() at module import time to avoid circular imports
+# It will be called when needed by config_manager.py before instantiating AppConfig

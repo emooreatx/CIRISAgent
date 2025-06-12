@@ -54,34 +54,52 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         """Stop the observer and background input loop."""
         if self._input_task:
             self._stop_event.set()
-            await self._input_task
+            try:
+                # Give the input task a chance to complete gracefully
+                await asyncio.wait_for(self._input_task, timeout=1.0)
+            except asyncio.TimeoutError:
+                logger.warning("Input task did not complete within timeout, cancelling")
+                self._input_task.cancel()
+                try:
+                    await self._input_task
+                except asyncio.CancelledError:
+                    pass
             self._input_task = None
             self._stop_event.clear()
         logger.info("CLIObserver stopped")
 
     async def _input_loop(self) -> None:
         """Read lines from stdin and handle them as messages."""
-        while not self._stop_event.is_set():
-            line = await asyncio.to_thread(input, ">>> ")
-            if not line:
-                continue
-            if line.lower() in {"exit", "quit", "bye"}:
-                self._stop_event.set()
-                break
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    line = await asyncio.to_thread(input, ">>> ")
+                except asyncio.CancelledError:
+                    logger.debug("Input loop cancelled")
+                    break
+                    
+                if not line:
+                    continue
+                if line.lower() in {"exit", "quit", "bye"}:
+                    self._stop_event.set()
+                    break
 
-            # Get channel ID from config or default to "cli"
-            channel_id = "cli"
-            if self.config and hasattr(self.config, 'get_home_channel_id'):
-                channel_id = self.config.get_home_channel_id()
-                
-            msg = IncomingMessage(
-                message_id=f"cli_{asyncio.get_event_loop().time()}",
-                content=line,
-                author_id="local_user",
-                author_name="User",
-                channel_id=channel_id,
-            )
-            await self.handle_incoming_message(msg)
+                # Get channel ID from config or default to "cli"
+                channel_id = "cli"
+                if self.config and hasattr(self.config, 'get_home_channel_id'):
+                    channel_id = self.config.get_home_channel_id()
+                    
+                msg = IncomingMessage(
+                    message_id=f"cli_{asyncio.get_event_loop().time()}",
+                    content=line,
+                    author_id="local_user",
+                    author_name="User",
+                    channel_id=channel_id,
+                )
+                await self.handle_incoming_message(msg)
+        except asyncio.CancelledError:
+            logger.debug("Input loop task cancelled")
+            raise
 
     async def _get_recall_ids(self, msg: IncomingMessage) -> set[str]:
         import socket

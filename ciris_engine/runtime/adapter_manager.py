@@ -282,7 +282,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
         try:
             if adapter_id not in self.loaded_adapters:
                 return {
-                    "found": False,
+                    "success": False,
                     "error": f"Adapter with ID '{adapter_id}' not found"
                 }
             
@@ -320,7 +320,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             uptime_seconds = (datetime.now(timezone.utc) - instance.loaded_at).total_seconds()
             
             return {
-                "found": True,
+                "success": True,
                 "adapter_id": adapter_id,
                 "mode": instance.mode,
                 "is_running": instance.is_running,
@@ -336,9 +336,36 @@ class RuntimeAdapterManager(AdapterManagerInterface):
         except Exception as e:
             logger.error(f"Failed to get adapter status for {adapter_id}: {e}", exc_info=True)
             return {
-                "found": False,
+                "success": False,
                 "error": str(e)
             }
+    
+    async def get_adapter_info(self, adapter_id: str) -> Dict[str, Any]:
+        """Get detailed information about a specific adapter
+        
+        Args:
+            adapter_id: Unique identifier of the adapter
+            
+        Returns:
+            Dict with detailed adapter information, or empty dict if not found
+        """
+        try:
+            if adapter_id not in self.loaded_adapters:
+                return {}
+            
+            instance = self.loaded_adapters[adapter_id]
+            
+            return {
+                "adapter_id": adapter_id,
+                "mode": instance.mode,
+                "config": instance.config_params,
+                "load_time": instance.loaded_at.isoformat(),
+                "is_running": instance.is_running
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get adapter info for {adapter_id}: {e}", exc_info=True)
+            return {}
     
     async def load_adapter_from_profile(self, profile_name: str, adapter_id: Optional[str] = None) -> Dict[str, Any]:
         """Load adapter configuration from an agent profile

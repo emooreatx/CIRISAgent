@@ -23,12 +23,16 @@ class RuntimeControlService(RuntimeControlInterface):
 
     def __init__(
         self,
+        runtime=None,
         telemetry_collector=None,
         adapter_manager: Optional[RuntimeAdapterManager] = None,
         config_manager: Optional[ConfigManagerService] = None
     ):
+        self.runtime = runtime
         self.telemetry_collector = telemetry_collector
-        self.adapter_manager = adapter_manager or RuntimeAdapterManager()
+        self.adapter_manager = adapter_manager
+        if not self.adapter_manager and runtime:
+            self.adapter_manager = RuntimeAdapterManager(runtime)
         self.config_manager = config_manager or ConfigManagerService()
         self._processor_status = ProcessorStatus.RUNNING
         self._start_time = datetime.now(timezone.utc)
@@ -38,7 +42,8 @@ class RuntimeControlService(RuntimeControlInterface):
     async def initialize(self) -> None:
         """Initialize the runtime control service."""
         try:
-            await self.adapter_manager.initialize()
+            # RuntimeAdapterManager doesn't have an initialize method
+            # Only initialize config_manager
             await self.config_manager.initialize()
             logger.info("Runtime control service initialized")
         except Exception as e:
@@ -205,7 +210,31 @@ class RuntimeControlService(RuntimeControlInterface):
         auto_start: bool = True
     ) -> AdapterOperationResponse:
         """Load a new adapter instance."""
-        return await self.adapter_manager.load_adapter(adapter_type, adapter_id, config, auto_start)
+        if not self.adapter_manager:
+            from ciris_engine.schemas.runtime_control_schemas import AdapterStatus
+            return AdapterOperationResponse(
+                success=False,
+                timestamp=datetime.now(timezone.utc),
+                adapter_id=adapter_id,
+                adapter_type=adapter_type,
+                status=AdapterStatus.ERROR,
+                error="Adapter manager not available"
+            )
+        
+        # Call adapter manager (note: it doesn't use auto_start parameter)
+        result = await self.adapter_manager.load_adapter(adapter_type, adapter_id, config)
+        
+        # Convert dict response to AdapterOperationResponse
+        from ciris_engine.schemas.runtime_control_schemas import AdapterStatus
+        return AdapterOperationResponse(
+            success=result.get("success", False),
+            adapter_id=result.get("adapter_id", adapter_id),
+            adapter_type=adapter_type,
+            timestamp=datetime.now(timezone.utc),
+            status=AdapterStatus.ACTIVE if result.get("success") else AdapterStatus.ERROR,
+            message=result.get("message"),
+            error=result.get("error")
+        )
 
     async def unload_adapter(
         self,
@@ -213,14 +242,42 @@ class RuntimeControlService(RuntimeControlInterface):
         force: bool = False
     ) -> AdapterOperationResponse:
         """Unload an adapter instance."""
-        return await self.adapter_manager.unload_adapter(adapter_id, force)
+        if not self.adapter_manager:
+            from ciris_engine.schemas.runtime_control_schemas import AdapterStatus
+            return AdapterOperationResponse(
+                success=False,
+                timestamp=datetime.now(timezone.utc),
+                adapter_id=adapter_id,
+                adapter_type="unknown",
+                status=AdapterStatus.ERROR,
+                error="Adapter manager not available"
+            )
+        
+        # Call adapter manager (note: it doesn't use force parameter)  
+        result = await self.adapter_manager.unload_adapter(adapter_id)
+        
+        # Convert dict response to AdapterOperationResponse
+        from ciris_engine.schemas.runtime_control_schemas import AdapterStatus
+        return AdapterOperationResponse(
+            success=result.get("success", False),
+            adapter_id=result.get("adapter_id", adapter_id),
+            adapter_type=result.get("mode", "unknown"),
+            timestamp=datetime.now(timezone.utc),
+            status=AdapterStatus.INACTIVE if result.get("success") else AdapterStatus.ERROR,
+            message=result.get("message"),
+            error=result.get("error")
+        )
 
     async def list_adapters(self) -> List[Dict[str, Any]]:
         """List all loaded adapters."""
+        if not self.adapter_manager:
+            return []
         return await self.adapter_manager.list_adapters()
 
     async def get_adapter_info(self, adapter_id: str) -> Dict[str, Any]:
         """Get detailed information about a specific adapter."""
+        if not self.adapter_manager:
+            return {"error": "Adapter manager not available"}
         return await self.adapter_manager.get_adapter_info(adapter_id)
 
     # Configuration Management Methods
@@ -288,8 +345,9 @@ class RuntimeControlService(RuntimeControlInterface):
             result = await self.config_manager.reload_profile(profile_name, config_path, scope)
             if result.success:
                 self._last_config_change = result.timestamp
-                # Notify adapter manager of profile change
-                await self.adapter_manager.on_profile_changed(profile_name)
+                # Notify adapter manager of profile change if available
+                if self.adapter_manager and hasattr(self.adapter_manager, 'on_profile_changed'):
+                    await self.adapter_manager.on_profile_changed(profile_name)
             return result
         except Exception as e:
             logger.error(f"Failed to reload profile: {e}")
@@ -542,7 +600,9 @@ class RuntimeControlService(RuntimeControlInterface):
             uptime = (current_time - self._start_time).total_seconds()
             
             # Get adapter information
-            adapters = await self.adapter_manager.list_adapters()
+            adapters = []
+            if self.adapter_manager:
+                adapters = await self.adapter_manager.list_adapters()
             active_adapters = [a["adapter_id"] for a in adapters if a.get("status") == "active"]
             loaded_adapters = [a["adapter_id"] for a in adapters]
             
@@ -577,7 +637,9 @@ class RuntimeControlService(RuntimeControlInterface):
             uptime = (current_time - self._start_time).total_seconds()
             
             # Get detailed adapter information
-            adapters_data = await self.adapter_manager.list_adapters()
+            adapters_data = []
+            if self.adapter_manager:
+                adapters_data = await self.adapter_manager.list_adapters()
             
             # Get configuration
             config_data = await self.config_manager.get_config_value()
