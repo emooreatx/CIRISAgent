@@ -1,0 +1,161 @@
+"""API memory endpoints for CIRISAgent, using the multi_service_sink for persistence-backed memory service."""
+import logging
+from aiohttp import web
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
+from typing import Any, List
+
+logger = logging.getLogger(__name__)
+
+class APIMemoryRoutes:
+    def __init__(self, multi_service_sink: Any) -> None:
+        self.multi_service_sink = multi_service_sink
+
+    def register(self, app: web.Application) -> None:
+        app.router.add_get('/v1/memory/scopes', self._handle_memory_scopes)
+        app.router.add_get('/v1/memory/{scope}/entries', self._handle_memory_entries)
+        app.router.add_post('/v1/memory/{scope}/store', self._handle_memory_store)
+        app.router.add_post('/v1/memory/search', self._handle_memory_search)
+        app.router.add_post('/v1/memory/recall', self._handle_memory_recall)
+        app.router.add_delete('/v1/memory/{scope}/{node_id}', self._handle_memory_forget)
+        app.router.add_get('/v1/memory/timeseries', self._handle_memory_timeseries)
+
+    async def _handle_memory_scopes(self, request: web.Request) -> web.Response:
+        try:
+            # Use the memory service from the multi_service_sink
+            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            if memory_service and hasattr(memory_service, 'list_scopes'):
+                scopes = await memory_service.list_scopes()
+            else:
+                # Fallback: try to infer from available nodes
+                scopes = [s.value for s in GraphScope]
+            return web.json_response({"scopes": scopes})
+        except Exception as e:
+            logger.error(f"Error in memory scopes: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def _handle_memory_entries(self, request: web.Request) -> web.Response:
+        scope = request.match_info.get('scope')
+        try:
+            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            if memory_service and hasattr(memory_service, 'list_entries'):
+                entries = await memory_service.list_entries(scope)
+            else:
+                entries = []
+            return web.json_response({"entries": entries})
+        except Exception as e:
+            logger.error(f"Error in memory entries: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def _handle_memory_store(self, request: web.Request) -> web.Response:
+        scope = request.match_info.get('scope')
+        try:
+            data = await request.json()
+            key = data.get("key")
+            value = data.get("value")
+            if not key:
+                return web.json_response({"error": "Missing key"}, status=400)
+            # Convert string scope to GraphScope enum
+            try:
+                graph_scope = GraphScope(scope)
+            except ValueError:
+                graph_scope = GraphScope.LOCAL  # Fallback to LOCAL scope
+            node = GraphNode(id=key, type=NodeType.CONCEPT, scope=graph_scope, attributes={"value": value})
+            # Use the multi_service_sink to memorize
+            result = await self.multi_service_sink.memorize(node)
+            if hasattr(result, "status") and result.status == MemoryOpStatus.OK:
+                return web.json_response({"result": "ok"})
+            return web.json_response({"error": getattr(result, "reason", "Unknown error")}, status=500)
+        except Exception as e:
+            logger.error(f"Error in memory store: {e}")
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def _handle_memory_search(self, request: web.Request) -> web.Response:
+        """Search memories by query."""
+        try:
+            data = await request.json()
+            query = data.get("query", "")
+            scope = data.get("scope", "local")
+            limit = data.get("limit", 10)
+            
+            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            if memory_service and hasattr(memory_service, 'search_memories'):
+                results = await memory_service.search_memories(query, scope, limit)
+                return web.json_response({"results": results})
+            else:
+                return web.json_response({"error": "Memory search not available"}, status=501)
+        except Exception as e:
+            logger.error(f"Error in memory search: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def _handle_memory_recall(self, request: web.Request) -> web.Response:
+        """Recall a specific memory node."""
+        try:
+            data = await request.json()
+            node_id = data.get("node_id")
+            scope = data.get("scope", "local")
+            node_type = data.get("node_type", "CONCEPT")
+            
+            if not node_id:
+                return web.json_response({"error": "Missing node_id"}, status=400)
+            
+            # Convert string scope and type to enums
+            try:
+                graph_scope = GraphScope(scope)
+                graph_node_type = NodeType(node_type)
+            except ValueError:
+                graph_scope = GraphScope.LOCAL
+                graph_node_type = NodeType.CONCEPT
+            
+            node = GraphNode(id=node_id, type=graph_node_type, scope=graph_scope)
+            result = await self.multi_service_sink.recall(node)
+            
+            if hasattr(result, "status") and result.status == MemoryOpStatus.OK:
+                return web.json_response({"data": result.data})
+            else:
+                error_msg = getattr(result, "error", "Unknown error")
+                return web.json_response({"error": error_msg}, status=404)
+        except Exception as e:
+            logger.error(f"Error in memory recall: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def _handle_memory_forget(self, request: web.Request) -> web.Response:
+        """Forget a specific memory node."""
+        try:
+            scope = request.match_info.get('scope')
+            node_id = request.match_info.get('node_id')
+            
+            # Convert string scope to enum
+            try:
+                graph_scope = GraphScope(scope)
+            except ValueError:
+                graph_scope = GraphScope.LOCAL
+            
+            node = GraphNode(id=node_id, type=NodeType.CONCEPT, scope=graph_scope)
+            result = await self.multi_service_sink.forget(node)
+            
+            if hasattr(result, "status") and result.status == MemoryOpStatus.OK:
+                return web.json_response({"result": "forgotten"})
+            else:
+                error_msg = getattr(result, "error", "Unknown error")
+                return web.json_response({"error": error_msg}, status=500)
+        except Exception as e:
+            logger.error(f"Error in memory forget: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def _handle_memory_timeseries(self, request: web.Request) -> web.Response:
+        """Get time-series memory data."""
+        try:
+            scope = request.query.get('scope', 'local')
+            hours = int(request.query.get('hours', 24))
+            correlation_types = request.query.getall('correlation_types', [])
+            
+            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            if memory_service and hasattr(memory_service, 'recall_timeseries'):
+                results = await memory_service.recall_timeseries(scope, hours, correlation_types or None)
+                return web.json_response({"timeseries": results})
+            else:
+                return web.json_response({"error": "Memory timeseries not available"}, status=501)
+        except Exception as e:
+            logger.error(f"Error in memory timeseries: {e}")
+            return web.json_response({"error": str(e)}, status=500)

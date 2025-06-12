@@ -12,7 +12,7 @@ from unittest.mock import Mock, AsyncMock, patch
 from aiohttp import web
 from aiohttp.test_utils import AioHTTPTestCase
 
-from ciris_engine.runtime.api.api_system import APISystemRoutes
+from ciris_engine.adapters.api.api_system import APISystemRoutes
 from ciris_engine.protocols.telemetry_interface import TelemetrySnapshot, AdapterInfo, ProcessorState
 from ciris_engine.schemas.telemetry_schemas_v1 import CompactTelemetry
 from ciris_engine.telemetry.comprehensive_collector import ComprehensiveTelemetryCollector
@@ -41,9 +41,23 @@ class TestAPISystemTelemetryEndpoints(AioHTTPTestCase):
         
         mock_snapshot = TelemetrySnapshot(
             basic_telemetry=CompactTelemetry(
+                thoughts_active=0,
                 thoughts_24h=150,
+                avg_latency_ms=0,
                 uptime_hours=24.5,
-                messages_processed_24h=300
+                guardrail_hits=0,
+                deferrals_24h=0,
+                errors_24h=0,
+                drift_score=0,
+                messages_processed_24h=300,
+                helpful_actions_24h=0,
+                gratitude_expressed_24h=0,
+                gratitude_received_24h=0,
+                community_health_delta=0,
+                wa_available=True,
+                isolation_hours=0,
+                universal_guidance_count=0,
+                epoch_seconds=0
             ),
             adapters=[
                 AdapterInfo(
@@ -471,9 +485,23 @@ class TestAPISystemTelemetryEndpoints(AioHTTPTestCase):
         
         mock_snapshot = TelemetrySnapshot(
             basic_telemetry=CompactTelemetry(
+                thoughts_active=0,
                 thoughts_24h=0,
+                avg_latency_ms=0,
                 uptime_hours=0.0,
-                messages_processed_24h=0
+                guardrail_hits=0,
+                deferrals_24h=0,
+                errors_24h=0,
+                drift_score=0,
+                messages_processed_24h=0,
+                helpful_actions_24h=0,
+                gratitude_expressed_24h=0,
+                gratitude_received_24h=0,
+                community_health_delta=0,
+                wa_available=True,
+                isolation_hours=0,
+                universal_guidance_count=0,
+                epoch_seconds=0
             ),
             processor_state=ProcessorState(
                 is_running=False,

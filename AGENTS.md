@@ -1,7 +1,7 @@
 # CIRIS Agent Implementation Task List
 
 ## Document Status
-**Version**: 1.1.0
+**Version**: 1.2.0
 **Status**: ✅ COMPLETE
 **Last Updated**: 2025-06-11
 
@@ -61,6 +61,27 @@ These historical tasks remain for reference but require no further action.
 *Status Update (QA Session)*: Verified SPEAK and MEMORIZE handlers via `/v1/messages` using mock LLM.
 
 Progress is tracked in this document under *Task Group QA* until complete.
+
+### Task Group API: API Enhancement & Testing
+**Goal**: Complete API 1.0-beta readiness with comprehensive testing.
+
+1. **API Endpoint Enhancements** ✅ COMPLETE
+   - Fixed `/v1/messages` to use correlation system for full conversation history
+   - Added memory search, recall, timeseries endpoints
+   - Added audit query endpoint with filtering
+   - Added tool parameter validation endpoint
+
+2. **API Documentation** ✅ COMPLETE
+   - Created comprehensive `docs/api_reference.md` with all endpoints
+   - Updated README.md with API server instructions
+
+3. **API Testing** 🔄 IN PROGRESS
+   - Write unit tests for all API endpoints
+   - Test correlation-based message retrieval
+   - Test new memory and audit endpoints
+   - Validate error handling and edge cases
+
+*Status Update*: API enhancements complete, documentation updated. Unit tests pending.
 
 ## 📋 TASK EXECUTION INSTRUCTIONS
 

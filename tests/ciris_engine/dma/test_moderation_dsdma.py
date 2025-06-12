@@ -85,33 +85,33 @@ class TestModerationDSDMA:
         assert dsdma.model_name == "gpt-4o-mini"
         assert dsdma.domain_specific_knowledge["rules_summary"] == "Echo moderation rules"
     
-    def test_should_defer_to_human_escalation_triggers(self):
+    def test_should_send_deferral_escalation_triggers(self):
         """Test escalation trigger detection"""
         mock_registry = Mock(spec=ServiceRegistry)
         dsdma = ModerationDSDMA(service_registry=mock_registry)
         
         # Test escalation triggers
-        assert dsdma._should_defer_to_human("I want to hurt myself", [])
-        assert dsdma._should_defer_to_human("This is a complex interpersonal conflict", [])
-        assert dsdma._should_defer_to_human("potential legal issues here", [])
+        assert dsdma._should_send_deferral("I want to hurt myself", [])
+        assert dsdma._should_send_deferral("This is a complex interpersonal conflict", [])
+        assert dsdma._should_send_deferral("potential legal issues here", [])
         
         # Test normal content
-        assert not dsdma._should_defer_to_human("Hello everyone!", [])
-        assert not dsdma._should_defer_to_human("Can someone help me?", [])
+        assert not dsdma._should_send_deferral("Hello everyone!", [])
+        assert not dsdma._should_send_deferral("Can someone help me?", [])
     
-    def test_should_defer_to_human_complexity_flags(self):
+    def test_should_send_deferral_complexity_flags(self):
         """Test deferral based on complexity flags"""
         mock_registry = Mock(spec=ServiceRegistry)
         dsdma = ModerationDSDMA(service_registry=mock_registry)
         
         # Test complexity flags
-        assert dsdma._should_defer_to_human("Normal message", ["complex_conflict"])
-        assert dsdma._should_defer_to_human("Normal message", ["legal_concern"])
-        assert dsdma._should_defer_to_human("Normal message", ["welfare_risk"])
+        assert dsdma._should_send_deferral("Normal message", ["complex_conflict"])
+        assert dsdma._should_send_deferral("Normal message", ["legal_concern"])
+        assert dsdma._should_send_deferral("Normal message", ["welfare_risk"])
         
         # Test normal flags
-        assert not dsdma._should_defer_to_human("Normal message", ["spam"])
-        assert not dsdma._should_defer_to_human("Normal message", ["new_user"])
+        assert not dsdma._should_send_deferral("Normal message", ["spam"])
+        assert not dsdma._should_send_deferral("Normal message", ["new_user"])
     
     @pytest.mark.asyncio
     async def test_evaluate_thought_context_enrichment(self):

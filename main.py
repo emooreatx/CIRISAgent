@@ -130,8 +130,8 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
 @click.option("--timeout", type=int, help="Maximum runtime duration in seconds")
 @click.option("--handler", help="Direct handler to execute and exit")
 @click.option("--params", help="JSON parameters for handler execution")
-@click.option("--host", "api_host", default="0.0.0.0", help="API host")
-@click.option("--port", "api_port", default=8080, type=int, help="API port")
+@click.option("--host", "api_host", default=None, help="API host (default: 0.0.0.0)")
+@click.option("--port", "api_port", default=None, type=int, help="API port (default: 8080)")
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
 @click.option("--no-interactive/--interactive", "cli_interactive", default=True, help="Enable/disable interactive CLI input")
 @click.option("--discord-token", "discord_bot_token", default=os.environ.get("DISCORD_BOT_TOKEN"), help="Discord bot token")
@@ -145,8 +145,8 @@ def main(
     timeout: Optional[int],
     handler: Optional[str],
     params: Optional[str],
-    api_host: str,
-    api_port: int,
+    api_host: Optional[str],
+    api_port: Optional[int],
     debug: bool,
     cli_interactive: bool,
     discord_bot_token: Optional[str],
@@ -192,7 +192,15 @@ def main(
         
         # Set channel_id based on mode
         if "api" in selected_modes:
-            app_config.api_channel_id = f"{api_host}:{api_port}"
+            from ciris_engine.adapters.api.config import APIAdapterConfig
+            api_config = APIAdapterConfig()
+            if api_host:
+                api_config.host = api_host
+            if api_port:
+                api_config.port = api_port
+            api_config.load_env_vars()
+            
+            app_config.api_channel_id = api_config.get_channel_id(api_config.host, api_config.port)
             if not startup_channel_id:
                 startup_channel_id = app_config.api_channel_id
         elif "cli" in selected_modes:

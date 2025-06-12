@@ -29,5 +29,5 @@ async def test_access_logs_and_reencrypt(temp_store):
     logs = await temp_store.get_access_logs("uuid-log")
     assert logs
     new_key = b"b" * 32
-    assert await temp_store.reencrypt_all(new_key) is False
+    assert await temp_store.reencrypt_all(new_key) is True
 

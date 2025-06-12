@@ -637,14 +637,49 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
     async def reencrypt_all(self, new_encryption_key: bytes) -> bool:
         """Re-encrypt all stored secrets with a new key."""  # pragma: no cover - not implemented
         try:
-            # This would be a complex operation involving:
-            # 1. Decrypt all secrets with old key
-            # 2. Update encryption instance with new key  
-            # 3. Re-encrypt all secrets with new key
-            # 4. Update database records
-            # For now, return False as not implemented
-            logger.warning("reencrypt_all not fully implemented")
-            return False
+            # Get all secrets
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("SELECT secret_uuid, encrypted_value, salt, nonce FROM secrets")
+                secrets = cursor.fetchall()
+            
+            if not secrets:
+                logger.info("No secrets to re-encrypt")
+                return True
+                
+            # Decrypt with old key and re-encrypt with new key
+            updated_secrets = []
+            for secret_uuid, encrypted_value, salt, nonce in secrets:
+                try:
+                    # Decrypt with current key
+                    decrypted_value = self.encryption.decrypt_secret(encrypted_value, salt, nonce)
+                    
+                    # Create new encryption instance with new key
+                    new_encryption = SecretsEncryption(new_encryption_key)
+                    
+                    # Re-encrypt with new key
+                    new_encrypted_value, new_salt, new_nonce = new_encryption.encrypt_secret(decrypted_value)
+                    
+                    updated_secrets.append((new_encrypted_value, new_salt, new_nonce, secret_uuid))
+                    
+                except Exception as decrypt_error:
+                    logger.error(f"Failed to re-encrypt secret {secret_uuid}: {decrypt_error}")
+                    return False
+            
+            # Update all secrets in database
+            with sqlite3.connect(self.db_path) as conn:
+                conn.executemany("""
+                    UPDATE secrets 
+                    SET encrypted_value = ?, salt = ?, nonce = ?, encryption_key_ref = ?
+                    WHERE secret_uuid = ?
+                """, [(enc_val, salt, nonce, "master_key_v2", uuid) for enc_val, salt, nonce, uuid in updated_secrets])
+                conn.commit()
+            
+            # Update encryption instance
+            self.encryption = SecretsEncryption(new_encryption_key)
+            
+            logger.info(f"Successfully re-encrypted {len(updated_secrets)} secrets")
+            return True
+            
         except Exception as e:
             logger.error(f"Failed to re-encrypt secrets: {e}")
             return False

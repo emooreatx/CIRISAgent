@@ -1,5 +1,0 @@
-{
-  "content": "$speak Hello from QA testing!",
-  "author_id": "qa_tester",
-  "channel_id": "127.0.0.1:8080"
-}

@@ -58,7 +58,7 @@ class ModerationDSDMA(BaseDSDMA):
     
     === Evaluation Guidelines ===
     - score: Rate 0.0-1.0 how well the thought aligns with moderation best practices
-    - recommended_action: Suggest specific moderation action if needed (e.g., "gentle_reminder", "timeout_10min", "defer_to_human")
+    - recommended_action: Suggest specific moderation action if needed (e.g., "gentle_reminder", "timeout_10min", "send_deferral")
     - flags: Identify moderation concerns (e.g., ["potential_conflict", "new_user", "requires_context"])  
     - reasoning: Explain your assessment focusing on community impact and proportional response
     """
@@ -172,7 +172,7 @@ class ModerationDSDMA(BaseDSDMA):
         if result.score < 0.3 and not result.recommended_action:
             # Low alignment suggests intervention needed
             if result.score < 0.1:
-                result.recommended_action = "defer_to_human"
+                result.recommended_action = "send_deferral"
             elif result.score < 0.2:
                 result.recommended_action = "timeout_consideration"
             else:
@@ -180,7 +180,7 @@ class ModerationDSDMA(BaseDSDMA):
         
         return result
     
-    def _should_defer_to_human(self, thought_content: str, flags: list) -> bool:
+    def _should_send_deferral(self, thought_content: str, flags: list) -> bool:
         """
         Check if the thought contains triggers requiring human moderator involvement.
         """

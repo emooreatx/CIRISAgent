@@ -5,6 +5,7 @@ from typing import List, Any, Optional
 import discord # Ensure discord.py is available
 
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration, CIRISRuntime
+from .config import DiscordAdapterConfig
 from ciris_engine.registries.base import Priority
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType, DiscordMessage
 
@@ -19,15 +20,23 @@ logger = logging.getLogger(__name__)
 class DiscordPlatform(PlatformAdapter):
     def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
         self.runtime = runtime
-        self.token = kwargs.get("discord_bot_token")
-        if not self.token:
-            logger.error("DiscordPlatform: 'discord_bot_token' not found in kwargs. This is required.")
-            raise ValueError("DiscordPlatform requires 'discord_bot_token'.")
-
-        intents = discord.Intents.default()
-        intents.messages = True
-        intents.message_content = True
-
+        
+        # Initialize configuration with defaults and override from kwargs
+        self.config = DiscordAdapterConfig()
+        if "discord_bot_token" in kwargs:
+            self.config.bot_token = kwargs["discord_bot_token"]
+        
+        # Load environment variables
+        self.config.load_env_vars()
+        
+        # Validate required configuration
+        if not self.config.bot_token:
+            logger.error("DiscordPlatform: 'bot_token' not found in config. This is required.")
+            raise ValueError("DiscordPlatform requires 'bot_token' in configuration.")
+        
+        # Use config values
+        self.token = self.config.bot_token
+        intents = self.config.get_intents()
         self.client = discord.Client(intents=intents)
 
         self.discord_adapter = DiscordAdapter(
@@ -42,9 +51,40 @@ class DiscordPlatform(PlatformAdapter):
         else:
             logger.warning("DiscordPlatform: DiscordAdapter may not have 'attach_to_client' method.")
 
+        # Get channel IDs from kwargs and app_config, merge into config
+        kwargs_channel_ids = kwargs.get("discord_monitored_channel_ids", [])
+        kwargs_channel_id = kwargs.get("discord_monitored_channel_id")
+        
+        if kwargs_channel_ids:
+            self.config.monitored_channel_ids.extend(kwargs_channel_ids)
+        if kwargs_channel_id and kwargs_channel_id not in self.config.monitored_channel_ids:
+            self.config.monitored_channel_ids.append(kwargs_channel_id)
+            if not self.config.primary_channel_id:
+                self.config.primary_channel_id = kwargs_channel_id
+        
+        # Fall back to app_config if still no channels configured
+        if not self.config.monitored_channel_ids:
+            if hasattr(self.runtime, 'app_config') and self.runtime.app_config:
+                if self.runtime.app_config.discord_channel_ids:
+                    self.config.monitored_channel_ids = self.runtime.app_config.discord_channel_ids.copy()
+                    logger.info(f"DiscordPlatform: Using {len(self.config.monitored_channel_ids)} channels from app_config: {self.config.monitored_channel_ids}")
+                elif self.runtime.app_config.discord_channel_id:
+                    self.config.monitored_channel_ids = [self.runtime.app_config.discord_channel_id]
+                    self.config.primary_channel_id = self.runtime.app_config.discord_channel_id
+                    logger.info(f"DiscordPlatform: Using single channel from app_config: {self.runtime.app_config.discord_channel_id}")
+                
+                # Handle deferral channel from app_config
+                if hasattr(self.runtime.app_config, 'discord_deferral_channel_id') and self.runtime.app_config.discord_deferral_channel_id:
+                    self.config.deferral_channel_id = self.runtime.app_config.discord_deferral_channel_id
+            else:
+                logger.warning("DiscordPlatform: No channel configuration found in kwargs or app_config")
+        
+        if self.config.monitored_channel_ids:
+            logger.info(f"DiscordPlatform: Using {len(self.config.monitored_channel_ids)} channels: {self.config.monitored_channel_ids}")
+        
         self.discord_observer = DiscordObserver(
-            monitored_channel_id=kwargs.get("discord_monitored_channel_id"),
-            monitored_channel_ids=kwargs.get("discord_monitored_channel_ids"),
+            monitored_channel_id=self.config.get_primary_channel_id(),
+            monitored_channel_ids=self.config.monitored_channel_ids,
             memory_service=getattr(self.runtime, 'memory_service', None),
             agent_id=getattr(self.runtime, 'agent_id', None),
             multi_service_sink=getattr(self.runtime, 'multi_service_sink', None),
@@ -83,7 +123,7 @@ class DiscordPlatform(PlatformAdapter):
 
         registrations = [
             ServiceRegistration(ServiceType.COMMUNICATION, self.discord_adapter, Priority.HIGH, comm_handlers, ["send_message", "receive_message"]),
-            ServiceRegistration(ServiceType.WISE_AUTHORITY, self.discord_adapter, Priority.HIGH, wa_handlers, ["defer_to_human", "provide_guidance"]),
+            ServiceRegistration(ServiceType.WISE_AUTHORITY, self.discord_adapter, Priority.HIGH, wa_handlers, ["send_deferral", "fetch_guidance"]),
             ServiceRegistration(ServiceType.TOOL, self.discord_adapter, Priority.HIGH, ["ToolHandler"], ["execute_tool", "list_tools"]),
         ]
         logger.info(f"DiscordPlatform: Services to register: {[(reg.service_type.value, reg.handlers) for reg in registrations]}")
