@@ -222,7 +222,7 @@ class AgentProcessor(ProcessorInterface):
         # Load preload tasks after successful WORK state transition
         await self._load_preload_tasks()
 
-        if hasattr(self, "runtime") and hasattr(self.runtime, "start_interactive_console"):
+        if hasattr(self, "runtime") and self.runtime is not None and hasattr(self.runtime, "start_interactive_console"):
             print("[STATE] Initializing interactive console for user input...")
             try:
                 await self.runtime.start_interactive_console()
@@ -330,7 +330,7 @@ class AgentProcessor(ProcessorInterface):
             item = ProcessingQueueItem.from_thought(thought)
 
             # Use the current state's processor for fallback-aware processing
-            processor = self.state_processors.get(self.state_manager.get_state())  # type: ignore[union-attr]
+            processor = self.state_processors.get(self.state_manager.get_state())
             if processor is None:
                 logger.error(f"No processor found for state {self.state_manager.get_state()}")
                 persistence.update_thought_status(
@@ -597,7 +597,7 @@ class AgentProcessor(ProcessorInterface):
 
     def get_status(self) -> Dict[str, Any]:
         """Get current processor status."""
-        status = {
+        status: Dict[str, Any] = {
             "state": self.state_manager.get_state().value,
             "state_duration": self.state_manager.get_state_duration(),
             "round_number": self.current_round_number,

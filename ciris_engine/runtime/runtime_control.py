@@ -1,6 +1,5 @@
 # filepath: /home/emoore/CIRISAgent/ciris_engine/runtime/runtime_control.py
 """Runtime control service for processor and adapter management."""
-import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
@@ -603,7 +602,7 @@ class RuntimeControlService(RuntimeControlInterface):
             adapters = []
             if self.adapter_manager:
                 adapters = await self.adapter_manager.list_adapters()
-            active_adapters = [a["adapter_id"] for a in adapters if a.get("status") == "active"]
+            active_adapters = [a["adapter_id"] for a in adapters if a.get("status") == "active" or a.get("is_running") is True]
             loaded_adapters = [a["adapter_id"] for a in adapters]
             
             # Get current profile (placeholder - would need integration with config)
@@ -664,6 +663,198 @@ class RuntimeControlService(RuntimeControlInterface):
         except Exception as e:
             logger.error(f"Failed to get runtime snapshot: {e}")
             raise
+
+    # Service Management Methods
+    async def get_service_registry_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> Dict[str, Any]:
+        """Get information about registered services in the service registry."""
+        try:
+            if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
+                return {"error": "Service registry not available"}
+            
+            return self.runtime.service_registry.get_provider_info(handler, service_type)
+        except Exception as e:
+            logger.error(f"Failed to get service registry info: {e}")
+            return {"error": str(e)}
+
+    async def update_service_priority(
+        self, 
+        provider_name: str, 
+        new_priority: str, 
+        new_priority_group: Optional[int] = None,
+        new_strategy: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Update service provider priority and selection strategy."""
+        try:
+            if not self.runtime or not hasattr(self.runtime, 'service_registry'):
+                return {"success": False, "error": "Service registry not available"}
+                
+            # This would require extending the service registry with update methods
+            # For now, return not implemented
+            return {
+                "success": False,
+                "error": "Service priority updates not yet implemented - requires service registry enhancements",
+                "suggestion": "Service priorities are currently set during adapter service registration"
+            }
+        except Exception as e:
+            logger.error(f"Failed to update service priority: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def reset_circuit_breakers(self, service_type: Optional[str] = None) -> Dict[str, Any]:
+        """Reset circuit breakers for services."""
+        try:
+            if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
+                return {"success": False, "error": "Service registry not available"}
+                
+            self.runtime.service_registry.reset_circuit_breakers()
+            
+            await self._record_event("service_management", "reset_circuit_breakers", True, 
+                                    result={"service_type": service_type})
+            
+            return {
+                "success": True,
+                "message": "Circuit breakers reset successfully",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        except Exception as e:
+            logger.error(f"Failed to reset circuit breakers: {e}")
+            await self._record_event("service_management", "reset_circuit_breakers", False, error=str(e))
+            return {"success": False, "error": str(e)}
+
+    async def get_service_health_status(self) -> Dict[str, Any]:
+        """Get health status of all registered services."""
+        try:
+            if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
+                return {"error": "Service registry not available"}
+                
+            registry_info = self.runtime.service_registry.get_provider_info()
+            health_status = {
+                "overall_health": "healthy",
+                "services": {},
+                "circuit_breaker_states": {},
+                "total_services": 0,
+                "healthy_services": 0,
+                "unhealthy_services": 0
+            }
+            
+            # Process handler-specific services
+            for handler, services in registry_info.get("handlers", {}).items():
+                for service_type, providers in services.items():
+                    for provider in providers:
+                        service_key = f"{handler}.{service_type}.{provider['name']}"
+                        cb_state = provider.get('circuit_breaker_state', 'closed')
+                        is_healthy = cb_state == 'closed'
+                        
+                        health_status["services"][service_key] = {
+                            "healthy": is_healthy,
+                            "circuit_breaker_state": cb_state,
+                            "priority": provider['priority'],
+                            "priority_group": provider['priority_group'],
+                            "strategy": provider['strategy']
+                        }
+                        health_status["total_services"] += 1
+                        if is_healthy:
+                            health_status["healthy_services"] += 1
+                        else:
+                            health_status["unhealthy_services"] += 1
+            
+            # Process global services
+            for service_type, providers in registry_info.get("global_services", {}).items():
+                for provider in providers:
+                    service_key = f"global.{service_type}.{provider['name']}"
+                    cb_state = provider.get('circuit_breaker_state', 'closed')
+                    is_healthy = cb_state == 'closed'
+                    
+                    health_status["services"][service_key] = {
+                        "healthy": is_healthy,
+                        "circuit_breaker_state": cb_state,
+                        "priority": provider['priority'],
+                        "priority_group": provider['priority_group'],
+                        "strategy": provider['strategy']
+                    }
+                    health_status["total_services"] += 1
+                    if is_healthy:
+                        health_status["healthy_services"] += 1
+                    else:
+                        health_status["unhealthy_services"] += 1
+            
+            # Set overall health
+            if health_status["unhealthy_services"] > 0:
+                if health_status["unhealthy_services"] > health_status["healthy_services"]:
+                    health_status["overall_health"] = "unhealthy"
+                else:
+                    health_status["overall_health"] = "degraded"
+            
+            return health_status
+            
+        except Exception as e:
+            logger.error(f"Failed to get service health status: {e}")
+            return {"error": str(e)}
+
+    async def get_service_selection_explanation(self) -> Dict[str, Any]:
+        """Get explanation of how service selection works with priorities and strategies."""
+        return {
+            "service_selection_logic": {
+                "overview": "Services are selected using a multi-tier priority system with configurable selection strategies",
+                "priority_groups": {
+                    "description": "Services are first grouped by priority_group (0, 1, 2, etc.)",
+                    "behavior": "Lower priority group numbers are tried first (0 before 1, 1 before 2, etc.)"
+                },
+                "priority_levels": {
+                    "description": "Within each priority group, services have priority levels",
+                    "levels": {
+                        "CRITICAL": {"value": 0, "description": "Highest priority within group"},
+                        "HIGH": {"value": 1, "description": "High priority within group"},
+                        "NORMAL": {"value": 2, "description": "Normal priority within group (default)"},
+                        "LOW": {"value": 3, "description": "Low priority within group"},
+                        "FALLBACK": {"value": 9, "description": "Last resort within group"}
+                    },
+                    "behavior": "Lower priority values are tried first within each group"
+                },
+                "selection_strategies": {
+                    "FALLBACK": {
+                        "description": "Use first available healthy service in priority order",
+                        "behavior": "Always tries services in the same priority order until one succeeds"
+                    },
+                    "ROUND_ROBIN": {
+                        "description": "Rotate through services at same priority level",
+                        "behavior": "Cycles through available services to distribute load evenly"
+                    }
+                },
+                "circuit_breakers": {
+                    "description": "Each service has a circuit breaker for fault tolerance",
+                    "states": {
+                        "CLOSED": "Service is healthy and accepting requests",
+                        "OPEN": "Service is failing and temporarily unavailable",
+                        "HALF_OPEN": "Service is being tested for recovery"
+                    }
+                },
+                "selection_flow": [
+                    "1. Group services by priority_group (0, 1, 2, etc.)",
+                    "2. For each priority group (starting with lowest number):",
+                    "   a. Sort services by priority level (CRITICAL=0, HIGH=1, etc.)",
+                    "   b. Apply selection strategy (FALLBACK or ROUND_ROBIN)",
+                    "   c. Check circuit breaker status",
+                    "   d. Verify service health",
+                    "   e. Return first healthy service found",
+                    "3. If no services found, move to next priority group",
+                    "4. If no services available in any group, return None"
+                ]
+            },
+            "example_scenarios": {
+                "fallback_strategy": {
+                    "description": "Two LLM services: OpenAI (CRITICAL) and LocalLLM (NORMAL)",
+                    "behavior": "Always try OpenAI first, fall back to LocalLLM if OpenAI fails"
+                },
+                "round_robin_strategy": {
+                    "description": "Three load-balanced API services all at NORMAL priority",
+                    "behavior": "Rotate requests: API1 -> API2 -> API3 -> API1 -> ..."
+                },
+                "multi_group_example": {
+                    "description": "Priority Group 0: Critical services, Priority Group 1: Backup services",
+                    "behavior": "Only use Group 1 services if all Group 0 services are unavailable"
+                }
+            }
+        }
 
     # Helper Methods
     async def _record_event(

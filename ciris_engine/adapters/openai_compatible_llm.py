@@ -117,18 +117,23 @@ class OpenAICompatibleClient(Service):
     ) -> Tuple[str, ResourceUsage]:
         logger.debug(f"Raw LLM call with messages: {messages}")
         
-        async def _make_raw_call() -> Tuple[str, ResourceUsage]:
+        async def _make_raw_call(
+            msgs: List[Dict[str, str]],
+            max_toks: int,
+            temp: float,
+            extra_kwargs: Dict[str, Any]
+        ) -> Tuple[str, ResourceUsage]:
             # Convert messages to the format expected by OpenAI if needed
-            if messages and isinstance(messages[0], dict):
-                formatted_messages = [{"role": msg.get("role", "user"), "content": msg.get("content", "")} for msg in messages]
+            if msgs and isinstance(msgs[0], dict):
+                formatted_messages = [{"role": msg.get("role", "user"), "content": msg.get("content", "")} for msg in msgs]
             else:
-                formatted_messages = messages
+                formatted_messages = msgs
             response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=cast(Any, formatted_messages),
-                max_tokens=max_tokens,
-                temperature=temperature,
-                **kwargs,
+                max_tokens=max_toks,
+                temperature=temp,
+                **extra_kwargs,
             )
             usage = getattr(response, "usage", None)
             usage_obj = ResourceUsage(
@@ -146,6 +151,10 @@ class OpenAICompatibleClient(Service):
         # Use base class retry with OpenAI-specific error handling
         return await self.retry_with_backoff(
             _make_raw_call,
+            messages,
+            max_tokens,
+            temperature,
+            kwargs,
             **self.get_retry_config("api_call")
         )
 
@@ -159,17 +168,23 @@ class OpenAICompatibleClient(Service):
     ) -> Tuple[BaseModel, ResourceUsage]:
         logger.debug(f"Structured LLM call for {response_model.__name__}")
         
-        async def _make_structured_call() -> Tuple[Any, ResourceUsage]:
+        async def _make_structured_call(
+            msgs: List[Dict[str, str]],
+            resp_model: Type[BaseModel],
+            max_toks: int,
+            temp: float,
+            extra_kwargs: Dict[str, Any]
+        ) -> Tuple[BaseModel, ResourceUsage]:
             # Convert messages to the format expected by OpenAI  
-            formatted_messages = [{"role": msg.get("role", "user"), "content": msg.get("content", "")} for msg in messages]
+            formatted_messages = [{"role": msg.get("role", "user"), "content": msg.get("content", "")} for msg in msgs]
             response = await self.instruct_client.chat.completions.create(
                 model=self.model_name,
                 messages=cast(Any, formatted_messages),
-                response_model=response_model,
+                response_model=resp_model,
                 max_retries=0,  # Disable instructor retries, we handle our own
-                max_tokens=max_tokens,
-                temperature=temperature,
-                **kwargs,
+                max_tokens=max_toks,
+                temperature=temp,
+                **extra_kwargs,
             )
             usage = getattr(response, "usage", None)
             usage_obj = ResourceUsage(
@@ -186,6 +201,11 @@ class OpenAICompatibleClient(Service):
         # Use base class retry with OpenAI-specific error handling
         return await self.retry_with_backoff(
             _make_structured_call,
+            messages,
+            response_model,
+            max_tokens,
+            temperature,
+            kwargs,
             **self.get_retry_config("api_call")
         )
 

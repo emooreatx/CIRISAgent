@@ -2,7 +2,7 @@ import asyncio
 import dataclasses
 from typing import Any, List, Protocol, runtime_checkable
 
-from ciris_engine.registries.base import Priority
+from ciris_engine.registries.base import Priority, SelectionStrategy
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 
@@ -18,6 +18,8 @@ class ServiceRegistration:
     priority: Priority = Priority.NORMAL
     handlers: List[str] = dataclasses.field(default_factory=list)
     capabilities: List[str] = dataclasses.field(default_factory=list)
+    priority_group: int = 0
+    strategy: SelectionStrategy = SelectionStrategy.FALLBACK
 
 @runtime_checkable
 class PlatformAdapter(Protocol):

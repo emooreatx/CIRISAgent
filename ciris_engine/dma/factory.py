@@ -42,15 +42,10 @@ except ImportError:
     pass
 
 try:
-    from ..action_selection_pdma_v2 import ActionSelectionPDMAEvaluator as ActionSelectionV2
-    ACTION_SELECTION_DMA_REGISTRY["ActionSelectionPDMAEvaluator"] = ActionSelectionV2
+    from ..action_selection_pdma import ActionSelectionPDMAEvaluator
+    ACTION_SELECTION_DMA_REGISTRY["ActionSelectionPDMAEvaluator"] = ActionSelectionPDMAEvaluator
 except ImportError:
-    # Fallback to original
-    try:
-        from ..action_selection_pdma import ActionSelectionPDMAEvaluator
-        ACTION_SELECTION_DMA_REGISTRY["ActionSelectionPDMAEvaluator"] = ActionSelectionPDMAEvaluator
-    except ImportError:
-        pass
+    pass
 
 DEFAULT_PROFILE_PATH = Path("ciris_profiles/default.yaml")
 

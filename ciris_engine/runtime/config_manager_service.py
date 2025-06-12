@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class ConfigManagerService:
     """Service for managing configuration at runtime."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._config_manager: Optional[ConfigManager] = None
         self._backup_dir = Path("config_backups")
         self._backup_dir.mkdir(exist_ok=True)
@@ -77,6 +77,7 @@ class ConfigManagerService:
                     raise ValueError(f"Configuration path '{path}' not found")
             
             # Convert to serializable format
+            result: Any
             if hasattr(value, 'model_dump'):
                 result = value.model_dump(mode="json")
             elif isinstance(value, (str, int, float, bool, list, dict, type(None))):
@@ -240,12 +241,13 @@ class ConfigManagerService:
                             profile_name in current_config.agent_profiles
                         )
                         
-                        profiles.append(AgentProfileInfo(
-                            name=profile_name,
-                            description=profile.description,
-                            file_path=str(profile_file),
-                            is_active=is_active,
-                            permitted_actions=[action.value for action in profile.permitted_actions],
+                        if profile is not None:
+                            profiles.append(AgentProfileInfo(
+                                name=profile_name,
+                                description=getattr(profile, 'description', '') or "",
+                                file_path=str(profile_file),
+                                is_active=is_active,
+                                permitted_actions=[action.value for action in profile.permitted_actions] if profile.permitted_actions else [],
                             adapter_configs={
                                 "discord": getattr(profile, "discord_config", {}) or {},
                                 "api": getattr(profile, "api_config", {}) or {},
@@ -561,7 +563,7 @@ class ConfigManagerService:
             "credential", "private", "sensitive"
         }
         
-        def mask_recursive(obj):
+        def mask_recursive(obj: Any) -> Any:
             if isinstance(obj, dict):
                 return {
                     k: "***MASKED***" if any(sensitive in k.lower() for sensitive in sensitive_keys)
@@ -573,7 +575,8 @@ class ConfigManagerService:
             else:
                 return obj
         
-        return mask_recursive(config_dict)
+        result = mask_recursive(config_dict)
+        return result if isinstance(result, dict) else config_dict
 
     async def _validate_config_update(
         self,
@@ -717,7 +720,7 @@ class ConfigManagerService:
         """Load YAML file asynchronously."""
         import yaml
         
-        def _sync_load():
+        def _sync_load() -> Dict[str, Any]:
             with open(file_path, 'r') as f:
                 return yaml.safe_load(f) or {}
         

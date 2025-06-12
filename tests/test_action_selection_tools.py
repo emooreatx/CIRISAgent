@@ -16,7 +16,7 @@ async def test_tools_listed_in_prompt(monkeypatch):
     monkeypatch.setattr('ciris_engine.action_handlers.tool_handler.ToolHandler', FakeToolHandler)
 
     # Patch ENGINE_OVERVIEW_TEMPLATE to a known value
-    monkeypatch.setattr('ciris_engine.dma.action_selection_pdma.ENGINE_OVERVIEW_TEMPLATE', 'ENGINE_OVERVIEW')
+    monkeypatch.setattr('ciris_engine.utils.constants.ENGINE_OVERVIEW_TEMPLATE', 'ENGINE_OVERVIEW')
 
     # Minimal triaged_inputs with TOOL permitted
     triaged_inputs = {
@@ -37,7 +37,7 @@ async def test_tools_listed_in_prompt(monkeypatch):
     service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
     monkeypatch.setattr('instructor.patch', lambda c, mode: c)
     evaluator = ActionSelectionPDMAEvaluator(service_registry=service_registry)
-    prompt = evaluator._prepare_main_user_content(triaged_inputs)
+    prompt = evaluator.context_builder.build_main_user_content(triaged_inputs)
     # Check that all fake tool names appear in the prompt
     for tool_name in fake_tools:
         assert tool_name in prompt, f"Tool '{tool_name}' not listed in prompt: {prompt}"

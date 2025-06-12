@@ -138,9 +138,11 @@ curl http://localhost:8080/v1/system/services
 ]
 ```
 
-### Runtime Control (NEW)
+### Runtime Control & Service Management (NEW)
 
 ⭐ **New Runtime Control Endpoints**: The API adapter now includes comprehensive runtime control capabilities for dynamic system management without restarts.
+
+⭐ **Service Registry Management**: Complete control over service priorities, selection strategies, circuit breakers, and health monitoring.
 
 #### Processor Control
 - **POST** `/v1/runtime/processor/step` - Execute single processing step
@@ -176,6 +178,13 @@ curl http://localhost:8080/v1/system/services
 - **POST** `/v1/runtime/config/restore` - Restore from backup
 - **GET** `/v1/runtime/config/backups` - List available backups
 
+#### Service Registry Management
+- **GET** `/v1/runtime/services` - List all services with configuration
+- **GET** `/v1/runtime/services/health` - Service health monitoring
+- **GET** `/v1/runtime/services/selection-logic` - Service selection explanation
+- **POST** `/v1/runtime/services/circuit-breakers/reset` - Reset circuit breakers
+- **PUT** `/v1/runtime/services/{provider_name}/priority` - Update service priority
+
 #### Status & Monitoring
 - **GET** `/v1/runtime/status` - Runtime status summary
 - **GET** `/v1/runtime/snapshot` - Complete system snapshot
@@ -205,6 +214,27 @@ curl -X PUT http://localhost:8080/v1/runtime/config \
     "scope": "session",
     "validation_level": "strict"
   }'
+```
+
+**Example: Service Priority Management**
+```bash
+# Update service priority and selection strategy
+curl -X PUT http://localhost:8080/v1/runtime/services/OpenAIProvider_123/priority \
+  -H "Content-Type: application/json" \
+  -d '{
+    "priority": "CRITICAL",
+    "priority_group": 0,
+    "strategy": "FALLBACK"
+  }'
+
+# Get service health status
+curl http://localhost:8080/v1/runtime/services/health
+
+# Reset circuit breakers for failed services
+curl -X POST http://localhost:8080/v1/runtime/services/circuit-breakers/reset
+
+# Get detailed service selection logic explanation
+curl http://localhost:8080/v1/runtime/services/selection-logic
 ```
 
 > **📖 Complete Documentation**: See [Runtime Control API Guide](../../../docs/api/runtime-control.md) for detailed documentation.

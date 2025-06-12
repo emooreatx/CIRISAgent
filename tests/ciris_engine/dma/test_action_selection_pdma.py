@@ -2,11 +2,14 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 from types import SimpleNamespace
 from ciris_engine.registries.base import ServiceRegistry, Priority
-from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator, HandlerActionType, ActionSelectionResult, PonderParams, SpeakParams
+from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.action_params_v1 import SpeakParams
 from ciris_engine.schemas.dma_results_v1 import EthicalDMAResult, CSDMAResult, DSDMAResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import SchemaVersion, ThoughtType, ThoughtStatus
-from ciris_engine.schemas.action_params_v1 import PonderParams, SpeakParams
+from ciris_engine.schemas.action_params_v1 import PonderParams
 from pydantic import ValidationError
 
 class DummyLLMResponse:

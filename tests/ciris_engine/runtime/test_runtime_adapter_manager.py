@@ -121,21 +121,25 @@ async def test_load_adapter_error_handling(adapter_manager):
 @pytest.mark.asyncio
 async def test_unload_adapter_success(adapter_manager, mock_adapter):
     """Test successful adapter unloading"""
-    # First load an adapter
+    # First load an adapter with a different mode and load another communication adapter
     with patch('ciris_engine.runtime.adapter_manager.load_adapter') as mock_load_adapter:
         mock_load_adapter.return_value = lambda runtime, **kwargs: mock_adapter
-        await adapter_manager.load_adapter("test_mode", "test_adapter")
         
-        # Then unload it
+        # Load two adapters so we can safely unload one without triggering the safety check
+        await adapter_manager.load_adapter("cli", "cli_adapter")
+        await adapter_manager.load_adapter("api", "test_adapter")
+        
+        # Then unload the test adapter
         result = await adapter_manager.unload_adapter("test_adapter")
         
         assert result["success"] is True
         assert result["adapter_id"] == "test_adapter"
         assert "test_adapter" not in adapter_manager.loaded_adapters
+        assert "cli_adapter" in adapter_manager.loaded_adapters  # Should still have one
         
         # Check adapter was removed from runtime
-        assert mock_adapter not in adapter_manager.runtime.adapters
-        mock_adapter.stop.assert_called_once()
+        assert len([a for a in adapter_manager.runtime.adapters if a == mock_adapter]) == 1  # Only one left
+        mock_adapter.stop.assert_called()
 
 
 @pytest.mark.asyncio
@@ -150,10 +154,13 @@ async def test_unload_adapter_not_found(adapter_manager):
 @pytest.mark.asyncio
 async def test_unload_adapter_error_handling(adapter_manager, mock_adapter):
     """Test adapter unloading error handling"""
-    # First load an adapter
+    # First load two adapters so we can safely unload one without triggering the safety check
     with patch('ciris_engine.runtime.adapter_manager.load_adapter') as mock_load_adapter:
         mock_load_adapter.return_value = lambda runtime, **kwargs: mock_adapter
-        await adapter_manager.load_adapter("test_mode", "test_adapter")
+        
+        # Load two communication adapters
+        await adapter_manager.load_adapter("cli", "cli_adapter")
+        await adapter_manager.load_adapter("api", "test_adapter")
         
         # Make stop() raise an exception
         mock_adapter.stop.side_effect = Exception("Stop error")

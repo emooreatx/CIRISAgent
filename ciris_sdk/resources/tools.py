@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any, List, Dict
 
 from ..transport import Transport
 
@@ -16,3 +16,8 @@ class ToolsResource:
     async def list(self) -> List[str]:
         resp = await self._transport.request("GET", "/v1/tools")
         return resp.json().get("tools", [])
+
+    async def validate(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate tool parameters before execution."""
+        resp = await self._transport.request("POST", f"/v1/tools/{tool_name}/validate", json=parameters)
+        return resp.json()
