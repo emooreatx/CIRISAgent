@@ -73,6 +73,86 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 
 ---
 
+## Runtime Control & Management ⭐ **NEW**
+
+CIRIS includes comprehensive **runtime control capabilities** that enable dynamic system management, debugging, and configuration changes without requiring restarts. This provides unprecedented operational flexibility for production deployments and development workflows.
+
+### 🎛️ Hot-Swappable Architecture
+- **[Dynamic Adapter Management](ciris_engine/runtime/README.md)**: Load, unload, and reconfigure Discord, CLI, and API adapters at runtime
+- **[Multi-Instance Support](ciris_engine/runtime/README.md)**: Run multiple instances of the same adapter type with different configurations (e.g., multiple Discord bots)
+- **[Live Configuration Updates](ciris_engine/config/README.md)**: Change system settings with validation and rollback support
+- **[Profile Hot-Switching](docs/CIRIS_PROFILES.md)**: Switch between agent personalities and capabilities without downtime
+
+### 🔧 Runtime Control Endpoints
+The API adapter exposes comprehensive runtime management through `/v1/runtime/*` endpoints:
+
+```bash
+# Hot-load a new Discord adapter
+curl -X POST http://localhost:8080/v1/runtime/adapters \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adapter_type": "discord",
+    "adapter_id": "discord_prod", 
+    "config": {"token": "...", "home_channel": "general"},
+    "auto_start": true
+  }'
+
+# Update configuration dynamically
+curl -X PUT http://localhost:8080/v1/runtime/config \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "llm_services.openai.temperature",
+    "value": 0.8,
+    "scope": "session",
+    "validation_level": "strict"
+  }'
+
+# Switch agent profiles
+curl -X POST http://localhost:8080/v1/runtime/profiles/teacher/load
+```
+
+### 🐛 Live Debugging Capabilities
+- **[Processor Control](docs/api/runtime-control.md)**: Single-step execution, pause/resume, and queue inspection
+- **[System State Snapshots](ciris_engine/telemetry/README.md)**: Complete runtime state capture for analysis
+- **[Configuration Backup/Restore](ciris_engine/config/README.md)**: Safe configuration management with restoration points
+- **[Comprehensive Auditing](ciris_engine/audit/README.md)**: All runtime control operations are cryptographically logged
+
+### 📊 Operational Insights
+- **[Real-Time Monitoring](docs/api/runtime-control.md)**: Live system status, resource usage, and health metrics
+- **[Service Health Tracking](ciris_engine/registries/README.md)**: Circuit breaker states and service availability
+- **[Configuration History](ciris_engine/config/README.md)**: Track all configuration changes with rationale and rollback capability
+- **[Adapter Lifecycle Management](ciris_engine/runtime/README.md)**: Complete visibility into adapter loading, unloading, and status
+
+> **📖 Complete Documentation**: See [Runtime Control API Guide](docs/api/runtime-control.md) for detailed endpoint documentation and examples.
+
+### Example: Production Hot-Swap Workflow
+
+```bash
+# 1. Backup current configuration
+curl -X POST http://localhost:8080/v1/runtime/config/backup \
+  -d '{"backup_name": "pre_update", "include_profiles": true}'
+
+# 2. Load new Discord adapter with updated configuration
+curl -X POST http://localhost:8080/v1/runtime/adapters \
+  -d '{
+    "adapter_type": "discord",
+    "adapter_id": "discord_v2",
+    "config": {"token": "new_token", "home_channel": "updated-general"}
+  }'
+
+# 3. Verify new adapter is healthy
+curl http://localhost:8080/v1/runtime/adapters/discord_v2
+
+# 4. Unload old adapter
+curl -X DELETE http://localhost:8080/v1/runtime/adapters/discord_v1
+
+# 5. Update system configuration for new setup
+curl -X PUT http://localhost:8080/v1/runtime/config \
+  -d '{"path": "discord.default_adapter", "value": "discord_v2"}'
+```
+
+---
+
 ## Ethical Capabilities
 
 ### Moral Agency
@@ -200,16 +280,16 @@ python main.py --profile default  # Auto-detects Discord/CLI based on token avai
 
 **API Server mode:**
 ```bash
-python main.py --modes api --host 0.0.0.0 --port 8000
+python main.py --modes api --host 0.0.0.0 --port 8080
 ```
 
 For comprehensive API documentation, see [docs/api_reference.md](docs/api_reference.md).
 
 **Specific runtime modes:**
 ```bash
-python main.py --mode cli --profile teacher    # CLI-only mode
-python main.py --mode discord --profile student # Discord bot mode  
-python main.py --mode api --host 0.0.0.0 --port 8000 # API server mode
+python main.py --modes cli --profile teacher    # CLI-only mode
+python main.py --modes discord --profile student # Discord bot mode  
+python main.py --modes api --host 0.0.0.0 --port 8080 # API server mode
 ```
 
 **Development and testing:**
@@ -360,6 +440,9 @@ Apache-2.0 © 2025 CIRIS AI Project
 
 ### Technical Documentation
 - **Module READMEs** - Detailed documentation in each `ciris_engine/` subdirectory
+- **[Runtime Control API](docs/api/runtime-control.md)** - Comprehensive runtime management endpoints ⭐ **NEW**
+- **[Protocol Architecture](docs/protocols/README.md)** - Service-oriented architecture and interfaces ⭐ **NEW**
+- **[API Reference](docs/api_reference.md)** - Complete REST API documentation
 - **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Production deployment and configuration
 - **[Security Setup](docs/SECURITY_SETUP.md)** - Security configuration and best practices
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
@@ -367,7 +450,7 @@ Apache-2.0 © 2025 CIRIS AI Project
 ### Development Resources
 - **[Installation Guide](docs/INSTALLATION.md)** - Detailed setup instructions
 - **[Contributing Guide](CONTRIBUTING.md)** - Development workflow and standards
-- **[API Documentation](CIRISGUI/README.md)** - REST API and GUI interface
+- **[Runtime System](ciris_engine/runtime/README.md)** - Hot-swappable modular architecture ⭐ **NEW**
 
 ---
 

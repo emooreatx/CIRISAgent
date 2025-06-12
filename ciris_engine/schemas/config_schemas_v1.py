@@ -504,3 +504,69 @@ class AppConfig(BaseModel):
     
     # Global home channel (set by highest priority communication adapter)
     home_channel: Optional[str] = Field(default=None, description="Primary home channel ID for the agent, set by the highest priority communication adapter")
+
+
+# Simple solution: Load all adapter schemas upfront and rebuild models immediately
+# This resolves all Pydantic v2 forward reference issues once and for all
+
+_models_rebuilt = False
+
+def ensure_models_rebuilt():
+    """Ensure models are rebuilt to resolve forward references before use.
+    
+    This function attempts to import all adapter configurations and rebuild
+    the Pydantic models to resolve forward references. It's designed to be
+    called just before AppConfig instantiation.
+    """
+    global _models_rebuilt
+    
+    if _models_rebuilt:
+        return
+    
+    print("[DEBUG] Starting model rebuild process...")
+    imported_configs = {}
+    
+    # Try to import each adapter config individually
+    # Use dynamic imports to avoid circular import issues
+    adapter_modules = [
+        ('ciris_engine.adapters.discord.config', 'DiscordAdapterConfig'),
+        ('ciris_engine.adapters.api.config', 'APIAdapterConfig'),
+        ('ciris_engine.adapters.cli.config', 'CLIAdapterConfig')
+    ]
+    
+    for module_name, class_name in adapter_modules:
+        try:
+            import importlib
+            module = importlib.import_module(module_name)
+            adapter_class = getattr(module, class_name)
+            imported_configs[class_name] = adapter_class
+            print(f"[DEBUG] Imported {class_name}: {adapter_class}")
+        except Exception as e:
+            print(f"[DEBUG] Failed to import {class_name}: {e}")
+    
+    # Only rebuild if we successfully imported something
+    if imported_configs:
+        # Add the imported classes to the global namespace so Pydantic can find them
+        globals().update(imported_configs)
+        
+        # Also add them to the current module's namespace
+        import sys
+        current_module = sys.modules[__name__]
+        for name, cls in imported_configs.items():
+            setattr(current_module, name, cls)
+        
+        try:
+            print("[DEBUG] Rebuilding AgentProfile...")
+            AgentProfile.model_rebuild()
+            print("[DEBUG] Rebuilding AppConfig...")
+            AppConfig.model_rebuild()
+            print("[DEBUG] Model rebuild completed successfully")
+            _models_rebuilt = True
+        except Exception as e:
+            print(f"[DEBUG] Model rebuild failed: {e}")
+    else:
+        print("[DEBUG] No adapters imported, skipping rebuild")
+
+# Call the function immediately when the module is imported
+print("[DEBUG] Module config_schemas_v1.py loaded, calling ensure_models_rebuilt...")
+ensure_models_rebuilt()

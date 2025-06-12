@@ -351,6 +351,30 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             Dict with load results
         """
         try:
+            # First, we need to pre-load the profile to determine which adapters are configured
+            # This is a lightweight operation to check the profile file structure
+            from pathlib import Path
+            import yaml
+            
+            profile_overlay_path = Path("ciris_profiles") / f"{profile_name}.yaml"
+            adapter_types = []
+            
+            if profile_overlay_path.exists():
+                try:
+                    with open(profile_overlay_path, 'r') as f:
+                        profile_data = yaml.safe_load(f) or {}
+                    
+                    # Determine which adapters are configured
+                    if 'discord_config' in profile_data or profile_data.get('discord_config'):
+                        adapter_types.append('discord')
+                    if 'api_config' in profile_data or profile_data.get('api_config'):
+                        adapter_types.append('api')
+                    if 'cli_config' in profile_data or profile_data.get('cli_config'):
+                        adapter_types.append('cli')
+                except Exception:
+                    # If we can't read the profile, default to common adapters
+                    adapter_types = ['discord', 'api', 'cli']
+            
             # Load the profile configuration
             config = await ConfigLoader.load_config(profile_name=profile_name)
             

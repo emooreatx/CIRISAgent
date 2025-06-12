@@ -21,22 +21,27 @@ class DiscordPlatform(PlatformAdapter):
     def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
         self.runtime = runtime
         
-        # Initialize configuration with defaults and override from kwargs
-        self.config = DiscordAdapterConfig()
-        if "discord_bot_token" in kwargs:
-            self.config.bot_token = kwargs["discord_bot_token"]
-        
-        # Load configuration from profile if available
-        profile = getattr(runtime, 'agent_profile', None)
-        if profile and profile.discord_config:
-            # Update config with profile settings
-            for key, value in profile.discord_config.items():
-                if hasattr(self.config, key):
-                    setattr(self.config, key, value)
-                    logger.debug(f"DiscordPlatform: Set config {key} = {value} from profile")
-        
-        # Load environment variables (can override profile settings)
-        self.config.load_env_vars()
+        # Use provided adapter config or create defaults
+        if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
+            self.config = kwargs["adapter_config"]
+            logger.info(f"Discord adapter using provided config: channels={self.config.monitored_channel_ids}")
+        else:
+            # Initialize configuration with defaults and override from kwargs
+            self.config = DiscordAdapterConfig()
+            if "discord_bot_token" in kwargs:
+                self.config.bot_token = kwargs["discord_bot_token"]
+            
+            # Load configuration from profile if available
+            profile = getattr(runtime, 'agent_profile', None)
+            if profile and profile.discord_config:
+                # Update config with profile settings
+                for key, value in profile.discord_config.items():
+                    if hasattr(self.config, key):
+                        setattr(self.config, key, value)
+                        logger.debug(f"DiscordPlatform: Set config {key} = {value} from profile")
+            
+            # Load environment variables (can override profile settings)
+            self.config.load_env_vars()
         
         # Validate required configuration
         if not self.config.bot_token:

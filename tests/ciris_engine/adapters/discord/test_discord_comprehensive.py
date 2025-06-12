@@ -41,7 +41,6 @@ class TestDiscordAdapterConfig:
         assert config.deferral_channel_id is None
         
         # Bot behavior
-        assert config.command_prefix == "!"
         assert config.respond_to_mentions == True
         assert config.respond_to_dms == True
         
@@ -151,8 +150,7 @@ class TestDiscordAdapterConfig:
             'DISCORD_CHANNEL_ID': '123456',  # legacy single channel
             'DISCORD_CHANNEL_IDS': '789012,345678,901234',  # new multi-channel
             'DISCORD_DEFERRAL_CHANNEL_ID': '567890',
-            'WA_USER_ID': 'admin_user_123',
-            'DISCORD_COMMAND_PREFIX': '$'
+            'WA_USER_ID': 'admin_user_123'
         }
         
         def mock_env_get(key):
@@ -172,7 +170,6 @@ class TestDiscordAdapterConfig:
         assert set(config.monitored_channel_ids) == expected_channels
         assert config.deferral_channel_id == '567890'
         assert 'admin_user_123' in config.admin_user_ids
-        assert config.command_prefix == '$'
     
     def test_config_permissions(self):
         """Test permission configuration"""

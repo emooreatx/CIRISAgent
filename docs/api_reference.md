@@ -4,11 +4,26 @@ The CIRIS Agent provides a comprehensive REST API for interacting with the agent
 
 ## Base URL
 ```
-http://localhost:8000
+http://localhost:8080
 ```
 
 ## Authentication
 Currently, the API does not require authentication. This will be added in future versions.
+
+## API Categories
+
+The CIRIS API is organized into the following categories:
+
+1. **[Communication Endpoints](#communication-endpoints)** - Message sending and conversation management
+2. **[Runtime Control Endpoints](#runtime-control-endpoints)** - Live system management and debugging ⭐ **NEW**
+3. **[Memory Service Endpoints](#memory-service-endpoints)** - Agent memory storage and retrieval
+4. **[Wise Authority Endpoints](#wise-authority-endpoints)** - Ethical guidance and deferral management
+5. **[Tool Service Endpoints](#tool-service-endpoints)** - Tool execution and validation
+6. **[Audit Service Endpoints](#audit-service-endpoints)** - Audit trail and compliance logging
+7. **[Log Streaming Endpoints](#log-streaming-endpoints)** - Real-time log access
+8. **[System Telemetry Endpoints](#system-telemetry-endpoints)** - System monitoring and metrics
+
+---
 
 ## API Endpoints
 
@@ -88,6 +103,104 @@ Get the current status of the API and the last response.
   }
 }
 ```
+
+---
+
+## Runtime Control Endpoints
+
+⭐ **NEW**: The runtime control endpoints enable dynamic management of the CIRIS Agent system without requiring restarts. These endpoints provide comprehensive control over processor execution, adapter management, configuration updates, and system monitoring.
+
+> **📖 Detailed Documentation**: For complete runtime control API documentation with examples and workflows, see [Runtime Control API Guide](./api/runtime-control.md).
+
+### Key Features
+
+- **Hot-Swappable Adapters**: Load/unload Discord, CLI, and API adapters at runtime
+- **Live Configuration**: Update configuration with validation and rollback support  
+- **Processor Control**: Single-stepping, pause/resume for debugging
+- **Profile Management**: Switch between agent profiles dynamically
+- **Configuration Backup/Restore**: Safe configuration management
+
+### Quick Reference
+
+#### Processor Control
+```http
+POST /v1/runtime/processor/step      # Execute single processing step
+POST /v1/runtime/processor/pause     # Pause processor
+POST /v1/runtime/processor/resume    # Resume processor
+GET  /v1/runtime/processor/queue     # Get queue status
+POST /v1/runtime/processor/shutdown  # Graceful shutdown
+```
+
+#### Adapter Management
+```http
+POST   /v1/runtime/adapters                    # Load adapter
+DELETE /v1/runtime/adapters/{adapter_id}       # Unload adapter
+GET    /v1/runtime/adapters                    # List adapters
+GET    /v1/runtime/adapters/{adapter_id}       # Get adapter info
+```
+
+#### Configuration Management
+```http
+GET  /v1/runtime/config                        # Get configuration
+PUT  /v1/runtime/config                        # Update configuration
+POST /v1/runtime/config/validate               # Validate config
+POST /v1/runtime/config/reload                 # Reload from files
+```
+
+#### Profile Management
+```http
+GET  /v1/runtime/profiles                      # List profiles
+POST /v1/runtime/profiles/{name}/load          # Load profile
+GET  /v1/runtime/profiles/{name}               # Get profile info
+```
+
+#### Environment Variables
+```http
+GET    /v1/runtime/env                         # List env vars
+PUT    /v1/runtime/env/{var_name}              # Set env var
+DELETE /v1/runtime/env/{var_name}              # Delete env var
+```
+
+#### Backup & Restore
+```http
+POST /v1/runtime/config/backup                 # Create backup
+POST /v1/runtime/config/restore                # Restore backup
+GET  /v1/runtime/config/backups                # List backups
+```
+
+#### Status & Monitoring
+```http
+GET /v1/runtime/status                         # Runtime status
+GET /v1/runtime/snapshot                       # Complete snapshot
+```
+
+### Example: Hot-Swap Discord Bot
+
+Load a new Discord adapter instance:
+```bash
+curl -X POST http://localhost:8080/v1/runtime/adapters \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adapter_type": "discord",
+    "adapter_id": "discord_prod",
+    "config": {
+      "token": "your_bot_token",
+      "home_channel": "general"
+    },
+    "auto_start": true
+  }'
+```
+
+### Example: Debug Processor
+
+Pause processor and execute single steps:
+```bash
+curl -X POST http://localhost:8080/v1/runtime/processor/pause
+curl -X POST http://localhost:8080/v1/runtime/processor/step
+curl -X POST http://localhost:8080/v1/runtime/processor/resume
+```
+
+---
 
 ### Memory Service Endpoints
 

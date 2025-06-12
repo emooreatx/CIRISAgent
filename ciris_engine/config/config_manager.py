@@ -45,6 +45,13 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
                 config_data = json.load(f)
             # Platform-specific configuration is handled by individual adapters
             
+            # Ensure models are rebuilt before instantiation to resolve forward references
+            try:
+                from ..schemas.config_schemas_v1 import ensure_models_rebuilt
+                ensure_models_rebuilt()
+            except Exception:
+                pass  # Continue if rebuild fails
+            
             # Platform-specific configuration is handled by individual adapters
             _app_config = AppConfig(**config_data)
             # Load environment variables for OpenAI config
@@ -53,12 +60,32 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
             return _app_config
         except Exception as e:
             # print(f"Error loading configuration from {actual_path}: {e}. Using default configuration.") # For debugging
-            _app_config = AppConfig() # Instantiate with defaults
+            from .config_loader import _apply_env_defaults
+            config_data = _apply_env_defaults({})
+            
+            # Ensure models are rebuilt before instantiation to resolve forward references
+            try:
+                from ..schemas.config_schemas_v1 import ensure_models_rebuilt
+                ensure_models_rebuilt()
+            except Exception:
+                pass  # Continue if rebuild fails
+                
+            _app_config = AppConfig(**config_data) # Instantiate with defaults and env overrides
             # Load environment variables for OpenAI config
             _app_config.llm_services.openai.load_env_vars()
             return _app_config
     else:
-        _app_config = AppConfig()
+        from .config_loader import _apply_env_defaults
+        config_data = _apply_env_defaults({})
+        
+        # Ensure models are rebuilt before instantiation to resolve forward references
+        try:
+            from ..schemas.config_schemas_v1 import ensure_models_rebuilt
+            ensure_models_rebuilt()
+        except Exception:
+            pass  # Continue if rebuild fails
+            
+        _app_config = AppConfig(**config_data)
         # Platform-specific configuration is handled by individual adapters
         
         # Platform-specific configuration is handled by individual adapters

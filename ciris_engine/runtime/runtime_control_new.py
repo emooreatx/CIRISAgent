@@ -162,40 +162,6 @@ class RuntimeControlService(RuntimeControlInterface):
             await self._record_event("processor_query", "queue_status", success=False, error=str(e))
             return {"error": str(e)}
 
-    async def shutdown_runtime(self, reason: str = "Runtime shutdown requested") -> ProcessorControlResponse:
-        """Shutdown the entire runtime system."""
-        try:
-            start_time = datetime.now(timezone.utc)
-            
-            logger.critical(f"RUNTIME SHUTDOWN INITIATED: {reason}")
-            
-            # Record the shutdown event
-            await self._record_event("processor_control", "shutdown", success=True, result={"reason": reason})
-            
-            # Request global shutdown through the shutdown manager
-            from ciris_engine.utils.shutdown_manager import request_global_shutdown
-            request_global_shutdown(f"Runtime control: {reason}")
-            
-            # Set processor status to stopped
-            self._processor_status = ProcessorStatus.STOPPED
-            
-            return ProcessorControlResponse(
-                success=True,
-                action="shutdown",
-                timestamp=start_time,
-                result={"status": "shutdown_initiated", "reason": reason}
-            )
-            
-        except Exception as e:
-            logger.error(f"Failed to initiate shutdown: {e}", exc_info=True)
-            await self._record_event("processor_control", "shutdown", success=False, error=str(e))
-            return ProcessorControlResponse(
-                success=False,
-                action="shutdown",
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
     # Adapter Management Methods
     async def load_adapter(
         self,
@@ -310,31 +276,6 @@ class RuntimeControlService(RuntimeControlInterface):
             logger.error(f"Failed to list profiles: {e}")
             return []
 
-    # Alias for API compatibility
-    async def list_agent_profiles(self) -> List[Dict[str, Any]]:
-        """List all available agent profiles (API alias)."""
-        return await self.list_profiles()
-
-    async def load_agent_profile(self, reload_request) -> ConfigOperationResponse:
-        """Load an agent profile (API method)."""
-        return await self.reload_profile(
-            reload_request.profile_name,
-            reload_request.config_path,
-            reload_request.scope
-        )
-
-    async def get_agent_profile(self, profile_name: str) -> Optional[Dict[str, Any]]:
-        """Get information about a specific agent profile."""
-        try:
-            profiles = await self.config_manager.list_profiles()
-            for profile in profiles:
-                if profile.name == profile_name:
-                    return profile.model_dump()
-            return None
-        except Exception as e:
-            logger.error(f"Failed to get profile {profile_name}: {e}")
-            return None
-
     async def create_profile(
         self,
         name: str,
@@ -359,47 +300,14 @@ class RuntimeControlService(RuntimeControlInterface):
             )
 
     # Environment Variable Management
-    async def list_env_vars(self, include_sensitive: bool = False) -> Dict[str, Any]:
-        """List environment variables."""
-        try:
-            return await self.config_manager.list_env_vars(include_sensitive)
-        except Exception as e:
-            logger.error(f"Failed to list env vars: {e}")
-            return {"error": str(e)}
-
     async def set_env_var(
-        self,
-        env_request
-    ) -> EnvVarResponse:
-        """Set an environment variable (API method with request object)."""
-        try:
-            result = await self.config_manager.set_env_var(
-                env_request.name, 
-                env_request.value, 
-                env_request.persist, 
-                env_request.reload_config
-            )
-            if result.success and env_request.reload_config:
-                self._last_config_change = result.timestamp
-            return result
-        except Exception as e:
-            logger.error(f"Failed to set env var: {e}")
-            return EnvVarResponse(
-                success=False,
-                operation="set_env_var",
-                variable_name=env_request.name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def set_env_var_direct(
         self,
         name: str,
         value: str,
         persist: bool = False,
         reload_config: bool = True
     ) -> EnvVarResponse:
-        """Set an environment variable (direct method)."""
+        """Set an environment variable."""
         try:
             result = await self.config_manager.set_env_var(name, value, persist, reload_config)
             if result.success and reload_config:
@@ -417,35 +325,11 @@ class RuntimeControlService(RuntimeControlInterface):
 
     async def delete_env_var(
         self,
-        env_request
-    ) -> EnvVarResponse:
-        """Delete an environment variable (API method with request object)."""
-        try:
-            result = await self.config_manager.delete_env_var(
-                env_request.name, 
-                env_request.persist, 
-                env_request.reload_config
-            )
-            if result.success and env_request.reload_config:
-                self._last_config_change = result.timestamp
-            return result
-        except Exception as e:
-            logger.error(f"Failed to delete env var: {e}")
-            return EnvVarResponse(
-                success=False,
-                operation="delete_env_var",
-                variable_name=env_request.name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def delete_env_var_direct(
-        self,
         name: str,
         persist: bool = False,
         reload_config: bool = True
     ) -> EnvVarResponse:
-        """Delete an environment variable (direct method)."""
+        """Delete an environment variable."""
         try:
             result = await self.config_manager.delete_env_var(name, persist, reload_config)
             if result.success and reload_config:
@@ -464,32 +348,11 @@ class RuntimeControlService(RuntimeControlInterface):
     # Backup and Restore
     async def backup_config(
         self,
-        backup_request
-    ) -> ConfigBackupResponse:
-        """Create a configuration backup (API method with request object)."""
-        try:
-            return await self.config_manager.backup_config(
-                backup_request.include_profiles, 
-                backup_request.include_env_vars, 
-                backup_request.backup_name
-            )
-        except Exception as e:
-            logger.error(f"Failed to backup config: {e}")
-            return ConfigBackupResponse(
-                success=False,
-                operation="backup_config",
-                backup_name=backup_request.backup_name or "unknown",
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def backup_config_direct(
-        self,
         include_profiles: bool = True,
         include_env_vars: bool = False,
         backup_name: Optional[str] = None
     ) -> ConfigBackupResponse:
-        """Create a configuration backup (direct method)."""
+        """Create a configuration backup."""
         try:
             return await self.config_manager.backup_config(
                 include_profiles, include_env_vars, backup_name
@@ -503,36 +366,6 @@ class RuntimeControlService(RuntimeControlInterface):
                 timestamp=datetime.now(timezone.utc),
                 error=str(e)
             )
-
-    async def restore_config(
-        self,
-        restore_request
-    ) -> ConfigBackupResponse:
-        """Restore configuration from backup."""
-        try:
-            return await self.config_manager.restore_config(
-                restore_request.backup_name,
-                restore_request.restore_profiles,
-                restore_request.restore_env_vars,
-                restore_request.restart_required
-            )
-        except Exception as e:
-            logger.error(f"Failed to restore config: {e}")
-            return ConfigBackupResponse(
-                success=False,
-                operation="restore_config",
-                backup_name=restore_request.backup_name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def list_config_backups(self) -> List[Dict[str, Any]]:
-        """List available configuration backups."""
-        try:
-            return await self.config_manager.list_config_backups()
-        except Exception as e:
-            logger.error(f"Failed to list config backups: {e}")
-            return []
 
     # Status and Monitoring
     async def get_runtime_status(self) -> RuntimeStatusResponse:
