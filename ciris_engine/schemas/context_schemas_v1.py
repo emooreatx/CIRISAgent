@@ -1,8 +1,6 @@
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field, ConfigDict
-from datetime import datetime
 from .wisdom_schemas_v1 import WisdomRequest
-from .community_schemas_v1 import CommunityHealth
 from .telemetry_schemas_v1 import CompactTelemetry
 from .resource_schemas_v1 import ResourceSnapshot
 from .secrets_schemas_v1 import SecretReference

@@ -5,9 +5,8 @@ from typing import Dict, Any, Optional, List
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import LLMService
 from ciris_engine.protocols.faculties import EpistemicFaculty
-from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult, FacultyResult
+from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
 from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
-from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from . import epistemic as epi_helpers
 
 logger = logging.getLogger(__name__)

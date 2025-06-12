@@ -138,9 +138,80 @@ curl http://localhost:8080/v1/system/services
 ]
 ```
 
-### Processor Control
+### Runtime Control (NEW)
 
-#### Execution Control
+⭐ **New Runtime Control Endpoints**: The API adapter now includes comprehensive runtime control capabilities for dynamic system management without restarts.
+
+#### Processor Control
+- **POST** `/v1/runtime/processor/step` - Execute single processing step
+- **POST** `/v1/runtime/processor/pause` - Pause processor
+- **POST** `/v1/runtime/processor/resume` - Resume processor
+- **GET** `/v1/runtime/processor/queue` - Get queue status
+- **POST** `/v1/runtime/processor/shutdown` - Graceful shutdown
+
+#### Adapter Management
+- **POST** `/v1/runtime/adapters` - Load new adapter instance
+- **DELETE** `/v1/runtime/adapters/{adapter_id}` - Unload adapter
+- **GET** `/v1/runtime/adapters` - List all adapters
+- **GET** `/v1/runtime/adapters/{adapter_id}` - Get adapter details
+
+#### Configuration Management
+- **GET** `/v1/runtime/config` - Get configuration values
+- **PUT** `/v1/runtime/config` - Update configuration
+- **POST** `/v1/runtime/config/validate` - Validate configuration
+- **POST** `/v1/runtime/config/reload` - Reload from files
+
+#### Profile Management
+- **GET** `/v1/runtime/profiles` - List agent profiles
+- **POST** `/v1/runtime/profiles/{name}/load` - Load profile
+- **GET** `/v1/runtime/profiles/{name}` - Get profile info
+
+#### Environment Variables
+- **GET** `/v1/runtime/env` - List environment variables
+- **PUT** `/v1/runtime/env/{name}` - Set environment variable
+- **DELETE** `/v1/runtime/env/{name}` - Delete environment variable
+
+#### Backup & Restore
+- **POST** `/v1/runtime/config/backup` - Create configuration backup
+- **POST** `/v1/runtime/config/restore` - Restore from backup
+- **GET** `/v1/runtime/config/backups` - List available backups
+
+#### Status & Monitoring
+- **GET** `/v1/runtime/status` - Runtime status summary
+- **GET** `/v1/runtime/snapshot` - Complete system snapshot
+
+**Example: Hot-Load Discord Adapter**
+```bash
+curl -X POST http://localhost:8080/v1/runtime/adapters \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adapter_type": "discord",
+    "adapter_id": "discord_prod",
+    "config": {
+      "token": "your_bot_token",
+      "home_channel": "general"
+    },
+    "auto_start": true
+  }'
+```
+
+**Example: Update Configuration**
+```bash
+curl -X PUT http://localhost:8080/v1/runtime/config \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "llm_services.openai.temperature",
+    "value": 0.8,
+    "scope": "session",
+    "validation_level": "strict"
+  }'
+```
+
+> **📖 Complete Documentation**: See [Runtime Control API Guide](../../../docs/api/runtime-control.md) for detailed documentation.
+
+### Legacy Processor Control
+
+#### System Execution Control
 - **POST** `/v1/system/processor/step` - Execute single processing step
 - **POST** `/v1/system/processor/pause` - Pause processor
 - **POST** `/v1/system/processor/resume` - Resume processor  

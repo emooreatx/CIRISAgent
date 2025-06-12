@@ -1,8 +1,13 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, TYPE_CHECKING
 
 from .guardrails_config_v1 import GuardrailsConfig
 from .foundational_schemas_v1 import SensitivityLevel
+
+if TYPE_CHECKING:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
 
 DEFAULT_SQLITE_DB_FILENAME = "ciris_engine.db"
 DEFAULT_DATA_DIR = "data"
@@ -14,8 +19,6 @@ class DatabaseConfig(BaseModel):
     data_directory: str = DEFAULT_DATA_DIR
     graph_memory_filename: str = Field(default="graph_memory.pkl", alias="graph_memory_filename")
 
-from .agent_core_schemas_v1 import Task, Thought
-from .action_params_v1 import *
 from .foundational_schemas_v1 import HandlerActionType
 
 class WorkflowConfig(BaseModel):
@@ -72,6 +75,11 @@ class AgentProfile(BaseModel):
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     guardrails_config: Optional[GuardrailsConfig] = None
+    
+    # Adapter-specific configurations
+    discord_config: Optional['DiscordAdapterConfig'] = Field(default=None, description="Discord adapter specific configuration")
+    api_config: Optional['APIAdapterConfig'] = Field(default=None, description="API adapter specific configuration")  
+    cli_config: Optional['CLIAdapterConfig'] = Field(default=None, description="CLI adapter specific configuration")
 
 class CIRISNodeConfig(BaseModel):
     """Configuration for communicating with CIRISNode service."""
@@ -489,16 +497,68 @@ class AppConfig(BaseModel):
     profile_directory: str = Field(default="ciris_profiles", description="Directory containing agent profiles")
     default_profile: str = Field(default="default", description="Default agent profile name to use if not specified")
     agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
-    discord_channel_ids: Optional[List[str]] = Field(default=None, description="List of Discord channel IDs to monitor")
-    discord_channel_id: Optional[str] = Field(default=None, description="Primary Discord channel ID (deprecated - use discord_channel_ids)")
-    discord_deferral_channel_id: Optional[str] = Field(default=None, description="Channel ID for Discord deferrals and guidance")
     agent_mode: str = Field(default="", description="Runtime mode: 'cli', 'discord', 'api'")
-    cli_channel_id: Optional[str] = Field(default=None, description="Channel ID for CLI mode")
-    api_channel_id: Optional[str] = Field(default=None, description="Channel ID for API mode")
     mock_llm: bool = Field(default=False, description="Use mock LLM for testing instead of real OpenAI API")
     data_archive_dir: str = Field(default="data_archive", description="Directory for archived data")
     archive_older_than_hours: int = Field(default=24, description="Archive data older than this many hours")
+    
+    # Global home channel (set by highest priority communication adapter)
+    home_channel: Optional[str] = Field(default=None, description="Primary home channel ID for the agent, set by the highest priority communication adapter")
 
-DMA_RETRY_LIMIT = 3
-GUARDRAIL_RETRY_LIMIT = 2
-DMA_TIMEOUT_SECONDS = 30.0
+
+# Simple solution: Load all adapter schemas upfront and rebuild models immediately
+# This resolves all Pydantic v2 forward reference issues once and for all
+
+_models_rebuilt = False
+
+def ensure_models_rebuilt():
+    """Ensure models are rebuilt to resolve forward references before use.
+    
+    This function attempts to import all adapter configurations and rebuild
+    the Pydantic models to resolve forward references. It's designed to be
+    called just before AppConfig instantiation.
+    """
+    global _models_rebuilt
+    
+    if _models_rebuilt:
+        return
+    
+    imported_configs = {}
+    
+    # Try to import each adapter config individually
+    # Use dynamic imports to avoid circular import issues
+    adapter_modules = [
+        ('ciris_engine.adapters.discord.config', 'DiscordAdapterConfig'),
+        ('ciris_engine.adapters.api.config', 'APIAdapterConfig'),
+        ('ciris_engine.adapters.cli.config', 'CLIAdapterConfig')
+    ]
+    
+    for module_name, class_name in adapter_modules:
+        try:
+            import importlib
+            module = importlib.import_module(module_name)
+            adapter_class = getattr(module, class_name)
+            imported_configs[class_name] = adapter_class
+        except Exception:
+            pass  # Silently skip if adapter module not available
+    
+    # Only rebuild if we successfully imported something
+    if imported_configs:
+        # Add the imported classes to the global namespace so Pydantic can find them
+        globals().update(imported_configs)
+        
+        # Also add them to the current module's namespace
+        import sys
+        current_module = sys.modules[__name__]
+        for name, cls in imported_configs.items():
+            setattr(current_module, name, cls)
+        
+        try:
+            AgentProfile.model_rebuild()
+            AppConfig.model_rebuild()
+            _models_rebuilt = True
+        except Exception:
+            pass  # Continue without rebuild if it fails
+
+# Don't call ensure_models_rebuilt() at module import time to avoid circular imports
+# It will be called when needed by config_manager.py before instantiating AppConfig

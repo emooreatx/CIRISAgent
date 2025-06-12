@@ -12,12 +12,11 @@ class DiscordAdapterConfig(BaseModel):
     bot_token: Optional[str] = Field(default=None, description="Discord bot token")
     
     # Channel configuration
-    monitored_channel_ids: List[str] = Field(default_factory=list, description="List of Discord channel IDs to monitor")
-    primary_channel_id: Optional[str] = Field(default=None, description="Primary Discord channel ID for main interactions")
-    deferral_channel_id: Optional[str] = Field(default=None, description="Channel ID for Discord deferrals and guidance")
+    monitored_channel_ids: List[str] = Field(default_factory=list, description="List of Discord channel IDs to monitor for incoming messages")
+    home_channel_id: Optional[str] = Field(default=None, description="Home channel ID for wakeup and primary agent communication")
+    deferral_channel_id: Optional[str] = Field(default=None, description="Channel ID for Discord deferrals and guidance from WA")
     
     # Bot behavior
-    command_prefix: str = Field(default="!", description="Command prefix for Discord bot commands")
     respond_to_mentions: bool = Field(default=True, description="Respond when the bot is mentioned")
     respond_to_dms: bool = Field(default=True, description="Respond to direct messages")
     
@@ -78,12 +77,12 @@ class DiscordAdapterConfig(BaseModel):
         }
         return status_map.get(self.status.lower(), discord.Status.online)
     
-    def get_primary_channel_id(self) -> Optional[str]:
-        """Get the primary channel ID."""
-        if self.primary_channel_id:
-            return self.primary_channel_id
+    def get_home_channel_id(self) -> Optional[str]:
+        """Get the home channel ID for this Discord adapter."""
+        if self.home_channel_id:
+            return self.home_channel_id
         if self.monitored_channel_ids:
-            return self.monitored_channel_ids[0]
+            return self.monitored_channel_ids[0]  # Default to first monitored channel if no explicit home channel
         return None
 
     def load_env_vars(self) -> None:
@@ -95,12 +94,19 @@ class DiscordAdapterConfig(BaseModel):
         if env_token:
             self.bot_token = env_token
             
-        # Channel IDs
-        env_channel = get_env_var("DISCORD_CHANNEL_ID")
-        if env_channel:
-            self.primary_channel_id = env_channel
-            if env_channel not in self.monitored_channel_ids:
-                self.monitored_channel_ids.append(env_channel)
+        # Home channel ID
+        env_home_channel = get_env_var("DISCORD_HOME_CHANNEL_ID")
+        if env_home_channel:
+            self.home_channel_id = env_home_channel
+            if env_home_channel not in self.monitored_channel_ids:
+                self.monitored_channel_ids.append(env_home_channel)
+                
+        # Legacy support for DISCORD_CHANNEL_ID -> home channel
+        env_legacy_channel = get_env_var("DISCORD_CHANNEL_ID")
+        if env_legacy_channel and not self.home_channel_id:
+            self.home_channel_id = env_legacy_channel
+            if env_legacy_channel not in self.monitored_channel_ids:
+                self.monitored_channel_ids.append(env_legacy_channel)
                 
         env_channels = get_env_var("DISCORD_CHANNEL_IDS")
         if env_channels:
@@ -118,7 +124,43 @@ class DiscordAdapterConfig(BaseModel):
             if env_admin not in self.admin_user_ids:
                 self.admin_user_ids.append(env_admin)
                 
-        # Bot behavior
-        env_prefix = get_env_var("DISCORD_COMMAND_PREFIX")
-        if env_prefix:
-            self.command_prefix = env_prefix
+    
+    def load_env_vars_with_instance(self, instance_id: str) -> None:
+        """Load configuration from environment variables with instance-specific prefix."""
+        from ciris_engine.config.env_utils import get_env_var
+        
+        # First load general env vars as defaults
+        self.load_env_vars()
+        
+        # Then override with instance-specific vars
+        instance_upper = instance_id.upper()
+        
+        # Bot token
+        env_token = get_env_var(f"DISCORD_{instance_upper}_BOT_TOKEN") or get_env_var(f"DISCORD_BOT_TOKEN_{instance_upper}")
+        if env_token:
+            self.bot_token = env_token
+            
+        # Home channel ID
+        env_home_channel = get_env_var(f"DISCORD_{instance_upper}_HOME_CHANNEL_ID") or get_env_var(f"DISCORD_HOME_CHANNEL_ID_{instance_upper}")
+        if env_home_channel:
+            self.home_channel_id = env_home_channel
+            if env_home_channel not in self.monitored_channel_ids:
+                self.monitored_channel_ids.append(env_home_channel)
+                
+        # Channel IDs
+        env_channels = get_env_var(f"DISCORD_{instance_upper}_CHANNEL_IDS") or get_env_var(f"DISCORD_CHANNEL_IDS_{instance_upper}")
+        if env_channels:
+            channel_list = [ch.strip() for ch in env_channels.split(",") if ch.strip()]
+            self.monitored_channel_ids.extend(channel_list)
+            
+        # Deferral channel
+        env_deferral = get_env_var(f"DISCORD_{instance_upper}_DEFERRAL_CHANNEL_ID") or get_env_var(f"DISCORD_DEFERRAL_CHANNEL_ID_{instance_upper}")
+        if env_deferral:
+            self.deferral_channel_id = env_deferral
+            
+        # Admin user
+        env_admin = get_env_var(f"WA_{instance_upper}_USER_ID") or get_env_var(f"WA_USER_ID_{instance_upper}")
+        if env_admin:
+            if env_admin not in self.admin_user_ids:
+                self.admin_user_ids.append(env_admin)
+                

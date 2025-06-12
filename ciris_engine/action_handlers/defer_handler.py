@@ -1,15 +1,13 @@
 import logging
 from typing import Dict, Any, Optional # Added Optional
 
-from pydantic import BaseModel
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import DeferParams
-from ciris_engine.schemas.deferral_schemas_v1 import DeferralPackage, DeferralReason
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
-from .base_handler import BaseActionHandler, ActionHandlerDependencies
+from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought  # Though DEFER might not always create a standard follow-up
 
 logger = logging.getLogger(__name__)

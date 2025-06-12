@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, Any, List, Optional
 
-from pydantic import ValidationError
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import ObserveParams
@@ -9,13 +8,11 @@ from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import (
     ThoughtStatus,
     HandlerActionType,
-    IncomingMessage,
     FetchedMessage,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
-from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
 from ciris_engine import persistence
-from .base_handler import BaseActionHandler, ActionHandlerDependencies
+from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
 

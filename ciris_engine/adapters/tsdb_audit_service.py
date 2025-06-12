@@ -5,8 +5,6 @@ Audit service implementation that stores audit events as correlations in the TSD
 enabling time-series queries and unified telemetry storage.
 """
 
-import asyncio
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional

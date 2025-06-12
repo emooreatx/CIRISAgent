@@ -63,14 +63,15 @@ async def test_speak_handler_creates_followup(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_recall_handler_creates_followup(monkeypatch):
-    memory_service = AsyncMock()
-    memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
-    deps = ActionHandlerDependencies()
-    
-    # Mock the persistence module functions
+    # Mock persistence.add_thought to avoid database/config initialization
     add_thought_mock = MagicMock()
     monkeypatch.setattr('ciris_engine.action_handlers.recall_handler.persistence.add_thought', add_thought_mock)
     
+    memory_service = AsyncMock()
+    memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
+    deps = ActionHandlerDependencies()
+    deps.persistence = MagicMock()
+    deps.persistence.add_thought = add_thought_mock
     audit_service = MagicMock()
     audit_service.log_action = AsyncMock()
     async def get_service(handler, service_type, **kwargs):
@@ -111,14 +112,15 @@ async def test_recall_handler_creates_followup(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_forget_handler_creates_followup(monkeypatch):
-    memory_service = AsyncMock()
-    memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
-    deps = ActionHandlerDependencies()
-    
-    # Mock the persistence module functions
+    # Mock persistence.add_thought to avoid database/config initialization
     add_thought_mock = MagicMock()
     monkeypatch.setattr('ciris_engine.action_handlers.forget_handler.persistence.add_thought', add_thought_mock)
     
+    memory_service = AsyncMock()
+    memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
+    deps = ActionHandlerDependencies()
+    deps.persistence = MagicMock()
+    deps.persistence.add_thought = add_thought_mock
     audit_service = MagicMock()
     audit_service.log_action = AsyncMock()
     async def get_service(handler, service_type, **kwargs):

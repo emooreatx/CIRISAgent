@@ -5,9 +5,8 @@ New simplified runtime that properly orchestrates all components.
 """
 import asyncio
 import logging
-import os
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any, List, Dict
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.processor import AgentProcessor
@@ -33,7 +32,6 @@ from ciris_engine.utils.shutdown_manager import (
 )
 
 from ciris_engine.registries.base import ServiceRegistry, Priority
-from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 
 from ciris_engine.processor.thought_processor import ThoughtProcessor
@@ -78,17 +76,27 @@ class CIRISRuntime(RuntimeInterface):
         profile_name: str = "default",
         app_config: Optional[AppConfig] = None,
         startup_channel_id: Optional[str] = None,
+        adapter_configs: Optional[dict] = None,
         **kwargs: Any,
     ) -> None:
         self.profile_name = profile_name
         self.app_config = app_config
         self.startup_channel_id = startup_channel_id
+        self.adapter_configs = adapter_configs or {}
         self.adapters: List[PlatformAdapter] = []
 
         for mode in modes:
             try:
-                adapter_class = load_adapter(mode)
-                self.adapters.append(adapter_class(self, **kwargs))
+                # Extract base mode (without instance suffix)
+                base_mode = mode.split(":")[0]
+                adapter_class = load_adapter(base_mode)
+                
+                # Pass adapter-specific config if available
+                adapter_kwargs = kwargs.copy()
+                if mode in self.adapter_configs:
+                    adapter_kwargs['adapter_config'] = self.adapter_configs[mode]
+                
+                self.adapters.append(adapter_class(self, **adapter_kwargs))
                 logger.info(f"Successfully loaded and initialized adapter for mode: {mode}")
             except Exception as e:
                 logger.error(f"Failed to load or initialize adapter for mode '{mode}': {e}", exc_info=True)

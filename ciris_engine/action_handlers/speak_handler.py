@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, Any, Optional
 
-from pydantic import ValidationError
 
 from ciris_engine.schemas import Thought, SpeakParams, ThoughtStatus, HandlerActionType, ActionSelectionResult
 from ciris_engine import persistence

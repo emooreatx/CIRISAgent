@@ -9,18 +9,17 @@ import re
 import secrets
 import asyncio
 import logging
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timedelta, timezone
 
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.filter_schemas_v1 import (
     FilterPriority, TriggerType, FilterTrigger, 
-    UserTrustProfile, ConversationHealth, FilterResult,
-    AdaptiveFilterConfig, FilterStats, FilterHealth
+    UserTrustProfile, FilterResult, AdaptiveFilterConfig,
+    FilterStats, FilterHealth
 )
-from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope, ConfigNodeType
+from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
-from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 
 logger = logging.getLogger(__name__)
 

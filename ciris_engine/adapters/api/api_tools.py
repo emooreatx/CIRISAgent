@@ -1,7 +1,7 @@
 """API tools endpoints for CIRISAgent, using the multi_service_sink for real tool service."""
 import logging
 from aiohttp import web
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

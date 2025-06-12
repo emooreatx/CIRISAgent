@@ -1,5 +1,4 @@
 import json
-import os
 import asyncio
 from pathlib import Path
 from typing import Optional
@@ -44,13 +43,16 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
         try:
             with open(actual_path, 'r') as f:
                 config_data = json.load(f)
-            discord_channel_id_env = get_env_var("DISCORD_CHANNEL_ID")
-            if discord_channel_id_env and not config_data.get("discord_channel_id"):
-                config_data["discord_channel_id"] = discord_channel_id_env
+            # Platform-specific configuration is handled by individual adapters
             
-            discord_deferral_channel_id_env = get_env_var("DISCORD_DEFERRAL_CHANNEL_ID")
-            if discord_deferral_channel_id_env and not config_data.get("discord_deferral_channel_id"):
-                config_data["discord_deferral_channel_id"] = discord_deferral_channel_id_env
+            # Ensure models are rebuilt before instantiation to resolve forward references
+            try:
+                from ..schemas.config_schemas_v1 import ensure_models_rebuilt
+                ensure_models_rebuilt()
+            except Exception:
+                pass  # Continue if rebuild fails
+            
+            # Platform-specific configuration is handled by individual adapters
             _app_config = AppConfig(**config_data)
             # Load environment variables for OpenAI config
             _app_config.llm_services.openai.load_env_vars()
@@ -58,19 +60,35 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
             return _app_config
         except Exception as e:
             # print(f"Error loading configuration from {actual_path}: {e}. Using default configuration.") # For debugging
-            _app_config = AppConfig() # Instantiate with defaults
+            from .config_loader import _apply_env_defaults
+            config_data = _apply_env_defaults({})
+            
+            # Ensure models are rebuilt before instantiation to resolve forward references
+            try:
+                from ..schemas.config_schemas_v1 import ensure_models_rebuilt
+                ensure_models_rebuilt()
+            except Exception:
+                pass  # Continue if rebuild fails
+                
+            _app_config = AppConfig(**config_data) # Instantiate with defaults and env overrides
             # Load environment variables for OpenAI config
             _app_config.llm_services.openai.load_env_vars()
             return _app_config
     else:
-        _app_config = AppConfig()
-        discord_channel_id_env = get_env_var("DISCORD_CHANNEL_ID")
-        if discord_channel_id_env and not _app_config.discord_channel_id:
-            _app_config.discord_channel_id = discord_channel_id_env
+        from .config_loader import _apply_env_defaults
+        config_data = _apply_env_defaults({})
         
-        discord_deferral_channel_id_env = get_env_var("DISCORD_DEFERRAL_CHANNEL_ID")
-        if discord_deferral_channel_id_env and not _app_config.discord_deferral_channel_id:
-            _app_config.discord_deferral_channel_id = discord_deferral_channel_id_env
+        # Ensure models are rebuilt before instantiation to resolve forward references
+        try:
+            from ..schemas.config_schemas_v1 import ensure_models_rebuilt
+            ensure_models_rebuilt()
+        except Exception:
+            pass  # Continue if rebuild fails
+            
+        _app_config = AppConfig(**config_data)
+        # Platform-specific configuration is handled by individual adapters
+        
+        # Platform-specific configuration is handled by individual adapters
         # Load environment variables for OpenAI config
         _app_config.llm_services.openai.load_env_vars()
         if create_if_not_exists:

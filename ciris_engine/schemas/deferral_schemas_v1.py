@@ -1,9 +1,8 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 from enum import Enum
 
-from .feedback_schemas_v1 import FeedbackType, FeedbackSource, FeedbackDirective
 
 class DeferralReason(str, Enum):
     """Standard deferral reason codes."""

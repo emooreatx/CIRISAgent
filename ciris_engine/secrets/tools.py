@@ -4,17 +4,15 @@ Agent Secrets Tools for CIRIS Agent.
 Provides RECALL_SECRET and UPDATE_SECRETS_FILTER tools for encrypted secret
 retrieval and filter management with comprehensive audit logging.
 """
-import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Literal
+from typing import Dict, Any, Optional, Literal
 from pydantic import BaseModel, Field
 
 from .service import SecretsService
 from ..schemas.config_schemas_v1 import SecretPattern
 from ..schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 from ..schemas.foundational_schemas_v1 import HandlerActionType
-from ..schemas.secrets_schemas_v1 import SecretRecord
 
 logger = logging.getLogger(__name__)
 

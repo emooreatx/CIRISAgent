@@ -10,7 +10,7 @@ from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 
 def test_cli_offline_non_interactive(monkeypatch):
     """Ensure CLI mode works with the mock LLM service."""
-    monkeypatch.setattr(main, "load_config", AsyncMock(return_value=MagicMock(discord_channel_id="cli")))
+    monkeypatch.setattr(main, "load_config", AsyncMock(return_value=MagicMock(discord_home_channel_id="cli")))
 
     # Mock CIRISRuntime constructor and methods
     runtime_mock = MagicMock(spec=CIRISRuntime)

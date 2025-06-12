@@ -11,8 +11,6 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.telemetry_schemas_v1 import CompactTelemetry
-from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
-from ciris_engine.registries.base import Priority
 
 
 class AdapterInfo(BaseModel):

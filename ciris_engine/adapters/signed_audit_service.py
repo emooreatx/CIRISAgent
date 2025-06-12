@@ -12,9 +12,8 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from .base import Service
 from .local_audit_log import AuditService
 from ciris_engine.audit.hash_chain import AuditHashChain
 from ciris_engine.audit.signature_manager import AuditSignatureManager

@@ -1,15 +1,13 @@
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import RecallParams
-from ciris_engine.schemas.graph_schemas_v1 import GraphNode
-from ciris_engine.adapters.local_graph_memory import MemoryOpResult, MemoryOpStatus
+from ciris_engine.adapters.local_graph_memory import MemoryOpStatus
 from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
 from ciris_engine import persistence
 import logging
-from pydantic import ValidationError
 from typing import Optional
 
 logger = logging.getLogger(__name__)

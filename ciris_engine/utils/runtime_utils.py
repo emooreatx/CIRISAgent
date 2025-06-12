@@ -4,7 +4,7 @@ import asyncio
 import logging
 import signal
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from ..config.config_manager import load_config_from_file_async, AppConfig
 from ..runtime.ciris_runtime import CIRISRuntime

@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any, List
 from datetime import datetime, timezone
 
 from ciris_engine.persistence import get_db_connection

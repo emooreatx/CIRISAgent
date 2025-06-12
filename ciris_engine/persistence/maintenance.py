@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-import json
 import asyncio
 from typing import Optional, List
 

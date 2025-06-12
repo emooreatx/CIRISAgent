@@ -7,7 +7,6 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from . import BaseActionHandler
 from .. import persistence
-from ciris_engine.action_handlers.exceptions import FollowUpCreationError
 
 
 logger = logging.getLogger(__name__)

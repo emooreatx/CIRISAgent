@@ -98,7 +98,6 @@ class DreamProcessor:
                     await self._dream_task
                 except asyncio.CancelledError:
                     logger.info("Dream task cancelled.")
-                    pass
             except Exception as e: # Catch other potential errors during await
                 logger.error(f"Error waiting for dream task: {e}", exc_info=True)
         else: # Task was not active or already done

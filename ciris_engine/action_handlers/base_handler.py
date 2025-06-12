@@ -1,13 +1,11 @@
 import logging
 from typing import Any, Dict, Optional, Type, Callable
 from abc import ABC, abstractmethod
-import asyncio
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
-from ciris_engine import persistence
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
 from ciris_engine.secrets.service import SecretsService
@@ -223,14 +221,18 @@ class BaseActionHandler(ABC):
                 sanitized_channel_id = str(channel_id).lstrip('#')
                 
                 # Detect CLI mode and adjust channel IDs accordingly
-                is_cli_service = hasattr(comm_service, '__class__') and 'CLI' in comm_service.__class__.__name__
+                # Check for CLI service or API service (both can handle "cli" channel IDs)
+                class_name = comm_service.__class__.__name__ if hasattr(comm_service, '__class__') else ""
+                is_cli_service = 'CLI' in class_name
+                is_api_service = 'API' in class_name and 'Communication' in class_name
+                is_non_discord_service = is_cli_service or is_api_service
                 
-                if is_cli_service:
-                    # For CLI services, convert Discord channel IDs to CLI-appropriate values
+                if is_non_discord_service:
+                    # For CLI/API services, convert Discord channel IDs to appropriate values
                     if sanitized_channel_id.isdigit() and len(sanitized_channel_id) > 10:
                         # This looks like a Discord channel ID - convert to CLI
                         sanitized_channel_id = "cli"
-                        self.logger.debug(f"_send_notification: converted Discord channel ID to 'cli' for CLI service")
+                        self.logger.debug(f"_send_notification: converted Discord channel ID to 'cli' for non-Discord service")
                     elif sanitized_channel_id in ["default"]:
                         sanitized_channel_id = "cli"
                 else:
@@ -370,4 +372,3 @@ class BaseActionHandler(ABC):
         Returns:
             Optional[str]: ID of follow-up thought if one was created
         """
-        pass

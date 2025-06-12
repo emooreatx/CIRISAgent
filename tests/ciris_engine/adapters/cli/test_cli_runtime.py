@@ -4,8 +4,9 @@ from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 
 
 @pytest.mark.asyncio
-async def test_cli_runtime_initialization(monkeypatch):
+async def test_cli_runtime_initialization(monkeypatch, tmp_path):
     """Test CLI mode initialization in unified CIRISRuntime."""
+    # Mock only the external dependencies
     monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
@@ -13,23 +14,25 @@ async def test_cli_runtime_initialization(monkeypatch):
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
     monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.start", AsyncMock())
-    monkeypatch.setattr(
-        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
-    )
+    monkeypatch.setattr("ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock())
+    
+    # Use temp database to avoid conflicts
+    monkeypatch.setenv("CIRIS_DB_PATH", str(tmp_path / "test.db"))
 
-    runtime = CIRISRuntime(modes=["cli"], profile_name="test_profile", interactive=False)
+    runtime = CIRISRuntime(modes=["cli"], profile_name="default", interactive=False)
     await runtime.initialize()
 
     # Verify CLI adapter was loaded
     assert len(runtime.adapters) == 1
-    assert runtime.profile_name == "test_profile"
+    assert runtime.profile_name == "default"
 
     await runtime.shutdown()
 
 
 @pytest.mark.asyncio
-async def test_cli_adapter_service_registration(monkeypatch):
+async def test_cli_adapter_service_registration(monkeypatch, tmp_path):
     """Test that CLI adapter services are registered correctly."""
+    # Mock only the external dependencies
     monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
@@ -37,9 +40,10 @@ async def test_cli_adapter_service_registration(monkeypatch):
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
     monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.start", AsyncMock())
-    monkeypatch.setattr(
-        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
-    )
+    monkeypatch.setattr("ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock())
+    
+    # Use temp database to avoid conflicts
+    monkeypatch.setenv("CIRIS_DB_PATH", str(tmp_path / "test.db"))
 
     runtime = CIRISRuntime(modes=["cli"], profile_name="default", interactive=False)
     await runtime.initialize()
@@ -58,8 +62,9 @@ async def test_cli_adapter_service_registration(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_cli_interactive_mode_flag(monkeypatch):
+async def test_cli_interactive_mode_flag(monkeypatch, tmp_path):
     """Test that interactive mode flag is passed correctly."""
+    # Mock only the external dependencies
     monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client", 
@@ -67,9 +72,10 @@ async def test_cli_interactive_mode_flag(monkeypatch):
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
     monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.start", AsyncMock())
-    monkeypatch.setattr(
-        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
-    )
+    monkeypatch.setattr("ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock())
+    
+    # Use temp database to avoid conflicts
+    monkeypatch.setenv("CIRIS_DB_PATH", str(tmp_path / "test.db"))
 
     # Test both interactive and non-interactive modes
     runtime_interactive = CIRISRuntime(modes=["cli"], profile_name="default", interactive=True)
@@ -87,8 +93,9 @@ async def test_cli_interactive_mode_flag(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_cli_message_processing(monkeypatch):
+async def test_cli_message_processing(monkeypatch, tmp_path):
     """Test CLI message processing through unified runtime."""
+    # Mock only the external dependencies
     monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
@@ -96,9 +103,10 @@ async def test_cli_message_processing(monkeypatch):
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
     monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.start", AsyncMock())
-    monkeypatch.setattr(
-        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
-    )
+    monkeypatch.setattr("ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock())
+    
+    # Use temp database to avoid conflicts
+    monkeypatch.setenv("CIRIS_DB_PATH", str(tmp_path / "test.db"))
 
     runtime = CIRISRuntime(modes=["cli"], profile_name="default", interactive=False)
     await runtime.initialize()
@@ -114,8 +122,9 @@ async def test_cli_message_processing(monkeypatch):
 
 
 @pytest.mark.asyncio 
-async def test_cli_runtime_shutdown_graceful(monkeypatch):
+async def test_cli_runtime_shutdown_graceful(monkeypatch, tmp_path):
     """Test graceful shutdown of CLI runtime."""
+    # Mock only the external dependencies
     monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
     monkeypatch.setattr(
         "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
@@ -124,9 +133,10 @@ async def test_cli_runtime_shutdown_graceful(monkeypatch):
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
     monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.start", AsyncMock())
     monkeypatch.setattr("ciris_engine.adapters.cli.adapter.CLIAdapter.stop", AsyncMock())
-    monkeypatch.setattr(
-        "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
-    )
+    monkeypatch.setattr("ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock())
+    
+    # Use temp database to avoid conflicts
+    monkeypatch.setenv("CIRIS_DB_PATH", str(tmp_path / "test.db"))
 
     runtime = CIRISRuntime(modes=["cli"], profile_name="default", interactive=False)
     await runtime.initialize()

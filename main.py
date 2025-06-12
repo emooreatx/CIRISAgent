@@ -38,10 +38,15 @@ def setup_signal_handlers(runtime: CIRISRuntime) -> None:
             sys.exit(1)
         
         shutdown_initiated["value"] = True
-        logger.info(f"Received signal {signum}, requesting graceful shutdown...")
+        signal_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT" if signum == signal.SIGINT else f"Signal {signum}"
+        shutdown_reason = f"Initiating shutdown - {signal_name} received"
+        logger.info(shutdown_reason)
+        print(shutdown_reason, flush=True)  # Ensure it's captured in stdout and flushed
         
         try:
             runtime.request_shutdown(f"Signal {signum}")
+            # Exit cleanly after shutdown request
+            sys.exit(0)
         except Exception as e:
             logger.error(f"Error during shutdown request: {e}")
             sys.exit(1)
@@ -69,7 +74,7 @@ def _create_thought() -> Thought:
     return Thought(
         thought_id=str(uuid.uuid4()),
         source_task_id=str(uuid.uuid4()),
-        thought_type="manual",
+        thought_type="standard",
         status=ThoughtStatus.PENDING,
         created_at=now,
         updated_at=now,
@@ -78,35 +83,26 @@ def _create_thought() -> Thought:
     )
 
 
-async def _execute_handler(runtime: CIRISRuntime, handler: str, params: Optional[str]) -> None:
-    handler_type = HandlerActionType[handler.upper()]
-    dispatcher = runtime.agent_processor.action_dispatcher
-    handler_instance = dispatcher.handlers.get(handler_type)
-    if not handler_instance:
-        raise ValueError(f"Handler {handler} not registered")
-    payload = json.loads(params) if params else {}
-    result = ActionSelectionResult(
-        selected_action=handler_type,
-        action_parameters=payload,
-        rationale="manual trigger",
-    )
-    thought = _create_thought()
-    await handler_instance.handle(result, thought, {"channel_id": runtime.startup_channel_id})
 
 
 async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds: Optional[int] = None) -> None:
     """Run the runtime with optional timeout and graceful shutdown."""
+    logger.info(f"[DEBUG] _run_runtime called with timeout={timeout}, num_rounds={num_rounds}")
     try:
         if timeout:
             # Use asyncio.wait_for for timeout handling  
+            logger.info(f"[DEBUG] Setting up timeout for {timeout} seconds")
             try:
                 await asyncio.wait_for(runtime.run(num_rounds=num_rounds), timeout=timeout)
             except asyncio.TimeoutError:
-                logger.info(f"Timeout of {timeout} seconds reached, shutting down...")
+                timeout_msg = f"Initiating shutdown - Timeout of {timeout} seconds reached"
+                logger.info(timeout_msg)
+                print(timeout_msg, flush=True)
                 runtime.request_shutdown(f"Runtime timeout after {timeout} seconds")
                 await runtime.shutdown()
         else:
             # Run without timeout
+            logger.info(f"[DEBUG] Running without timeout")
             await runtime.run(num_rounds=num_rounds)
     except KeyboardInterrupt:
         logger.info("Received interrupt signal, shutting down gracefully...")
@@ -123,13 +119,12 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
 
 
 @click.command()
-@click.option("--modes", "modes_list", multiple=True, default=["auto"], help="One or more adapter modes to run (e.g., cli, api, discord).")
+@click.option("--adapter", "modes_list", multiple=True, default=["auto"], help="One or more adapters to run. Specify multiple times for multiple adapters (e.g., --adapter cli --adapter api --adapter discord).")
+@click.option("--modes", "legacy_modes", help="Legacy comma-separated list of modes (deprecated, use --adapter instead).")
 @click.option("--profile", default="default", help="Agent profile name")
 @click.option("--config", "config_file_path", type=click.Path(exists=True), help="Path to app config")
 @click.option("--task", multiple=True, help="Task description to add before starting")
 @click.option("--timeout", type=int, help="Maximum runtime duration in seconds")
-@click.option("--handler", help="Direct handler to execute and exit")
-@click.option("--params", help="JSON parameters for handler execution")
 @click.option("--host", "api_host", default=None, help="API host (default: 0.0.0.0)")
 @click.option("--port", "api_port", default=None, type=int, help="API port (default: 8080)")
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
@@ -139,12 +134,11 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
 @click.option("--num-rounds", type=int, help="Maximum number of processing rounds (default: infinite)")
 def main(
     modes_list: tuple[str, ...],
+    legacy_modes: Optional[str],
     profile: str,
     config_file_path: Optional[str],
     task: tuple[str],
     timeout: Optional[int],
-    handler: Optional[str],
-    params: Optional[str],
     api_host: Optional[str],
     api_port: Optional[int],
     debug: bool,
@@ -165,18 +159,61 @@ def main(
                 "For a local model set OPENAI_API_BASE, OPENAI_MODEL_NAME and provide any OPENAI_API_KEY."
             )
 
+        # Handle backward compatibility for --modes
+        final_modes_list = list(modes_list)
+        if legacy_modes:
+            click.echo("Warning: --modes is deprecated. Use --adapter instead (e.g., --adapter cli --adapter api).", err=True)
+            # Split comma-separated modes and add to the list
+            legacy_mode_list = [mode.strip() for mode in legacy_modes.split(",")]
+            final_modes_list.extend(legacy_mode_list)
+        
+        # Validate adapter modes early
+        valid_adapters = {"api", "cli", "discord", "auto"}
+        
+        # Handle mode auto-detection and support multiple instances of same adapter type
+        selected_modes = []
+        for mode in final_modes_list:
+            # Extract base mode name (before any colon)
+            base_mode = mode.split(":")[0] if ":" in mode else mode
+            
+            # Validate adapter type
+            if base_mode not in valid_adapters:
+                click.echo(f"Error: Invalid adapter '{base_mode}'. Valid adapters are: {', '.join(sorted(valid_adapters))}", err=True)
+                sys.exit(1)
+            
+            if "auto" == mode:
+                auto_mode = "discord" if discord_bot_token or get_env_var("DISCORD_BOT_TOKEN") else "cli"
+                selected_modes.append(auto_mode)
+            elif ":" in mode:
+                # Support instance-specific modes like "discord:instance1" or "api:port8081"
+                selected_modes.append(mode)
+            else:
+                selected_modes.append(mode)
+
+        # Validate Discord modes have tokens available
+        validated_modes = []
+        for mode in selected_modes:
+            if mode.startswith("discord"):
+                base_mode, instance_id = (mode.split(":", 1) + [None])[:2]
+                # Check for instance-specific token or fallback to general token
+                token_vars = []
+                if instance_id:
+                    token_vars.extend([f"DISCORD_{instance_id.upper()}_BOT_TOKEN", f"DISCORD_BOT_TOKEN_{instance_id.upper()}"])
+                token_vars.append("DISCORD_BOT_TOKEN")
+                
+                has_token = discord_bot_token or any(get_env_var(var) for var in token_vars)
+                if not has_token:
+                    click.echo(f"No Discord bot token found for {mode}, falling back to CLI mode")
+                    validated_modes.append("cli")
+                else:
+                    validated_modes.append(mode)
+            else:
+                validated_modes.append(mode)
+        
+        selected_modes = validated_modes
+
+        # Load config
         app_config = await load_config(config_file_path)
-
-        # Handle mode auto-detection
-        selected_modes = list(modes_list)
-        if "auto" in selected_modes:
-            selected_modes.remove("auto")
-            auto_mode = "discord" if discord_bot_token or get_env_var("DISCORD_BOT_TOKEN") else "cli"
-            selected_modes.append(auto_mode)
-
-        if "discord" in selected_modes and not (discord_bot_token or get_env_var("DISCORD_BOT_TOKEN")):
-            click.echo("DISCORD_BOT_TOKEN not set, falling back to CLI mode")
-            selected_modes = ["cli" if m == "discord" else m for m in selected_modes]
 
         if mock_llm:
             from tests.adapters.mock_llm import MockLLMService  # type: ignore
@@ -185,47 +222,82 @@ def main(
             app_config.mock_llm = True  # Set the flag in config for other components
 
         
-        # Set startup_channel_id
+        # Create adapter configurations for each mode and determine startup channel
+        adapter_configs = {}
         startup_channel_id = getattr(app_config, 'startup_channel_id', None)
         if hasattr(app_config, 'discord_channel_id'):
             startup_channel_id = app_config.discord_channel_id
         
-        # Set channel_id based on mode
-        if "api" in selected_modes:
-            from ciris_engine.adapters.api.config import APIAdapterConfig
-            api_config = APIAdapterConfig()
-            if api_host:
-                api_config.host = api_host
-            if api_port:
-                api_config.port = api_port
-            api_config.load_env_vars()
-            
-            app_config.api_channel_id = api_config.get_channel_id(api_config.host, api_config.port)
-            if not startup_channel_id:
-                startup_channel_id = app_config.api_channel_id
-        elif "cli" in selected_modes:
-            # Use user@hostname for CLI channel_id
-            import getpass
-            import socket
-            try:
-                username = getpass.getuser()
-                hostname = socket.gethostname()
-                app_config.cli_channel_id = f"{username}@{hostname}"
-            except Exception:
-                # Fallback to generic if we can't get user/hostname
-                app_config.cli_channel_id = "cli_terminal"
-            if not startup_channel_id:
-                startup_channel_id = app_config.cli_channel_id
+        for mode in selected_modes:
+            if mode.startswith("api"):
+                base_mode, instance_id = (mode.split(":", 1) + [None])[:2]
+                from ciris_engine.adapters.api.config import APIAdapterConfig
+                
+                api_config = APIAdapterConfig()
+                if api_host:
+                    api_config.host = api_host
+                if api_port:
+                    api_config.port = api_port
+                
+                # Load environment variables with instance-specific support
+                if instance_id:
+                    api_config.load_env_vars_with_instance(instance_id)
+                else:
+                    api_config.load_env_vars()
+                
+                adapter_configs[mode] = api_config
+                api_channel_id = api_config.get_home_channel_id(api_config.host, api_config.port)
+                if not startup_channel_id:
+                    startup_channel_id = api_channel_id
+                    
+            elif mode.startswith("discord"):
+                base_mode, instance_id = (mode.split(":", 1) + [None])[:2]
+                from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+                
+                discord_config = DiscordAdapterConfig()
+                if discord_bot_token:
+                    discord_config.bot_token = discord_bot_token
+                
+                # Load environment variables with instance-specific support
+                if instance_id:
+                    discord_config.load_env_vars_with_instance(instance_id)
+                else:
+                    discord_config.load_env_vars()
+                
+                adapter_configs[mode] = discord_config
+                discord_channel_id = discord_config.get_home_channel_id()
+                if discord_channel_id and not startup_channel_id:
+                    startup_channel_id = discord_channel_id
+                    
+            elif mode.startswith("cli"):
+                base_mode, instance_id = (mode.split(":", 1) + [None])[:2]
+                from ciris_engine.adapters.cli.config import CLIAdapterConfig
+                
+                cli_config = CLIAdapterConfig()
+                if not cli_interactive:
+                    cli_config.interactive = False
+                
+                # Load environment variables with instance-specific support
+                if instance_id:
+                    cli_config.load_env_vars_with_instance(instance_id)
+                else:
+                    cli_config.load_env_vars()
+                
+                adapter_configs[mode] = cli_config
+                cli_channel_id = cli_config.get_home_channel_id()
+                if not startup_channel_id:
+                    startup_channel_id = cli_channel_id
 
         # Setup global exception handling
         setup_global_exception_handler()
         
-        # Create runtime using new CIRISRuntime directly
+        # Create runtime using new CIRISRuntime directly with adapter configs
         runtime = CIRISRuntime(
             modes=selected_modes,
             profile_name=profile,
             app_config=app_config,
             startup_channel_id=startup_channel_id,
+            adapter_configs=adapter_configs,
             interactive=cli_interactive,
             host=api_host,
             port=api_port,
@@ -240,10 +312,6 @@ def main(
         preload_tasks = list(task) if task else []
         runtime.set_preload_tasks(preload_tasks)
 
-        if handler:
-            await _execute_handler(runtime, handler, params)
-            await runtime.shutdown()
-            return
 
         # Use CLI num_rounds if provided, otherwise fall back to config
         effective_num_rounds = num_rounds

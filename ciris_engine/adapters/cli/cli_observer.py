@@ -1,12 +1,8 @@
 import asyncio
 import logging
-import os
 from typing import Callable, Awaitable, Dict, Any, Optional
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
-from ciris_engine.utils.constants import DEFAULT_WA
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.adapters.base_observer import BaseObserver
@@ -32,6 +28,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         secrets_service: Optional[SecretsService] = None,
         *,
         interactive: bool = True,
+        config: Optional[Any] = None,
     ) -> None:
         super().__init__(
             on_observe,
@@ -43,6 +40,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
             origin_service="cli",
         )
         self.interactive = interactive
+        self.config = config
         self._input_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
 
@@ -56,33 +54,82 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         """Stop the observer and background input loop."""
         if self._input_task:
             self._stop_event.set()
-            await self._input_task
+            try:
+                # Give the input task a chance to complete gracefully
+                await asyncio.wait_for(self._input_task, timeout=1.0)
+            except asyncio.TimeoutError:
+                logger.warning("Input task did not complete within timeout, cancelling")
+                self._input_task.cancel()
+                try:
+                    await self._input_task
+                except asyncio.CancelledError:
+                    pass
             self._input_task = None
             self._stop_event.clear()
         logger.info("CLIObserver stopped")
 
     async def _input_loop(self) -> None:
         """Read lines from stdin and handle them as messages."""
-        while not self._stop_event.is_set():
-            line = await asyncio.to_thread(input, ">>> ")
-            if not line:
-                continue
-            if line.lower() in {"exit", "quit", "bye"}:
-                self._stop_event.set()
-                break
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    line = await asyncio.to_thread(input, ">>> ")
+                except asyncio.CancelledError:
+                    logger.debug("Input loop cancelled")
+                    break
+                    
+                if not line:
+                    continue
+                if line.lower() in {"exit", "quit", "bye"}:
+                    self._stop_event.set()
+                    break
 
-            msg = IncomingMessage(
-                message_id=f"cli_{asyncio.get_event_loop().time()}",
-                content=line,
-                author_id="local_user",
-                author_name="User",
-                channel_id="cli",
-            )
-            await self.handle_incoming_message(msg)
+                # Get channel ID from config or default to "cli"
+                channel_id = "cli"
+                if self.config and hasattr(self.config, 'get_home_channel_id'):
+                    channel_id = self.config.get_home_channel_id()
+                    
+                msg = IncomingMessage(
+                    message_id=f"cli_{asyncio.get_event_loop().time()}",
+                    content=line,
+                    author_id="local_user",
+                    author_name="User",
+                    channel_id=channel_id,
+                )
+                await self.handle_incoming_message(msg)
+        except asyncio.CancelledError:
+            logger.debug("Input loop task cancelled")
+            raise
 
     async def _get_recall_ids(self, msg: IncomingMessage) -> set[str]:
         import socket
         return {f"channel/{socket.gethostname()}"}
+
+    def _is_cli_channel(self, channel_id: str) -> bool:
+        """Check if a channel ID belongs to this CLI observer instance."""
+        # Handle the default "cli" channel
+        if channel_id == "cli":
+            return True
+        
+        # Handle configured channel ID from self.config
+        if self.config and hasattr(self.config, 'get_home_channel_id'):
+            config_channel = self.config.get_home_channel_id()
+            if config_channel and channel_id == config_channel:
+                return True
+        
+        # Handle hostname-based channels (for compatibility with _get_recall_ids format)
+        import socket
+        hostname_channel = socket.gethostname()
+        if channel_id == hostname_channel or channel_id == f"channel/{hostname_channel}":
+            return True
+        
+        # Handle user@hostname format
+        import getpass
+        user_hostname = f"{getpass.getuser()}@{socket.gethostname()}"
+        if channel_id == user_hostname:
+            return True
+            
+        return False
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:
         if not isinstance(msg, IncomingMessage):
@@ -128,51 +175,25 @@ class CLIObserver(BaseObserver[IncomingMessage]):
 
     async def _handle_priority_observation(self, msg: IncomingMessage, filter_result) -> None:
         """Handle high-priority messages with immediate processing"""
-        from ciris_engine.config.config_manager import get_config
-        from ciris_engine.utils.constants import (
-            DISCORD_DEFERRAL_CHANNEL_ID,
-            DEFAULT_WA,
-        )
-
-        config_discord_channel_id = get_config().discord_channel_id
-        deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
-        wa_discord_user = DEFAULT_WA
+        # The CLI observer should handle any CLI-related channel, not just "cli"
+        # This could be "cli", "user@hostname", or any channel ID this CLI instance is responsible for
         
-        if (msg.channel_id == "cli" or msg.channel_id == config_discord_channel_id) and not self._is_agent_message(msg):
+        if self._is_cli_channel(msg.channel_id) and not self._is_agent_message(msg):
             # Create high-priority observation with enhanced context
             await self._create_priority_observation_result(msg, filter_result)
-        elif msg.channel_id == deferral_channel_id and msg.author_name == wa_discord_user:
-            await self._add_to_feedback_queue(msg)
         else:
-            logger.debug("Ignoring priority message from channel %s, author %s", msg.channel_id, msg.author_name)
+            logger.debug("Ignoring priority message from channel %s, author %s for CLI observer", msg.channel_id, msg.author_name)
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
         """Handle passive observation routing based on channel ID and author filtering"""
         
-        # Get environment variables for channel filtering
-        from ciris_engine.config.config_manager import get_config
-        from ciris_engine.utils.constants import (
-            DISCORD_DEFERRAL_CHANNEL_ID,
-            DEFAULT_WA,
-        )
-
-        config_discord_channel_id = get_config().discord_channel_id
-        deferral_channel_id = DISCORD_DEFERRAL_CHANNEL_ID
-        wa_discord_user = DEFAULT_WA
-        
-        logger.debug(f"Message channel_id: {msg.channel_id}")
-        logger.debug(f"Config discord_channel_id: {config_discord_channel_id}")
+        logger.debug(f"CLI Message channel_id: {msg.channel_id}")
         
         # Route messages based on channel and author
-        # For CLI messages (channel_id == "cli"), always process them
-        # For Discord messages, only process if they match the configured channel
-        if (msg.channel_id == "cli" or msg.channel_id == config_discord_channel_id) and not self._is_agent_message(msg):
-            # Create passive observation result for CLI or configured Discord channel
+        # For CLI messages, process any channel that this CLI observer is responsible for
+        if self._is_cli_channel(msg.channel_id) and not self._is_agent_message(msg):
             await self._create_passive_observation_result(msg)
-        elif msg.channel_id == deferral_channel_id and msg.author_name == wa_discord_user:
-            # Add to fetch feedback queue for WA messages in deferral channel
-            await self._add_to_feedback_queue(msg)
         else:
             # Ignore messages from other channels or from agent itself
-            logger.debug("Ignoring message from channel %s, author %s", msg.channel_id, msg.author_name)
+            logger.debug("Ignoring passive message from channel %s, author %s for CLI observer", msg.channel_id, msg.author_name)
 

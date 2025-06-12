@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, List
 from datetime import datetime
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
-from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from enum import Enum
 
 

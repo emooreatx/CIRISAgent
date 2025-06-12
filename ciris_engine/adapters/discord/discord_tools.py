@@ -3,8 +3,7 @@ Discord Tool Suite: Moderation, Channel Management, and Info Tools
 Implements async tool handlers and registration for CIRIS ToolRegistry.
 """
 import discord
-import asyncio
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 
 

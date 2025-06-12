@@ -1,12 +1,7 @@
 import logging
-import os
-import asyncio
-from typing import Callable, Awaitable, Dict, Any, Optional, List
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
+from typing import Any, Optional, List
 
 from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage
-from ciris_engine.schemas.service_actions_v1 import FetchMessagesAction
-from ciris_engine.utils.constants import DEFAULT_WA
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.adapters.base_observer import BaseObserver
@@ -25,8 +20,9 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
 
     def __init__(
         self,
-        monitored_channel_id: Optional[str] = None,
         monitored_channel_ids: Optional[List[str]] = None,
+        deferral_channel_id: Optional[str] = None,
+        wa_user_ids: Optional[List[str]] = None,
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
         multi_service_sink: Optional[MultiServiceActionSink] = None,
@@ -45,26 +41,12 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         )
         self.communication_service = communication_service
 
-        from ciris_engine.config.config_manager import get_config
-        config = get_config()
+        # Store deferral channel and WA user IDs
+        self.deferral_channel_id = deferral_channel_id
+        self.wa_user_ids = wa_user_ids or []
 
-        # Support both new list format and legacy single channel
-        if monitored_channel_ids is None:
-            if monitored_channel_id is None:
-                # Try new list format first, then fall back to legacy
-                if config.discord_channel_ids:
-                    self.monitored_channel_ids = config.discord_channel_ids
-                elif config.discord_channel_id:
-                    self.monitored_channel_ids = [config.discord_channel_id]
-                else:
-                    self.monitored_channel_ids = []
-            else:
-                self.monitored_channel_ids = [monitored_channel_id]
-        else:
-            self.monitored_channel_ids = monitored_channel_ids
-        
-        # Keep legacy field for backward compatibility
-        self.monitored_channel_id = self.monitored_channel_ids[0] if self.monitored_channel_ids else None
+        # Set monitored channels list
+        self.monitored_channel_ids = monitored_channel_ids or []
 
     async def _send_deferral_message(self, content: str) -> None:
         """Send a message to the deferral channel."""
@@ -72,15 +54,12 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             logger.warning("No communication service available to send deferral message")
             return
         
-        from ciris_engine.config.config_manager import get_config
-        deferral_channel_id = get_config().discord_deferral_channel_id
-        
-        if not deferral_channel_id:
+        if not self.deferral_channel_id:
             logger.warning("No deferral channel configured")
             return
         
         try:
-            await self.communication_service.send_message(deferral_channel_id, content)
+            await self.communication_service.send_message(self.deferral_channel_id, content)
             logger.debug(f"Sent deferral response: {content[:100]}...")
         except Exception as e:
             logger.error(f"Failed to send deferral message: {e}")
@@ -97,18 +76,13 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         if not isinstance(msg, DiscordMessage):
             logger.warning("DiscordObserver received non-DiscordMessage")
             return
-        # Accept messages from both monitored channel and deferral channel
-        from ciris_engine.config.config_manager import get_config
-        config = get_config()
-        deferral_channel_id = config.discord_deferral_channel_id
-        
-        # Check if message is from a monitored channel
+        # Check if message is from a monitored channel or deferral channel
         is_from_monitored = (self.monitored_channel_ids and msg.channel_id in self.monitored_channel_ids)
-        is_from_deferral = (deferral_channel_id and msg.channel_id == deferral_channel_id)
+        is_from_deferral = (self.deferral_channel_id and msg.channel_id == self.deferral_channel_id)
         
         if not (is_from_monitored or is_from_deferral):
             logger.debug("Ignoring message from channel %s (not in monitored channels %s or deferral %s)", 
-                        msg.channel_id, self.monitored_channel_ids, deferral_channel_id)
+                        msg.channel_id, self.monitored_channel_ids, self.deferral_channel_id)
             return
         
         # Check if this is the agent's own message
@@ -150,40 +124,32 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
 
     async def _handle_priority_observation(self, msg: DiscordMessage, filter_result) -> None:
         """Handle high-priority messages with immediate processing"""
-        from ciris_engine.config.config_manager import get_config
         from ciris_engine.utils.constants import (
             DEFAULT_WA,
         )
 
-        config = get_config()
         monitored_channel_ids = self.monitored_channel_ids or []
-        deferral_channel_id = config.discord_deferral_channel_id
         wa_discord_user = DEFAULT_WA
-        authorized_user_id = "537080239679864862"  # Your Discord user ID
         
         if msg.channel_id in monitored_channel_ids:
             # Create high-priority observation with enhanced context
             await self._create_priority_observation_result(msg, filter_result)
-        elif msg.channel_id == deferral_channel_id and (msg.author_id == authorized_user_id or msg.author_name == wa_discord_user):
+        elif msg.channel_id == self.deferral_channel_id and (msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user):
             await self._add_to_feedback_queue(msg)
         else:
             logger.debug("Ignoring priority message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id)
 
     async def _handle_passive_observation(self, msg: DiscordMessage) -> None:
-        from ciris_engine.config.config_manager import get_config
         from ciris_engine.utils.constants import (
             DEFAULT_WA,
         )
 
-        config = get_config()
         monitored_channel_ids = self.monitored_channel_ids or []
-        deferral_channel_id = config.discord_deferral_channel_id
         wa_discord_user = DEFAULT_WA
-        authorized_user_id = "537080239679864862"  # Your Discord user ID
         
         if msg.channel_id in monitored_channel_ids:
             await self._create_passive_observation_result(msg)
-        elif msg.channel_id == deferral_channel_id and (msg.author_id == authorized_user_id or msg.author_name == wa_discord_user):
+        elif msg.channel_id == self.deferral_channel_id and (msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user):
             await self._add_to_feedback_queue(msg)
         else:
             logger.debug("Ignoring message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id)
@@ -195,9 +161,8 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             # First validate that the user is a wise authority
             from ciris_engine.utils.constants import DEFAULT_WA
             wa_discord_user = DEFAULT_WA
-            authorized_user_id = "537080239679864862"  # Your Discord user ID
             
-            is_wise_authority = (msg.author_id == authorized_user_id or msg.author_name == wa_discord_user)
+            is_wise_authority = (msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user)
             
             if not is_wise_authority:
                 error_msg = f"🚫 **Not Authorized**: User `{msg.author_name}` (ID: `{msg.author_id}`) is not a Wise Authority. Not proceeding with guidance processing."

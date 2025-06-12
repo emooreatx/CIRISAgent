@@ -7,12 +7,11 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.states_v1 import AgentState
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 from ciris_engine import persistence
 from ciris_engine.processor.base_processor import BaseProcessor
 from ciris_engine.processor.task_manager import TaskManager
 from ciris_engine.processor.thought_manager import ThoughtManager
-from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.protocols.processor_interface import ProcessorInterface
 from ciris_engine.utils.context_utils import build_dispatch_context
 
@@ -221,14 +220,11 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
         return (datetime.now(timezone.utc) - self.last_activity_time).total_seconds()
     
     
-    def should_transition_to_dream(self, idle_threshold: float = 300) -> bool:
+    def should_transition_to_dream(self) -> bool:
         """
         Check if we should recommend transitioning to DREAM state.
         
         DISABLED: Idle mode transitions are disabled.
-        
-        Args:
-            idle_threshold: Seconds of idle time before recommending DREAM
         
         Returns:
             Always returns False (idle mode disabled)

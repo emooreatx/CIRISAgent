@@ -2,10 +2,9 @@
 
 import logging
 from typing import Dict, Any, Optional
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.action_params_v1 import PonderParams
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
 from ciris_engine.utils import GraphQLContextProvider
 from ciris_engine.secrets.service import SecretsService
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
+from ciris_engine.schemas.agent_core_schemas_v1 import Task
 from ciris_engine.schemas.context_schemas_v1 import SystemSnapshot
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus

@@ -6,10 +6,9 @@ and management of sensitive information within the CIRIS pipeline.
 """
 
 from datetime import datetime
-from typing import List, Dict, Optional, Any, Literal, Tuple, TYPE_CHECKING
+from typing import List, Dict, Optional, Any, Literal, TYPE_CHECKING
 from pydantic import BaseModel, Field
 from enum import Enum
-import uuid
 from .foundational_schemas_v1 import SensitivityLevel
 
 if TYPE_CHECKING:

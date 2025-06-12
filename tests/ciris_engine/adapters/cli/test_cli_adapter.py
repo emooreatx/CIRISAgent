@@ -32,8 +32,6 @@ async def test_cli_observer_handle_message(monkeypatch):
     )
 
     observer = CLIObserver(lambda _: None)
-    # Ensure DISCORD_CHANNEL_ID is unset so CLIObserver falls back to 'cli'
-    monkeypatch.delenv("DISCORD_CHANNEL_ID", raising=False)
     msg = IncomingMessage(
         message_id=SchemaVersion.V1_0,
         content=SchemaVersion.V1_0,

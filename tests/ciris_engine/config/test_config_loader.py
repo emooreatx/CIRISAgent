@@ -17,14 +17,24 @@ async def test_load_config_overlays(tmp_path, monkeypatch):
         yaml.safe_dump({"database": {"db_filename": "base.db"}}, f)
 
     with open(profile, "w") as f:
-        yaml.safe_dump({"database": {"db_filename": "profile.db"}}, f)
+        # Create a proper AgentProfile definition for the "agent" profile
+        yaml.safe_dump({
+            "name": "agent"
+            # The discord_config will be created empty and populated by env vars
+        }, f)
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DISCORD_CHANNEL_ID", "123")
 
     config = await ConfigLoader.load_config(base, "agent")
-    assert config.database.db_filename == "profile.db"
-    assert config.discord_channel_id == "123"
+    assert config.database.db_filename == "base.db"  # Should come from base config since profile doesn't override it
+    # The home channel ID should now be sourced from the active agent profile's discord_config
+    active_profile = config.agent_profiles.get("agent")
+    assert active_profile is not None
+    assert active_profile.discord_config is not None
+    # DISCORD_CHANNEL_ID is loaded as a monitored channel and potentially as home_channel_id by DiscordAdapterConfig.load_env_vars
+    # and then retrieved by get_home_channel_id()
+    assert active_profile.discord_config.get_home_channel_id() == "123"
 
 
 @pytest.mark.asyncio

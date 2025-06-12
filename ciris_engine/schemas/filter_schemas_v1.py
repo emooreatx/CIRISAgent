@@ -6,10 +6,9 @@ with graph memory persistence and self-configuration support.
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Any, Pattern
+from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
 from enum import Enum
-import re
 
 
 class FilterPriority(str, Enum):

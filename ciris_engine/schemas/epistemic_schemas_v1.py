@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 
 class FacultyResult(BaseModel):
     """Base class for epistemic faculty results."""
-    pass
 
 class EntropyResult(FacultyResult):
     """Result from entropy evaluation."""

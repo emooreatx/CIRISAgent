@@ -6,7 +6,6 @@ from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.dma_interface import (
     EthicalDMAInterface,
     CSDMAInterface,
-    DSDMAInterface,
     ActionSelectionDMAInterface,
 )
 from ciris_engine.protocols.faculties import EpistemicFaculty

@@ -7,7 +7,7 @@ hash chains, digital signatures, and root anchoring.
 
 import sqlite3
 import logging
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 from .hash_chain import AuditHashChain

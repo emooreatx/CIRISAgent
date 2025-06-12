@@ -1,7 +1,7 @@
 import json
 import re
 import logging
-from typing import Dict, Any, Optional, Type, List, Tuple
+from typing import Dict, Any, Optional, Type, List, Tuple, Union, cast
 
 from pydantic import BaseModel
 from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusError
@@ -118,9 +118,14 @@ class OpenAICompatibleClient(Service):
         logger.debug(f"Raw LLM call with messages: {messages}")
         
         async def _make_raw_call() -> Tuple[str, ResourceUsage]:
+            # Convert messages to the format expected by OpenAI if needed
+            if messages and isinstance(messages[0], dict):
+                formatted_messages = [{"role": msg.get("role", "user"), "content": msg.get("content", "")} for msg in messages]
+            else:
+                formatted_messages = messages
             response = await self.client.chat.completions.create(
                 model=self.model_name,
-                messages=messages,
+                messages=cast(Any, formatted_messages),
                 max_tokens=max_tokens,
                 temperature=temperature,
                 **kwargs,
@@ -150,14 +155,16 @@ class OpenAICompatibleClient(Service):
         response_model: Type[BaseModel],
         max_tokens: int = 1024,
         temperature: float = 0.0,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[BaseModel, ResourceUsage]:
         logger.debug(f"Structured LLM call for {response_model.__name__}")
         
         async def _make_structured_call() -> Tuple[Any, ResourceUsage]:
+            # Convert messages to the format expected by OpenAI  
+            formatted_messages = [{"role": msg.get("role", "user"), "content": msg.get("content", "")} for msg in messages]
             response = await self.instruct_client.chat.completions.create(
                 model=self.model_name,
-                messages=messages,
+                messages=cast(Any, formatted_messages),
                 response_model=response_model,
                 max_retries=0,  # Disable instructor retries, we handle our own
                 max_tokens=max_tokens,

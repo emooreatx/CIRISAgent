@@ -69,6 +69,7 @@ class ForgetParams(BaseModel):
 
     node: GraphNode
     reason: str
+    no_audit: bool = False
 
     model_config = ConfigDict(extra="forbid")
 

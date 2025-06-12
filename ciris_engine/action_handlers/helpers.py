@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 import uuid
 import logging
-from typing import Optional, Dict, Any
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, ThoughtType

@@ -13,7 +13,7 @@ from ciris_engine.protocols.services import LLMService
 from ciris_engine.protocols.faculties import EpistemicFaculty
 
 if TYPE_CHECKING:
-    from ciris_engine.protocols.dma_interface import BaseDMAInterface
+    pass
 
 # Type variables for backward compatibility
 InputT = TypeVar('InputT')

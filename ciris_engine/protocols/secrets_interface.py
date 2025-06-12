@@ -8,16 +8,13 @@ to ensure consistent and secure handling of sensitive information.
 
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any, Tuple
-from datetime import datetime
 
 from ciris_engine.schemas.secrets_schemas_v1 import (
     SecretRecord,
     SecretReference,
     SecretAccessLog,
     DetectedSecret,
-    SecretsFilterResult,
-    RecallSecretParams,
-    UpdateSecretsFilterParams
+    SecretsFilterResult
 )
 from ciris_engine.schemas.config_schemas_v1 import (
     SecretsFilter,
@@ -40,7 +37,6 @@ class SecretsFilterInterface(ABC):
         Returns:
             SecretsFilterResult with filtered content and detected secrets
         """
-        pass
     
     @abstractmethod
     async def add_pattern(self, pattern: SecretPattern) -> bool:
@@ -53,7 +49,6 @@ class SecretsFilterInterface(ABC):
         Returns:
             True if pattern was added successfully
         """
-        pass
     
     @abstractmethod
     async def remove_pattern(self, pattern_name: str) -> bool:
@@ -66,7 +61,6 @@ class SecretsFilterInterface(ABC):
         Returns:
             True if pattern was removed successfully
         """
-        pass
     
     @abstractmethod
     async def get_filter_config(self) -> SecretsFilter:
@@ -76,7 +70,6 @@ class SecretsFilterInterface(ABC):
         Returns:
             Current SecretsFilter configuration
         """
-        pass
     
     @abstractmethod
     async def update_filter_config(self, updates: Dict[str, Any]) -> bool:
@@ -89,7 +82,6 @@ class SecretsFilterInterface(ABC):
         Returns:
             True if configuration was updated successfully
         """
-        pass
 
 
 class SecretsStoreInterface(ABC):
@@ -107,7 +99,6 @@ class SecretsStoreInterface(ABC):
         Returns:
             SecretRecord with storage metadata
         """
-        pass
     
     @abstractmethod
     async def retrieve_secret(self, secret_uuid: str, decrypt: bool = False) -> Optional[SecretRecord]:
@@ -121,7 +112,6 @@ class SecretsStoreInterface(ABC):
         Returns:
             SecretRecord if found, None otherwise
         """
-        pass
     
     @abstractmethod
     async def delete_secret(self, secret_uuid: str) -> bool:
@@ -134,7 +124,6 @@ class SecretsStoreInterface(ABC):
         Returns:
             True if secret was deleted successfully
         """
-        pass
     
     @abstractmethod
     async def list_secrets(self, sensitivity_filter: Optional[str] = None, pattern_filter: Optional[str] = None) -> List[SecretReference]:
@@ -148,7 +137,6 @@ class SecretsStoreInterface(ABC):
         Returns:
             List of SecretReference objects
         """
-        pass
     
     @abstractmethod
     async def update_access_log(self, log_entry: SecretAccessLog) -> None:
@@ -158,7 +146,6 @@ class SecretsStoreInterface(ABC):
         Args:
             log_entry: The access log entry to record
         """
-        pass
     
     @abstractmethod
     async def get_access_logs(self, secret_uuid: Optional[str] = None, limit: int = 100) -> List[SecretAccessLog]:
@@ -172,7 +159,6 @@ class SecretsStoreInterface(ABC):
         Returns:
             List of SecretAccessLog entries
         """
-        pass
     
     @abstractmethod
     async def reencrypt_all(self, new_encryption_key: bytes) -> bool:
@@ -185,7 +171,6 @@ class SecretsStoreInterface(ABC):
         Returns:
             True if re-encryption was successful
         """
-        pass
 
 
 class SecretsServiceInterface(ABC):
@@ -204,7 +189,6 @@ class SecretsServiceInterface(ABC):
         Returns:
             Tuple of (filtered_text, secret_references)
         """
-        pass
     
     @abstractmethod
     async def decapsulate_secrets_in_parameters(self, parameters: Any, action_type: str, context: Dict[str, Any]) -> Any:
@@ -219,7 +203,6 @@ class SecretsServiceInterface(ABC):
         Returns:
             Parameters with secrets decapsulated
         """
-        pass
     
     @abstractmethod
     async def list_stored_secrets(self, limit: int = 10) -> List['SecretReference']:
@@ -232,7 +215,6 @@ class SecretsServiceInterface(ABC):
         Returns:
             List of SecretReference objects for agent introspection
         """
-        pass
     
     @abstractmethod
     async def recall_secret(self, secret_uuid: str, purpose: str, accessor: str = "agent", decrypt: bool = False) -> Optional[Dict[str, Any]]:
@@ -248,7 +230,6 @@ class SecretsServiceInterface(ABC):
         Returns:
             Secret information dict or None if not found/denied
         """
-        pass
     
     @abstractmethod
     async def update_filter_config(self, updates: Dict[str, Any], accessor: str = "agent") -> Dict[str, Any]:
@@ -262,7 +243,6 @@ class SecretsServiceInterface(ABC):
         Returns:
             Dictionary with operation result
         """
-        pass
     
     @abstractmethod
     async def forget_secret(self, secret_uuid: str, accessor: str = "agent") -> bool:
@@ -276,7 +256,6 @@ class SecretsServiceInterface(ABC):
         Returns:
             True if successfully forgotten
         """
-        pass
     
     # Non-abstract methods can be implemented optionally
     async def get_service_stats(self) -> Dict[str, Any]:
@@ -312,7 +291,6 @@ class SecretsEncryptionInterface(ABC):
         Returns:
             Tuple of (encrypted_value, salt, nonce)
         """
-        pass
     
     @abstractmethod
     def decrypt_secret(self, encrypted_value: bytes, salt: bytes, nonce: bytes) -> str:
@@ -327,7 +305,6 @@ class SecretsEncryptionInterface(ABC):
         Returns:
             The decrypted secret string
         """
-        pass
     
     @abstractmethod
     def rotate_master_key(self, new_master_key: Optional[bytes] = None) -> bytes:
@@ -340,7 +317,6 @@ class SecretsEncryptionInterface(ABC):
         Returns:
             The new master key that was set
         """
-        pass
     
     @abstractmethod
     def test_encryption(self) -> bool:
@@ -350,4 +326,3 @@ class SecretsEncryptionInterface(ABC):
         Returns:
             True if test passes, False otherwise
         """
-        pass

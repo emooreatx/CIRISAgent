@@ -1,16 +1,10 @@
 import uuid
 import os
-import subprocess
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
 
-from ciris_engine.schemas.correlation_schemas_v1 import (
-    ServiceCorrelation,
-    ServiceCorrelationStatus,
-)
-from ciris_engine import persistence
 
 from ciris_engine.protocols.services import (
     CommunicationService,

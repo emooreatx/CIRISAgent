@@ -3,7 +3,6 @@ Minimal telemetry for self-awareness on constrained devices.
 All metrics designed to fit in <4KB total.
 """
 from pydantic import BaseModel, Field
-from typing import Dict, List
 from .versioning import SchemaVersion
 
 class ResourceMetrics(BaseModel):
