@@ -70,8 +70,8 @@ class TestConfigBackupManager:
     @pytest.mark.asyncio
     async def test_backup_config_with_files(self, manager, sample_config_files):
         """Test backup with actual config files."""
-        # Patch Path to point to our sample files
-        with patch('pathlib.Path') as mock_path, \
+        # Patch Path in the module where it's used
+        with patch('ciris_engine.runtime.config_backup_manager.Path') as mock_path, \
              patch('shutil.copy2') as mock_copy, \
              patch('shutil.copytree') as mock_copytree:
             
@@ -87,6 +87,7 @@ class TestConfigBackupManager:
                 elif path_str == ".env":
                     return sample_config_files / ".env"
                 else:
+                    # Return a proper Path object for other paths
                     return Path(path_str)
             
             mock_path.side_effect = path_side_effect
@@ -108,15 +109,19 @@ class TestConfigBackupManager:
     @pytest.mark.asyncio
     async def test_backup_config_profiles_only(self, manager, sample_config_files):
         """Test backup including only profiles."""
-        with patch('pathlib.Path') as mock_path:
+        with patch('ciris_engine.runtime.config_backup_manager.Path') as mock_path:
             def path_side_effect(path_str):
                 if path_str.startswith("config/"):
                     # Return non-existent paths for config files
-                    return Path("/non/existent/path")
+                    mock_non_existent = MagicMock()
+                    mock_non_existent.exists.return_value = False
+                    return mock_non_existent
                 elif path_str == "ciris_profiles":
                     return sample_config_files / "ciris_profiles"
                 elif path_str == ".env":
-                    return Path("/non/existent/env")
+                    mock_non_existent = MagicMock()
+                    mock_non_existent.exists.return_value = False
+                    return mock_non_existent
                 else:
                     return Path(path_str)
             
@@ -170,7 +175,7 @@ class TestConfigBackupManager:
             json.dump(metadata, f)
         
         # Mock file system for restoration
-        with patch('pathlib.Path') as mock_path, \
+        with patch('ciris_engine.runtime.config_backup_manager.Path') as mock_path, \
              patch('shutil.copy2') as mock_copy:
             
             def path_side_effect(path_str):
