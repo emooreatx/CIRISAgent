@@ -109,6 +109,10 @@ class ProfileManager:
             
             # Validate profile structure
             try:
+                # Ensure models are rebuilt to resolve forward references
+                from ciris_engine.schemas.config_schemas_v1 import ensure_models_rebuilt
+                ensure_models_rebuilt()
+                
                 AgentProfile(**profile_data)
             except Exception as e:
                 return AgentProfileResponse(

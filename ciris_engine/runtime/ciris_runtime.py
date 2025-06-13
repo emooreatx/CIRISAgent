@@ -17,10 +17,10 @@ from ciris_engine.utils.constants import DEFAULT_NUM_ROUNDS
 from ciris_engine.adapters import load_adapter
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration
 
-from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
-from ciris_engine.adapters.openai_compatible_llm import OpenAICompatibleLLM
-from ciris_engine.adapters import AuditService
-from ciris_engine.adapters.signed_audit_service import SignedAuditService
+from ciris_engine.services.memory_service import LocalGraphMemoryService
+from ciris_engine.services.llm_service import OpenAICompatibleClient
+from ciris_engine.services.audit_service import AuditService
+from ciris_engine.services.signed_audit_service import SignedAuditService
 from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
 from .runtime_interface import RuntimeInterface
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
@@ -103,7 +103,7 @@ class CIRISRuntime(RuntimeInterface):
                 # Depending on desired behavior, you might want to raise here or just log and continue
                 # For now, let's log and continue, allowing other adapters to load.
         
-        self.llm_service: Optional[OpenAICompatibleLLM] = None
+        self.llm_service: Optional[OpenAICompatibleClient] = None
         self.memory_service: Optional[LocalGraphMemoryService] = None
         self.audit_service: Optional[AuditService] = None
         self.maintenance_service: Optional[DatabaseMaintenanceService] = None
@@ -256,7 +256,7 @@ class CIRISRuntime(RuntimeInterface):
         await self.telemetry_service.start()
         
         # Initialize LLM service with telemetry
-        self.llm_service = OpenAICompatibleLLM(config.llm_services, telemetry_service=self.telemetry_service)
+        self.llm_service = OpenAICompatibleClient(config.llm_services.openai, telemetry_service=self.telemetry_service)
         await self.llm_service.start()
         
         self.memory_service = LocalGraphMemoryService()
@@ -730,7 +730,7 @@ class CIRISRuntime(RuntimeInterface):
             
         logger.debug("Stopping core services...")
         services_to_stop = [
-            self.llm_service, # OpenAICompatibleLLM
+            self.llm_service, # OpenAICompatibleClient
             self.memory_service,
             self.audit_service,
             self.telemetry_service,

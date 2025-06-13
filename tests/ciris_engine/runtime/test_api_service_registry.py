@@ -8,11 +8,11 @@ from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 async def test_api_service_registry(monkeypatch):
     """Ensure API mode of CIRISRuntime has service registry structure (adapter doesn't register services)."""
     monkeypatch.setattr(
-        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start",
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.start",
         AsyncMock(),
     )
     monkeypatch.setattr(
-        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_raw",
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
     )
     monkeypatch.setattr(

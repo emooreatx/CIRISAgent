@@ -329,8 +329,8 @@ class TestDiscordAdapterRefactored:
         adapter._channel_manager.set_client(mock_client)
         
         # Test that RuntimeError from guidance handler is propagated
-        with patch.object(adapter._guidance_handler, 'fetch_guidance_from_channel', 
-                         side_effect=RuntimeError("Channel not found")):
+        # Mock retry_with_backoff to avoid delays and test error propagation directly
+        with patch.object(adapter, 'retry_with_backoff', side_effect=RuntimeError("Channel not found")):
             with patch('ciris_engine.config.config_manager.get_config') as mock_get_config:
                 mock_config = MagicMock()
                 mock_config.discord_deferral_channel_id = "123456"

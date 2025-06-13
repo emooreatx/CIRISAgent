@@ -89,7 +89,7 @@ def patch_persistence(monkeypatch, db: MemoryDB):
 
 def create_test_runtime(monkeypatch):
     monkeypatch.setenv('OPENAI_API_KEY', 'x')
-    monkeypatch.setattr('ciris_engine.runtime.ciris_runtime.OpenAICompatibleLLM', MockLLMService)
+    monkeypatch.setattr('ciris_engine.services.llm_service.OpenAICompatibleClient', MockLLMService)
     config = AppConfig(workflow=WorkflowConfig(max_rounds=1), llm_services=LLMServicesConfig(openai=OpenAIConfig(model_name='mock-model')))
     
     # Mock CIRISRuntime properly

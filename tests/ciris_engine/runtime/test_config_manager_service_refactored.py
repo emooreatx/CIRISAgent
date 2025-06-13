@@ -8,7 +8,7 @@ from ciris_engine.runtime.config_manager_service import ConfigManagerService
 from ciris_engine.schemas.runtime_control_schemas import (
     ConfigScope, ConfigValidationLevel, ConfigOperationResponse,
     ConfigValidationResponse, AgentProfileInfo, AgentProfileResponse,
-    EnvVarResponse, ConfigBackupResponse
+    ConfigBackupResponse
 )
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 
@@ -55,7 +55,6 @@ class TestConfigManagerServiceRefactored:
         expected_capabilities = [
             "config.get", "config.update", "config.validate",
             "profile.list", "profile.create", "profile.reload",
-            "env.set", "env.delete",
             "backup.create", "backup.restore"
         ]
         for cap in expected_capabilities:
@@ -256,34 +255,6 @@ class TestConfigManagerServiceRefactored:
             assert "test_profile" in service._profile_manager.get_loaded_profiles()
 
     @pytest.mark.asyncio
-    async def test_set_env_var_delegates(self, service):
-        """Test that set_env_var delegates to env var manager."""
-        expected_response = EnvVarResponse(
-            success=True, operation="set_env_var", variable_name="TEST_VAR",
-            timestamp=datetime.now(timezone.utc), message="Set successfully"
-        )
-        service._env_var_manager.set_env_var = AsyncMock(return_value=expected_response)
-        
-        result = await service.set_env_var("TEST_VAR", "value", persist=True)
-        
-        assert result == expected_response
-        service._env_var_manager.set_env_var.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_delete_env_var_delegates(self, service):
-        """Test that delete_env_var delegates to env var manager."""
-        expected_response = EnvVarResponse(
-            success=True, operation="delete_env_var", variable_name="TEST_VAR",
-            timestamp=datetime.now(timezone.utc), message="Deleted successfully"
-        )
-        service._env_var_manager.delete_env_var = AsyncMock(return_value=expected_response)
-        
-        result = await service.delete_env_var("TEST_VAR", persist=True)
-        
-        assert result == expected_response
-        service._env_var_manager.delete_env_var.assert_called_once()
-
-    @pytest.mark.asyncio
     async def test_backup_config_delegates(self, service):
         """Test that backup_config delegates to backup manager."""
         expected_response = ConfigBackupResponse(
@@ -347,11 +318,4 @@ class TestConfigManagerServiceRefactored:
         """Test placeholder persistence implementation."""
         # Should log but not fail
         await service._persist_config_change("test.path", "value", "testing")
-        # No assertion needed - just ensure it doesn't raise
-
-    @pytest.mark.asyncio
-    async def test_reload_config_with_env_vars_placeholder(self, service):
-        """Test placeholder env var reload implementation."""
-        # Should log but not fail
-        await service._reload_config_with_env_vars()
         # No assertion needed - just ensure it doesn't raise

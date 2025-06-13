@@ -511,7 +511,7 @@ class AppConfig(BaseModel):
 
 _models_rebuilt = False
 
-def ensure_models_rebuilt() -> None:
+def ensure_models_rebuilt():
     """Ensure models are rebuilt to resolve forward references before use.
     
     This function attempts to import all adapter configurations and rebuild

@@ -1,0 +1,231 @@
+version: "1.0"
+log_level: "INFO"
+
+# Database Configuration
+database:
+  db_filename: "ciris_engine.db"
+  data_directory: "data"
+  graph_memory_filename: "graph_memory.pkl"
+
+# LLM Services Configuration
+llm_services:
+  openai:
+    model_name: "gpt-4o-mini"
+    base_url: null
+    timeout_seconds: 30.0
+    max_retries: 3
+    api_key_env_var: "OPENAI_API_KEY"
+    instructor_mode: "JSON"
+
+# Workflow Processing Configuration
+workflow:
+  max_active_tasks: 10
+  max_active_thoughts: 50
+  round_delay_seconds: 1.0
+  max_rounds: 5
+  DMA_RETRY_LIMIT: 3
+  GUARDRAIL_RETRY_LIMIT: 2
+
+# Guardrails Configuration
+guardrails: {}
+
+# Telemetry Configuration - Secure by default
+telemetry:
+  enabled: false  # Disabled by default in beta
+  internal_only: true
+  retention_hours: 1
+  snapshot_interval_ms: 1000
+  buffer_size: 1000
+  security:
+    require_tls: true
+    require_auth: true
+    pii_detection: true
+    max_history_hours: 1
+    encryption_key_env: "TELEMETRY_ENCRYPTION_KEY"
+  collectors:
+    instant:
+      interval_ms: 50
+      max_buffer_size: 1000
+    fast:
+      interval_ms: 250
+      max_buffer_size: 5000
+    normal:
+      interval_ms: 1000
+      max_buffer_size: 10000
+    slow:
+      interval_ms: 5000
+      max_buffer_size: 5000
+    aggregate:
+      interval_ms: 30000
+      max_buffer_size: 1000
+  export:
+    otlp: false
+    websocket: false
+    api: false
+
+# Secrets Management Configuration
+secrets:
+  enabled: true
+  storage:
+    database_path: "secrets.db"
+    encryption_key_env: "SECRETS_MASTER_KEY"
+    key_rotation_days: 90
+  detection:
+    builtin_patterns: true
+    custom_patterns_enabled: true
+    sensitivity_threshold: "MEDIUM"
+  access_control:
+    max_accesses_per_minute: 10
+    max_accesses_per_hour: 100
+    max_decryptions_per_hour: 20
+    require_confirmation_for: ["CRITICAL"]
+  audit:
+    log_all_access: true
+    log_path: "secrets_audit.log"
+    retention_days: 365
+  auto_decapsulation:
+    enabled: true
+    allowed_actions: ["speak", "tool", "memorize"]
+    require_purpose: true
+
+# Resource Management Configuration
+resources:
+  enabled: true
+  monitoring:
+    interval_seconds: 1
+    history_hours: 24
+  budgets:
+    memory:
+      limit: 256
+      warning: 200
+      critical: 240
+      action: "defer"
+    cpu:
+      limit: 80
+      warning: 60
+      critical: 75
+      action: "throttle"
+    tokens_hour:
+      limit: 10000
+      warning: 8000
+      critical: 9500
+      action: "defer"
+    tokens_day:
+      limit: 100000
+      warning: 80000
+      critical: 95000
+      action: "reject"
+    thoughts:
+      limit: 50
+      warning: 40
+      critical: 48
+      action: "defer"
+  actions:
+    throttle:
+      min_delay_seconds: 0.1
+      max_delay_seconds: 10.0
+      increment: 1.0
+    defer:
+      priority_threshold: 50
+    shutdown:
+      grace_period_seconds: 30
+      save_state: true
+
+# Adaptive Configuration System
+adaptive:
+  enabled: true
+  filtering:
+    new_user_threshold: 5
+    sample_rate_default: 0.1
+    effectiveness_threshold: 0.3
+    false_positive_threshold: 0.2
+  learning:
+    enabled: true
+    adjustment_interval: 3600
+    min_samples_for_adjustment: 10
+  circuit_breaker:
+    failure_threshold: 3
+    reset_timeout: 300
+    half_open_test_interval: 60
+  identity_updates:
+    require_wa_approval: true
+    wa_timeout_hours: 72
+    allow_emergency_override: false
+
+# Audit Configuration
+audit:
+  enable_signed_audit: false  # Disabled by default for performance
+  enable_jsonl_audit: true
+  audit_log_path: "audit_logs.jsonl"
+  audit_db_path: "ciris_audit.db"
+  audit_key_path: "audit_keys"
+  rotation_size_mb: 100
+  retention_days: 90
+  hash_chain:
+    enabled: true
+    algorithm: "sha256"
+  signatures:
+    enabled: true
+    algorithm: "rsa-pss"
+    key_size: 2048
+    key_rotation_days: 90
+  anchoring:
+    enabled: true
+    interval_hours: 1
+    method: "local"
+
+# Persistence Integrity Configuration
+persistence:
+  integrity:
+    enabled: true
+    mode: "full"
+  hash_chains:
+    tasks: true
+    thoughts: true
+    graph_nodes: false
+  signatures:
+    enabled: true
+    selective: true
+    deferred_thoughts: true
+    high_priority_tasks: true
+    wa_updates: true
+  verification:
+    on_startup: false
+    on_deferral: true
+    periodic_hours: 24
+
+# Network Configuration
+network:
+  enabled_networks: ["local", "cirisnode"]
+  agent_identity_path: null
+  peer_discovery_interval: 300
+  reputation_threshold: 30
+
+# CIRISNode Configuration
+cirisnode:
+  base_url: "https://localhost:8001"
+  timeout_seconds: 30.0
+  max_retries: 2
+  agent_secret_jwt: null
+
+# Wisdom-seeking Configuration
+wisdom:
+  wa_timeout_hours: 72
+  allow_universal_guidance: true
+  minimum_urgency_for_universal: 80
+  peer_consensus_threshold: 3
+
+# Agent Profile Configuration
+profile_directory: "ciris_profiles"
+default_profile: "default"
+agent_profiles: {}
+
+# Runtime Configuration
+discord_channel_ids: null  # List of Discord channel IDs to monitor
+discord_channel_id: null   # Single Discord channel ID (deprecated - use discord_channel_ids)
+discord_deferral_channel_id: null  # Channel for deferrals and WA guidance
+agent_mode: ""
+cli_channel_id: null
+api_channel_id: null
+data_archive_dir: "data_archive"
+archive_older_than_hours: 24

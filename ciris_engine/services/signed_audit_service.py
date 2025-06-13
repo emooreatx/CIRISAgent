@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .local_audit_log import AuditService
+from .audit_service import AuditService
 from ciris_engine.audit.hash_chain import AuditHashChain
 from ciris_engine.audit.signature_manager import AuditSignatureManager
 from ciris_engine.audit.verifier import AuditVerifier

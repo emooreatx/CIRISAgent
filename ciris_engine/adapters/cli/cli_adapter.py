@@ -261,6 +261,32 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         # This is mainly for API compatibility
         return None
 
+    async def validate_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
+        """
+        Validate parameters for a CLI tool.
+        
+        Args:
+            tool_name: Name of the tool to validate parameters for
+            parameters: Parameters to validate
+            
+        Returns:
+            True if parameters are valid for the specified tool
+        """
+        if tool_name not in self._available_tools:
+            return False
+        
+        # Add specific validation logic for each tool
+        if tool_name == "read_file" or tool_name == "write_file":
+            return "path" in parameters
+        elif tool_name == "list_files":
+            # path is optional, defaults to "."
+            return True
+        elif tool_name == "system_info":
+            # No parameters required
+            return True
+        
+        return True
+
     async def _get_user_input(self) -> str:
         """Get input from user asynchronously."""
         loop = asyncio.get_event_loop()
@@ -411,7 +437,7 @@ Tools available:
         capabilities = [
             "send_message", "fetch_messages",
             "fetch_guidance", "send_deferral",
-            "execute_tool", "get_available_tools"
+            "execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"
         ]
         if self.interactive:
             capabilities.append("interactive_mode")

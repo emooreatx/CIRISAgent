@@ -10,7 +10,7 @@ from ciris_engine.runtime.config_manager_service import ConfigManagerService
 from ciris_engine.schemas.runtime_control_schemas import (
     ProcessorStatus, ProcessorControlResponse, AdapterOperationResponse,
     RuntimeStatusResponse, RuntimeStateSnapshot, ConfigOperationResponse,
-    ConfigValidationResponse, AgentProfileResponse, EnvVarResponse,
+    ConfigValidationResponse, AgentProfileResponse,
     ConfigBackupResponse, ConfigScope, ConfigValidationLevel
 )
 
@@ -415,109 +415,6 @@ class RuntimeControlService(RuntimeControlInterface):
                 error=str(e)
             )
 
-    # Environment Variable Management
-    async def list_env_vars(self, include_sensitive: bool = False) -> Dict[str, Any]:
-        """List environment variables."""
-        try:
-            return await self.config_manager.list_env_vars(include_sensitive)
-        except Exception as e:
-            logger.error(f"Failed to list env vars: {e}")
-            return {"error": str(e)}
-
-    async def set_env_var(
-        self,
-        env_request
-    ) -> EnvVarResponse:
-        """Set an environment variable (API method with request object)."""
-        try:
-            result = await self.config_manager.set_env_var(
-                env_request.name, 
-                env_request.value, 
-                env_request.persist, 
-                env_request.reload_config
-            )
-            if result.success and env_request.reload_config:
-                self._last_config_change = result.timestamp
-            return result
-        except Exception as e:
-            logger.error(f"Failed to set env var: {e}")
-            return EnvVarResponse(
-                success=False,
-                operation="set_env_var",
-                variable_name=env_request.name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def set_env_var_direct(
-        self,
-        name: str,
-        value: str,
-        persist: bool = False,
-        reload_config: bool = True
-    ) -> EnvVarResponse:
-        """Set an environment variable (direct method)."""
-        try:
-            result = await self.config_manager.set_env_var(name, value, persist, reload_config)
-            if result.success and reload_config:
-                self._last_config_change = result.timestamp
-            return result
-        except Exception as e:
-            logger.error(f"Failed to set env var: {e}")
-            return EnvVarResponse(
-                success=False,
-                operation="set_env_var",
-                variable_name=name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def delete_env_var(
-        self,
-        env_request
-    ) -> EnvVarResponse:
-        """Delete an environment variable (API method with request object)."""
-        try:
-            result = await self.config_manager.delete_env_var(
-                env_request.name, 
-                env_request.persist, 
-                env_request.reload_config
-            )
-            if result.success and env_request.reload_config:
-                self._last_config_change = result.timestamp
-            return result
-        except Exception as e:
-            logger.error(f"Failed to delete env var: {e}")
-            return EnvVarResponse(
-                success=False,
-                operation="delete_env_var",
-                variable_name=env_request.name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def delete_env_var_direct(
-        self,
-        name: str,
-        persist: bool = False,
-        reload_config: bool = True
-    ) -> EnvVarResponse:
-        """Delete an environment variable (direct method)."""
-        try:
-            result = await self.config_manager.delete_env_var(name, persist, reload_config)
-            if result.success and reload_config:
-                self._last_config_change = result.timestamp
-            return result
-        except Exception as e:
-            logger.error(f"Failed to delete env var: {e}")
-            return EnvVarResponse(
-                success=False,
-                operation="delete_env_var",
-                variable_name=name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
     # Backup and Restore
     async def backup_config(
         self,
@@ -527,7 +424,6 @@ class RuntimeControlService(RuntimeControlInterface):
         try:
             return await self.config_manager.backup_config(
                 backup_request.include_profiles, 
-                backup_request.include_env_vars, 
                 backup_request.backup_name
             )
         except Exception as e:
@@ -543,13 +439,12 @@ class RuntimeControlService(RuntimeControlInterface):
     async def backup_config_direct(
         self,
         include_profiles: bool = True,
-        include_env_vars: bool = False,
         backup_name: Optional[str] = None
     ) -> ConfigBackupResponse:
         """Create a configuration backup (direct method)."""
         try:
             return await self.config_manager.backup_config(
-                include_profiles, include_env_vars, backup_name
+                include_profiles, backup_name
             )
         except Exception as e:
             logger.error(f"Failed to backup config: {e}")

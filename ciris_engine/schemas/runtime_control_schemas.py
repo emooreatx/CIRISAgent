@@ -204,36 +204,9 @@ class AgentProfileResponse(BaseModel):
     profile_info: Optional[AgentProfileInfo] = None
 
 
-# Environment Variable Management
-class EnvVarSetRequest(BaseModel):
-    """Request to set environment variable."""
-    name: str = Field(..., description="Environment variable name")
-    value: str = Field(..., description="Environment variable value")
-    persist: bool = Field(default=False, description="Persist to .env file")
-    reload_config: bool = Field(default=True, description="Reload config after setting")
-
-
-class EnvVarDeleteRequest(BaseModel):
-    """Request to delete environment variable."""
-    name: str = Field(..., description="Environment variable name")
-    persist: bool = Field(default=False, description="Also remove from .env file")
-    reload_config: bool = Field(default=True, description="Reload config after deletion")
-
-
-class EnvVarResponse(BaseModel):
-    """Response from environment variable operations."""
-    success: bool
-    operation: str
-    variable_name: str
-    timestamp: datetime
-    message: Optional[str] = None
-    error: Optional[str] = None
-
-
 class ConfigBackupRequest(BaseModel):
     """Request to backup configuration."""
     include_profiles: bool = Field(default=True, description="Include agent profiles")
-    include_env_vars: bool = Field(default=False, description="Include environment variables")
     backup_name: Optional[str] = Field(None, description="Custom backup name")
 
 
@@ -241,7 +214,6 @@ class ConfigRestoreRequest(BaseModel):
     """Request to restore configuration."""
     backup_name: str = Field(..., description="Name of backup to restore")
     restore_profiles: bool = Field(default=True, description="Restore agent profiles")
-    restore_env_vars: bool = Field(default=False, description="Restore environment variables")
     restart_required: bool = Field(default=True, description="Whether restart is required")
 
 

@@ -13,7 +13,7 @@ from unittest.mock import Mock, AsyncMock, patch
 
 from ciris_engine.telemetry.core import TelemetryService
 from ciris_engine.telemetry.log_collector import LogCorrelationCollector, TSDBLogHandler
-from ciris_engine.adapters.tsdb_audit_service import TSDBSignedAuditService
+from ciris_engine.services.tsdb_audit_service import TSDBSignedAuditService
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.correlation_schemas_v1 import CorrelationType
 from ciris_engine.persistence.models.correlations import get_correlations_by_type_and_time, get_metrics_timeseries
@@ -207,7 +207,7 @@ class TestAuditServiceTSDBIntegration:
         await audit_service.start()
         
         # Mock add_correlation
-        with patch('ciris_engine.adapters.tsdb_audit_service.add_correlation') as mock_add:
+        with patch('ciris_engine.services.tsdb_audit_service.add_correlation') as mock_add:
             # Log an audit event
             context = {
                 "thought_id": "test-thought-123",

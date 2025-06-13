@@ -8,11 +8,11 @@ from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 async def test_cli_service_registry(monkeypatch):
     """Ensure CLI mode of CIRISRuntime registers expected services."""
     monkeypatch.setattr(
-        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start",
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.start",
         AsyncMock(),
     )
     monkeypatch.setattr(
-        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_raw",
         MagicMock(return_value=MagicMock(model_name="test", instruct_client=None, client=None)),
     )
     monkeypatch.setattr(

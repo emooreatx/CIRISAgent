@@ -2,7 +2,7 @@ import os
 import types
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
-from ciris_engine.adapters.openai_compatible_llm import OpenAICompatibleClient
+from ciris_engine.services.llm_service import OpenAICompatibleClient
 
 class DummyConfig:
     api_key = None  # Explicitly set for fallback tests
@@ -48,12 +48,12 @@ def clear_env():
         if var in os.environ:
             del os.environ[var]
 
-@patch("ciris_engine.adapters.openai_compatible_llm.AsyncOpenAI")
-@patch("ciris_engine.adapters.openai_compatible_llm.instructor.patch")
-@patch("ciris_engine.adapters.openai_compatible_llm.get_config")
-def test_init_env_priority(mock_get_config, mock_patch, mock_async_openai):
+@patch("ciris_engine.services.llm_service.AsyncOpenAI")
+@patch("ciris_engine.services.llm_service.instructor.from_openai")
+@patch("ciris_engine.services.llm_service.get_config")
+def test_init_env_priority(mock_get_config, mock_from_openai, mock_async_openai):
     mock_get_config.return_value = DummyAppConfig()
-    mock_patch.return_value = MagicMock()
+    mock_from_openai.return_value = MagicMock()
     mock_async_openai.return_value = MagicMock()
     # Set config values to None to force env fallback
     DummyAppConfig.LLMServices.OpenAI.api_key = None
@@ -65,14 +65,14 @@ def test_init_env_priority(mock_get_config, mock_patch, mock_async_openai):
     mock_async_openai.assert_called_with(
         api_key=None, base_url=None, timeout=30, max_retries=0
     )
-    mock_patch.assert_called()
+    mock_from_openai.assert_called()
 
-@patch("ciris_engine.adapters.openai_compatible_llm.AsyncOpenAI")
-@patch("ciris_engine.adapters.openai_compatible_llm.instructor.patch")
-@patch("ciris_engine.adapters.openai_compatible_llm.get_config")
-def test_init_config_fallback(mock_get_config, mock_patch, mock_async_openai):
+@patch("ciris_engine.services.llm_service.AsyncOpenAI")
+@patch("ciris_engine.services.llm_service.instructor.from_openai")
+@patch("ciris_engine.services.llm_service.get_config")
+def test_init_config_fallback(mock_get_config, mock_from_openai, mock_async_openai):
     mock_get_config.return_value = DummyAppConfig()
-    mock_patch.return_value = MagicMock()
+    mock_from_openai.return_value = MagicMock()
     mock_async_openai.return_value = MagicMock()
     # Set config values to test AppConfig priority
     DummyAppConfig.LLMServices.OpenAI.api_key = None
@@ -84,12 +84,12 @@ def test_init_config_fallback(mock_get_config, mock_patch, mock_async_openai):
     mock_async_openai.assert_called_with(
         api_key=None, base_url="https://api.test.com", timeout=30, max_retries=0
     )
-    mock_patch.assert_called()
+    mock_from_openai.assert_called()
 
-@patch("ciris_engine.adapters.openai_compatible_llm.AsyncOpenAI")
-@patch("ciris_engine.adapters.openai_compatible_llm.instructor.patch")
-def test_init_with_config_obj(mock_patch, mock_async_openai):
-    mock_patch.return_value = MagicMock()
+@patch("ciris_engine.services.llm_service.AsyncOpenAI")
+@patch("ciris_engine.services.llm_service.instructor.from_openai")
+def test_init_with_config_obj(mock_from_openai, mock_async_openai):
+    mock_from_openai.return_value = MagicMock()
     mock_async_openai.return_value = MagicMock()
     config = DummyConfig()
     # Set config values to test AppConfig priority
@@ -102,15 +102,15 @@ def test_init_with_config_obj(mock_patch, mock_async_openai):
     mock_async_openai.assert_called_with(
         api_key=None, base_url="https://api.test.com", timeout=30, max_retries=0
     )
-    mock_patch.assert_called()
+    mock_from_openai.assert_called()
 
-@patch("ciris_engine.adapters.openai_compatible_llm.AsyncOpenAI")
-@patch("ciris_engine.adapters.openai_compatible_llm.instructor.patch", side_effect=Exception("fail-patch"))
-def test_instructor_patch_fallback(mock_patch, mock_async_openai):
+@patch("ciris_engine.services.llm_service.AsyncOpenAI")
+@patch("ciris_engine.services.llm_service.instructor.from_openai", side_effect=Exception("fail-from_openai"))
+def test_instructor_patch_fallback(mock_from_openai, mock_async_openai):
     mock_async_openai.return_value = MagicMock()
     config = DummyConfig()
-    client = OpenAICompatibleClient(config)
-    assert client.instruct_client == client.client
+    with pytest.raises(Exception):
+        client = OpenAICompatibleClient(config)
 
 @pytest.mark.parametrize("raw,expected", [
     ("""{'foo': 1}""", {"foo": 1}),
@@ -127,12 +127,12 @@ def test_extract_json(raw, expected):
         assert result == expected
 
 @pytest.mark.asyncio
-@patch("ciris_engine.adapters.openai_compatible_llm.AsyncOpenAI")
-@patch("ciris_engine.adapters.openai_compatible_llm.instructor.patch")
-async def test_call_llm_raw_and_structured(mock_patch, mock_async_openai):
+@patch("ciris_engine.services.llm_service.AsyncOpenAI")
+@patch("ciris_engine.services.llm_service.instructor.from_openai")
+async def test_call_llm_raw_and_structured(mock_from_openai, mock_async_openai):
     mock_client = MagicMock()
     mock_async_openai.return_value = mock_client
-    mock_patch.return_value = mock_client
+    mock_from_openai.return_value = mock_client
     config = DummyConfig()
     client = OpenAICompatibleClient(config)
     # Mock chat.completions.create for raw

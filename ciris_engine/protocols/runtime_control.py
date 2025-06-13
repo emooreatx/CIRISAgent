@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, List
 
 from ciris_engine.schemas.runtime_control_schemas import (
     ProcessorControlResponse, AdapterOperationResponse, ConfigOperationResponse,
-    ConfigValidationResponse, AgentProfileResponse, EnvVarResponse,
+    ConfigValidationResponse, AgentProfileResponse,
     ConfigBackupResponse, RuntimeStatusResponse, RuntimeStateSnapshot,
     ConfigScope, ConfigValidationLevel
 )
@@ -128,34 +128,11 @@ class RuntimeControlInterface(ABC):
         """Create a new agent profile."""
         pass
 
-    # Environment Variable Management
-    @abstractmethod
-    async def set_env_var(
-        self,
-        name: str,
-        value: str,
-        persist: bool = False,
-        reload_config: bool = True
-    ) -> EnvVarResponse:
-        """Set an environment variable."""
-        pass
-
-    @abstractmethod
-    async def delete_env_var(
-        self,
-        name: str,
-        persist: bool = False,
-        reload_config: bool = True
-    ) -> EnvVarResponse:
-        """Delete an environment variable."""
-        pass
-
     # Backup and Restore
     @abstractmethod
     async def backup_config(
         self,
         include_profiles: bool = True,
-        include_env_vars: bool = False,
         backup_name: Optional[str] = None
     ) -> ConfigBackupResponse:
         """Create a configuration backup."""

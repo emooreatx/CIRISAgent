@@ -10,7 +10,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 
-from ciris_engine.adapters.local_graph_memory.local_graph_memory_service import LocalGraphMemoryService
+from ciris_engine.services.memory_service.local_graph_memory_service import LocalGraphMemoryService
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus, MemoryOpResult
 from ciris_engine.schemas.correlation_schemas_v1 import CorrelationType
 from ciris_engine.schemas.graph_schemas_v1 import TSDBGraphNode, NodeType

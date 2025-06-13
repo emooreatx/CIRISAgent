@@ -78,7 +78,7 @@ def mock_app_config() -> AppConfig:
     config.profile_directory = "ciris_profiles"
     config.agent_profiles = {}
     
-    # Mock LLM config with proper structure for OpenAICompatibleLLM
+    # Mock LLM config with proper structure for OpenAICompatibleClient
     config.llm_services = MagicMock()
     config.llm_services.openai = MagicMock()
     config.llm_services.openai.max_retries = 3

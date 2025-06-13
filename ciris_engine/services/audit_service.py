@@ -6,14 +6,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .base import Service
+from ciris_engine.adapters.base import Service
+from ciris_engine.protocols.services import AuditService as AuditServiceProtocol
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry  # Import from schemas
 
 logger = logging.getLogger(__name__)
 
 
-class AuditService(Service):
+class AuditService(AuditServiceProtocol):
     """Service for persisting audit log entries with buffering and rotation."""
 
     def __init__(

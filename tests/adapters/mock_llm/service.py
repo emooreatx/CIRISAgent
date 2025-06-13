@@ -67,18 +67,34 @@ class MockLLMClient:
         
         # Hook into instructor.patch to return our mock patched client
         self._original_instructor_patch = instructor.patch
-        instructor.patch = self._mock_instructor_patch
+        # Store self reference for the static method
+        MockLLMClient._instance = self
+        instructor.patch = lambda *args, **kwargs: MockLLMClient._mock_instructor_patch(*args, **kwargs)
 
-    def _mock_instructor_patch(self, client, mode=None, **kwargs):
+    @staticmethod
+    def _mock_instructor_patch(*args, **kwargs):
         """Override instructor.patch to return our mock patched client."""
-        logger.debug(f"instructor.patch called on {type(client)} with mode {mode}")
+        # Extract client from args if provided
+        client = args[0] if args else kwargs.get('client')
+        mode = args[1] if len(args) > 1 else kwargs.get('mode')
+        
+        logger.debug(f"instructor.patch called on {type(client) if client else 'None'} with mode {mode}")
+        
+        # Get the instance reference
+        instance = getattr(MockLLMClient, '_instance', None)
+        if not instance:
+            raise RuntimeError("MockLLMClient instance not available for patch")
         
         # If they're trying to patch our mock client, return our special patched version
-        if client is self or client is self.client:
-            return MockPatchedClient(self, mode)
+        if client is instance or client is instance.client:
+            return MockPatchedClient(instance, mode)
         
         # Otherwise, use the original instructor.patch (for real clients)
-        return self._original_instructor_patch(client, mode=mode, **kwargs)
+        if client:
+            return instance._original_instructor_patch(client, mode=mode, **kwargs)
+        else:
+            # If no client provided, call original with args and kwargs
+            return instance._original_instructor_patch(*args, **kwargs)
 
     async def _create(self, *args, response_model=None, **kwargs) -> Any:
         """

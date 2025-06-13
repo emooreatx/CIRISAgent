@@ -74,14 +74,14 @@ class CliPlatform(PlatformAdapter):
                 provider=self.cli_adapter,
                 priority=Priority.NORMAL,
                 handlers=["ToolHandler"],
-                capabilities=["execute_tool", "get_available_tools"]
+                capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
             ),
             ServiceRegistration(
                 service_type=ServiceType.WISE_AUTHORITY,
                 provider=self.cli_adapter,
                 priority=Priority.NORMAL,
                 handlers=["DeferHandler"],
-                capabilities=["send_deferral", "fetch_guidance"]
+                capabilities=["fetch_guidance", "send_deferral"]
             ),
         ]
         logger.info(f"CliPlatform: Registering {len(registrations)} services")

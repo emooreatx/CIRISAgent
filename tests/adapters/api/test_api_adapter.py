@@ -91,7 +91,7 @@ class TestAPIAdapter:
 
     async def test_send_message_success(self, api_adapter):
         """Test successful message sending."""
-        with patch('ciris_engine.persistence.add_correlation') as mock_persist:
+        with patch('ciris_engine.adapters.api.api_adapter.add_correlation') as mock_persist:
             result = await api_adapter.send_message("test_channel", "test message")
             
             assert result is True
@@ -103,7 +103,7 @@ class TestAPIAdapter:
 
     async def test_send_message_failure(self, api_adapter):
         """Test message sending failure."""
-        with patch('ciris_engine.persistence.add_correlation', side_effect=Exception("Test error")):
+        with patch('ciris_engine.adapters.api.api_adapter.add_correlation', side_effect=Exception("Test error")):
             result = await api_adapter.send_message("test_channel", "test message")
             assert result is False
 

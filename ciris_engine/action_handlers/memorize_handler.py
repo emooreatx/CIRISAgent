@@ -8,7 +8,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerA
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
 from ciris_engine.protocols.services import MemoryService
-from ciris_engine.adapters.local_graph_memory import MemoryOpStatus
+from ciris_engine.services.memory_service import MemoryOpStatus
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError

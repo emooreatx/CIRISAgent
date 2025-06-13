@@ -8,11 +8,11 @@ from ciris_engine.runtime.runtime_interface import RuntimeInterface
 async def test_api_runtime_initialization_with_api_mode(monkeypatch):
     """Test that CIRISRuntime with API mode initializes correctly."""
     monkeypatch.setattr(
-        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start",
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.start",
         AsyncMock(),
     )
     monkeypatch.setattr(
-        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_raw",
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
     )
     monkeypatch.setattr(
@@ -46,9 +46,9 @@ def test_api_runtime_implements_interface():
 @pytest.mark.asyncio 
 async def test_api_adapter_service_registration(monkeypatch):
     """Test that API adapter can be initialized without services (by design)."""
-    monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
+    monkeypatch.setattr("ciris_engine.services.llm_service.OpenAICompatibleClient.start", AsyncMock())
     monkeypatch.setattr(
-        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_raw",
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
@@ -78,9 +78,9 @@ async def test_api_adapter_service_registration(monkeypatch):
 @pytest.mark.asyncio
 async def test_api_mode_adapter_lifecycle(monkeypatch):
     """Test API adapter lifecycle management through CIRISRuntime."""
-    monkeypatch.setattr("ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start", AsyncMock())
+    monkeypatch.setattr("ciris_engine.services.llm_service.OpenAICompatibleClient.start", AsyncMock())
     monkeypatch.setattr(
-        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_raw",
         MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
     )
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components", AsyncMock())
