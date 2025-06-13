@@ -55,7 +55,7 @@ class TestMainIntegration:
         has_cli_activity = (
             "[CLI]" in output and 
             "Hello! How can I help you?" in output and
-            "TASK_COMPLETE_HANDLER" in output
+            "[DISPATCHER] Handler SpeakHandler completed" in output
         )
         
         assert has_full_cycle or has_cli_activity, (
