@@ -1,0 +1,188 @@
+"""Discord message handling component for the Discord adapter."""
+import discord
+import logging
+import asyncio
+from typing import List, Optional, Any
+from datetime import datetime, timezone
+
+from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, FetchedMessage
+
+logger = logging.getLogger(__name__)
+
+
+class DiscordMessageHandler:
+    """Handles Discord message operations including sending, fetching, and splitting."""
+    
+    def __init__(self, client: Optional[discord.Client] = None) -> None:
+        """Initialize the message handler.
+        
+        Args:
+            client: Discord client instance
+        """
+        self.client = client
+    
+    def set_client(self, client: discord.Client) -> None:
+        """Set the Discord client after initialization.
+        
+        Args:
+            client: Discord client instance
+        """
+        self.client = client
+    
+    async def send_message_to_channel(self, channel_id: str, content: str) -> None:
+        """Send a message to a Discord channel, splitting if necessary.
+        
+        Args:
+            channel_id: The Discord channel ID
+            content: Message content to send
+            
+        Raises:
+            RuntimeError: If client is not initialized or channel not found
+        """
+        if not self.client:
+            raise RuntimeError("Discord client is not initialized")
+        
+        if hasattr(self.client, 'wait_until_ready'):
+            await self.client.wait_until_ready()
+        
+        channel = await self._resolve_channel(channel_id)
+        if not channel:
+            raise RuntimeError(f"Discord channel {channel_id} not found")
+        
+        # Split long messages and send each chunk
+        chunks = self._split_message(content)
+        
+        for i, chunk in enumerate(chunks):
+            # Add continuation indicators for multi-part messages
+            if len(chunks) > 1:
+                if i == 0:
+                    chunk = f"{chunk}\n\n*(Message continues...)*"
+                elif i < len(chunks) - 1:
+                    chunk = f"*(Continued from previous message)*\n\n{chunk}\n\n*(Message continues...)*"
+                else:
+                    chunk = f"*(Continued from previous message)*\n\n{chunk}"
+            
+            await channel.send(chunk)
+            
+            # Small delay between messages to avoid rate limiting
+            if i < len(chunks) - 1:
+                await asyncio.sleep(0.5)
+    
+    async def fetch_messages_from_channel(self, channel_id: str, limit: int) -> List[FetchedMessage]:
+        """Fetch messages from a Discord channel.
+        
+        Args:
+            channel_id: The Discord channel ID
+            limit: Maximum number of messages to fetch
+            
+        Returns:
+            List of fetched messages
+            
+        Raises:
+            RuntimeError: If client is not initialized
+        """
+        if not self.client:
+            raise RuntimeError("Discord client is not initialized")
+        
+        channel = await self._resolve_channel(channel_id)
+        if not channel or not hasattr(channel, 'history'):
+            logger.error(f"Could not find Discord channel with ID {channel_id}")
+            return []
+        
+        messages: List[FetchedMessage] = []
+        async for message in channel.history(limit=limit):
+            messages.append(
+                FetchedMessage(
+                    id=str(message.id),
+                    content=message.content,
+                    author_id=str(message.author.id),
+                    author_name=message.author.display_name,
+                    timestamp=message.created_at.isoformat(),
+                    is_bot=message.author.bot,
+                )
+            )
+        return messages
+    
+    def convert_to_discord_message(self, message: discord.Message) -> DiscordMessage:
+        """Convert a discord.py message to DiscordMessage schema.
+        
+        Args:
+            message: The discord.py message object
+            
+        Returns:
+            DiscordMessage schema object
+        """
+        return DiscordMessage(
+            message_id=str(message.id),
+            content=message.content,
+            author_id=str(message.author.id),
+            author_name=message.author.display_name,
+            channel_id=str(message.channel.id),
+            is_bot=message.author.bot,
+            is_dm=getattr(getattr(message.channel, '__class__', None), '__name__', '') == 'DMChannel',
+            raw_message=message
+        )
+    
+    def _split_message(self, content: str, max_length: int = 1950) -> List[str]:
+        """Split a message into chunks that fit Discord's character limit.
+        
+        Args:
+            content: The message content to split
+            max_length: Maximum length per message (default 1950 to leave room for formatting)
+            
+        Returns:
+            List of message chunks
+        """
+        if len(content) <= max_length:
+            return [content]
+        
+        chunks = []
+        lines = content.split('\n')
+        current_chunk = ""
+        
+        for line in lines:
+            # If a single line is longer than max_length, split it
+            if len(line) > max_length:
+                # First, add any accumulated content
+                if current_chunk:
+                    chunks.append(current_chunk.rstrip())
+                    current_chunk = ""
+                
+                # Split the long line
+                for i in range(0, len(line), max_length):
+                    chunks.append(line[i:i + max_length])
+            else:
+                # Check if adding this line would exceed the limit
+                if len(current_chunk) + len(line) + 1 > max_length:
+                    chunks.append(current_chunk.rstrip())
+                    current_chunk = line + '\n'
+                else:
+                    current_chunk += line + '\n'
+        
+        # Add any remaining content
+        if current_chunk:
+            chunks.append(current_chunk.rstrip())
+        
+        return chunks
+    
+    async def _resolve_channel(self, channel_id: str) -> Optional[Any]:
+        """Resolve a Discord channel by ID.
+        
+        Args:
+            channel_id: The Discord channel ID
+            
+        Returns:
+            Discord channel object or None if not found
+        """
+        if not self.client:
+            return None
+        
+        try:
+            channel_id_int = int(channel_id)
+            channel = self.client.get_channel(channel_id_int)
+            if channel is None:
+                channel = await self.client.fetch_channel(channel_id_int)
+            return channel
+        except (ValueError, discord.NotFound, discord.Forbidden):
+            logger.error(f"Could not resolve Discord channel {channel_id}")
+            return None

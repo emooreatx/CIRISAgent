@@ -204,7 +204,10 @@ class TestDiscordAdapter:
     def adapter(self, mock_client):
         """Discord adapter with mocked client"""
         adapter = DiscordAdapter("test_token")
-        adapter.client = mock_client
+        adapter._channel_manager.set_client(mock_client)
+        adapter._message_handler.set_client(mock_client)
+        adapter._guidance_handler.set_client(mock_client)
+        adapter._tool_handler.set_client(mock_client)
         return adapter
     
     def test_adapter_initialization(self):
@@ -213,37 +216,34 @@ class TestDiscordAdapter:
         
         assert adapter.token == "test_token"
         assert adapter.client is None
-        assert adapter.tool_registry is None
-        assert adapter.on_message_callback is None
-        assert adapter._tool_results == {}
+        # Components should be initialized
+        assert adapter._channel_manager is not None
+        assert adapter._message_handler is not None
+        assert adapter._guidance_handler is not None
+        assert adapter._tool_handler is not None
     
     def test_adapter_initialization_with_callback(self):
         """Test adapter initialization with message callback"""
         callback = AsyncMock()
         adapter = DiscordAdapter("test_token", on_message=callback)
         
-        assert adapter.on_message_callback == callback
+        assert adapter._channel_manager.on_message_callback == callback
     
     @pytest.mark.asyncio
     async def test_send_message_success(self, adapter, mock_client):
         """Test successful message sending"""
-        # Mock channel and send method
-        mock_channel = MagicMock()
-        mock_channel.send = AsyncMock(return_value=MagicMock())
-        mock_client.get_channel.return_value = mock_channel
-        
-        # Mock send_output method
-        adapter.send_output = AsyncMock()
+        # Mock the message handler's send method directly
+        adapter._message_handler.send_message_to_channel = AsyncMock()
         
         result = await adapter.send_message("123456", "test message")
         
         assert result == True
-        adapter.send_output.assert_called_once_with("123456", "test message")
+        adapter._message_handler.send_message_to_channel.assert_called_once_with("123456", "test message", operation_name='send_message', config_key='discord_api')
     
     @pytest.mark.asyncio
     async def test_send_message_failure(self, adapter):
         """Test message sending failure"""
-        adapter.send_output = AsyncMock(side_effect=Exception("Send failed"))
+        adapter._message_handler.send_message_to_channel = AsyncMock(side_effect=Exception("Send failed"))
         
         result = await adapter.send_message("123456", "test message")
         
@@ -261,27 +261,19 @@ class TestDiscordAdapter:
     @pytest.mark.asyncio
     async def test_fetch_messages_success(self, adapter, mock_client):
         """Test successful message fetching"""
-        # Mock channel and messages
-        mock_channel = MagicMock()
-        mock_message = MagicMock()
-        mock_message.id = 789012
-        mock_message.content = "test content"
-        mock_message.author.id = 345678
-        mock_message.author.display_name = "TestUser"
-        mock_message.created_at = datetime.now(timezone.utc)
-        
-        # Mock async iteration
-        async def mock_history(limit):
-            yield mock_message
-        
-        mock_channel.history = mock_history
-        mock_client.get_channel.return_value = mock_channel
-        
-        # Mock retry_with_backoff to return a proper result
-        async def mock_retry_with_backoff(func, *args, **kwargs):
-            return await func(*args, **kwargs)
-        
-        adapter.retry_with_backoff = mock_retry_with_backoff
+        # Mock the message handler's fetch method to return expected results
+        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+        expected_messages = [
+            FetchedMessage(
+                id="789012", 
+                content="test content", 
+                author_id="345678", 
+                author_name="TestUser",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                is_bot=False
+            )
+        ]
+        adapter._message_handler.fetch_messages_from_channel = AsyncMock(return_value=expected_messages)
         
         result = await adapter.fetch_messages("123456", 10)
         
@@ -296,7 +288,7 @@ class TestDiscordAdapter:
         mock_client.get_channel.return_value = None
         mock_client.fetch_channel = AsyncMock(side_effect=NotFound(mock.MagicMock(), "Channel not found"))
         
-        adapter.retry_with_backoff = AsyncMock(side_effect=adapter._fetch_messages_impl)
+        adapter.retry_with_backoff = AsyncMock(side_effect=adapter._message_handler.fetch_messages_from_channel)
         
         result = await adapter.fetch_messages("123456", 10)
         
@@ -976,7 +968,10 @@ class TestDiscordWiseAuthorityService:
         # Mock client
         mock_client = MagicMock()
         mock_client.is_closed.return_value = False
-        adapter.client = mock_client
+        adapter._channel_manager.set_client(mock_client)
+        adapter._message_handler.set_client(mock_client)
+        adapter._guidance_handler.set_client(mock_client)
+        adapter._tool_handler.set_client(mock_client)
         
         return adapter
     
@@ -1011,7 +1006,7 @@ class TestDiscordWiseAuthorityService:
         
         # Mock fetch_guidance method to return guidance
         test_context = {"summary": "Need guidance on ethical dilemma"}
-        expected_result = {"guidance": "Follow the covenant principles"}
+        expected_result = "Follow the covenant principles"
         
         with patch.object(adapter, 'fetch_guidance', return_value=expected_result) as mock_fetch:
             result = await adapter.fetch_guidance(test_context)
@@ -1124,7 +1119,7 @@ class TestDiscordAdapterIntegration:
         # Test healthy state (mock client)
         mock_client = MagicMock()
         mock_client.is_closed.return_value = False
-        adapter.client = mock_client
+        adapter._channel_manager.set_client(mock_client)
         
         health = await adapter.is_healthy()
         assert health == True
@@ -1166,7 +1161,7 @@ class TestDiscordAdapterIntegration:
         mock_client.is_closed.return_value = False
         mock_client.user = MagicMock()
         mock_client.user.id = 12345
-        adapter.client = mock_client
+        adapter._channel_manager.set_client(mock_client)
         
         # Test adapter metadata for telemetry
         assert adapter.__class__.__name__ == "DiscordAdapter"
@@ -1227,7 +1222,7 @@ class TestDiscordErrorHandling:
         
         # Set up a mock client to bypass the early return
         mock_client = MagicMock()
-        adapter.client = mock_client
+        adapter._channel_manager.set_client(mock_client)
         
         # Mock retry_with_backoff method
         adapter.retry_with_backoff = AsyncMock(return_value=[])
@@ -1242,7 +1237,8 @@ class TestDiscordErrorHandling:
         """Test handling of Discord Forbidden errors"""
         adapter = DiscordAdapter("test_token")
         mock_client = MagicMock()
-        adapter.client = mock_client
+        adapter._channel_manager.set_client(mock_client)
+        adapter._message_handler.set_client(mock_client)
         
         # Create a proper mock response for Forbidden error
         mock_response = MagicMock()
@@ -1254,7 +1250,7 @@ class TestDiscordErrorHandling:
         
         # Should handle gracefully and return empty list  
         try:
-            result = await adapter._fetch_messages_impl("123456", 10)
+            result = await adapter._message_handler.fetch_messages_from_channel("123456", 10)
             assert result == []
         except Forbidden:
             # The test expects the exception to be raised, not handled
@@ -1266,7 +1262,8 @@ class TestDiscordErrorHandling:
         """Test handling of connection errors"""
         adapter = DiscordAdapter("test_token")
         mock_client = MagicMock()
-        adapter.client = mock_client
+        adapter._channel_manager.set_client(mock_client)
+        adapter._message_handler.set_client(mock_client)
         
         # Create a mock socket for ConnectionClosed
         mock_socket = MagicMock()
@@ -1276,7 +1273,7 @@ class TestDiscordErrorHandling:
         
         # Should handle gracefully
         try:
-            result = await adapter._fetch_messages_impl("123456", 10)
+            result = await adapter._message_handler.fetch_messages_from_channel("123456", 10)
             assert result == []
         except ConnectionClosed:
             # The test expects the exception to be raised, not handled

@@ -1,29 +1,36 @@
 import discord
-from discord.errors import Forbidden, NotFound, InvalidData, HTTPException, ConnectionClosed
+from discord.errors import HTTPException, ConnectionClosed
 import logging
 import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Callable, Awaitable, Optional, List, Dict, Any
+
 from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, FetchedMessage
-from ciris_engine.protocols.services import CommunicationService
+from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
 from ciris_engine.schemas.correlation_schemas_v1 import (
     ServiceCorrelation,
     ServiceCorrelationStatus,
 )
 from ciris_engine import persistence
 
+# Import our new component handlers
+from .discord_message_handler import DiscordMessageHandler
+from .discord_guidance_handler import DiscordGuidanceHandler
+from .discord_tool_handler import DiscordToolHandler
+from .discord_channel_manager import DiscordChannelManager
+
 logger = logging.getLogger(__name__)
 
 
 
-class DiscordAdapter(CommunicationService):
+class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
     """
     Discord adapter implementing CommunicationService, WiseAuthorityService, and ToolService protocols.
-    Provides communication, guidance/deferral, and tool functionality without an internal event queue.
+    Coordinates specialized handlers for different aspects of Discord functionality.
     """
     def __init__(self, token: str,
-                 tool_registry: Optional[Any] = None, bot: discord.Client = None,
+                 tool_registry: Optional[Any] = None, bot: Optional[discord.Client] = None,
                  on_message: Optional[Callable[[DiscordMessage], Awaitable[None]]] = None) -> None:
         retry_config = {
             "retry": {
@@ -34,23 +41,29 @@ class DiscordAdapter(CommunicationService):
                 },
                 "discord_api": {
                     "retryable_exceptions": (HTTPException, ConnectionClosed, asyncio.TimeoutError),
-                    "non_retryable_exceptions": (Forbidden, NotFound, InvalidData),
                 }
             }
         }
         super().__init__(config=retry_config)
         
         self.token = token
-        self.client = bot
-        self.tool_registry = tool_registry
-        self.on_message_callback = on_message
-        self._tool_results = {}
+        
+        # Initialize component handlers
+        self._channel_manager = DiscordChannelManager(token, bot, on_message)
+        self._message_handler = DiscordMessageHandler(bot)
+        self._guidance_handler = DiscordGuidanceHandler(bot)
+        self._tool_handler = DiscordToolHandler(tool_registry, bot)
 
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Implementation of CommunicationService.send_message"""
         correlation_id = str(uuid.uuid4())
         try:
-            await self.send_output(channel_id, content)
+            await self.retry_with_backoff(
+                self._message_handler.send_message_to_channel,
+                channel_id, content,
+                operation_name="send_message",
+                config_key="discord_api"
+            )
             persistence.add_correlation(
                 ServiceCorrelation(
                     correlation_id=correlation_id,
@@ -71,13 +84,9 @@ class DiscordAdapter(CommunicationService):
 
     async def fetch_messages(self, channel_id: str, limit: int) -> List[FetchedMessage]:
         """Implementation of CommunicationService.fetch_messages"""
-        if not self.client:
-            logger.error("Discord client is not initialized.")
-            return []
-        
         try:
             return await self.retry_with_backoff(
-                self._fetch_messages_impl,
+                self._message_handler.fetch_messages_from_channel,
                 channel_id, limit,
                 operation_name="fetch_messages",
                 config_key="discord_api"
@@ -86,45 +95,23 @@ class DiscordAdapter(CommunicationService):
             logger.exception(f"Failed to fetch messages from Discord channel {channel_id}: {e}")
             return []
 
-    async def _fetch_messages_impl(self, channel_id: str, limit: int, **kwargs) -> List[FetchedMessage]:
-        """Internal implementation of fetch_messages for retry wrapping"""
-        channel = self.client.get_channel(int(channel_id))
-        if channel is None:
-            channel = await self.client.fetch_channel(int(channel_id))
-        
-        if channel and hasattr(channel, 'history'):
-            messages: List[FetchedMessage] = []
-            async for message in channel.history(limit=limit):
-                messages.append(
-                    FetchedMessage(
-                        id=str(message.id),
-                        content=message.content,
-                        author_id=str(message.author.id),
-                        author_name=message.author.display_name,
-                        timestamp=message.created_at.isoformat(),
-                        is_bot=message.author.bot,
-                    )
-                )
-            return messages
-        else:
-            logger.error(f"Could not find Discord channel with ID {channel_id}")
-            return []
 
     # --- WiseAuthorityService ---
-    async def fetch_guidance(self, context: dict) -> dict:
+    async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:
         """Send a guidance request to the configured guidance channel and wait for a response."""
         from ciris_engine.config.config_manager import get_config
         
-        deferral_channel_id = get_config().discord_deferral_channel_id
-        if not self.client or not deferral_channel_id:
-            logger.error("DiscordAdapter: Guidance channel or client not configured.")
-            raise RuntimeError("Guidance channel or client not configured.")
+        config = get_config()
+        deferral_channel_id = getattr(config, 'discord_deferral_channel_id', None)
+        if not deferral_channel_id:
+            logger.error("DiscordAdapter: Guidance channel not configured.")
+            raise RuntimeError("Guidance channel not configured.")
 
         try:
             correlation_id = str(uuid.uuid4())
             guidance = await self.retry_with_backoff(
-                self._fetch_guidance_impl,
-                context,
+                self._guidance_handler.fetch_guidance_from_channel,
+                deferral_channel_id, context,
                 operation_name="fetch_guidance",
                 config_key="discord_api"
             )
@@ -141,84 +128,27 @@ class DiscordAdapter(CommunicationService):
                     updated_at=datetime.now(timezone.utc).isoformat(),
                 )
             )
-            return guidance
+            return guidance.get("guidance")
         except Exception as e:
             logger.exception(f"Failed to fetch guidance from Discord: {e}")
             raise
 
-    async def _fetch_guidance_impl(self, context: dict, **kwargs) -> dict:
-        """Internal implementation of fetch_guidance for retry wrapping"""
-        from ciris_engine.config.config_manager import get_config
-        
-        deferral_channel_id = get_config().discord_deferral_channel_id
-        if not deferral_channel_id:
-            logger.error("DiscordAdapter: No deferral channel configured for guidance")
-            raise RuntimeError("Deferral channel not configured.")
-            
-        channel = self.client.get_channel(int(deferral_channel_id))
-        if channel is None:
-            channel = await self.client.fetch_channel(int(deferral_channel_id))
-        if channel is None:
-            logger.error(f"DiscordAdapter: Could not find deferral channel {deferral_channel_id}")
-            raise RuntimeError("Deferral channel not found.")
-        
-        # Post the guidance request to deferral channel
-        request_content = f"[CIRIS Guidance Request]\nContext: ```json\n{context}\n```"
-        if hasattr(channel, 'send'):
-            # For guidance requests, we need to track the first message
-            chunks = self._split_message(request_content)
-            request_message = None
-            for i, chunk in enumerate(chunks):
-                if len(chunks) > 1 and i > 0:
-                    chunk = f"*(Continued from previous message)*\n\n{chunk}"
-                sent_msg = await channel.send(chunk)
-                if i == 0:
-                    request_message = sent_msg  # Track first message for replies
-        else:
-            logger.error(f"Channel {self.deferral_channel_id} does not support sending messages")
-            return {"guidance": None}
-        
-        # Check recent messages from registered WAs (Wise Authorities)
-        if hasattr(channel, 'history'):
-            async for message in channel.history(limit=10):
-                # Skip bot messages and our own request
-                if message.author.bot or message.id == request_message.id:
-                    continue
-                    
-                # TODO: Check if author is a registered WA
-                # For now, accept any human message as potential guidance
-                guidance_content = message.content.strip()
-                
-                # Check if it's a reply to our guidance request
-                is_reply = (hasattr(message, 'reference') and 
-                           message.reference and 
-                           message.reference.message_id == request_message.id)
-                
-                return {
-                    "guidance": guidance_content,
-                    "is_reply": is_reply,
-                    "is_unsolicited": not is_reply,
-                    "author_id": str(message.author.id),
-                    "author_name": message.author.display_name
-                }
-        
-        logger.warning("DiscordAdapter: No guidance found in deferral channel.")
-        return {"guidance": None}
 
     async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
         """Send a deferral report to the configured deferral channel."""
         from ciris_engine.config.config_manager import get_config
         
-        deferral_channel_id = get_config().discord_deferral_channel_id
-        if not self.client or not deferral_channel_id:
-            logger.error("DiscordAdapter: Deferral channel or client not configured.")
+        config = get_config()
+        deferral_channel_id = getattr(config, 'discord_deferral_channel_id', None)
+        if not deferral_channel_id:
+            logger.error("DiscordAdapter: Deferral channel not configured.")
             return False
         
         try:
             correlation_id = str(uuid.uuid4())
             await self.retry_with_backoff(
-                self._send_deferral_impl,
-                thought_id, reason, context,
+                self._guidance_handler.send_deferral_to_channel,
+                deferral_channel_id, thought_id, reason, context,
                 operation_name="send_deferral",
                 config_key="discord_api"
             )
@@ -240,254 +170,62 @@ class DiscordAdapter(CommunicationService):
             logger.exception(f"Failed to send deferral to Discord: {e}")
             return False
 
-    async def _send_deferral_impl(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None, **kwargs) -> None:
-        """Internal implementation of send_deferral for retry wrapping"""
-        from ciris_engine.config.config_manager import get_config
-        
-        deferral_channel_id = get_config().discord_deferral_channel_id
-        channel = self.client.get_channel(int(deferral_channel_id))
-        if channel is None:
-            channel = await self.client.fetch_channel(int(deferral_channel_id))
-        if channel is None:
-            logger.error(f"DiscordAdapter: Could not find deferral channel {deferral_channel_id}")
-            raise RuntimeError("Deferral channel not found.")
-        
-        # Build richer deferral report
-        report_lines = [
-            "**[CIRIS Deferral Report]**",
-            f"**Thought ID:** `{thought_id}`",
-            f"**Reason:** {reason}",
-            f"**Timestamp:** {datetime.now(timezone.utc).isoformat()}Z"
-        ]
-        
-        if context:
-            if "task_id" in context:
-                report_lines.append(f"**Task ID:** `{context['task_id']}`")
-            
-            if "task_description" in context:
-                task_desc = context["task_description"]
-                if len(task_desc) > 200:
-                    task_desc = task_desc[:197] + "..."
-                report_lines.append(f"**Task:** {task_desc}")
-            
-            if "thought_content" in context:
-                thought_content = context["thought_content"]
-                if len(thought_content) > 300:
-                    thought_content = thought_content[:297] + "..."
-                report_lines.append(f"**Thought:** {thought_content}")
-            
-            if "conversation_context" in context:
-                conv_context = context["conversation_context"]
-                if len(conv_context) > 400:
-                    conv_context = conv_context[:397] + "..."
-                report_lines.append(f"**Context:** {conv_context}")
-            
-            if "priority" in context:
-                report_lines.append(f"**Priority:** {context['priority']}")
-            
-            if "attempted_action" in context:
-                report_lines.append(f"**Attempted Action:** {context['attempted_action']}")
-            
-            if "max_rounds_reached" in context and context["max_rounds_reached"]:
-                report_lines.append("**Note:** Maximum processing rounds reached")
-        
-        report = "\n".join(report_lines)
-        
-        # Use the split message functionality
-        chunks = self._split_message(report)
-        for i, chunk in enumerate(chunks):
-            if len(chunks) > 1:
-                if i == 0:
-                    chunk = f"{chunk}\n\n*(Report continues...)*"
-                elif i < len(chunks) - 1:
-                    chunk = f"*(Continued from previous report)*\n\n{chunk}\n\n*(Report continues...)*"
-                else:
-                    chunk = f"*(Continued from previous report)*\n\n{chunk}"
-            await channel.send(chunk)
-            if i < len(chunks) - 1:
-                await asyncio.sleep(0.5)
 
     # --- ToolService ---
-    async def execute_tool(self, tool_name: str, tool_args: dict) -> dict:
+    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a registered Discord tool via the tool registry and store the result."""
-        if not self.tool_registry:
-            logger.error("DiscordAdapter: Tool registry not configured.")
-            raise RuntimeError("Tool registry not configured.")
-        
         return await self.retry_with_backoff(
-            self._execute_tool_impl,
-            tool_name, tool_args,
+            self._tool_handler.execute_tool,
+            tool_name, parameters,
             operation_name="execute_tool",
             config_key="discord_api"
         )
 
-    async def _execute_tool_impl(self, tool_name: str, tool_args: dict, **kwargs) -> dict:
-        """Internal implementation of execute_tool for retry wrapping"""
-        handler = self.tool_registry.get_handler(tool_name)
-        if not handler:
-            logger.error(f"DiscordAdapter: Tool handler for '{tool_name}' not found.")
-            raise RuntimeError(f"Tool handler for '{tool_name}' not found.")
-        
-        correlation_id = tool_args.get("correlation_id", str(uuid.uuid4()))
-        persistence.add_correlation(
-            ServiceCorrelation(
-                correlation_id=correlation_id,
-                service_type="discord",
-                handler_name="DiscordAdapter",
-                action_type=tool_name,
-                request_data=tool_args,
-                status=ServiceCorrelationStatus.PENDING,
-                created_at=datetime.now(timezone.utc).isoformat(),
-                updated_at=datetime.now(timezone.utc).isoformat(),
-            )
-        )
-        result = await handler({**tool_args, "bot": self.client})
 
-        if correlation_id:
-            self._tool_results[correlation_id] = result if isinstance(result, dict) else result.__dict__
-            persistence.update_correlation(
-                correlation_id,
-                response_data=result if isinstance(result, dict) else result.__dict__,
-                status=ServiceCorrelationStatus.COMPLETED,
-            )
-        return result if isinstance(result, dict) else result.__dict__
-
-    async def get_tool_result(self, correlation_id: str, timeout: int = 10) -> dict:
+    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
         """Fetch a tool result by correlation ID from the internal cache."""
-        for _ in range(timeout * 10):
-            if correlation_id in self._tool_results:
-                return self._tool_results.pop(correlation_id)
-            await asyncio.sleep(0.1)
-        logger.warning(f"DiscordAdapter: Tool result for correlation_id {correlation_id} not found after {timeout}s.")
-        return {"correlation_id": correlation_id, "status": "not_found"}
+        return await self._tool_handler.get_tool_result(correlation_id, int(timeout))
 
-    async def get_available_tools(self) -> list[str]:
+    async def get_available_tools(self) -> List[str]:
         """Return names of registered Discord tools."""
-        if not self.tool_registry:
-            return []
-        return list(self.tool_registry.tools.keys())  # type: ignore[union-attr]
+        return await self._tool_handler.get_available_tools()
 
-    async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
+    async def validate_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
         """Basic parameter validation using tool registry schemas."""
-        if not self.tool_registry:
-            return False
-        schema = self.tool_registry.get_schema(tool_name)
-        if not schema:
-            return False
-        return all(k in parameters for k in schema.keys())
+        return await self._tool_handler.validate_tool_parameters(tool_name, parameters)
 
-    def get_capabilities(self) -> list[str]:
-        return [
-            "send_message", "fetch_messages",
-            "fetch_guidance", "send_deferral",
-            "execute_tool", "get_tool_result"
-        ]
+    async def get_capabilities(self) -> List[str]:
+        """Return list of capabilities this service supports."""
+        communication_caps = await super().get_capabilities()
+        wise_authority_caps = ["fetch_guidance", "send_deferral"]
+        tool_caps = ["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
+        return communication_caps + wise_authority_caps + tool_caps
 
     async def send_output(self, channel_id: str, content: str) -> None:
         """Send output to a Discord channel with retry logic"""
-        if not self.client:
-            logger.error("Discord client is not initialized.")
-            return
-        
         await self.retry_with_backoff(
-            self._send_output_impl,
-            channel_id, content
+            self._message_handler.send_message_to_channel,
+            channel_id, content,
+            operation_name="send_output",
+            config_key="discord_api"
         )
 
-    def _split_message(self, content: str, max_length: int = 1950) -> List[str]:
-        """Split a message into chunks that fit Discord's character limit.
-        
-        Args:
-            content: The message content to split
-            max_length: Maximum length per message (default 1950 to leave room for formatting)
-            
-        Returns:
-            List of message chunks
-        """
-        if len(content) <= max_length:
-            return [content]
-        
-        chunks = []
-        lines = content.split('\n')
-        current_chunk = ""
-        
-        for line in lines:
-            # If a single line is longer than max_length, split it
-            if len(line) > max_length:
-                # First, add any accumulated content
-                if current_chunk:
-                    chunks.append(current_chunk.rstrip())
-                    current_chunk = ""
-                
-                # Split the long line
-                for i in range(0, len(line), max_length):
-                    chunks.append(line[i:i + max_length])
-            else:
-                # Check if adding this line would exceed the limit
-                if len(current_chunk) + len(line) + 1 > max_length:
-                    chunks.append(current_chunk.rstrip())
-                    current_chunk = line + '\n'
-                else:
-                    current_chunk += line + '\n'
-        
-        # Add any remaining content
-        if current_chunk:
-            chunks.append(current_chunk.rstrip())
-        
-        return chunks
 
-    async def _send_output_impl(self, channel_id: str, content: str, **kwargs) -> None:
-        """Internal implementation of send_output for retry wrapping"""
-        if hasattr(self.client, 'wait_until_ready'):
-            await self.client.wait_until_ready()
+
+    async def on_message(self, message: discord.Message) -> None:
+        """Handle incoming Discord messages."""
+        await self._channel_manager.on_message(message)
+
+    def attach_to_client(self, client: discord.Client) -> None:
+        """Attach message handlers to a Discord client."""
+        # Update all handlers with the new client
+        self._channel_manager.set_client(client)
+        self._message_handler.set_client(client)
+        self._guidance_handler.set_client(client)
+        self._tool_handler.set_client(client)
         
-        channel = self.client.get_channel(int(channel_id))
-        if channel is None:
-            channel = await self.client.fetch_channel(int(channel_id))
-        if channel:
-            # Split long messages
-            chunks = self._split_message(content)
-            
-            # Send each chunk
-            for i, chunk in enumerate(chunks):
-                # Add continuation indicator for multi-part messages
-                if len(chunks) > 1:
-                    if i == 0:
-                        chunk = f"{chunk}\n\n*(Message continues...)*"
-                    elif i < len(chunks) - 1:
-                        chunk = f"*(Continued from previous message)*\n\n{chunk}\n\n*(Message continues...)*"
-                    else:
-                        chunk = f"*(Continued from previous message)*\n\n{chunk}"
-                
-                await channel.send(chunk)
-                
-                # Small delay between messages to avoid rate limiting
-                if i < len(chunks) - 1:
-                    await asyncio.sleep(0.5)
-        else:
-            logger.error(f"Could not find Discord channel with ID {channel_id}")
-            raise RuntimeError(f"Discord channel {channel_id} not found")
-
-    async def on_message(self, message) -> None:
-        if message.author.bot:
-            return
-        incoming = DiscordMessage(
-            message_id=str(message.id),
-            content=message.content,
-            author_id=str(message.author.id),
-            author_name=message.author.display_name,
-            channel_id=str(message.channel.id),
-            is_bot=message.author.bot,
-            is_dm=isinstance(message.channel, discord.DMChannel),
-            raw_message=message
-        )
-        if self.on_message_callback:
-            await self.on_message_callback(incoming)
-
-    def attach_to_client(self, client) -> None:
-        @client.event
-        async def on_message(message) -> None:
-            await self.on_message(message)
+        # Attach the message handler
+        self._channel_manager.attach_to_client(client)
 
     async def start(self) -> None:
         """
@@ -497,7 +235,8 @@ class DiscordAdapter(CommunicationService):
         try:
             await super().start()
             
-            if self.client:
+            client = self._channel_manager.client
+            if client:
                 logger.info("Discord adapter started with existing client (not yet connected)")
             else:
                 logger.warning("Discord adapter started without client - attach_to_client() must be called separately")
@@ -514,7 +253,8 @@ class DiscordAdapter(CommunicationService):
         try:
             logger.info("Stopping Discord adapter...")
             
-            self._tool_results.clear()
+            # Clear tool results cache
+            self._tool_handler.clear_tool_results()
             
             await super().stop()
             
@@ -525,6 +265,11 @@ class DiscordAdapter(CommunicationService):
     async def is_healthy(self) -> bool:
         """Check if the Discord adapter is healthy"""
         try:
-            return self.client is not None and not self.client.is_closed()
+            return await self._channel_manager.is_client_ready()
         except Exception:
             return False
+    
+    @property
+    def client(self) -> Optional[discord.Client]:
+        """Get the Discord client instance."""
+        return self._channel_manager.client
