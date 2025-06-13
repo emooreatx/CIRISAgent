@@ -148,9 +148,13 @@ class OpenAICompatibleClient(Service):
             content = response.choices[0].message.content
             return (content.strip() if content else "", usage_obj)
             
+        # Create a wrapper function that matches the expected signature
+        async def wrapped_call(*args: Any, **kwargs: Any) -> tuple[str, ResourceUsage]:
+            return await _make_raw_call(*args, **kwargs)
+        
         # Use base class retry with OpenAI-specific error handling
         return await self.retry_with_backoff(
-            _make_raw_call,
+            wrapped_call,
             messages,
             max_tokens,
             temperature,
@@ -198,9 +202,13 @@ class OpenAICompatibleClient(Service):
             
             return response, usage_obj
             
+        # Create a wrapper function that matches the expected signature
+        async def wrapped_structured_call(*args: Any, **kwargs: Any) -> tuple[BaseModel, ResourceUsage]:
+            return await _make_structured_call(*args, **kwargs)
+        
         # Use base class retry with OpenAI-specific error handling
         return await self.retry_with_backoff(
-            _make_structured_call,
+            wrapped_structured_call,
             messages,
             response_model,
             max_tokens,

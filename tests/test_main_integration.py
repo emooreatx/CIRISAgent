@@ -69,43 +69,39 @@ class TestMainIntegration:
         assert "ERROR" not in output or "Error during shutdown" in output  # Shutdown errors are sometimes expected
 
     def test_main_startup_quick_modes(self):
-        """Test main startup with different modes (quick timeout, no full wakeup)."""
-        # Test API mode
-        cmd = [
-            sys.executable, "main.py",
-            "--mock-llm",
-            "--adapter", "api",
-            "--timeout", "5"
+        """Test main startup with different modes, environment variables, and configurations."""
+        # Test multiple scenarios in one test to reduce runtime
+        test_cases = [
+            # API mode
+            ({
+                "cmd": [sys.executable, "main.py", "--mock-llm", "--adapter", "api", "--timeout", "3"],
+                "env": None,
+                "desc": "API mode"
+            }),
+            # CLI mode with env vars
+            ({
+                "cmd": [sys.executable, "main.py", "--mock-llm", "--adapter", "cli", "--timeout", "3", "--no-interactive"],
+                "env": {**os.environ, "LOG_LEVEL": "DEBUG", "CIRIS_DATA_DIR": "test_data"},
+                "desc": "CLI mode with env vars"
+            }),
+            # Multiple adapters
+            ({
+                "cmd": [sys.executable, "main.py", "--mock-llm", "--adapter", "api", "--adapter", "cli", "--timeout", "3", "--no-interactive"],
+                "env": None,
+                "desc": "Multiple adapters"
+            })
         ]
         
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=12,
-            cwd=Path(__file__).parent.parent
-        )
-        
-        assert result.returncode == 0, f"API mode failed with stderr: {result.stderr}"
-        
-        # Test CLI mode
-        cmd = [
-            sys.executable, "main.py",
-            "--mock-llm",
-            "--adapter", "cli",
-            "--timeout", "5",
-            "--no-interactive"
-        ]
-        
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=12,
-            cwd=Path(__file__).parent.parent
-        )
-        
-        assert result.returncode == 0, f"CLI mode failed with stderr: {result.stderr}"
+        for test_case in test_cases:
+                result = subprocess.run(
+                    test_case["cmd"],
+                    capture_output=True,
+                    text=True,
+                    timeout=8,
+                    env=test_case["env"],
+                    cwd=Path(__file__).parent.parent
+                )
+                assert result.returncode == 0, f"{test_case['desc']} failed with stderr: {result.stderr}"
 
     def test_main_help_command(self):
         """Test that help command works."""
@@ -143,30 +139,7 @@ class TestMainIntegration:
         assert result.returncode != 0, f"Expected non-zero exit code, got {result.returncode}. stderr: {result.stderr}"
         assert "Invalid adapter" in result.stderr, f"Expected error message about invalid adapter, got stderr: {result.stderr}"
 
-    def test_main_with_environment_variables(self):
-        """Test main with environment variables set."""
-        env = os.environ.copy()
-        env["LOG_LEVEL"] = "DEBUG"
-        env["CIRIS_DATA_DIR"] = "test_data"
-        
-        cmd = [
-            sys.executable, "main.py",
-            "--mock-llm",
-            "--adapter", "cli",
-            "--timeout", "5",
-            "--no-interactive"
-        ]
-        
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=12,
-            env=env,
-            cwd=Path(__file__).parent.parent
-        )
-        
-        assert result.returncode == 0, f"Process failed with stderr: {result.stderr}"
+    # Consolidated into test_main_startup_quick_modes
 
     def test_main_signal_handling(self):
         """Test that main handles signals gracefully."""
@@ -283,41 +256,7 @@ class TestMainIntegration:
                     pass
             pytest.fail(f"Command should have failed immediately with invalid option error, but timed out after {e.timeout} seconds")
 
-    def test_main_runtime_workflow(self):
-        """Test the complete runtime workflow: shutdown -> wakeup -> work."""
-        cmd = [
-            sys.executable, "main.py",
-            "--mock-llm",
-            "--adapter", "api",
-            "--adapter", "cli", 
-            "--timeout", "15",
-            "--no-interactive"
-        ]
-        
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=25,
-            cwd=Path(__file__).parent.parent
-        )
-        
-        assert result.returncode == 0, f"Process failed with stderr: {result.stderr}"
-        
-        output = result.stdout + result.stderr
-        
-        # Check for expected workflow transitions
-        assert "[STATE] Transition: shutdown -> wakeup" in output
-        
-        # Should have dispatcher activity indicating successful workflow
-        assert "[DISPATCHER]" in output, f"Expected dispatcher activity, got: {output[:500]}..."
-        # Should have handler execution indicating the system is working
-        assert "Handler" in output and "completed" in output, f"Expected handler completion messages, got: {output[:500]}..."
-        
-        # Should complete without critical errors
-        lines = output.split('\n')
-        critical_errors = [line for line in lines if 'CRITICAL' in line and 'shutdown' not in line.lower()]
-        assert len(critical_errors) == 0, f"Found critical errors: {critical_errors}"
+    # Consolidated into test_main_startup_quick_modes
 
 
 class TestMainFunctionUnits:

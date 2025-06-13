@@ -101,8 +101,13 @@ class SecretsTools:
             # Add decrypted value if requested
             if params.decrypt:
                 try:
-                    decrypted_value = await self.secrets_service.store.decrypt_secret(params.secret_uuid)
-                    result_data["decrypted_value"] = decrypted_value
+                    # Get the secret record first, then decrypt
+                    secret_record = await self.secrets_service.store.get_secret(params.secret_uuid)
+                    if secret_record:
+                        decrypted_value = await self.secrets_service.store.decrypt_secret_value(secret_record)
+                        result_data["decrypted_value"] = decrypted_value
+                    else:
+                        result_data["decrypted_value"] = None
                     
                     # Log access via audit service
                     if hasattr(self.secrets_service, 'audit_service') and self.secrets_service.audit_service:

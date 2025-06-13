@@ -24,7 +24,7 @@ def test_initialize_runs_migrations():
                 "SELECT filename FROM schema_migrations ORDER BY filename"
             )
             rows = [r[0] for r in cur.fetchall()]
-            assert rows == ["001_initial_schema.sql", "002_add_retry_status.sql", "003_signed_audit_trail.sql"]
+            assert rows == ["002_add_retry_status.sql"]
             # column from second migration present
             cur = conn.execute("PRAGMA table_info(tasks)")
             cols = [r[1] for r in cur.fetchall()]

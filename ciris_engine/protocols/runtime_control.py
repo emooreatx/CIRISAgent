@@ -112,6 +112,11 @@ class RuntimeControlInterface(ABC):
         pass
 
     @abstractmethod
+    async def get_agent_profile(self, profile_name: str) -> Optional[Dict[str, Any]]:
+        """Get information about a specific agent profile."""
+        pass
+
+    @abstractmethod
     async def create_profile(
         self,
         name: str,
