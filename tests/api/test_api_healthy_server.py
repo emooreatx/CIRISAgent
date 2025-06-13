@@ -6,7 +6,9 @@ Tests health, telemetry, and metrics endpoints with mock LLM for offline testing
 import pytest
 import asyncio
 import aiohttp
+import httpx
 import json
+import os
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
@@ -14,28 +16,26 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+API_URL = os.environ.get("CIRIS_API_URL", "http://localhost:8080/v1")
+
+async def api_available():
+    """Check if API server is available with fast timeout"""
+    try:
+        async with httpx.AsyncClient(timeout=2) as client:
+            resp = await client.get(f"{API_URL}/system/health")
+            return resp.status_code == 200
+    except Exception:
+        return False
+
 class TestHealthyServerAPI:
     """Test suite for verifying API endpoints return correct data for a healthy server"""
     
     BASE_URL = "http://localhost:8080"
     
-    @pytest.fixture(autouse=True)
-    async def setup_test(self):
-        """Setup for each test - ensure server is responsive"""
-        # Wait a moment for server to be ready
-        await asyncio.sleep(0.5)
-        
-        # Check basic connectivity
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.BASE_URL}/v1/system/health", timeout=5) as response:
-                    if response.status != 200:
-                        pytest.skip(f"API server not responsive (status: {response.status})")
-        except Exception as e:
-            pytest.skip(f"API server not accessible: {e}")
-    
     async def test_health_endpoint_basic(self):
         """Test basic health endpoint functionality"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/health") as response:
                 assert response.status == 200
@@ -53,6 +53,8 @@ class TestHealthyServerAPI:
     
     async def test_health_endpoint_adapters(self):
         """Test adapter health reporting"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/health") as response:
                 assert response.status == 200
@@ -71,6 +73,8 @@ class TestHealthyServerAPI:
     
     async def test_health_endpoint_services(self):
         """Test service health reporting"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/health") as response:
                 assert response.status == 200
@@ -89,6 +93,8 @@ class TestHealthyServerAPI:
     
     async def test_health_endpoint_processor(self):
         """Test processor health reporting"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/health") as response:
                 assert response.status == 200
@@ -107,6 +113,8 @@ class TestHealthyServerAPI:
     
     async def test_telemetry_endpoint_basic(self):
         """Test basic telemetry endpoint functionality"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/telemetry") as response:
                 assert response.status == 200
@@ -133,6 +141,8 @@ class TestHealthyServerAPI:
     
     async def test_telemetry_adapters_info(self):
         """Test telemetry adapter information"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/telemetry") as response:
                 assert response.status == 200
@@ -156,6 +166,8 @@ class TestHealthyServerAPI:
     
     async def test_telemetry_services_info(self):
         """Test telemetry service information"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/telemetry") as response:
                 assert response.status == 200
@@ -183,6 +195,8 @@ class TestHealthyServerAPI:
     
     async def test_telemetry_processor_state(self):
         """Test telemetry processor state information"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/telemetry") as response:
                 assert response.status == 200
@@ -214,6 +228,8 @@ class TestHealthyServerAPI:
     
     async def test_telemetry_configuration(self):
         """Test telemetry configuration information"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/telemetry") as response:
                 assert response.status == 200
@@ -236,6 +252,8 @@ class TestHealthyServerAPI:
     
     async def test_telemetry_runtime_metrics(self):
         """Test telemetry runtime metrics"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/telemetry") as response:
                 assert response.status == 200
@@ -255,6 +273,8 @@ class TestHealthyServerAPI:
     
     async def test_metrics_endpoint_basic(self):
         """Test basic metrics endpoint functionality"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             # Test the metrics endpoint (may be different path)
             endpoints_to_try = [
@@ -289,6 +309,8 @@ class TestHealthyServerAPI:
     
     async def test_metrics_history_endpoint(self):
         """Test metrics history functionality if available"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             # Check if metrics history endpoint exists
             history_endpoints = [
@@ -314,6 +336,8 @@ class TestHealthyServerAPI:
     
     async def test_health_and_telemetry_consistency(self):
         """Test that health and telemetry endpoints report consistent information"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             # Get both health and telemetry data
             async with session.get(f"{self.BASE_URL}/v1/system/health") as response:
@@ -350,6 +374,8 @@ class TestHealthyServerAPI:
     
     async def test_service_health_threshold_logic(self):
         """Test that service health threshold logic is working correctly"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.BASE_URL}/v1/system/telemetry") as response:
                 assert response.status == 200
@@ -379,6 +405,8 @@ class TestProcessorControl:
     
     async def test_processor_control_endpoints(self):
         """Test processor control endpoints if available"""
+        if not await api_available():
+            pytest.skip("CIRIS API server is not available.")
         async with aiohttp.ClientSession() as session:
             control_endpoints = [
                 "/v1/system/processor/status",

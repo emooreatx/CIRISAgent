@@ -34,7 +34,7 @@ class TestTSDBCorrelations:
     @pytest.fixture(autouse=True)
     def setup_db(self, test_db_path):
         """Initialize the database with schema"""
-        from ciris_engine.persistence.db.setup import initialize_database
+        from ciris_engine.persistence import initialize_database
         initialize_database(test_db_path)
     
     def test_add_metric_correlation(self, test_db_path):

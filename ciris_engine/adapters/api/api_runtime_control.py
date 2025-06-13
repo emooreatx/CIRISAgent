@@ -77,7 +77,10 @@ class APIRuntimeControlRoutes:
         """Execute a single processing step."""
         try:
             result = await self.runtime_control.single_step()
-            return web.json_response(result.model_dump(mode="json"), status=200)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except Exception as e:
             logger.error(f"Error executing single step: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
@@ -86,7 +89,10 @@ class APIRuntimeControlRoutes:
         """Pause the processor."""
         try:
             result = await self.runtime_control.pause_processing()
-            return web.json_response(result.model_dump(mode="json"), status=200)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except Exception as e:
             logger.error(f"Error pausing processing: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
@@ -95,7 +101,10 @@ class APIRuntimeControlRoutes:
         """Resume the processor."""
         try:
             result = await self.runtime_control.resume_processing()
-            return web.json_response(result.model_dump(mode="json"), status=200)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except Exception as e:
             logger.error(f"Error resuming processing: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
@@ -112,7 +121,10 @@ class APIRuntimeControlRoutes:
                 pass  # Use default reason if no JSON body
             
             result = await self.runtime_control.shutdown_runtime(reason)
-            return web.json_response(result.model_dump(mode="json"), status=200)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except Exception as e:
             logger.error(f"Error shutting down runtime: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
@@ -120,7 +132,7 @@ class APIRuntimeControlRoutes:
     async def _handle_get_queue_status(self, request: web.Request) -> web.Response:
         """Get processor queue status."""
         try:
-            status = await self.runtime_control.get_processor_queue_status()
+            status = await self.runtime_control.get_queue_status()
             return web.json_response(status, status=200)
         except Exception as e:
             logger.error(f"Error getting queue status: {e}", exc_info=True)
@@ -139,7 +151,10 @@ class APIRuntimeControlRoutes:
                 load_request.config,
                 load_request.auto_start
             )
-            return web.json_response(result.model_dump(mode="json"), status=201)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except ValueError as e:
             logger.warning(f"Invalid adapter load request: {e}")
             return web.json_response({"error": f"Invalid request: {e}"}, status=400)
@@ -154,7 +169,10 @@ class APIRuntimeControlRoutes:
             force = request.query.get('force', 'false').lower() == 'true'
             
             result = await self.runtime_control.unload_adapter(adapter_id, force)
-            return web.json_response(result.model_dump(mode="json"), status=200)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except Exception as e:
             logger.error(f"Error unloading adapter: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
@@ -175,7 +193,10 @@ class APIRuntimeControlRoutes:
             adapter_info = await self.runtime_control.get_adapter_info(adapter_id)
             
             if adapter_info:
-                return web.json_response(adapter_info.model_dump(mode="json"), status=200)
+                if hasattr(adapter_info, 'model_dump'):
+                    return web.json_response(adapter_info.model_dump(mode="json"), status=200)
+                else:
+                    return web.json_response(adapter_info, status=200)
             else:
                 return web.json_response({"error": "Adapter not found"}, status=404)
         except Exception as e:
@@ -190,7 +211,10 @@ class APIRuntimeControlRoutes:
             include_sensitive = request.query.get('include_sensitive', 'false').lower() == 'true'
             
             result = await self.runtime_control.get_config(path, include_sensitive)
-            return web.json_response(result.model_dump(mode="json"), status=200)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except Exception as e:
             logger.error(f"Error getting config: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
@@ -208,7 +232,10 @@ class APIRuntimeControlRoutes:
                 update_request.validation_level,
                 update_request.reason
             )
-            return web.json_response(result.model_dump(mode="json"), status=200)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except ValueError as e:
             logger.warning(f"Invalid config update request: {e}")
             return web.json_response({"error": f"Invalid request: {e}"}, status=400)
@@ -226,7 +253,10 @@ class APIRuntimeControlRoutes:
                 validation_request.config_data,
                 validation_request.config_path
             )
-            return web.json_response(result.model_dump(mode="json"), status=200)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except ValueError as e:
             logger.warning(f"Invalid config validation request: {e}")
             return web.json_response({"error": f"Invalid request: {e}"}, status=400)
@@ -238,7 +268,10 @@ class APIRuntimeControlRoutes:
         """Reload configuration from files."""
         try:
             result = await self.runtime_control.reload_config()
-            return web.json_response(result.model_dump(mode="json"), status=200)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except Exception as e:
             logger.error(f"Error reloading config: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
@@ -265,7 +298,10 @@ class APIRuntimeControlRoutes:
             )
             
             result = await self.runtime_control.load_agent_profile(reload_request)
-            return web.json_response(result.model_dump(mode="json"), status=200)
+            if hasattr(result, 'model_dump'):
+                return web.json_response(result.model_dump(mode="json"), status=200)
+            else:
+                return web.json_response(result, status=200)
         except ValueError as e:
             logger.warning(f"Invalid profile load request: {e}")
             return web.json_response({"error": f"Invalid request: {e}"}, status=400)
@@ -280,7 +316,10 @@ class APIRuntimeControlRoutes:
             profile_info = await self.runtime_control.get_agent_profile(profile_name)
             
             if profile_info:
-                return web.json_response(profile_info.model_dump(mode="json"), status=200)
+                if hasattr(profile_info, 'model_dump'):
+                    return web.json_response(profile_info.model_dump(mode="json"), status=200)
+                else:
+                    return web.json_response(profile_info, status=200)
             else:
                 return web.json_response({"error": "Profile not found"}, status=404)
         except Exception as e:

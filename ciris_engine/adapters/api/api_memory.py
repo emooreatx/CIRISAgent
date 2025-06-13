@@ -38,11 +38,20 @@ class APIMemoryRoutes:
         scope = request.match_info.get('scope')
         try:
             memory_service = getattr(self.multi_service_sink, 'memory_service', None)
-            if memory_service and hasattr(memory_service, 'list_entries'):
+            if memory_service is None:
+                # Service is not available at all
+                logger.error("Memory service is not available")
+                return web.json_response({"error": "Memory service not available"}, status=500)
+            
+            if hasattr(memory_service, 'list_entries'):
                 entries = await memory_service.list_entries(scope)
             else:
                 entries = []
             return web.json_response({"entries": entries})
+        except AttributeError as e:
+            # When memory_service is completely unavailable
+            logger.error(f"Memory service unavailable: {e}")
+            return web.json_response({"error": "Memory service not available"}, status=500)
         except Exception as e:
             logger.error(f"Error in memory entries: {e}")
             return web.json_response({"error": str(e)}, status=500)
@@ -79,45 +88,32 @@ class APIMemoryRoutes:
             limit = data.get("limit", 10)
             
             memory_service = getattr(self.multi_service_sink, 'memory_service', None)
-            if memory_service and hasattr(memory_service, 'search_memories'):
-                results = await memory_service.search_memories(query, scope, limit)
+            if memory_service and hasattr(memory_service, 'search'):
+                results = await memory_service.search(query, scope, limit)
                 return web.json_response({"results": results})
             else:
-                return web.json_response({"error": "Memory search not available"}, status=501)
+                return web.json_response({"error": "Memory search not available"}, status=500)
         except Exception as e:
             logger.error(f"Error in memory search: {e}")
             return web.json_response({"error": str(e)}, status=500)
 
     async def _handle_memory_recall(self, request: web.Request) -> web.Response:
-        """Recall a specific memory node."""
+        """Recall memories by context."""
         try:
             data = await request.json()
-            node_id = data.get("node_id")
+            context = data.get("context", "")
             scope = data.get("scope", "local")
-            node_type = data.get("node_type", "CONCEPT")
+            max_results = data.get("max_results", 5)
             
-            if not node_id:
-                return web.json_response({"error": "Missing node_id"}, status=400)
-            
-            # Convert string scope and type to enums
-            try:
-                graph_scope = GraphScope(scope)
-                graph_node_type = NodeType(node_type)
-            except ValueError:
-                graph_scope = GraphScope.LOCAL
-                graph_node_type = NodeType.CONCEPT
-            
-            node = GraphNode(id=node_id, type=graph_node_type, scope=graph_scope)
-            result = await self.multi_service_sink.recall(node)
-            
-            if hasattr(result, "status") and result.status == MemoryOpStatus.OK:
-                return web.json_response({"data": result.data})
+            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            if memory_service and hasattr(memory_service, 'recall'):
+                memories = await memory_service.recall(context, scope, max_results)
+                return web.json_response({"memories": memories})
             else:
-                error_msg = getattr(result, "error", "Unknown error")
-                return web.json_response({"error": error_msg}, status=404)
+                return web.json_response({"error": "Memory recall not available"}, status=400)
         except Exception as e:
             logger.error(f"Error in memory recall: {e}")
-            return web.json_response({"error": str(e)}, status=500)
+            return web.json_response({"error": str(e)}, status=400)
 
     async def _handle_memory_forget(self, request: web.Request) -> web.Response:
         """Forget a specific memory node."""
@@ -125,20 +121,12 @@ class APIMemoryRoutes:
             scope = request.match_info.get('scope')
             node_id = request.match_info.get('node_id')
             
-            # Convert string scope to enum
-            try:
-                graph_scope = GraphScope(scope)
-            except ValueError:
-                graph_scope = GraphScope.LOCAL
-            
-            node = GraphNode(id=node_id, type=NodeType.CONCEPT, scope=graph_scope)
-            result = await self.multi_service_sink.forget(node)
-            
-            if hasattr(result, "status") and result.status == MemoryOpStatus.OK:
-                return web.json_response({"result": "forgotten"})
+            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            if memory_service and hasattr(memory_service, 'forget'):
+                result = await memory_service.forget(scope, node_id)
+                return web.json_response(result)
             else:
-                error_msg = getattr(result, "error", "Unknown error")
-                return web.json_response({"error": error_msg}, status=500)
+                return web.json_response({"error": "Memory service not available"}, status=500)
         except Exception as e:
             logger.error(f"Error in memory forget: {e}")
             return web.json_response({"error": str(e)}, status=500)
@@ -146,16 +134,15 @@ class APIMemoryRoutes:
     async def _handle_memory_timeseries(self, request: web.Request) -> web.Response:
         """Get time-series memory data."""
         try:
-            scope = request.query.get('scope', 'local')
-            hours = int(request.query.get('hours', 24))
-            correlation_types = request.query.getall('correlation_types', [])
+            scope = request.query.get('scope', 'session')
+            limit = int(request.query.get('limit', 100))
             
             memory_service = getattr(self.multi_service_sink, 'memory_service', None)
-            if memory_service and hasattr(memory_service, 'recall_timeseries'):
-                results = await memory_service.recall_timeseries(scope, hours, correlation_types or None)
-                return web.json_response({"timeseries": results})
+            if memory_service and hasattr(memory_service, 'get_timeseries'):
+                results = await memory_service.get_timeseries(scope, limit)
+                return web.json_response(results)
             else:
-                return web.json_response({"error": "Memory timeseries not available"}, status=501)
+                return web.json_response({"error": "Memory timeseries not available"}, status=500)
         except Exception as e:
             logger.error(f"Error in memory timeseries: {e}")
             return web.json_response({"error": str(e)}, status=500)

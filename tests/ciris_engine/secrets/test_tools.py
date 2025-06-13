@@ -102,7 +102,8 @@ class TestSecretsTools:
             last_accessed=datetime.now()
         )
         mock_secrets_service.store.retrieve_secret.return_value = mock_record
-        mock_secrets_service.store.decrypt_secret.return_value = "sk-1234567890abcdef"
+        mock_secrets_service.store.get_secret.return_value = mock_record
+        mock_secrets_service.store.decrypt_secret_value.return_value = "sk-1234567890abcdef"
         
         # Test parameters
         params = RecallSecretParams(
@@ -120,7 +121,8 @@ class TestSecretsTools:
         assert result.metadata["decrypted"] is True
         
         # Verify decrypt was called
-        mock_secrets_service.store.decrypt_secret.assert_called_once_with("test-uuid-123")
+        mock_secrets_service.store.get_secret.assert_called_once_with("test-uuid-123")
+        mock_secrets_service.store.decrypt_secret_value.assert_called_once_with(mock_record)
         
     async def test_recall_secret_not_found(self, secrets_tools, mock_secrets_service):
         """Test secret recall when secret doesn't exist."""
