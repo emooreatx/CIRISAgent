@@ -249,8 +249,12 @@ class TestMainIntegration:
 
     def test_main_handler_execution(self):
         """Test direct handler execution."""
+        # Use explicit python path for CI environments
+        python_exe = sys.executable
+        main_path = Path(__file__).parent.parent / "main.py"
+        
         cmd = [
-            sys.executable, "main.py",
+            python_exe, str(main_path),
             "--mock-llm",
             "--adapter", "cli",
             "--handler", "speak",
@@ -258,12 +262,18 @@ class TestMainIntegration:
             "--no-interactive"
         ]
         
+        # Set PYTHONPATH to ensure imports work in CI
+        env = os.environ.copy()
+        project_root = Path(__file__).parent.parent
+        env['PYTHONPATH'] = str(project_root)
+        
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             timeout=12,
-            cwd=Path(__file__).parent.parent
+            cwd=project_root,
+            env=env
         )
         
         # Handler execution should complete successfully, but subprocess exit may vary
@@ -273,6 +283,12 @@ class TestMainIntegration:
             # Handler executed successfully, even if exit code isn't perfect
             pass
         else:
+            # Print debug info for CI troubleshooting
+            print(f"Command: {' '.join(cmd)}")
+            print(f"Working directory: {project_root}")
+            print(f"Return code: {result.returncode}")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
             assert result.returncode == 0, f"Process failed with stderr: {result.stderr}"
 
     def test_main_runtime_workflow(self):

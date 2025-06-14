@@ -420,7 +420,8 @@ class TestAPIAdapter:
         assert "runtime_status" not in capabilities
         assert "metrics" not in capabilities
 
-    async def test_concurrent_message_handling(self, api_adapter):
+    @patch('ciris_engine.adapters.api.api_adapter.add_correlation', return_value="mock-correlation-id")
+    async def test_concurrent_message_handling(self, mock_add_correlation, api_adapter):
         """Test concurrent message processing."""
         # Send multiple messages concurrently
         tasks = []
