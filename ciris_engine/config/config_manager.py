@@ -38,6 +38,8 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
     global _app_config
 
     actual_path = config_file_path or get_config_file_path()
+    # Track if an explicit config file was provided
+    explicit_config_provided = config_file_path is not None
 
     if actual_path.exists() and actual_path.is_file():
         try:
@@ -59,6 +61,12 @@ def load_config_from_file(config_file_path: Optional[Path] = None, create_if_not
             # print(f"Configuration loaded from {actual_path}") # For debugging
             return _app_config
         except Exception as e:
+            # If an explicit config file was provided and it fails to load, fail fast
+            if explicit_config_provided:
+                logger.error(f"Failed to load explicitly provided config file {actual_path}: {e}")
+                raise ValueError(f"Invalid configuration file {actual_path}: {e}") from e
+            
+            # Only fall back to defaults if no explicit config was provided
             # print(f"Error loading configuration from {actual_path}: {e}. Using default configuration.") # For debugging
             from .config_loader import _apply_env_defaults
             config_data = _apply_env_defaults({})

@@ -13,6 +13,7 @@ import signal
 import sys
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional, List
 
 import click
@@ -137,7 +138,7 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
 @click.option("--adapter", "adapter_types_list", multiple=True, default=["auto"], help="One or more adapters to run. Specify multiple times for multiple adapters (e.g., --adapter cli --adapter api --adapter discord).")
 @click.option("--modes", "legacy_modes", help="Legacy comma-separated list of modes (deprecated, use --adapter instead).")
 @click.option("--profile", default="default", help="Agent profile name")
-@click.option("--config", "config_file_path", type=click.Path(exists=True), help="Path to app config")
+@click.option("--config", "config_file_path", type=click.Path(), help="Path to app config")
 @click.option("--task", multiple=True, help="Task description to add before starting")
 @click.option("--timeout", type=int, help="Maximum runtime duration in seconds")
 @click.option("--handler", help="Direct handler to execute and exit")
@@ -224,7 +225,15 @@ def main(
         selected_adapter_types = validated_adapter_types
 
         # Load config
-        app_config = await load_config(config_file_path)
+        try:
+            # Validate config file exists if provided
+            if config_file_path and not Path(config_file_path).exists():
+                logger.error(f"Configuration file not found: {config_file_path}")
+                sys.exit(1)
+            app_config = await load_config(config_file_path)
+        except Exception as e:
+            logger.error(f"Failed to load configuration: {e}")
+            sys.exit(1)
 
         if mock_llm:
             from ciris_engine.services.mock_llm import MockLLMService  # type: ignore
