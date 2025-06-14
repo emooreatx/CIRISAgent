@@ -34,7 +34,7 @@ class AdapterInstance:
 
     def __post_init__(self):
         if self.services_registered is None:
-            self.services_registered = []
+            self.services_registered = []  # type: ignore[unreachable]
 
 
 class AdapterManagerInterface:
@@ -81,12 +81,10 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             Dict with adapter_id, status, and details
         """
         try:
-            # Generate adapter ID if not provided
             if not adapter_id:
                 self._adapter_counter += 1
                 adapter_id = f"{mode}_{self._adapter_counter}"
             
-            # Check if adapter ID already exists
             if adapter_id in self.loaded_adapters:
                 return {
                     "success": False,
@@ -95,14 +93,11 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             
             logger.info(f"Loading adapter: mode={mode}, id={adapter_id}, params={config_params}")
             
-            # Load adapter class
             adapter_class = load_adapter(mode)
             
-            # Create adapter instance with config
             adapter_kwargs = config_params or {}
             adapter = adapter_class(self.runtime, **adapter_kwargs)
             
-            # Create adapter instance record
             instance = AdapterInstance(
                 adapter_id=adapter_id,
                 mode=mode,
@@ -111,14 +106,11 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 loaded_at=datetime.now(timezone.utc)
             )
             
-            # Start the adapter
             await adapter.start()
             instance.is_running = True
             
-            # Register adapter services
             await self._register_adapter_services(instance)
             
-            # Add to runtime adapters list
             self.runtime.adapters.append(adapter)
             self.loaded_adapters[adapter_id] = instance
             
@@ -157,10 +149,8 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             
             instance = self.loaded_adapters[adapter_id]
             
-            # Check if this is the last communication adapter
             communication_modes = {"discord", "api", "cli"}
             if instance.mode in communication_modes:
-                # Count how many communication adapters would remain
                 remaining_comm_adapters = sum(
                     1 for aid, inst in self.loaded_adapters.items() 
                     if aid != adapter_id and inst.mode in communication_modes
@@ -175,19 +165,15 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             
             logger.info(f"Unloading adapter {adapter_id}")
             
-            # Stop the adapter
             if instance.is_running:
                 await instance.adapter.stop()
                 instance.is_running = False
             
-            # Unregister services
             await self._unregister_adapter_services(instance)
             
-            # Remove from runtime adapters list
             if instance.adapter in self.runtime.adapters:
                 self.runtime.adapters.remove(instance.adapter)
             
-            # Remove from loaded adapters
             del self.loaded_adapters[adapter_id]
             
             logger.info(f"Successfully unloaded adapter {adapter_id}")
@@ -229,12 +215,10 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             
             logger.info(f"Reloading adapter {adapter_id} with new config")
             
-            # Unload the existing adapter
             unload_result = await self.unload_adapter(adapter_id)
             if not unload_result["success"]:
                 return unload_result
             
-            # Load with new configuration
             load_result = await self.load_adapter(mode, adapter_id, config_params)
             
             if load_result["success"]:
@@ -258,7 +242,6 @@ class RuntimeAdapterManager(AdapterManagerInterface):
         try:
             adapters = []
             for adapter_id, instance in self.loaded_adapters.items():
-                # Get health status
                 health_status = "unknown"
                 try:
                     if hasattr(instance.adapter, 'is_healthy'):
@@ -306,7 +289,6 @@ class RuntimeAdapterManager(AdapterManagerInterface):
         try:
             instance = self.loaded_adapters[adapter_id]
             
-            # Get health status
             health_status = "unknown"
             health_details = {}
             try:
@@ -321,7 +303,6 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 health_status = "error"
                 health_details["error"] = str(e)
             
-            # Get service registration details
             service_details = []
             try:
                 registrations = instance.adapter.get_services_to_register()
@@ -371,8 +352,6 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             Dict with load results
         """
         try:
-            # First, we need to pre-load the profile to determine which adapters are configured
-            # This is a lightweight operation to check the profile file structure
             from pathlib import Path
             import yaml
             
@@ -384,7 +363,6 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     with open(profile_overlay_path, 'r') as f:
                         profile_data = yaml.safe_load(f) or {}
                     
-                    # Determine which adapters are configured
                     if 'discord_config' in profile_data or profile_data.get('discord_config'):
                         adapter_types.append('discord')
                     if 'api_config' in profile_data or profile_data.get('api_config'):
@@ -392,10 +370,8 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     if 'cli_config' in profile_data or profile_data.get('cli_config'):
                         adapter_types.append('cli')
                 except Exception:
-                    # If we can't read the profile, default to common adapters
                     adapter_types = ['discord', 'api', 'cli']
             
-            # Load the profile configuration
             config = await ConfigLoader.load_config(profile_name=profile_name)
             
             if not config.agent_profiles or profile_name not in config.agent_profiles:
@@ -407,7 +383,6 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             profile = config.agent_profiles[profile_name]
             results = []
             
-            # Load Discord adapter if configured
             if profile.discord_config:
                 discord_params = {
                     "channel_id": profile.discord_config.home_channel_id,
@@ -416,7 +391,6 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 result = await self.load_adapter("discord", adapter_id or f"discord_{profile_name}", discord_params)
                 results.append({"adapter_type": "discord", **result})
             
-            # Load API adapter if configured
             if profile.api_config:
                 api_params = {
                     "host": profile.api_config.host,
@@ -425,7 +399,6 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 result = await self.load_adapter("api", adapter_id or f"api_{profile_name}", api_params)
                 results.append({"adapter_type": "api", **result})
             
-            # Load CLI adapter if configured
             if profile.cli_config:
                 cli_params = {}
                 result = await self.load_adapter("cli", adapter_id or f"cli_{profile_name}", cli_params)
@@ -458,7 +431,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             registrations = instance.adapter.get_services_to_register()
             for reg in registrations:
                 if not isinstance(reg, ServiceRegistration):
-                    logger.error(f"Adapter {instance.adapter.__class__.__name__} provided invalid ServiceRegistration: {reg}")
+                    logger.error(f"Adapter {instance.adapter.__class__.__name__} provided invalid ServiceRegistration: {reg}")  # type: ignore[unreachable]
                     continue
                 
                 service_key = f"{reg.service_type.value}:{reg.provider.__class__.__name__}"
@@ -498,9 +471,6 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 logger.warning("ServiceRegistry not available. Cannot unregister adapter services.")
                 return
             
-            # Note: ServiceRegistry doesn't currently have explicit unregister methods
-            # This would need to be implemented in the registry to properly clean up
-            # For now, we just log what would be unregistered
             for service_key in instance.services_registered:
                 logger.info(f"Would unregister service: {service_key} from adapter {instance.adapter_id}")
             

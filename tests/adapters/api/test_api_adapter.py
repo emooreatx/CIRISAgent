@@ -337,7 +337,7 @@ class TestAPIAdapter:
 
     async def test_handle_runtime_control_missing_command(self, api_adapter):
         """Test runtime control without command."""
-        request_data = {"params": {}}
+        request_data: schemas.BaseSchema = {"params": {}}
         
         request = Mock()
         request.json = AsyncMock(return_value=request_data)

@@ -20,7 +20,6 @@ from .prompt_loader import get_prompt_loader
 
 logger = logging.getLogger(__name__)
 
-# Legacy template preserved for backward compatibility
 DEFAULT_TEMPLATE = """=== Common Sense DMA Guidance ===
 You are a Common Sense Evaluation agent. Your task is to assess a given "thought" for its alignment with general common-sense understanding of the physical world, typical interactions, and resource constraints on Earth, considering the provided context.
 [... truncated for brevity ...]
@@ -94,18 +93,15 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
         """Assemble prompt messages using canonical formatting utilities and prompt loader."""
         messages = []
         
-        # Add covenant header if specified
         if self.prompt_loader.uses_covenant_header(self.prompt_template_data):
             messages.append({"role": "system", "content": COVENANT_TEXT})
         
-        # Build system message using prompt loader
         system_message = self.prompt_loader.get_system_message(
             self.prompt_template_data,
             context_summary=context_summary,
             original_thought_content=thought_content
         )
         
-        # Format with canonical utilities
         formatted_system = format_system_prompt_blocks(
             identity_context_block,
             "",
@@ -116,14 +112,12 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
         )
         messages.append({"role": "system", "content": formatted_system})
 
-        # Build user message using prompt loader
         user_message = self.prompt_loader.get_user_message(
             self.prompt_template_data,
             context_summary=context_summary,
             original_thought_content=thought_content
         )
         
-        # If no specific user message from template, use formatted chains
         if not user_message or user_message == f"Thought to evaluate: {thought_content}":
             user_message = format_user_prompt_blocks(
                 format_parent_task_chain([]),
@@ -136,7 +130,6 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
         return messages
 
     async def evaluate_thought(self, thought_item: ProcessingQueueItem) -> CSDMAResult:
-        # LLM service will be handled by base class call_llm_structured method
 
 
         thought_content_str = str(thought_item.content)

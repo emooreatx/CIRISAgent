@@ -6,7 +6,6 @@ from ciris_engine.registries.base import Priority, SelectionStrategy
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 
-# Forward-declare CIRISRuntime to avoid circular imports
 class CIRISRuntime(Protocol):
     pass
 

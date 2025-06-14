@@ -46,7 +46,7 @@ class CIRISClient:
     async def __aexit__(self, exc_type, exc, tb):
         await self._transport.__aexit__(exc_type, exc, tb)
 
-    async def _request_with_retry(self, method: str, path: str, **kwargs):
+    async def _request_with_retry(self, method: str, path: str, **kwargs) -> Any:
         for attempt in range(self.max_retries):
             try:
                 return await self._transport.request(method, path, **kwargs)

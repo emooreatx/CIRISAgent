@@ -111,7 +111,6 @@ class ActionParameterProcessor:
         
         channel_id = None
         
-        # Try identity_context field
         if (
             hasattr(processing_context, "identity_context")
             and processing_context.identity_context
@@ -126,7 +125,6 @@ class ActionParameterProcessor:
                 if match:
                     channel_id = match.group(1)
 
-        # Try initial_task_context field
         if (
             not channel_id
             and hasattr(processing_context, "initial_task_context")
@@ -135,7 +133,6 @@ class ActionParameterProcessor:
             if isinstance(processing_context.initial_task_context, dict):
                 channel_id = processing_context.initial_task_context.get("channel_id")
 
-        # Try system_snapshot.channel_id
         if (
             not channel_id
             and hasattr(processing_context, "system_snapshot")
@@ -145,7 +142,6 @@ class ActionParameterProcessor:
                 processing_context.system_snapshot, "channel_id", None
             )
 
-        # Fallback to dict access for backward compatibility
         if not channel_id and isinstance(processing_context, dict):
             channel_id = (
                 (processing_context.get("identity_context", {}) or {}).get("channel_id")

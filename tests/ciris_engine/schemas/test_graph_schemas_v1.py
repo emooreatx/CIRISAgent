@@ -2,11 +2,11 @@ from ciris_engine.schemas.graph_schemas_v1 import GraphScope, NodeType, GraphNod
 
 def test_graph_scope_enum():
     assert GraphScope.LOCAL == "local"
-    assert GraphScope.ENVIRONMENT == "environment"
+    assert GraphScope.ENVIRONMENT == "environment"  # type: ignore[unreachable]
 
 def test_node_type_enum():
     assert NodeType.AGENT == "agent"
-    assert NodeType.CONCEPT == "concept"
+    assert NodeType.CONCEPT == "concept"  # type: ignore[unreachable]
 
 def test_graph_node_minimal():
     node = GraphNode(id="n1", type=NodeType.AGENT, scope=GraphScope.LOCAL)

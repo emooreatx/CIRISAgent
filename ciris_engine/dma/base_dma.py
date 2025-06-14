@@ -14,7 +14,6 @@ from ciris_engine.protocols.faculties import EpistemicFaculty
 if TYPE_CHECKING:
     pass
 
-# Type variables for backward compatibility
 InputT = TypeVar('InputT')
 DMAResultT = TypeVar('DMAResultT', bound=BaseModel)
 
@@ -41,10 +40,8 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         self.faculties = faculties or {}
         self.sink = sink
         
-        # Store any additional kwargs for subclasses
         self.kwargs = kwargs
         
-        # Load prompts
         self.prompts: Dict[str, str] = {}
         self._load_prompts(prompt_overrides)
         
@@ -55,12 +52,10 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         prompts/<class_name>.yml file in the same directory as the DMA.
         Finally falls back to DEFAULT_PROMPT or DEFAULT_PROMPT_TEMPLATE if defined.
         """
-        # Try to load from explicit PROMPT_FILE first
         prompt_file = None
         if hasattr(self.__class__, 'PROMPT_FILE'):
             prompt_file = getattr(self.__class__, 'PROMPT_FILE')
         else:
-            # Fall back to constructed path
             dma_file = Path(self.__class__.__module__.replace('.', '/'))
             prompt_file = dma_file.parent / "prompts" / f"{self.__class__.__name__.lower()}.yml"
         
@@ -75,7 +70,6 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Failed to load prompts from {prompt_file}: {e}")
         
-        # Fall back to class-defined defaults
         defaults = {}
         if hasattr(self, 'DEFAULT_PROMPT'):
             defaults = getattr(self, 'DEFAULT_PROMPT')
@@ -93,7 +87,7 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         return service
     
     async def call_llm_structured(self, messages: list, response_model: type, 
-                                 max_tokens: int = 1024, temperature: float = 0.0) -> tuple:
+                                 max_tokens: int = 1024, temperature: float = 0.0) -> tuple[Any, ...]:
         """Call LLM via sink if available, otherwise fallback to direct service call.
         
         Returns:

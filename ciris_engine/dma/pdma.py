@@ -38,13 +38,11 @@ class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
             **kwargs
         )
         
-        # Load prompts from YAML file
         self.prompt_loader = get_prompt_loader()
         try:
             self.prompt_template_data = self.prompt_loader.load_prompt_template("pdma_ethical")
         except FileNotFoundError:
             logger.warning("PDMA prompt template not found, using fallback")
-            # Fallback to embedded prompt for backward compatibility
             self.prompt_template_data = {
                 "system_guidance_header": """You are an ethical reasoning shard of a CIRIS AI 
                 system governed by the CIRIS Covenant.\n\nYour task is 
@@ -62,7 +60,6 @@ class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
                 "covenant_header": True
             }
         
-        # Apply prompt overrides if provided
         if prompt_overrides:
             self.prompt_template_data.update(prompt_overrides)
         logger.info(f"EthicalPDMAEvaluator initialized with model: {self.model_name}")
@@ -83,14 +80,11 @@ class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
 
         full_context_str = system_snapshot_context_str + user_profile_context_str
         
-        # Build messages using prompt loader
         messages = []
         
-        # Add covenant header if specified
         if self.prompt_loader.uses_covenant_header(self.prompt_template_data):
             messages.append({"role": "system", "content": COVENANT_TEXT})
         
-        # Build system message from template
         system_message = self.prompt_loader.get_system_message(
             self.prompt_template_data,
             original_thought_content=original_thought_content,
@@ -98,7 +92,6 @@ class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
         )
         messages.append({"role": "system", "content": system_message})
         
-        # Build user message from template
         user_message = self.prompt_loader.get_user_message(
             self.prompt_template_data,
             original_thought_content=original_thought_content,

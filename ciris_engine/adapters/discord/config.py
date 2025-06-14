@@ -8,38 +8,30 @@ import discord
 class DiscordAdapterConfig(BaseModel):
     """Configuration for the Discord adapter."""
     
-    # Authentication
     bot_token: Optional[str] = Field(default=None, description="Discord bot token")
     
-    # Channel configuration
     monitored_channel_ids: List[str] = Field(default_factory=list, description="List of Discord channel IDs to monitor for incoming messages")
     home_channel_id: Optional[str] = Field(default=None, description="Home channel ID for wakeup and primary agent communication")
     deferral_channel_id: Optional[str] = Field(default=None, description="Channel ID for Discord deferrals and guidance from WA")
     
-    # Bot behavior
     respond_to_mentions: bool = Field(default=True, description="Respond when the bot is mentioned")
     respond_to_dms: bool = Field(default=True, description="Respond to direct messages")
     
-    # Message handling
     max_message_length: int = Field(default=2000, description="Maximum Discord message length")
     enable_threads: bool = Field(default=True, description="Enable thread creation for long conversations")
     delete_commands: bool = Field(default=False, description="Delete user commands after processing")
     
-    # Rate limiting
     message_rate_limit: float = Field(default=1.0, description="Minimum seconds between messages")
     max_messages_per_minute: int = Field(default=30, description="Maximum messages per minute")
     
-    # Permissions
     allowed_user_ids: List[str] = Field(default_factory=list, description="List of allowed user IDs (empty = all users)")
     allowed_role_ids: List[str] = Field(default_factory=list, description="List of allowed role IDs")
     admin_user_ids: List[str] = Field(default_factory=list, description="List of admin user IDs with elevated permissions")
     
-    # Status and presence
     status: str = Field(default="online", description="Bot status: online, idle, dnd, invisible")
     activity_type: str = Field(default="watching", description="Activity type: playing, watching, listening, streaming")
     activity_name: str = Field(default="for ethical dilemmas", description="Activity description")
     
-    # Intents configuration
     enable_message_content: bool = Field(default=True, description="Enable message content intent")
     enable_guild_messages: bool = Field(default=True, description="Enable guild messages intent")
     enable_dm_messages: bool = Field(default=True, description="Enable DM messages intent")
@@ -129,36 +121,29 @@ class DiscordAdapterConfig(BaseModel):
         """Load configuration from environment variables with instance-specific prefix."""
         from ciris_engine.config.env_utils import get_env_var
         
-        # First load general env vars as defaults
         self.load_env_vars()
         
-        # Then override with instance-specific vars
         instance_upper = instance_id.upper()
         
-        # Bot token
         env_token = get_env_var(f"DISCORD_{instance_upper}_BOT_TOKEN") or get_env_var(f"DISCORD_BOT_TOKEN_{instance_upper}")
         if env_token:
             self.bot_token = env_token
             
-        # Home channel ID
         env_home_channel = get_env_var(f"DISCORD_{instance_upper}_HOME_CHANNEL_ID") or get_env_var(f"DISCORD_HOME_CHANNEL_ID_{instance_upper}")
         if env_home_channel:
             self.home_channel_id = env_home_channel
             if env_home_channel not in self.monitored_channel_ids:
                 self.monitored_channel_ids.append(env_home_channel)
                 
-        # Channel IDs
         env_channels = get_env_var(f"DISCORD_{instance_upper}_CHANNEL_IDS") or get_env_var(f"DISCORD_CHANNEL_IDS_{instance_upper}")
         if env_channels:
             channel_list = [ch.strip() for ch in env_channels.split(",") if ch.strip()]
             self.monitored_channel_ids.extend(channel_list)
             
-        # Deferral channel
         env_deferral = get_env_var(f"DISCORD_{instance_upper}_DEFERRAL_CHANNEL_ID") or get_env_var(f"DISCORD_DEFERRAL_CHANNEL_ID_{instance_upper}")
         if env_deferral:
             self.deferral_channel_id = env_deferral
             
-        # Admin user
         env_admin = get_env_var(f"WA_{instance_upper}_USER_ID") or get_env_var(f"WA_USER_ID_{instance_upper}")
         if env_admin:
             if env_admin not in self.admin_user_ids:

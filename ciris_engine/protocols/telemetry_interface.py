@@ -60,13 +60,11 @@ class ConfigurationSnapshot(BaseModel):
     debug_mode: bool = False
     adapter_modes: List[str] = Field(default_factory=list)
     
-    # DMA Configuration
     ethical_dma: Optional[str] = None
     csdma: Optional[str] = None
     dsdma: Optional[str] = None
     action_selection_dma: Optional[str] = None
     
-    # Guardrails Configuration
     active_guardrails: List[str] = Field(default_factory=list)
     guardrail_settings: Dict[str, Any] = Field(default_factory=dict)
 

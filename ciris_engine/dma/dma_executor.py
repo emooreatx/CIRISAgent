@@ -127,7 +127,7 @@ async def run_action_selection_pdma(
     
     logger.debug(f"run_action_selection_pdma: Evaluation completed. Result type: {type(result)}, Result: {result}")
     if result is None:
-        logger.error(f"run_action_selection_pdma: evaluator.evaluate() returned None!")
+        logger.error(f"run_action_selection_pdma: evaluator.evaluate() returned None!")  # type: ignore[unreachable]
     elif hasattr(result, 'selected_action'):
         logger.debug(f"run_action_selection_pdma: Selected action: {result.selected_action}")
         if result.selected_action == HandlerActionType.OBSERVE:

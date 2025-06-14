@@ -104,18 +104,12 @@ class DreamProcessor:
             logger.info("No active dream cycle to stop, or task already completed.")
 
         if client_to_close:
-            # The print statement below is for debugging the test, can be removed later
-            # print(f"DreamProcessor attempting to close client id={id(client_to_close)}, hasattr close: {hasattr(client_to_close, 'close')}")
             if hasattr(client_to_close, 'close') and asyncio.iscoroutinefunction(client_to_close.close):
                 try:
                     await client_to_close.close()
                 except Exception as e:
                     logger.error(f"Error closing CIRISNodeClient: {e}", exc_info=True)
-            # else:
-                # logger.warning(f"Client {id(client_to_close)} has no async close method or was already None.")
             
-            # Ensure we only nullify if it's the same client instance we intended to close,
-            # in case of any rapid re-initialization (though unlikely here).
             if self.cirisnode_client is client_to_close:
                 self.cirisnode_client = None
         
@@ -171,7 +165,6 @@ class DreamProcessor:
             logger.warning("Could not determine model_id from AppConfig llm_services.openai.model_name, using fallback 'unknown_model'")
 
         try:
-            # Run benchmarks
             if not self.cirisnode_client:
                 logger.warning("CIRISNode client not available, skipping benchmarks")
                 return
@@ -184,25 +177,20 @@ class DreamProcessor:
                 agent_id=agent_id
             )
             
-            # Extract results
             topic = he300_result.get('topic', 'Unknown')
             bench_score = simplebench_result.get('score', 'N/A')
             
-            # Record metrics
             self.dream_metrics["topics"].append(topic)
             self.dream_metrics["bench_scores"].append(bench_score)
             
-            # Generate snore summary
             snore_summary = f"*snore* pulse {pulse_num}: Dreamt about '{topic}', bench score: {bench_score}!"
             self.snore_history.append(snore_summary)
             
-            # Maintain history limit
             if len(self.snore_history) > self.max_snore_history:
                 self.snore_history.pop(0)
             
             logger.info(snore_summary)
             
-            # Generate periodic insights
             if pulse_num % 3 == 0:
                 self._generate_dream_insights()
             
@@ -239,7 +227,6 @@ class DreamProcessor:
             "recent_snores": self.snore_history.copy()
         }
         
-        # Calculate duration if applicable
         if self.dream_metrics["start_time"]:
             start = datetime.fromisoformat(self.dream_metrics["start_time"])
             end_time = self.dream_metrics.get("end_time")
@@ -262,16 +249,12 @@ class DreamProcessor:
         Returns:
             True if dream state should be entered
         """
-        # Don't enter dream if already dreaming
         if self._dream_task and not self._dream_task.done():
             return False
         
-        # Check idle threshold
         if idle_seconds < min_idle_threshold:
             return False
         
-        # Additional heuristics could be added here
-        # e.g., time of day, system load, recent activity patterns
         
         logger.info(f"Idle for {idle_seconds}s, recommending dream state")
         return True

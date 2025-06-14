@@ -61,12 +61,10 @@ class DiscordChannelManager:
         try:
             channel_id_int = int(channel_id)
             
-            # Try to get channel from cache first
             channel = self.client.get_channel(channel_id_int)
             if channel is not None:
                 return channel
             
-            # If not in cache, try to fetch it
             try:
                 channel = await self.client.fetch_channel(channel_id_int)
                 return channel
@@ -94,7 +92,6 @@ class DiscordChannelManager:
         if not channel:
             return False
         
-        # Check if the channel supports the operations we need
         if not hasattr(channel, 'send'):
             logger.warning(f"Channel {channel_id} does not support sending messages")
             return False
@@ -142,11 +139,9 @@ class DiscordChannelManager:
         Args:
             message: The Discord message object
         """
-        # Skip bot messages
         if message.author.bot:
             return
         
-        # Convert to our schema format
         incoming = DiscordMessage(
             message_id=str(message.id),
             content=message.content,
@@ -158,7 +153,6 @@ class DiscordChannelManager:
             raw_message=message
         )
         
-        # Call the registered callback if available
         if self.on_message_callback:
             try:
                 await self.on_message_callback(incoming)
@@ -219,12 +213,10 @@ class DiscordChannelManager:
                 "can_read_history": hasattr(channel, 'history')
             }
             
-            # Add guild-specific info if available
             if hasattr(channel, 'guild') and channel.guild:
                 info["guild_name"] = channel.guild.name
                 info["guild_id"] = str(channel.guild.id)
             
-            # Add channel name if available
             if hasattr(channel, 'name'):
                 info["name"] = channel.name
             

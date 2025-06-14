@@ -49,11 +49,9 @@ class DiscordMessageHandler:
         if not channel:
             raise RuntimeError(f"Discord channel {channel_id} not found")
         
-        # Split long messages and send each chunk
         chunks = self._split_message(content)
         
         for i, chunk in enumerate(chunks):
-            # Add continuation indicators for multi-part messages
             if len(chunks) > 1:
                 if i == 0:
                     chunk = f"{chunk}\n\n*(Message continues...)*"
@@ -64,7 +62,6 @@ class DiscordMessageHandler:
             
             await channel.send(chunk)
             
-            # Small delay between messages to avoid rate limiting
             if i < len(chunks) - 1:
                 await asyncio.sleep(0.5)
     
@@ -141,25 +138,20 @@ class DiscordMessageHandler:
         current_chunk = ""
         
         for line in lines:
-            # If a single line is longer than max_length, split it
             if len(line) > max_length:
-                # First, add any accumulated content
                 if current_chunk:
                     chunks.append(current_chunk.rstrip())
                     current_chunk = ""
                 
-                # Split the long line
                 for i in range(0, len(line), max_length):
                     chunks.append(line[i:i + max_length])
             else:
-                # Check if adding this line would exceed the limit
                 if len(current_chunk) + len(line) + 1 > max_length:
                     chunks.append(current_chunk.rstrip())
                     current_chunk = line + '\n'
                 else:
                     current_chunk += line + '\n'
         
-        # Add any remaining content
         if current_chunk:
             chunks.append(current_chunk.rstrip())
         

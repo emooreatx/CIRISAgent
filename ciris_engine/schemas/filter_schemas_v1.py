@@ -66,7 +66,6 @@ class UserTrustProfile(BaseModel):
     flags: List[str] = Field(default_factory=list)
     roles: List[str] = Field(default_factory=list)
     
-    # Behavioral patterns
     avg_message_length: float = 0.0
     avg_message_interval: float = 0.0  # seconds
     common_triggers: Dict[str, int] = Field(default_factory=dict)
@@ -100,7 +99,6 @@ class FilterResult(BaseModel):
     reasoning: str
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     
-    # Context for handlers
     suggested_action: Optional[str] = None
     context_hints: Dict[str, Any] = Field(default_factory=dict)
 

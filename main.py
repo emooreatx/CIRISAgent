@@ -169,7 +169,7 @@ def main(
     """Unified CIRIS agent entry point."""
     setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
 
-    async def _async_main():
+    async def _async_main() -> None:
         from ciris_engine.config.env_utils import get_env_var
 
         if not mock_llm and not get_env_var("OPENAI_API_KEY"):

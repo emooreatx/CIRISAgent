@@ -76,3 +76,11 @@ class ForgetParams(BaseModel):
     @property
     def scope(self) -> GraphScope:
         return self.node.scope
+
+class TaskCompleteParams(BaseModel):
+    """Parameters for TASK_COMPLETE action - mission-critical schema compliance."""
+    
+    completion_reason: str = "Task completed successfully"
+    context: Dict[str, Any] = Field(default_factory=dict)
+    
+    model_config = ConfigDict(extra="forbid")

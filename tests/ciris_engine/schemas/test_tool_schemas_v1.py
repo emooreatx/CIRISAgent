@@ -3,7 +3,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import SchemaVersion
 
 def test_tool_execution_status_enum():
     assert ToolExecutionStatus.SUCCESS == "success"
-    assert ToolExecutionStatus.UNAUTHORIZED == "unauthorized"
+    assert ToolExecutionStatus.UNAUTHORIZED == "unauthorized"  # type: ignore[unreachable]
 
 def test_tool_result_minimal():
     res = ToolResult(tool_name="foo", execution_status=ToolExecutionStatus.SUCCESS)

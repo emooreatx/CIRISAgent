@@ -10,6 +10,11 @@ from collections import defaultdict
 from datetime import datetime
 import logging
 
+# Import our updated schema compliance checker and security analyzer
+from .schema_compliance import SchemaComplianceChecker
+from .security_analyzer import SecurityAnalyzer
+
+# Import all required modules - exit if any are broken (no fallbacks)
 from .analyzers import SchemaValidator, ProtocolAnalyzer, UnusedCodeDetector
 from .error_fixers import TypeAnnotationFixer, ProtocolComplianceFixer, SchemaAlignmentFixer
 
@@ -276,7 +281,7 @@ class CIRISMypyToolkit:
         """
         adapter_path = Path(adapter_path)
         
-        if not adapter_path.exists():
+        if not adapter_path.exists():  # type: ignore[attr-defined]
             return {"error": f"Adapter path {adapter_path} does not exist"}
         
         # Validate adapter follows CIRIS patterns

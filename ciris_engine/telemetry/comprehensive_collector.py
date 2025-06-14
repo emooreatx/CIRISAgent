@@ -38,19 +38,16 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
     async def get_telemetry_snapshot(self) -> TelemetrySnapshot:
         """Get a complete snapshot of current system telemetry"""
         try:
-            # Gather all components
             basic_telemetry = await self._get_basic_telemetry()
             adapters = await self.get_adapters_info()
             services = await self.get_services_info()
             processor_state = await self.get_processor_state()
             configuration = await self.get_configuration_snapshot()
             
-            # Runtime metrics
             uptime = (datetime.now(timezone.utc) - self.start_time).total_seconds()
             memory_mb = psutil.virtual_memory().used / 1024 / 1024
             cpu_percent = psutil.cpu_percent(interval=0.1)
             
-            # Health assessment
             health_status = await self.get_health_status()
             
             return TelemetrySnapshot(
@@ -67,7 +64,6 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
             )
         except Exception as e:
             logger.error(f"Failed to collect telemetry snapshot: {e}")
-            # Return minimal snapshot on error
             return TelemetrySnapshot(
                 basic_telemetry=CompactTelemetry(),
                 processor_state=ProcessorState(),
@@ -106,7 +102,6 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
             if hasattr(self.runtime, 'service_registry') and self.runtime.service_registry:
                 registry = self.runtime.service_registry
                 
-                # Collect handler-specific services
                 if hasattr(registry, '_providers'):
                     for handler, service_types in registry._providers.items():
                         for service_type, providers in service_types.items():
@@ -124,7 +119,6 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
                                 )
                                 services.append(service_info)
                 
-                # Collect global services
                 if hasattr(registry, '_global_services'):
                     for service_type, providers in registry._global_services.items():
                         for provider in providers:
@@ -207,17 +201,14 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
             if hasattr(self.runtime, 'app_config') and self.runtime.app_config:
                 app_config = self.runtime.app_config
                 
-                # LLM configuration
                 if hasattr(app_config, 'llm_services') and hasattr(app_config.llm_services, 'openai'):
                     llm_config = app_config.llm_services.openai
                     config.llm_model = getattr(llm_config, 'model_name', None)
                     config.llm_base_url = getattr(llm_config, 'api_base', None)
                 
-                # Adapter modes
                 if hasattr(self.runtime, 'adapters'):
                     config.adapter_modes = [adapter.__class__.__name__ for adapter in self.runtime.adapters]
                 
-                # Debug mode
                 config.debug_mode = getattr(app_config, 'debug', False)
                 
             return config
@@ -333,22 +324,17 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
             if hasattr(self.runtime, 'agent_processor') and self.runtime.agent_processor:
                 processor = self.runtime.agent_processor
                 
-                # Get current state before processing
                 before_state = await self.get_processor_state()
                 start_time = datetime.now(timezone.utc)
                 
-                # Execute a single processing round
                 round_number = getattr(processor, 'current_round', 0) + 1
                 
-                # Call the existing process method with a single round
                 if hasattr(processor, 'process'):
                     processing_result = await processor.process(round_number)
                     
-                    # Get state after processing
                     after_state = await self.get_processor_state()
                     end_time = datetime.now(timezone.utc)
                     
-                    # Build detailed result
                     result = {
                         "status": "completed",
                         "round_number": round_number,
@@ -367,7 +353,6 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
                         "timestamp": start_time.isoformat()
                     }
                     
-                    # Add change summary
                     thoughts_processed = before_state.thoughts_pending - after_state.thoughts_pending
                     result["summary"] = {
                         "thoughts_processed": max(0, thoughts_processed),
@@ -438,7 +423,6 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
         """Get basic telemetry from the existing service"""
         try:
             if hasattr(self.runtime, 'telemetry_service') and self.runtime.telemetry_service:
-                # Create a dummy system snapshot to get telemetry updated
                 from ciris_engine.schemas.context_schemas_v1 import SystemSnapshot
                 snapshot = SystemSnapshot()
                 await self.runtime.telemetry_service.update_system_snapshot(snapshot)
@@ -465,20 +449,16 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
     async def _get_service_health(self, provider: Any) -> str:
         """Get service health status"""
         try:
-            # Check for is_healthy() method (HealthCheckProtocol)
             if hasattr(provider.instance, 'is_healthy'):
                 try:
                     is_healthy = await provider.instance.is_healthy()
                     return "healthy" if is_healthy else "degraded"
                 except Exception as e:
                     logger.debug(f"is_healthy() failed for {provider.name}: {e}")
-                    # Fall through to other checks
             
-            # Check for get_health() method (like AdaptiveFilterService)
             if hasattr(provider.instance, 'get_health'):
                 try:
                     health_result = await provider.instance.get_health()
-                    # Handle different return types
                     if hasattr(health_result, 'is_healthy'):
                         return "healthy" if health_result.is_healthy else "degraded"
                     elif isinstance(health_result, dict):
@@ -490,13 +470,10 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
                         return "healthy"  # If method exists and doesn't error, assume healthy
                 except Exception as e:
                     logger.debug(f"get_health() failed for {provider.name}: {e}")
-                    # Fall through to other checks
             
-            # Check for health_check() method (base Service class)
             if hasattr(provider.instance, 'health_check'):
                 try:
                     health_result = await provider.instance.health_check()
-                    # Base Service.health_check returns dict with status
                     if isinstance(health_result, dict):
                         status = health_result.get('status', 'unknown')
                         return "healthy" if status == "healthy" else "degraded"
@@ -504,12 +481,9 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
                         return "healthy"  # If method exists and doesn't error, assume healthy
                 except Exception as e:
                     logger.debug(f"health_check() failed for {provider.name}: {e}")
-                    # Fall through to circuit breaker check
             
-            # Check circuit breaker state as fallback
             if hasattr(provider, 'circuit_breaker') and provider.circuit_breaker:
                 state = provider.circuit_breaker.state
-                # CircuitState enum values need to be converted to string
                 state_value = state.value if hasattr(state, 'value') else str(state)
                 if state_value == "closed":
                     return "healthy"
@@ -518,7 +492,6 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
                 else:
                     return "failed"
             
-            # If service is registered and no explicit health check available, assume healthy
             return "healthy"
             
         except Exception as e:
@@ -541,7 +514,6 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
         try:
             if hasattr(self.runtime, 'agent_processor') and self.runtime.agent_processor:
                 processor = self.runtime.agent_processor
-                # This would need processor introspection capability
                 return "work"  # Default assumption
         except Exception:
             pass

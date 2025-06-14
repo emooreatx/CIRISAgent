@@ -1,4 +1,3 @@
-# filepath: /home/emoore/CIRISAgent/ciris_engine/runtime/runtime_control.py
 """Runtime control service for processor and adapter management."""
 import logging
 from datetime import datetime, timezone
@@ -48,15 +47,12 @@ class RuntimeControlService(RuntimeControlInterface):
     async def initialize(self) -> None:
         """Initialize the runtime control service."""
         try:
-            # RuntimeAdapterManager doesn't have an initialize method
-            # Only initialize config_manager
             await self._get_config_manager().initialize()
             logger.info("Runtime control service initialized")
         except Exception as e:
             logger.error(f"Failed to initialize runtime control service: {e}")
             raise
 
-    # Processor Control Methods
     async def single_step(self) -> ProcessorControlResponse:
         """Execute a single processing step."""
         try:
@@ -227,10 +223,8 @@ class RuntimeControlService(RuntimeControlInterface):
                 error="Adapter manager not available"
             )
         
-        # Call adapter manager (note: it doesn't use auto_start parameter)
         result = await self.adapter_manager.load_adapter(adapter_type, adapter_id, config)
         
-        # Convert dict response to AdapterOperationResponse
         from ciris_engine.schemas.runtime_control_schemas import AdapterStatus
         return AdapterOperationResponse(
             success=result.get("success", False),
@@ -374,7 +368,6 @@ class RuntimeControlService(RuntimeControlInterface):
             logger.error(f"Failed to list profiles: {e}")
             return []
 
-    # Alias for API compatibility
     async def list_agent_profiles(self) -> List[Dict[str, Any]]:
         """List all available agent profiles (API alias)."""
         return await self.list_profiles()
@@ -422,7 +415,6 @@ class RuntimeControlService(RuntimeControlInterface):
                 error=str(e)
             )
 
-    # Backup and Restore
     async def backup_config(
         self,
         backup_request
@@ -493,7 +485,6 @@ class RuntimeControlService(RuntimeControlInterface):
             logger.error(f"Failed to list config backups: {e}")
             return []
 
-    # Status and Monitoring
     async def get_runtime_status(self) -> RuntimeStatusResponse:
         """Get current runtime status."""
         try:
@@ -537,15 +528,12 @@ class RuntimeControlService(RuntimeControlInterface):
             current_time = datetime.now(timezone.utc)
             uptime = (current_time - self._start_time).total_seconds()
             
-            # Get detailed adapter information
             adapters_data = []
             if self.adapter_manager:
                 adapters_data = await self.adapter_manager.list_adapters()
             
-            # Get configuration
             config_data = await self._get_config_manager().get_config_value()
             
-            # Get profiles
             profiles = await self._get_config_manager().list_profiles()
             profile_names = [p.name for p in profiles]
             active_profile = next((p.name for p in profiles if p.is_active), "default")
@@ -566,7 +554,6 @@ class RuntimeControlService(RuntimeControlInterface):
             logger.error(f"Failed to get runtime snapshot: {e}")
             raise
 
-    # Service Management Methods
     async def get_service_registry_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> Dict[str, Any]:
         """Get information about registered services in the service registry."""
         try:
@@ -590,8 +577,6 @@ class RuntimeControlService(RuntimeControlInterface):
             if not self.runtime or not hasattr(self.runtime, 'service_registry'):
                 return {"success": False, "error": "Service registry not available"}
                 
-            # This would require extending the service registry with update methods
-            # For now, return not implemented
             return {
                 "success": False,
                 "error": "Service priority updates not yet implemented - requires service registry enhancements",
@@ -638,7 +623,6 @@ class RuntimeControlService(RuntimeControlInterface):
                 "unhealthy_services": 0
             }
             
-            # Process handler-specific services
             for handler, services in registry_info.get("handlers", {}).items():
                 for service_type, providers in services.items():
                     for provider in providers:
@@ -659,7 +643,6 @@ class RuntimeControlService(RuntimeControlInterface):
                         else:
                             health_status["unhealthy_services"] += 1
             
-            # Process global services
             for service_type, providers in registry_info.get("global_services", {}).items():
                 for provider in providers:
                     service_key = f"global.{service_type}.{provider['name']}"
@@ -679,7 +662,6 @@ class RuntimeControlService(RuntimeControlInterface):
                     else:
                         health_status["unhealthy_services"] += 1
             
-            # Set overall health
             if health_status["unhealthy_services"] > 0:
                 if health_status["unhealthy_services"] > health_status["healthy_services"]:
                     health_status["overall_health"] = "unhealthy"
@@ -780,7 +762,6 @@ class RuntimeControlService(RuntimeControlInterface):
             
             self._events_history.append(event)
             
-            # Limit history size
             if len(self._events_history) > 1000:
                 self._events_history = self._events_history[-1000:]
                 
@@ -795,8 +776,6 @@ class RuntimeControlService(RuntimeControlInterface):
     async def reload_config(self, config_path: Optional[str] = None) -> Dict[str, Any]:
         """Reload system configuration."""
         try:
-            # For now, return not fully implemented
-            # This would require more sophisticated config reloading
             await self._record_event("config_reload", "reload", success=False, error="Legacy method - use specific config operations instead")
             
             return {

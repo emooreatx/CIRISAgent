@@ -25,13 +25,11 @@ def create_follow_up_thought(
 
     if parent.context is not None:
         ctx = parent.context.copy() if isinstance(parent.context, dict) else parent.context.model_copy()
-        # Ensure channel_id is propagated if present in parent context
         channel_id = None
         if hasattr(parent.context, 'get'):
             channel_id = parent.context.get('channel_id')
         elif hasattr(parent.context, 'channel_id'):
             channel_id = getattr(parent.context, 'channel_id', None)
-        # Patch: propagate channel_id into system_snapshot if present
         if channel_id:
             if hasattr(ctx, 'system_snapshot') and hasattr(ctx.system_snapshot, 'channel_id'):
                 ctx.system_snapshot.channel_id = channel_id

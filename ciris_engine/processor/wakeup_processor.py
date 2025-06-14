@@ -30,7 +30,6 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         
         if self.agent_profile:
             agent_name = self.agent_profile.name.title()
-            # Extract role/job from profile description if available
             if hasattr(self.agent_profile, 'description') and self.agent_profile.description:
                 description_lower = self.agent_profile.description.lower()
                 if 'moderation' in description_lower:
@@ -204,7 +203,6 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         if not self.wakeup_tasks or len(self.wakeup_tasks) < 2:
             return
         
-        # Process all step tasks concurrently
         tasks: List[Any] = []
         
         for i, step_task in enumerate(self.wakeup_tasks[1:]):  # Skip root
@@ -212,33 +210,24 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             if not current_task:
                 continue
                 
-            # Only process ACTIVE tasks
             if current_task.status == TaskStatus.ACTIVE:
-                # Check if thought already exists for this task
                 existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
                 
-                # Skip if already has PENDING/PROCESSING thoughts
                 if any(t.status in [ThoughtStatus.PENDING, ThoughtStatus.PROCESSING] for t in existing_thoughts):
                     logger.debug(f"Step {i+1} already has active thoughts, skipping")
                     continue
                 
-                # Create thought for this step
                 thought = await self._create_step_thought(step_task, round_number)
                 logger.debug(f"Created thought {thought.thought_id} for step {i+1}/{len(self.wakeup_tasks)-1}")
                 
-                # Queue it for processing without waiting
                 item = ProcessingQueueItem.from_thought(thought)
                 
-                # Instead of processing synchronously, just add to queue
-                # The main processing loop will handle it
                 logger.debug(f"Queued step {i+1} for async processing")
         
-        # Process any existing PENDING/PROCESSING thoughts for ALL tasks
         for step_task in self.wakeup_tasks[1:]:
             thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
             for thought in thoughts:
                 if thought.status in [ThoughtStatus.PENDING, ThoughtStatus.PROCESSING]:
-                    # These will be picked up by the main processing loop
                     logger.debug(f"Found existing thought {thought.thought_id} for processing")
 
     async def _check_all_steps_complete(self) -> bool:
@@ -310,27 +299,21 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         for i, step_task in enumerate(step_tasks):
             step_type = step_task.context.get("step_type", "UNKNOWN") if step_task.context else "UNKNOWN"
             logger.debug(f"Processing wakeup step {i+1}/{len(step_tasks)}: {step_type}")
-            # Only process ACTIVE tasks
             current_task = persistence.get_task_by_id(step_task.task_id)
             if not current_task or current_task.status != TaskStatus.ACTIVE:
                 continue
-            # Prevent duplicate thoughts: only create a new thought if there is no PROCESSING or PENDING thought for this step task
             existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
             if any(t.status in [ThoughtStatus.PROCESSING, ThoughtStatus.PENDING] for t in existing_thoughts):
                 logger.debug(f"Skipping creation of new thought for step {step_type} (task_id={step_task.task_id}) because an active thought already exists.")
                 continue
-            # Create and queue a thought for this step
             thought = await self._create_step_thought(step_task, round_number)
             if non_blocking:
-                # In non-blocking mode, do not wait for completion or LLM, just queue and return
                 continue
-            # Blocking mode: process and wait for completion
             result = await self._process_step_thought(thought)
             if not result:
                 logger.error(f"Wakeup step {step_type} failed: no result")
                 self._mark_task_failed(step_task.task_id, "No result from processing")
                 return False
-            # Extract selected_action robustly
             selected_action = None
             if hasattr(result, "selected_action"):
                 selected_action = result.selected_action
@@ -465,7 +448,6 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         return self.wakeup_complete
     
 
-    # ProcessorInterface implementation
     async def start_processing(self, num_rounds: Optional[int] = None) -> None:
         """Start the wakeup processing loop."""
         round_num = 0
@@ -473,7 +455,7 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             await self.process(round_num)
             round_num += 1
             if self.wakeup_complete:
-                break
+                break  # type: ignore[unreachable]
             await asyncio.sleep(1)  # Brief pause between rounds
 
     async def stop_processing(self) -> None:

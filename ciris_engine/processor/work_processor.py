@@ -183,8 +183,6 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
             extra_context=getattr(item, 'initial_context', {})
         )
         
-        # Services should be accessed via service registry, not passed in context
-        # to avoid serialization issues during audit logging
         
         try:
             await self.dispatch_action(result, thought_obj, dispatch_context)
@@ -243,7 +241,6 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
             await self.process(round_num)
             round_num += 1
             
-            # Check if we should transition to dream state
             if self.should_transition_to_dream():
                 logger.info("Work processor recommends transitioning to DREAM state due to inactivity")
                 break

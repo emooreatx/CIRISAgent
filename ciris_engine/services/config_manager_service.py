@@ -39,7 +39,6 @@ class ConfigManagerService(Service):
         self._max_history = 100
         self._is_running = False
         
-        # Initialize component managers
         self._validator = ConfigValidator()
         self._profile_manager = ProfileManager()
         self._backup_manager = ConfigBackupManager(self._backup_dir)
@@ -90,13 +89,11 @@ class ConfigManagerService(Service):
             config = self.config_manager.config
             
             if path is None:
-                # Return entire configuration
                 config_dict = config.model_dump(mode="json")
                 if not include_sensitive:
                     config_dict = self._validator.mask_sensitive_values(config_dict)
                 return config_dict
             
-            # Navigate to specific path
             value = config
             for part in path.split('.'):
                 if hasattr(value, part):
@@ -104,18 +101,22 @@ class ConfigManagerService(Service):
                 else:
                     raise ValueError(f"Configuration path '{path}' not found")
             
-            # Convert to serializable format
+            # Handle different value types for mission-critical type safety
+            result_value: Any
             if hasattr(value, 'model_dump'):
-                result = value.model_dump(mode="json")
+                result_value = value.model_dump(mode="json")
             elif isinstance(value, (str, int, float, bool, list, dict, type(None))):
-                result = value
+                result_value = value
             else:
-                result = str(value)
+                result_value = str(value)
             
-            if not include_sensitive and isinstance(result, dict):
-                result = self._mask_sensitive_values(result)
+            # Prepare final result as dict
+            result = {"path": path, "value": result_value}
             
-            return {"path": path, "value": result}
+            if not include_sensitive and isinstance(result_value, dict):
+                result["value"] = self._mask_sensitive_values(result_value)
+            
+            return result
             
         except Exception as e:
             logger.error(f"Failed to get config value at path '{path}': {e}")
@@ -204,7 +205,6 @@ class ConfigManagerService(Service):
         current_config = self.config_manager.config if self._config_manager else None
         return await self._validator.validate_config(config_data, config_path, current_config)
 
-    # Agent Profile Operations
     async def list_profiles(self) -> List[AgentProfileInfo]:
         """List all available agent profiles."""
         current_config = self.config_manager.config if self._config_manager else None
@@ -221,14 +221,11 @@ class ConfigManagerService(Service):
             try:
                 start_time = datetime.now(timezone.utc)
                 
-                # Reload the profile
                 config_path_obj = Path(config_path) if config_path else None
                 await self.config_manager.reload_profile(profile_name, config_path_obj)
                 
-                # Track loaded profile in profile manager
                 self._profile_manager._loaded_profiles.add(profile_name)
                 
-                # Record the change
                 change_record = {
                     "timestamp": start_time.isoformat(),
                     "operation": "reload_profile",
@@ -280,7 +277,6 @@ class ConfigManagerService(Service):
             include_profiles, False, backup_name  # False for include_env_vars since we removed that
         )
 
-    # Helper Methods
     def _mask_sensitive_values(self, config_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Mask sensitive values in configuration."""
         sensitive_keys = {
@@ -288,7 +284,7 @@ class ConfigManagerService(Service):
             "credential", "private", "sensitive"
         }
         
-        def mask_recursive(obj):
+        def mask_recursive(obj: Any) -> Any:
             if isinstance(obj, dict):
                 return {
                     k: "***MASKED***" if any(sensitive in k.lower() for sensitive in sensitive_keys)
@@ -312,10 +308,8 @@ class ConfigManagerService(Service):
         errors = []
         warnings = []
         
-        # Basic type checking
         path_parts = path.split('.')
         
-        # Check for restricted paths
         restricted_paths = {
             "llm_services.openai.api_key": "API key changes should use environment variables",
             "database.db_filename": "Database path changes require restart",
@@ -325,7 +319,6 @@ class ConfigManagerService(Service):
         if path in restricted_paths and validation_level == ConfigValidationLevel.STRICT:
             warnings.append(restricted_paths[path])
         
-        # Validate based on configuration type
         if "timeout" in path.lower() and isinstance(value, (int, float)):
             if value <= 0:
                 errors.append("Timeout values must be positive")
@@ -376,7 +369,6 @@ class ConfigManagerService(Service):
         """Record configuration change in history."""
         self._config_history.append(change_record)
         
-        # Limit history size
         if len(self._config_history) > self._max_history:
             self._config_history = self._config_history[-self._max_history:]
 
@@ -389,7 +381,7 @@ class ConfigManagerService(Service):
         """Load YAML file asynchronously."""
         import yaml
         
-        def _sync_load():
+        def _sync_load() -> Dict[str, Any]:
             with open(file_path, 'r') as f:
                 return yaml.safe_load(f) or {}
         

@@ -42,7 +42,6 @@ class GraphQLContextProvider:
             name = task.context.get("author_name")
             if name:
                 authors.add(name)
-        # Also check thought context for author information
         if thought and hasattr(thought, 'context') and isinstance(thought.context, dict):
             name = thought.context.get("author_name")
             if name:
@@ -74,8 +73,8 @@ class GraphQLContextProvider:
                 *(self.memory_service.recall(GraphNode(id=n, type=NodeType.USER, scope=GraphScope.LOCAL)) for n in missing)
             )
             for name, result in zip(missing, memory_results):
-                if result and result.data:
-                    enriched[name] = result.data
+                if result and result.data:  # type: ignore[attr-defined]
+                    enriched[name] = result.data  # type: ignore[attr-defined]
 
         identity_block = ""
         if self.memory_service:

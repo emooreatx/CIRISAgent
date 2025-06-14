@@ -21,7 +21,6 @@ class ToolRegistry:
         if not schema:
             return False
         # TODO: Implement actual validation of arguments against schema
-        # For now, just return True if tool exists and arguments is a dict
         return isinstance(arguments, dict)
 
     def get_handler(self, name: str) -> Optional[Callable]:

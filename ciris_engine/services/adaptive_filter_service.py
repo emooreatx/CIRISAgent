@@ -57,7 +57,6 @@ class AdaptiveFilterService(Service):
     async def _initialize(self) -> None:
         """Load or create initial configuration"""
         try:
-            # Try to load existing config from graph memory
             node = GraphNode(
                 id=self._config_node_id,
                 type=NodeType.CONFIG,
@@ -69,14 +68,12 @@ class AdaptiveFilterService(Service):
                 self._config = AdaptiveFilterConfig(**result.data.get("attributes", {}))
                 logger.info(f"Loaded filter config version {self._config.version}")
             else:
-                # Create default configuration
                 self._config = self._create_default_config()
                 await self._save_config("Initial configuration")
                 logger.info("Created default filter configuration")
                 
         except Exception as e:
             logger.error(f"Failed to initialize filter service: {e}")
-            # Create minimal working config
             self._config = AdaptiveFilterConfig()
     
     def _create_default_config(self) -> AdaptiveFilterConfig:
@@ -185,7 +182,6 @@ class AdaptiveFilterService(Service):
     ) -> FilterResult:
         """Apply filters to determine message priority and processing"""
         
-        # Wait for initialization to complete if needed
         if self._init_task and not self._init_task.done():
             try:
                 await self._init_task
@@ -193,7 +189,6 @@ class AdaptiveFilterService(Service):
                 logger.error(f"Filter initialization failed: {e}")
         
         if not self._config:
-            # Still not initialized - create minimal config and proceed
             logger.warning("Filter service not properly initialized, using minimal config")
             self._config = AdaptiveFilterConfig()
             return FilterResult(
@@ -208,20 +203,17 @@ class AdaptiveFilterService(Service):
         priority = FilterPriority.LOW
         confidence = 1.0
         
-        # Extract message components
         content = self._extract_content(message, adapter_type)
         user_id = self._extract_user_id(message, adapter_type)
         channel_id = self._extract_channel_id(message, adapter_type)
         message_id = self._extract_message_id(message, adapter_type)
         is_dm = self._is_direct_message(message, adapter_type)
         
-        # Apply appropriate filter sets
         if is_llm_response:
             filters = self._config.llm_filters
         else:
             filters = self._config.attention_triggers + self._config.review_triggers
         
-        # Test each filter
         for filter_trigger in filters:
             if not filter_trigger.enabled:
                 continue
@@ -230,30 +222,23 @@ class AdaptiveFilterService(Service):
                 if await self._test_trigger(filter_trigger, content, message, adapter_type):
                     triggered.append(filter_trigger.trigger_id)
                     
-                    # Update priority to highest triggered filter
                     if self._priority_value(filter_trigger.priority) < self._priority_value(priority):
                         priority = filter_trigger.priority
                     
-                    # Update filter statistics
                     filter_trigger.last_triggered = datetime.now(timezone.utc)
                     filter_trigger.true_positive_count += 1
                     
             except Exception as e:
                 logger.warning(f"Error testing filter {filter_trigger.trigger_id}: {e}")
         
-        # Update user trust if applicable
         if user_id and not is_llm_response:
             await self._update_user_trust(user_id, priority, triggered)
         
-        # Determine processing decision
         should_process = priority != FilterPriority.IGNORE
-        # Sample 10% of low priority messages (90% deferred)
         should_defer = priority == FilterPriority.LOW and secrets.randbelow(10) > 0
         
-        # Generate reasoning
         reasoning = self._generate_reasoning(triggered, priority, is_llm_response)
         
-        # Update statistics
         self._stats.total_messages_processed += 1
         if priority in self._stats.by_priority:
             self._stats.by_priority[priority] += 1
@@ -339,10 +324,8 @@ class AdaptiveFilterService(Service):
         if user_id not in self._message_buffer:
             self._message_buffer[user_id] = []
         
-        # Add current message
         self._message_buffer[user_id].append((now, None))
         
-        # Remove old messages
         self._message_buffer[user_id] = [
             (ts, msg) for ts, msg in self._message_buffer[user_id] 
             if ts > cutoff
@@ -372,7 +355,6 @@ class AdaptiveFilterService(Service):
         profile.message_count += 1
         profile.last_seen = datetime.now(timezone.utc)
         
-        # Adjust trust based on filter results
         if priority == FilterPriority.CRITICAL and triggered:
             profile.violation_count += 1
             profile.trust_score = max(0.0, profile.trust_score - 0.1)

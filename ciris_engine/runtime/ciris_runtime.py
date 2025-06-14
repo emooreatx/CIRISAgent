@@ -86,11 +86,9 @@ class CIRISRuntime(RuntimeInterface):
 
         for adapter_name in modes:
             try:
-                # Extract base adapter name (without instance suffix)
                 base_adapter = adapter_name.split(":")[0]
                 adapter_class = load_adapter(base_adapter)
                 
-                # Pass adapter-specific config if available
                 adapter_kwargs = kwargs.copy()
                 if adapter_name in self.adapter_configs:
                     adapter_kwargs['adapter_config'] = self.adapter_configs[adapter_name]
@@ -100,7 +98,6 @@ class CIRISRuntime(RuntimeInterface):
             except Exception as e:
                 logger.error(f"Failed to load or initialize adapter '{adapter_name}': {e}", exc_info=True)
         
-        # Validate that we have at least one valid adapter
         if not self.adapters:
             raise RuntimeError("No valid adapters specified, shutting down")
         
@@ -126,7 +123,6 @@ class CIRISRuntime(RuntimeInterface):
         self._shutdown_reason: Optional[str] = None
         self._shutdown_manager = get_shutdown_manager()
         
-        # Store preload tasks to be loaded after WORK state transition
         self._preload_tasks: List[str] = []
         
         self._initialized = False
@@ -219,7 +215,6 @@ class CIRISRuntime(RuntimeInterface):
         self.profile = await load_profile(profile_path)
         
         if not self.profile:
-            # Try default profile
             logger.warning(f"Profile '{self.profile_name}' not found, loading default profile")
             default_path = Path(config.profile_directory) / "default.yaml"
             self.profile = await load_profile(default_path)
@@ -227,10 +222,8 @@ class CIRISRuntime(RuntimeInterface):
         if not self.profile:
             raise RuntimeError("No profile could be loaded")
             
-        # Register profile in app_config
         config.agent_profiles[self.profile.name.lower()] = self.profile
         
-        # Also load default as fallback if not already loaded
         if "default" not in config.agent_profiles:
             default_path = Path(config.profile_directory) / "default.yaml"
             default_profile = await load_profile(default_path)
@@ -347,12 +340,12 @@ class CIRISRuntime(RuntimeInterface):
                 registrations = adapter.get_services_to_register()
                 for reg in registrations:
                     if not isinstance(reg, ServiceRegistration):
-                        logger.error(f"Adapter {adapter.__class__.__name__} provided an invalid ServiceRegistration object: {reg}")
+                        logger.error(f"Adapter {adapter.__class__.__name__} provided an invalid ServiceRegistration object: {reg}")  # type: ignore[unreachable]
                         continue
 
                     # Ensure provider is an instance of Service
                     if not isinstance(reg.provider, Service):
-                         logger.error(f"Adapter {adapter.__class__.__name__} service provider for {reg.service_type.value} is not a Service instance.")
+                         logger.error(f"Adapter {adapter.__class__.__name__} service provider for {reg.service_type.value} is not a Service instance.")  # type: ignore[unreachable]
                          continue
 
                     if reg.handlers: # Register for specific handlers
@@ -468,7 +461,6 @@ class CIRISRuntime(RuntimeInterface):
         
         dependencies = ActionHandlerDependencies(
             service_registry=self.service_registry,
-            # io_adapter is no longer a direct dependency here, adapters handle IO
             shutdown_callback=lambda: self.request_shutdown(
                 "Handler requested shutdown due to critical service failure"
             ),
@@ -511,7 +503,6 @@ class CIRISRuntime(RuntimeInterface):
                 "memory_service": self.memory_service,
                 "audit_service": self.audit_service,
                 "service_registry": self.service_registry,
-                # "io_adapter": self.io_adapter, # Removed, adapters manage their own IO
             },
             startup_channel_id=self.startup_channel_id,
             runtime=self,  # Pass runtime reference for preload tasks

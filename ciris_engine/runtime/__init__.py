@@ -1,10 +1,8 @@
-# Simple import to avoid circular dependencies
 __all__ = [
     "RuntimeInterface",
     "CIRISRuntime",
 ]
 
-# Lazy imports to avoid circular dependencies
 def get_runtime_interface():
     from .runtime_interface import RuntimeInterface
     return RuntimeInterface

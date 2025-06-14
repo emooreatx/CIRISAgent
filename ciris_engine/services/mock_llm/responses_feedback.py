@@ -1,7 +1,7 @@
-# Protocol-facing mock responses for feedback/guardrail types
+from typing import Optional, Any
 from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult, FeedbackType
 
-def optimization_veto(context=None) -> OptimizationVetoResult:
+def optimization_veto(context: Optional[Any] = None) -> OptimizationVetoResult:
     """Mock OptimizationVetoResult with passing values, instructor compatible."""
     result = OptimizationVetoResult(
         decision="proceed",
@@ -15,7 +15,7 @@ def optimization_veto(context=None) -> OptimizationVetoResult:
     object.__setattr__(result, '_raw_response', 'mock')
     return result
 
-def epistemic_humility(context=None) -> EpistemicHumilityResult:
+def epistemic_humility(context: Optional[Any] = None) -> EpistemicHumilityResult:
     """Mock EpistemicHumilityResult with passing values, instructor compatible."""
     result = EpistemicHumilityResult(
         epistemic_certainty=0.7,

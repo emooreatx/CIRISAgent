@@ -107,7 +107,7 @@ class TestFoundationalSchemas:
         """Test ObservationSourceType enum values."""
         # Valid enum values
         assert ObservationSourceType.CHAT_MESSAGE == "chat_message"
-        assert ObservationSourceType.USER_REQUEST == "user_request"
+        assert ObservationSourceType.USER_REQUEST == "user_request"  # type: ignore[unreachable]
         assert ObservationSourceType.AGENT_MESSAGE == "agent_message"
         
         # Should accept string values
@@ -346,7 +346,7 @@ class TestMemorySchemas:
     def test_memory_op_action_enum(self):
         """Test MemoryOpAction enum."""
         assert MemoryOpAction.MEMORIZE == "memorize"
-        assert MemoryOpAction.RECALL == "recall"
+        assert MemoryOpAction.RECALL == "recall"  # type: ignore[unreachable]
         assert MemoryOpAction.FORGET == "forget"
         
         # Test enum usage

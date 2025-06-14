@@ -10,6 +10,7 @@ from .action_params_v1 import (
     MemorizeParams,
     RecallParams,
     ForgetParams,
+    TaskCompleteParams,
 )
 from .foundational_schemas_v1 import HandlerActionType, ResourceUsage
 
@@ -27,6 +28,7 @@ class ActionSelectionResult(BaseModel):
         MemorizeParams,
         RecallParams,
         ForgetParams,
+        TaskCompleteParams,
     ]
     rationale: str  # <- Fixed: should be string
     confidence: Optional[float] = None
@@ -46,6 +48,7 @@ class ActionSelectionResult(BaseModel):
         MemorizeParams,
         RecallParams,
         ForgetParams,
+        TaskCompleteParams,
         Dict[str, Any],
     ]:
         """Return action_parameters cast to the appropriate params model."""

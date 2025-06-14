@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 def test_guardrail_status_enum():
     assert GuardrailStatus.PASSED == "passed"
-    assert GuardrailStatus.WARNING == "warning"
+    assert GuardrailStatus.WARNING == "warning"  # type: ignore[unreachable]
 
 def test_guardrail_check_result_minimal():
     now = datetime.now(timezone.utc).isoformat()

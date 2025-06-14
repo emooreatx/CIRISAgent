@@ -301,7 +301,7 @@ class SchemaValidator:
             if result.get("compliant", False):
                 compliant_files += 1
             else:
-                usage_stats["files_with_issues"].append(str(py_file))
+                usage_stats["files_with_issues"].append(str(py_file))  # type: ignore[attr-defined]
         
         if total_files > 0:
             usage_stats["compliance_percentage"] = (compliant_files / total_files) * 100

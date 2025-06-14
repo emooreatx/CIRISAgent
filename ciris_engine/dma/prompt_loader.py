@@ -146,4 +146,3 @@ def get_prompt_loader() -> DMAPromptLoader:
         _default_loader = DMAPromptLoader()
     return _default_loader
 
-# Removed unused load_dma_template function

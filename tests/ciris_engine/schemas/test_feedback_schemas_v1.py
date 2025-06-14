@@ -2,11 +2,11 @@ from ciris_engine.schemas.feedback_schemas_v1 import FeedbackType, FeedbackSourc
 
 def test_feedback_type_enum():
     assert FeedbackType.IDENTITY_UPDATE == "identity_update"
-    assert FeedbackType.SYSTEM_DIRECTIVE == "system_directive"
+    assert FeedbackType.SYSTEM_DIRECTIVE == "system_directive"  # type: ignore[unreachable]
 
 def test_feedback_source_enum():
     assert FeedbackSource.WISE_AUTHORITY == "wise_authority"
-    assert FeedbackSource.PEER_AGENT == "peer_agent"
+    assert FeedbackSource.PEER_AGENT == "peer_agent"  # type: ignore[unreachable]
 
 def test_feedback_directive():
     d = FeedbackDirective(action="update", target="foo", data={"x": 1})

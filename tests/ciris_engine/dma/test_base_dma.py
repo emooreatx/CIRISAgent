@@ -337,8 +337,8 @@ class TestDMAFacultyIntegration:
         
         assert "faculty1" in results
         assert "faculty2" in results
-        assert results["faculty1"].score == 0.7
-        assert results["faculty2"].analysis == "Mock analysis"
+        assert results["faculty1"].score == 0.7  # type: ignore[attr-defined]
+        assert results["faculty2"].analysis == "Mock analysis"  # type: ignore[attr-defined]
     
     @pytest.mark.asyncio
     async def test_apply_faculties_no_faculties(self, mock_service_registry):
@@ -393,7 +393,7 @@ class TestDMAEvaluateMethod:
         result = await dma.evaluate("test_input", param="value")
         
         assert result is not None
-        assert result.result == "test_result"
+        assert result.result == "test_result"  # type: ignore[attr-defined]
     
     def test_abstract_evaluate_method(self, mock_service_registry):
         """Test that BaseDMA enforce implementation of evaluate method."""

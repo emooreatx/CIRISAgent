@@ -64,7 +64,6 @@ class LocalGraphMemoryService(MemoryService):
         try:
             stored = persistence.get_graph_node(node.id, node.scope, db_path=self.db_path)
             if stored:
-                # Process secrets in recalled data
                 processed_data = await self._process_secrets_for_recall(stored.attributes, "recall")
                 return MemoryOpResult(status=MemoryOpStatus.OK, data=processed_data)
             return MemoryOpResult(status=MemoryOpStatus.OK, data=None)
@@ -102,13 +101,11 @@ class LocalGraphMemoryService(MemoryService):
     async def update_identity_graph(self, update_data: Dict[str, Any]) -> MemoryOpResult:
         """Update identity graph nodes based on WA feedback."""
         from datetime import datetime, timezone
-        # Validate update data structure
         if not self._validate_identity_update(update_data):
             return MemoryOpResult(
                 status=MemoryOpStatus.DENIED,
                 reason="Invalid identity update format"
             )
-        # Check for required WA authorization
         if not update_data.get("wa_authorized"):
             return MemoryOpResult(
                 status=MemoryOpStatus.DENIED,
@@ -244,19 +241,15 @@ class LocalGraphMemoryService(MemoryService):
         if not attributes:
             return attributes
         
-        # Check if there are secret references in the attributes
         secret_refs = attributes.get("_secret_refs", [])
         if not secret_refs:
             return attributes
         
-        # Auto-decrypt secrets if the action type allows it
         should_decrypt = action_type in getattr(self.secrets_service.filter.config, "auto_decrypt_for_actions", ["speak", "tool"])
         
         if should_decrypt:
-            # Convert to JSON for processing
             attributes_str = json.dumps(attributes, cls=DateTimeEncoder)
             
-            # Attempt to decapsulate secrets
             decapsulated_text = await self.secrets_service.decapsulate_secrets(
                 attributes_str,
                 action_type=action_type,

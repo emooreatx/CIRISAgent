@@ -49,7 +49,7 @@ class TaskManager:
             updated_at=now_iso,
             parent_task_id=parent_task_id,
             context=context,
-            outcome={},  # type: ignore  # Use default empty dict, type checked elsewhere
+            outcome={},
         )
         
         if context is not None and 'agent_profile_name' not in task.context:

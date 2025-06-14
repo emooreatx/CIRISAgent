@@ -102,17 +102,14 @@ class TSDBGraphNode(GraphNode):
     
     def __init__(self, **data: Any) -> None:
         """Initialize TSDBGraphNode with proper defaults"""
-        # Set default ID based on data type and timestamp if not provided
         if 'id' not in data:
             timestamp_str = int(datetime.now(timezone.utc).timestamp())
             data_type = data.get('data_type', 'unknown')
             data['id'] = f"tsdb_{data_type}_{timestamp_str}"
         
-        # Ensure attributes include TSDB-specific data
         if 'attributes' not in data:
             data['attributes'] = {}
         
-        # Store TSDB fields in attributes for backward compatibility
         tsdb_fields = ['metric_name', 'metric_value', 'log_level', 'log_message', 'data_type', 'tags', 'retention_policy']
         for field in tsdb_fields:
             if field in data and data[field] is not None:

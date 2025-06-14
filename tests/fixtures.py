@@ -1,11 +1,12 @@
 import pytest
+from typing import Any
 
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 
 
 @pytest.fixture
-async def service_registry():
+async def service_registry() -> Any:
     """Provide a configured service registry with mock services."""
     registry = ServiceRegistry()
     # Register mock services here when needed

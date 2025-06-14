@@ -37,7 +37,6 @@ class ConfigBackupManager:
             
             files_included = []
             
-            # Backup main config files
             config_files = ["config/base.yaml", "config/development.yaml", "config/production.yaml"]
             for config_file in config_files:
                 config_path = Path(config_file)
@@ -46,7 +45,6 @@ class ConfigBackupManager:
                     shutil.copy2(config_path, dest_path)
                     files_included.append(str(config_path))
             
-            # Backup profiles if requested
             if include_profiles:
                 profiles_dir = Path("ciris_profiles")
                 if profiles_dir.exists():
@@ -55,7 +53,6 @@ class ConfigBackupManager:
                     for profile_file in profiles_dir.glob("*.yaml"):
                         files_included.append(str(profile_file))
             
-            # Backup environment variables if requested
             if include_env_vars:
                 env_file = Path(".env")
                 if env_file.exists():
@@ -63,7 +60,6 @@ class ConfigBackupManager:
                     shutil.copy2(env_file, dest_env)
                     files_included.append(str(env_file))
             
-            # Create backup metadata
             metadata = {
                 "backup_name": backup_name,
                 "timestamp": start_time.isoformat(),

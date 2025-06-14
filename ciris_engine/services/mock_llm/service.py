@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 class MockInstructorClient:
     """Mock instructor-patched client that properly handles response_model parameter."""
     
-    def __init__(self, base_client) -> None:
+    def __init__(self, base_client: Any) -> None:
         self.base_client = base_client
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
     
-    async def _create(self, *args, response_model=None, **kwargs) -> Any:
+    async def _create(self, *args: Any, response_model: Optional[Type[BaseModel]] = None, **kwargs: Any) -> Any:
         # This is the instructor-patched version that should always receive response_model
         if response_model is None:
             # This should NOT happen - instructor always passes response_model
@@ -34,12 +34,12 @@ class MockInstructorClient:
 class MockPatchedClient:
     """A client that mimics instructor.patch() behavior for our mock."""
     
-    def __init__(self, original_client, mode=None):
+    def __init__(self, original_client: Any, mode: Optional[str] = None) -> None:
         self.original_client = original_client
         self.mode = mode
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._patched_create))
     
-    async def _patched_create(self, *args, **kwargs):
+    async def _patched_create(self, *args: Any, **kwargs: Any) -> Any:
         """Intercept instructor-patched calls and route to our mock."""
         logger.debug(f"Patched client _create called with kwargs: {list(kwargs.keys())}")
         
@@ -57,25 +57,20 @@ class MockLLMClient:
     def __init__(self) -> None:
         self.model_name = "mock-model"
         self.client = self
-        # Create a proper instructor client that enforces response_model
         self.instruct_client = MockInstructorClient(self)
         
-        # Create the chat.completions interface that instructor expects
         self.chat = SimpleNamespace(
             completions=SimpleNamespace(create=self._create)
         )
         
-        # Store original for debugging
         self._original_create = self._create
         
-        # Hook into instructor.patch to return our mock patched client
         self._original_instructor_patch = instructor.patch
-        # Store self reference for the static method
-        MockLLMClient._instance = self
+        MockLLMClient._instance = self  # type: ignore[attr-defined]
         instructor.patch = lambda *args, **kwargs: MockLLMClient._mock_instructor_patch(*args, **kwargs)
 
     @staticmethod
-    def _mock_instructor_patch(*args, **kwargs):
+    def _mock_instructor_patch(*args: Any, **kwargs: Any) -> Any:
         """Override instructor.patch to return our mock patched client."""
         # Extract client from args if provided
         client = args[0] if args else kwargs.get('client')
@@ -99,7 +94,7 @@ class MockLLMClient:
             # If no client provided, call original with args and kwargs
             return instance._original_instructor_patch(*args, **kwargs)
 
-    async def _create(self, *args, response_model=None, **kwargs) -> Any:
+    async def _create(self, *args: Any, response_model: Optional[Type[BaseModel]] = None, **kwargs: Any) -> Any:
         """
         Create method that instructor.patch() will call.
         Must return responses in OpenAI API format for instructor to parse correctly.
@@ -118,10 +113,9 @@ class MockLLMClient:
         logger.debug(f"Generated response type: {type(response)}")
         return response
     
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """Support dynamic attribute access for instructor compatibility."""
         if name in ['_acreate']:
-            # instructor sometimes looks for _acreate - redirect to our _create
             return self._create
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
@@ -129,7 +123,7 @@ class MockLLMClient:
 class MockLLMService(LLMService):
     """Mock LLM service used for offline testing."""
 
-    def __init__(self, *_, **__) -> None:
+    def __init__(self, *_: Any, **__: Any) -> None:
         super().__init__()
         self._client: Optional[MockLLMClient] = None
         self.model_name = "mock-model"
@@ -161,7 +155,6 @@ class MockLLMService(LLMService):
         
         logger.debug(f"Mock call_llm_structured with response_model: {response_model}")
         
-        # Use the mock client's _create method
         response = await self._client._create(
             messages=messages,
             response_model=response_model,
@@ -170,7 +163,6 @@ class MockLLMService(LLMService):
             **kwargs
         )
         
-        # Mock resource usage
         usage = ResourceUsage(tokens=100)  # Mock token count
         
         return response, usage

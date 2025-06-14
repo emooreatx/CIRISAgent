@@ -115,7 +115,7 @@ class CLIToolService(ToolService):
 
     async def _search_text(self, params: Dict[str, Any]) -> Dict[str, Any]:
         pattern = params.get("pattern")
-        path = params.get("path")  # type: ignore[union-attr]
+        path = params.get("path")
         if not pattern or not path:
             return {"error": "pattern and path required"}
         matches: List[Any] = []

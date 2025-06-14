@@ -178,7 +178,7 @@ async def test_dream_processor_pulse(monkeypatch):
 
     class MockServiceRegistry:
         def __init__(self):
-            self._global_services = {"audit": []}
+            self._global_services: schemas.BaseSchema = {"audit": []}
             self._audit_service = MockAuditService()
         
         async def get_global_service(self, service_type: str, **kwargs):

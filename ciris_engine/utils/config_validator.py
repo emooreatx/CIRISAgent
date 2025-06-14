@@ -38,21 +38,17 @@ class ConfigValidator:
             warnings = []
             suggestions = []
             
-            # Try to create AppConfig with the data
             try:
                 if config_path and current_config:
-                    # Validate partial config at specific path
                     current_config_dict = current_config.model_dump()
                     test_config = current_config_dict.copy()
                     self._set_nested_value(test_config, config_path, config_data)
                     AppConfig(**test_config)
                 else:
-                    # Validate complete config
                     AppConfig(**config_data)
             except Exception as e:
                 errors.append(str(e))
             
-            # Additional custom validations
             if "llm_services" in config_data:
                 llm_warnings = self._validate_llm_config(config_data["llm_services"])
                 warnings.extend(llm_warnings)

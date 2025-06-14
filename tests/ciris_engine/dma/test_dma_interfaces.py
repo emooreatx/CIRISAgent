@@ -106,8 +106,8 @@ class TestBaseDMAInterface:
         results = await dma.apply_faculties("test content", {"test": "context"})
         
         assert "mock_faculty" in results
-        assert results["mock_faculty"].score == 0.8
-        assert results["mock_faculty"].reasoning == "Mock faculty evaluation"
+        assert results["mock_faculty"].score == 0.8  # type: ignore[attr-defined]
+        assert results["mock_faculty"].reasoning == "Mock faculty evaluation"  # type: ignore[attr-defined]
     
     @pytest.mark.asyncio
     async def test_apply_faculties_handles_errors(self, mock_service_registry):

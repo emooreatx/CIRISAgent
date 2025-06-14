@@ -72,7 +72,7 @@ class TestAuditHashChain:
         # Initialize
         chain.initialize()
         assert chain._initialized
-        assert chain._sequence_number == 0
+        assert chain._sequence_number == 0  # type: ignore[unreachable]
         assert chain._last_hash is None
     
     def test_hash_computation_deterministic(self, temp_db):
@@ -377,7 +377,7 @@ class TestAuditSignatureManager:
         # Initialize
         manager.initialize()
         assert manager._private_key is not None
-        assert manager._public_key is not None
+        assert manager._public_key is not None  # type: ignore[unreachable]
         assert manager._key_id is not None
         assert len(manager._key_id) > 0
     

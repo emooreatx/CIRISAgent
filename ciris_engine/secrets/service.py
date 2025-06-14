@@ -65,17 +65,14 @@ class SecretsService(SecretsServiceInterface):
         Returns:
             Tuple of (filtered_text, secret_references)
         """
-        # Detect secrets in text
         filtered_text, detected_secrets = self.filter.filter_text(text, context_hint)
         
         if not detected_secrets:
             return text, []
             
-        # Store detected secrets and create references
         secret_references = []
         
         for detected_secret in detected_secrets:
-            # Create secret record
             secret_record = SecretRecord(
                 secret_uuid=detected_secret.secret_uuid,
                 encrypted_value=b"",  # Will be set by store
@@ -91,14 +88,11 @@ class SecretsService(SecretsServiceInterface):
                 auto_decapsulate_for_actions=self._get_auto_decapsulate_actions(detected_secret.sensitivity.value)
             )
             
-            # Store encrypted secret
             stored = await self.store.store_secret(detected_secret, source_message_id)
             
             if stored:
-                # Track for potential auto-forget
                 self._current_task_secrets[detected_secret.secret_uuid] = detected_secret.original_value
                 
-                # Create reference for context
                 secret_ref = SecretReference(
                     uuid=detected_secret.secret_uuid,
                     description=detected_secret.description,
@@ -137,7 +131,6 @@ class SecretsService(SecretsServiceInterface):
         Returns:
             Secret information dict or None if not found/denied
         """
-        # Retrieve secret record
         secret_record = await self.store.retrieve_secret(
             secret_uuid, decrypt
         )
@@ -157,7 +150,6 @@ class SecretsService(SecretsServiceInterface):
             "auto_decapsulate_actions": secret_record.auto_decapsulate_for_actions
         }
         
-        # Include decrypted value if requested and authorized
         if decrypt:
             decrypted_value = await self.store.decrypt_secret_value(secret_record)
             if decrypted_value:
@@ -187,7 +179,6 @@ class SecretsService(SecretsServiceInterface):
         if not parameters:
             return parameters
             
-        # Deep copy to avoid modifying original
         decapsulated_params: Any = await self._deep_decapsulate(
             parameters, action_type, context
         )
@@ -220,22 +211,18 @@ class SecretsService(SecretsServiceInterface):
         """Decapsulate secret references in a string."""
         import re
         
-        # Pattern to match secret references: {SECRET:uuid:description}
         secret_pattern = r'\{SECRET:([a-f0-9-]{36}):([^}]+)\}'
         
-        # Find all matches
         matches = list(re.finditer(secret_pattern, text))
         if not matches:
             return text
             
         result = text
         
-        # Process matches in reverse order to maintain positions
         for match in reversed(matches):
             secret_uuid = match.group(1)
             description = match.group(2)
             
-            # Check if this action type is allowed auto-decapsulation
             secret_record = await self.store.retrieve_secret(
                 secret_uuid, 
                 decrypt=False
@@ -246,24 +233,20 @@ class SecretsService(SecretsServiceInterface):
                 continue  # Leave original reference
                 
             if action_type in secret_record.auto_decapsulate_for_actions:
-                # Decrypt and return actual value
                 decrypted_value = await self.store.decrypt_secret_value(secret_record)
                 if decrypted_value:
                     logger.info(
                         f"Auto-decapsulated {secret_record.sensitivity_level} secret "
                         f"for {action_type} action: {description}"
                     )
-                    # Replace the secret reference with the actual value
                     result = result[:match.start()] + decrypted_value + result[match.end():]
                 else:
                     logger.error(f"Failed to decrypt secret {secret_uuid}")
-                    # Leave original reference
             else:
                 logger.info(
                     f"Secret {secret_uuid} not configured for auto-decapsulation "
                     f"in {action_type} actions"
                 )
-                # Leave original reference
             
         return result
         
@@ -283,7 +266,6 @@ class SecretsService(SecretsServiceInterface):
             Result of configuration update
         """
         try:
-            # Handle updates dictionary
             results = []
             
             if "add_pattern" in updates:
@@ -316,7 +298,6 @@ class SecretsService(SecretsServiceInterface):
                 if not pattern_name or not sensitivity:
                     results.append("Error: Pattern name and sensitivity required")
                 else:
-                    # Note: Sensitivity overrides not supported in new config system
                     results.append("Error: Sensitivity overrides not supported in config-based system")
                 
             if "get_current" in updates:
@@ -353,7 +334,6 @@ class SecretsService(SecretsServiceInterface):
         """
         secrets = await self.store.list_secrets(sensitivity_filter=None, pattern_filter=None)
         
-        # Limit the results
         limited_secrets = secrets[:limit] if secrets else []
         
         return limited_secrets
@@ -371,7 +351,6 @@ class SecretsService(SecretsServiceInterface):
         """
         deleted = await self.store.delete_secret(secret_uuid)
         
-        # Remove from current task tracking
         if secret_uuid in self._current_task_secrets:
             del self._current_task_secrets[secret_uuid]
             

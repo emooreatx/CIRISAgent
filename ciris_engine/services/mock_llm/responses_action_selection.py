@@ -1,14 +1,21 @@
-# Protocol-facing mock responses for ActionSelectionResult and related types
+from typing import Optional, Any, List, Union, Dict
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.action_params_v1 import (
     SpeakParams, MemorizeParams, RecallParams, PonderParams,
     ObserveParams, ToolParams, RejectParams, DeferParams,
-    ForgetParams
+    ForgetParams, TaskCompleteParams
 )
+
+# Union type for all action parameters - 100% schema compliant
+ActionParams = Union[
+    SpeakParams, MemorizeParams, RecallParams, PonderParams,
+    ObserveParams, ToolParams, RejectParams, DeferParams,
+    ForgetParams, TaskCompleteParams
+]
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
-def action_selection(context=None):
+def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResult:
     """Mock ActionSelectionResult with passing values and protocol-compliant types."""
     context = context or []
     
@@ -62,6 +69,9 @@ def action_selection(context=None):
             break
     
     # Determine action based on context
+    # Initialize params with proper type annotation for 100% schema compliance
+    params: ActionParams
+    
     if forced_action:
         try:
             action = getattr(HandlerActionType, forced_action.upper())
@@ -226,8 +236,8 @@ def action_selection(context=None):
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.TASK_COMPLETE:
-                # No parameters needed
-                params = {}
+                # Mission-critical schema compliance with proper TaskCompleteParams
+                params = TaskCompleteParams(completion_reason="Forced task completion via testing")
                 
             else:
                 # Unknown action
@@ -307,7 +317,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
         if is_followup:
             # Follow-up thought → TASK_COMPLETE
             action = HandlerActionType.TASK_COMPLETE
-            params = {}
+            params = TaskCompleteParams(completion_reason="Follow-up thought processing completed")
             rationale = "Completing follow-up thought"
         else:
             # Default: new task → SPEAK

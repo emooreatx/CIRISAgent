@@ -219,7 +219,6 @@ class AgentProcessor(ProcessorInterface):
 
         self.state_manager.update_state_metadata("wakeup_complete", True)
 
-        # Load preload tasks after successful WORK state transition
         await self._load_preload_tasks()
 
         if hasattr(self, "runtime") and self.runtime is not None and hasattr(self.runtime, "start_interactive_console"):
@@ -319,7 +318,6 @@ class AgentProcessor(ProcessorInterface):
             
         except Exception as e:
             logger.error(f"CRITICAL: Error in _process_pending_thoughts_async: {e}", exc_info=True)
-            # Don't re-raise to avoid breaking the main loop
             return 0
 
 
@@ -567,8 +565,6 @@ class AgentProcessor(ProcessorInterface):
         
         if target_state == AgentState.DREAM:
             logger.info("DREAM state transition requested - dream processor is available but not automatically triggered")
-            # Manual dream transitions can still work if explicitly requested
-            # Automatic idle-based dream transitions are disabled
             
         elif target_state == AgentState.WORK and current_state == AgentState.DREAM:
             if self.dream_processor:
@@ -604,7 +600,6 @@ class AgentProcessor(ProcessorInterface):
             "is_processing": self._processing_task is not None and not self._processing_task.done(),
         }
         
-        # Add state-specific status
         current_state = self.state_manager.get_state()
         
         if current_state == AgentState.WAKEUP:
@@ -625,12 +620,10 @@ class AgentProcessor(ProcessorInterface):
             else:
                 status["dream_summary"] = {"state": "unavailable", "error": "Dream processor not available"}
         
-        # Add processor metrics
         status["processor_metrics"] = {}
         for state, processor in self.state_processors.items():
             status["processor_metrics"][state.value] = processor.get_metrics()
         
-        # Add detailed queue status
         status["queue_status"] = self._get_detailed_queue_status()
         
         return status

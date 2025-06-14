@@ -29,7 +29,6 @@ class TaskCompleteHandler(BaseActionHandler):
         self.logger.info(f"Handling TASK_COMPLETE for thought {thought_id} (Task: {parent_task_id}).")
         print(f"[TASK_COMPLETE_HANDLER] Processing TASK_COMPLETE for task {parent_task_id}")
 
-        # Validate that wakeup tasks have completed a SPEAK action before allowing completion
         if parent_task_id:
             is_wakeup = await self._is_wakeup_task(parent_task_id)
             self.logger.debug(f"Task {parent_task_id} is_wakeup_task: {is_wakeup}")
@@ -40,7 +39,6 @@ class TaskCompleteHandler(BaseActionHandler):
                     self.logger.error(f"TASK_COMPLETE rejected for wakeup task {parent_task_id}: No SPEAK action has been completed.")
                     print(f"[TASK_COMPLETE_HANDLER] ✗ TASK_COMPLETE rejected for wakeup task {parent_task_id}: Must SPEAK first")
                     
-                    # Override to PONDER with instructions about the requirement to SPEAK first
                     from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
                     from ciris_engine.schemas.action_params_v1 import PonderParams
                     
@@ -59,7 +57,6 @@ class TaskCompleteHandler(BaseActionHandler):
                         rationale="Wakeup task attempted completion without first performing SPEAK action - overriding to PONDER for guidance"
                     )
                     
-                    # Convert to serializable dict for database storage
                     ponder_result_dict = {
                         "selected_action": ponder_result.selected_action.value,
                         "action_parameters": ponder_result.action_parameters.model_dump() if ponder_result.action_parameters else None,
@@ -121,7 +118,7 @@ class TaskCompleteHandler(BaseActionHandler):
         
         # Check if task context indicates it's a wakeup step
         if task.context and isinstance(task.context, dict):
-            step_type = task.context.get("step_type")
+            step_type = task.context.get("step_type")  # type: ignore[unreachable]
             if step_type in ["VERIFY_IDENTITY", "VALIDATE_INTEGRITY", "EVALUATE_RESILIENCE", "ACCEPT_INCOMPLETENESS", "EXPRESS_GRATITUDE"]:
                 return True
         
@@ -131,7 +128,6 @@ class TaskCompleteHandler(BaseActionHandler):
         """Check if a SPEAK action has been successfully completed for the given task using correlation system."""
         from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelationStatus
         
-        # Use the correlation system to check for completed SPEAK actions
         correlations = persistence.get_correlations_by_task_and_action(
             task_id=task_id, 
             action_type="speak",

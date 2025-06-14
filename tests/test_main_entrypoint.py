@@ -35,6 +35,6 @@ def test_ciris_runtime_initialization(monkeypatch):
     CIRISRuntime(modes=["api"], profile_name="test")
     
     # Verify CIRISRuntime was called 3 times
-    assert CIRISRuntime.call_count == 3
+    assert CIRISRuntime.call_count == 3  # type: ignore[attr-defined]
 
 

@@ -30,7 +30,6 @@ class MultiServiceTransactionOrchestrator(Service):
 
     async def start(self) -> None:
         await super().start()
-        # Start health monitoring task with initial delay to allow services to register
         self._health_monitor_task = asyncio.create_task(self._health_monitor_loop())
         self._tasks.append(self._health_monitor_task)
         logger.info("Multi-Service Transaction Orchestrator started with health monitoring")
@@ -93,7 +92,6 @@ class MultiServiceTransactionOrchestrator(Service):
 
     async def _health_monitor_loop(self) -> None:
         """Continuous health monitoring loop that updates home channel."""
-        # Initial delay to allow services to register
         logger.debug("Health monitor loop starting with 5 second delay for service registration")
         await asyncio.sleep(5.0)
         

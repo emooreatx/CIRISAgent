@@ -32,30 +32,22 @@ class APIObserver(BaseObserver[IncomingMessage]):
         self.api_adapter = api_adapter
 
     async def start(self) -> None:
-        # API observer does not require explicit startup procedures
-        # as it handles messages on-demand through the API endpoint
         pass
 
     async def stop(self) -> None:
-        # API observer does not maintain persistent connections
-        # so no cleanup is required on shutdown
         pass
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:
         if not isinstance(msg, IncomingMessage):
-            logger.warning("APIObserver received non-IncomingMessage")
+            logger.warning("APIObserver received non-IncomingMessage")  # type: ignore[unreachable]
             return
         
-        # Check if this is the agent's own message
         is_agent_message = self.agent_id and msg.author_id == self.agent_id
         
-        # Process message for secrets detection and replacement (for all messages)
         processed_msg = await self._process_message_secrets(msg)
         
-        # Add ALL messages to history (including agent's own)
         self._history.append(processed_msg)
         
-        # If it's the agent's message, stop here (no task creation)
         if is_agent_message:
             logger.debug("Added agent's own message %s to history (no task created)", msg.message_id)
             return
@@ -71,13 +63,10 @@ class APIObserver(BaseObserver[IncomingMessage]):
             DEFAULT_WA,
         )
 
-        # API channel is now the socket address (e.g., "127.0.0.1:8080")
-        # Process all messages that aren't from the agent itself
         deferral_channel_id = API_DEFERRAL_CHANNEL_ID
         wa_api_user = WA_API_USER or DEFAULT_WA
         
         if not self._is_agent_message(msg):
-            # Handle regular API messages (any channel that isn't a deferral channel)
             if msg.channel_id != deferral_channel_id:
                 await self._create_passive_observation_result(msg)
             else:

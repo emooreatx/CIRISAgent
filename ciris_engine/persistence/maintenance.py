@@ -46,7 +46,6 @@ class DatabaseMaintenanceService:
 
     async def start(self) -> None:
         """Start the maintenance service with periodic tasks."""
-        # If you have a parent class, call super().start()
         self._ensure_shutdown_event()
         self._maintenance_task = asyncio.create_task(self._maintenance_loop())
 
@@ -99,7 +98,6 @@ class DatabaseMaintenanceService:
         stale_wakeup_steps_failed_count = 0
         stale_wakeup_thoughts_failed_count = 0
 
-        # Get all tasks that are children of WAKEUP_ROOT
         all_tasks = get_all_tasks()  # Assuming a function to get all tasks
         wakeup_step_tasks = [t for t in all_tasks if t.parent_task_id == WAKEUP_ROOT_TASK_ID]
 
@@ -109,7 +107,6 @@ class DatabaseMaintenanceService:
                 update_task_status(step_task.task_id, TaskStatus.FAILED)
                 stale_wakeup_steps_failed_count += 1
                 
-                # Also fail its non-terminal thoughts
                 step_thoughts = get_thoughts_by_task_id(step_task.task_id)
                 for thought in step_thoughts:
                     if thought.status not in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED, ThoughtStatus.DEFERRED, ThoughtStatus.COMPLETED]:
@@ -163,9 +160,8 @@ class DatabaseMaintenanceService:
         for thought in all_potentially_orphaned_thoughts:
             source_task = get_task_by_id(thought.source_task_id)
             if not source_task or source_task.status != TaskStatus.ACTIVE:
-                # If source task doesn't exist, or isn't active (and wasn't caught by task deletion cascade)
                 logger.info(f"Orphaned thought found: {thought.thought_id} (Task: {thought.source_task_id} not found or not active). Marking for deletion.")
-                thought_ids_to_delete_orphan.append(thought.thought_id)  # type: ignore[union-attr]
+                thought_ids_to_delete_orphan.append(thought.thought_id)
         
         if thought_ids_to_delete_orphan:
             unique_thought_ids_to_delete = list(set(thought_ids_to_delete_orphan))
@@ -211,10 +207,9 @@ class DatabaseMaintenanceService:
             
             with open(thought_archive_file, "w") as f:
                 for thought in thoughts_to_archive:
-                    # Only archive thoughts whose tasks were also archived (or would have been if not special)
                     if thought.source_task_id in task_ids_actually_archived_and_deleted:
                         f.write(thought.model_dump_json() + "\n")
-                        thought_ids_to_delete_for_archive.append(thought.thought_id)  # type: ignore[union-attr]
+                        thought_ids_to_delete_for_archive.append(thought.thought_id)
             
             if thought_ids_to_delete_for_archive:
                 archived_thoughts_count = delete_thoughts_by_ids(thought_ids_to_delete_for_archive)

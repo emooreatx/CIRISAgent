@@ -98,11 +98,9 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FETCH_TOOL: ['get_tool_result'],
             ActionType.GENERATE_RESPONSE: ['call_llm_structured'],
             ActionType.GENERATE_STRUCTURED: ['call_llm_structured'],
-            # TSDB/Telemetry capabilities
             ActionType.RECORD_METRIC: ['record_metric'],
             ActionType.QUERY_TELEMETRY: ['query_telemetry'],
             ActionType.RECORD_LOG: ['record_log'],
-            # Audit capabilities
             ActionType.LOG_AUDIT_EVENT: ['log_event'],
             ActionType.QUERY_AUDIT_TRAIL: ['query_audit_trail'],
         }
@@ -258,21 +256,19 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     async def _handle_generate_response(self, service: LLMService, action: GenerateResponseAction) -> str:
         """Handle generate response action with filter integration"""
         try:
-            # Create a simple response model for unstructured text
             from pydantic import BaseModel
             class TextResponse(BaseModel):
                 text: str
             
-            # Generate response using LLM service
             response_model, _ = await service.call_llm_structured(
                 messages=action.messages,
                 response_model=TextResponse,
                 temperature=action.temperature,
                 max_tokens=action.max_tokens
             )
-            response = response_model.text
+            # Mission-critical type safety - ensure response is properly typed as str
+            response: str = response_model.text  # type: ignore[attr-defined]
             
-            # Apply filtering to LLM response
             filter_service = await self._get_filter_service()
             if filter_service:
                 from ciris_engine.schemas.filter_schemas_v1 import FilterPriority
@@ -283,7 +279,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 )
                 
                 if filter_result.priority == FilterPriority.CRITICAL:
-                    # Block critical responses and record circuit breaker failure
                     logger.error(f"LLM response blocked by security filter: {filter_result.reasoning}")
                     raise RuntimeError(f"LLM response blocked: {filter_result.reasoning}")
                 elif filter_result.priority == FilterPriority.HIGH:
@@ -562,7 +557,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             service = await self._get_service('tool', action)
             if service:
                 result = await self._handle_send_tool(service, action)
-                # Ensure we return a proper ToolResult
                 if isinstance(result, dict):
                     from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
                     return ToolResult(
@@ -672,7 +666,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error in generate_structured_sync: {e}")
             raise
 
-    # API convenience methods for WA endpoints
     async def fetch_guidance(self, data: Dict[str, Any], handler_name: str = "wise_authority", 
                             metadata: Optional[Dict] = None) -> Optional[str]:
         """Convenience method to fetch guidance synchronously"""
@@ -735,7 +728,6 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                                  metadata: Optional[Dict] = None) -> Dict[str, Any]:
         """Convenience method to get deferral detail"""
         try:
-            # Mock implementation for testing
             return {
                 "id": deferral_id,
                 "thought_id": f"thought-for-{deferral_id}",

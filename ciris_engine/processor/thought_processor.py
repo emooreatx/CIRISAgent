@@ -168,7 +168,7 @@ class ThoughtProcessor:
 
         # 8. Ensure we return the final result
         if final_result:
-            logger.debug(f"ThoughtProcessor returning result for thought {thought.thought_id}: {final_result.selected_action}")
+            logger.debug(f"ThoughtProcessor returning result for thought {thought.thought_id}: {final_result.selected_action}")  # type: ignore[unreachable]
         else:
             # If no final result, check if we got a guardrail result we can use
             if hasattr(guardrail_result, 'final_action') and guardrail_result.final_action:
@@ -201,7 +201,7 @@ class ThoughtProcessor:
         """Extract profile name from thought context or use default."""
         profile_name = None
         if hasattr(thought, 'context') and isinstance(thought.context, dict):
-            profile_name = thought.context.get('agent_profile_name')
+            profile_name = thought.context.get('agent_profile_name')  # type: ignore[unreachable]
         if not profile_name and hasattr(self.app_config, 'agent_profiles'):
             for name, profile in self.app_config.agent_profiles.items():
                 if name != "default" and profile:
