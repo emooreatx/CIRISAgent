@@ -27,7 +27,6 @@ from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
 
-# Configuration for context echoing and testing behaviors
 class MockLLMConfig:
     """Configuration for mock LLM behavior."""
     
@@ -178,13 +177,10 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
 def _attach_extras(obj: Any) -> Any:
     """Mimic instructor extra attributes expected on responses."""
     import json
-    # Convert the object to JSON to simulate what a real LLM would return
     try:
         if hasattr(obj, 'model_dump'):
-            # Pydantic object
             content_json = json.dumps(obj.model_dump())
         else:
-            # Fallback for other objects
             content_json = json.dumps(obj.__dict__ if hasattr(obj, '__dict__') else str(obj))
     except Exception as e:
         logger.error(f"Failed to serialize object {type(obj)}: {e}")
@@ -204,20 +200,17 @@ def _attach_extras(obj: Any) -> Any:
 def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
     context = context or []
     
-    # Extract thought content for ethical analysis
     thought_content = ""
     for item in context:
         if item.startswith("echo_thought:"):
             thought_content = item.split(":", 1)[1]
             break
     
-    # Determine if this is a wakeup thought or user interaction
     is_wakeup = any("wakeup" in item.lower() or "verify" in item.lower() or "validate" in item.lower() 
                    for item in context) or "WAKEUP" in thought_content.upper()
     
     is_user_question = any("echo_user_speech:" in item for item in context) or "?" in thought_content
     
-    # Check for error injection
     if _mock_config.inject_error:
         decision = "defer"
         alignment_check = {
@@ -229,7 +222,6 @@ def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
     else:
         decision = "proceed"
         
-        # Provide CIRIS-aligned ethical evaluation
         if is_wakeup:
             alignment_check = {
                 "beneficence": True,
@@ -260,7 +252,6 @@ def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
             }
             rationale = "General thought processing aligns with ethical guidelines. No contraindications to CIRIS covenant principles detected."
     
-    # Use string for decision field per new schema
     decision_param = str(decision)  # Ensure decision is always a string
     return _attach_extras(
         EthicalDMAResult(alignment_check=alignment_check, decision=decision_param, rationale=str(rationale))
@@ -269,24 +260,20 @@ def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
 
 def cs_dma(context: List[str] = None) -> CSDMAResult:
     context = context or []
-    # Extract thought content for plausibility analysis
     thought_content = ""
     for item in context:
         if item.startswith("echo_thought:"):
             thought_content = item.split(":", 1)[1]
             break
-    # Extract user speech for analysis
     user_speech = ""
     for item in context:
         if item.startswith("echo_user_speech:"):
             user_speech = item.split(":", 1)[1]
             break
-    # Determine context type for plausibility scoring
     is_wakeup = any("wakeup" in item.lower() or "verify" in item.lower() 
                    for item in context) or "WAKEUP" in thought_content.upper()
     is_user_interaction = bool(user_speech) or "?" in thought_content
     is_memory_operation = any("recall" in item.lower() or "memory" in item.lower() for item in context)
-    # Check for error injection
     if _mock_config.inject_error:
         score = 0.3
         flags = ["plausibility_concern", "requires_clarification", "mock_flag"] + context

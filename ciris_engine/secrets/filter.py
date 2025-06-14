@@ -135,12 +135,10 @@ class SecretsFilter(SecretsFilterInterface):
         
     def _get_pattern_info(self, pattern_name: str) -> Optional[ConfigSecretPattern]:
         """Get pattern information by name."""
-        # Check custom patterns first
         for pattern in self.detection_config.custom_patterns:
             if pattern.name == pattern_name:
                 return pattern
                 
-        # Check default patterns
         for pattern in self.detection_config.default_patterns:
             if pattern.name == pattern_name:
                 return pattern
@@ -211,10 +209,8 @@ class SecretsFilter(SecretsFilterInterface):
     # Implement SecretsFilterInterface methods
     async def filter_content(self, content: str, source_id: Optional[str] = None) -> SecretsFilterResult:
         """Filter content for secrets using the text filtering method."""
-        # Return a simple result for interface compatibility
         filtered_text, detected_secrets = self.filter_text(content)
         
-        # Convert local DetectedSecret to schema format
         schema_secrets = []
         for secret in detected_secrets:
             schema_secret = DetectedSecret(
@@ -282,11 +278,9 @@ class SecretsFilter(SecretsFilterInterface):
     async def update_filter_config(self, updates: Dict[str, Any]) -> bool:  # pragma: no cover - rarely used
         """Update filter configuration settings."""
         try:
-            # Update detection config based on provided updates
             for key, value in updates.items():
                 if hasattr(self.detection_config, key):
                     setattr(self.detection_config, key, value)
-            # Recompile patterns after updates
             self._compile_patterns()
             return True
         except Exception:

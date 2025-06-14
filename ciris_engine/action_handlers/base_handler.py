@@ -198,18 +198,15 @@ class BaseActionHandler(ABC):
 
     async def _send_notification(self, channel_id: str, content: str) -> bool:
         """Send a notification using the best available service."""
-        # STRICT: content must be a string, not a GraphNode or any other type
         if not isinstance(content, str):
-            self.logger.error(f"_send_notification: content must be a string, got {type(content)}")
+            self.logger.error(f"_send_notification: content must be a string, got {type(content)}")  # type: ignore[unreachable]
             raise TypeError("_send_notification: content must be a string, not a GraphNode or other type")
         if not channel_id or not content:
             self.logger.error(f"_send_notification failed: missing channel_id ({channel_id}) or content ({bool(content)})")
             return False
 
-        # Log the attempt for debugging
         self.logger.debug(f"_send_notification: attempting to send to channel_id={channel_id}, content_length={len(content)}")
         
-        # Enhanced debugging for service registry lookup
         self.logger.debug(f"_send_notification: requesting communication service for handler '{self.__class__.__name__}'")
         
         comm_service = await self.get_communication_service()
@@ -217,26 +214,20 @@ class BaseActionHandler(ABC):
         
         if comm_service:
             try:
-                # Smart channel ID handling based on communication service type
                 sanitized_channel_id = str(channel_id).lstrip('#')
                 
-                # Detect CLI mode and adjust channel IDs accordingly
-                # Check for CLI service or API service (both can handle "cli" channel IDs)
                 class_name = comm_service.__class__.__name__ if hasattr(comm_service, '__class__') else ""
                 is_cli_service = 'CLI' in class_name
                 is_api_service = 'API' in class_name and 'Communication' in class_name
                 is_non_discord_service = is_cli_service or is_api_service
                 
                 if is_non_discord_service:
-                    # For CLI/API services, convert Discord channel IDs to appropriate values
                     if sanitized_channel_id.isdigit() and len(sanitized_channel_id) > 10:
-                        # This looks like a Discord channel ID - convert to CLI
                         sanitized_channel_id = "cli"
                         self.logger.debug(f"_send_notification: converted Discord channel ID to 'cli' for non-Discord service")
                     elif sanitized_channel_id in ["default"]:
                         sanitized_channel_id = "cli"
                 else:
-                    # For Discord services, validate numeric channel IDs
                     if sanitized_channel_id in ["CLI", "default", "cli"]:
                         self.logger.error(f"Invalid channel_id '{sanitized_channel_id}' - cannot send to Discord with string literal")
                         return False
@@ -261,20 +252,15 @@ class BaseActionHandler(ABC):
             )
             self.logger.error(f"_send_notification: Available services: {available_services}")
 
-        # CRITICAL: If we cannot send notifications, the agent cannot communicate effectively
-        # This is a fundamental failure that requires graceful shutdown
         self.logger.critical(
             f"CRITICAL COMMUNICATION FAILURE: Unable to send notification to channel {channel_id}. "
             f"No communication services available. This indicates a fundamental system failure."
         )
         
-        # Use both local and global shutdown mechanisms for maximum reliability
-        # Local shutdown callback for immediate runtime response
         self.dependencies.request_graceful_shutdown(
             f"Communication service failure - unable to send notifications (channel: {channel_id})"
         )
         
-        # Global shutdown for broader coordination
         request_shutdown_communication_failure(
             f"Unable to send notifications to channel {channel_id}"
         )
@@ -322,7 +308,6 @@ class BaseActionHandler(ABC):
             if not self.dependencies.secrets_service:
                 return result
             
-            # Attempt to decapsulate secrets in parameters
             decapsulated_params = await self.dependencies.secrets_service.decapsulate_secrets_in_parameters(
                 result.action_parameters,
                 action_type,
@@ -333,9 +318,7 @@ class BaseActionHandler(ABC):
                 }
             )
             
-            # If decapsulation occurred, update the result
             if decapsulated_params != result.action_parameters:
-                # Create new result with decapsulated parameters
                 updated_result = ActionSelectionResult(
                     selected_action=result.selected_action,
                     action_parameters=decapsulated_params,
@@ -352,7 +335,6 @@ class BaseActionHandler(ABC):
             
         except Exception as e:
             self.logger.error(f"Error decapsulating secrets in action parameters: {e}")
-            # Return original result if decapsulation fails
             return result
 
     @abstractmethod

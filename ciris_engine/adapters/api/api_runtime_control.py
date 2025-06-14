@@ -132,7 +132,6 @@ class APIRuntimeControlRoutes:
             logger.error(f"Error getting queue status: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
 
-    # Adapter Management Endpoints
     async def _handle_load_adapter(self, request: web.Request) -> web.Response:
         """Load a new adapter instance."""
         try:
@@ -197,7 +196,6 @@ class APIRuntimeControlRoutes:
             logger.error(f"Error getting adapter info: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
 
-    # Configuration Management Endpoints
     async def _handle_get_config(self, request: web.Request) -> web.Response:
         """Get configuration values."""
         try:
@@ -270,7 +268,6 @@ class APIRuntimeControlRoutes:
             logger.error(f"Error reloading config: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
 
-    # Agent Profile Management Endpoints
     async def _handle_list_profiles(self, request: web.Request) -> web.Response:
         """List all available agent profiles."""
         try:
@@ -351,7 +348,6 @@ class APIRuntimeControlRoutes:
             logger.error(f"Error deleting profile: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
 
-    # Configuration Backup/Restore Endpoints
     async def _handle_backup_config(self, request: web.Request) -> web.Response:
         """Backup configuration."""
         try:

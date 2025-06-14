@@ -31,7 +31,6 @@ class OpenAICompatibleClient(LLMService):
         
         self.telemetry_service = telemetry_service
 
-        # Set up retry configuration specifically for OpenAI API calls
         retry_config = {
             "retry": {
                 "global": {
@@ -41,13 +40,12 @@ class OpenAICompatibleClient(LLMService):
                 },
                 "api_call": {
                     "retryable_exceptions": (APIConnectionError, RateLimitError),
-                    "non_retryable_exceptions": (APIStatusError, instructor.exceptions.InstructorRetryException)
+                    "non_retryable_exceptions": (APIStatusError, instructor.exceptions.InstructorRetryException)  # type: ignore[attr-defined]
                 }
             }
         }
         super().__init__(config=retry_config)
 
-        # Initialize circuit breaker for LLM service health management
         circuit_config = CircuitBreakerConfig(
             failure_threshold=3,        # Open after 3 consecutive failures
             recovery_timeout=300.0,     # Wait 5 minutes before testing recovery
@@ -71,7 +69,6 @@ class OpenAICompatibleClient(LLMService):
             max_retries=max_retries
         )
 
-        # Set up instructor for structured outputs with minimal retries
         instructor_mode = getattr(self.openai_config, 'instructor_mode', 'json')
         self.instruct_client = instructor.from_openai(
             self.client,
@@ -98,7 +95,6 @@ class OpenAICompatibleClient(LLMService):
         """Perform a health check on the LLM service."""
         base_health = await super().health_check()
         
-        # Include circuit breaker status
         cb_stats = self.circuit_breaker.get_stats()
         
         return {
@@ -186,12 +182,12 @@ class OpenAICompatibleClient(LLMService):
                 
                 return response, usage_obj
                 
-            except (APIConnectionError, RateLimitError, instructor.exceptions.InstructorRetryException) as e:
+            except (APIConnectionError, RateLimitError, instructor.exceptions.InstructorRetryException) as e:  # type: ignore[attr-defined]
                 # Record failure with circuit breaker
                 self.circuit_breaker.record_failure()
                 
                 # Special handling for timeout cascades
-                if isinstance(e, instructor.exceptions.InstructorRetryException) and "timed out" in str(e):
+                if isinstance(e, instructor.exceptions.InstructorRetryException) and "timed out" in str(e):  # type: ignore[attr-defined]
                     logger.error(f"LLM structured timeout detected, circuit breaker recorded failure: {e}")
                     raise TimeoutError("LLM API timeout in structured call - circuit breaker activated") from e
                 

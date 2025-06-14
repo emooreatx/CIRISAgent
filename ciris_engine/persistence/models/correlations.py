@@ -24,7 +24,7 @@ def add_correlation(corr: ServiceCorrelation, db_path: Optional[str] = None) -> 
         if isinstance(corr.timestamp, datetime):
             timestamp_str = corr.timestamp.isoformat()
         else:
-            timestamp_str = str(corr.timestamp)
+            timestamp_str = str(corr.timestamp)  # type: ignore[unreachable]
     
     params = (
         corr.correlation_id,
@@ -198,7 +198,6 @@ def get_correlations_by_type_and_time(
 ) -> List[ServiceCorrelation]:
     """Get correlations by type with optional time filtering for TSDB queries."""
     sql = "SELECT * FROM service_correlations WHERE correlation_type = ?"
-    # Handle both enum and string types
     if hasattr(correlation_type, 'value'):
         params = [correlation_type.value]
     else:
@@ -291,7 +290,6 @@ def get_metrics_timeseries(
         sql += " AND timestamp <= ?"
         params.append(end_time)
     
-    # Simple tag filtering - would need more sophisticated JSON querying for complex cases
     if tags:
         for key, value in tags.items():
             sql += " AND json_extract(tags, ?) = ?"

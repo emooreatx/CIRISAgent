@@ -75,7 +75,7 @@ async def build_system_snapshot(
     db_recent_tasks = persistence.get_recent_completed_tasks(10)
     for t_obj in db_recent_tasks:
         if isinstance(t_obj, TaskSummary):
-            recent_tasks_list.append(t_obj)
+            recent_tasks_list.append(t_obj)  # type: ignore[unreachable]
         elif isinstance(t_obj, BaseModel):
             recent_tasks_list.append(TaskSummary(**t_obj.model_dump()))
 
@@ -83,17 +83,17 @@ async def build_system_snapshot(
     db_top_tasks = persistence.get_top_tasks(10)
     for t_obj in db_top_tasks:
         if isinstance(t_obj, TaskSummary):
-            top_tasks_list.append(t_obj)
+            top_tasks_list.append(t_obj)  # type: ignore[unreachable]
         elif isinstance(t_obj, BaseModel):
             top_tasks_list.append(TaskSummary(**t_obj.model_dump()))
 
     current_task_summary = None
     if task:
         if isinstance(task, TaskSummary):
-            current_task_summary = task
+            current_task_summary = task  # type: ignore[unreachable]
         elif isinstance(task, BaseModel):
             current_task_summary = TaskSummary(**task.model_dump())
-        elif isinstance(task, dict):
+        elif isinstance(task, dict):  # type: ignore[unreachable]
             current_task_summary = TaskSummary(**task)
 
     secrets_data: Dict[str, Any] = {}

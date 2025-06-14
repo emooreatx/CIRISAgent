@@ -39,15 +39,11 @@ async def _load_yaml(path: Path) -> Dict[str, Any]:
 def _apply_env_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
     """Fill missing config fields from environment variables."""
     
-    # Discord configuration
-    # Platform-specific configuration is handled by individual adapters
     
-    # Runtime configuration
     log_level = get_env_var("LOG_LEVEL")
     if log_level and not config.get("log_level"):
         config["log_level"] = log_level
     
-    # Database paths
     if "database" not in config:
         config["database"] = {}
     
@@ -59,7 +55,6 @@ def _apply_env_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
     if data_dir and not config["database"].get("data_directory"):
         config["database"]["data_directory"] = data_dir
     
-    # Secrets configuration
     if "secrets" not in config:
         config["secrets"] = {}
     if "storage" not in config["secrets"]:
@@ -69,7 +64,6 @@ def _apply_env_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
     if secrets_db and not config["secrets"]["storage"].get("database_path"):
         config["secrets"]["storage"]["database_path"] = secrets_db
     
-    # Resource limits
     if "resources" not in config:
         config["resources"] = {}
     if "budgets" not in config["resources"]:
@@ -89,7 +83,6 @@ def _apply_env_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
         except ValueError:
             pass
     
-    # Telemetry configuration
     if "telemetry" not in config:
         config["telemetry"] = {}
     
@@ -104,7 +97,6 @@ def _apply_env_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
         except ValueError:
             pass
     
-    # Audit configuration
     if "audit" not in config:
         config["audit"] = {}
     
@@ -116,7 +108,6 @@ def _apply_env_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
     if signed_audit and not config["audit"].get("enable_signed_audit"):
         config["audit"]["enable_signed_audit"] = signed_audit.lower() in ("true", "1", "yes")
     
-    # Circuit breaker configuration
     if "adaptive" not in config:
         config["adaptive"] = {}
     if "circuit_breaker" not in config["adaptive"]:
@@ -129,7 +120,6 @@ def _apply_env_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
         except ValueError:
             pass
     
-    # Archive configuration
     archive_dir = get_env_var("CIRIS_ARCHIVE_DIR")
     if archive_dir and not config.get("data_archive_dir"):
         config["data_archive_dir"] = archive_dir
@@ -160,12 +150,10 @@ class ConfigLoader:
         base_config_data = await _load_yaml(base_path)
         profile_data = await _load_yaml(profile_overlay_path)
         
-        # Apply general env defaults to base config
         base_config_data = _apply_env_defaults(base_config_data)
         
         app_config = AppConfig(**base_config_data)
         
-        # Load environment variables for general top-level config sections that support it
         if hasattr(app_config, 'llm_services') and hasattr(app_config.llm_services, 'openai') and hasattr(app_config.llm_services.openai, 'load_env_vars'):
             app_config.llm_services.openai.load_env_vars()
         if hasattr(app_config, 'secrets') and hasattr(app_config.secrets, 'load_env_vars'):
@@ -173,32 +161,22 @@ class ConfigLoader:
         if hasattr(app_config, 'cirisnode') and hasattr(app_config.cirisnode, 'load_env_vars'):
             app_config.cirisnode.load_env_vars()
 
-        # Process the agent profile if profile data exists
         active_profile = None
         if profile_data:
-            # Create agent profile from profile data
-            # If profile_data has a 'name' field, treat it as an AgentProfile
-            # Otherwise, treat it as config overlays to merge
             if 'name' in profile_data or any(key in profile_data for key in ['dsdma_identifier', 'permitted_actions', 'discord_config', 'api_config', 'cli_config']):
-                # This looks like an AgentProfile definition
                 from ciris_engine.adapters.discord.config import DiscordAdapterConfig
                 
-                # Create DiscordAdapterConfig if discord_config data exists or if we need env var loading
                 if 'discord_config' in profile_data:
                     discord_config = DiscordAdapterConfig(**profile_data['discord_config'])
                 else:
-                    # Create empty DiscordAdapterConfig to enable env var loading
                     discord_config = DiscordAdapterConfig()
                 
-                # Load env vars for Discord adapter config
                 discord_config.load_env_vars()
                 profile_data['discord_config'] = discord_config
                 
-                # Create the agent profile
                 active_profile = AgentProfile(**profile_data)
                 app_config.agent_profiles[profile_name] = active_profile
             else:
-                # This looks like config overlays - merge with app config
                 merged_data = _merge_configs(base_config_data, profile_data)
                 app_config = AppConfig(**merged_data)
 

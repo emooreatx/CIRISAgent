@@ -55,7 +55,6 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         if self._input_task:
             self._stop_event.set()
             try:
-                # Give the input task a chance to complete gracefully
                 await asyncio.wait_for(self._input_task, timeout=1.0)
             except asyncio.TimeoutError:
                 logger.warning("Input task did not complete within timeout, cancelling")
@@ -107,23 +106,19 @@ class CLIObserver(BaseObserver[IncomingMessage]):
 
     def _is_cli_channel(self, channel_id: str) -> bool:
         """Check if a channel ID belongs to this CLI observer instance."""
-        # Handle the default "cli" channel
         if channel_id == "cli":
             return True
         
-        # Handle configured channel ID from self.config
         if self.config and hasattr(self.config, 'get_home_channel_id'):
             config_channel = self.config.get_home_channel_id()
             if config_channel and channel_id == config_channel:
                 return True
         
-        # Handle hostname-based channels (for compatibility with _get_recall_ids format)
         import socket
         hostname_channel = socket.gethostname()
         if channel_id == hostname_channel or channel_id == f"channel/{hostname_channel}":
             return True
         
-        # Handle user@hostname format
         import getpass
         user_hostname = f"{getpass.getuser()}@{socket.gethostname()}"
         if channel_id == user_hostname:
@@ -133,41 +128,32 @@ class CLIObserver(BaseObserver[IncomingMessage]):
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:
         if not isinstance(msg, IncomingMessage):
-            logger.warning("CLIObserver received non-IncomingMessage")
+            logger.warning("CLIObserver received non-IncomingMessage")  # type: ignore[unreachable]
             return
         
-        # Check if this is the agent's own message
         is_agent_message = self.agent_id and msg.author_id == self.agent_id
         
-        # Process message for secrets detection and replacement (for all messages)
         processed_msg = await self._process_message_secrets(msg)
         
-        # Add ALL messages to history (including agent's own)
         self._history.append(processed_msg)
         
-        # If it's the agent's message, stop here (no task creation)
         if is_agent_message:
             logger.debug("Added agent's own message %s to history (no task created)", msg.message_id)
             return
         
-        # Apply adaptive filtering to determine message priority and processing
         filter_result = await self._apply_message_filtering(msg, "cli")
         if not filter_result.should_process:
             logger.debug(f"Message {msg.message_id} filtered out: {filter_result.reasoning}")
             return
         
-        # Add filter context to message for downstream processing
-        processed_msg._filter_priority = filter_result.priority
-        processed_msg._filter_context = filter_result.context_hints
-        processed_msg._filter_reasoning = filter_result.reasoning
+        processed_msg._filter_priority = filter_result.priority  # type: ignore[attr-defined]
+        processed_msg._filter_context = filter_result.context_hints  # type: ignore[attr-defined]
+        processed_msg._filter_reasoning = filter_result.reasoning  # type: ignore[attr-defined]
         
-        # Process based on priority
         if filter_result.priority.value in ['critical', 'high']:
-            # Immediate processing for high-priority messages
             logger.info(f"Processing {filter_result.priority.value} priority message {msg.message_id}: {filter_result.reasoning}")
             await self._handle_priority_observation(processed_msg, filter_result)
         else:
-            # Normal processing for medium/low priority
             await self._handle_passive_observation(processed_msg)
             
         await self._recall_context(processed_msg)
@@ -189,11 +175,8 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         
         logger.debug(f"CLI Message channel_id: {msg.channel_id}")
         
-        # Route messages based on channel and author
-        # For CLI messages, process any channel that this CLI observer is responsible for
         if self._is_cli_channel(msg.channel_id) and not self._is_agent_message(msg):
             await self._create_passive_observation_result(msg)
         else:
-            # Ignore messages from other channels or from agent itself
             logger.debug("Ignoring passive message from channel %s, author %s for CLI observer", msg.channel_id, msg.author_name)
 

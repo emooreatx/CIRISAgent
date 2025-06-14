@@ -2,7 +2,7 @@ from ciris_engine.schemas.deferral_schemas_v1 import DeferralReason, DeferralPac
 
 def test_deferral_reason_enum():
     assert DeferralReason.GUARDRAIL_FAILURE == "guardrail_failure"
-    assert DeferralReason.UNKNOWN == "unknown"
+    assert DeferralReason.UNKNOWN == "unknown"  # type: ignore[unreachable]
 
 def test_deferral_package_minimal():
     pkg = DeferralPackage(

@@ -84,15 +84,15 @@ class BaseObserver(Generic[MessageT], ABC):
     async def _process_message_secrets(self, msg: MessageT) -> MessageT:
         try:
             processed_content, secret_refs = await self.secrets_service.process_incoming_text(
-                msg.content,
-                context_hint=f"{self.origin_service} message from {msg.author_name}",
-                source_message_id=msg.message_id,
+                msg.content,  # type: ignore[attr-defined]
+                context_hint=f"{self.origin_service} message from {msg.author_name}",  # type: ignore[attr-defined]
+                source_message_id=msg.message_id,  # type: ignore[attr-defined]
             )
             processed_msg = msg.model_copy(update={"content": processed_content})
             if secret_refs:
-                processed_msg._detected_secrets = [
+                processed_msg._detected_secrets = [  # type: ignore[attr-defined]
                     {
-                        "uuid": ref.secret_uuid,
+                        "uuid": ref.secret_uuid,  # type: ignore[attr-defined]
                         "context_hint": ref.context_hint,
                         "sensitivity": ref.sensitivity,
                     }
@@ -100,7 +100,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 ]
             return processed_msg
         except Exception as e:  # pragma: no cover - unlikely in tests
-            logger.error("Error processing secrets in %s message %s: %s", self.origin_service, msg.message_id, e)
+            logger.error("Error processing secrets in %s message %s: %s", self.origin_service, msg.message_id, e)  # type: ignore[attr-defined]
             return msg
 
     async def _get_recall_ids(self, msg: MessageT) -> set[str]:
@@ -112,7 +112,7 @@ class BaseObserver(Generic[MessageT], ABC):
         recall_ids = await self._get_recall_ids(msg)
         for m in self._history[-PASSIVE_CONTEXT_LIMIT:]:
             if getattr(m, "author_id", None):
-                recall_ids.add(f"user/{m.author_id}")
+                recall_ids.add(f"user/{m.author_id}")  # type: ignore[attr-defined]
         from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
         for rid in recall_ids:
             for scope in (
@@ -138,26 +138,26 @@ class BaseObserver(Generic[MessageT], ABC):
                 success = await self.multi_service_sink.send_message(
                     handler_name=self.__class__.__name__,
                     channel_id=getattr(msg, "channel_id", None),
-                    content=f"[WA_FEEDBACK] {msg.content}",
+                    content=f"[WA_FEEDBACK] {msg.content}",  # type: ignore[attr-defined]
                     metadata={
                         "message_type": "wa_feedback",
-                        "original_message_id": msg.message_id,
-                        "wa_user": msg.author_name,
+                        "original_message_id": msg.message_id,  # type: ignore[attr-defined]
+                        "wa_user": msg.author_name,  # type: ignore[attr-defined]
                         "source": f"{self.origin_service}_observer",
                     },
                 )
                 if success:
                     logger.info(
                         "Enqueued WA feedback message %s from %s",
-                        msg.message_id,
-                        msg.author_name,
+                        msg.message_id,  # type: ignore[attr-defined]
+                        msg.author_name,  # type: ignore[attr-defined]
                     )
                 else:
-                    logger.warning("Failed to enqueue WA feedback message %s", msg.message_id)
+                    logger.warning("Failed to enqueue WA feedback message %s", msg.message_id)  # type: ignore[attr-defined]
             else:
                 logger.warning("No multi_service_sink available for WA feedback routing")
         except Exception as e:  # pragma: no cover - rarely hit in tests
-            logger.error("Error adding WA feedback message %s to queue: %s", msg.message_id, e)
+            logger.error("Error adding WA feedback message %s to queue: %s", msg.message_id, e)  # type: ignore[attr-defined]
 
     async def _create_passive_observation_result(self, msg: MessageT) -> None:
         try:
@@ -169,24 +169,24 @@ class BaseObserver(Generic[MessageT], ABC):
 
             task = Task(
                 task_id=str(uuid.uuid4()),
-                description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content}'",
+                description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content}'",  # type: ignore[attr-defined]
                 status=TaskStatus.PENDING,
                 priority=0,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 context={
                     "channel_id": getattr(msg, "channel_id", None),
-                    "author_id": msg.author_id,
-                    "author_name": msg.author_name,
-                    "message_id": msg.message_id,
+                    "author_id": msg.author_id,  # type: ignore[attr-defined]
+                    "author_name": msg.author_name,  # type: ignore[attr-defined]
+                    "message_id": msg.message_id,  # type: ignore[attr-defined]
                     "origin_service": self.origin_service,
                     "observation_type": "passive",
                     "recent_messages": [
                         {
-                            "id": m.message_id,
-                            "content": m.content,
-                            "author_id": m.author_id,
-                            "author_name": m.author_name,
+                            "id": m.message_id,  # type: ignore[attr-defined]
+                            "content": m.content,  # type: ignore[attr-defined]
+                            "author_id": m.author_id,  # type: ignore[attr-defined]
+                            "author_name": m.author_name,  # type: ignore[attr-defined]
                             "channel_id": getattr(m, "channel_id", None),
                             "timestamp": getattr(m, "timestamp", "n/a"),
                         }
@@ -204,7 +204,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 created_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 round_number=0,
-                content=f"User @{msg.author_name} said: {msg.content}",
+                content=f"User @{msg.author_name} said: {msg.content}",  # type: ignore[attr-defined]
                 context=task.context,
             )
             persistence.add_thought(thought)
@@ -223,16 +223,16 @@ class BaseObserver(Generic[MessageT], ABC):
 
             task = Task(
                 task_id=str(uuid.uuid4()),
-                description=f"PRIORITY: Respond to {filter_result.priority.value} message from @{msg.author_name}: '{msg.content}'",
+                description=f"PRIORITY: Respond to {filter_result.priority.value} message from @{msg.author_name}: '{msg.content}'",  # type: ignore[attr-defined]
                 status=TaskStatus.PENDING,
                 priority=task_priority,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 context={
                     "channel_id": getattr(msg, "channel_id", None),
-                    "author_id": msg.author_id,
-                    "author_name": msg.author_name,
-                    "message_id": msg.message_id,
+                    "author_id": msg.author_id,  # type: ignore[attr-defined]
+                    "author_name": msg.author_name,  # type: ignore[attr-defined]
+                    "message_id": msg.message_id,  # type: ignore[attr-defined]
                     "origin_service": self.origin_service,
                     "observation_type": "priority",
                     "filter_priority": filter_result.priority.value,
@@ -242,10 +242,10 @@ class BaseObserver(Generic[MessageT], ABC):
                     "filter_context": filter_result.context_hints,
                     "recent_messages": [
                         {
-                            "id": m.message_id,
-                            "content": m.content,
-                            "author_id": m.author_id,
-                            "author_name": m.author_name,
+                            "id": m.message_id,  # type: ignore[attr-defined]
+                            "content": m.content,  # type: ignore[attr-defined]
+                            "author_id": m.author_id,  # type: ignore[attr-defined]
+                            "author_name": m.author_name,  # type: ignore[attr-defined]
                             "channel_id": getattr(m, "channel_id", None),
                             "timestamp": getattr(m, "timestamp", "n/a"),
                         }
@@ -263,7 +263,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 created_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 round_number=0,
-                content=f"PRIORITY ({filter_result.priority.value}): User @{msg.author_name} said: {msg.content} | Filter: {filter_result.reasoning}",
+                content=f"PRIORITY ({filter_result.priority.value}): User @{msg.author_name} said: {msg.content} | Filter: {filter_result.reasoning}",  # type: ignore[attr-defined]
                 context=task.context,
             )
             persistence.add_thought(thought)
@@ -274,9 +274,9 @@ class BaseObserver(Generic[MessageT], ABC):
         msgs = self._history[-limit:]
         return [
             {
-                "id": m.message_id,
-                "content": m.content,
-                "author_id": m.author_id,
+                "id": m.message_id,  # type: ignore[attr-defined]
+                "content": m.content,  # type: ignore[attr-defined]
+                "author_id": m.author_id,  # type: ignore[attr-defined]
                 "timestamp": getattr(m, "timestamp", "n/a"),
             }
             for m in msgs

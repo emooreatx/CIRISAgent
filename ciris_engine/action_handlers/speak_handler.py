@@ -74,10 +74,10 @@ class SpeakHandler(BaseActionHandler):
                 await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, fe)
                 raise FollowUpCreationError from fe
 
-        if not params.channel_id:
-            params.channel_id = await self._get_channel_id(thought, dispatch_context) or self.snore_channel_id
+        if not params.channel_id:  # type: ignore[attr-defined]
+            params.channel_id = await self._get_channel_id(thought, dispatch_context) or self.snore_channel_id  # type: ignore[attr-defined]
 
-        event_summary = params.content
+        event_summary = params.content  # type: ignore[attr-defined]
         await self._audit_log(
             HandlerActionType.SPEAK,
             {**dispatch_context, "thought_id": thought_id, "event_summary": event_summary},
@@ -85,8 +85,8 @@ class SpeakHandler(BaseActionHandler):
         )
 
         # Extract string from GraphNode for notification
-        content_str = params.content.attributes.get('text', str(params.content)) if hasattr(params.content, 'attributes') else str(params.content)
-        success = await self._send_notification(params.channel_id, content_str)
+        content_str = params.content.attributes.get('text', str(params.content)) if hasattr(params.content, 'attributes') else str(params.content)  # type: ignore[attr-defined]
+        success = await self._send_notification(params.channel_id, content_str)  # type: ignore[attr-defined]
 
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
         
@@ -118,8 +118,8 @@ class SpeakHandler(BaseActionHandler):
             request_data={
                 "task_id": thought.source_task_id,
                 "thought_id": thought_id,
-                "channel_id": params.channel_id,
-                "content": str(params.content)
+                "channel_id": params.channel_id,  # type: ignore[attr-defined]
+                "content": str(params.content)  # type: ignore[attr-defined]
             },
             response_data={"success": success, "final_status": final_thought_status.value},
             status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED,
@@ -131,8 +131,8 @@ class SpeakHandler(BaseActionHandler):
         follow_up_text = (
             f"""
             NEXT ACTION IS TASK COMPLETE!
-            CIRIS_FOLLOW_UP_THOUGHT: YOU Spoke, as a result of your action: '{params.content}' in channel 
-            {params.channel_id} as a response to task: {task_description}. The next 
+            CIRIS_FOLLOW_UP_THOUGHT: YOU Spoke, as a result of your action: '{params.content}' in channel  # type: ignore[attr-defined]
+            {params.channel_id} as a response to task: {task_description}. The next  # type: ignore[attr-defined]
             action is probably TASK COMPLETE to mark the original task as handled.
             Do NOT speak again unless DRASTICALLY necessary.
             NEXT ACTION IS TASK COMPLETE UNLESS YOU NEED TO MEMORIZE SOMETHING!
@@ -167,9 +167,9 @@ class SpeakHandler(BaseActionHandler):
         if hasattr(thought, "context"):
             if not thought.context:
                 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
-                thought.context = ThoughtContext(system_snapshot=SystemSnapshot(channel_id=params.channel_id))
+                thought.context = ThoughtContext(system_snapshot=SystemSnapshot(channel_id=params.channel_id))  # type: ignore[attr-defined]
             if not getattr(thought.context.system_snapshot, "channel_id", None):
-                thought.context.system_snapshot.channel_id = params.channel_id
+                thought.context.system_snapshot.channel_id = params.channel_id  # type: ignore[attr-defined]
         
         return follow_up_thought_id
 

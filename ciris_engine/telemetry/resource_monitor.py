@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Callable, Deque, Dict, List, Optional, Tuple
 
 try:  # pragma: no cover - psutil optional
-    import psutil  # type: ignore
+    import psutil
 except Exception:  # pragma: no cover - fallback
     psutil = None
 

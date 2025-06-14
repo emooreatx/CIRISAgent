@@ -83,7 +83,6 @@ class TSDBSignedAuditService(Service):
             True if successfully logged, False otherwise
         """
         try:
-            # Create audit entry
             entry = AuditLogEntry(
                 event_id=str(uuid4()),
                 event_timestamp=datetime.now(timezone.utc).isoformat(),
@@ -98,7 +97,6 @@ class TSDBSignedAuditService(Service):
                 task_id=context.get("task_id") or context.get("source_task_id"),
             )
             
-            # Store in TSDB as correlation
             audit_correlation = ServiceCorrelation(
                 correlation_id=entry.event_id,
                 service_type="audit",
@@ -127,10 +125,8 @@ class TSDBSignedAuditService(Service):
                 retention_policy=self.retention_policy
             )
             
-            # Store asynchronously
             await self._store_audit_correlation(audit_correlation)
             
-            # Also log to file if enabled
             if self.enable_file_backup and self.file_audit_service:
                 await self.file_audit_service.log_action(handler_action, context, outcome)
             

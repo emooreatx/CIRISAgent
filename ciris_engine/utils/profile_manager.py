@@ -33,13 +33,10 @@ class ProfileManager:
                 for profile_file in self._profiles_dir.glob("*.yaml"):
                     profile_name = profile_file.stem
                     try:
-                        # Load profile to get info
                         profile = await load_profile(profile_file)
                         
-                        # Get file stats
                         stat = profile_file.stat()
                         
-                        # Check if this profile is currently active
                         is_active = False
                         if current_config:
                             is_active = (

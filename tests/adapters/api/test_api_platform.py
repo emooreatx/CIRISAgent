@@ -144,7 +144,7 @@ class TestApiPlatform:
         
         # Should create event
         assert api_platform._web_server_stopped_event is not None
-        assert isinstance(api_platform._web_server_stopped_event, asyncio.Event)
+        assert isinstance(api_platform._web_server_stopped_event, asyncio.Event)  # type: ignore[unreachable]
 
     def test_ensure_stop_event_outside_loop(self, api_platform):
         """Test stop event creation outside async context."""

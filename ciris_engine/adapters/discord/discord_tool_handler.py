@@ -67,7 +67,6 @@ class DiscordToolHandler:
         
         correlation_id = tool_args.get("correlation_id", str(uuid.uuid4()))
         
-        # Record the tool execution start
         persistence.add_correlation(
             ServiceCorrelation(
                 correlation_id=correlation_id,
@@ -82,14 +81,11 @@ class DiscordToolHandler:
         )
         
         try:
-            # Execute the tool with the Discord client
             tool_args_with_bot = {**tool_args, "bot": self.client}
             result = await handler(tool_args_with_bot)
             
-            # Convert result to dictionary if needed
             result_dict = result if isinstance(result, dict) else result.__dict__
             
-            # Store the result for later retrieval
             if correlation_id:
                 self._tool_results[correlation_id] = result_dict
                 persistence.update_correlation(
@@ -123,7 +119,6 @@ class DiscordToolHandler:
         Returns:
             Tool result dictionary or not_found status
         """
-        # Poll for the result with timeout
         for _ in range(timeout * 10):  # Check every 0.1 seconds
             if correlation_id in self._tool_results:
                 return self._tool_results.pop(correlation_id)
@@ -141,7 +136,6 @@ class DiscordToolHandler:
         if not self.tool_registry:
             return []
         
-        # Handle different tool registry interfaces
         if hasattr(self.tool_registry, 'tools'):
             return list(self.tool_registry.tools.keys())
         elif hasattr(self.tool_registry, 'get_tools'):
@@ -168,7 +162,6 @@ class DiscordToolHandler:
             if not schema:
                 return False
             
-            # Basic validation: check if all required keys are present
             return all(k in parameters for k in schema.keys())
             
         except Exception as e:

@@ -58,19 +58,16 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
         self.domain_name = domain_name
         self.domain_specific_knowledge = domain_specific_knowledge if domain_specific_knowledge else {}
         
-        # Load prompts from YAML file
         self.prompt_loader = get_prompt_loader()
         try:
             self.prompt_template_data = self.prompt_loader.load_prompt_template("dsdma_base")
         except FileNotFoundError:
             logger.warning(f"DSDMA base prompt template not found for domain '{domain_name}', using fallback")
-            # Fallback to embedded prompt for backward compatibility
             self.prompt_template_data = {
                 "system_guidance_header": self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE else "",
                 "covenant_header": True
             }
         
-        # Legacy prompt_template support
         self.prompt_template = prompt_template if prompt_template is not None else self.prompt_template_data.get("system_guidance_header", "")
 
         logger.info(
@@ -84,7 +81,6 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
         reasoning: str
 
     async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Dict[str, Any]) -> DSDMAResult:
-        # LLM service will be handled by base class call_llm_structured method
 
 
         thought_content_str = str(thought_item.content)

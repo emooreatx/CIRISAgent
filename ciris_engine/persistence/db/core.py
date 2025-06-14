@@ -40,7 +40,6 @@ def get_service_correlations_table_schema_sql() -> str:
 def initialize_database(db_path: Optional[str] = None) -> None:
     """Initialize the database with base schema and apply migrations."""
     try:
-        # First create base tables (pre-beta core schema)
         with get_db_connection(db_path) as conn:
             base_tables = [
                 tasks_table_v1,
@@ -59,7 +58,6 @@ def initialize_database(db_path: Optional[str] = None) -> None:
             
             conn.commit()
         
-        # Then apply any migrations (post-beta features)
         run_migrations(db_path)
             
         logger.info(

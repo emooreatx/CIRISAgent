@@ -14,30 +14,23 @@ class CliPlatform(PlatformAdapter):
     def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
         self.runtime = runtime
         
-        # Use provided adapter config or create defaults
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
             self.config = kwargs["adapter_config"]
             logger.info(f"CLI adapter using provided config: interactive={self.config.interactive}")
-            # Don't call load_env_vars() again - trust the provided config
         else:
-            # Initialize configuration with defaults and override from kwargs
             self.config = CLIAdapterConfig()
             if "interactive" in kwargs:
                 self.config.interactive = bool(kwargs["interactive"])
             
-            # Load configuration from profile if available
             profile = getattr(runtime, 'agent_profile', None)
             if profile and profile.cli_config:
-                # Update config with profile settings
                 for key, value in profile.cli_config.dict().items():
                     if hasattr(self.config, key):
                         setattr(self.config, key, value)
                         logger.debug(f"CliPlatform: Set config {key} = {value} from profile")
             
-            # Load environment variables (can override profile settings)
             self.config.load_env_vars()
         
-        # Create the simplified CLI adapter
         self.cli_adapter = CLIAdapter(
             interactive=self.config.interactive,
             on_message=self._handle_incoming_message,
@@ -61,7 +54,6 @@ class CliPlatform(PlatformAdapter):
 
     def get_services_to_register(self) -> List[ServiceRegistration]:
         """Register CLI services."""
-        # The CLI adapter implements all three service types
         registrations = [
             ServiceRegistration(
                 service_type=ServiceType.COMMUNICATION,

@@ -35,7 +35,6 @@ class APIAuditRoutes:
             data = await request.json()
             from datetime import datetime
             
-            # Parse query parameters
             start_time = None
             end_time = None
             if data.get("start_time"):
@@ -59,7 +58,6 @@ class APIAuditRoutes:
                 )
                 return web.json_response({"entries": results})
             else:
-                # Fallback to basic audit log reading with filtering
                 entries = []
                 log_path = getattr(self.audit_service, 'log_path', None)
                 if log_path and log_path.exists():
@@ -68,7 +66,6 @@ class APIAuditRoutes:
                         for line in lines:
                             try:
                                 entry = json.loads(line.strip())
-                                # Apply filters
                                 if thought_id and entry.get("thought_id") != thought_id:
                                     continue
                                 if task_id and entry.get("task_id") != task_id:

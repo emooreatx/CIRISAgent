@@ -45,7 +45,7 @@ class RecallHandler(BaseActionHandler):
             )
             return
 
-        node = params.node
+        node = params.node  # type: ignore[attr-defined]
         scope = node.scope
 
         memory_result = await memory_service.recall(node)

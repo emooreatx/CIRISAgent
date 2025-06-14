@@ -239,7 +239,6 @@ class ServiceRegistry:
     ) -> Optional[Any]:
         """Get service from a list of providers with health checking and priority groups."""
 
-        # Group providers by priority group
         grouped: Dict[int, List[ServiceProvider]] = {}
         for p in providers:
             grouped.setdefault(p.priority_group, []).append(p)

@@ -30,7 +30,6 @@ class ModerationDSDMA(BaseDSDMA):
     Evaluates thoughts for moderation actions based on community health principles.
     """
     
-    # Default template for moderation-specific evaluation
     DEFAULT_TEMPLATE = """
     You are Echo, a moderation-focused DSDMA evaluator. Your task is to assess thoughts
     through the lens of community moderation, balancing individual dignity with collective wellbeing.

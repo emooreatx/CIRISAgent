@@ -28,13 +28,10 @@ class UpdateSecretsFilterParams(BaseModel):
     """Parameters for UPDATE_SECRETS_FILTER tool"""
     operation: Literal["add_pattern", "remove_pattern", "update_pattern", "get_current", "update_config"]
     
-    # For add_pattern/update_pattern
     pattern: Optional[SecretPattern] = None
     
-    # For remove_pattern  
     pattern_name: Optional[str] = None
     
-    # For configuration changes
     config_updates: Optional[Dict[str, Any]] = None
 
 
@@ -75,7 +72,6 @@ class SecretsTools:
         start_time = datetime.now()
         
         try:
-            # Retrieve the secret record
             secret_record = await self.secrets_service.store.retrieve_secret(params.secret_uuid)
             
             if not secret_record:
@@ -87,7 +83,6 @@ class SecretsTools:
                     execution_time_ms=(datetime.now() - start_time).total_seconds() * 1000
                 )
             
-            # Prepare result data
             result_data = {
                 "secret_uuid": params.secret_uuid,
                 "pattern_name": secret_record.detected_pattern,
@@ -98,18 +93,15 @@ class SecretsTools:
                 "last_accessed": secret_record.last_accessed.isoformat() if secret_record.last_accessed else None
             }
             
-            # Add decrypted value if requested
             if params.decrypt:
                 try:
-                    # Get the secret record first, then decrypt
-                    secret_record = await self.secrets_service.store.get_secret(params.secret_uuid)
+                    secret_record = await self.secrets_service.store.get_secret(params.secret_uuid)  # type: ignore[attr-defined]
                     if secret_record:
                         decrypted_value = await self.secrets_service.store.decrypt_secret_value(secret_record)
                         result_data["decrypted_value"] = decrypted_value
                     else:
                         result_data["decrypted_value"] = None
                     
-                    # Log access via audit service
                     if hasattr(self.secrets_service, 'audit_service') and self.secrets_service.audit_service:
                         await self.secrets_service.audit_service.log_action(
                             HandlerActionType.TOOL,
@@ -129,7 +121,6 @@ class SecretsTools:
                 except Exception as e:
                     logger.error(f"Failed to decrypt secret {params.secret_uuid}: {e}")
                     
-                    # Log failed access via audit service
                     if hasattr(self.secrets_service, 'audit_service') and self.secrets_service.audit_service:
                         await self.secrets_service.audit_service.log_action(
                             HandlerActionType.TOOL,
@@ -152,7 +143,6 @@ class SecretsTools:
                         execution_time_ms=(datetime.now() - start_time).total_seconds() * 1000
                     )
             else:
-                # Log metadata access via audit service
                 if hasattr(self.secrets_service, 'audit_service') and self.secrets_service.audit_service:
                     await self.secrets_service.audit_service.log_action(
                         HandlerActionType.TOOL,
@@ -221,7 +211,6 @@ class SecretsTools:
                         execution_time_ms=(datetime.now() - start_time).total_seconds() * 1000
                     )
                 
-                # Add pattern to filter
                 self.secrets_service.filter.add_custom_pattern(params.pattern)
                 result_data["pattern_added"] = params.pattern.name
                 logger.info(f"Added custom pattern '{params.pattern.name}' by {requester_id}")
@@ -235,7 +224,6 @@ class SecretsTools:
                         execution_time_ms=(datetime.now() - start_time).total_seconds() * 1000
                     )
                 
-                # Remove pattern from filter
                 removed = self.secrets_service.filter.remove_custom_pattern(params.pattern_name)
                 if removed:
                     result_data["pattern_removed"] = params.pattern_name
@@ -253,14 +241,12 @@ class SecretsTools:
                         execution_time_ms=(datetime.now() - start_time).total_seconds() * 1000
                     )
                 
-                # Update existing pattern (remove and re-add)
                 self.secrets_service.filter.remove_custom_pattern(params.pattern.name)
                 self.secrets_service.filter.add_custom_pattern(params.pattern)
                 result_data["pattern_updated"] = params.pattern.name
                 logger.info(f"Updated custom pattern '{params.pattern.name}' by {requester_id}")
                 
             elif params.operation == "get_current":
-                # Get current filter configuration
                 config = self.secrets_service.filter.export_config()
                 stats = self.secrets_service.filter.get_pattern_stats()
                 
@@ -276,7 +262,6 @@ class SecretsTools:
                         execution_time_ms=(datetime.now() - start_time).total_seconds() * 1000
                     )
                 
-                # Update filter configuration
                 success = await self.secrets_service.filter.update_filter_config(params.config_updates)
                 
                 if success:
@@ -291,7 +276,7 @@ class SecretsTools:
                     )
                 
             else:
-                return ToolResult(
+                return ToolResult(  # type: ignore[unreachable]
                     tool_name="update_secrets_filter",
                     execution_status=ToolExecutionStatus.FAILED,
                     error_message=f"Unknown operation: {params.operation}",
@@ -338,27 +323,25 @@ class SecretsTools:
         start_time = datetime.now()
         
         try:
-            # Get all secret records
             all_secrets = await self.secrets_service.store.list_all_secrets()
             
             secrets_list = []
             for secret in all_secrets:
                 secret_info = {
-                    "uuid": secret.secret_uuid,
+                    "uuid": secret.secret_uuid,  # type: ignore[attr-defined]
                     "pattern_name": secret.detected_pattern,
-                    "sensitivity": secret.sensitivity_level,
+                    "sensitivity": secret.sensitivity_level,  # type: ignore[attr-defined]
                     "detected_at": secret.created_at.isoformat(),
-                    "access_count": secret.access_count,
+                    "access_count": secret.access_count,  # type: ignore[attr-defined]
                     "last_accessed": secret.last_accessed.isoformat() if secret.last_accessed else None
                 }
                 
                 if include_sensitive:
                     secret_info["context_hint"] = secret.context_hint
-                    secret_info["original_length"] = len(secret.encrypted_value) if secret.encrypted_value else 0
+                    secret_info["original_length"] = len(secret.encrypted_value) if secret.encrypted_value else 0  # type: ignore[attr-defined]
                 
                 secrets_list.append(secret_info)
             
-            # Log the listing access
             logger.info(f"Listed {len(secrets_list)} secrets for {requester_id}")
             
             return ToolResult(

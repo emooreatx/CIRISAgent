@@ -233,7 +233,6 @@ class RecordLogAction(ActionMessage):
         self.tags = tags
 
 
-# Audit Actions
 
 @dataclass
 class LogAuditEventAction(ActionMessage):

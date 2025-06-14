@@ -61,33 +61,28 @@ class ContextBuilder:
             
             return None
         
-        # 1. Task context (highest priority)
         if task and task.context:
             channel_id = safe_extract_channel_id(task.context, "task.context")
             if channel_id:
                 resolution_source = "task.context"
         
-        # 2. Thought context
         if not channel_id and thought and thought.context:
             channel_id = safe_extract_channel_id(thought.context, "thought.context")
             if channel_id:
                 resolution_source = "thought.context"
         
-        # 3. App config home channel (set by highest priority adapter)
         if not channel_id and self.app_config and hasattr(self.app_config, 'home_channel'):
             home_channel = getattr(self.app_config, 'home_channel', None)
             if home_channel:
                 channel_id = str(home_channel)
                 resolution_source = "app_config.home_channel"
         
-        # 4. Environment variable (for Discord)
         if not channel_id:
             env_channel_id = get_env_var("DISCORD_CHANNEL_ID")
             if env_channel_id:
                 channel_id = env_channel_id
                 resolution_source = "DISCORD_CHANNEL_ID env var"
         
-        # 5. App config (structured fallback)
         if not channel_id and self.app_config:
             config_attrs = ['discord_channel_id', 'cli_channel_id', 'api_channel_id']
             for attr in config_attrs:
@@ -98,7 +93,6 @@ class ContextBuilder:
                         resolution_source = f"app_config.{attr}"
                         break
         
-        # 5. Mode-based fallback (last resort)
         if not channel_id and self.app_config:
             mode = getattr(self.app_config, 'agent_mode', '')
             mode_lower = mode.lower() if mode else ''
@@ -112,27 +106,20 @@ class ContextBuilder:
                 channel_id = 'DISCORD_DEFAULT'
                 resolution_source = "Discord mode fallback"
             
-            # Removed verbose logging - adapters handle channel resolution
         
-        # Final validation and logging
         if not channel_id:
             logger.warning("CRITICAL: Channel ID could not be resolved from any source - guardrails may receive None")
-            # Set a safe default to prevent total failure
             channel_id = 'UNKNOWN'
             resolution_source = "emergency fallback"
         
-        # Removed verbose logging - use debug level only
-        # Apply resolved channel_id to system snapshot
         if channel_id and hasattr(system_snapshot_data, 'channel_id'):
             system_snapshot_data.channel_id = channel_id
         
-        # Build comprehensive channel context string
         channel_context_str = f"Our assigned channel is {channel_id} (resolved from {resolution_source})" if channel_id else None
         if identity_context_str and channel_context_str:
             identity_context_str = f"{identity_context_str}\n{channel_context_str}"
         elif channel_context_str:
             identity_context_str = channel_context_str
-        # Extract initial_task_context from task if available
         initial_task_context = None
         if task and hasattr(task, 'context'):
             ctx = task.context

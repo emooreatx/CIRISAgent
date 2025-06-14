@@ -11,16 +11,13 @@ class ServiceCorrelationStatus(str, Enum):
 
 class CorrelationType(str, Enum):
     """Types of correlations supported by the TSDB system."""
-    # Existing
     SERVICE_INTERACTION = "service_interaction"
     
-    # New TSDB Types
     METRIC_DATAPOINT = "metric_datapoint"
     LOG_ENTRY = "log_entry" 
     TRACE_SPAN = "trace_span"
     AUDIT_EVENT = "audit_event"
     
-    # Summarized Types (for retention)
     METRIC_HOURLY_SUMMARY = "metric_hourly_summary"
     METRIC_DAILY_SUMMARY = "metric_daily_summary"
     LOG_HOURLY_SUMMARY = "log_hourly_summary"

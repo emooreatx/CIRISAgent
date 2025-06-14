@@ -68,7 +68,6 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
             **kwargs
         )
         
-        # Initialize components
         self.context_builder = ActionSelectionContextBuilder(self.prompts)
         self.parameter_processor = ActionParameterProcessor()
         self.faculty_integration = FacultyIntegration(faculties) if faculties else None
@@ -122,7 +121,6 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
         original_thought: Thought = triaged_inputs["original_thought"]
         logger.info(f"Starting recursive evaluation with faculties for thought {original_thought.thought_id}")
         
-        # Enhance inputs with faculty evaluations
         enhanced_inputs = await self.faculty_integration.enhance_evaluation_with_faculties(
             original_thought=original_thought,
             triaged_inputs=triaged_inputs,
@@ -130,7 +128,6 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
         )
         enhanced_inputs["recursive_evaluation"] = True
         
-        # Perform evaluation with enhanced inputs
         return await self.evaluate(enhanced_inputs, enable_recursive_evaluation=False)
 
     async def _handle_special_cases(self, triaged_inputs: Dict[str, Any]) -> Optional[ActionSelectionResult]:
@@ -155,9 +152,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
     ) -> ActionSelectionResult:
         """Perform the main LLM-based evaluation."""
         
-        # LLM service will be handled by base class call_llm_structured method
 
-        # Build evaluation context
         agent_profile = triaged_inputs.get("agent_profile")
         agent_name = getattr(agent_profile, "name", None) if agent_profile else None
         
@@ -165,24 +160,20 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
             triaged_inputs, agent_name
         )
         
-        # Add faculty insights if available
         if triaged_inputs.get("faculty_evaluations") and self.faculty_integration:
             faculty_insights = self.faculty_integration.build_faculty_insights_string(
                 triaged_inputs["faculty_evaluations"]
             )
             main_user_content += faculty_insights
 
-        # Build system message
         system_message = self._build_system_message(triaged_inputs)
         
-        # Prepare messages for LLM
         messages = [
             {"role": "system", "content": COVENANT_TEXT},
             {"role": "system", "content": system_message},
             {"role": "user", "content": main_user_content},
         ]
 
-        # Call LLM service with structured response via sink
         llm_response, _ = await self.call_llm_structured(
             messages=messages,
             response_model=ActionSelectionResult,
@@ -190,12 +181,10 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
             temperature=0.0
         )
 
-        # Process and validate parameters
         final_result = self.parameter_processor.process_action_parameters(
             llm_response, triaged_inputs
         )
 
-        # Log OBSERVE actions for debugging
         if final_result.selected_action == HandlerActionType.OBSERVE:
             logger.warning(f"OBSERVE ACTION: Successfully created for thought {triaged_inputs['original_thought'].thought_id}")
             logger.warning(f"OBSERVE PARAMS: {final_result.action_parameters}")

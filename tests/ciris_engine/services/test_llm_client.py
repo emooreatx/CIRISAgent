@@ -150,5 +150,5 @@ async def test_call_llm_structured(mock_from_openai, mock_async_openai):
         messages=[{"role": "user", "content": "hi"}],
         response_model=TestModel
     )
-    assert result.response == "hello world"
+    assert result.response == "hello world"  # type: ignore[attr-defined]
     assert usage.tokens == 0  # Mock doesn't set real usage

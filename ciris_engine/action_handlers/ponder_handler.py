@@ -82,7 +82,6 @@ class PonderHandler(BaseActionHandler):
             
             defer_handler = self.dependencies.action_dispatcher.get_handler(HandlerActionType.DEFER)
             if defer_handler:
-                # Enhance dispatch context with max rounds information
                 enhanced_context = dispatch_context.copy()
                 enhanced_context.update({
                     "max_rounds_reached": True,
@@ -143,13 +142,11 @@ class PonderHandler(BaseActionHandler):
                 },
             )
             
-            # Get the original task context to maintain thread
             original_task = persistence.get_task_by_id(thought.source_task_id)
             task_context = f"Task ID: {thought.source_task_id}"
             if original_task:
                 task_context = original_task.description
             
-            # Generate more dynamic follow-up content based on ponder count
             follow_up_content = self._generate_ponder_follow_up_content(
                 task_context, questions_list, new_ponder_count, thought
             )
@@ -185,7 +182,6 @@ class PonderHandler(BaseActionHandler):
                 dispatch_context,
                 {"thought_id": thought.thought_id, "status": ThoughtStatus.FAILED.value, "ponder_type": "update_failed"},
             )
-            # Get the original task context to maintain thread  
             original_task = persistence.get_task_by_id(thought.source_task_id)
             task_context = f"Task ID: {thought.source_task_id}"
             if original_task:

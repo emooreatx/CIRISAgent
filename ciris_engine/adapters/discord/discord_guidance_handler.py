@@ -47,14 +47,12 @@ class DiscordGuidanceHandler:
         if not channel:
             raise RuntimeError(f"Deferral channel {deferral_channel_id} not found")
         
-        # Post the guidance request to deferral channel
         request_content = f"[CIRIS Guidance Request]\nContext: ```json\n{context}\n```"
         
         if not hasattr(channel, 'send'):
             logger.error(f"Channel {deferral_channel_id} does not support sending messages")
             return {"guidance": None}
         
-        # For guidance requests, we need to track the first message for replies
         chunks = self._split_message(request_content)
         request_message = None
         
@@ -65,18 +63,14 @@ class DiscordGuidanceHandler:
             if i == 0:
                 request_message = sent_msg  # Track first message for replies
         
-        # Check recent messages from registered Wise Authorities
         if hasattr(channel, 'history'):
             async for message in channel.history(limit=10):
-                # Skip bot messages and our own request
                 if message.author.bot or (request_message and message.id == request_message.id):
                     continue
                 
                 # TODO: Check if author is a registered WA
-                # For now, accept any human message as potential guidance
                 guidance_content = message.content.strip()
                 
-                # Check if it's a reply to our guidance request
                 is_reply = bool(hasattr(message, 'reference') and 
                                message.reference and 
                                request_message and
@@ -119,10 +113,8 @@ class DiscordGuidanceHandler:
         if not channel:
             raise RuntimeError(f"Deferral channel {deferral_channel_id} not found")
         
-        # Build comprehensive deferral report
         report = self._build_deferral_report(thought_id, reason, context)
         
-        # Use message splitting to handle long reports
         chunks = self._split_message(report)
         for i, chunk in enumerate(chunks):
             if len(chunks) > 1:
@@ -214,25 +206,20 @@ class DiscordGuidanceHandler:
         current_chunk = ""
         
         for line in lines:
-            # If a single line is longer than max_length, split it
             if len(line) > max_length:
-                # First, add any accumulated content
                 if current_chunk:
                     chunks.append(current_chunk.rstrip())
                     current_chunk = ""
                 
-                # Split the long line
                 for i in range(0, len(line), max_length):
                     chunks.append(line[i:i + max_length])
             else:
-                # Check if adding this line would exceed the limit
                 if len(current_chunk) + len(line) + 1 > max_length:
                     chunks.append(current_chunk.rstrip())
                     current_chunk = line + '\n'
                 else:
                     current_chunk += line + '\n'
         
-        # Add any remaining content
         if current_chunk:
             chunks.append(current_chunk.rstrip())
         

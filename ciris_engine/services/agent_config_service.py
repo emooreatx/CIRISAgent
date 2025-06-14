@@ -48,13 +48,11 @@ class AgentConfigService(Service):
     ) -> Optional[Dict[str, Any]]:
         """Retrieve configuration from graph memory with caching"""
         
-        # Use default scope for config type if not specified
         if scope is None:
             scope = CONFIG_SCOPE_MAP.get(config_type, GraphScope.LOCAL)
         
         node_id = f"config/{config_type.value}"
         
-        # Check cache first
         cache_key = f"{node_id}:{scope.value}"
         if cache_key in self._config_cache:
             cached = self._config_cache[cache_key]
@@ -62,10 +60,8 @@ class AgentConfigService(Service):
                 logger.debug(f"Config cache hit for {config_type.value}")
                 return cached["data"]  # type: ignore[no-any-return]
             else:
-                # Remove expired entry
                 del self._config_cache[cache_key]
         
-        # Fetch from memory
         node = GraphNode(
             id=node_id,
             type=NodeType.CONFIG,
@@ -77,7 +73,6 @@ class AgentConfigService(Service):
             if result.status == MemoryOpStatus.OK and result.data:
                 config_data = result.data.get("attributes", {})
                 
-                # Cache for configured TTL
                 self._config_cache[cache_key] = {
                     "data": config_data,
                     "expires": datetime.now(timezone.utc) + timedelta(minutes=self._cache_ttl_minutes)
@@ -128,7 +123,6 @@ class AgentConfigService(Service):
         
         logger.warning(f"IDENTITY scope update requested for {config_type.value} - requires WA approval")
         
-        # Store pending update
         pending_id = f"pending_identity_update_{thought_id}"
         self._pending_identity_updates[pending_id] = {
             "config_type": config_type,
@@ -139,7 +133,6 @@ class AgentConfigService(Service):
             "status": "pending_wa_approval"
         }
         
-        # Notify WA if service available
         if self.wa_service:
             try:
                 await self.wa_service.send_deferral(
@@ -155,7 +148,6 @@ class AgentConfigService(Service):
                 logger.error(f"Failed to notify WA of identity update: {e}")
                 self._pending_identity_updates[pending_id]["status"] = "wa_notification_failed"
         
-        # Return pending status
         return MemoryOpResult(
             status=MemoryOpStatus.PENDING,
             reason=f"IDENTITY scope update requires WA approval. Pending ID: {pending_id}",
@@ -224,7 +216,6 @@ class AgentConfigService(Service):
         if approved:
             logger.info(f"Identity update approved by {approver}: {pending_id}")
             
-            # Perform the update
             result = await self._direct_update(
                 pending["config_type"],
                 pending["updates"],
@@ -386,7 +377,6 @@ class AgentConfigService(Service):
             "pending_identity_updates": len(self._pending_identity_updates)
         }
         
-        # Check if critical configs exist
         critical_configs = [
             ConfigNodeType.FILTER_CONFIG,
             ConfigNodeType.ETHICAL_BOUNDARIES,
@@ -398,7 +388,6 @@ class AgentConfigService(Service):
             if not config:
                 health["warnings"].append(f"Missing critical config: {config_type.value}")
         
-        # Check for old pending updates
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
         old_pending = [
             pid for pid, update in self._pending_identity_updates.items()

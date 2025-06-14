@@ -330,7 +330,6 @@ class AuditService(Service):
         Returns:
             List of audit entries matching criteria
         """
-        # Default implementation for non-TSDB services
         return await self.get_audit_trail("", limit)
     
     async def is_healthy(self) -> bool:

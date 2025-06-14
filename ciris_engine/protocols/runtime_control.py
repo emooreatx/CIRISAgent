@@ -13,7 +13,6 @@ from ciris_engine.schemas.runtime_control_schemas import (
 class RuntimeControlInterface(ABC):
     """Interface for runtime control operations."""
 
-    # Processor Control
     @abstractmethod
     async def single_step(self) -> ProcessorControlResponse:
         """Execute a single processing step."""
@@ -34,7 +33,6 @@ class RuntimeControlInterface(ABC):
         """Get processor queue status."""
         pass
 
-    # Adapter Management
     @abstractmethod
     async def load_adapter(
         self,
@@ -65,7 +63,6 @@ class RuntimeControlInterface(ABC):
         """Get detailed information about a specific adapter."""
         pass
 
-    # Configuration Management
     @abstractmethod
     async def get_config(
         self,
@@ -138,7 +135,6 @@ class RuntimeControlInterface(ABC):
         """Create a configuration backup."""
         pass
 
-    # Status and Monitoring
     @abstractmethod
     async def get_runtime_status(self) -> RuntimeStatusResponse:
         """Get current runtime status."""

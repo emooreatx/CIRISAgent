@@ -245,7 +245,6 @@ async def evaluate_epistemic_humility(
             max_tokens=384,
             temperature=0.0
         )
-        # Fallback: convert string epistemic_certainty to float if needed
         if isinstance(result.epistemic_certainty, str):
             mapping = {"low": 0.0, "moderate": 0.5, "high": 1.0}
             val = mapping.get(result.epistemic_certainty.lower(), 0.0)

@@ -14,7 +14,6 @@ from ciris_engine.schemas.correlation_schemas_v1 import (
 )
 from ciris_engine import persistence
 
-# Import our new component handlers
 from .discord_message_handler import DiscordMessageHandler
 from .discord_guidance_handler import DiscordGuidanceHandler
 from .discord_tool_handler import DiscordToolHandler
@@ -48,7 +47,6 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
         
         self.token = token
         
-        # Initialize component handlers
         self._channel_manager = DiscordChannelManager(token, bot, on_message)
         self._message_handler = DiscordMessageHandler(bot)
         self._guidance_handler = DiscordGuidanceHandler(bot)
@@ -218,13 +216,11 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
 
     def attach_to_client(self, client: discord.Client) -> None:
         """Attach message handlers to a Discord client."""
-        # Update all handlers with the new client
         self._channel_manager.set_client(client)
         self._message_handler.set_client(client)
         self._guidance_handler.set_client(client)
         self._tool_handler.set_client(client)
         
-        # Attach the message handler
         self._channel_manager.attach_to_client(client)
 
     async def start(self) -> None:
@@ -253,7 +249,6 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
         try:
             logger.info("Stopping Discord adapter...")
             
-            # Clear tool results cache
             self._tool_handler.clear_tool_results()
             
             await super().stop()

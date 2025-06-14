@@ -63,7 +63,6 @@ class ActionSelectionSpecialCases:
         
         logger.debug(f"ActionSelectionPDMA: Processing wakeup task {task_id}")
         
-        # If LLM selected TASK_COMPLETE, check if this task has had a successful SPEAK action
         llm_response_internal = triaged_inputs.get("llm_response_internal")
         if (
             llm_response_internal 
@@ -127,7 +126,6 @@ class ActionSelectionSpecialCases:
                 return False
 
             for thought in thoughts:
-                # Check if thought is completed and has a SPEAK action
                 if (
                     thought.status == ThoughtStatus.COMPLETED
                     and hasattr(thought, "final_action")

@@ -52,7 +52,6 @@ class APIToolsRoutes:
                 is_valid = await tool_service.validate_parameters(tool_name, data)
                 return web.json_response({"valid": is_valid})
             else:
-                # Fallback: check if tool exists
                 if tool_service and hasattr(tool_service, 'get_available_tools'):
                     tools = await tool_service.get_available_tools()
                     exists = tool_name in tools

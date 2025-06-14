@@ -106,32 +106,25 @@ class RuntimeSnapshot(BaseModel):
     
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
-    # System state
     runtime_version: str = "1.0.0"
     uptime_seconds: float = 0.0
     
-    # Processor state
     processor_running: bool = False
     processor_metrics: ProcessorMetrics = Field(default_factory=ProcessorMetrics)
     
-    # Adapter information
     adapters_loaded: int = 0
     adapters_active: int = 0
     adapter_details: List[Dict[str, Any]] = Field(default_factory=list)
     
-    # Service registry state
     services_registered: int = 0
     service_health: Dict[str, str] = Field(default_factory=dict)
     
-    # Configuration
     active_profile: Optional[str] = None
     config_version: Optional[str] = None
     
-    # Resource usage
     memory_usage_mb: float = 0.0
     cpu_usage_percent: float = 0.0
     
-    # Health indicators
     overall_health: str = "unknown"  # 'healthy', 'degraded', 'critical', 'error'
     health_details: Dict[str, Any] = Field(default_factory=dict)
 
@@ -156,17 +149,13 @@ class ProcessorOperation(BaseModel):
     """Schema for processor operations"""
     operation_type: str  # 'start', 'stop', 'pause', 'resume', 'single_step'
     
-    # Start-specific options
     num_rounds: Optional[int] = None
     
-    # Stop/pause options
     graceful_timeout_seconds: int = 30
     force: bool = False
     
-    # Single step options
     step_timeout_seconds: int = 60
     
-    # Context
     requested_by: Optional[str] = None
     reason: Optional[str] = None
 
@@ -196,12 +185,10 @@ class RuntimeControlCommand(BaseModel):
     command_type: str  # 'processor', 'adapter', 'config', 'system'
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
-    # Command payload (one of these will be populated)
     processor_operation: Optional[ProcessorOperation] = None
     adapter_operation: Optional[AdapterOperation] = None
     config_operation: Optional[ConfigurationUpdate] = None
     
-    # Metadata
     requested_by: Optional[str] = None
     correlation_id: Optional[str] = None
     timeout_seconds: int = 300

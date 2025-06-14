@@ -17,18 +17,15 @@ from ..utils.profile_loader import load_profile
 
 logger = logging.getLogger(__name__)
 
-# Registry for all DMA types
 DSDMA_CLASS_REGISTRY: Dict[str, Type[BaseDSDMA]] = {
     "BaseDSDMA": BaseDSDMA,
     "ModerationDSDMA": ModerationDSDMA,
 }
 
-# Registries for all DMA types
 ETHICAL_DMA_REGISTRY: Dict[str, Type[EthicalDMAInterface]] = {}
 CSDMA_REGISTRY: Dict[str, Type[CSDMAInterface]] = {}
 ACTION_SELECTION_DMA_REGISTRY: Dict[str, Type[ActionSelectionDMAInterface]] = {}
 
-# Import and register DMAs
 try:
     from ..pdma import EthicalPDMAEvaluator
     ETHICAL_DMA_REGISTRY["EthicalPDMAEvaluator"] = EthicalPDMAEvaluator
@@ -85,13 +82,12 @@ async def create_dma(
         logger.error(f"Unknown DMA type: {dma_type}")
         return None
         
-    dma_class = registry.get(dma_identifier)
+    dma_class = registry.get(dma_identifier)  # type: ignore[attr-defined]
     if not dma_class:
         logger.error(f"Unknown {dma_type} DMA identifier: {dma_identifier}")
         return None
         
     try:
-        # Build constructor arguments, only include non-None values
         constructor_args = {
             'service_registry': service_registry,
             **kwargs

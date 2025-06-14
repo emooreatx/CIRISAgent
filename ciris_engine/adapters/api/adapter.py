@@ -14,30 +14,24 @@ class ApiPlatform(PlatformAdapter):
     def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
         self.runtime = runtime
         
-        # Initialize configuration with defaults and override from kwargs
         self.config = APIAdapterConfig()
         if "host" in kwargs and kwargs["host"] is not None:
             self.config.host = kwargs["host"]
         if "port" in kwargs and kwargs["port"] is not None:
             self.config.port = int(kwargs["port"])
         
-        # Load configuration from profile if available
         profile = getattr(runtime, 'agent_profile', None)
         if profile and profile.api_config:
-            # Update config with profile settings
             for key, value in profile.api_config.dict().items():
                 if hasattr(self.config, key):
                     setattr(self.config, key, value)
                     logger.debug(f"ApiPlatform: Set config {key} = {value} from profile")
         
-        # Load environment variables (can override profile settings)
         self.config.load_env_vars()
         
-        # Initialize telemetry collector
         from ciris_engine.telemetry.comprehensive_collector import ComprehensiveTelemetryCollector
         self.telemetry_collector = ComprehensiveTelemetryCollector(self.runtime)
         
-        # Initialize runtime control service
         from ciris_engine.runtime.runtime_control import RuntimeControlService
         self.runtime_control_service = RuntimeControlService(
             telemetry_collector=self.telemetry_collector,
@@ -45,7 +39,6 @@ class ApiPlatform(PlatformAdapter):
             config_manager=getattr(self.runtime, 'config_manager', None)
         )
         
-        # Create the simplified API adapter
         self.api_adapter = APIAdapter(
             host=self.config.host,
             port=self.config.port,
@@ -67,8 +60,6 @@ class ApiPlatform(PlatformAdapter):
 
     def get_services_to_register(self) -> List[ServiceRegistration]:
         """Register the API adapter as a communication service."""
-        # Note: We can't await here since this is a sync method, so we'll provide basic capabilities
-        # The actual capabilities will be determined at runtime by the API adapter
         basic_capabilities = ["send_message", "fetch_messages", "health_check"]
         
         registrations = [
@@ -96,7 +87,6 @@ class ApiPlatform(PlatformAdapter):
         self._ensure_stop_event()
         
         if self._web_server_stopped_event:
-            # Wait for either the agent task to complete or stop event
             done, pending = await asyncio.wait(
                 [agent_run_task, asyncio.create_task(self._web_server_stopped_event.wait())],
                 return_when=asyncio.FIRST_COMPLETED
@@ -109,7 +99,6 @@ class ApiPlatform(PlatformAdapter):
                 except asyncio.CancelledError:
                     pass
         else:
-            # Fallback if stop event couldn't be created
             await agent_run_task
     
     async def stop(self) -> None:

@@ -172,7 +172,7 @@ class SolitudeProcessor(BaseProcessor, ProcessorInterface):
             
             if task_types:
                 most_common = max(task_types.items(), key=lambda x: x[1])
-                reflection_result["patterns_identified"].append({
+                reflection_result["patterns_identified"].append({  # type: ignore[attr-defined]
                     "pattern": "most_common_task_type",
                     "value": most_common[0],
                     "count": most_common[1]
@@ -217,7 +217,6 @@ class SolitudeProcessor(BaseProcessor, ProcessorInterface):
         return conditions
     
 
-    # ProcessorInterface implementation
     async def start_processing(self, num_rounds: Optional[int] = None) -> None:
         """Start the solitude processing loop."""
         import asyncio

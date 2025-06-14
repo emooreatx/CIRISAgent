@@ -33,7 +33,7 @@ class ActionDispatcher:
 
     def get_handler(self, action_type: HandlerActionType) -> Optional[BaseActionHandler]:
         """Get a handler by action type."""
-        return self.handlers.get(action_type)  # type: ignore[union-attr]
+        return self.handlers.get(action_type)
 
     async def dispatch(
         self,
@@ -52,7 +52,7 @@ class ActionDispatcher:
         # Defensive: ensure selected_action is a HandlerActionType
         action_type = action_selection_result.selected_action
         if not isinstance(action_type, HandlerActionType):
-            try:
+            try:  # type: ignore[unreachable]
                 action_type = HandlerActionType(action_type)
             except Exception as e:
                 logger.error(f"ActionDispatcher: selected_action {action_type} is not a valid HandlerActionType: {e}")

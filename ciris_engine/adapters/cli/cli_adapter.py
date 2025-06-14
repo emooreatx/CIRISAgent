@@ -45,7 +45,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         self._running = False
         self._input_task: Optional[asyncio.Task[None]] = None
         
-        # Tool registry for CLI tools
         self._available_tools: Dict[str, Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]] = {
             "list_files": self._tool_list_files,
             "read_file": self._tool_read_file,
@@ -53,7 +52,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
             "system_info": self._tool_system_info,
         }
         
-        # Guidance queue for wise authority requests
         self._guidance_queue: asyncio.Queue[str] = asyncio.Queue()
 
     async def send_message(self, channel_id: str, content: str) -> bool:
@@ -69,7 +67,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         """
         correlation_id = str(uuid.uuid4())
         try:
-            # Format and print the message
             if channel_id == "system":
                 print(f"\n[SYSTEM] {content}")
             elif channel_id == "error":
@@ -77,7 +74,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
             else:
                 print(f"\n[CIRIS] {content}")
             
-            # Log correlation
             persistence.add_correlation(
                 ServiceCorrelation(
                     correlation_id=correlation_id,
@@ -125,7 +121,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         
         correlation_id = str(uuid.uuid4())
         try:
-            # Display context to user
             print("\n" + "=" * 60)
             print("[GUIDANCE REQUEST]")
             print(f"Context: {context.get('reason', 'No reason provided')}")
@@ -134,7 +129,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
             print("=" * 60)
             print("Please provide guidance (or press Enter to skip): ")
             
-            # Wait for user input with timeout
             try:
                 guidance = await asyncio.wait_for(
                     self._get_user_input(),
@@ -258,7 +252,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
 
     async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
         """CLI tools execute synchronously, so results are immediate."""
-        # This is mainly for API compatibility
         return None
 
     async def validate_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
@@ -275,14 +268,11 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         if tool_name not in self._available_tools:
             return False
         
-        # Add specific validation logic for each tool
         if tool_name == "read_file" or tool_name == "write_file":
             return "path" in parameters
         elif tool_name == "list_files":
-            # path is optional, defaults to "."
             return True
         elif tool_name == "system_info":
-            # No parameters required
             return True
         
         return True
@@ -304,13 +294,11 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         
         while self._running:
             try:
-                # Get user input
                 user_input = await self._get_user_input()
                 
                 if not user_input.strip():
                     continue
                 
-                # Handle special commands
                 if user_input.lower() == 'quit':
                     logger.info("User requested quit")
                     self._running = False
@@ -319,7 +307,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                     await self._show_help()
                     continue
                 
-                # Create message from user input
                 msg = IncomingMessage(
                     message_id=str(uuid.uuid4()),
                     author_id="cli_user",
@@ -329,7 +316,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                     timestamp=datetime.now(timezone.utc).isoformat()
                 )
                 
-                # Send to handler or multi-service sink
                 if self.on_message:
                     await self.on_message(msg)
                 elif self.multi_service_sink:
@@ -340,7 +326,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                     logger.warning("No message handler configured")
                     
             except EOFError:
-                # Handle Ctrl+D
                 logger.info("EOF received, stopping interactive mode")
                 self._running = False
                 break
@@ -364,7 +349,6 @@ Tools available:
             print(f"  - {tool}")
         print("\nSimply type your message to interact with CIRIS.\n")
 
-    # Tool implementations
     async def _tool_list_files(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """List files in a directory."""
         import os
@@ -431,7 +415,6 @@ Tools available:
             try:
                 await asyncio.wait_for(self._input_task, timeout=0.5)
             except (asyncio.CancelledError, asyncio.TimeoutError):
-                # Force kill the task if it doesn't respond to cancellation
                 logger.warning("CLI input task did not respond to cancellation within timeout")
                 pass
 

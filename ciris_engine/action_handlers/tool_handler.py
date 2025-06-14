@@ -29,7 +29,6 @@ class ToolHandler(BaseActionHandler):
         new_follow_up = None
 
         try:
-            # Auto-decapsulate any secrets in the action parameters
             processed_result = await self._decapsulate_secrets_in_params(result, "tool")
             
             params = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
@@ -98,7 +97,7 @@ class ToolHandler(BaseActionHandler):
                 context_for_follow_up["error_details"] = follow_up_content_key_info
             context_for_follow_up["action_params"] = params
             if isinstance(new_follow_up.context, dict):
-                new_follow_up.context.update(context_for_follow_up)
+                new_follow_up.context.update(context_for_follow_up)  # type: ignore[unreachable]
             else:
                 new_follow_up.context = context_for_follow_up
             persistence.add_thought(new_follow_up)

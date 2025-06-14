@@ -58,14 +58,11 @@ class SecretsEncryption:
         Returns: (encrypted_value, salt, nonce)
         Uses master key + salt to derive per-secret key.
         """
-        # Generate random salt and nonce
         salt = os.urandom(16)
         nonce = os.urandom(12)  # GCM standard nonce size
         
-        # Derive per-secret key
         derived_key = self._derive_key(salt)
         
-        # Encrypt with AES-256-GCM
         aesgcm = AESGCM(derived_key)
         encrypted_value = aesgcm.encrypt(nonce, value.encode('utf-8'), None)
         
@@ -83,10 +80,8 @@ class SecretsEncryption:
         Returns:
             Decrypted secret value as string
         """
-        # Derive the same key used for encryption
         derived_key = self._derive_key(salt)
         
-        # Decrypt with AES-256-GCM
         aesgcm = AESGCM(derived_key)
         decrypted_bytes = aesgcm.decrypt(nonce, encrypted_value, None)
         
@@ -143,7 +138,6 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
         self._access_counts: Dict[str, List[datetime]] = {}
         self._lock = asyncio.Lock()
         
-        # Initialize database
         self._init_database()
         
     def _get_auto_decapsulate_actions(self, sensitivity: str) -> List[str]:
@@ -192,7 +186,6 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                 )
             """)
             
-            # Access log table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS secret_access_log (
                     access_id TEXT PRIMARY KEY,
@@ -315,7 +308,6 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
             SecretRecord if found, None otherwise
         """
         async with self._lock:
-            # Check rate limits
             if not await self._check_rate_limits("system"):
                 await self._log_access(
                     secret_uuid, "VIEW", "system", "retrieve", False, "Rate limit exceeded"
@@ -619,7 +611,6 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                     """, (limit,))
                 
                 for row in cursor.fetchall():
-                    # Convert row to dict-like access log
                     logs.append({
                         'access_id': row[0],
                         'secret_uuid': row[1],
@@ -673,7 +664,6 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
                 """, [(enc_val, salt, nonce, "master_key_v2", uuid) for enc_val, salt, nonce, uuid in updated_secrets])
                 conn.commit()
             
-            # Update encryption instance
             self.encryption = SecretsEncryption(new_encryption_key)
             
             logger.info(f"Successfully re-encrypted {len(updated_secrets)} secrets")

@@ -49,7 +49,7 @@ class TypeAnnotationFixer:
         current_errors = toolkit.get_mypy_errors()
         
         # Group errors by type for systematic fixing
-        error_categories = {
+        error_categories: Dict[str, List[Any]] = {
             "no-untyped-def": [],
             "var-annotated": [],
             "assignment": [],

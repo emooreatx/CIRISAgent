@@ -24,7 +24,6 @@ class GuardrailOrchestrator:
         thought: Thought,
         dma_results_dict: Dict[str, Any],
     ) -> GuardrailResult:
-        # Actions that should bypass guardrails (already safe non-actions)
         exempt_actions = {
             HandlerActionType.TASK_COMPLETE,
             HandlerActionType.DEFER,
@@ -68,7 +67,6 @@ class GuardrailOrchestrator:
                 overridden = True
                 override_reason = result.reason
                 
-                # Include information about the attempted action in ponder questions
                 attempted_action_desc = self._describe_attempted_action(final_action)
                 questions = [
                     f"I attempted to {attempted_action_desc}",

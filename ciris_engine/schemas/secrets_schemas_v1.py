@@ -103,7 +103,6 @@ class SecretsFilterResult(BaseModel):
     patterns_matched: List[str] = Field(default_factory=list)
 
 
-# Action Parameters for Secret Tools
 
 class RecallSecretParams(BaseModel):
     """Parameters for RECALL_SECRET tool"""
@@ -116,16 +115,10 @@ class UpdateSecretsFilterParams(BaseModel):
     """Parameters for UPDATE_SECRETS_FILTER tool"""
     operation: Literal["add_pattern", "remove_pattern", "update_pattern", "get_current"]
     
-    # For add_pattern/update_pattern
     pattern: Optional["SecretPattern"] = None
     
-    # For remove_pattern  
     pattern_name: Optional[str] = None
     
-    # For configuration changes
     config_updates: Optional[Dict[str, Any]] = None
 
 
-# Built-in secret patterns are now defined in config_schemas_v1.py
-# to allow agent self-configuration. Import them if needed:
-# from ciris_engine.schemas.config_schemas_v1 import SecretsDetectionConfig

@@ -77,7 +77,7 @@ class UnusedCodeDetector:
     
     def _extract_definitions(self, content: str) -> Dict[str, Dict[str, int]]:
         """Extract all function, class, and variable definitions."""
-        definitions = {
+        definitions: schemas.BaseSchema = {
             "functions": {},
             "classes": {},
             "methods": {},
@@ -333,7 +333,7 @@ class UnusedCodeDetector:
             categories: Categories to remove, defaults to safe ones
         """
         if categories is None:
-            categories = ["unused_imports"]  # Only safe automatic removal
+            categories = ["unused_imports"]  # Only safe automatic removal  # type: ignore[unreachable]
         
         unused_items = self.find_unused_code()
         removed_count = 0
@@ -375,8 +375,8 @@ class UnusedCodeDetector:
         """Generate a comprehensive cleanup report."""
         unused_items = self.find_unused_code()
         
-        by_type = defaultdict(int)
-        by_file = defaultdict(int)
+        by_type: Any = defaultdict(int)
+        by_file: Any = defaultdict(int)
         
         for item in unused_items:
             by_type[item["type"]] += 1

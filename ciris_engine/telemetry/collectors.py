@@ -78,7 +78,6 @@ class BaseCollector(ABC):
             if not raw_metrics:
                 return
                 
-            # Apply rate limiting
             if len(raw_metrics) > self.max_metrics_per_interval:
                 logger.warning(
                     f"{self.__class__.__name__} exceeded max metrics per interval: "
@@ -86,7 +85,6 @@ class BaseCollector(ABC):
                 )
                 raw_metrics = raw_metrics[:self.max_metrics_per_interval]
                 
-            # Apply security filtering
             filtered_metrics = []
             for metric in raw_metrics:
                 filtered_metric = self.security_filter.sanitize(metric.name, metric.value)
@@ -145,7 +143,6 @@ class InstantCollector(BaseCollector):
         metrics = []
         now = datetime.now(timezone.utc)
         
-        # Circuit breaker states
         if self.circuit_breaker_registry:
             try:
                 for name, breaker in getattr(self.circuit_breaker_registry, '_breakers', {}).items():
@@ -188,7 +185,6 @@ class FastCollector(BaseCollector):
         metrics = []
         now = datetime.now(timezone.utc)
         
-        # Active thoughts count
         if self.thought_manager:
             try:
                 active_count = getattr(self.thought_manager, 'active_thoughts_count', 0)
@@ -230,7 +226,6 @@ class NormalCollector(BaseCollector):
         metrics = []
         now = datetime.now(timezone.utc)
         
-        # Resource usage
         if self.resource_monitor:
             try:
                 memory_mb = getattr(self.resource_monitor, 'current_memory_mb', 0)
@@ -282,10 +277,8 @@ class SlowCollector(BaseCollector):
         metrics = []
         now = datetime.now(timezone.utc)
         
-        # Memory service stats
         if self.memory_service:
             try:
-                # Sanitized memory operations count (no content)
                 ops_count = getattr(self.memory_service, 'operations_count', 0)
                 metrics.append(MetricData(
                     name="memory_operations_total",
@@ -329,10 +322,8 @@ class AggregateCollector(BaseCollector):
         metrics = []
         now = datetime.now(timezone.utc)
         
-        # System health rollups
         if self.telemetry_service:
             try:
-                # Calculate 30s aggregates from telemetry history
                 cutoff = now - timedelta(seconds=30)
                 history = getattr(self.telemetry_service, '_history', {})
                 

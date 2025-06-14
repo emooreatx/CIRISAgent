@@ -44,7 +44,7 @@ async def test_base_collector_lifecycle():
     
     await collector.start()
     assert collector._running
-    assert collector._task is not None
+    assert collector._task is not None  # type: ignore[unreachable]
     
     # Let it collect a few metrics
     await asyncio.sleep(0.25)
@@ -215,7 +215,7 @@ async def test_collector_manager():
     # Stop all
     await manager.stop_all()
     assert not collector1._running
-    assert not collector2._running
+    assert not collector2._running  # type: ignore[unreachable]
 
 
 @pytest.mark.asyncio

@@ -41,11 +41,9 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         )
         self.communication_service = communication_service
 
-        # Store deferral channel and WA user IDs
         self.deferral_channel_id = deferral_channel_id
         self.wa_user_ids = wa_user_ids or []
 
-        # Set monitored channels list
         self.monitored_channel_ids = monitored_channel_ids or []
 
     async def _send_deferral_message(self, content: str) -> None:
@@ -74,7 +72,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
 
     async def handle_incoming_message(self, msg: DiscordMessage) -> None:
         if not isinstance(msg, DiscordMessage):
-            logger.warning("DiscordObserver received non-DiscordMessage")
+            logger.warning("DiscordObserver received non-DiscordMessage")  # type: ignore[unreachable]
             return
         # Check if message is from a monitored channel or deferral channel
         is_from_monitored = (self.monitored_channel_ids and msg.channel_id in self.monitored_channel_ids)
@@ -132,7 +130,6 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         wa_discord_user = DEFAULT_WA
         
         if msg.channel_id in monitored_channel_ids:
-            # Create high-priority observation with enhanced context
             await self._create_priority_observation_result(msg, filter_result)
         elif msg.channel_id == self.deferral_channel_id and (msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user):
             await self._add_to_feedback_queue(msg)

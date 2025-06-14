@@ -8,8 +8,6 @@ from typing import Any, Dict, Deque, Tuple
 
 logger = logging.getLogger(__name__)
 
-# Precompiled regex patterns using ASCII mode to avoid catastrophic
-# backtracking issues when scanning untrusted input.
 EMAIL_RE = re.compile(
     r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,6}", re.ASCII
 )

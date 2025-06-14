@@ -53,13 +53,11 @@ class APIAdapter(CommunicationService):
         self.runtime_control = runtime_control
         self.telemetry_collector = telemetry_collector
         
-        # Web application and server components
         self.app = web.Application()
         self.runner: Optional[web.AppRunner] = None
         self.site: Optional[web.TCPSite] = None
         self._setup_routes()
         
-        # Store for pending messages (simulating a message queue)
         self._message_queue: List[IncomingMessage] = []
         self._queue_lock = asyncio.Lock()
     
@@ -152,7 +150,6 @@ class APIAdapter(CommunicationService):
         try:
             data = await request.json()
             
-            # Validate required fields
             required_fields = ["message_id", "author_id", "author_name", "content"]
             if not all(field in data for field in required_fields):
                 return web.json_response(
@@ -160,7 +157,6 @@ class APIAdapter(CommunicationService):
                     status=400
                 )
             
-            # Create IncomingMessage
             channel_id = data.get("channel_id", "api_default")
             msg = IncomingMessage(
                 message_id=data["message_id"],
@@ -172,11 +168,9 @@ class APIAdapter(CommunicationService):
                 timestamp=data.get("timestamp", datetime.now(timezone.utc).isoformat()),
             )
             
-            # Store in queue for processing
             async with self._queue_lock:
                 self._message_queue.append(msg)
             
-            # Send to multi-service sink if available
             if self.multi_service_sink:
                 await self.multi_service_sink.observe_message(
                     "ObserveHandler", msg, {"source": "api"}
@@ -226,7 +220,6 @@ class APIAdapter(CommunicationService):
             "services": {}
         }
         
-        # Check service registry health if available
         if self.service_registry:
             try:
                 services = await self.service_registry.get_all_services()

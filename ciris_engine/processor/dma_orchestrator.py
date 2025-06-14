@@ -220,7 +220,7 @@ class DMAOrchestrator:
         channel_id = None
         
         if hasattr(actual_thought, 'context') and isinstance(actual_thought.context, dict):
-            channel_id = actual_thought.context.get('channel_id')
+            channel_id = actual_thought.context.get('channel_id')  # type: ignore[unreachable]
         
         if not channel_id and processing_context.system_snapshot:
             channel_id = processing_context.system_snapshot.channel_id

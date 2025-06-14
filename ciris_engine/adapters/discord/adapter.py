@@ -21,34 +21,27 @@ class DiscordPlatform(PlatformAdapter):
     def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
         self.runtime = runtime
         
-        # Use provided adapter config or create defaults
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
             self.config = kwargs["adapter_config"]
             logger.info(f"Discord adapter using provided config: channels={self.config.monitored_channel_ids}")
         else:
-            # Initialize configuration with defaults and override from kwargs
             self.config = DiscordAdapterConfig()
             if "discord_bot_token" in kwargs:
                 self.config.bot_token = kwargs["discord_bot_token"]
             
-            # Load configuration from profile if available
             profile = getattr(runtime, 'agent_profile', None)
             if profile and profile.discord_config:
-                # Update config with profile settings
                 for key, value in profile.discord_config.items():
                     if hasattr(self.config, key):
                         setattr(self.config, key, value)
                         logger.debug(f"DiscordPlatform: Set config {key} = {value} from profile")
             
-            # Load environment variables (can override profile settings)
             self.config.load_env_vars()
         
-        # Validate required configuration
         if not self.config.bot_token:
             logger.error("DiscordPlatform: 'bot_token' not found in config. This is required.")
             raise ValueError("DiscordPlatform requires 'bot_token' in configuration.")
         
-        # Use config values
         self.token = self.config.bot_token
         intents = self.config.get_intents()
         self.client = discord.Client(intents=intents)
@@ -65,7 +58,6 @@ class DiscordPlatform(PlatformAdapter):
         else:
             logger.warning("DiscordPlatform: DiscordAdapter may not have 'attach_to_client' method.")
 
-        # Get channel IDs from kwargs and app_config, merge into config
         kwargs_channel_ids = kwargs.get("discord_monitored_channel_ids", [])
         kwargs_channel_id = kwargs.get("discord_monitored_channel_id")
         
@@ -76,7 +68,6 @@ class DiscordPlatform(PlatformAdapter):
             if not self.config.home_channel_id:
                 self.config.home_channel_id = kwargs_channel_id
         
-        # Discord configuration should be provided via kwargs or environment variables
         if not self.config.monitored_channel_ids:
             logger.warning("DiscordPlatform: No channel configuration found. Please provide channel IDs via constructor kwargs or environment variables.")
         
@@ -115,7 +106,7 @@ class DiscordPlatform(PlatformAdapter):
             logger.warning("DiscordPlatform: DiscordObserver not available.")
             return
         if not isinstance(msg, DiscordMessage): # Ensure it's the correct type
-            logger.warning(f"DiscordPlatform: Expected DiscordMessage, got {type(msg)}. Cannot process.")
+            logger.warning(f"DiscordPlatform: Expected DiscordMessage, got {type(msg)}. Cannot process.")  # type: ignore[unreachable]
             return
         await self.discord_observer.handle_incoming_message(msg)
 
@@ -151,7 +142,6 @@ class DiscordPlatform(PlatformAdapter):
             self._discord_client_task = asyncio.create_task(self.client.start(self.token), name="DiscordClientTask")
             logger.info("DiscordPlatform: Discord client start initiated.")
             
-            # Wait for either the Discord client to be ready or the agent task to complete
             ready_task = asyncio.create_task(self.client.wait_until_ready(), name="DiscordReadyWait")
             
             done, pending = await asyncio.wait(
@@ -159,21 +149,17 @@ class DiscordPlatform(PlatformAdapter):
                 return_when=asyncio.FIRST_COMPLETED
             )
             
-            # Check if Discord client is ready
             if ready_task in done and not ready_task.exception():
                 logger.info(f"DiscordPlatform: Discord client ready! Logged in as: {self.client.user}")
-                # Cancel the ready task since we've confirmed it's ready
                 if not ready_task.done():
                     ready_task.cancel()
                 
-                # Now wait for either agent completion or Discord client failure
                 done, pending = await asyncio.wait(
                     [agent_run_task, self._discord_client_task],
                     return_when=asyncio.FIRST_COMPLETED
                 )
             elif ready_task in done and ready_task.exception():
                 logger.error(f"DiscordPlatform: Discord client failed to become ready: {ready_task.exception()}")
-                # Cancel other tasks since Discord failed to initialize
                 for task in pending:
                     task.cancel()
                 if not agent_run_task.done():
@@ -191,7 +177,6 @@ class DiscordPlatform(PlatformAdapter):
                 if task.exception():
                     task_name = task.get_name() if hasattr(task, 'get_name') else 'Unnamed task'
                     logger.error(f"DiscordPlatform: Task '{task_name}' exited with error: {task.exception()}", exc_info=task.exception())
-                    # If discord client failed, ensure agent task is also stopped.
                     if task is self._discord_client_task and not agent_run_task.done():
                         agent_run_task.cancel()
                         try: await agent_run_task

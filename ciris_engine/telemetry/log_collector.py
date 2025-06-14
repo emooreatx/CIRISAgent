@@ -26,7 +26,6 @@ class TSDBLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         """Process log record and store as correlation."""
         try:
-            # Create correlation for log entry
             log_correlation = ServiceCorrelation(
                 correlation_id=str(uuid4()),
                 service_type="logging",
@@ -53,15 +52,12 @@ class TSDBLogHandler(logging.Handler):
                 retention_policy="raw"
             )
             
-            # Store asynchronously if event loop available
             if self._async_loop and self._async_loop.is_running():
                 self._async_loop.create_task(self._store_log_correlation(log_correlation))
             else:
-                # Fallback to synchronous storage
                 add_correlation(log_correlation)
                 
         except Exception as e:
-            # Don't let logging errors break the application
             print(f"Failed to store log correlation: {e}")
     
     async def _store_log_correlation(self, correlation: ServiceCorrelation) -> None:
@@ -123,7 +119,7 @@ class LogCorrelationCollector:
             
             # Add handler to logger
             if logger_name is None:
-                logger = logging.getLogger()
+                logger = logging.getLogger()  # type: ignore[unreachable]
             else:
                 logger = logging.getLogger(logger_name)
             
@@ -134,10 +130,8 @@ class LogCorrelationCollector:
     
     async def stop(self) -> None:
         """Stop collecting logs."""
-        # Remove handlers from their loggers
         for i, handler in enumerate(self.handlers):
             try:
-                # Get the logger this handler was attached to
                 logger_name = self.loggers[i] if i < len(self.loggers) else None
                 if logger_name is None:
                     logger = logging.getLogger()

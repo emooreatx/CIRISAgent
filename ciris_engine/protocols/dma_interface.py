@@ -13,7 +13,6 @@ from ciris_engine.schemas.dma_results_v1 import (
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.faculties import EpistemicFaculty
 
-# Type variables for DMA result types
 DMAResultT = TypeVar('DMAResultT', bound=BaseModel, covariant=True)
 InputT = TypeVar('InputT', contravariant=True)
 

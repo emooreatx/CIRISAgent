@@ -157,11 +157,10 @@ class EpistemicHumilityFaculty(EpistemicFaculty):
             )
             result = response_model
             
-            # Handle string to float conversion for epistemic_certainty if needed
-            if isinstance(result.epistemic_certainty, str):
+            if isinstance(result.epistemic_certainty, str):  # type: ignore[attr-defined]
                 mapping = {"low": 0.0, "moderate": 0.5, "high": 1.0}
-                val = mapping.get(result.epistemic_certainty.lower(), 0.0)
-                result.epistemic_certainty = val
+                val = mapping.get(result.epistemic_certainty.lower(), 0.0)  # type: ignore[attr-defined]
+                result.epistemic_certainty = val  # type: ignore[attr-defined]
                 
             return result
         except Exception as e:

@@ -74,7 +74,7 @@ class MemorizeHandler(BaseActionHandler):
                 outcome="failed_no_memory_service",
             )
         else:
-            scope = params.node.scope
+            scope = params.node.scope  # type: ignore[attr-defined]
             if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not dispatch_context.get("wa_authorized"):
                 self.logger.warning(
                     f"WA authorization required for MEMORIZE in scope {scope}. Thought {thought_id} denied."
@@ -82,7 +82,7 @@ class MemorizeHandler(BaseActionHandler):
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = "WA authorization missing"
             else:
-                node = params.node
+                node = params.node  # type: ignore[attr-defined]
                 node.attributes.setdefault("source", thought.source_task_id)
                 try:
                     mem_op = await memory_service.memorize(node)

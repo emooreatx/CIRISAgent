@@ -39,22 +39,19 @@ class ThoughtManager:
         if task.context:
             logger.info(f"SEED_THOUGHT: Processing task {task.task_id}, context type: {type(task.context)}")
             
-            # Store the original task context
             if hasattr(task.context, 'model_dump'):
                 context_dict = {"initial_task_context": task.context.model_dump()}
             elif isinstance(task.context, dict):
-                context_dict = {"initial_task_context": task.context.copy()}
+                context_dict = {"initial_task_context": task.context.copy()}  # type: ignore[unreachable]
             else:
                 context_dict = {"initial_task_context": str(task.context)}
             
-            # MISSION-CRITICAL: Extract key context fields with type safety
             critical_fields = ["author_name", "author_id", "channel_id", "origin_service"]
             for key in critical_fields:
                 value = None
                 
-                # Type-safe extraction
                 if isinstance(task.context, dict):
-                    value = task.context.get(key)
+                    value = task.context.get(key)  # type: ignore[unreachable]
                     if value is not None:
                         logger.info(f"SEED_THOUGHT: Extracted {key}='{value}' from dict context")
                 elif hasattr(task.context, key):
@@ -71,13 +68,11 @@ class ThoughtManager:
                     if key == "channel_id":
                         channel_id = str(value)
             
-            # CRITICAL: Validate channel_id was extracted
             if not channel_id:
                 logger.warning(f"SEED_THOUGHT: No channel_id found in task context for {task.task_id}")
         else:
             logger.warning(f"SEED_THOUGHT: Task {task.task_id} has NO context")
         
-        # MISSION-CRITICAL: Ensure channel_id is NEVER None
         if not channel_id:
             if self.default_channel_id:
                 channel_id = self.default_channel_id
@@ -86,7 +81,6 @@ class ThoughtManager:
                 channel_id = "CLI_EMERGENCY_FALLBACK"
                 logger.error(f"SEED_THOUGHT: EMERGENCY FALLBACK channel_id='{channel_id}' for task {task.task_id}")
         
-        # Validate and set channel_id in context
         context_dict["channel_id"] = channel_id
         logger.info(f"SEED_THOUGHT: Final channel_id='{channel_id}' for task {task.task_id}")
         
@@ -94,7 +88,6 @@ class ThoughtManager:
             context = ThoughtContext.model_validate(context_dict)
         except Exception as e:
             logger.error(f"SEED_THOUGHT: Failed to validate context for task {task.task_id}: {e}")
-            # Emergency fallback context
             context = ThoughtContext(channel_id=channel_id)
         
         thought = Thought(
@@ -184,7 +177,6 @@ class ThoughtManager:
         
         for item in batch:
             try:
-                # v1 schema: update_thought_status doesn't have round_processed param
                 success = persistence.update_thought_status(
                     thought_id=item.thought_id,
                     status=ThoughtStatus.PROCESSING,

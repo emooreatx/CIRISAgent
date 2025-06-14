@@ -43,7 +43,6 @@ class DeferHandler(BaseActionHandler):
             wa_service = await self.get_wa_service()
             if wa_service:
                 try:
-                    # Build rich context for deferral
                     deferral_context = {
                         "task_id": thought.source_task_id,
                         "thought_content": thought.content if hasattr(thought, 'content') else "",
@@ -52,13 +51,11 @@ class DeferHandler(BaseActionHandler):
                         "max_rounds_reached": dispatch_context.get('max_rounds_reached', False)
                     }
                     
-                    # Add task description if available
                     if thought.source_task_id:
                         task = persistence.get_task_by_id(thought.source_task_id)
                         if task and hasattr(task, 'description'):
                             deferral_context["task_description"] = task.description
                     
-                    # Add conversation context if available
                     if "conversation_context" in dispatch_context:
                         deferral_context["conversation_context"] = dispatch_context["conversation_context"]
                     
@@ -75,7 +72,6 @@ class DeferHandler(BaseActionHandler):
             wa_service = await self.get_wa_service()
             if wa_service:
                 try:
-                    # Build minimal context for error case
                     error_context = {
                         "task_id": thought.source_task_id,
                         "thought_content": thought.content if hasattr(thought, 'content') else "",

@@ -1,17 +1,11 @@
-# In ciris_engine/adapters/__init__.py
 import importlib
 import logging
 from ciris_engine.protocols.adapter_interface import PlatformAdapter
 
-# Import common adapter services (remaining in adapters/)
 from .cirisnode_client import CIRISNodeClient
 from .tool_registry import ToolRegistry
 
-# Note: Audit services moved to ciris_engine.services module
-# Import them directly from there to avoid circular dependencies
 
-# OpenAI LLM service moved to services module
-# Import removed to prevent circular dependency (adapters -> services -> protocols -> adapters)
 OpenAICompatibleClient = None
 _has_openai_llm = False
 
@@ -22,7 +16,6 @@ __all__ = [
     "ToolRegistry"
 ]
 
-# OpenAICompatibleClient not exported from adapters to prevent circular imports
 
 logger = logging.getLogger(__name__)
 
