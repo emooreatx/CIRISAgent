@@ -61,11 +61,11 @@ def test_init_env_priority(mock_get_config, mock_from_openai, mock_async_openai)
     DummyAppConfig.LLMServices.OpenAI.model_name = None
     make_env(api_key="env-key", base_url="https://env-base", model_name="env-model")
     client = OpenAICompatibleClient()
-    assert client.model_name == "gpt-4o-mini"
-    mock_async_openai.assert_called_with(
-        api_key=None, base_url=None, timeout=30, max_retries=0
-    )
-    mock_from_openai.assert_called()
+    # Since config.api_key is None, should fall back to mock LLM
+    assert client.model_name == "mock-model"
+    # AsyncOpenAI should not be called since we're using mock
+    mock_async_openai.assert_not_called()
+    mock_from_openai.assert_not_called()
 
 @patch("ciris_engine.services.llm_service.AsyncOpenAI")
 @patch("ciris_engine.services.llm_service.instructor.from_openai")
@@ -80,9 +80,30 @@ def test_init_config_fallback(mock_get_config, mock_from_openai, mock_async_open
     DummyAppConfig.LLMServices.OpenAI.model_name = "gpt-test"
     make_env(api_key=None, base_url="https://env-base", model_name=None)
     client = OpenAICompatibleClient()
+    # Since config.api_key is None, should fall back to mock LLM
+    assert client.model_name == "mock-model"
+    # AsyncOpenAI should not be called since we're using mock
+    mock_async_openai.assert_not_called()
+    mock_from_openai.assert_not_called()
+
+@patch("ciris_engine.services.llm_service.AsyncOpenAI")
+@patch("ciris_engine.services.llm_service.instructor.from_openai")
+@patch("ciris_engine.services.llm_service.get_config")
+def test_init_with_api_key(mock_get_config, mock_from_openai, mock_async_openai):
+    mock_get_config.return_value = DummyAppConfig()
+    mock_from_openai.return_value = MagicMock()
+    mock_async_openai.return_value = MagicMock()
+    # Set config values with API key to test real OpenAI client creation
+    DummyAppConfig.LLMServices.OpenAI.api_key = "test-api-key"
+    DummyAppConfig.LLMServices.OpenAI.base_url = "https://api.test.com"
+    DummyAppConfig.LLMServices.OpenAI.model_name = "gpt-test"
+    make_env(api_key=None, base_url=None, model_name=None)
+    client = OpenAICompatibleClient()
+    # Since config.api_key is provided, should use real OpenAI client
     assert client.model_name == "gpt-test"
+    # AsyncOpenAI should be called with config values
     mock_async_openai.assert_called_with(
-        api_key=None, base_url="https://api.test.com", timeout=30, max_retries=0
+        api_key="test-api-key", base_url="https://api.test.com", timeout=30, max_retries=0
     )
     mock_from_openai.assert_called()
 
@@ -98,17 +119,19 @@ def test_init_with_config_obj(mock_from_openai, mock_async_openai):
     config.model_name = "gpt-test"
     make_env(api_key=None, base_url="https://env-base", model_name=None)
     client = OpenAICompatibleClient(config)
-    assert client.model_name == "gpt-test"
-    mock_async_openai.assert_called_with(
-        api_key=None, base_url="https://api.test.com", timeout=30, max_retries=0
-    )
-    mock_from_openai.assert_called()
+    # Since config.api_key is None, should fall back to mock LLM
+    assert client.model_name == "mock-model"
+    # AsyncOpenAI should not be called since we're using mock
+    mock_async_openai.assert_not_called()
+    mock_from_openai.assert_not_called()
 
 @patch("ciris_engine.services.llm_service.AsyncOpenAI")
 @patch("ciris_engine.services.llm_service.instructor.from_openai", side_effect=Exception("fail-from_openai"))
 def test_instructor_patch_fallback(mock_from_openai, mock_async_openai):
     mock_async_openai.return_value = MagicMock()
     config = DummyConfig()
+    # Provide a valid API key so it tries to create real OpenAI client
+    config.api_key = "test-api-key"
     with pytest.raises(Exception):
         client = OpenAICompatibleClient(config)
 
@@ -140,6 +163,8 @@ async def test_call_llm_structured(mock_from_openai, mock_async_openai):
     mock_instruct_client = MagicMock()
     mock_from_openai.return_value = mock_instruct_client
     config = DummyConfig()
+    # Provide a valid API key so it uses the real OpenAI client (which is mocked)
+    config.api_key = "test-api-key"
     client = OpenAICompatibleClient(config)
     
     # Mock the instructor client's chat.completions.create

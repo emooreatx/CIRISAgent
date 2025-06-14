@@ -30,7 +30,8 @@ class OpenAICompatibleClient(LLMService):
             self.openai_config = config
         
         self.telemetry_service = telemetry_service
-
+        
+        # Continue with normal OpenAI client initialization
         retry_config = {
             "retry": {
                 "global": {
@@ -57,32 +58,58 @@ class OpenAICompatibleClient(LLMService):
         api_key = self.openai_config.api_key
         base_url = self.openai_config.base_url
         model_name = self.openai_config.model_name or 'gpt-4o-mini'
+        
+        # If no API key in config, fall back to mock LLM
+        if not api_key:
+            try:
+                from ciris_engine.services.mock_llm.service import MockLLMService
+                self._is_mock = True
+                self._mock_service = MockLLMService()
+                self.model_name = 'mock-model'
+                return
+            except Exception as e:
+                raise RuntimeError(f"No OpenAI API key found and mock LLM fallback failed: {e}")
+        
+        # Continue with real OpenAI client initialization
+        self._is_mock = False
+        self._mock_service = None
         self.model_name = model_name
-
         timeout = getattr(self.openai_config, 'timeout', 30.0)  # Shorter default timeout
         max_retries = 0  # Disable OpenAI client retries - we handle our own
         
-        self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=base_url,
-            timeout=timeout,
-            max_retries=max_retries
-        )
+        try:
+            self.client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=timeout,
+                max_retries=max_retries
+            )
 
-        instructor_mode = getattr(self.openai_config, 'instructor_mode', 'json')
-        self.instruct_client = instructor.from_openai(
-            self.client,
-            mode=instructor.Mode.JSON if instructor_mode == 'json' else instructor.Mode.TOOLS
-        )
+            instructor_mode = getattr(self.openai_config, 'instructor_mode', 'json')
+            self.instruct_client = instructor.from_openai(
+                self.client,
+                mode=instructor.Mode.JSON if instructor_mode == 'json' else instructor.Mode.TOOLS
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize OpenAI client: {e}")
 
     async def start(self) -> None:
         """Start the LLM service."""
+        if self._is_mock:
+            await self._mock_service.start()
+            logger.info("Mock LLM Service started")
+            return
+            
         await super().start()
         logger.info(f"OpenAI Compatible LLM Service started with model: {self.model_name}")
         logger.info(f"Circuit breaker initialized: {self.circuit_breaker.get_stats()}")
 
     async def stop(self) -> None:
         """Stop the LLM service."""
+        if self._is_mock:
+            await self._mock_service.stop()
+            return
+            
         await super().stop()
         await self.client.close()
         logger.info("OpenAI Compatible LLM Service stopped")
@@ -93,6 +120,16 @@ class OpenAICompatibleClient(LLMService):
 
     async def health_check(self) -> Dict[str, Any]:
         """Perform a health check on the LLM service."""
+        # Delegate to mock service if using mock
+        if self._is_mock:
+            base_health = await super().health_check()
+            return {
+                **base_health,
+                "model_name": self.model_name,
+                "service_type": "mock",
+                "status": "healthy"
+            }
+            
         base_health = await super().health_check()
         
         cb_stats = self.circuit_breaker.get_stats()
@@ -141,6 +178,12 @@ class OpenAICompatibleClient(LLMService):
         **kwargs: Any,
     ) -> Tuple[BaseModel, ResourceUsage]:
         """Make a structured LLM call with circuit breaker protection."""
+        # Delegate to mock service if using mock
+        if self._is_mock:
+            return await self._mock_service.call_llm_structured(
+                messages, response_model, max_tokens, temperature, **kwargs
+            )
+            
         logger.debug(f"Structured LLM call for {response_model.__name__}")
         
         # Check circuit breaker before making call
