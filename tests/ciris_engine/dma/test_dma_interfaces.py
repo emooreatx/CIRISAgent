@@ -163,7 +163,7 @@ class TestEthicalDMAInterface:
         """Test that EthicalDMAInterface has correct method signature."""
         
         class TestEthicalDMA(EthicalDMAInterface):
-            async def evaluate(self, thought_item, context=None, **kwargs):
+            async def evaluate(self, input_data, context=None, **kwargs):
                 return EthicalDMAResult(
                     alignment_check={"test": "pass"},
                     decision="approved",
@@ -178,7 +178,7 @@ class TestEthicalDMAInterface:
         """Test ethical DMA evaluation."""
         
         class TestEthicalDMA(EthicalDMAInterface):
-            async def evaluate(self, thought_item, context=None, **kwargs):
+            async def evaluate(self, input_data, context=None, **kwargs):
                 return EthicalDMAResult(
                     alignment_check={"do_good": "aligned", "avoid_harm": "aligned"},
                     decision="approved",
@@ -215,7 +215,7 @@ class TestCSDMAInterface:
         """Test CSDMA evaluation."""
         
         class TestCSDMA(CSDMAInterface):
-            async def evaluate(self, thought_item, **kwargs):
+            async def evaluate(self, input_data, **kwargs):
                 return CSDMAResult(
                     plausibility_score=0.85,
                     flags=["minor_ambiguity"],
@@ -252,7 +252,7 @@ class TestDSDMAInterface:
         """Test DSDMA evaluation."""
         
         class TestDSDMA(DSDMAInterface):
-            async def evaluate(self, thought_item, current_context=None, **kwargs):
+            async def evaluate(self, input_data, current_context=None, **kwargs):
                 return DSDMAResult(
                     domain="test_domain",
                     score=0.9,
@@ -319,14 +319,14 @@ class TestActionSelectionDMAInterface:
         """Test action selection evaluation."""
         
         class TestActionSelectionDMA(ActionSelectionDMAInterface):
-            async def evaluate(self, triaged_inputs, enable_recursive_evaluation=False, **kwargs):
+            async def evaluate(self, input_data, enable_recursive_evaluation=False, **kwargs):
                 return ActionSelectionResult(
                     selected_action=HandlerActionType.SPEAK,
                     action_parameters=SpeakParams(content="Test response"),
                     rationale="Selected SPEAK based on evaluation"
                 )
             
-            async def recursive_evaluate_with_faculties(self, triaged_inputs, guardrail_failure_context):
+            async def recursive_evaluate_with_faculties(self, input_data, guardrail_failure_context):
                 # Enhanced evaluation with faculties
                 return ActionSelectionResult(
                     selected_action=HandlerActionType.PONDER,
@@ -354,9 +354,9 @@ class TestActionSelectionDMAInterface:
         """Test action selection with faculty integration."""
         
         class TestActionSelectionDMA(ActionSelectionDMAInterface):
-            async def evaluate(self, triaged_inputs, enable_recursive_evaluation=False, **kwargs):
+            async def evaluate(self, input_data, enable_recursive_evaluation=False, **kwargs):
                 # Simulate using faculties
-                if self.faculties and triaged_inputs.get("faculty_evaluations"):
+                if self.faculties and input_data.get("faculty_evaluations"):
                     return ActionSelectionResult(
                         selected_action=HandlerActionType.DEFER,
                         action_parameters={"reason": "Faculty evaluation suggested deferral"},
@@ -369,15 +369,15 @@ class TestActionSelectionDMAInterface:
                         rationale="Standard evaluation"
                     )
             
-            async def recursive_evaluate_with_faculties(self, triaged_inputs, guardrail_failure_context):
+            async def recursive_evaluate_with_faculties(self, input_data, guardrail_failure_context):
                 # Apply faculties first
-                enhanced_inputs = await self._enhance_with_faculties(triaged_inputs)
+                enhanced_inputs = await self._enhance_with_faculties(input_data)
                 return await self.evaluate(enhanced_inputs)
             
-            async def _enhance_with_faculties(self, triaged_inputs):
+            async def _enhance_with_faculties(self, input_data):
                 faculty_results = await self.apply_faculties("test content")
                 return {
-                    **triaged_inputs,
+                    **input_data,
                     "faculty_evaluations": faculty_results
                 }
         
@@ -435,12 +435,12 @@ class TestDMAProtocolCompliance:
         sig = inspect.signature(EthicalDMAInterface.evaluate)
         params = list(sig.parameters.keys())
         assert 'self' in params
-        assert 'thought_item' in params
+        assert 'input_data' in params
         assert 'context' in params
         assert 'kwargs' in params
         
         # Check ActionSelectionDMAInterface
         sig = inspect.signature(ActionSelectionDMAInterface.evaluate)
         params = list(sig.parameters.keys())
-        assert 'triaged_inputs' in params
+        assert 'input_data' in params
         assert 'enable_recursive_evaluation' in params

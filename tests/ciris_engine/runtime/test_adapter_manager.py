@@ -67,30 +67,30 @@ class TestRuntimeAdapterManager:
         """Test successful adapter loading."""
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
             result = await adapter_manager.load_adapter(
-                mode="test",
+                adapter_type="test",
                 adapter_id="test_adapter",
                 config_params={"param1": "value1"}
             )
             
         assert result["success"] is True
         assert result["adapter_id"] == "test_adapter"
-        assert result["mode"] == "test"
+        assert result["adapter_type"] == "test"
         assert "test_adapter" in adapter_manager.loaded_adapters
         assert len(mock_runtime.adapters) == 1
         
         # Check adapter instance properties
         instance = adapter_manager.loaded_adapters["test_adapter"]
         assert instance.adapter_id == "test_adapter"
-        assert instance.mode == "test"
+        assert instance.adapter_type == "test"
         assert instance.is_running is True
         assert instance.config_params == {"param1": "value1"}
         assert isinstance(instance.loaded_at, datetime)
     
-    async def test_load_adapter_auto_id_generation(self, adapter_manager):
-        """Test automatic adapter ID generation."""
+    async def test_load_adapter_success(self, adapter_manager):
+        """Test successful adapter loading with explicit ID."""
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
-            result1 = await adapter_manager.load_adapter(mode="test")
-            result2 = await adapter_manager.load_adapter(mode="test")
+            result1 = await adapter_manager.load_adapter(adapter_type="test", adapter_id="test_1")
+            result2 = await adapter_manager.load_adapter(adapter_type="test", adapter_id="test_2")
             
         assert result1["adapter_id"] == "test_1"
         assert result2["adapter_id"] == "test_2"
@@ -98,8 +98,8 @@ class TestRuntimeAdapterManager:
     async def test_load_adapter_duplicate_id(self, adapter_manager):
         """Test loading adapter with duplicate ID fails."""
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
-            await adapter_manager.load_adapter(mode="test", adapter_id="duplicate")
-            result = await adapter_manager.load_adapter(mode="test", adapter_id="duplicate")
+            await adapter_manager.load_adapter(adapter_type="test", adapter_id="duplicate")
+            result = await adapter_manager.load_adapter(adapter_type="test", adapter_id="duplicate")
             
         assert result["success"] is False
         assert "already exists" in result["error"]
@@ -107,7 +107,7 @@ class TestRuntimeAdapterManager:
     async def test_load_adapter_failure(self, adapter_manager):
         """Test adapter loading failure handling."""
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', side_effect=Exception("Load failed")):
-            result = await adapter_manager.load_adapter(mode="test")
+            result = await adapter_manager.load_adapter(adapter_type="test", adapter_id="test_fail")
             
         assert result["success"] is False
         assert "Load failed" in result["error"]
@@ -116,8 +116,8 @@ class TestRuntimeAdapterManager:
         """Test successful adapter unloading."""
         # First load an adapter
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
-            await adapter_manager.load_adapter(mode="discord", adapter_id="discord1")
-            await adapter_manager.load_adapter(mode="api", adapter_id="api1")
+            await adapter_manager.load_adapter(adapter_type="discord", adapter_id="discord1")
+            await adapter_manager.load_adapter(adapter_type="api", adapter_id="api1")
             
         # Then unload one
         result = await adapter_manager.unload_adapter("discord1")
@@ -138,7 +138,7 @@ class TestRuntimeAdapterManager:
         """Test that unloading last communication adapter is blocked."""
         # Load only one communication adapter
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
-            await adapter_manager.load_adapter(mode="discord", adapter_id="last_comm")
+            await adapter_manager.load_adapter(adapter_type="discord", adapter_id="last_comm")
             
         result = await adapter_manager.unload_adapter("last_comm")
         
@@ -149,8 +149,8 @@ class TestRuntimeAdapterManager:
     async def test_unload_adapter_with_multiple_comm_adapters(self, adapter_manager):
         """Test unloading communication adapter when others exist."""
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
-            await adapter_manager.load_adapter(mode="discord", adapter_id="discord1")
-            await adapter_manager.load_adapter(mode="api", adapter_id="api1")
+            await adapter_manager.load_adapter(adapter_type="discord", adapter_id="discord1")
+            await adapter_manager.load_adapter(adapter_type="api", adapter_id="api1")
             
         result = await adapter_manager.unload_adapter("discord1")
         
@@ -163,7 +163,7 @@ class TestRuntimeAdapterManager:
         # Load initial adapter
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
             await adapter_manager.load_adapter(
-                mode="test", 
+                adapter_type="test", 
                 adapter_id="reload_test",
                 config_params={"param1": "old_value"}
             )
@@ -191,8 +191,8 @@ class TestRuntimeAdapterManager:
     async def test_list_adapters(self, adapter_manager):
         """Test listing loaded adapters."""
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
-            await adapter_manager.load_adapter(mode="test1", adapter_id="adapter1")
-            await adapter_manager.load_adapter(mode="test2", adapter_id="adapter2")
+            await adapter_manager.load_adapter(adapter_type="test1", adapter_id="adapter1")
+            await adapter_manager.load_adapter(adapter_type="test2", adapter_id="adapter2")
             
         adapters = await adapter_manager.list_adapters()
         
@@ -204,7 +204,7 @@ class TestRuntimeAdapterManager:
         # Check adapter info structure
         adapter_info = adapters[0]
         assert "adapter_id" in adapter_info
-        assert "mode" in adapter_info
+        assert "adapter_type" in adapter_info
         assert "is_running" in adapter_info
         assert "health_status" in adapter_info
         assert "services_count" in adapter_info
@@ -213,13 +213,13 @@ class TestRuntimeAdapterManager:
     async def test_get_adapter_status_success(self, adapter_manager):
         """Test getting adapter status."""
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
-            await adapter_manager.load_adapter(mode="test", adapter_id="status_test")
+            await adapter_manager.load_adapter(adapter_type="test", adapter_id="status_test")
             
         status = await adapter_manager.get_adapter_status("status_test")
         
         assert status["success"] is True
         assert status["adapter_id"] == "status_test"
-        assert status["mode"] == "test"
+        assert status["adapter_type"] == "test"
         assert status["is_running"] is True
         assert "health_status" in status
         assert "loaded_at" in status
@@ -237,7 +237,7 @@ class TestRuntimeAdapterManager:
         """Test getting adapter info."""
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
             await adapter_manager.load_adapter(
-                mode="test",
+                adapter_type="test",
                 adapter_id="info_test",
                 config_params={"test": "value"}
             )
@@ -245,7 +245,7 @@ class TestRuntimeAdapterManager:
         info = await adapter_manager.get_adapter_info("info_test")
         
         assert info["adapter_id"] == "info_test"
-        assert info["mode"] == "test"
+        assert info["adapter_type"] == "test"
         assert info["config"] == {"test": "value"}
         assert "load_time" in info
         assert info["is_running"] is True
@@ -259,15 +259,15 @@ class TestRuntimeAdapterManager:
         """Test getting communication adapter status."""
         # Create mock instances
         discord_instance = MagicMock()
-        discord_instance.mode = "discord"
+        discord_instance.adapter_type = "discord"
         discord_instance.is_running = True
         
         api_instance = MagicMock()
-        api_instance.mode = "api" 
+        api_instance.adapter_type = "api" 
         api_instance.is_running = True
         
         tool_instance = MagicMock()
-        tool_instance.mode = "tool"
+        tool_instance.adapter_type = "tool"
         tool_instance.is_running = True
         
         adapter_manager.loaded_adapters = {
@@ -286,15 +286,15 @@ class TestRuntimeAdapterManager:
         # Check that only communication adapters are included
         comm_adapters = status["communication_adapters"]
         assert len(comm_adapters) == 2
-        modes = [adapter["mode"] for adapter in comm_adapters]
-        assert "discord" in modes
-        assert "api" in modes
-        assert "tool" not in modes
+        adapter_types = [adapter["adapter_type"] for adapter in comm_adapters]
+        assert "discord" in adapter_types
+        assert "api" in adapter_types
+        assert "tool" not in adapter_types
     
     def test_get_communication_adapter_status_unsafe(self, adapter_manager):
         """Test communication adapter status when only one running."""
         discord_instance = MagicMock()
-        discord_instance.mode = "discord"
+        discord_instance.adapter_type = "discord"
         discord_instance.is_running = True
         
         adapter_manager.loaded_adapters = {"discord1": discord_instance}
@@ -309,7 +309,7 @@ class TestRuntimeAdapterManager:
     async def test_service_registration(self, adapter_manager, mock_runtime):
         """Test that services are properly registered."""
         with patch('ciris_engine.runtime.adapter_manager.load_adapter', return_value=MockAdapter):
-            await adapter_manager.load_adapter(mode="test", adapter_id="service_test")
+            await adapter_manager.load_adapter(adapter_type="test", adapter_id="service_test")
             
         # Check that service registry register was called
         assert mock_runtime.service_registry.register.called
@@ -335,29 +335,29 @@ class TestAdapterInstance:
         
         instance = AdapterInstance(
             adapter_id="test_id",
-            mode="test_mode", 
+            adapter_type="test_mode", 
             adapter=mock_adapter,
             config_params={"test": "value"},
             loaded_at=now
         )
         
         assert instance.adapter_id == "test_id"
-        assert instance.mode == "test_mode"
+        assert instance.adapter_type == "test_mode"
         assert instance.adapter == mock_adapter
         assert instance.config_params == {"test": "value"}
         assert instance.loaded_at == now
         assert instance.is_running is False
         assert instance.services_registered == []
     
-    def test_adapter_instance_post_init(self):
-        """Test post-init initialization of services_registered."""
+    def test_adapter_instance_default_initialization(self):
+        """Test default initialization of services_registered field."""
         instance = AdapterInstance(
             adapter_id="test",
-            mode="test",
+            adapter_type="test",
             adapter=MagicMock(),
             config_params={},
-            loaded_at=datetime.now(timezone.utc),
-            services_registered=None
+            loaded_at=datetime.now(timezone.utc)
+            # services_registered should default to empty list via field(default_factory=list)
         )
         
         assert instance.services_registered == []

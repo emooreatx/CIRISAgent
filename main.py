@@ -134,7 +134,7 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
 
 
 @click.command()
-@click.option("--adapter", "modes_list", multiple=True, default=["auto"], help="One or more adapters to run. Specify multiple times for multiple adapters (e.g., --adapter cli --adapter api --adapter discord).")
+@click.option("--adapter", "adapter_types_list", multiple=True, default=["auto"], help="One or more adapters to run. Specify multiple times for multiple adapters (e.g., --adapter cli --adapter api --adapter discord).")
 @click.option("--modes", "legacy_modes", help="Legacy comma-separated list of modes (deprecated, use --adapter instead).")
 @click.option("--profile", default="default", help="Agent profile name")
 @click.option("--config", "config_file_path", type=click.Path(exists=True), help="Path to app config")
@@ -150,7 +150,7 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
 @click.option("--mock-llm/--no-mock-llm", default=False, help="Use the mock LLM service for offline testing")
 @click.option("--num-rounds", type=int, help="Maximum number of processing rounds (default: infinite)")
 def main(
-    modes_list: tuple[str, ...],
+    adapter_types_list: tuple[str, ...],
     legacy_modes: Optional[str],
     profile: str,
     config_file_path: Optional[str],
@@ -170,39 +170,42 @@ def main(
     setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
 
     async def _async_main() -> None:
+        nonlocal mock_llm
         from ciris_engine.config.env_utils import get_env_var
 
-        if not mock_llm and not get_env_var("OPENAI_API_KEY"):
+        # Check for API key and auto-enable mock LLM if none is set
+        api_key = get_env_var("OPENAI_API_KEY")
+        if not mock_llm and not api_key:
             click.echo(
-                "OPENAI_API_KEY not set. The agent requires an OpenAI-compatible LLM. "
-                "For a local model set OPENAI_API_BASE, OPENAI_MODEL_NAME and provide any OPENAI_API_KEY."
+                "no API key set, if using a local LLM set key as LOCAL, starting with mock LLM"
             )
+            mock_llm = True
 
         # Handle backward compatibility for --modes
-        final_modes_list = list(modes_list)
+        final_adapter_types_list = list(adapter_types_list)
         if legacy_modes:
             click.echo("Warning: --modes is deprecated. Use --adapter instead (e.g., --adapter cli --adapter api).", err=True)
             # Split comma-separated modes and add to the list
-            legacy_mode_list = [mode.strip() for mode in legacy_modes.split(",")]
-            final_modes_list.extend(legacy_mode_list)
+            legacy_adapter_type_list = [adapter_type.strip() for adapter_type in legacy_modes.split(",")]
+            final_adapter_types_list.extend(legacy_adapter_type_list)
         
-        # Handle mode auto-detection and support multiple instances of same adapter type
-        selected_modes = []
-        for mode in final_modes_list:
-            if "auto" == mode:
-                auto_mode = "discord" if discord_bot_token or get_env_var("DISCORD_BOT_TOKEN") else "cli"
-                selected_modes.append(auto_mode)
-            elif ":" in mode:
-                # Support instance-specific modes like "discord:instance1" or "api:port8081"
-                selected_modes.append(mode)
+        # Handle adapter_type auto-detection and support multiple instances of same adapter type
+        selected_adapter_types = []
+        for adapter_type in final_adapter_types_list:
+            if "auto" == adapter_type:
+                auto_adapter_type = "discord" if discord_bot_token or get_env_var("DISCORD_BOT_TOKEN") else "cli"
+                selected_adapter_types.append(auto_adapter_type)
+            elif ":" in adapter_type:
+                # Support instance-specific adapter types like "discord:instance1" or "api:port8081"
+                selected_adapter_types.append(adapter_type)
             else:
-                selected_modes.append(mode)
+                selected_adapter_types.append(adapter_type)
 
-        # Validate Discord modes have tokens available
-        validated_modes = []
-        for mode in selected_modes:
-            if mode.startswith("discord"):
-                base_mode, instance_id = (mode.split(":", 1) + [None])[:2]
+        # Validate Discord adapter types have tokens available
+        validated_adapter_types = []
+        for adapter_type in selected_adapter_types:
+            if adapter_type.startswith("discord"):
+                base_adapter_type, instance_id = (adapter_type.split(":", 1) + [None])[:2]
                 # Check for instance-specific token or fallback to general token
                 token_vars = []
                 if instance_id:
@@ -211,14 +214,14 @@ def main(
                 
                 has_token = discord_bot_token or any(get_env_var(var) for var in token_vars)
                 if not has_token:
-                    click.echo(f"No Discord bot token found for {mode}, falling back to CLI mode")
-                    validated_modes.append("cli")
+                    click.echo(f"No Discord bot token found for {adapter_type}, falling back to CLI adapter type")
+                    validated_adapter_types.append("cli")
                 else:
-                    validated_modes.append(mode)
+                    validated_adapter_types.append(adapter_type)
             else:
-                validated_modes.append(mode)
+                validated_adapter_types.append(adapter_type)
         
-        selected_modes = validated_modes
+        selected_adapter_types = validated_adapter_types
 
         # Load config
         app_config = await load_config(config_file_path)
@@ -235,15 +238,15 @@ def main(
             app_config.mock_llm = True  # Set the flag in config for other components
 
         
-        # Create adapter configurations for each mode and determine startup channel
+        # Create adapter configurations for each adapter type and determine startup channel
         adapter_configs = {}
         startup_channel_id = getattr(app_config, 'startup_channel_id', None)
         if hasattr(app_config, 'discord_channel_id'):
             startup_channel_id = app_config.discord_channel_id
         
-        for mode in selected_modes:
-            if mode.startswith("api"):
-                base_mode, instance_id = (mode.split(":", 1) + [None])[:2]
+        for adapter_type in selected_adapter_types:
+            if adapter_type.startswith("api"):
+                base_adapter_type, instance_id = (adapter_type.split(":", 1) + [None])[:2]
                 from ciris_engine.adapters.api.config import APIAdapterConfig
                 
                 api_config = APIAdapterConfig()
@@ -258,13 +261,13 @@ def main(
                 else:
                     api_config.load_env_vars()
                 
-                adapter_configs[mode] = api_config
+                adapter_configs[adapter_type] = api_config
                 api_channel_id = api_config.get_home_channel_id(api_config.host, api_config.port)
                 if not startup_channel_id:
                     startup_channel_id = api_channel_id
                     
-            elif mode.startswith("discord"):
-                base_mode, instance_id = (mode.split(":", 1) + [None])[:2]
+            elif adapter_type.startswith("discord"):
+                base_adapter_type, instance_id = (adapter_type.split(":", 1) + [None])[:2]
                 from ciris_engine.adapters.discord.config import DiscordAdapterConfig
                 
                 discord_config = DiscordAdapterConfig()
@@ -277,13 +280,13 @@ def main(
                 else:
                     discord_config.load_env_vars()
                 
-                adapter_configs[mode] = discord_config
+                adapter_configs[adapter_type] = discord_config
                 discord_channel_id = discord_config.get_home_channel_id()
                 if discord_channel_id and not startup_channel_id:
                     startup_channel_id = discord_channel_id
                     
-            elif mode.startswith("cli"):
-                base_mode, instance_id = (mode.split(":", 1) + [None])[:2]
+            elif adapter_type.startswith("cli"):
+                base_adapter_type, instance_id = (adapter_type.split(":", 1) + [None])[:2]
                 from ciris_engine.adapters.cli.config import CLIAdapterConfig
                 
                 cli_config = CLIAdapterConfig()
@@ -298,7 +301,7 @@ def main(
                 if not cli_interactive:
                     cli_config.interactive = False
                 
-                adapter_configs[mode] = cli_config
+                adapter_configs[adapter_type] = cli_config
                 cli_channel_id = cli_config.get_home_channel_id()
                 if not startup_channel_id:
                     startup_channel_id = cli_channel_id
@@ -308,7 +311,7 @@ def main(
         
         # Create runtime using new CIRISRuntime directly with adapter configs
         runtime = CIRISRuntime(
-            modes=selected_modes,
+            adapter_types=selected_adapter_types,
             profile_name=profile,
             app_config=app_config,
             startup_channel_id=startup_channel_id,

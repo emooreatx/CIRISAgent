@@ -40,7 +40,7 @@ async def test_api_service_registry(monkeypatch):
     )
 
     # Use unified runtime with API mode
-    runtime = CIRISRuntime(modes=["api"], profile_name="default")
+    runtime = CIRISRuntime(adapter_types=["api"], profile_name="default")
     
     await runtime.initialize()
 

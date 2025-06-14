@@ -71,7 +71,7 @@ class CIRISRuntime(RuntimeInterface):
     
     def __init__(
         self,
-        modes: List[str],
+        adapter_types: List[str],
         profile_name: str = "default",
         app_config: Optional[AppConfig] = None,
         startup_channel_id: Optional[str] = None,
@@ -84,7 +84,7 @@ class CIRISRuntime(RuntimeInterface):
         self.adapter_configs = adapter_configs or {}
         self.adapters: List[PlatformAdapter] = []
 
-        for adapter_name in modes:
+        for adapter_name in adapter_types:
             try:
                 base_adapter = adapter_name.split(":")[0]
                 adapter_class = load_adapter(base_adapter)

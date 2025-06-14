@@ -36,6 +36,8 @@ class EntropyFaculty(EpistemicFaculty):
                 max_tokens=1024,
                 temperature=0.0
             )
+            # Type safety: ensure we got exactly what we asked for
+            assert isinstance(response_model, EntropyResult), f"Expected EntropyResult, got {type(response_model)}"
             return response_model
         except Exception as e:
             logger.error(f"EntropyFaculty evaluation failed: {e}", exc_info=True)
@@ -64,6 +66,8 @@ class CoherenceFaculty(EpistemicFaculty):
                 max_tokens=1024,
                 temperature=0.0
             )
+            # Type safety: ensure we got exactly what we asked for
+            assert isinstance(response_model, CoherenceResult), f"Expected CoherenceResult, got {type(response_model)}"
             return response_model
         except Exception as e:
             logger.error(f"CoherenceFaculty evaluation failed: {e}", exc_info=True)
@@ -107,6 +111,8 @@ class OptimizationVetoFaculty(EpistemicFaculty):
                 max_tokens=1024,
                 temperature=0.0
             )
+            # Type safety: ensure we got exactly what we asked for
+            assert isinstance(response_model, OptimizationVetoResult), f"Expected OptimizationVetoResult, got {type(response_model)}"
             return response_model
         except Exception as e:
             logger.error(f"OptimizationVetoFaculty evaluation failed: {e}", exc_info=True)
@@ -155,14 +161,13 @@ class EpistemicHumilityFaculty(EpistemicFaculty):
                 max_tokens=1024,
                 temperature=0.0
             )
-            result = response_model
+            # Type safety: ensure we got exactly what we asked for
+            assert isinstance(response_model, EpistemicHumilityResult), f"Expected EpistemicHumilityResult, got {type(response_model)}"
             
-            if isinstance(result.epistemic_certainty, str):  # type: ignore[attr-defined]
-                mapping = {"low": 0.0, "moderate": 0.5, "high": 1.0}
-                val = mapping.get(result.epistemic_certainty.lower(), 0.0)  # type: ignore[attr-defined]
-                result.epistemic_certainty = val  # type: ignore[attr-defined]
+            # Strict type checking - epistemic_certainty MUST be float
+            assert isinstance(response_model.epistemic_certainty, float), f"Expected epistemic_certainty to be float, got {type(response_model.epistemic_certainty)}"
                 
-            return result
+            return response_model
         except Exception as e:
             logger.error(f"EpistemicHumilityFaculty evaluation failed: {e}", exc_info=True)
             return EpistemicHumilityResult(

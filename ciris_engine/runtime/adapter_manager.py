@@ -8,7 +8,7 @@ extending the existing processor control capabilities with adapter lifecycle man
 import asyncio
 import logging
 from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration
@@ -25,40 +25,40 @@ logger = logging.getLogger(__name__)
 class AdapterInstance:
     """Information about a loaded adapter instance"""
     adapter_id: str
-    mode: str
+    adapter_type: str
     adapter: PlatformAdapter
     config_params: Dict[str, Any]
     loaded_at: datetime
     is_running: bool = False
-    services_registered: List[str] = None
+    services_registered: List[str] = field(default_factory=list)
 
-    def __post_init__(self):
-        if self.services_registered is None:
-            self.services_registered = []  # type: ignore[unreachable]
+    def __post_init__(self) -> None:
+        # services_registered is now properly initialized with default_factory
+        pass
 
 
 class AdapterManagerInterface:
     """Interface for runtime adapter management operations"""
     
-    async def load_adapter(self, mode: str, adapter_id: str, config_params: Optional[Dict[str, Any]] = None) -> bool:
+    async def load_adapter(self, adapter_type: str, adapter_id: str, config_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Load and start a new adapter instance"""
-        ...
+        raise NotImplementedError("This is an interface method")
     
-    async def unload_adapter(self, adapter_id: str) -> bool:
+    async def unload_adapter(self, adapter_id: str) -> Dict[str, Any]:
         """Stop and unload an adapter instance"""
-        ...
+        raise NotImplementedError("This is an interface method")
     
-    async def reload_adapter(self, adapter_id: str, config_params: Optional[Dict[str, Any]] = None) -> bool:
+    async def reload_adapter(self, adapter_id: str, config_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Reload an adapter with new configuration"""
-        ...
+        raise NotImplementedError("This is an interface method")
     
     async def list_adapters(self) -> List[Dict[str, Any]]:
         """List all loaded adapter instances"""
-        ...
+        raise NotImplementedError("This is an interface method")
     
     async def get_adapter_status(self, adapter_id: str) -> Dict[str, Any]:
         """Get detailed status of a specific adapter"""
-        ...
+        raise NotImplementedError("This is an interface method")
 
 
 class RuntimeAdapterManager(AdapterManagerInterface):
@@ -69,38 +69,35 @@ class RuntimeAdapterManager(AdapterManagerInterface):
         self.loaded_adapters: Dict[str, AdapterInstance] = {}
         self._adapter_counter = 0
         
-    async def load_adapter(self, mode: str, adapter_id: Optional[str] = None, config_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def load_adapter(self, adapter_type: str, adapter_id: str, config_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Load and start a new adapter instance
         
         Args:
-            mode: Adapter type (cli, discord, api, etc.)
-            adapter_id: Optional unique ID, auto-generated if not provided
+            adapter_type: Adapter type (cli, discord, api, etc.)
+            adapter_id: Unique ID for the adapter
             config_params: Optional configuration parameters
             
         Returns:
-            Dict with adapter_id, status, and details
+            Dict with success status and details
         """
         try:
-            if not adapter_id:
-                self._adapter_counter += 1
-                adapter_id = f"{mode}_{self._adapter_counter}"
-            
             if adapter_id in self.loaded_adapters:
+                logger.warning(f"Adapter with ID '{adapter_id}' already exists")
                 return {
                     "success": False,
                     "error": f"Adapter with ID '{adapter_id}' already exists"
                 }
             
-            logger.info(f"Loading adapter: mode={mode}, id={adapter_id}, params={config_params}")
+            logger.info(f"Loading adapter: type={adapter_type}, id={adapter_id}, params={config_params}")
             
-            adapter_class = load_adapter(mode)
+            adapter_class = load_adapter(adapter_type)
             
             adapter_kwargs = config_params or {}
             adapter = adapter_class(self.runtime, **adapter_kwargs)
             
             instance = AdapterInstance(
                 adapter_id=adapter_id,
-                mode=mode,
+                adapter_type=adapter_type,
                 adapter=adapter,
                 config_params=adapter_kwargs,
                 loaded_at=datetime.now(timezone.utc)
@@ -115,17 +112,16 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             self.loaded_adapters[adapter_id] = instance
             
             logger.info(f"Successfully loaded and started adapter {adapter_id}")
-            
             return {
                 "success": True,
                 "adapter_id": adapter_id,
-                "mode": mode,
+                "adapter_type": adapter_type,
                 "services_registered": len(instance.services_registered),
                 "loaded_at": instance.loaded_at.isoformat()
             }
             
         except Exception as e:
-            logger.error(f"Failed to load adapter {mode} with ID {adapter_id}: {e}", exc_info=True)
+            logger.error(f"Failed to load adapter {adapter_type} with ID {adapter_id}: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)
@@ -144,23 +140,25 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             if adapter_id not in self.loaded_adapters:
                 return {
                     "success": False,
+                    "adapter_id": adapter_id,
                     "error": f"Adapter with ID '{adapter_id}' not found"
                 }
             
             instance = self.loaded_adapters[adapter_id]
             
-            communication_modes = {"discord", "api", "cli"}
-            if instance.mode in communication_modes:
+            communication_adapter_types = {"discord", "api", "cli"}
+            if instance.adapter_type in communication_adapter_types:
                 remaining_comm_adapters = sum(
                     1 for aid, inst in self.loaded_adapters.items() 
-                    if aid != adapter_id and inst.mode in communication_modes
+                    if aid != adapter_id and inst.adapter_type in communication_adapter_types
                 )
                 
                 if remaining_comm_adapters == 0:
                     return {
                         "success": False,
-                        "error": f"Cannot unload {adapter_id}: it is one of the last communication-capable adapters. "
-                                f"Load another communication adapter before unloading this one."
+                        "adapter_id": adapter_id,
+                        "adapter_type": instance.adapter_type,
+                        "error": f"Cannot unload {adapter_id}: it is one of the last communication-capable adapters"
                     }
             
             logger.info(f"Unloading adapter {adapter_id}")
@@ -177,11 +175,10 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             del self.loaded_adapters[adapter_id]
             
             logger.info(f"Successfully unloaded adapter {adapter_id}")
-            
             return {
                 "success": True,
                 "adapter_id": adapter_id,
-                "mode": instance.mode,
+                "adapter_type": instance.adapter_type,
                 "services_unregistered": len(instance.services_registered),
                 "was_running": True
             }
@@ -190,6 +187,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             logger.error(f"Failed to unload adapter {adapter_id}: {e}", exc_info=True)
             return {
                 "success": False,
+                "adapter_id": adapter_id,
                 "error": str(e)
             }
     
@@ -207,11 +205,12 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             if adapter_id not in self.loaded_adapters:
                 return {
                     "success": False,
+                    "adapter_id": adapter_id,
                     "error": f"Adapter with ID '{adapter_id}' not found"
                 }
             
             instance = self.loaded_adapters[adapter_id]
-            mode = instance.mode
+            adapter_type = instance.adapter_type
             
             logger.info(f"Reloading adapter {adapter_id} with new config")
             
@@ -219,7 +218,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             if not unload_result["success"]:
                 return unload_result
             
-            load_result = await self.load_adapter(mode, adapter_id, config_params)
+            load_result = await self.load_adapter(adapter_type, adapter_id, config_params)
             
             if load_result["success"]:
                 logger.info(f"Successfully reloaded adapter {adapter_id}")
@@ -230,6 +229,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             logger.error(f"Failed to reload adapter {adapter_id}: {e}", exc_info=True)
             return {
                 "success": False,
+                "adapter_id": adapter_id,
                 "error": str(e)
             }
     
@@ -256,7 +256,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 
                 adapters.append({
                     "adapter_id": adapter_id,
-                    "mode": instance.mode,
+                    "adapter_type": instance.adapter_type,
                     "is_running": instance.is_running,
                     "health_status": health_status,
                     "services_count": len(instance.services_registered),
@@ -322,7 +322,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 "success": True,
                 "found": True,
                 "adapter_id": adapter_id,
-                "mode": instance.mode,
+                "adapter_type": instance.adapter_type,
                 "is_running": instance.is_running,
                 "health_status": health_status,
                 "health_details": health_details,
@@ -400,7 +400,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 results.append({"adapter_type": "api", **result})
             
             if profile.cli_config:
-                cli_params = {}
+                cli_params: Dict[str, Any] = {}
                 result = await self.load_adapter("cli", adapter_id or f"cli_{profile_name}", cli_params)
                 results.append({"adapter_type": "cli", **result})
             
@@ -489,7 +489,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             
             return {
                 "adapter_id": adapter_id,
-                "mode": instance.mode,
+                "adapter_type": instance.adapter_type,
                 "config": instance.config_params,
                 "load_time": instance.loaded_at.isoformat(),
                 "is_running": instance.is_running
@@ -501,16 +501,16 @@ class RuntimeAdapterManager(AdapterManagerInterface):
 
     def get_communication_adapter_status(self) -> Dict[str, Any]:
         """Get status of communication adapters."""
-        communication_modes = {"discord", "api", "cli"}  # Known communication adapter types
+        communication_adapter_types = {"discord", "api", "cli"}  # Known communication adapter types
         
         communication_adapters = []
         running_count = 0
         
         for adapter_id, instance in self.loaded_adapters.items():
-            if instance.mode in communication_modes:
+            if instance.adapter_type in communication_adapter_types:
                 communication_adapters.append({
                     "adapter_id": adapter_id,
-                    "mode": instance.mode,
+                    "adapter_type": instance.adapter_type,
                     "is_running": instance.is_running
                 })
                 if instance.is_running:

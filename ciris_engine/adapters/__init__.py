@@ -34,7 +34,8 @@ def load_adapter(mode: str) -> type[PlatformAdapter]:
                 raise AttributeError(f"Adapter class for mode '{mode}' does not fully implement PlatformAdapter (missing {method_name}).")
 
         logger.info(f"Successfully loaded adapter for mode: {mode}")
-        return adapter_class
+        # Type assertion: after validation, we know this is a PlatformAdapter class
+        return adapter_class  # type: ignore[no-any-return]
     except ImportError as e:
         logger.error(f"Could not import adapter module for mode '{mode}'. Import error: {e}", exc_info=True)
         raise ValueError(f"Could not import adapter module for mode '{mode}'. Ensure 'ciris_engine.adapters.{mode}' exists and is correctly structured.") from e

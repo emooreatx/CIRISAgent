@@ -194,14 +194,11 @@ class OpenAICompatibleClient(LLMService):
                 logger.warning(f"LLM structured API error recorded by circuit breaker: {e}")
                 raise
             
-        # Create a wrapper function that matches the expected signature
-        async def wrapped_structured_call(*args: Any, **kwargs: Any) -> tuple[BaseModel, ResourceUsage]:
-            return await _make_structured_call(*args, **kwargs)
-        
         # Use base class retry with OpenAI-specific error handling
         try:
+            # Type assertion: retry_with_backoff handles async functions properly
             return await self.retry_with_backoff(
-                wrapped_structured_call,
+                _make_structured_call,  # type: ignore[arg-type]
                 messages,
                 response_model,
                 max_tokens,

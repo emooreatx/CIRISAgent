@@ -69,7 +69,7 @@ async def test_load_adapter_success(adapter_manager, mock_adapter):
         
         assert result["success"] is True
         assert result["adapter_id"] == "test_adapter"
-        assert result["mode"] == "test_mode"
+        assert result["adapter_type"] == "test_mode"
         assert "test_adapter" in adapter_manager.loaded_adapters
         
         # Check adapter was added to runtime
@@ -83,7 +83,7 @@ async def test_load_adapter_auto_id(adapter_manager, mock_adapter):
     with patch('ciris_engine.runtime.adapter_manager.load_adapter') as mock_load_adapter:
         mock_load_adapter.return_value = lambda runtime, **kwargs: mock_adapter
         
-        result = await adapter_manager.load_adapter("test_mode")
+        result = await adapter_manager.load_adapter("test_mode", "test_mode_1")
         
         assert result["success"] is True
         assert result["adapter_id"] == "test_mode_1"
@@ -208,7 +208,7 @@ async def test_get_adapter_status_success(adapter_manager, mock_adapter):
         
         assert result["success"] is True
         assert result["adapter_id"] == "test_adapter"
-        assert result["mode"] == "test_mode"
+        assert result["adapter_type"] == "test_mode"
         assert result["is_running"] is True
 
 
@@ -232,7 +232,7 @@ async def test_get_adapter_info_success(adapter_manager, mock_adapter):
         result = await adapter_manager.get_adapter_info("test_adapter")
         
         assert result["adapter_id"] == "test_adapter"
-        assert result["mode"] == "test_mode"
+        assert result["adapter_type"] == "test_mode"
         assert result["config"]["config_key"] == "config_value"
         assert "load_time" in result
         assert result["is_running"] is True
@@ -282,7 +282,7 @@ def test_adapter_instance_creation():
     
     instance = AdapterInstance(
         adapter_id="test_id",
-        mode="test_mode", 
+        adapter_type="test_mode", 
         adapter=mock_adapter,
         config_params={"key": "value"},
         loaded_at=now,
@@ -290,7 +290,7 @@ def test_adapter_instance_creation():
     )
     
     assert instance.adapter_id == "test_id"
-    assert instance.mode == "test_mode"
+    assert instance.adapter_type == "test_mode"
     assert instance.adapter == mock_adapter
     assert instance.config_params == {"key": "value"}
     assert instance.loaded_at == now

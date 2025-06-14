@@ -48,10 +48,9 @@ class DiscordPlatform(PlatformAdapter):
 
         self.discord_adapter = DiscordAdapter(
             token=self.token,
+            bot=self.client,
             on_message=self._handle_discord_message_event
         )
-
-        self.discord_adapter.client = self.client
 
         if hasattr(self.discord_adapter, 'attach_to_client'):
              self.discord_adapter.attach_to_client(self.client)
