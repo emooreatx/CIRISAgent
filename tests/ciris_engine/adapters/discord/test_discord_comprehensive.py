@@ -236,7 +236,8 @@ class TestDiscordAdapter:
         adapter._message_handler.send_message_to_channel = AsyncMock()
         
         # Mock retry_with_backoff to avoid retry delays and return expected result
-        with patch.object(adapter, 'retry_with_backoff', new_callable=AsyncMock) as mock_retry:
+        with patch.object(adapter, 'retry_with_backoff', new_callable=AsyncMock) as mock_retry, \
+             patch('ciris_engine.persistence.add_correlation'):
             mock_retry.return_value = True  # Simulate successful send
             
             result = await adapter.send_message("123456", "test message")
