@@ -3,10 +3,12 @@ Service protocols for the CIRIS Agent registry system.
 These protocols define clear contracts for different types of services.
 All service implementations must inherit from the Service base class for lifecycle management.
 """
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Type, Tuple
 from abc import abstractmethod
 from datetime import datetime
+from pydantic import BaseModel
 from ciris_engine.adapters.base import Service
+from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
 from ciris_engine.schemas.foundational_schemas_v1 import (
     HandlerActionType,
     FetchedMessage,
@@ -344,42 +346,26 @@ class LLMService(Service):
     """Abstract base class for Large Language Model services"""
     
     @abstractmethod
-    async def generate_response(
-        self, 
-        messages: List[Dict[str, str]], 
-        temperature: float = 0.7,
-        max_tokens: Optional[int] = None
-    ) -> str:
-        """
-        Generate a text response from the LLM.
-        
-        Args:
-            messages: Conversation messages
-            model: Optional model name override
-            temperature: Response randomness (0.0-1.0)
-            max_tokens: Maximum tokens in response
-            
-        Returns:
-            Generated response text
-        """
-        ...
-    
-    @abstractmethod
-    async def generate_structured_response(
+    async def call_llm_structured(
         self,
         messages: List[Dict[str, str]],
-        response_schema: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        response_model: Type[BaseModel],
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+        **kwargs: Any,
+    ) -> Tuple[BaseModel, ResourceUsage]:
         """
-        Generate a structured response conforming to schema.
+        Make a structured LLM call with Pydantic model response.
         
         Args:
             messages: Conversation messages
-            response_schema: JSON schema for response structure
-            model: Optional model name override
+            response_model: Pydantic model class for response structure
+            max_tokens: Maximum tokens in response
+            temperature: Response randomness (0.0-1.0)
+            **kwargs: Additional LLM parameters
             
         Returns:
-            Structured response as dictionary
+            Tuple of (structured response, resource usage)
         """
         ...
     
@@ -393,7 +379,7 @@ class LLMService(Service):
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["generate_response", "generate_structured_response"]
+        return ["call_llm_structured"]
 
 
 class NetworkService(Service):

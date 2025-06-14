@@ -10,7 +10,9 @@ async def test_llm_service_implements_protocol():
     assert isinstance(service, LLMService)
     
     # Test that required methods exist
-    assert hasattr(service, 'generate_response')
-    assert hasattr(service, 'generate_structured_response')
-    assert callable(service.generate_response)
-    assert callable(service.generate_structured_response)
+    assert hasattr(service, 'call_llm_structured')
+    assert callable(service.call_llm_structured)
+    
+    # Test that old methods are removed
+    assert not hasattr(service, 'generate_response')
+    assert not hasattr(service, 'generate_structured_response')

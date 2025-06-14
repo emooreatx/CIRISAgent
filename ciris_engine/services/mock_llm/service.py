@@ -3,9 +3,10 @@ from typing import Any, Optional, List, Dict, Type, Tuple
 import instructor
 import logging
 
+from pydantic import BaseModel
+from ciris_engine.adapters.base import Service
 from ciris_engine.protocols.services import LLMService
 from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
-from pydantic import BaseModel
 
 from .responses import create_response
 
@@ -30,6 +31,26 @@ class MockInstructorClient:
         return await self.base_client._create(*args, response_model=response_model, **kwargs)
 
 
+class MockPatchedClient:
+    """A client that mimics instructor.patch() behavior for our mock."""
+    
+    def __init__(self, original_client, mode=None):
+        self.original_client = original_client
+        self.mode = mode
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._patched_create))
+    
+    async def _patched_create(self, *args, **kwargs):
+        """Intercept instructor-patched calls and route to our mock."""
+        logger.debug(f"Patched client _create called with kwargs: {list(kwargs.keys())}")
+        
+        # Extract the response_model from kwargs
+        response_model = kwargs.get('response_model')
+        logger.debug(f"Patched client response_model: {response_model}")
+        
+        # Route to the original mock client's _create method
+        return await self.original_client._create(*args, **kwargs)
+
+
 class MockLLMClient:
     """Lightweight stand-in for an OpenAI-compatible client that supports instructor patching."""
 
@@ -46,6 +67,37 @@ class MockLLMClient:
         
         # Store original for debugging
         self._original_create = self._create
+        
+        # Hook into instructor.patch to return our mock patched client
+        self._original_instructor_patch = instructor.patch
+        # Store self reference for the static method
+        MockLLMClient._instance = self
+        instructor.patch = lambda *args, **kwargs: MockLLMClient._mock_instructor_patch(*args, **kwargs)
+
+    @staticmethod
+    def _mock_instructor_patch(*args, **kwargs):
+        """Override instructor.patch to return our mock patched client."""
+        # Extract client from args if provided
+        client = args[0] if args else kwargs.get('client')
+        mode = args[1] if len(args) > 1 else kwargs.get('mode')
+        
+        logger.debug(f"instructor.patch called on {type(client) if client else 'None'} with mode {mode}")
+        
+        # Get the instance reference
+        instance = getattr(MockLLMClient, '_instance', None)
+        if not instance:
+            raise RuntimeError("MockLLMClient instance not available for patch")
+        
+        # If they're trying to patch our mock client, return our special patched version
+        if client is instance or client is instance.client:
+            return MockPatchedClient(instance, mode)
+        
+        # Otherwise, use the original instructor.patch (for real clients)
+        if client:
+            return instance._original_instructor_patch(client, mode=mode, **kwargs)
+        else:
+            # If no client provided, call original with args and kwargs
+            return instance._original_instructor_patch(*args, **kwargs)
 
     async def _create(self, *args, response_model=None, **kwargs) -> Any:
         """
@@ -80,6 +132,7 @@ class MockLLMService(LLMService):
     def __init__(self, *_, **__) -> None:
         super().__init__()
         self._client: Optional[MockLLMClient] = None
+        self.model_name = "mock-model"
 
     async def start(self) -> None:
         await super().start()
@@ -102,23 +155,13 @@ class MockLLMService(LLMService):
         temperature: float = 0.0,
         **kwargs: Any,
     ) -> Tuple[BaseModel, ResourceUsage]:
-        """
-        Make a structured LLM call with Pydantic model response.
-        
-        Args:
-            messages: Conversation messages
-            response_model: Pydantic model class for response structure
-            max_tokens: Maximum tokens in response
-            temperature: Response randomness (0.0-1.0)
-            **kwargs: Additional LLM parameters
-            
-        Returns:
-            Tuple of (structured response, resource usage)
-        """
+        """Mock implementation of structured LLM call."""
         if not self._client:
             raise RuntimeError("MockLLMService has not been started")
         
-        # Use the mock client to generate the response
+        logger.debug(f"Mock call_llm_structured with response_model: {response_model}")
+        
+        # Use the mock client's _create method
         response = await self._client._create(
             messages=messages,
             response_model=response_model,
@@ -127,12 +170,8 @@ class MockLLMService(LLMService):
             **kwargs
         )
         
-        # Create mock resource usage
-        resource_usage = ResourceUsage(
-            tokens=sum(len(msg.get('content', '').split()) for msg in messages) + 50,  # prompt + completion
-            estimated_cost=0.001,  # Mock cost
-            energy_kwh=0.0001  # Mock energy usage
-        )
+        # Mock resource usage
+        usage = ResourceUsage(tokens=100)  # Mock token count
         
-        return response, resource_usage
+        return response, usage
 

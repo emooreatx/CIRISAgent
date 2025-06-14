@@ -115,6 +115,7 @@ async def create_dsdma_from_profile(
     *,
     model_name: Optional[str] = None,
     default_profile_path: Path = DEFAULT_PROFILE_PATH,
+    sink: Optional[Any] = None,
 ) -> Optional[BaseDSDMA]:
     """Instantiate a DSDMA based on the given profile.
 
@@ -149,4 +150,5 @@ async def create_dsdma_from_profile(
         domain_name=profile.name,
         domain_specific_knowledge=domain_knowledge,
         prompt_template=prompt_template,
+        sink=sink,
     )

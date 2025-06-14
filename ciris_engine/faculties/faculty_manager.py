@@ -30,12 +30,13 @@ class EntropyFaculty(EpistemicFaculty):
             return EntropyResult(entropy=0.0)
         try:
             messages = epi_helpers._create_entropy_messages_for_instructor(content)
-            data = await llm.generate_structured_response(
+            response_model, _ = await llm.call_llm_structured(
                 messages,
-                EntropyResult.model_json_schema(),
-                model=self.model_name,
+                EntropyResult,
+                max_tokens=1024,
+                temperature=0.0
             )
-            return EntropyResult(**data)
+            return response_model
         except Exception as e:
             logger.error(f"EntropyFaculty evaluation failed: {e}", exc_info=True)
             return EntropyResult(entropy=0.0)
@@ -57,12 +58,13 @@ class CoherenceFaculty(EpistemicFaculty):
             return CoherenceResult(coherence=0.0)
         try:
             messages = epi_helpers._create_coherence_messages_for_instructor(content)
-            data = await llm.generate_structured_response(
+            response_model, _ = await llm.call_llm_structured(
                 messages,
-                CoherenceResult.model_json_schema(),
-                model=self.model_name,
+                CoherenceResult,
+                max_tokens=1024,
+                temperature=0.0
             )
-            return CoherenceResult(**data)
+            return response_model
         except Exception as e:
             logger.error(f"CoherenceFaculty evaluation failed: {e}", exc_info=True)
             return CoherenceResult(coherence=0.0)
@@ -99,12 +101,13 @@ class OptimizationVetoFaculty(EpistemicFaculty):
             )
         try:
             messages = epi_helpers._create_optimization_veto_messages(content)
-            data = await llm.generate_structured_response(
+            response_model, _ = await llm.call_llm_structured(
                 messages,
-                OptimizationVetoResult.model_json_schema(),
-                model=self.model_name,
+                OptimizationVetoResult,
+                max_tokens=1024,
+                temperature=0.0
             )
-            return OptimizationVetoResult(**data)
+            return response_model
         except Exception as e:
             logger.error(f"OptimizationVetoFaculty evaluation failed: {e}", exc_info=True)
             return OptimizationVetoResult(
@@ -146,12 +149,13 @@ class EpistemicHumilityFaculty(EpistemicFaculty):
             )
         try:
             messages = epi_helpers._create_epistemic_humility_messages(content)
-            data = await llm.generate_structured_response(
+            response_model, _ = await llm.call_llm_structured(
                 messages,
-                EpistemicHumilityResult.model_json_schema(),
-                model=self.model_name,
+                EpistemicHumilityResult,
+                max_tokens=1024,
+                temperature=0.0
             )
-            result = EpistemicHumilityResult(**data)
+            result = response_model
             
             # Handle string to float conversion for epistemic_certainty if needed
             if isinstance(result.epistemic_certainty, str):

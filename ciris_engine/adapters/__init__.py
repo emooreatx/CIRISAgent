@@ -11,12 +11,9 @@ from .tool_registry import ToolRegistry
 # Import them directly from there to avoid circular dependencies
 
 # OpenAI LLM service moved to services module
-try:
-    from ciris_engine.services.llm_service import OpenAICompatibleClient
-    _has_openai_llm = True
-except ImportError:
-    OpenAICompatibleClient = None
-    _has_openai_llm = False
+# Import removed to prevent circular dependency (adapters -> services -> protocols -> adapters)
+OpenAICompatibleClient = None
+_has_openai_llm = False
 
 __all__ = [
     "load_adapter", 
@@ -25,9 +22,7 @@ __all__ = [
     "ToolRegistry"
 ]
 
-# Add OpenAICompatibleClient to __all__ if available
-if _has_openai_llm:
-    __all__.append("OpenAICompatibleClient")
+# OpenAICompatibleClient not exported from adapters to prevent circular imports
 
 logger = logging.getLogger(__name__)
 

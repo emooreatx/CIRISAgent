@@ -129,28 +129,26 @@ def test_extract_json(raw, expected):
 @pytest.mark.asyncio
 @patch("ciris_engine.services.llm_service.AsyncOpenAI")
 @patch("ciris_engine.services.llm_service.instructor.from_openai")
-async def test_call_llm_raw_and_structured(mock_from_openai, mock_async_openai):
+async def test_call_llm_structured(mock_from_openai, mock_async_openai):
+    from pydantic import BaseModel
+    
+    class TestModel(BaseModel):
+        response: str = "test"
+        
     mock_client = MagicMock()
     mock_async_openai.return_value = mock_client
-    mock_from_openai.return_value = mock_client
+    mock_instruct_client = MagicMock()
+    mock_from_openai.return_value = mock_instruct_client
     config = DummyConfig()
     client = OpenAICompatibleClient(config)
-    # Mock chat.completions.create for raw
-    mock_client.chat.completions.create = AsyncMock(return_value=types.SimpleNamespace(
-        choices=[types.SimpleNamespace(message=types.SimpleNamespace(content="hello world"))],
-        usage=types.SimpleNamespace(total_tokens=5)
-    ))
-    out, usage = await client.call_llm_raw([{"role": "user", "content": "hi"}])
-    assert out == "hello world"
-    assert usage.tokens == 5
-    # Mock for structured
-    class DummyModel:
-        __name__ = "DummyModel"
-    structured_response = types.SimpleNamespace(
-        usage=types.SimpleNamespace(total_tokens=6)
+    
+    # Mock the instructor client's chat.completions.create
+    structured_response = TestModel(response="hello world")
+    mock_instruct_client.chat.completions.create = AsyncMock(return_value=structured_response)
+    
+    result, usage = await client.call_llm_structured(
+        messages=[{"role": "user", "content": "hi"}],
+        response_model=TestModel
     )
-    mock_client.chat.completions.create = AsyncMock(return_value=structured_response)
-    client.instruct_client = mock_client
-    out2, usage2 = await client.call_llm_structured([{"role": "user", "content": "hi"}], DummyModel)
-    assert out2 == structured_response
-    assert usage2.tokens == 6
+    assert result.response == "hello world"
+    assert usage.tokens == 0  # Mock doesn't set real usage

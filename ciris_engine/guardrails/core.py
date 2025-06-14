@@ -30,13 +30,20 @@ class _BaseGuardrail(GuardrailInterface):
         service_registry: ServiceRegistry,
         config: GuardrailsConfig,
         model_name: str = DEFAULT_OPENAI_MODEL_NAME,
+        sink: Any = None,
     ) -> None:
         self.service_registry = service_registry
         self.config = config
         self.model_name = model_name
+        self.sink = sink
 
-    async def _get_llm(self) -> LLMService | None:
-        return await self.service_registry.get_service(self.__class__.__name__, "llm")
+    async def _get_sink(self) -> Any:
+        """Get the multi-service sink for centralized LLM calls with circuit breakers."""
+        if self.sink:
+            return self.sink
+        # Fallback to creating a sink if not provided
+        from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+        return MultiServiceActionSink(service_registry=self.service_registry)
 
 
 class EntropyGuardrail(_BaseGuardrail):
@@ -48,12 +55,12 @@ class EntropyGuardrail(_BaseGuardrail):
                 passed=True,
                 check_timestamp=ts,
             )
-        llm = await self._get_llm()
-        if not llm:
+        sink = await self._get_sink()
+        if not sink:
             return GuardrailCheckResult(
                 status=GuardrailStatus.WARNING,
                 passed=True,
-                reason="LLM service unavailable",
+                reason="Sink service unavailable",
                 check_timestamp=ts,
             )
         text = ""
@@ -69,8 +76,7 @@ class EntropyGuardrail(_BaseGuardrail):
                 reason="No content to evaluate",
                 check_timestamp=ts,
             )
-        aclient = llm.get_client().instruct_client
-        epi = await calculate_epistemic_values(text, aclient, self.model_name)
+        epi = await calculate_epistemic_values(text, sink, self.model_name)
         entropy = epi.get("entropy", 0.0)
         passed = entropy <= self.config.entropy_threshold
         status = GuardrailStatus.PASSED if passed else GuardrailStatus.FAILED
@@ -95,9 +101,9 @@ class CoherenceGuardrail(_BaseGuardrail):
         ts = datetime.now(timezone.utc).isoformat()
         if action.selected_action != HandlerActionType.SPEAK:
             return GuardrailCheckResult(status=GuardrailStatus.PASSED, passed=True, check_timestamp=ts)
-        llm = await self._get_llm()
-        if not llm:
-            return GuardrailCheckResult(status=GuardrailStatus.WARNING, passed=True, reason="LLM service unavailable", check_timestamp=ts)
+        sink = await self._get_sink()
+        if not sink:
+            return GuardrailCheckResult(status=GuardrailStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts)
         text = ""
         params = action.action_parameters
         if isinstance(params, dict):
@@ -106,8 +112,7 @@ class CoherenceGuardrail(_BaseGuardrail):
             text = getattr(params, "content", "")
         if not text:
             return GuardrailCheckResult(status=GuardrailStatus.PASSED, passed=True, reason="No content to evaluate", check_timestamp=ts)
-        aclient = llm.get_client().instruct_client
-        epi = await calculate_epistemic_values(text, aclient, self.model_name)
+        epi = await calculate_epistemic_values(text, sink, self.model_name)
         coherence = epi.get("coherence", 1.0)
         passed = coherence >= self.config.coherence_threshold
         status = GuardrailStatus.PASSED if passed else GuardrailStatus.FAILED
@@ -130,11 +135,10 @@ class CoherenceGuardrail(_BaseGuardrail):
 class OptimizationVetoGuardrail(_BaseGuardrail):
     async def check(self, action: ActionSelectionResult, context: Dict[str, Any]) -> GuardrailCheckResult:
         ts = datetime.now(timezone.utc).isoformat()
-        llm = await self._get_llm()
-        if not llm:
-            return GuardrailCheckResult(status=GuardrailStatus.WARNING, passed=True, reason="LLM service unavailable", check_timestamp=ts)
-        aclient = llm.get_client().instruct_client
-        result = await evaluate_optimization_veto(action, aclient, self.model_name)
+        sink = await self._get_sink()
+        if not sink:
+            return GuardrailCheckResult(status=GuardrailStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts)
+        result = await evaluate_optimization_veto(action, sink, self.model_name)
         passed = result.decision not in {"abort", "defer"} and result.entropy_reduction_ratio < self.config.optimization_veto_ratio
         status = GuardrailStatus.PASSED if passed else GuardrailStatus.FAILED
         reason = None
@@ -153,11 +157,10 @@ class OptimizationVetoGuardrail(_BaseGuardrail):
 class EpistemicHumilityGuardrail(_BaseGuardrail):
     async def check(self, action: ActionSelectionResult, context: Dict[str, Any]) -> GuardrailCheckResult:
         ts = datetime.now(timezone.utc).isoformat()
-        llm = await self._get_llm()
-        if not llm:
-            return GuardrailCheckResult(status=GuardrailStatus.WARNING, passed=True, reason="LLM service unavailable", check_timestamp=ts)
-        aclient = llm.get_client().instruct_client
-        result = await evaluate_epistemic_humility(action, aclient, self.model_name)
+        sink = await self._get_sink()
+        if not sink:
+            return GuardrailCheckResult(status=GuardrailStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts)
+        result = await evaluate_epistemic_humility(action, sink, self.model_name)
         passed = result.recommended_action not in {"abort", "defer", "ponder"}
         status = GuardrailStatus.PASSED if passed else GuardrailStatus.FAILED
         reason = None

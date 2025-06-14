@@ -326,6 +326,7 @@ class TestCLIAdapter:
     async def test_get_user_input(self, cli_adapter_interactive):
         """Test getting user input."""
         test_input = "test user input"
+        cli_adapter_interactive._running = True  # Set running state for test
         
         with patch('builtins.input', return_value=test_input):
             result = await cli_adapter_interactive._get_user_input()

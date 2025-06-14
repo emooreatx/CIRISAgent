@@ -8,8 +8,21 @@ class DummyLLM:
     def __init__(self, data):
         self.data = data
 
-    async def generate_structured_response(self, messages, schema, model=None):
-        return self.data
+    async def call_llm_structured(self, messages, response_model, **kwargs):
+        from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
+        
+        # Create response instance from the data
+        response_instance = response_model(**self.data)
+        
+        # Mock resource usage
+        resource_usage = ResourceUsage(
+            prompt_tokens=10,
+            completion_tokens=5,
+            total_tokens=None,
+            cost_usd=0.001
+        )
+        
+        return response_instance, resource_usage
 
 @pytest.mark.asyncio
 async def test_entropy_faculty_evaluate():

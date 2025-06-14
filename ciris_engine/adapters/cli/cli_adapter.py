@@ -290,6 +290,11 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
     async def _get_user_input(self) -> str:
         """Get input from user asynchronously."""
         loop = asyncio.get_event_loop()
+        
+        # Check if we're still running before blocking on input
+        if not self._running:
+            raise asyncio.CancelledError("CLI adapter stopped")
+            
         return await loop.run_in_executor(None, input)
 
     async def _handle_interactive_input(self) -> None:
@@ -424,8 +429,10 @@ Tools available:
         if self._input_task and not self._input_task.done():
             self._input_task.cancel()
             try:
-                await self._input_task
-            except asyncio.CancelledError:
+                await asyncio.wait_for(self._input_task, timeout=0.5)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                # Force kill the task if it doesn't respond to cancellation
+                logger.warning("CLI input task did not respond to cancellation within timeout")
                 pass
 
     async def is_healthy(self) -> bool:

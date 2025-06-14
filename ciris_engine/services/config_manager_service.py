@@ -19,9 +19,9 @@ from ciris_engine.schemas.runtime_control_schemas import (
     ConfigValidationResponse, AgentProfileInfo, AgentProfileResponse,
     ConfigBackupResponse
 )
-from ciris_engine.runtime.config_validator import ConfigValidator
-from ciris_engine.runtime.profile_manager import ProfileManager
-from ciris_engine.runtime.config_backup_manager import ConfigBackupManager
+from ciris_engine.utils.config_validator import ConfigValidator
+from ciris_engine.utils.profile_manager import ProfileManager
+from ciris_engine.utils.config_backup_manager import ConfigBackupManager
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class ConfigManagerService(Service):
     """Service for managing configuration at runtime."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._config_manager: Optional[ConfigManager] = None
         self._backup_dir = Path("config_backups")

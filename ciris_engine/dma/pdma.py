@@ -1,7 +1,6 @@
 import logging
 from typing import Optional, Dict, Any
 
-import instructor
 
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.registries.base import ServiceRegistry
@@ -36,7 +35,6 @@ class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
             model_name=model_name,
             max_retries=max_retries,
             prompt_overrides=prompt_overrides,
-            instructor_mode=instructor.Mode.JSON,
             **kwargs
         )
         
@@ -73,11 +71,6 @@ class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
         original_thought_content = str(thought_item.content)
         logger.debug(f"Evaluating thought ID {thought_item.thought_id}")
 
-        llm_service = await self.get_llm_service()
-        if not llm_service:
-            raise RuntimeError("LLM service unavailable for PDMA evaluation")
-
-        aclient = llm_service.get_client().instruct_client
 
         system_snapshot_context_str = ""
         user_profile_context_str = ""
@@ -114,11 +107,11 @@ class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
         messages.append({"role": "user", "content": user_message})
         
         try:
-            response_obj: EthicalDMAResult = await aclient.chat.completions.create(
-                model=self.model_name,
-                response_model=EthicalDMAResult,
+            response_obj, resource_usage = await self.call_llm_structured(
                 messages=messages,
-                max_retries=self.max_retries
+                response_model=EthicalDMAResult,
+                max_tokens=1024,
+                temperature=0.0
             )
             logger.info(f"Evaluation successful for thought ID {thought_item.thought_id}")
             return response_obj

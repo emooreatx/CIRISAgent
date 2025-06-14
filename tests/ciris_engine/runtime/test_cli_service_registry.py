@@ -7,13 +7,15 @@ from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 @pytest.mark.asyncio
 async def test_cli_service_registry(monkeypatch):
     """Ensure CLI mode of CIRISRuntime registers expected services."""
+    # Mock OpenAICompatibleClient initialization
+    mock_llm_instance = MagicMock()
+    mock_llm_instance.model_name = "test"
+    mock_llm_instance.start = AsyncMock()
+    
+    # Mock the OpenAICompatibleClient class to return our mock instance
     monkeypatch.setattr(
-        "ciris_engine.services.llm_service.OpenAICompatibleClient.start",
-        AsyncMock(),
-    )
-    monkeypatch.setattr(
-        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_raw",
-        MagicMock(return_value=MagicMock(model_name="test", instruct_client=None, client=None)),
+        "ciris_engine.services.llm_service.OpenAICompatibleClient",
+        MagicMock(return_value=mock_llm_instance),
     )
     monkeypatch.setattr(
         "ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components",

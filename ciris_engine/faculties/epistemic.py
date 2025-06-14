@@ -2,7 +2,6 @@ from typing import Dict, Any, List
 import logging
 import asyncio
 
-import instructor
 
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
@@ -125,7 +124,7 @@ def _create_epistemic_humility_messages(action_description: str) -> list[dict[st
 
 async def calculate_epistemic_values(
     text_to_evaluate: str,
-    aclient: instructor.Instructor,
+    sink,
     model_name: str = DEFAULT_OPENAI_MODEL_NAME
 ) -> Dict[str, Any]:
     """
@@ -137,11 +136,12 @@ async def calculate_epistemic_values(
     async def get_entropy() -> None:
         try:
             messages = _create_entropy_messages_for_instructor(text_to_evaluate)
-            entropy_eval: EntropyResult = await aclient.chat.completions.create(
-                model=model_name,
-                response_model=EntropyResult,
+            entropy_eval, _ = await sink.generate_structured_sync(
                 messages=messages,
-                max_tokens=64
+                response_model=EntropyResult,
+                handler_name="epistemic_entropy",
+                max_tokens=64,
+                temperature=0.0
             )
             logger.debug(f"Epistemic Faculty: Entropy evaluation result: {entropy_eval}")
             return entropy_eval.entropy
@@ -153,11 +153,12 @@ async def calculate_epistemic_values(
     async def get_coherence() -> None:
         try:
             messages = _create_coherence_messages_for_instructor(text_to_evaluate)
-            coherence_eval: CoherenceResult = await aclient.chat.completions.create(
-                model=model_name,
-                response_model=CoherenceResult,
+            coherence_eval, _ = await sink.generate_structured_sync(
                 messages=messages,
-                max_tokens=64
+                response_model=CoherenceResult,
+                handler_name="epistemic_coherence",
+                max_tokens=64,
+                temperature=0.0
             )
             logger.debug(f"Epistemic Faculty: Coherence evaluation result: {coherence_eval}")
             return coherence_eval.coherence
@@ -202,18 +203,19 @@ async def calculate_epistemic_values(
 
 async def evaluate_optimization_veto(
     action_result: ActionSelectionResult,
-    aclient: instructor.Instructor,
+    sink,
     model_name: str = DEFAULT_OPENAI_MODEL_NAME,
 ) -> OptimizationVetoResult:
     """Run the optimization veto check via LLM and return the raw result."""
     action_desc = f"{action_result.selected_action.value} {action_result.action_parameters}" # Corrected field name
     messages = _create_optimization_veto_messages(action_desc)
     try:
-        result: OptimizationVetoResult = await aclient.chat.completions.create(
-            model=model_name,
-            response_model=OptimizationVetoResult,
+        result, _ = await sink.generate_structured_sync(
             messages=messages,
+            response_model=OptimizationVetoResult,
+            handler_name="epistemic_optimization_veto",
             max_tokens=500,
+            temperature=0.0
         )
         logger.info(f"Epistemic Faculty: Optimization veto result: {result}")
         return result
@@ -229,18 +231,19 @@ async def evaluate_optimization_veto(
 
 async def evaluate_epistemic_humility(
     action_result: ActionSelectionResult,
-    aclient: instructor.Instructor,
+    sink,
     model_name: str = DEFAULT_OPENAI_MODEL_NAME,
 ) -> EpistemicHumilityResult:
     """Run the epistemic humility check via LLM and return the raw result."""
     desc = f"{action_result.selected_action.value} {action_result.action_parameters}"
     messages = _create_epistemic_humility_messages(desc)
     try:
-        result: EpistemicHumilityResult = await aclient.chat.completions.create(
-            model=model_name,
-            response_model=EpistemicHumilityResult,
+        result, _ = await sink.generate_structured_sync(
             messages=messages,
+            response_model=EpistemicHumilityResult,
+            handler_name="epistemic_humility",
             max_tokens=384,
+            temperature=0.0
         )
         # Fallback: convert string epistemic_certainty to float if needed
         if isinstance(result.epistemic_certainty, str):

@@ -59,7 +59,6 @@ from ciris_engine.secrets.service import SecretsService
 
 from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
 
-import instructor
 
 logger = logging.getLogger(__name__)
 
@@ -85,23 +84,25 @@ class CIRISRuntime(RuntimeInterface):
         self.adapter_configs = adapter_configs or {}
         self.adapters: List[PlatformAdapter] = []
 
-        for mode in modes:
+        for adapter_name in modes:
             try:
-                # Extract base mode (without instance suffix)
-                base_mode = mode.split(":")[0]
-                adapter_class = load_adapter(base_mode)
+                # Extract base adapter name (without instance suffix)
+                base_adapter = adapter_name.split(":")[0]
+                adapter_class = load_adapter(base_adapter)
                 
                 # Pass adapter-specific config if available
                 adapter_kwargs = kwargs.copy()
-                if mode in self.adapter_configs:
-                    adapter_kwargs['adapter_config'] = self.adapter_configs[mode]
+                if adapter_name in self.adapter_configs:
+                    adapter_kwargs['adapter_config'] = self.adapter_configs[adapter_name]
                 
                 self.adapters.append(adapter_class(self, **adapter_kwargs))
-                logger.info(f"Successfully loaded and initialized adapter for mode: {mode}")
+                logger.info(f"Successfully loaded and initialized adapter: {adapter_name}")
             except Exception as e:
-                logger.error(f"Failed to load or initialize adapter for mode '{mode}': {e}", exc_info=True)
-                # Depending on desired behavior, you might want to raise here or just log and continue
-                # For now, let's log and continue, allowing other adapters to load.
+                logger.error(f"Failed to load or initialize adapter '{adapter_name}': {e}", exc_info=True)
+        
+        # Validate that we have at least one valid adapter
+        if not self.adapters:
+            raise RuntimeError("No valid adapters specified, shutting down")
         
         self.llm_service: Optional[OpenAICompatibleClient] = None
         self.memory_service: Optional[LocalGraphMemoryService] = None
@@ -305,7 +306,8 @@ class CIRISRuntime(RuntimeInterface):
         # Initialize transaction orchestrator
         self.transaction_orchestrator = MultiServiceTransactionOrchestrator(
             service_registry=self.service_registry,
-            action_sink=self.multi_service_sink
+            action_sink=self.multi_service_sink,
+            app_config=self.app_config
         )
         await self.transaction_orchestrator.start()
         
@@ -384,54 +386,56 @@ class CIRISRuntime(RuntimeInterface):
             raise RuntimeError("Service registry not initialized")
             
         config = self._ensure_config()
-        llm_client = self.llm_service.get_client()
 
         ethical_pdma = EthicalPDMAEvaluator(
             service_registry=self.service_registry,
-            model_name=llm_client.model_name,
+            model_name=self.llm_service.model_name,
             max_retries=config.llm_services.openai.max_retries,
+            sink=self.multi_service_sink,
         )
 
         csdma = CSDMAEvaluator(
             service_registry=self.service_registry,
-            model_name=llm_client.model_name,
+            model_name=self.llm_service.model_name,
             max_retries=config.llm_services.openai.max_retries,
             prompt_overrides=self.profile.csdma_overrides if self.profile else None,
+            sink=self.multi_service_sink,
         )
 
         action_pdma = ActionSelectionPDMAEvaluator(
             service_registry=self.service_registry,
-            model_name=llm_client.model_name,
+            model_name=self.llm_service.model_name,
             max_retries=config.llm_services.openai.max_retries,
             prompt_overrides=self.profile.action_selection_pdma_overrides if self.profile else None,
-            instructor_mode=instructor.Mode[config.llm_services.openai.instructor_mode.upper()],
+            sink=self.multi_service_sink,
         )
 
         dsdma = await create_dsdma_from_profile(
             self.profile,
             self.service_registry,
-            model_name=llm_client.model_name,
+            model_name=self.llm_service.model_name,
+            sink=self.multi_service_sink,
         )
         
         guardrail_registry = GuardrailRegistry()
         guardrail_registry.register_guardrail(
             "entropy",
-            EntropyGuardrail(self.service_registry, config.guardrails, llm_client.model_name),
+            EntropyGuardrail(self.service_registry, config.guardrails, self.llm_service.model_name, self.multi_service_sink),
             priority=0,
         )
         guardrail_registry.register_guardrail(
             "coherence",
-            CoherenceGuardrail(self.service_registry, config.guardrails, llm_client.model_name),
+            CoherenceGuardrail(self.service_registry, config.guardrails, self.llm_service.model_name, self.multi_service_sink),
             priority=1,
         )
         guardrail_registry.register_guardrail(
             "optimization_veto",
-            OptimizationVetoGuardrail(self.service_registry, config.guardrails, llm_client.model_name),
+            OptimizationVetoGuardrail(self.service_registry, config.guardrails, self.llm_service.model_name, self.multi_service_sink),
             priority=2,
         )
         guardrail_registry.register_guardrail(
             "epistemic_humility",
-            EpistemicHumilityGuardrail(self.service_registry, config.guardrails, llm_client.model_name),
+            EpistemicHumilityGuardrail(self.service_registry, config.guardrails, self.llm_service.model_name, self.multi_service_sink),
             priority=3,
         )
         

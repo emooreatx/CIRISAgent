@@ -60,6 +60,9 @@ class TestModerationDSDMA:
     @pytest.mark.asyncio
     async def test_create_dsdma_from_echo_profile(self):
         """Test that echo profile can create ModerationDSDMA"""
+        from ciris_engine.schemas.config_schemas_v1 import ensure_models_rebuilt
+        ensure_models_rebuilt()
+        
         mock_registry = Mock(spec=ServiceRegistry)
         
         # Create a mock echo profile

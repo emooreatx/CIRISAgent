@@ -306,10 +306,12 @@ class TestLLMServiceProtocolCompliance:
         assert isinstance(llm_service, LLMService)
         
         # Check required methods exist and are callable
-        assert hasattr(llm_service, 'generate_response') and callable(llm_service.generate_response)
-        assert hasattr(llm_service, 'generate_structured_response') and callable(llm_service.generate_structured_response)
+        assert hasattr(llm_service, 'call_llm_structured') and callable(llm_service.call_llm_structured)
         assert hasattr(llm_service, 'is_healthy') and callable(llm_service.is_healthy)
         assert hasattr(llm_service, 'get_capabilities') and callable(llm_service.get_capabilities)
+        
+        # Check that internal methods are NOT exposed publicly
+        assert not hasattr(llm_service, 'get_client'), "get_client should be private (_get_client)"
     
     @pytest.mark.asyncio
     async def test_llm_capabilities_match_protocol(self, llm_service):
@@ -317,7 +319,7 @@ class TestLLMServiceProtocolCompliance:
         capabilities = await llm_service.get_capabilities()
         
         # Should include required LLM capabilities
-        expected_capabilities = ["generate_response", "generate_structured_response"]
+        expected_capabilities = ["call_llm_structured"]
         
         for cap in expected_capabilities:
             assert cap in capabilities, f"Missing capability: {cap}"
@@ -390,10 +392,12 @@ class TestProtocolDefinitionsIntegrity:
         from ciris_engine.protocols.services import LLMService
         
         class TestLLMService(LLMService):
-            async def generate_response(self, messages, temperature=0.7, max_tokens=None):
-                return "test"
-            async def generate_structured_response(self, messages, response_schema):
-                return {}
+            async def call_llm_structured(self, messages, response_model, max_tokens=1024, temperature=0.0, **kwargs):
+                from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
+                # Create a mock instance of the response model
+                mock_response = response_model()
+                usage = ResourceUsage(tokens=100)
+                return mock_response, usage
             async def start(self):
                 pass
             async def stop(self):

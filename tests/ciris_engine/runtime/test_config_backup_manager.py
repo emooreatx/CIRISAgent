@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone
 
-from ciris_engine.runtime.config_backup_manager import ConfigBackupManager
+from ciris_engine.utils.config_backup_manager import ConfigBackupManager
 
 
 class TestConfigBackupManager:
@@ -41,7 +41,7 @@ class TestConfigBackupManager:
     async def test_backup_config_minimal(self, manager):
         """Test basic backup without any files."""
         # Mock the backup manager's Path operations to avoid real file system
-        with patch('ciris_engine.runtime.config_backup_manager.Path') as mock_path_class:
+        with patch('ciris_engine.utils.config_backup_manager.Path') as mock_path_class:
             def path_side_effect(path_str):
                 mock_p = MagicMock()
                 if path_str.startswith("config/") or path_str == "ciris_profiles" or path_str == ".env":
@@ -71,7 +71,7 @@ class TestConfigBackupManager:
     async def test_backup_config_with_files(self, manager, sample_config_files):
         """Test backup with actual config files."""
         # Patch Path in the module where it's used
-        with patch('ciris_engine.runtime.config_backup_manager.Path') as mock_path, \
+        with patch('ciris_engine.utils.config_backup_manager.Path') as mock_path, \
              patch('shutil.copy2') as mock_copy, \
              patch('shutil.copytree') as mock_copytree:
             
@@ -109,7 +109,7 @@ class TestConfigBackupManager:
     @pytest.mark.asyncio
     async def test_backup_config_profiles_only(self, manager, sample_config_files):
         """Test backup including only profiles."""
-        with patch('ciris_engine.runtime.config_backup_manager.Path') as mock_path:
+        with patch('ciris_engine.utils.config_backup_manager.Path') as mock_path:
             def path_side_effect(path_str):
                 if path_str.startswith("config/"):
                     # Return non-existent paths for config files
@@ -175,7 +175,7 @@ class TestConfigBackupManager:
             json.dump(metadata, f)
         
         # Mock file system for restoration
-        with patch('ciris_engine.runtime.config_backup_manager.Path') as mock_path, \
+        with patch('ciris_engine.utils.config_backup_manager.Path') as mock_path, \
              patch('shutil.copy2') as mock_copy:
             
             def path_side_effect(path_str):

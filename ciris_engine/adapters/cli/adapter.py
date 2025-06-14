@@ -18,6 +18,7 @@ class CliPlatform(PlatformAdapter):
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
             self.config = kwargs["adapter_config"]
             logger.info(f"CLI adapter using provided config: interactive={self.config.interactive}")
+            # Don't call load_env_vars() again - trust the provided config
         else:
             # Initialize configuration with defaults and override from kwargs
             self.config = CLIAdapterConfig()

@@ -105,8 +105,16 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
                 await asyncio.wait_for(runtime.run(num_rounds=num_rounds), timeout=timeout)
             except asyncio.TimeoutError:
                 logger.info(f"Timeout of {timeout} seconds reached, shutting down...")
-                runtime.request_shutdown(f"Runtime timeout after {timeout} seconds")
-                await runtime.shutdown()
+                # The runtime.run() call has likely already completed its own shutdown
+                # Just ensure we exit cleanly without redundant shutdown calls
+                try:
+                    if hasattr(runtime, 'is_running') and runtime.is_running:
+                        runtime.request_shutdown(f"Runtime timeout after {timeout} seconds")
+                        await runtime.shutdown()
+                    else:
+                        logger.info("Runtime already stopped, no additional shutdown needed")
+                except Exception as e:
+                    logger.warning(f"Error during timeout shutdown: {e}")
         else:
             # Run without timeout
             logger.info(f"[DEBUG] Running without timeout")
@@ -216,7 +224,7 @@ def main(
         app_config = await load_config(config_file_path)
 
         if mock_llm:
-            from tests.adapters.mock_llm import MockLLMService  # type: ignore
+            from ciris_engine.services.mock_llm import MockLLMService  # type: ignore
             import ciris_engine.runtime.ciris_runtime as runtime_module
             import ciris_engine.services.llm_service as llm_service_module
             import ciris_engine.adapters as adapters_module
@@ -279,14 +287,16 @@ def main(
                 from ciris_engine.adapters.cli.config import CLIAdapterConfig
                 
                 cli_config = CLIAdapterConfig()
-                if not cli_interactive:
-                    cli_config.interactive = False
                 
-                # Load environment variables with instance-specific support
+                # Load environment variables first, then override with CLI args
                 if instance_id:
                     cli_config.load_env_vars_with_instance(instance_id)
                 else:
                     cli_config.load_env_vars()
+                
+                # CLI arguments take precedence over environment variables
+                if not cli_interactive:
+                    cli_config.interactive = False
                 
                 adapter_configs[mode] = cli_config
                 cli_channel_id = cli_config.get_home_channel_id()
@@ -329,7 +339,14 @@ def main(
 
         await _run_runtime(runtime, timeout, effective_num_rounds)
 
-    asyncio.run(_async_main())
+    try:
+        asyncio.run(_async_main())
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user, exiting...")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Fatal error in main: {e}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

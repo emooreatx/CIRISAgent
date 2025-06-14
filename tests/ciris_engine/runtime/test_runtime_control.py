@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from ciris_engine.runtime.runtime_control import RuntimeControlService
 from ciris_engine.runtime.adapter_manager import RuntimeAdapterManager
-from ciris_engine.runtime.config_manager_service import ConfigManagerService
+from ciris_engine.services.config_manager_service import ConfigManagerService
 from ciris_engine.schemas.runtime_control_schemas import (
     ProcessorStatus, ProcessorControlResponse, AdapterOperationResponse,
     RuntimeStatusResponse, ConfigOperationResponse, ConfigScope

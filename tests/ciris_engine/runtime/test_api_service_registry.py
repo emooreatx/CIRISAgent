@@ -7,13 +7,26 @@ from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 @pytest.mark.asyncio
 async def test_api_service_registry(monkeypatch):
     """Ensure API mode of CIRISRuntime has service registry structure (adapter doesn't register services)."""
+    from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
+    from pydantic import BaseModel
+    
+    class MockResponse(BaseModel):
+        content: str = "test response"
+    
+    mock_resource_usage = ResourceUsage(
+        prompt_tokens=10,
+        completion_tokens=5,
+        total_tokens=None,
+        cost_usd=0.001
+    )
+    
     monkeypatch.setattr(
         "ciris_engine.services.llm_service.OpenAICompatibleClient.start",
         AsyncMock(),
     )
     monkeypatch.setattr(
-        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_raw",
-        MagicMock(return_value=MagicMock(instruct_client=None, client=None, model_name="test")),
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_structured",
+        AsyncMock(return_value=(MockResponse(), mock_resource_usage)),
     )
     monkeypatch.setattr(
         "ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components",

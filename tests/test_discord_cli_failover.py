@@ -46,8 +46,8 @@ async def test_discord_runtime_cli_fallback(monkeypatch):
         AsyncMock(),
     )
     monkeypatch.setattr(
-        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_raw",
-        MagicMock(return_value=MagicMock(model_name="test", instruct_client=None, client=None)),
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_structured",
+        AsyncMock(return_value=(MagicMock(model_dump=lambda: {"content": "test response"}), MagicMock(tokens=100))),
     )
     monkeypatch.setattr(
         "ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components",

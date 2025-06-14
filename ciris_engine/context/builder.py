@@ -73,14 +73,21 @@ class ContextBuilder:
             if channel_id:
                 resolution_source = "thought.context"
         
-        # 3. Environment variable (for Discord)
+        # 3. App config home channel (set by highest priority adapter)
+        if not channel_id and self.app_config and hasattr(self.app_config, 'home_channel'):
+            home_channel = getattr(self.app_config, 'home_channel', None)
+            if home_channel:
+                channel_id = str(home_channel)
+                resolution_source = "app_config.home_channel"
+        
+        # 4. Environment variable (for Discord)
         if not channel_id:
             env_channel_id = get_env_var("DISCORD_CHANNEL_ID")
             if env_channel_id:
                 channel_id = env_channel_id
                 resolution_source = "DISCORD_CHANNEL_ID env var"
         
-        # 4. App config (structured fallback)
+        # 5. App config (structured fallback)
         if not channel_id and self.app_config:
             config_attrs = ['discord_channel_id', 'cli_channel_id', 'api_channel_id']
             for attr in config_attrs:

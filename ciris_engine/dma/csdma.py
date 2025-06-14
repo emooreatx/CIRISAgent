@@ -1,7 +1,6 @@
 from typing import Dict, Any, List, Optional
 import logging
 
-import instructor
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.registries.base import ServiceRegistry
 from .base_dma import BaseDMA
@@ -16,7 +15,6 @@ from ciris_engine.formatters import (
     format_system_prompt_blocks,
     format_user_prompt_blocks,
 )
-from instructor.exceptions import InstructorRetryException
 from ciris_engine.utils import COVENANT_TEXT
 from .prompt_loader import get_prompt_loader
 
@@ -48,21 +46,12 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
         app_config = get_config()
         resolved_model = model_name or app_config.llm_services.openai.model_name
 
-        try:
-            configured_mode_str = app_config.llm_services.openai.instructor_mode.upper()
-            instructor_mode = instructor.Mode[configured_mode_str]
-        except KeyError:
-            logger.warning(
-                f"Invalid instructor_mode '{app_config.llm_services.openai.instructor_mode}' in config. Defaulting to JSON."
-            )
-            instructor_mode = instructor.Mode.JSON
 
         super().__init__(
             service_registry=service_registry,
             model_name=resolved_model,
             max_retries=max_retries,
             prompt_overrides=prompt_overrides,
-            instructor_mode=instructor_mode,
             **kwargs
         )
 
@@ -88,11 +77,10 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
 
         self.env_kg = environmental_kg # Placeholder for now
         self.task_kg = task_specific_kg   # Placeholder for now
-        # Log the final client type and mode being used
-        log_mode = self.instructor_mode.name
+        # Log the final client type being used
         logger.info(
             f"CSDMAEvaluator initialized with model: {self.model_name}. "
-            f"Using instructor client with mode: {log_mode}. Overrides: {self.prompt_overrides is not None}"
+            f"Overrides: {self.prompt_overrides is not None}"
         )
 
     def _create_csdma_messages_for_instructor(
@@ -148,11 +136,8 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
         return messages
 
     async def evaluate_thought(self, thought_item: ProcessingQueueItem) -> CSDMAResult:
-        llm_service = await self.get_llm_service()
-        if not llm_service:
-            raise RuntimeError("LLM service unavailable for CSDMA evaluation")
+        # LLM service will be handled by base class call_llm_structured method
 
-        aclient = instructor.patch(llm_service.get_client().client, mode=self.instructor_mode)
 
         thought_content_str = str(thought_item.content)
 
@@ -196,12 +181,11 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
         )
 
         try:
-            csdma_eval: CSDMAResult = await aclient.chat.completions.create(
-                model=self.model_name,
-                response_model=CSDMAResult,
+            csdma_eval, _ = await self.call_llm_structured(
                 messages=messages,
+                response_model=CSDMAResult,
                 max_tokens=512,
-                max_retries=self.max_retries
+                temperature=0.0
             )
 
             if hasattr(csdma_eval, '_raw_response') and hasattr(csdma_eval, 'raw_llm_response'):
@@ -213,21 +197,12 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
             logger.info(f"CSDMA (instructor) evaluation successful for thought ID {thought_item.thought_id}: Score {csdma_eval.plausibility_score:.2f}")
             return csdma_eval
 
-        except InstructorRetryException as e_instr:
-            error_detail = e_instr.errors() if hasattr(e_instr, 'errors') else str(e_instr)
-            logger.error(f"CSDMA (instructor) InstructorRetryException for thought {thought_item.thought_id}: {error_detail}", exc_info=True)
-            return CSDMAResult(
-                plausibility_score=0.0,
-                flags=["Instructor_ValidationError"],
-                reasoning=f"Failed CSDMA evaluation via instructor due to validation error: {error_detail}",
-                raw_llm_response=f"InstructorRetryException: {error_detail}"
-            )
         except Exception as e:
-            logger.error(f"CSDMA (instructor) evaluation failed for thought ID {thought_item.thought_id}: {e}", exc_info=True)
+            logger.error(f"CSDMA evaluation failed for thought ID {thought_item.thought_id}: {e}", exc_info=True)
             return CSDMAResult(
                 plausibility_score=0.0,
-                flags=["LLM_Error_Instructor"],
-                reasoning=f"Failed CSDMA evaluation via instructor: {str(e)}",
+                flags=["LLM_Error"],
+                reasoning=f"Failed CSDMA evaluation: {str(e)}",
                 raw_llm_response=f"Exception: {str(e)}"
             )
 
