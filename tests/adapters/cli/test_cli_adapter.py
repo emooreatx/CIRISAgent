@@ -3,12 +3,33 @@ Comprehensive tests for the refactored CLI adapter.
 """
 import pytest
 import asyncio
+import tempfile
+import os
 from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timezone
 
 from ciris_engine.adapters.cli.cli_adapter import CLIAdapter
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage, FetchedMessage
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation
+from ciris_engine.persistence.db.core import initialize_database
+
+
+@pytest.fixture(scope="function")
+def temp_database():
+    """Create a temporary database for testing."""
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
+        db_path = tmp_file.name
+    
+    # Initialize the database with all required tables
+    initialize_database(db_path)
+    
+    yield db_path
+    
+    # Cleanup
+    try:
+        os.unlink(db_path)
+    except OSError:
+        pass
 
 
 @pytest.fixture
@@ -25,23 +46,25 @@ def mock_on_message():
 
 
 @pytest.fixture
-def cli_adapter_non_interactive(mock_multi_service_sink, mock_on_message):
+def cli_adapter_non_interactive(mock_multi_service_sink, mock_on_message, temp_database):
     """Create CLI adapter in non-interactive mode."""
-    return CLIAdapter(
-        interactive=False,
-        on_message=mock_on_message,
-        multi_service_sink=mock_multi_service_sink
-    )
+    with patch('ciris_engine.config.config_manager.get_sqlite_db_full_path', return_value=temp_database):
+        return CLIAdapter(
+            interactive=False,
+            on_message=mock_on_message,
+            multi_service_sink=mock_multi_service_sink
+        )
 
 
 @pytest.fixture
-def cli_adapter_interactive(mock_multi_service_sink, mock_on_message):
+def cli_adapter_interactive(mock_multi_service_sink, mock_on_message, temp_database):
     """Create CLI adapter in interactive mode."""
-    return CLIAdapter(
-        interactive=True,
-        on_message=mock_on_message,
-        multi_service_sink=mock_multi_service_sink
-    )
+    with patch('ciris_engine.config.config_manager.get_sqlite_db_full_path', return_value=temp_database):
+        return CLIAdapter(
+            interactive=True,
+            on_message=mock_on_message,
+            multi_service_sink=mock_multi_service_sink
+        )
 
 
 @pytest.mark.asyncio
