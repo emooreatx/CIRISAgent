@@ -19,20 +19,20 @@ def test_helper_functions_exist():
 
 
 def test_ciris_runtime_initialization(monkeypatch):
-    """Test that CIRISRuntime can be initialized with different modes."""
+    """Test that CIRISRuntime can be initialized with different adapter types."""
     mock_runtime = MagicMock()
     monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime", MagicMock(return_value=mock_runtime))
     
     from ciris_engine.runtime.ciris_runtime import CIRISRuntime
     
-    # Test Discord mode
-    CIRISRuntime(modes=["discord"], profile_name="test")
+    # Test Discord adapter type
+    CIRISRuntime(adapter_types=["discord"], profile_name="test")
     
-    # Test CLI mode 
-    CIRISRuntime(modes=["cli"], profile_name="test")
+    # Test CLI adapter type
+    CIRISRuntime(adapter_types=["cli"], profile_name="test")
     
-    # Test API mode
-    CIRISRuntime(modes=["api"], profile_name="test")
+    # Test API adapter type
+    CIRISRuntime(adapter_types=["api"], profile_name="test")
     
     # Verify CIRISRuntime was called 3 times
     assert CIRISRuntime.call_count == 3  # type: ignore[attr-defined]

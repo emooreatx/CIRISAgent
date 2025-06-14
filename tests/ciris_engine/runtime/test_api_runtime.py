@@ -28,7 +28,7 @@ async def test_api_runtime_initialization_with_api_mode(monkeypatch):
     mock_adapter_start = AsyncMock()
     monkeypatch.setattr("ciris_engine.adapters.api.adapter.ApiPlatform.start", mock_adapter_start)
 
-    runtime = CIRISRuntime(modes=["api"], profile_name="test_profile")
+    runtime = CIRISRuntime(adapter_types=["api"], profile_name="test_profile")
     await runtime.initialize()
 
     # Verify runtime initialized correctly
@@ -39,7 +39,7 @@ async def test_api_runtime_initialization_with_api_mode(monkeypatch):
 
 def test_api_runtime_implements_interface():
     """Test that CIRISRuntime with API mode implements RuntimeInterface."""
-    runtime = CIRISRuntime(modes=["api"])
+    runtime = CIRISRuntime(adapter_types=["api"])
     assert isinstance(runtime, RuntimeInterface)
 
 
@@ -58,7 +58,7 @@ async def test_api_adapter_service_registration(monkeypatch):
         "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
     )
 
-    runtime = CIRISRuntime(modes=["api"], profile_name="default")
+    runtime = CIRISRuntime(adapter_types=["api"], profile_name="default")
     await runtime.initialize()
 
     # Verify service registry has been created
@@ -96,7 +96,7 @@ async def test_api_mode_adapter_lifecycle(monkeypatch):
         "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()
     )
 
-    runtime = CIRISRuntime(modes=["api"], profile_name="default")
+    runtime = CIRISRuntime(adapter_types=["api"], profile_name="default")
     await runtime.initialize()
     
     # Verify adapter was started

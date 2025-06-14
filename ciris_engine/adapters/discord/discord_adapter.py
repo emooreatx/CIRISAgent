@@ -56,12 +56,13 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
         """Implementation of CommunicationService.send_message"""
         correlation_id = str(uuid.uuid4())
         try:
-            await self.retry_with_backoff(
+            result = await self.retry_with_backoff(
                 self._message_handler.send_message_to_channel,
                 channel_id, content,
                 operation_name="send_message",
                 config_key="discord_api"
             )
+            # result contains the return value from send_message_to_channel
             persistence.add_correlation(
                 ServiceCorrelation(
                     correlation_id=correlation_id,
@@ -80,11 +81,11 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
             logger.error(f"Failed to send message via Discord: {e}")
             return False
 
-    async def fetch_messages(self, channel_id: str, limit: int) -> List[FetchedMessage]:
+    async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
         """Implementation of CommunicationService.fetch_messages"""
         try:
             return await self.retry_with_backoff(
-                self._message_handler.fetch_messages_from_channel,
+                self._message_handler.fetch_messages_from_channel,  # type: ignore[arg-type]
                 channel_id, limit,
                 operation_name="fetch_messages",
                 config_key="discord_api"
@@ -107,12 +108,15 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
 
         try:
             correlation_id = str(uuid.uuid4())
-            guidance = await self.retry_with_backoff(
+            guidance_result = await self.retry_with_backoff(
                 self._guidance_handler.fetch_guidance_from_channel,
                 deferral_channel_id, context,
                 operation_name="fetch_guidance",
                 config_key="discord_api"
             )
+            # Type assertion: retry_with_backoff should return Dict[str, Any] from fetch_guidance_from_channel
+            guidance: Dict[str, Any] = guidance_result  # type: ignore
+            
             persistence.add_correlation(
                 ServiceCorrelation(
                     correlation_id=correlation_id,
@@ -144,12 +148,13 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
         
         try:
             correlation_id = str(uuid.uuid4())
-            await self.retry_with_backoff(
+            result = await self.retry_with_backoff(
                 self._guidance_handler.send_deferral_to_channel,
                 deferral_channel_id, thought_id, reason, context,
                 operation_name="send_deferral",
                 config_key="discord_api"
             )
+            # result contains the return value from send_deferral_to_channel
             persistence.add_correlation(
                 ServiceCorrelation(
                     correlation_id=correlation_id,
@@ -173,7 +178,7 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
     async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a registered Discord tool via the tool registry and store the result."""
         return await self.retry_with_backoff(
-            self._tool_handler.execute_tool,
+            self._tool_handler.execute_tool,  # type: ignore[arg-type]
             tool_name, parameters,
             operation_name="execute_tool",
             config_key="discord_api"
@@ -201,12 +206,13 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
 
     async def send_output(self, channel_id: str, content: str) -> None:
         """Send output to a Discord channel with retry logic"""
-        await self.retry_with_backoff(
+        result = await self.retry_with_backoff(
             self._message_handler.send_message_to_channel,
             channel_id, content,
             operation_name="send_output",
             config_key="discord_api"
         )
+        # result contains the return value from send_message_to_channel
 
 
 

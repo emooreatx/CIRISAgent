@@ -29,7 +29,7 @@ class ProcessorControlResponse(BaseModel):
 
 class AdapterInfo(BaseModel):
     adapter_id: str
-    adapter: str
+    adapter_type: str
     is_running: bool
     health_status: str
     services_count: int
@@ -45,7 +45,7 @@ class AdapterLoadRequest(BaseModel):
 class AdapterOperationResponse(BaseModel):
     success: bool
     adapter_id: str
-    adapter: str
+    adapter_type: str
     services_registered: Optional[int] = None
     services_unregistered: Optional[int] = None
     loaded_at: Optional[str] = None

@@ -95,13 +95,15 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         """
         if self.sink:
             # Use sink for centralized failover, round-robin, and circuit breaker protection
-            return await self.sink.generate_structured_sync(
+            result = await self.sink.generate_structured_sync(
                 messages=messages,
                 response_model=response_model,
                 handler_name=self.__class__.__name__,
                 max_tokens=max_tokens,
                 temperature=temperature
             )
+            # The sink returns Optional[tuple] which we need to ensure is a valid tuple
+            return result if result is not None else (None, None)
         else:
             # Fallback to direct service call for backward compatibility
             llm_service = await self.get_llm_service()

@@ -80,7 +80,7 @@ class ActionHandlerDependencies:
             logger.error(f"Error waiting for registry readiness: {exc}")
             return False
     
-    async def get_service(self, handler: str, service_type: str, **kwargs) -> Optional[Any]:
+    async def get_service(self, handler: str, service_type: str, **kwargs: Any) -> Optional[Any]:
         """Get a service from the registry with automatic fallback to legacy services"""
         service = None
         
@@ -112,7 +112,7 @@ class BaseActionHandler(ABC):
         self.dependencies = dependencies
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def _audit_log(self, handler_action, context, outcome: Optional[str] = None) -> None:
+    async def _audit_log(self, handler_action: Any, context: Any, outcome: Optional[str] = None) -> None:
         audit_service = await self.get_audit_service()
         if audit_service:
             await audit_service.log_action(handler_action, context, outcome)

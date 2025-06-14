@@ -199,7 +199,7 @@ def get_correlations_by_type_and_time(
     """Get correlations by type with optional time filtering for TSDB queries."""
     sql = "SELECT * FROM service_correlations WHERE correlation_type = ?"
     if hasattr(correlation_type, 'value'):
-        params = [correlation_type.value]
+        params: List[Any] = [correlation_type.value]
     else:
         params = [str(correlation_type)]
     
@@ -280,7 +280,7 @@ def get_metrics_timeseries(
         WHERE correlation_type = 'metric_datapoint' 
         AND metric_name = ?
     """
-    params = [metric_name]
+    params: List[Any] = [metric_name]
     
     if start_time:
         sql += " AND timestamp >= ?"

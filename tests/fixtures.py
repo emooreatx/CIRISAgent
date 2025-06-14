@@ -16,6 +16,6 @@ async def service_registry() -> Any:
 @pytest.fixture
 async def runtime(service_registry):
     """Provide a CIRISRuntime instance using the service registry."""
-    runtime = CIRISRuntime(modes=["cli"], profile_name="test")
+    runtime = CIRISRuntime(adapter_types=["cli"], profile_name="test")
     runtime.service_registry = service_registry
     return runtime

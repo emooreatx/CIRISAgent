@@ -117,7 +117,7 @@ class EthicalDMAInterface(BaseDMAInterface[ProcessingQueueItem, EthicalDMAResult
     
     async def evaluate(
         self, 
-        thought_item: ProcessingQueueItem, 
+        input_data: ProcessingQueueItem, 
         context: Optional[ThoughtContext] = None,
         **kwargs: Any
     ) -> EthicalDMAResult:
@@ -129,7 +129,7 @@ class CSDMAInterface(BaseDMAInterface[ProcessingQueueItem, CSDMAResult]):
     
     async def evaluate(
         self, 
-        thought_item: ProcessingQueueItem,
+        input_data: ProcessingQueueItem,
         **kwargs: Any
     ) -> CSDMAResult:
         """Evaluate thought for common sense alignment."""
@@ -140,7 +140,7 @@ class DSDMAInterface(BaseDMAInterface[ProcessingQueueItem, DSDMAResult]):
     
     async def evaluate(
         self, 
-        thought_item: ProcessingQueueItem, 
+        input_data: ProcessingQueueItem, 
         current_context: Optional[Dict[str, Any]] = None,
         **kwargs: Any
     ) -> DSDMAResult:
@@ -156,14 +156,14 @@ class ActionSelectionDMAInterface(BaseDMAInterface[Dict[str, Any], ActionSelecti
     
     async def evaluate(
         self, 
-        triaged_inputs: Dict[str, Any],
+        input_data: Dict[str, Any],
         enable_recursive_evaluation: bool = False,
         **kwargs: Any
     ) -> ActionSelectionResult:
         """Select optimal action based on previous DMA results.
         
         Args:
-            triaged_inputs: Combined inputs from previous DMAs
+            input_data: Combined inputs from previous DMAs
             enable_recursive_evaluation: If True, use faculties for recursive
                 evaluation on guardrail failures instead of PONDER
             **kwargs: Additional evaluation parameters
@@ -175,7 +175,7 @@ class ActionSelectionDMAInterface(BaseDMAInterface[Dict[str, Any], ActionSelecti
     
     async def recursive_evaluate_with_faculties(
         self,
-        triaged_inputs: Dict[str, Any],
+        input_data: Dict[str, Any],
         guardrail_failure_context: Dict[str, Any]
     ) -> ActionSelectionResult:
         """Perform recursive evaluation using epistemic faculties.
@@ -184,14 +184,14 @@ class ActionSelectionDMAInterface(BaseDMAInterface[Dict[str, Any], ActionSelecti
         Uses faculties to provide additional insight before action selection.
         """
         # Apply faculties to the problematic content
-        original_thought = triaged_inputs.get("original_thought")
+        original_thought = input_data.get("original_thought")
         if original_thought:
             faculty_results = await self.apply_faculties(
                 str(original_thought.content),
                 guardrail_failure_context
             )
-            # Add faculty insights to triaged inputs
-            triaged_inputs["faculty_evaluations"] = faculty_results
+            # Add faculty insights to input data
+            input_data["faculty_evaluations"] = faculty_results
         
         # Perform enhanced evaluation with faculty insights
-        return await self.evaluate(triaged_inputs, enable_recursive_evaluation=False)
+        return await self.evaluate(input_data, enable_recursive_evaluation=False)

@@ -200,7 +200,7 @@ class SecretsTools:
         start_time = datetime.now()
         
         try:
-            result_data = {"operation": params.operation}
+            result_data: Dict[str, Any] = {"operation": params.operation}
             
             if params.operation == "add_pattern":
                 if not params.pattern:

@@ -234,7 +234,7 @@ class DreamProcessor:
                 end = datetime.fromisoformat(end_time)
             else:
                 end = datetime.now(timezone.utc)
-            summary["duration_seconds"] = (end - start).total_seconds()
+            summary["duration_seconds"] = (end - start).total_seconds()  # type: ignore[assignment]
         
         return summary
     

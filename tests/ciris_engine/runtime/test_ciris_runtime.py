@@ -153,7 +153,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test_profile",
                 app_config=mock_app_config
             )
@@ -169,7 +169,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock1", "mock2", "mock3"],
+                adapter_types=["mock1", "mock2", "mock3"],
                 profile_name="test_profile",
                 app_config=mock_app_config
             )
@@ -188,7 +188,7 @@ class TestCIRISRuntime:
         
         with patch('ciris_engine.runtime.ciris_runtime.load_adapter', side_effect=mock_load_adapter_side_effect):
             runtime = CIRISRuntime(
-                modes=["mock1", "failing_mode", "mock2"],
+                adapter_types=["mock1", "failing_mode", "mock2"],
                 profile_name="test_profile",
                 app_config=mock_app_config
             )
@@ -203,7 +203,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -218,7 +218,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test"
             )
             
@@ -232,7 +232,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -255,7 +255,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -278,7 +278,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test_profile",
                 app_config=mock_app_config
             )
@@ -298,7 +298,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="nonexistent_profile",
                 app_config=mock_app_config
             )
@@ -322,7 +322,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="nonexistent_profile",
                 app_config=mock_app_config
             )
@@ -338,7 +338,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -366,7 +366,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = BadAdapter
             
             runtime = CIRISRuntime(
-                modes=["bad"],
+                adapter_types=["bad"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -395,7 +395,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = BadProviderAdapter
             
             runtime = CIRISRuntime(
-                modes=["bad_provider"],
+                adapter_types=["bad_provider"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -413,7 +413,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -441,7 +441,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -467,7 +467,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -503,7 +503,7 @@ class TestCIRISRuntime:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -551,7 +551,7 @@ class TestCIRISRuntimeIntegration:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test",
                 app_config=mock_app_config
             )
@@ -596,7 +596,7 @@ class TestCIRISRuntimeIntegration:
             mock_load_adapter.return_value = MockAdapter
             
             runtime = CIRISRuntime(
-                modes=["mock"],
+                adapter_types=["mock"],
                 profile_name="test",
                 app_config=mock_app_config,
                 startup_channel_id="test_channel"
@@ -634,7 +634,7 @@ class TestCIRISRuntimeTypesSafety:
         # This should pass type checking
         with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
             mock_load_adapter.return_value = MockAdapter
-            runtime: RuntimeInterface = CIRISRuntime(modes=["mock"], profile_name="test")
+            runtime: RuntimeInterface = CIRISRuntime(adapter_types=["mock"], profile_name="test")
         
         # Verify all required methods exist
         assert hasattr(runtime, 'initialize')
@@ -653,7 +653,7 @@ class TestCIRISRuntimeTypesSafety:
         
         with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
             mock_load_adapter.return_value = MockAdapter
-            runtime = CIRISRuntime(modes=["mock"], profile_name="test")
+            runtime = CIRISRuntime(adapter_types=["mock"], profile_name="test")
         adapter: PlatformAdapter = MockAdapter(runtime)
         
         # Verify all required methods exist

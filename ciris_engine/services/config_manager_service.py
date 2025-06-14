@@ -296,7 +296,9 @@ class ConfigManagerService(Service):
             else:
                 return obj
         
-        return mask_recursive(config_dict)
+        result = mask_recursive(config_dict)
+        # Ensure we return the expected type - config_dict is Dict[str, Any] so result should be too
+        return result if isinstance(result, dict) else config_dict
 
     async def _validate_config_update(
         self,

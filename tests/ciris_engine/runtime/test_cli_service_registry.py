@@ -30,7 +30,7 @@ async def test_cli_service_registry(monkeypatch):
     )
 
     # Use unified runtime with CLI mode
-    runtime = CIRISRuntime(modes=["cli"], profile_name="default")
+    runtime = CIRISRuntime(adapter_types=["cli"], profile_name="default")
     await runtime.initialize()
 
     info = runtime.service_registry.get_provider_info()
