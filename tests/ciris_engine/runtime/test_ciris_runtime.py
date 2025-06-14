@@ -78,7 +78,7 @@ def mock_app_config() -> AppConfig:
     config.profile_directory = "ciris_profiles"
     config.agent_profiles = {}
     
-    # Mock LLM config with proper structure for OpenAICompatibleLLM
+    # Mock LLM config with proper structure for OpenAICompatibleClient
     config.llm_services = MagicMock()
     config.llm_services.openai = MagicMock()
     config.llm_services.openai.max_retries = 3
@@ -199,34 +199,43 @@ class TestCIRISRuntime:
     @pytest.mark.asyncio
     async def test_ensure_config_with_config(self, mock_app_config: AppConfig):
         """Test _ensure_config when config is provided."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="test",
-            app_config=mock_app_config
-        )
-        
-        config = runtime._ensure_config()
-        assert config is mock_app_config
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="test",
+                app_config=mock_app_config
+            )
+            
+            config = runtime._ensure_config()
+            assert config is mock_app_config
     
     @pytest.mark.asyncio
     async def test_ensure_config_without_config(self):
         """Test _ensure_config when no config is provided."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="test"
-        )
-        
-        with pytest.raises(RuntimeError, match="App config not initialized"):
-            runtime._ensure_config()
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="test"
+            )
+            
+            with pytest.raises(RuntimeError, match="App config not initialized"):
+                runtime._ensure_config()
     
     @pytest.mark.asyncio
     async def test_request_shutdown(self, mock_app_config: AppConfig):
         """Test shutdown request mechanism."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="test",
-            app_config=mock_app_config
-        )
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="test",
+                app_config=mock_app_config
+            )
         
         # Initialize shutdown event
         runtime._ensure_shutdown_event()
@@ -242,11 +251,17 @@ class TestCIRISRuntime:
     @pytest.mark.asyncio
     async def test_duplicate_shutdown_request_ignored(self, mock_app_config: AppConfig):
         """Test that duplicate shutdown requests are ignored."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="test",
-            app_config=mock_app_config
-        )
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="test",
+                app_config=mock_app_config
+            )
+        
+        # Initialize shutdown event
+        runtime._ensure_shutdown_event()
         
         runtime.request_shutdown("First reason")
         first_reason = runtime._shutdown_reason
@@ -259,11 +274,14 @@ class TestCIRISRuntime:
     @pytest.mark.asyncio
     async def test_load_profile_success(self, mock_app_config: AppConfig, mock_agent_profile: AgentProfile):
         """Test successful profile loading."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="test_profile",
-            app_config=mock_app_config
-        )
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="test_profile",
+                app_config=mock_app_config
+            )
         
         with patch('ciris_engine.runtime.ciris_runtime.load_profile') as mock_load_profile:
             mock_load_profile.return_value = mock_agent_profile
@@ -276,11 +294,14 @@ class TestCIRISRuntime:
     @pytest.mark.asyncio
     async def test_load_profile_fallback_to_default(self, mock_app_config: AppConfig, mock_agent_profile: AgentProfile):
         """Test fallback to default profile when requested profile doesn't exist."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="nonexistent_profile",
-            app_config=mock_app_config
-        )
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="nonexistent_profile",
+                app_config=mock_app_config
+            )
         
         def mock_load_profile_side_effect(path: Path):
             if "nonexistent_profile" in str(path):
@@ -297,11 +318,14 @@ class TestCIRISRuntime:
     @pytest.mark.asyncio
     async def test_load_profile_failure(self, mock_app_config: AppConfig):
         """Test profile loading failure when no profile can be loaded."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="nonexistent_profile",
-            app_config=mock_app_config
-        )
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="nonexistent_profile",
+                app_config=mock_app_config
+            )
         
         with patch('ciris_engine.runtime.ciris_runtime.load_profile', return_value=None):
             with pytest.raises(RuntimeError, match="No profile could be loaded"):
@@ -385,11 +409,14 @@ class TestCIRISRuntime:
     @pytest.mark.asyncio
     async def test_initialize_prevents_duplicate_initialization(self, mock_app_config: AppConfig):
         """Test that initialize() can be called multiple times safely."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="test",
-            app_config=mock_app_config
-        )
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="test",
+                app_config=mock_app_config
+            )
         
         # Mock all the dependencies
         with patch.multiple(
@@ -410,11 +437,14 @@ class TestCIRISRuntime:
     @pytest.mark.asyncio
     async def test_initialize_database_maintenance_failure(self, mock_app_config: AppConfig):
         """Test initialization failure during database maintenance."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="test",
-            app_config=mock_app_config
-        )
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="test",
+                app_config=mock_app_config
+            )
         
         with patch.object(runtime, '_load_profile'), \
              patch.object(runtime, '_initialize_services'), \
@@ -517,11 +547,14 @@ class TestCIRISRuntimeIntegration:
     @pytest.mark.asyncio
     async def test_service_registry_creation(self, mock_app_config: AppConfig):
         """Test that service registry is properly created and configured."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="test",
-            app_config=mock_app_config
-        )
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="test",
+                app_config=mock_app_config
+            )
         
         # Mock the actual service initialization instead of the classes
         with patch.object(runtime, '_load_profile'), \
@@ -559,12 +592,15 @@ class TestCIRISRuntimeIntegration:
     @pytest.mark.asyncio
     async def test_multi_service_sink_creation(self, mock_app_config: AppConfig):
         """Test that multi-service sink is properly created and configured."""
-        runtime = CIRISRuntime(
-            modes=[],
-            profile_name="test",
-            app_config=mock_app_config,
-            startup_channel_id="test_channel"
-        )
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            
+            runtime = CIRISRuntime(
+                modes=["mock"],
+                profile_name="test",
+                app_config=mock_app_config,
+                startup_channel_id="test_channel"
+            )
         
         # Mock the MultiServiceActionSink import and initialization
         with patch('ciris_engine.runtime.ciris_runtime.MultiServiceActionSink') as mock_sink_class:
@@ -596,7 +632,9 @@ class TestCIRISRuntimeTypesSafety:
         from ciris_engine.runtime.runtime_interface import RuntimeInterface
         
         # This should pass type checking
-        runtime: RuntimeInterface = CIRISRuntime(modes=[], profile_name="test")
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            runtime: RuntimeInterface = CIRISRuntime(modes=["mock"], profile_name="test")
         
         # Verify all required methods exist
         assert hasattr(runtime, 'initialize')
@@ -613,7 +651,9 @@ class TestCIRISRuntimeTypesSafety:
         """Test that adapters properly implement PlatformAdapter interface."""
         from ciris_engine.protocols.adapter_interface import PlatformAdapter
         
-        runtime = CIRISRuntime(modes=[], profile_name="test")
+        with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
+            mock_load_adapter.return_value = MockAdapter
+            runtime = CIRISRuntime(modes=["mock"], profile_name="test")
         adapter: PlatformAdapter = MockAdapter(runtime)
         
         # Verify all required methods exist

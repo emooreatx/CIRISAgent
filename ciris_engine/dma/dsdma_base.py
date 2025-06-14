@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, Any, Optional, List
 
-import instructor
 
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma_results_v1 import DSDMAResult
@@ -16,7 +15,6 @@ from ciris_engine.formatters import (
 )
 from ciris_engine.utils import COVENANT_TEXT
 from pydantic import BaseModel, Field
-from instructor.exceptions import InstructorRetryException
 from ciris_engine.config.config_manager import get_config
 from .prompt_loader import get_prompt_loader
 
@@ -49,20 +47,11 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
         app_config = get_config()
         resolved_model = model_name or app_config.llm_services.openai.model_name
 
-        try:
-            configured_mode_str = app_config.llm_services.openai.instructor_mode.upper()
-            instructor_mode = instructor.Mode[configured_mode_str]
-        except KeyError:
-            logger.warning(
-                f"Invalid instructor_mode '{app_config.llm_services.openai.instructor_mode}' in config for DSDMA {domain_name}. Defaulting to JSON."
-            )
-            instructor_mode = instructor.Mode.JSON
 
         super().__init__(
             service_registry=service_registry,
             model_name=resolved_model,
             max_retries=2,
-            instructor_mode=instructor_mode,
             **kwargs
         )
 
@@ -85,7 +74,7 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
         self.prompt_template = prompt_template if prompt_template is not None else self.prompt_template_data.get("system_guidance_header", "")
 
         logger.info(
-            f"BaseDSDMA '{self.domain_name}' initialized with model: {self.model_name}, instructor_mode: {self.instructor_mode.name}"
+            f"BaseDSDMA '{self.domain_name}' initialized with model: {self.model_name}"
         )
 
     class LLMOutputForDSDMA(BaseModel):
@@ -95,11 +84,8 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
         reasoning: str
 
     async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Dict[str, Any]) -> DSDMAResult:
-        llm_service = await self.get_llm_service()
-        if not llm_service:
-            raise RuntimeError("LLM service unavailable for DSDMA evaluation")
+        # LLM service will be handled by base class call_llm_structured method
 
-        aclient = instructor.patch(llm_service.get_client().client, mode=self.instructor_mode)
 
         thought_content_str = str(thought_item.content)
 
@@ -180,11 +166,11 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
         ]
 
         try:
-            llm_eval_data: BaseDSDMA.LLMOutputForDSDMA = await aclient.chat.completions.create(
-                model=self.model_name,
-                response_model=BaseDSDMA.LLMOutputForDSDMA,
+            llm_eval_data, _ = await self.call_llm_structured(
                 messages=messages,
+                response_model=BaseDSDMA.LLMOutputForDSDMA,
                 max_tokens=512,
+                temperature=0.0
             )
 
             result = DSDMAResult(
@@ -201,20 +187,6 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
             if hasattr(llm_eval_data, "_raw_response"):
                 result.raw_llm_response = str(llm_eval_data._raw_response)
             return result
-        except InstructorRetryException as e_instr:
-            error_detail = e_instr.errors() if hasattr(e_instr, "errors") else str(e_instr)
-            logger.error(
-                f"DSDMA {self.domain_name} InstructorRetryException for thought {thought_item.thought_id}: {error_detail}",
-                exc_info=True,
-            )
-            return DSDMAResult(
-                domain=self.domain_name,
-                score=0.0,
-                recommended_action=None,
-                flags=["Instructor_ValidationError"],
-                reasoning=f"Failed DSDMA evaluation via instructor due to validation error: {error_detail}",
-                raw_llm_response=f"InstructorRetryException: {error_detail}",
-            )
         except Exception as e:
             logger.error(
                 f"DSDMA {self.domain_name} evaluation failed for thought ID {thought_item.thought_id}: {e}",

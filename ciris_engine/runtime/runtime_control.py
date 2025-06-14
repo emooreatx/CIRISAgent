@@ -6,11 +6,11 @@ from typing import Dict, Any, Optional, List
 
 from ciris_engine.protocols.runtime_control import RuntimeControlInterface
 from ciris_engine.runtime.adapter_manager import RuntimeAdapterManager
-from ciris_engine.runtime.config_manager_service import ConfigManagerService
+# ConfigManagerService is injected via dependency injection to avoid circular imports
 from ciris_engine.schemas.runtime_control_schemas import (
     ProcessorStatus, ProcessorControlResponse, AdapterOperationResponse,
     RuntimeStatusResponse, RuntimeStateSnapshot, ConfigOperationResponse,
-    ConfigValidationResponse, AgentProfileResponse, EnvVarResponse,
+    ConfigValidationResponse, AgentProfileResponse,
     ConfigBackupResponse, ConfigScope, ConfigValidationLevel
 )
 
@@ -25,25 +25,32 @@ class RuntimeControlService(RuntimeControlInterface):
         runtime=None,
         telemetry_collector=None,
         adapter_manager: Optional[RuntimeAdapterManager] = None,
-        config_manager: Optional[ConfigManagerService] = None
+        config_manager: Optional[Any] = None
     ):
         self.runtime = runtime
         self.telemetry_collector = telemetry_collector
         self.adapter_manager = adapter_manager
         if not self.adapter_manager and runtime:
             self.adapter_manager = RuntimeAdapterManager(runtime)
-        self.config_manager = config_manager or ConfigManagerService()
+        self.config_manager = config_manager
         self._processor_status = ProcessorStatus.RUNNING
         self._start_time = datetime.now(timezone.utc)
         self._last_config_change: Optional[datetime] = None
         self._events_history: List[Dict[str, Any]] = []
+
+    def _get_config_manager(self):
+        """Get config manager with lazy initialization to avoid circular imports."""
+        if self.config_manager is None:
+            from ciris_engine.services.config_manager_service import ConfigManagerService
+            self.config_manager = ConfigManagerService()
+        return self.config_manager
 
     async def initialize(self) -> None:
         """Initialize the runtime control service."""
         try:
             # RuntimeAdapterManager doesn't have an initialize method
             # Only initialize config_manager
-            await self.config_manager.initialize()
+            await self._get_config_manager().initialize()
             logger.info("Runtime control service initialized")
         except Exception as e:
             logger.error(f"Failed to initialize runtime control service: {e}")
@@ -287,7 +294,7 @@ class RuntimeControlService(RuntimeControlInterface):
     ) -> Dict[str, Any]:
         """Get configuration value(s)."""
         try:
-            return await self.config_manager.get_config_value(path, include_sensitive)
+            return await self._get_config_manager().get_config_value(path, include_sensitive)
         except Exception as e:
             logger.error(f"Failed to get config: {e}")
             return {"error": str(e)}
@@ -302,7 +309,7 @@ class RuntimeControlService(RuntimeControlInterface):
     ) -> ConfigOperationResponse:
         """Update a configuration value."""
         try:
-            result = await self.config_manager.update_config_value(
+            result = await self._get_config_manager().update_config_value(
                 path, value, scope, validation_level, reason
             )
             if result.success:
@@ -325,7 +332,7 @@ class RuntimeControlService(RuntimeControlInterface):
     ) -> ConfigValidationResponse:
         """Validate configuration data."""
         try:
-            return await self.config_manager.validate_config(config_data, config_path)
+            return await self._get_config_manager().validate_config(config_data, config_path)
         except Exception as e:
             logger.error(f"Failed to validate config: {e}")
             return ConfigValidationResponse(
@@ -341,7 +348,7 @@ class RuntimeControlService(RuntimeControlInterface):
     ) -> ConfigOperationResponse:
         """Reload an agent profile."""
         try:
-            result = await self.config_manager.reload_profile(profile_name, config_path, scope)
+            result = await self._get_config_manager().reload_profile(profile_name, config_path, scope)
             if result.success:
                 self._last_config_change = result.timestamp
                 # Notify adapter manager of profile change if available
@@ -361,7 +368,7 @@ class RuntimeControlService(RuntimeControlInterface):
     async def list_profiles(self) -> List[Dict[str, Any]]:
         """List all available agent profiles."""
         try:
-            profiles = await self.config_manager.list_profiles()
+            profiles = await self._get_config_manager().list_profiles()
             return [profile.model_dump() for profile in profiles]
         except Exception as e:
             logger.error(f"Failed to list profiles: {e}")
@@ -383,7 +390,7 @@ class RuntimeControlService(RuntimeControlInterface):
     async def get_agent_profile(self, profile_name: str) -> Optional[Dict[str, Any]]:
         """Get information about a specific agent profile."""
         try:
-            profiles = await self.config_manager.list_profiles()
+            profiles = await self._get_config_manager().list_profiles()
             for profile in profiles:
                 if profile.name == profile_name:
                     return profile.model_dump()
@@ -402,7 +409,7 @@ class RuntimeControlService(RuntimeControlInterface):
     ) -> AgentProfileResponse:
         """Create a new agent profile."""
         try:
-            return await self.config_manager.create_profile(
+            return await self._get_config_manager().create_profile(
                 name, config, description, base_profile, save_to_file
             )
         except Exception as e:
@@ -415,109 +422,6 @@ class RuntimeControlService(RuntimeControlInterface):
                 error=str(e)
             )
 
-    # Environment Variable Management
-    async def list_env_vars(self, include_sensitive: bool = False) -> Dict[str, Any]:
-        """List environment variables."""
-        try:
-            return await self.config_manager.list_env_vars(include_sensitive)
-        except Exception as e:
-            logger.error(f"Failed to list env vars: {e}")
-            return {"error": str(e)}
-
-    async def set_env_var(
-        self,
-        env_request
-    ) -> EnvVarResponse:
-        """Set an environment variable (API method with request object)."""
-        try:
-            result = await self.config_manager.set_env_var(
-                env_request.name, 
-                env_request.value, 
-                env_request.persist, 
-                env_request.reload_config
-            )
-            if result.success and env_request.reload_config:
-                self._last_config_change = result.timestamp
-            return result
-        except Exception as e:
-            logger.error(f"Failed to set env var: {e}")
-            return EnvVarResponse(
-                success=False,
-                operation="set_env_var",
-                variable_name=env_request.name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def set_env_var_direct(
-        self,
-        name: str,
-        value: str,
-        persist: bool = False,
-        reload_config: bool = True
-    ) -> EnvVarResponse:
-        """Set an environment variable (direct method)."""
-        try:
-            result = await self.config_manager.set_env_var(name, value, persist, reload_config)
-            if result.success and reload_config:
-                self._last_config_change = result.timestamp
-            return result
-        except Exception as e:
-            logger.error(f"Failed to set env var: {e}")
-            return EnvVarResponse(
-                success=False,
-                operation="set_env_var",
-                variable_name=name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def delete_env_var(
-        self,
-        env_request
-    ) -> EnvVarResponse:
-        """Delete an environment variable (API method with request object)."""
-        try:
-            result = await self.config_manager.delete_env_var(
-                env_request.name, 
-                env_request.persist, 
-                env_request.reload_config
-            )
-            if result.success and env_request.reload_config:
-                self._last_config_change = result.timestamp
-            return result
-        except Exception as e:
-            logger.error(f"Failed to delete env var: {e}")
-            return EnvVarResponse(
-                success=False,
-                operation="delete_env_var",
-                variable_name=env_request.name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def delete_env_var_direct(
-        self,
-        name: str,
-        persist: bool = False,
-        reload_config: bool = True
-    ) -> EnvVarResponse:
-        """Delete an environment variable (direct method)."""
-        try:
-            result = await self.config_manager.delete_env_var(name, persist, reload_config)
-            if result.success and reload_config:
-                self._last_config_change = result.timestamp
-            return result
-        except Exception as e:
-            logger.error(f"Failed to delete env var: {e}")
-            return EnvVarResponse(
-                success=False,
-                operation="delete_env_var",
-                variable_name=name,
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
     # Backup and Restore
     async def backup_config(
         self,
@@ -525,9 +429,8 @@ class RuntimeControlService(RuntimeControlInterface):
     ) -> ConfigBackupResponse:
         """Create a configuration backup (API method with request object)."""
         try:
-            return await self.config_manager.backup_config(
+            return await self._get_config_manager().backup_config(
                 backup_request.include_profiles, 
-                backup_request.include_env_vars, 
                 backup_request.backup_name
             )
         except Exception as e:
@@ -543,13 +446,12 @@ class RuntimeControlService(RuntimeControlInterface):
     async def backup_config_direct(
         self,
         include_profiles: bool = True,
-        include_env_vars: bool = False,
         backup_name: Optional[str] = None
     ) -> ConfigBackupResponse:
         """Create a configuration backup (direct method)."""
         try:
-            return await self.config_manager.backup_config(
-                include_profiles, include_env_vars, backup_name
+            return await self._get_config_manager().backup_config(
+                include_profiles, backup_name
             )
         except Exception as e:
             logger.error(f"Failed to backup config: {e}")
@@ -567,7 +469,7 @@ class RuntimeControlService(RuntimeControlInterface):
     ) -> ConfigBackupResponse:
         """Restore configuration from backup."""
         try:
-            return await self.config_manager.restore_config(
+            return await self._get_config_manager().restore_config(
                 restore_request.backup_name,
                 restore_request.restore_profiles,
                 restore_request.restore_env_vars,
@@ -586,7 +488,7 @@ class RuntimeControlService(RuntimeControlInterface):
     async def list_config_backups(self) -> List[Dict[str, Any]]:
         """List available configuration backups."""
         try:
-            return await self.config_manager.list_config_backups()
+            return await self._get_config_manager().list_config_backups()
         except Exception as e:
             logger.error(f"Failed to list config backups: {e}")
             return []
@@ -641,10 +543,10 @@ class RuntimeControlService(RuntimeControlInterface):
                 adapters_data = await self.adapter_manager.list_adapters()
             
             # Get configuration
-            config_data = await self.config_manager.get_config_value()
+            config_data = await self._get_config_manager().get_config_value()
             
             # Get profiles
-            profiles = await self.config_manager.list_profiles()
+            profiles = await self._get_config_manager().list_profiles()
             profile_names = [p.name for p in profiles]
             active_profile = next((p.name for p in profiles if p.is_active), "default")
             

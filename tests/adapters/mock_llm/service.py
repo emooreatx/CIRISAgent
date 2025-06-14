@@ -1,9 +1,11 @@
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any, Optional, List, Dict, Type, Tuple
 import instructor
 import logging
 
-from ciris_engine.adapters.base import Service
+from ciris_engine.protocols.services import LLMService
+from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
+from pydantic import BaseModel
 
 from .responses import create_response
 
@@ -28,26 +30,6 @@ class MockInstructorClient:
         return await self.base_client._create(*args, response_model=response_model, **kwargs)
 
 
-class MockPatchedClient:
-    """A client that mimics instructor.patch() behavior for our mock."""
-    
-    def __init__(self, original_client, mode=None):
-        self.original_client = original_client
-        self.mode = mode
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._patched_create))
-    
-    async def _patched_create(self, *args, **kwargs):
-        """Intercept instructor-patched calls and route to our mock."""
-        logger.debug(f"Patched client _create called with kwargs: {list(kwargs.keys())}")
-        
-        # Extract the response_model from kwargs
-        response_model = kwargs.get('response_model')
-        logger.debug(f"Patched client response_model: {response_model}")
-        
-        # Route to the original mock client's _create method
-        return await self.original_client._create(*args, **kwargs)
-
-
 class MockLLMClient:
     """Lightweight stand-in for an OpenAI-compatible client that supports instructor patching."""
 
@@ -64,21 +46,6 @@ class MockLLMClient:
         
         # Store original for debugging
         self._original_create = self._create
-        
-        # Hook into instructor.patch to return our mock patched client
-        self._original_instructor_patch = instructor.patch
-        instructor.patch = self._mock_instructor_patch
-
-    def _mock_instructor_patch(self, client, mode=None, **kwargs):
-        """Override instructor.patch to return our mock patched client."""
-        logger.debug(f"instructor.patch called on {type(client)} with mode {mode}")
-        
-        # If they're trying to patch our mock client, return our special patched version
-        if client is self or client is self.client:
-            return MockPatchedClient(self, mode)
-        
-        # Otherwise, use the original instructor.patch (for real clients)
-        return self._original_instructor_patch(client, mode=mode, **kwargs)
 
     async def _create(self, *args, response_model=None, **kwargs) -> Any:
         """
@@ -107,7 +74,7 @@ class MockLLMClient:
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
 
-class MockLLMService(Service):
+class MockLLMService(LLMService):
     """Mock LLM service used for offline testing."""
 
     def __init__(self, *_, **__) -> None:
@@ -126,4 +93,46 @@ class MockLLMService(Service):
         if not self._client:
             raise RuntimeError("MockLLMService has not been started")
         return self._client
+
+    async def call_llm_structured(
+        self,
+        messages: List[Dict[str, str]],
+        response_model: Type[BaseModel],
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+        **kwargs: Any,
+    ) -> Tuple[BaseModel, ResourceUsage]:
+        """
+        Make a structured LLM call with Pydantic model response.
+        
+        Args:
+            messages: Conversation messages
+            response_model: Pydantic model class for response structure
+            max_tokens: Maximum tokens in response
+            temperature: Response randomness (0.0-1.0)
+            **kwargs: Additional LLM parameters
+            
+        Returns:
+            Tuple of (structured response, resource usage)
+        """
+        if not self._client:
+            raise RuntimeError("MockLLMService has not been started")
+        
+        # Use the mock client to generate the response
+        response = await self._client._create(
+            messages=messages,
+            response_model=response_model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            **kwargs
+        )
+        
+        # Create mock resource usage
+        resource_usage = ResourceUsage(
+            tokens=sum(len(msg.get('content', '').split()) for msg in messages) + 50,  # prompt + completion
+            estimated_cost=0.001,  # Mock cost
+            energy_kwh=0.0001  # Mock energy usage
+        )
+        
+        return response, resource_usage
 

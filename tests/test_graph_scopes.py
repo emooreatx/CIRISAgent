@@ -1,7 +1,7 @@
 import pytest
 import tempfile
 import os
-from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
+from ciris_engine.services.memory_service import LocalGraphMemoryService
 
 
 @pytest.mark.asyncio

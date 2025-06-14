@@ -81,7 +81,7 @@ class ProtocolComplianceFixer:
         service_patterns = {
             r'LocalGraphMemoryService\([^)]*\)': 'service_registry.get_service("memory")',
             r'LocalAuditLog\([^)]*\)': 'service_registry.get_service("audit")',
-            r'OpenAICompatibleLLM\([^)]*\)': 'service_registry.get_service("llm")',
+            r'OpenAICompatibleClient\([^)]*\)': 'service_registry.get_service("llm")',
             r'DiscordAdapter\([^)]*\)': 'service_registry.get_service("communication")'
         }
         

@@ -10,13 +10,13 @@ from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, Epi
 
 @pytest.mark.asyncio
 async def test_calculate_epistemic_values_success():
-    aclient = MagicMock()
-    # First call returns entropy, second call returns coherence
-    aclient.chat.completions.create = AsyncMock(side_effect=[
-        EntropyResult(entropy=0.25),
-        CoherenceResult(coherence=0.85)
+    sink = MagicMock()
+    # Mock generate_structured_sync to return the expected results
+    sink.generate_structured_sync = AsyncMock(side_effect=[
+        (EntropyResult(entropy=0.25), None),  # First call for entropy
+        (CoherenceResult(coherence=0.85), None)  # Second call for coherence
     ])
-    result = await epistemic.calculate_epistemic_values("hello", aclient)
+    result = await epistemic.calculate_epistemic_values("hello", sink)
     assert result["entropy"] == 0.25
     assert result["coherence"] == 0.85
     assert "error" not in result
@@ -24,7 +24,7 @@ async def test_calculate_epistemic_values_success():
 
 @pytest.mark.asyncio
 async def test_evaluate_optimization_veto_returns_schema():
-    aclient = MagicMock()
+    sink = MagicMock()
     mock_result = OptimizationVetoResult(
         decision="proceed",
         justification="ok",
@@ -32,32 +32,32 @@ async def test_evaluate_optimization_veto_returns_schema():
         affected_values=[],
         confidence=0.9,
     )
-    aclient.chat.completions.create = AsyncMock(return_value=mock_result)
+    sink.generate_structured_sync = AsyncMock(return_value=(mock_result, None))
     action = ActionSelectionResult(
         selected_action=HandlerActionType.SPEAK,
         action_parameters={"content": "hi"},
         rationale="r",
     )
-    result = await epistemic.evaluate_optimization_veto(action, aclient)
+    result = await epistemic.evaluate_optimization_veto(action, sink)
     assert isinstance(result, OptimizationVetoResult)
     assert result.decision == "proceed"
 
 
 @pytest.mark.asyncio
 async def test_evaluate_epistemic_humility_returns_schema():
-    aclient = MagicMock()
+    sink = MagicMock()
     mock_result = EpistemicHumilityResult(
         epistemic_certainty=0.8,
         identified_uncertainties=[],
         reflective_justification="none",
         recommended_action="proceed",
     )
-    aclient.chat.completions.create = AsyncMock(return_value=mock_result)
+    sink.generate_structured_sync = AsyncMock(return_value=(mock_result, None))
     action = ActionSelectionResult(
         selected_action=HandlerActionType.SPEAK,
         action_parameters={"content": "hi"},
         rationale="r",
     )
-    result = await epistemic.evaluate_epistemic_humility(action, aclient)
+    result = await epistemic.evaluate_epistemic_humility(action, sink)
     assert isinstance(result, EpistemicHumilityResult)
     assert result.recommended_action == "proceed"

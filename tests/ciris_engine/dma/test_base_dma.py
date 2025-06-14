@@ -90,17 +90,6 @@ class TestBaseDMAInitialization:
         assert "custom_prompt" in dma.prompts
         assert dma.prompts["custom_prompt"] == "Custom value"
     
-    def test_initialization_with_instructor_mode(self, mock_service_registry):
-        """Test DMA initialization with instructor mode."""
-        
-        import instructor
-        
-        dma = TestBaseDMA(
-            service_registry=mock_service_registry,
-            instructor_mode=instructor.Mode.TOOLS
-        )
-        
-        assert dma.instructor_mode == instructor.Mode.TOOLS
     
     @pytest.mark.asyncio
     async def test_get_llm_service(self, mock_service_registry):

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from .base import Service
+from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
 from ciris_engine.persistence.models.correlations import add_correlation
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType

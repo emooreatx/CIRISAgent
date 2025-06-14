@@ -60,35 +60,34 @@ async def test_forced_ponder(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_llm_success(monkeypatch):
-    # Patch the instructor client to return a dummy LLM response
-    from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
-    dummy_llm_response = DummyLLMResponse(
-        schema_version=SchemaVersion.V1_0,
-        context_summary_for_action_selection="summary",
-        action_alignment_check={"SPEAK": "ok"},
-        action_conflicts=None,
-        action_resolution=None,
+    # Create proper ActionSelectionResult response
+    from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
+    
+    dummy_llm_response = ActionSelectionResult(
         selected_action=HandlerActionType.SPEAK,
         action_parameters={
             "content": "hi"
         },
-        action_selection_rationale="rationale",
-        rationale="rationale",  # Add rationale attribute for compatibility
-        monitoring_for_selected_action="monitor",
-        confidence_score=0.9,
-        confidence=0.9  # Add confidence attribute for compatibility
+        rationale="rationale",
+        confidence=0.9
     )
+    
+    # Mock the LLM service directly
+    mock_llm_service = AsyncMock()
+    mock_llm_service.call_llm_structured = AsyncMock(return_value=(
+        dummy_llm_response,
+        ResourceUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150, cost_usd=0.001)
+    ))
+    
     service_registry = ServiceRegistry()
-    dummy_client = SimpleNamespace(client=MagicMock())
-    dummy_service = SimpleNamespace(get_client=lambda: dummy_client)
-    service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
-    monkeypatch.setattr("instructor.patch", lambda c, mode: c)
+    service_registry.register_global("llm", mock_llm_service, priority=Priority.HIGH)
+    
     evaluator = ActionSelectionPDMAEvaluator(
         service_registry=service_registry,
         model_name="test-model",
         instructor_mode=MagicMock()
     )
-    dummy_client.client.chat.completions.create = AsyncMock(return_value=dummy_llm_response)
+    
     triaged_inputs = {
         'original_thought': Thought(thought_id="t1", content="hi", thought_type=ThoughtType.STANDARD, ponder_notes=None, ponder_count=0, context={}, source_task_id="x", status=ThoughtStatus.PENDING, created_at="now", updated_at="now", round_number=1, final_action={}, parent_thought_id=None),
         'ethical_pdma_result': EthicalDMAResult(alignment_check={}, decision="", rationale=None),

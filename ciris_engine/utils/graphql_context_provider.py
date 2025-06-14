@@ -2,7 +2,7 @@ import logging
 import asyncio
 from typing import Dict, Any, List, Optional
 import httpx
-from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
+from ciris_engine.services.memory_service import LocalGraphMemoryService
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 
 logger = logging.getLogger(__name__)

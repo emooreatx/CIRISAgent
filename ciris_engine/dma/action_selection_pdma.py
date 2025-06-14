@@ -4,7 +4,6 @@ import logging
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-import instructor
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
@@ -57,8 +56,6 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
         max_retries: int = 2,
         prompt_overrides: Optional[Dict[str, str]] = None,
         faculties: Optional[Dict[str, EpistemicFaculty]] = None,
-        *,
-        instructor_mode: instructor.Mode = instructor.Mode.JSON,
         **kwargs: Any
     ) -> None:
         """Initialize ActionSelectionPDMAEvaluator."""
@@ -68,7 +65,6 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
             max_retries=max_retries,
             prompt_overrides=prompt_overrides,
             faculties=faculties,
-            instructor_mode=instructor_mode,
             **kwargs
         )
         
@@ -159,10 +155,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
     ) -> ActionSelectionResult:
         """Perform the main LLM-based evaluation."""
         
-        # Get LLM service
-        llm_service = await self.get_llm_service()
-        if not llm_service:
-            raise RuntimeError("LLM service unavailable for ActionSelectionPDMA")
+        # LLM service will be handled by base class call_llm_structured method
 
         # Build evaluation context
         agent_profile = triaged_inputs.get("agent_profile")
@@ -189,17 +182,12 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
             {"role": "user", "content": main_user_content},
         ]
 
-        # Call LLM with instructor
-        aclient = instructor.patch(
-            llm_service.get_client().client, mode=self.instructor_mode
-        )
-        
-        llm_response: ActionSelectionResult = await aclient.chat.completions.create(
-            model=self.model_name,
-            response_model=ActionSelectionResult,
+        # Call LLM service with structured response via sink
+        llm_response, _ = await self.call_llm_structured(
             messages=messages,
+            response_model=ActionSelectionResult,
             max_tokens=1500,
-            max_retries=self.max_retries,
+            temperature=0.0
         )
 
         # Process and validate parameters

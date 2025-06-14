@@ -8,21 +8,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from ciris_engine.adapters.base import Service
 from ciris_engine.config.config_manager import get_config
 from ciris_engine.config.config_loader import ConfigLoader
 from ciris_engine.config.dynamic_config import ConfigManager
 from ciris_engine.config.env_utils import get_env_var
-from ciris_engine.runtime.config_validator import ConfigValidator
-from ciris_engine.runtime.profile_manager import ProfileManager
-from ciris_engine.runtime.env_var_manager import EnvVarManager
-from ciris_engine.runtime.config_backup_manager import ConfigBackupManager
+from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.schemas.runtime_control_schemas import (
     ConfigScope, ConfigValidationLevel, ConfigOperationResponse,
     ConfigValidationResponse, AgentProfileInfo, AgentProfileResponse,
-    EnvVarResponse, ConfigBackupResponse
+    ConfigBackupResponse
 )
+from ciris_engine.utils.config_validator import ConfigValidator
+from ciris_engine.utils.profile_manager import ProfileManager
+from ciris_engine.utils.config_backup_manager import ConfigBackupManager
 
 logger = logging.getLogger(__name__)
 
@@ -30,23 +29,23 @@ logger = logging.getLogger(__name__)
 class ConfigManagerService(Service):
     """Service for managing configuration at runtime."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(config)
+    def __init__(self) -> None:
+        super().__init__()
         self._config_manager: Optional[ConfigManager] = None
+        self._backup_dir = Path("config_backups")
+        self._backup_dir.mkdir(exist_ok=True)
         self._config_lock = asyncio.Lock()
         self._config_history: List[Dict[str, Any]] = []
         self._max_history = 100
         self._is_running = False
         
-        # Initialize components
+        # Initialize component managers
         self._validator = ConfigValidator()
         self._profile_manager = ProfileManager()
-        self._env_var_manager = EnvVarManager()
-        self._backup_manager = ConfigBackupManager()
+        self._backup_manager = ConfigBackupManager(self._backup_dir)
 
     async def start(self) -> None:
         """Start the configuration manager service."""
-        await super().start()
         try:
             current_config = get_config()
             self._config_manager = ConfigManager(current_config)
@@ -55,37 +54,29 @@ class ConfigManagerService(Service):
         except Exception as e:
             logger.error(f"Failed to start config manager service: {e}")
             raise
-    
+
     async def stop(self) -> None:
         """Stop the configuration manager service."""
-        await super().stop()
         self._is_running = False
         logger.info("Configuration manager service stopped")
-    
+
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
         return self._is_running and self._config_manager is not None
-    
+
     async def get_capabilities(self) -> List[str]:
-        """Get service capabilities."""
+        """Return list of capabilities this service supports."""
         return [
-            "config.get",
-            "config.update", 
-            "config.validate",
-            "profile.list",
-            "profile.create",
-            "profile.reload",
-            "env.set",
-            "env.delete",
-            "backup.create",
-            "backup.restore"
+            "config.get", "config.update", "config.validate",
+            "profile.list", "profile.create", "profile.reload",
+            "backup.create", "backup.restore"
         ]
 
     @property
     def config_manager(self) -> ConfigManager:
         """Get the configuration manager instance."""
         if self._config_manager is None:
-            raise RuntimeError("Configuration manager not initialized")
+            raise RuntimeError("Configuration manager not initialized - call start() first")
         return self._config_manager
 
     # Configuration Value Operations
@@ -114,7 +105,6 @@ class ConfigManagerService(Service):
                     raise ValueError(f"Configuration path '{path}' not found")
             
             # Convert to serializable format
-            result: Any
             if hasattr(value, 'model_dump'):
                 result = value.model_dump(mode="json")
             elif isinstance(value, (str, int, float, bool, list, dict, type(None))):
@@ -123,7 +113,7 @@ class ConfigManagerService(Service):
                 result = str(value)
             
             if not include_sensitive and isinstance(result, dict):
-                result = self._validator.mask_sensitive_values(result)
+                result = self._mask_sensitive_values(result)
             
             return {"path": path, "value": result}
             
@@ -211,16 +201,14 @@ class ConfigManagerService(Service):
         config_path: Optional[str] = None
     ) -> ConfigValidationResponse:
         """Validate configuration data."""
-        return await self._validator.validate_config(
-            config_data, 
-            config_path,
-            self.config_manager.config if config_path else None
-        )
+        current_config = self.config_manager.config if self._config_manager else None
+        return await self._validator.validate_config(config_data, config_path, current_config)
 
     # Agent Profile Operations
     async def list_profiles(self) -> List[AgentProfileInfo]:
         """List all available agent profiles."""
-        return await self._profile_manager.list_profiles(self.config_manager.config)
+        current_config = self.config_manager.config if self._config_manager else None
+        return await self._profile_manager.list_profiles(current_config)
 
     async def reload_profile(
         self,
@@ -237,7 +225,8 @@ class ConfigManagerService(Service):
                 config_path_obj = Path(config_path) if config_path else None
                 await self.config_manager.reload_profile(profile_name, config_path_obj)
                 
-                self._profile_manager.add_loaded_profile(profile_name)
+                # Track loaded profile in profile manager
+                self._profile_manager._loaded_profiles.add(profile_name)
                 
                 # Record the change
                 change_record = {
@@ -280,41 +269,108 @@ class ConfigManagerService(Service):
             name, config, description, base_profile, save_to_file
         )
 
-    # Environment Variable Operations
-    async def set_env_var(
-        self,
-        name: str,
-        value: str,
-        persist: bool = False,
-        reload_config: bool = True
-    ) -> EnvVarResponse:
-        """Set an environment variable."""
-        callback = self._reload_config_with_env_vars if reload_config else None
-        return await self._env_var_manager.set_env_var(name, value, persist, callback)
-
-    async def delete_env_var(
-        self,
-        name: str,
-        persist: bool = False,
-        reload_config: bool = True
-    ) -> EnvVarResponse:
-        """Delete an environment variable."""
-        callback = self._reload_config_with_env_vars if reload_config else None
-        return await self._env_var_manager.delete_env_var(name, persist, callback)
-
     # Backup and Restore Operations
     async def backup_config(
         self,
         include_profiles: bool = True,
-        include_env_vars: bool = False,
         backup_name: Optional[str] = None
     ) -> ConfigBackupResponse:
         """Create a backup of the current configuration."""
         return await self._backup_manager.backup_config(
-            include_profiles, include_env_vars, backup_name
+            include_profiles, False, backup_name  # False for include_env_vars since we removed that
         )
 
     # Helper Methods
+    def _mask_sensitive_values(self, config_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Mask sensitive values in configuration."""
+        sensitive_keys = {
+            "api_key", "password", "secret", "token", "key", "auth",
+            "credential", "private", "sensitive"
+        }
+        
+        def mask_recursive(obj):
+            if isinstance(obj, dict):
+                return {
+                    k: "***MASKED***" if any(sensitive in k.lower() for sensitive in sensitive_keys)
+                    else mask_recursive(v)
+                    for k, v in obj.items()
+                }
+            elif isinstance(obj, list):
+                return [mask_recursive(item) for item in obj]
+            else:
+                return obj
+        
+        return mask_recursive(config_dict)
+
+    async def _validate_config_update(
+        self,
+        path: str,
+        value: Any,
+        validation_level: ConfigValidationLevel
+    ) -> ConfigValidationResponse:
+        """Validate a configuration update."""
+        errors = []
+        warnings = []
+        
+        # Basic type checking
+        path_parts = path.split('.')
+        
+        # Check for restricted paths
+        restricted_paths = {
+            "llm_services.openai.api_key": "API key changes should use environment variables",
+            "database.db_filename": "Database path changes require restart",
+            "secrets.storage_path": "Secrets path changes require restart"
+        }
+        
+        if path in restricted_paths and validation_level == ConfigValidationLevel.STRICT:
+            warnings.append(restricted_paths[path])
+        
+        # Validate based on configuration type
+        if "timeout" in path.lower() and isinstance(value, (int, float)):
+            if value <= 0:
+                errors.append("Timeout values must be positive")
+            elif value > 300:  # 5 minutes
+                warnings.append("Large timeout values may cause poor user experience")
+        
+        return ConfigValidationResponse(
+            valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings
+        )
+
+    def _validate_llm_config(self, llm_config: Dict[str, Any]) -> List[str]:
+        """Validate LLM configuration and return warnings."""
+        warnings = []
+        
+        if "openai" in llm_config:
+            openai_config = llm_config["openai"]
+            if not openai_config.get("api_key"):
+                warnings.append("OpenAI API key not set - set OPENAI_API_KEY environment variable")
+            
+            model = openai_config.get("model_name", "")
+            if "gpt-4" in model and "turbo" not in model:
+                warnings.append("Using older GPT-4 model - consider upgrading to gpt-4-turbo")
+        
+        return warnings
+
+    def _validate_database_config(self, db_config: Dict[str, Any]) -> List[str]:
+        """Validate database configuration and return suggestions."""
+        suggestions = []
+        
+        db_path = db_config.get("db_filename", "")
+        if not db_path:
+            suggestions.append("Consider setting a custom database path for data persistence")
+        elif not db_path.endswith(".db"):
+            suggestions.append("Database filename should end with .db extension")
+        
+        return suggestions
+
+    def _set_nested_value(self, obj: Dict[str, Any], path: str, value: Any) -> None:
+        """Set a nested value using dot notation."""
+        parts = path.split('.')
+        for part in parts[:-1]:
+            obj = obj.setdefault(part, {})
+        obj[parts[-1]] = value
 
     def _record_config_change(self, change_record: Dict[str, Any]) -> None:
         """Record configuration change in history."""
@@ -329,16 +385,15 @@ class ConfigManagerService(Service):
         # This would require implementing file-based configuration persistence
         logger.info(f"Would persist config change: {path} = {value} (reason: {reason})")
 
-
-    async def _reload_config_with_env_vars(self) -> None:
-        """Reload configuration to pick up environment variable changes."""
-        try:
-            # This would require reloading the configuration from environment variables
-            # For now, we'll just log the action
-            logger.info("Configuration reloaded with updated environment variables")
-        except Exception as e:
-            logger.error(f"Failed to reload config with env vars: {e}")
-
+    async def _load_yaml(self, file_path: Path) -> Dict[str, Any]:
+        """Load YAML file asynchronously."""
+        import yaml
+        
+        def _sync_load():
+            with open(file_path, 'r') as f:
+                return yaml.safe_load(f) or {}
+        
+        return await asyncio.to_thread(_sync_load)
 
     def get_config_history(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get configuration change history."""

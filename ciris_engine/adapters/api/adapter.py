@@ -67,16 +67,20 @@ class ApiPlatform(PlatformAdapter):
 
     def get_services_to_register(self) -> List[ServiceRegistration]:
         """Register the API adapter as a communication service."""
+        # Note: We can't await here since this is a sync method, so we'll provide basic capabilities
+        # The actual capabilities will be determined at runtime by the API adapter
+        basic_capabilities = ["send_message", "fetch_messages", "health_check"]
+        
         registrations = [
             ServiceRegistration(
                 service_type=ServiceType.COMMUNICATION,
                 provider=self.api_adapter,
                 priority=Priority.NORMAL,
                 handlers=["SpeakHandler"],  # API primarily responds
-                capabilities=self.api_adapter.get_capabilities()
+                capabilities=basic_capabilities
             )
         ]
-        logger.info(f"ApiPlatform: Registering API communication service with capabilities: {self.api_adapter.get_capabilities()}")
+        logger.info(f"ApiPlatform: Registering API communication service with basic capabilities: {basic_capabilities}")
         return registrations
 
     async def start(self) -> None:

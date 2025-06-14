@@ -8,8 +8,7 @@ from ciris_engine.runtime.runtime_control import RuntimeControlService
 from ciris_engine.schemas.runtime_control_schemas import (
     ProcessorControlRequest, AdapterLoadRequest, AdapterUnloadRequest,
     ConfigUpdateRequest, ConfigGetRequest, ProfileReloadRequest,
-    ConfigValidationRequest, EnvVarSetRequest, EnvVarDeleteRequest,
-    ConfigBackupRequest, ConfigRestoreRequest
+    ConfigValidationRequest, ConfigBackupRequest, ConfigRestoreRequest
 )
 
 logger = logging.getLogger(__name__)
@@ -50,11 +49,6 @@ class APIRuntimeControlRoutes:
         app.router.add_post('/v1/runtime/profiles', self._handle_create_profile)
         app.router.add_put('/v1/runtime/profiles/{profile_name}', self._handle_update_profile)
         app.router.add_delete('/v1/runtime/profiles/{profile_name}', self._handle_delete_profile)
-        
-        # Environment Variable Management
-        app.router.add_get('/v1/runtime/env', self._handle_list_env_vars)
-        app.router.add_put('/v1/runtime/env/{var_name}', self._handle_set_env_var)
-        app.router.add_delete('/v1/runtime/env/{var_name}', self._handle_delete_env_var)
         
         # Configuration Backup/Restore
         app.router.add_post('/v1/runtime/config/backup', self._handle_backup_config)
@@ -355,56 +349,6 @@ class APIRuntimeControlRoutes:
             return web.json_response({"message": "Profile deletion not yet implemented"}, status=501)
         except Exception as e:
             logger.error(f"Error deleting profile: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-
-    # Environment Variable Management Endpoints
-    async def _handle_list_env_vars(self, request: web.Request) -> web.Response:
-        """List environment variables."""
-        try:
-            include_sensitive = request.query.get('include_sensitive', 'false').lower() == 'true'
-            env_vars = await self.runtime_control.list_env_vars(include_sensitive)
-            return web.json_response(env_vars, status=200)
-        except Exception as e:
-            logger.error(f"Error listing env vars: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_set_env_var(self, request: web.Request) -> web.Response:
-        """Set an environment variable."""
-        try:
-            var_name = request.match_info['var_name']
-            data = await request.json()
-            
-            env_request = EnvVarSetRequest(
-                name=var_name,
-                **data
-            )
-            
-            result = await self.runtime_control.set_env_var(env_request)
-            return web.json_response(result.model_dump(mode="json"), status=200)
-        except ValueError as e:
-            logger.warning(f"Invalid env var set request: {e}")
-            return web.json_response({"error": f"Invalid request: {e}"}, status=400)
-        except Exception as e:
-            logger.error(f"Error setting env var: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_delete_env_var(self, request: web.Request) -> web.Response:
-        """Delete an environment variable."""
-        try:
-            var_name = request.match_info['var_name']
-            persist = request.query.get('persist', 'false').lower() == 'true'
-            reload_config = request.query.get('reload_config', 'true').lower() == 'true'
-            
-            env_request = EnvVarDeleteRequest(
-                name=var_name,
-                persist=persist,
-                reload_config=reload_config
-            )
-            
-            result = await self.runtime_control.delete_env_var(env_request)
-            return web.json_response(result.model_dump(mode="json"), status=200)
-        except Exception as e:
-            logger.error(f"Error deleting env var: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
 
     # Configuration Backup/Restore Endpoints

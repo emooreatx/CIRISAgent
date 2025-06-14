@@ -261,9 +261,40 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         # This is mainly for API compatibility
         return None
 
+    async def validate_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
+        """
+        Validate parameters for a CLI tool.
+        
+        Args:
+            tool_name: Name of the tool to validate parameters for
+            parameters: Parameters to validate
+            
+        Returns:
+            True if parameters are valid for the specified tool
+        """
+        if tool_name not in self._available_tools:
+            return False
+        
+        # Add specific validation logic for each tool
+        if tool_name == "read_file" or tool_name == "write_file":
+            return "path" in parameters
+        elif tool_name == "list_files":
+            # path is optional, defaults to "."
+            return True
+        elif tool_name == "system_info":
+            # No parameters required
+            return True
+        
+        return True
+
     async def _get_user_input(self) -> str:
         """Get input from user asynchronously."""
         loop = asyncio.get_event_loop()
+        
+        # Check if we're still running before blocking on input
+        if not self._running:
+            raise asyncio.CancelledError("CLI adapter stopped")
+            
         return await loop.run_in_executor(None, input)
 
     async def _handle_interactive_input(self) -> None:
@@ -398,8 +429,10 @@ Tools available:
         if self._input_task and not self._input_task.done():
             self._input_task.cancel()
             try:
-                await self._input_task
-            except asyncio.CancelledError:
+                await asyncio.wait_for(self._input_task, timeout=0.5)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                # Force kill the task if it doesn't respond to cancellation
+                logger.warning("CLI input task did not respond to cancellation within timeout")
                 pass
 
     async def is_healthy(self) -> bool:
@@ -411,7 +444,7 @@ Tools available:
         capabilities = [
             "send_message", "fetch_messages",
             "fetch_guidance", "send_deferral",
-            "execute_tool", "get_available_tools"
+            "execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"
         ]
         if self.interactive:
             capabilities.append("interactive_mode")

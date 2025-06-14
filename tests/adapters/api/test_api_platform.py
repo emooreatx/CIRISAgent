@@ -57,7 +57,7 @@ class TestApiPlatform:
         mock_profile.api_config = mock_api_config
         mock_runtime.agent_profile = mock_profile
         
-        platform = ApiPlatform(mock_runtime)
+        platform = ApiPlatform(mock_runtime, host="127.0.0.1", port=8004)
         
         assert platform.config.host == "192.168.1.100"
         assert platform.config.port == 8080
@@ -65,7 +65,7 @@ class TestApiPlatform:
     @patch.dict('os.environ', {'CIRIS_API_HOST': '10.0.0.1', 'CIRIS_API_PORT': '7000'})
     def test_init_with_env_vars(self, mock_runtime):
         """Test initialization with environment variables."""
-        platform = ApiPlatform(mock_runtime)
+        platform = ApiPlatform(mock_runtime, host="127.0.0.1", port=8005)
         
         # Environment variables should override defaults
         assert platform.config.host == "10.0.0.1"
@@ -215,7 +215,7 @@ class TestApiPlatformIntegration:
         
         # Setup environment override
         with patch.dict('os.environ', {'CIRIS_API_PORT': '8888'}):
-            platform = ApiPlatform(mock_runtime)
+            platform = ApiPlatform(mock_runtime, host="127.0.0.1", port=8006)
             
             # Host should come from profile
             assert platform.config.host == "profile_host"
@@ -224,7 +224,7 @@ class TestApiPlatformIntegration:
 
     async def test_service_dependency_injection(self, mock_runtime):
         """Test that services are properly injected into API adapter."""
-        platform = ApiPlatform(mock_runtime)
+        platform = ApiPlatform(mock_runtime, host="127.0.0.1", port=8007)
         
         # Verify dependencies are passed to API adapter
         assert platform.api_adapter.multi_service_sink == mock_runtime.multi_service_sink
@@ -234,7 +234,7 @@ class TestApiPlatformIntegration:
 
     async def test_error_handling_during_start(self, mock_runtime):
         """Test error handling during platform start."""
-        platform = ApiPlatform(mock_runtime)
+        platform = ApiPlatform(mock_runtime, host="127.0.0.1", port=8008)
         
         # Mock API adapter start to fail
         with patch.object(platform.api_adapter, 'start', side_effect=Exception("Start failed")):
@@ -243,7 +243,7 @@ class TestApiPlatformIntegration:
 
     async def test_error_handling_during_stop(self, mock_runtime):
         """Test error handling during platform stop."""
-        platform = ApiPlatform(mock_runtime)
+        platform = ApiPlatform(mock_runtime, host="127.0.0.1", port=8003)
         
         # Start first
         await platform.start()

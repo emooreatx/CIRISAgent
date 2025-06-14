@@ -42,12 +42,12 @@ def test_run_discord_uses_env(monkeypatch):
 @pytest.mark.asyncio
 async def test_discord_runtime_cli_fallback(monkeypatch):
     monkeypatch.setattr(
-        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.start",
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.start",
         AsyncMock(),
     )
     monkeypatch.setattr(
-        "ciris_engine.adapters.openai_compatible_llm.OpenAICompatibleLLM.get_client",
-        MagicMock(return_value=MagicMock(model_name="test", instruct_client=None, client=None)),
+        "ciris_engine.services.llm_service.OpenAICompatibleClient.call_llm_structured",
+        AsyncMock(return_value=(MagicMock(model_dump=lambda: {"content": "test response"}), MagicMock(tokens=100))),
     )
     monkeypatch.setattr(
         "ciris_engine.runtime.ciris_runtime.CIRISRuntime._build_components",

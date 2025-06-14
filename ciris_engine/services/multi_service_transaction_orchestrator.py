@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any
 from ciris_engine.adapters.base import Service
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.schemas.service_actions_v1 import ActionMessage
+from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 
 logger = logging.getLogger(__name__)
 
@@ -16,16 +17,23 @@ logger = logging.getLogger(__name__)
 class MultiServiceTransactionOrchestrator(Service):
     """Orchestrate multi-service transactions via MultiServiceActionSink."""
 
-    def __init__(self, service_registry: Any, action_sink: MultiServiceActionSink) -> None:
+    def __init__(self, service_registry: Any, action_sink: MultiServiceActionSink, app_config: Optional[Any] = None) -> None:
         super().__init__()
         self.registry = service_registry
         self.sink = action_sink
+        self.app_config = app_config
         self.transactions: Dict[str, Dict[str, str]] = {}
         self._tasks: List[asyncio.Task] = []
+        self._health_monitor_task: Optional[asyncio.Task] = None
+        self._health_check_interval = 30.0  # Check every 30 seconds
+        self._last_home_channel: Optional[str] = None
 
     async def start(self) -> None:
         await super().start()
-        logger.info("Multi-Service Transaction Orchestrator started")
+        # Start health monitoring task with initial delay to allow services to register
+        self._health_monitor_task = asyncio.create_task(self._health_monitor_loop())
+        self._tasks.append(self._health_monitor_task)
+        logger.info("Multi-Service Transaction Orchestrator started with health monitoring")
 
     async def stop(self) -> None:
         for task in list(self._tasks):
@@ -82,3 +90,66 @@ class MultiServiceTransactionOrchestrator(Service):
             provider_info = self.registry.get_provider_info()
             return provider_info if isinstance(provider_info, dict) else {}
         return {}
+
+    async def _health_monitor_loop(self) -> None:
+        """Continuous health monitoring loop that updates home channel."""
+        # Initial delay to allow services to register
+        logger.debug("Health monitor loop starting with 5 second delay for service registration")
+        await asyncio.sleep(5.0)
+        
+        while True:
+            try:
+                await self._update_home_channel()
+                await asyncio.sleep(self._health_check_interval)
+            except asyncio.CancelledError:
+                logger.info("Health monitor loop cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in health monitor loop: {e}", exc_info=True)
+                await asyncio.sleep(self._health_check_interval)
+
+    async def _update_home_channel(self) -> None:
+        """Update app_config.home_channel based on highest priority healthy communication service."""
+        if not self.registry or not self.app_config:
+            return
+        
+        try:
+            # Get the best available communication service
+            communication_service = await self.registry.get_service(ServiceType.COMMUNICATION, "SpeakHandler")
+            
+            if not communication_service:
+                # No communication services available - this is normal during startup
+                if self._last_home_channel is not None:
+                    logger.debug("No healthy communication services available - home channel may be stale")
+                else:
+                    logger.debug("No communication services registered yet - waiting for adapters to start")
+                return
+            
+            # Try to get home channel from the service
+            home_channel = None
+            if hasattr(communication_service, 'get_home_channel_id'):
+                try:
+                    home_channel = communication_service.get_home_channel_id()
+                except Exception as e:
+                    logger.warning(f"Failed to get home channel from communication service: {e}")
+            
+            # Fallback: try to get channel from service config
+            if not home_channel and hasattr(communication_service, 'config'):
+                config = getattr(communication_service, 'config', None)
+                if config and hasattr(config, 'get_home_channel_id'):
+                    try:
+                        home_channel = config.get_home_channel_id()
+                    except Exception as e:
+                        logger.warning(f"Failed to get home channel from service config: {e}")
+            
+            # Update app_config if we have a new home channel
+            if home_channel and home_channel != self._last_home_channel:
+                if hasattr(self.app_config, 'home_channel'):
+                    self.app_config.home_channel = home_channel
+                    self._last_home_channel = home_channel
+                    logger.info(f"Updated home channel to: {home_channel}")
+                else:
+                    logger.warning("app_config does not have home_channel attribute")
+                    
+        except Exception as e:
+            logger.error(f"Error updating home channel: {e}", exc_info=True)

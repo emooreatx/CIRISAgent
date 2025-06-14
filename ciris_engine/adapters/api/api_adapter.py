@@ -13,7 +13,7 @@ from aiohttp import web
 from ciris_engine.protocols.services import CommunicationService
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage, IncomingMessage
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
-from ciris_engine import persistence
+from ciris_engine.persistence import add_correlation
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class APIAdapter(CommunicationService):
             logger.info(f"API response for channel {channel_id}: {content[:100]}...")
             
             # Log correlation
-            persistence.add_correlation(
+            add_correlation(
                 ServiceCorrelation(
                     correlation_id=correlation_id,
                     service_type="api",

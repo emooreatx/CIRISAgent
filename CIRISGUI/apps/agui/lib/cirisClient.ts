@@ -420,33 +420,6 @@ export class CIRISClient {
     return res.json();
   }
 
-  // Missing Environment Variable Management
-  async listEnvironmentVars(includeSensitive: boolean = false): Promise<any> {
-    const params = new URLSearchParams({ include_sensitive: includeSensitive.toString() });
-    const res = await fetch(`${this.baseUrl}/v1/runtime/env?${params.toString()}`);
-    if (!res.ok) throw new Error(res.statusText);
-    return res.json();
-  }
-
-  async setEnvironmentVar(varName: string, value: string, persist: boolean = false): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/v1/runtime/env/${varName}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value, persist }),
-    });
-    if (!res.ok) throw new Error(res.statusText);
-    return res.json();
-  }
-
-  async deleteEnvironmentVar(varName: string, persist: boolean = false): Promise<any> {
-    const params = new URLSearchParams({ persist: persist.toString() });
-    const res = await fetch(`${this.baseUrl}/v1/runtime/env/${varName}?${params.toString()}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) throw new Error(res.statusText);
-    return res.json();
-  }
-
   // Missing Configuration Backup/Restore
   async backupConfiguration(description?: string, includeSensitive: boolean = false): Promise<any> {
     const payload: any = { include_profiles: true, include_env_vars: includeSensitive };

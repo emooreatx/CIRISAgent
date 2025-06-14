@@ -68,7 +68,8 @@ class ModerationDSDMA(BaseDSDMA):
                  service_registry: ServiceRegistry = None,
                  model_name: Optional[str] = None,
                  domain_specific_knowledge: Optional[Dict[str, Any]] = None,
-                 prompt_template: Optional[str] = None) -> None:
+                 prompt_template: Optional[str] = None,
+                 sink: Optional[Any] = None) -> None:
         """
         Initialize ModerationDSDMA with moderation-specific defaults.
         """
@@ -109,7 +110,8 @@ class ModerationDSDMA(BaseDSDMA):
             service_registry=service_registry,
             model_name=model_name,
             domain_specific_knowledge=domain_specific_knowledge,
-            prompt_template=prompt_template
+            prompt_template=prompt_template,
+            sink=sink
         )
         
         # Override with moderation-specific prompt template

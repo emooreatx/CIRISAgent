@@ -1,7 +1,7 @@
 """Tests for the configuration validator component."""
 import pytest
 from unittest.mock import patch, MagicMock
-from ciris_engine.runtime.config_validator import ConfigValidator
+from ciris_engine.utils.config_validator import ConfigValidator
 from ciris_engine.schemas.runtime_control_schemas import ConfigValidationLevel
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 
@@ -18,7 +18,7 @@ class TestConfigValidator:
     async def test_validate_complete_config_valid(self, validator):
         """Test validating a complete valid configuration."""
         # Mock AppConfig validation to pass
-        with patch('ciris_engine.runtime.config_validator.AppConfig') as mock_app_config:
+        with patch('ciris_engine.utils.config_validator.AppConfig') as mock_app_config:
             mock_app_config.return_value = MagicMock()
             
             config_data = {
@@ -42,7 +42,7 @@ class TestConfigValidator:
     async def test_validate_config_with_warnings(self, validator):
         """Test configuration that generates warnings."""
         # Mock AppConfig validation to pass
-        with patch('ciris_engine.runtime.config_validator.AppConfig') as mock_app_config:
+        with patch('ciris_engine.utils.config_validator.AppConfig') as mock_app_config:
             mock_app_config.return_value = MagicMock()
             
             config_data = {
@@ -61,7 +61,7 @@ class TestConfigValidator:
     async def test_validate_config_with_suggestions(self, validator):
         """Test configuration that generates suggestions."""
         # Mock AppConfig validation to pass
-        with patch('ciris_engine.runtime.config_validator.AppConfig') as mock_app_config:
+        with patch('ciris_engine.utils.config_validator.AppConfig') as mock_app_config:
             mock_app_config.return_value = MagicMock()
             
             config_data = {
@@ -159,7 +159,7 @@ class TestConfigValidator:
         
         # Mock AppConfig validation to fail for invalid data
         from pydantic import ValidationError
-        with patch('ciris_engine.runtime.config_validator.AppConfig', side_effect=ValidationError.from_exception_data("AppConfig", [{"type": "missing", "loc": ("field",), "msg": "Field required", "input": {}}])):
+        with patch('ciris_engine.utils.config_validator.AppConfig', side_effect=ValidationError.from_exception_data("AppConfig", [{"type": "missing", "loc": ("field",), "msg": "Field required", "input": {}}])):
             result = await validator.validate_config(config_data)
             assert result.valid is False
             assert len(result.errors) > 0

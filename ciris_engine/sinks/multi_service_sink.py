@@ -96,8 +96,8 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FORGET: ['forget'],
             ActionType.SEND_TOOL: ['execute_tool'],
             ActionType.FETCH_TOOL: ['get_tool_result'],
-            ActionType.GENERATE_RESPONSE: ['generate_response'],
-            ActionType.GENERATE_STRUCTURED: ['generate_structured_response'],
+            ActionType.GENERATE_RESPONSE: ['call_llm_structured'],
+            ActionType.GENERATE_STRUCTURED: ['call_llm_structured'],
             # TSDB/Telemetry capabilities
             ActionType.RECORD_METRIC: ['record_metric'],
             ActionType.QUERY_TELEMETRY: ['query_telemetry'],
@@ -258,12 +258,19 @@ class MultiServiceActionSink(BaseMultiServiceSink):
     async def _handle_generate_response(self, service: LLMService, action: GenerateResponseAction) -> str:
         """Handle generate response action with filter integration"""
         try:
+            # Create a simple response model for unstructured text
+            from pydantic import BaseModel
+            class TextResponse(BaseModel):
+                text: str
+            
             # Generate response using LLM service
-            response = await service.generate_response(
+            response_model, _ = await service.call_llm_structured(
                 messages=action.messages,
+                response_model=TextResponse,
                 temperature=action.temperature,
                 max_tokens=action.max_tokens
             )
+            response = response_model.text
             
             # Apply filtering to LLM response
             filter_service = await self._get_filter_service()
@@ -289,19 +296,15 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             logger.error(f"Error generating LLM response: {e}")
             raise
 
-    async def _handle_generate_structured(self, service: LLMService, action: GenerateStructuredAction) -> Dict[str, Any]:
+    async def _handle_generate_structured(self, service: LLMService, action: GenerateStructuredAction) -> tuple:
         """Handle generate structured response action with filter integration"""
         try:
-            # Convert response_model to schema if it's a Pydantic model
-            if hasattr(action.response_model, '__pydantic_json_schema__'):
-                response_schema = action.response_model.__pydantic_json_schema__()
-            else:
-                response_schema = action.response_model
-            
-            # Generate structured response using LLM service  
-            response = await service.generate_structured_response(
+            # Use the Pydantic model directly with call_llm_structured
+            response_model, resource_usage = await service.call_llm_structured(
                 messages=action.messages,
-                response_schema=response_schema
+                response_model=action.response_model,
+                temperature=getattr(action, 'temperature', 0.0),
+                max_tokens=getattr(action, 'max_tokens', 1024)
             )
             
             # Apply filtering to structured LLM response
@@ -310,7 +313,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 from ciris_engine.schemas.filter_schemas_v1 import FilterPriority
                 # Convert structured response to string for filtering
                 import json
-                response_str = json.dumps(response) if isinstance(response, dict) else str(response)
+                response_str = json.dumps(response_model.model_dump()) if hasattr(response_model, 'model_dump') else str(response_model)
                 
                 filter_result = await filter_service.filter_message(
                     response_str,
@@ -325,7 +328,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                     logger.warning(f"Suspicious structured LLM response: {filter_result.reasoning}")
             
             logger.info(f"Generated structured LLM response via {type(service).__name__}")
-            return response
+            return response_model, resource_usage
             
         except Exception as e:
             logger.error(f"Error generating structured LLM response: {e}")
@@ -642,8 +645,12 @@ class MultiServiceActionSink(BaseMultiServiceSink):
 
     async def generate_structured_sync(self, messages: list, response_model: Any, 
                                      handler_name: str = "llm", max_tokens: int = 1024, 
-                                     temperature: float = 0.0, metadata: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
-        """Convenience method to generate structured LLM response synchronously with filtering"""
+                                     temperature: float = 0.0, metadata: Optional[Dict] = None) -> Optional[tuple]:
+        """Convenience method to generate structured LLM response synchronously with filtering
+        
+        Returns:
+            Tuple[BaseModel, ResourceUsage] or None if no service available
+        """
         try:
             action = GenerateStructuredAction(
                 handler_name=handler_name,

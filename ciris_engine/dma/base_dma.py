@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import instructor
 import yaml
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -33,15 +32,14 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         max_retries: int = 3,
         prompt_overrides: Optional[Dict[str, str]] = None,
         faculties: Optional[Dict[str, EpistemicFaculty]] = None,
-        *,
-        instructor_mode: instructor.Mode = instructor.Mode.JSON,
+        sink: Optional[Any] = None,
         **kwargs: Any
     ) -> None:
         self.service_registry = service_registry
         self.model_name = model_name
         self.max_retries = max_retries
         self.faculties = faculties or {}
-        self.instructor_mode = instructor_mode
+        self.sink = sink
         
         # Store any additional kwargs for subclasses
         self.kwargs = kwargs
@@ -53,14 +51,20 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
     def _load_prompts(self, overrides: Optional[Dict[str, str]] = None) -> None:
         """Load prompts from YAML file or use defaults.
         
-        Looks for prompts/<class_name>.yml file in the same directory as the DMA.
-        Falls back to DEFAULT_PROMPT or DEFAULT_PROMPT_TEMPLATE if defined.
+        First checks for PROMPT_FILE class attribute, then falls back to 
+        prompts/<class_name>.yml file in the same directory as the DMA.
+        Finally falls back to DEFAULT_PROMPT or DEFAULT_PROMPT_TEMPLATE if defined.
         """
-        # Try to load from YAML file
-        dma_file = Path(self.__class__.__module__.replace('.', '/'))
-        prompt_file = dma_file.parent / "prompts" / f"{self.__class__.__name__.lower()}.yml"
+        # Try to load from explicit PROMPT_FILE first
+        prompt_file = None
+        if hasattr(self.__class__, 'PROMPT_FILE'):
+            prompt_file = getattr(self.__class__, 'PROMPT_FILE')
+        else:
+            # Fall back to constructed path
+            dma_file = Path(self.__class__.__module__.replace('.', '/'))
+            prompt_file = dma_file.parent / "prompts" / f"{self.__class__.__name__.lower()}.yml"
         
-        if prompt_file.exists():
+        if prompt_file and Path(prompt_file).exists():
             try:
                 with open(prompt_file, 'r') as f:
                     file_prompts = yaml.safe_load(f) or {}
@@ -87,6 +91,34 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
             service_type="llm",
         )
         return service
+    
+    async def call_llm_structured(self, messages: list, response_model: type, 
+                                 max_tokens: int = 1024, temperature: float = 0.0) -> tuple:
+        """Call LLM via sink if available, otherwise fallback to direct service call.
+        
+        Returns:
+            Tuple[BaseModel, ResourceUsage]
+        """
+        if self.sink:
+            # Use sink for centralized failover, round-robin, and circuit breaker protection
+            return await self.sink.generate_structured_sync(
+                messages=messages,
+                response_model=response_model,
+                handler_name=self.__class__.__name__,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+        else:
+            # Fallback to direct service call for backward compatibility
+            llm_service = await self.get_llm_service()
+            if not llm_service:
+                raise RuntimeError(f"No LLM service available for {self.__class__.__name__}")
+            return await llm_service.call_llm_structured(
+                messages=messages,
+                response_model=response_model,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
 
     async def apply_faculties(self, content: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, BaseModel]:
         """Apply available epistemic faculties to content.

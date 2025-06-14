@@ -202,54 +202,15 @@ class RuntimeResource:
         resp = await self._transport.request("DELETE", f"/v1/runtime/profiles/{profile_name}")
         return resp.json()
 
-    # Environment Variable Management
-    async def list_env_vars(self, include_sensitive: bool = False) -> Dict[str, Any]:
-        """List environment variables."""
-        params = {"include_sensitive": str(include_sensitive).lower()}
-        resp = await self._transport.request("GET", "/v1/runtime/env", params=params)
-        return resp.json()
-
-    async def set_env_var(
-        self,
-        var_name: str,
-        value: str,
-        persist: bool = False,
-        reload_config: bool = True
-    ) -> Dict[str, Any]:
-        """Set an environment variable."""
-        payload = {
-            "value": value,
-            "persist": persist,
-            "reload_config": reload_config
-        }
-        resp = await self._transport.request("PUT", f"/v1/runtime/env/{var_name}", json=payload)
-        return resp.json()
-
-    async def delete_env_var(
-        self,
-        var_name: str,
-        persist: bool = False,
-        reload_config: bool = True
-    ) -> Dict[str, Any]:
-        """Delete an environment variable."""
-        params = {
-            "persist": str(persist).lower(),
-            "reload_config": str(reload_config).lower()
-        }
-        resp = await self._transport.request("DELETE", f"/v1/runtime/env/{var_name}", params=params)
-        return resp.json()
-
     # Configuration Backup/Restore
     async def backup_config(
         self,
         include_profiles: bool = True,
-        include_env_vars: bool = False,
         backup_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """Create a configuration backup."""
         payload = {
-            "include_profiles": include_profiles,
-            "include_env_vars": include_env_vars
+            "include_profiles": include_profiles
         }
         if backup_name:
             payload["backup_name"] = backup_name

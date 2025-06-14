@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime, timezone
 
-from ciris_engine.runtime.profile_manager import ProfileManager
+from ciris_engine.utils.profile_manager import ProfileManager
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 
 
@@ -14,7 +14,7 @@ class TestProfileManager:
     @pytest.fixture
     def manager(self, tmp_path):
         """Create a profile manager with temporary directory."""
-        with patch('ciris_engine.runtime.profile_manager.Path') as mock_path:
+        with patch('ciris_engine.utils.profile_manager.Path') as mock_path:
             mock_path.return_value = tmp_path / "ciris_profiles"
             manager = ProfileManager()
             manager._profiles_dir = tmp_path / "ciris_profiles"
@@ -56,7 +56,7 @@ class TestProfileManager:
         mock_profile.api_config = {"enabled": False}
         mock_profile.cli_config = {"enabled": True}
 
-        with patch('ciris_engine.runtime.profile_manager.load_profile', return_value=mock_profile):
+        with patch('ciris_engine.utils.profile_manager.load_profile', return_value=mock_profile):
             profiles = await manager.list_profiles()
             
         assert len(profiles) == 1
@@ -71,7 +71,7 @@ class TestProfileManager:
         profile_file = manager._profiles_dir / "bad_profile.yaml"
         profile_file.write_text("invalid: yaml: content:")
 
-        with patch('ciris_engine.runtime.profile_manager.load_profile', side_effect=Exception("Parse error")):
+        with patch('ciris_engine.utils.profile_manager.load_profile', side_effect=Exception("Parse error")):
             profiles = await manager.list_profiles()
             
         assert len(profiles) == 1
@@ -83,7 +83,7 @@ class TestProfileManager:
     async def test_create_profile_valid(self, manager):
         """Test creating a valid profile."""
         # Mock AgentProfile validation to pass
-        with patch('ciris_engine.runtime.profile_manager.AgentProfile') as mock_agent_profile:
+        with patch('ciris_engine.utils.profile_manager.AgentProfile') as mock_agent_profile:
             mock_agent_profile.return_value = MagicMock()
             
             config = {
@@ -127,7 +127,7 @@ class TestProfileManager:
     async def test_create_profile_with_base(self, manager, sample_profile_data):
         """Test creating a profile based on another profile."""
         # Mock AgentProfile validation to pass
-        with patch('ciris_engine.runtime.profile_manager.AgentProfile') as mock_agent_profile:
+        with patch('ciris_engine.utils.profile_manager.AgentProfile') as mock_agent_profile:
             mock_agent_profile.return_value = MagicMock()
             
             # Create base profile
@@ -161,7 +161,7 @@ class TestProfileManager:
     async def test_create_profile_memory_only(self, manager):
         """Test creating a profile without saving to file."""
         # Mock AgentProfile validation to pass
-        with patch('ciris_engine.runtime.profile_manager.AgentProfile') as mock_agent_profile:
+        with patch('ciris_engine.utils.profile_manager.AgentProfile') as mock_agent_profile:
             mock_agent_profile.return_value = MagicMock()
             
             config = {"permitted_actions": ["OBSERVE"]}
@@ -223,7 +223,7 @@ class TestProfileManager:
         mock_profile.description = "Test"
         mock_profile.permitted_actions = []
 
-        with patch('ciris_engine.runtime.profile_manager.load_profile', return_value=mock_profile):
+        with patch('ciris_engine.utils.profile_manager.load_profile', return_value=mock_profile):
             profiles = await manager.list_profiles(mock_config)
             
         assert len(profiles) == 1

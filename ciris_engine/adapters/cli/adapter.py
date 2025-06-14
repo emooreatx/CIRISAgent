@@ -18,6 +18,7 @@ class CliPlatform(PlatformAdapter):
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
             self.config = kwargs["adapter_config"]
             logger.info(f"CLI adapter using provided config: interactive={self.config.interactive}")
+            # Don't call load_env_vars() again - trust the provided config
         else:
             # Initialize configuration with defaults and override from kwargs
             self.config = CLIAdapterConfig()
@@ -74,14 +75,14 @@ class CliPlatform(PlatformAdapter):
                 provider=self.cli_adapter,
                 priority=Priority.NORMAL,
                 handlers=["ToolHandler"],
-                capabilities=["execute_tool", "get_available_tools"]
+                capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
             ),
             ServiceRegistration(
                 service_type=ServiceType.WISE_AUTHORITY,
                 provider=self.cli_adapter,
                 priority=Priority.NORMAL,
                 handlers=["DeferHandler"],
-                capabilities=["send_deferral", "fetch_guidance"]
+                capabilities=["fetch_guidance", "send_deferral"]
             ),
         ]
         logger.info(f"CliPlatform: Registering {len(registrations)} services")

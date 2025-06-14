@@ -38,15 +38,10 @@ def setup_signal_handlers(runtime: CIRISRuntime) -> None:
             sys.exit(1)
         
         shutdown_initiated["value"] = True
-        signal_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT" if signum == signal.SIGINT else f"Signal {signum}"
-        shutdown_reason = f"Initiating shutdown - {signal_name} received"
-        logger.info(shutdown_reason)
-        print(shutdown_reason, flush=True)  # Ensure it's captured in stdout and flushed
+        logger.info(f"Received signal {signum}, requesting graceful shutdown...")
         
         try:
             runtime.request_shutdown(f"Signal {signum}")
-            # Exit cleanly after shutdown request
-            sys.exit(0)
         except Exception as e:
             logger.error(f"Error during shutdown request: {e}")
             sys.exit(1)
@@ -83,6 +78,20 @@ def _create_thought() -> Thought:
     )
 
 
+async def _execute_handler(runtime: CIRISRuntime, handler: str, params: Optional[str]) -> None:
+    handler_type = HandlerActionType[handler.upper()]
+    dispatcher = runtime.agent_processor.action_dispatcher
+    handler_instance = dispatcher.handlers.get(handler_type)
+    if not handler_instance:
+        raise ValueError(f"Handler {handler} not registered")
+    payload = json.loads(params) if params else {}
+    result = ActionSelectionResult(
+        selected_action=handler_type,
+        action_parameters=payload,
+        rationale="manual trigger",
+    )
+    thought = _create_thought()
+    await handler_instance.handle(result, thought, {"channel_id": runtime.startup_channel_id})
 
 
 async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds: Optional[int] = None) -> None:
@@ -95,11 +104,17 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
             try:
                 await asyncio.wait_for(runtime.run(num_rounds=num_rounds), timeout=timeout)
             except asyncio.TimeoutError:
-                timeout_msg = f"Initiating shutdown - Timeout of {timeout} seconds reached"
-                logger.info(timeout_msg)
-                print(timeout_msg, flush=True)
-                runtime.request_shutdown(f"Runtime timeout after {timeout} seconds")
-                await runtime.shutdown()
+                logger.info(f"Timeout of {timeout} seconds reached, shutting down...")
+                # The runtime.run() call has likely already completed its own shutdown
+                # Just ensure we exit cleanly without redundant shutdown calls
+                try:
+                    if hasattr(runtime, 'is_running') and runtime.is_running:
+                        runtime.request_shutdown(f"Runtime timeout after {timeout} seconds")
+                        await runtime.shutdown()
+                    else:
+                        logger.info("Runtime already stopped, no additional shutdown needed")
+                except Exception as e:
+                    logger.warning(f"Error during timeout shutdown: {e}")
         else:
             # Run without timeout
             logger.info(f"[DEBUG] Running without timeout")
@@ -125,6 +140,8 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
 @click.option("--config", "config_file_path", type=click.Path(exists=True), help="Path to app config")
 @click.option("--task", multiple=True, help="Task description to add before starting")
 @click.option("--timeout", type=int, help="Maximum runtime duration in seconds")
+@click.option("--handler", help="Direct handler to execute and exit")
+@click.option("--params", help="JSON parameters for handler execution")
 @click.option("--host", "api_host", default=None, help="API host (default: 0.0.0.0)")
 @click.option("--port", "api_port", default=None, type=int, help="API port (default: 8080)")
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
@@ -139,6 +156,8 @@ def main(
     config_file_path: Optional[str],
     task: tuple[str],
     timeout: Optional[int],
+    handler: Optional[str],
+    params: Optional[str],
     api_host: Optional[str],
     api_port: Optional[int],
     debug: bool,
@@ -153,7 +172,7 @@ def main(
     async def _async_main():
         from ciris_engine.config.env_utils import get_env_var
 
-        if not get_env_var("OPENAI_API_KEY"):
+        if not mock_llm and not get_env_var("OPENAI_API_KEY"):
             click.echo(
                 "OPENAI_API_KEY not set. The agent requires an OpenAI-compatible LLM. "
                 "For a local model set OPENAI_API_BASE, OPENAI_MODEL_NAME and provide any OPENAI_API_KEY."
@@ -167,20 +186,9 @@ def main(
             legacy_mode_list = [mode.strip() for mode in legacy_modes.split(",")]
             final_modes_list.extend(legacy_mode_list)
         
-        # Validate adapter modes early
-        valid_adapters = {"api", "cli", "discord", "auto"}
-        
         # Handle mode auto-detection and support multiple instances of same adapter type
         selected_modes = []
         for mode in final_modes_list:
-            # Extract base mode name (before any colon)
-            base_mode = mode.split(":")[0] if ":" in mode else mode
-            
-            # Validate adapter type
-            if base_mode not in valid_adapters:
-                click.echo(f"Error: Invalid adapter '{base_mode}'. Valid adapters are: {', '.join(sorted(valid_adapters))}", err=True)
-                sys.exit(1)
-            
             if "auto" == mode:
                 auto_mode = "discord" if discord_bot_token or get_env_var("DISCORD_BOT_TOKEN") else "cli"
                 selected_modes.append(auto_mode)
@@ -216,9 +224,14 @@ def main(
         app_config = await load_config(config_file_path)
 
         if mock_llm:
-            from tests.adapters.mock_llm import MockLLMService  # type: ignore
+            from ciris_engine.services.mock_llm import MockLLMService  # type: ignore
             import ciris_engine.runtime.ciris_runtime as runtime_module
-            runtime_module.OpenAICompatibleLLM = MockLLMService  # patch
+            import ciris_engine.services.llm_service as llm_service_module
+            import ciris_engine.adapters as adapters_module
+            runtime_module.OpenAICompatibleClient = MockLLMService  # patch
+            llm_service_module.OpenAICompatibleClient = MockLLMService  # patch
+            if hasattr(adapters_module, 'OpenAICompatibleClient'):
+                adapters_module.OpenAICompatibleClient = MockLLMService  # patch
             app_config.mock_llm = True  # Set the flag in config for other components
 
         
@@ -274,14 +287,16 @@ def main(
                 from ciris_engine.adapters.cli.config import CLIAdapterConfig
                 
                 cli_config = CLIAdapterConfig()
-                if not cli_interactive:
-                    cli_config.interactive = False
                 
-                # Load environment variables with instance-specific support
+                # Load environment variables first, then override with CLI args
                 if instance_id:
                     cli_config.load_env_vars_with_instance(instance_id)
                 else:
                     cli_config.load_env_vars()
+                
+                # CLI arguments take precedence over environment variables
+                if not cli_interactive:
+                    cli_config.interactive = False
                 
                 adapter_configs[mode] = cli_config
                 cli_channel_id = cli_config.get_home_channel_id()
@@ -312,6 +327,10 @@ def main(
         preload_tasks = list(task) if task else []
         runtime.set_preload_tasks(preload_tasks)
 
+        if handler:
+            await _execute_handler(runtime, handler, params)
+            await runtime.shutdown()
+            return
 
         # Use CLI num_rounds if provided, otherwise fall back to config
         effective_num_rounds = num_rounds
@@ -320,7 +339,14 @@ def main(
 
         await _run_runtime(runtime, timeout, effective_num_rounds)
 
-    asyncio.run(_async_main())
+    try:
+        asyncio.run(_async_main())
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user, exiting...")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Fatal error in main: {e}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -118,9 +118,27 @@ class TestMultiServiceActionSink:
     @pytest.fixture
     def mock_llm_service(self):
         """Create a mock LLM service."""
+        from pydantic import BaseModel
+        from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
+        
         service = AsyncMock(spec=LLMService)
-        service.generate_response.return_value = "Generated response"
-        service.generate_structured_response.return_value = {"structured": "response"}
+        
+        # Mock text response
+        class TextResponse(BaseModel):
+            text: str = "Generated response"
+        
+        # Mock structured response 
+        class StructuredResponse(BaseModel):
+            structured: str = "response"
+        
+        # Mock call_llm_structured to return appropriate responses
+        def mock_call_llm_structured(messages, response_model, **kwargs):
+            if hasattr(response_model, '__name__') and 'Text' in response_model.__name__:
+                return TextResponse(), ResourceUsage(tokens=100)
+            else:
+                return StructuredResponse(), ResourceUsage(tokens=100)
+        
+        service.call_llm_structured.side_effect = mock_call_llm_structured
         return service
 
     def test_service_routing_property(self, sink):
@@ -152,8 +170,8 @@ class TestMultiServiceActionSink:
         assert capabilities[ActionType.FORGET] == ['forget']
         assert capabilities[ActionType.SEND_TOOL] == ['execute_tool']
         assert capabilities[ActionType.FETCH_TOOL] == ['get_tool_result']
-        assert capabilities[ActionType.GENERATE_RESPONSE] == ['generate_response']
-        assert capabilities[ActionType.GENERATE_STRUCTURED] == ['generate_structured_response']
+        assert capabilities[ActionType.GENERATE_RESPONSE] == ['call_llm_structured']
+        assert capabilities[ActionType.GENERATE_STRUCTURED] == ['call_llm_structured']
 
     @pytest.mark.asyncio
     async def test_validate_action_send_message(self, sink):
@@ -416,11 +434,7 @@ class TestMultiServiceActionSink:
         with patch.object(sink, '_get_filter_service', return_value=None):
             result = await sink._handle_generate_response(mock_llm_service, action)
         
-        mock_llm_service.generate_response.assert_awaited_once_with(
-            messages=messages,
-            temperature=0.7,
-            max_tokens=100
-        )
+        mock_llm_service.call_llm_structured.assert_awaited_once()
         assert result == "Generated response"
 
     @pytest.mark.asyncio
@@ -439,11 +453,9 @@ class TestMultiServiceActionSink:
         with patch.object(sink, '_get_filter_service', return_value=None):
             result = await sink._handle_generate_structured(mock_llm_service, action)
         
-        mock_llm_service.generate_structured_response.assert_awaited_once_with(
-            messages=messages,
-            response_schema=response_model
-        )
-        assert result == {"structured": "response"}
+        mock_llm_service.call_llm_structured.assert_awaited()
+        response_model, resource_usage = result
+        assert response_model.structured == "response"
 
     @pytest.mark.asyncio
     async def test_convenience_method_send_message(self, sink):

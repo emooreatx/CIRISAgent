@@ -270,6 +270,8 @@ class TestDSDMAFromProfile:
     
     @pytest.fixture
     def test_profile(self):
+        from ciris_engine.schemas.config_schemas_v1 import ensure_models_rebuilt
+        ensure_models_rebuilt()
         return AgentProfile(
             name="test_agent",
             dsdma_identifier="MockDSDMA",
@@ -305,7 +307,8 @@ class TestDSDMAFromProfile:
                     prompt_overrides=None,
                     domain_name='test_agent',
                     domain_specific_knowledge={'key': 'value'},
-                    prompt_template='Custom domain prompt'
+                    prompt_template='Custom domain prompt',
+                    sink=None
                 )
         
         finally:

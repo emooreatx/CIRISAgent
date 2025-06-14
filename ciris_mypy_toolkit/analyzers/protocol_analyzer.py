@@ -181,7 +181,7 @@ class ProtocolAnalyzer:
         instantiation_patterns = [
             r"LocalGraphMemoryService\(",
             r"LocalAuditLog\(",
-            r"OpenAICompatibleLLM\(",
+            r"OpenAICompatibleClient\(",
             r"DiscordAdapter\("
         ]
         

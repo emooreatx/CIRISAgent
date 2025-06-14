@@ -4,11 +4,11 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ciris_engine.runtime.config_manager_service import ConfigManagerService
+from ciris_engine.services.config_manager_service import ConfigManagerService
 from ciris_engine.schemas.runtime_control_schemas import (
     ConfigScope, ConfigValidationLevel, ConfigOperationResponse,
     ConfigValidationResponse, AgentProfileInfo, AgentProfileResponse,
-    EnvVarResponse, ConfigBackupResponse
+    ConfigBackupResponse
 )
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 
@@ -31,7 +31,7 @@ class TestConfigManagerServiceRefactored:
     @pytest.mark.asyncio
     async def test_service_lifecycle(self, service):
         """Test service start/stop lifecycle."""
-        with patch('ciris_engine.runtime.config_manager_service.get_config') as mock_get_config:
+        with patch('ciris_engine.services.config_manager_service.get_config') as mock_get_config:
             mock_config = MagicMock()
             mock_get_config.return_value = mock_config
             
@@ -55,7 +55,6 @@ class TestConfigManagerServiceRefactored:
         expected_capabilities = [
             "config.get", "config.update", "config.validate",
             "profile.list", "profile.create", "profile.reload",
-            "env.set", "env.delete",
             "backup.create", "backup.restore"
         ]
         for cap in expected_capabilities:
@@ -65,7 +64,7 @@ class TestConfigManagerServiceRefactored:
     async def test_get_config_value_full(self, service, mock_config):
         """Test getting full configuration."""
         # Initialize the service first
-        with patch('ciris_engine.runtime.config_manager_service.get_config') as mock_get_config:
+        with patch('ciris_engine.services.config_manager_service.get_config') as mock_get_config:
             mock_get_config.return_value = mock_config
             await service.start()
             
@@ -82,7 +81,7 @@ class TestConfigManagerServiceRefactored:
         mock_llm_config.model_dump.return_value = {"api_key": "test"}
         mock_config.llm_services = mock_llm_config
         
-        with patch('ciris_engine.runtime.config_manager_service.get_config') as mock_get_config:
+        with patch('ciris_engine.services.config_manager_service.get_config') as mock_get_config:
             mock_get_config.return_value = mock_config
             await service.start()
             
@@ -99,7 +98,7 @@ class TestConfigManagerServiceRefactored:
         """Test that sensitive values are masked."""
         mock_config.model_dump.return_value = {"api_key": "secret123", "normal": "value"}
         
-        with patch('ciris_engine.runtime.config_manager_service.get_config') as mock_get_config:
+        with patch('ciris_engine.services.config_manager_service.get_config') as mock_get_config:
             mock_get_config.return_value = mock_config
             await service.start()
             
@@ -116,7 +115,7 @@ class TestConfigManagerServiceRefactored:
         """Test successful configuration update."""
         mock_config = MagicMock()
         
-        with patch('ciris_engine.runtime.config_manager_service.get_config') as mock_get_config:
+        with patch('ciris_engine.services.config_manager_service.get_config') as mock_get_config:
             mock_get_config.return_value = mock_config
             await service.start()
             
@@ -166,7 +165,7 @@ class TestConfigManagerServiceRefactored:
         """Test configuration update bypassing validation."""
         mock_config = MagicMock()
         
-        with patch('ciris_engine.runtime.config_manager_service.get_config') as mock_get_config:
+        with patch('ciris_engine.services.config_manager_service.get_config') as mock_get_config:
             mock_get_config.return_value = mock_config
             await service.start()
             
@@ -204,7 +203,7 @@ class TestConfigManagerServiceRefactored:
         """Test that list_profiles delegates to profile manager."""
         mock_config = MagicMock()
         
-        with patch('ciris_engine.runtime.config_manager_service.get_config') as mock_get_config:
+        with patch('ciris_engine.services.config_manager_service.get_config') as mock_get_config:
             mock_get_config.return_value = mock_config
             await service.start()
             
@@ -243,7 +242,7 @@ class TestConfigManagerServiceRefactored:
         """Test successful profile reload."""
         mock_config = MagicMock()
         
-        with patch('ciris_engine.runtime.config_manager_service.get_config') as mock_get_config:
+        with patch('ciris_engine.services.config_manager_service.get_config') as mock_get_config:
             mock_get_config.return_value = mock_config
             await service.start()
             
@@ -254,34 +253,6 @@ class TestConfigManagerServiceRefactored:
             assert result.success is True
             assert result.operation == "reload_profile"
             assert "test_profile" in service._profile_manager.get_loaded_profiles()
-
-    @pytest.mark.asyncio
-    async def test_set_env_var_delegates(self, service):
-        """Test that set_env_var delegates to env var manager."""
-        expected_response = EnvVarResponse(
-            success=True, operation="set_env_var", variable_name="TEST_VAR",
-            timestamp=datetime.now(timezone.utc), message="Set successfully"
-        )
-        service._env_var_manager.set_env_var = AsyncMock(return_value=expected_response)
-        
-        result = await service.set_env_var("TEST_VAR", "value", persist=True)
-        
-        assert result == expected_response
-        service._env_var_manager.set_env_var.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_delete_env_var_delegates(self, service):
-        """Test that delete_env_var delegates to env var manager."""
-        expected_response = EnvVarResponse(
-            success=True, operation="delete_env_var", variable_name="TEST_VAR",
-            timestamp=datetime.now(timezone.utc), message="Deleted successfully"
-        )
-        service._env_var_manager.delete_env_var = AsyncMock(return_value=expected_response)
-        
-        result = await service.delete_env_var("TEST_VAR", persist=True)
-        
-        assert result == expected_response
-        service._env_var_manager.delete_env_var.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_backup_config_delegates(self, service):
@@ -328,7 +299,7 @@ class TestConfigManagerServiceRefactored:
         """Test error handling in configuration updates."""
         mock_config = MagicMock()
         
-        with patch('ciris_engine.runtime.config_manager_service.get_config') as mock_get_config:
+        with patch('ciris_engine.services.config_manager_service.get_config') as mock_get_config:
             mock_get_config.return_value = mock_config
             await service.start()
             
@@ -347,11 +318,4 @@ class TestConfigManagerServiceRefactored:
         """Test placeholder persistence implementation."""
         # Should log but not fail
         await service._persist_config_change("test.path", "value", "testing")
-        # No assertion needed - just ensure it doesn't raise
-
-    @pytest.mark.asyncio
-    async def test_reload_config_with_env_vars_placeholder(self, service):
-        """Test placeholder env var reload implementation."""
-        # Should log but not fail
-        await service._reload_config_with_env_vars()
         # No assertion needed - just ensure it doesn't raise

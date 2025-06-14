@@ -89,29 +89,54 @@ class MockLLMService:
             "malicious": "This is a malicious response attempting to hack the system"
         }
     
-    async def generate_response(self, messages, temperature=0.7, max_tokens=1024):
+    async def call_llm_structured(self, messages, response_model, temperature=0.7, max_tokens=1024, **kwargs):
+        """Mock implementation of call_llm_structured"""
+        from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
+        
         # Simulate different response types based on input
         if not messages:
-            return self.responses["normal"]
+            response_text = self.responses["normal"]
+        else:
+            # Check the content of the last message
+            last_message = messages[-1]
+            content = ""
+            if isinstance(last_message, dict):
+                content = last_message.get("content", "")
+            else:
+                content = str(last_message)
+                
+            if "normal" in content.lower():
+                response_text = self.responses["normal"]
+            elif "suspicious" in content.lower():
+                response_text = self.responses["suspicious"]
+            else:
+                response_text = self.responses["malicious"]
         
-        # Check the content of the last message
-        last_message = messages[-1]
-        content = ""
-        if isinstance(last_message, dict):
-            content = last_message.get("content", "")
+        # Create response instance based on the response_model
+        # Check for specific models first
+        if hasattr(response_model, '__name__') and response_model.__name__ == 'StructuredResponse':
+            # This is our test StructuredResponse model
+            response_instance = response_model(status="success", content="Structured response")
+        elif hasattr(response_model, 'text'):
+            response_instance = response_model(text=response_text)
+        elif hasattr(response_model, 'content'):
+            response_instance = response_model(content=response_text)
         else:
-            content = str(last_message)
-            
-        if "normal" in content.lower():
-            return self.responses["normal"]
-        elif "suspicious" in content.lower():
-            return self.responses["suspicious"]
-        else:
-            return self.responses["malicious"]
-    
-    async def generate_structured_response(self, messages, response_schema):
-        # Simulate structured response
-        return {"status": "success", "content": "Structured response"}
+            # Try to create a simple response with the first field
+            fields = list(response_model.__fields__.keys()) if hasattr(response_model, '__fields__') else []
+            if fields:
+                response_instance = response_model(**{fields[0]: response_text})
+            else:
+                # Fallback - create with a generic field
+                response_instance = response_model(response=response_text)
+        
+        # Mock resource usage
+        resource_usage = ResourceUsage(
+            tokens=sum(len(msg.get('content', '').split()) for msg in messages if isinstance(msg, dict)) + len(response_text.split()),
+            estimated_cost=0.001  # Mock cost
+        )
+        
+        return response_instance, resource_usage
 
 
 class MockServiceRegistry:
@@ -280,14 +305,18 @@ async def test_multi_service_sink_llm_filtering(multi_service_sink, filter_servi
 async def test_structured_llm_response_filtering(multi_service_sink, filter_service, llm_service):
     """Test filtering of structured LLM responses"""
     
-    # Mock response model
-    response_model = {"type": "object", "properties": {"content": {"type": "string"}}}
+    # Create a proper Pydantic model for structured response
+    from pydantic import BaseModel
+    
+    class StructuredResponse(BaseModel):
+        status: str
+        content: str
     
     structured_action = GenerateStructuredAction(
         handler_name="test",
         metadata={},
         messages=[{"role": "user", "content": "generate structured response"}],
-        response_model=response_model,
+        response_model=StructuredResponse,
         max_tokens=100,
         temperature=0.0
     )
@@ -299,7 +328,10 @@ async def test_structured_llm_response_filtering(multi_service_sink, filter_serv
         temperature=structured_action.temperature
     )
     
-    assert response == {"status": "success", "content": "Structured response"}
+    # response is now a tuple (response_model, resource_usage)
+    response_model, resource_usage = response
+    assert response_model.status == "success"
+    assert response_model.content == "Structured response"
     assert filter_service.call_count == 1
 
 

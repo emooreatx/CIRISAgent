@@ -89,7 +89,7 @@ def patch_persistence(monkeypatch, db: MemoryDB):
 
 def create_test_runtime(monkeypatch):
     monkeypatch.setenv('OPENAI_API_KEY', 'x')
-    monkeypatch.setattr('ciris_engine.runtime.ciris_runtime.OpenAICompatibleLLM', MockLLMService)
+    monkeypatch.setattr('ciris_engine.services.llm_service.OpenAICompatibleClient', MockLLMService)
     config = AppConfig(workflow=WorkflowConfig(max_rounds=1), llm_services=LLMServicesConfig(openai=OpenAIConfig(model_name='mock-model')))
     
     # Mock CIRISRuntime properly
@@ -154,7 +154,10 @@ async def test_run_runtime_timeout(monkeypatch):
     runtime.run = AsyncMock(side_effect=slow_run)
     runtime.shutdown = AsyncMock()
     runtime._shutdown_event = asyncio.Event()  # Add the shutdown event
+    runtime.is_running = True  # Add is_running attribute
+    runtime.request_shutdown = AsyncMock()  # Add request_shutdown method
     
     await main._run_runtime(runtime, timeout=0.1)
     runtime.run.assert_awaited()
-    runtime.shutdown.assert_awaited()
+    runtime.request_shutdown.assert_called_once()
+    runtime.shutdown.assert_awaited_once()

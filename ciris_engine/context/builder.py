@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext, SystemSnapshot
-from ciris_engine.adapters.local_graph_memory import LocalGraphMemoryService
+from ciris_engine.services.memory_service import LocalGraphMemoryService
 from ciris_engine.utils import GraphQLContextProvider
 from ciris_engine.config.env_utils import get_env_var
 from ciris_engine.secrets.service import SecretsService
@@ -73,14 +73,21 @@ class ContextBuilder:
             if channel_id:
                 resolution_source = "thought.context"
         
-        # 3. Environment variable (for Discord)
+        # 3. App config home channel (set by highest priority adapter)
+        if not channel_id and self.app_config and hasattr(self.app_config, 'home_channel'):
+            home_channel = getattr(self.app_config, 'home_channel', None)
+            if home_channel:
+                channel_id = str(home_channel)
+                resolution_source = "app_config.home_channel"
+        
+        # 4. Environment variable (for Discord)
         if not channel_id:
             env_channel_id = get_env_var("DISCORD_CHANNEL_ID")
             if env_channel_id:
                 channel_id = env_channel_id
                 resolution_source = "DISCORD_CHANNEL_ID env var"
         
-        # 4. App config (structured fallback)
+        # 5. App config (structured fallback)
         if not channel_id and self.app_config:
             config_attrs = ['discord_channel_id', 'cli_channel_id', 'api_channel_id']
             for attr in config_attrs:
