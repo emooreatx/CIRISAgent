@@ -270,7 +270,8 @@ class TestCLIAdapter:
 
     async def test_execute_tool_exception(self, cli_adapter_non_interactive):
         """Test tool execution with exception."""
-        with patch('os.listdir', side_effect=Exception("Permission denied")):
+        with patch('os.listdir', side_effect=Exception("Permission denied")), \
+             patch('ciris_engine.persistence.add_correlation'):
             result = await cli_adapter_non_interactive.execute_tool("list_files", {"path": "/test"})
             
             assert result["success"] is False
