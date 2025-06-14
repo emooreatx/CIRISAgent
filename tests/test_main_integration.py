@@ -446,7 +446,10 @@ class TestMainErrorScenarios:
         assert result.returncode in [0, 1]  # Either success with fallback or controlled failure
 
     def test_main_with_invalid_config_file(self):
-        """Test main with invalid config file."""
+        """Test main with invalid config file.
+        
+        The application should validate config files and fail fast if they're invalid.
+        """
         # Create temporary invalid config file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             f.write("invalid json content {")
@@ -458,7 +461,7 @@ class TestMainErrorScenarios:
                 "--mock-llm",
                 "--adapter", "cli",
                 "--config", config_path,
-                "--timeout", "5",
+                "--timeout", "2",
                 "--no-interactive"
             ]
             
@@ -466,15 +469,17 @@ class TestMainErrorScenarios:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=12,
+                timeout=5,
                 cwd=Path(__file__).parent.parent
             )
             
-            # Should handle invalid config gracefully
-            # Either fail with proper error or fall back to defaults
-            if result.returncode != 0:
-                # If it fails, should have meaningful error message
-                assert "config" in result.stderr.lower() or "json" in result.stderr.lower()
+            # Should fail with non-zero exit code when config is invalid
+            assert result.returncode != 0, f"Process should fail with invalid config, got stdout: {result.stdout}, stderr: {result.stderr}"
+            
+            # Should have meaningful error message about config
+            output = result.stdout + result.stderr
+            assert any(keyword in output.lower() for keyword in ["config", "json", "invalid", "error"]), \
+                f"Missing config error message in output: {output}"
             
         finally:
             os.unlink(config_path)

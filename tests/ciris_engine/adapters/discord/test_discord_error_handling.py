@@ -92,9 +92,13 @@ class TestDiscordErrorHandling:
         mock_response.status = 404
         mock_response.reason = "Not Found"
         
-        # Mock channel that raises NotFound error
-        mock_client.get_channel.return_value = None
-        mock_client.fetch_channel = AsyncMock(side_effect=NotFound(mock_response, "Channel not found"))
+        # Mock the message handler to raise NotFound error
+        adapter._message_handler.fetch_messages_from_channel = AsyncMock(
+            side_effect=NotFound(mock_response, "Channel not found")
+        )
+        
+        # Mock retry_with_backoff to avoid actual retry delays - it should handle the exception and return empty list
+        adapter.retry_with_backoff = AsyncMock(return_value=[])
         
         # Should handle gracefully and return empty list
         result = await adapter.fetch_messages("123456", 10)

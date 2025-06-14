@@ -84,7 +84,7 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
     async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
         """Implementation of CommunicationService.fetch_messages"""
         # Early return if no client is available - no point in retrying
-        if not self._message_handler.client:
+        if not self._channel_manager.client:
             logger.debug(f"Discord client not initialized, cannot fetch messages from channel {channel_id}")
             return []
             

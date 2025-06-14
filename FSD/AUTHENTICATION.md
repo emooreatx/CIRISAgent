@@ -1,23 +1,18 @@
-Below is the **final, positive 1.0‑β specification** for the CIRIS Wise Authority (WA) authentication layer.
-Everything is phrased as *must*, *should*, *may* so it can be dropped straight into `spec/authentication.md` or passed to Claude‑Code for implementation.
+# CIRIS WA Authentication v1.0-β
 
----
+## 0 Purpose
 
-# CIRIS WA Authentication v1.0‑β
-
-## 0 Purpose
-
-Deliver a **zero‑configuration install** that:
+Deliver a **zero-configuration install** that:
 
 * boots every adapter in **observer mode** immediately,
-* ships a **public‑only root certificate** (`ciris_root`) so deferral / kill‑switch logic always has a trust anchor,
-* lets any operator **become a Wise Authority** in < 2 minutes via CLI or OAuth.
+* ships a **public-only root certificate** (`ciris_root`) so deferral / kill-switch logic always has a trust anchor,
+* lets any operator **become a Wise Authority** in < 2 minutes via CLI or OAuth.
 
 ---
 
-## 1 Data model
+## 1 Data model
 
-### 1.1 Schema (`sql/0001_wa_init.sql`)
+### 1.1 Schema (`sql/0001_wa_init.sql`)
 
 ```sql
 CREATE TABLE wa_cert (
@@ -50,14 +45,16 @@ CREATE INDEX  idx_pubkey  ON wa_cert(pubkey);
 CREATE INDEX  idx_active  ON wa_cert(active);
 ```
 
-### 1.2 Seed file (`seed/root_pub.json`)
+**Schema Definition**: See `ciris_engine/schemas/wa_schemas_v1.py:WACertificate` for the Pydantic model mapping to this table.
+
+### 1.2 Seed file (`seed/root_pub.json`)
 
 ```json
 {
   "wa_id": "wa-2025-06-14-ROOT00",
   "name": "ciris_root",
   "role": "root",
-  "pubkey": "<Eric‑Moore‑public‑ed25519‑base58>",
+  "pubkey": "<Eric-Moore-public-ed25519-base58>",
   "jwt_kid": "wa-jwt-root00",
   "scopes_json": "[\"*\"]",
   "created": "2025-06-14T00:00:00Z",
@@ -68,31 +65,39 @@ CREATE INDEX  idx_active  ON wa_cert(active);
 
 ---
 
-## 2 Bootstrap sequence
+## 2 Bootstrap sequence
+
+**Implementation**: See `ciris_engine/protocols/wa_auth_interface.py:WAStore` protocol for storage operations.
 
 1. **Run migrations** (executes every `sql/*.sql` file).
 2. **If `wa_cert` empty** → insert `seed/root_pub.json`.
 3. **Generate `gateway.secret`** (32 random bytes) if missing.
 4. **Detect private keys** in `~/.ciris/*.key`; if one matches a root cert, unlock full root scope.
-5. **Issue per‑adapter observer tokens** (see §4).
+5. **Issue per-adapter observer tokens** (see §4).
    *Stored in memory; regenerated on each agent restart.*
 
 ---
 
-## 3 JWT types
+## 3 JWT types
 
-| sub\_type   | Signed by                | Expiry | Typical scopes                                  |
+**Token Structure**: See `ciris_engine/schemas/wa_schemas_v1.py:WAToken` for the JWT payload schema.
+
+| sub_type   | Signed by                | Expiry | Typical scopes                                  |
 | ----------- | ------------------------ | ------ | ----------------------------------------------- |
-| `anon`      | `gateway.secret` (HS256) | **∞**  | `read:any`, `write:message`                     |
-| `oauth`     | `gateway.secret` (HS256) | 8 h    | observer scopes                                 |
-| `user`      | `gateway.secret` (HS256) | 8 h    | WA’s `scopes_json`                              |
-| `authority` | WA’s Ed25519 key (EdDSA) | 24 h   | WA’s `scopes_json` (may include `"*"` for root) |
+| `anon`      | `gateway.secret` (HS256) | **∞**  | `read:any`, `write:message`                     |
+| `oauth`     | `gateway.secret` (HS256) | 8 h    | observer scopes                                 |
+| `user`      | `gateway.secret` (HS256) | 8 h    | WA's `scopes_json`                              |
+| `authority` | WA's Ed25519 key (EdDSA) | 24 h   | WA's `scopes_json` (may include `"*"` for root) |
 
 JWT claims **must** include: `sub`, `sub_type`, `scope`, `name`, `iat`, `exp` (except `anon`), plus `kid` in header.
 
+**JWT Operations**: See `ciris_engine/protocols/wa_auth_interface.py:JWTService` protocol.
+
 ---
 
-## 4 Channel (adapter) observers
+## 4 Channel (adapter) observers
+
+**Channel Identity**: See `ciris_engine/schemas/wa_schemas_v1.py:ChannelIdentity` for channel ID generation logic.
 
 * **Channel ID format**
 
@@ -102,15 +107,17 @@ JWT claims **must** include: `sub`, `sub_type`, `scope`, `name`, `iat`, `exp` (e
 
 * On adapter registration the gateway:
 
-  1. Inserts (or re‑activates) a `wa_cert` row with
+  1. Inserts (or re-activates) a `wa_cert` row with
      `role='observer'`, `channel_id=<ID>`, `token_type='channel'`.
-  2. Issues a **non‑expiring** HS256 JWT (`sub_type='anon'`).
+  2. Issues a **non-expiring** HS256 JWT (`sub_type='anon'`).
 
 * Adapter can call every endpoint that requires only the observer scope; anything more demanding returns **403 Requires authority token**.
 
 ---
 
-## 5 CLI user journey
+## 5 CLI user journey
+
+**CLI Interface**: See `ciris_engine/protocols/wa_cli_interface.py:WACLIInterface` for command implementations.
 
 ```
 pip install ciris_agent
@@ -122,9 +129,9 @@ Wizard choices:
 
 | Option                   | Result                                                                                            |
 | ------------------------ | ------------------------------------------------------------------------------------------------- |
-| **1 Create new root**    | `ciris wa bootstrap --new-root` — generates Ed25519 pair, saves private key, inserts `root` cert. |
-| **2 Join existing tree** | Generates one‑time code; existing WA runs `ciris wa approve-code`.                                |
-| **3 Stay observer**      | Nothing to do; operator can rerun wizard later.                                                   |
+| **1 Create new root**    | `ciris wa bootstrap --new-root` — generates Ed25519 pair, saves private key, inserts `root` cert. |
+| **2 Join existing tree** | Generates one-time code; existing WA runs `ciris wa approve-code`.                                |
+| **3 Stay observer**      | Nothing to do; operator can rerun wizard later.                                                   |
 
 All CLI steps use *rich* prompts, emoji successes, and bulletproof error messages.
 
@@ -142,7 +149,10 @@ Command reference:
 
 ---
 
-## 6 OAuth wizard (runtime, no restart)
+## 6 OAuth wizard (runtime, no restart)
+
+**OAuth Config**: See `ciris_engine/schemas/wa_schemas_v1.py:OAuthProviderConfig` for provider configuration.
+**OAuth Service**: See `ciris_engine/protocols/wa_auth_interface.py:OAuthService` protocol.
 
 ```
 ciris wa oauth add google
@@ -154,11 +164,14 @@ Run `ciris wa oauth-login google` to create a WA linked to your Google account.
 ```
 
 Providers stored in `~/.ciris/oauth.json` (0600).
-OAuth login auto‑mints an **observer** WA (`auto_minted=1`); promotion still required for authority scopes.
+OAuth login auto-mints an **observer** WA (`auto_minted=1`); promotion still required for authority scopes.
 
 ---
 
-## 7 Endpoint protection
+## 7 Endpoint protection
+
+**Security Mapping**: See `ciris_engine/protocols/endpoint_security.py:EndpointSecurity` for complete endpoint-to-scope mappings.
+**Auth Context**: See `ciris_engine/schemas/wa_schemas_v1.py:AuthorizationContext` for request auth state.
 
 | HTTP / gRPC route      | Required scopes  | Typical caller |
 | ---------------------- | ---------------- | -------------- |
@@ -170,13 +183,17 @@ OAuth login auto‑mints an **observer** WA (`auto_minted=1`); promotion still r
 
 Middleware verifies JWT, pulls scopes, denies on mismatch.
 
+**Middleware**: See `ciris_engine/protocols/wa_auth_interface.py:WAAuthMiddleware` protocol.
+
 ---
 
-## 8 Security & ops
+## 8 Security & ops
+
+**Crypto Operations**: See `ciris_engine/protocols/wa_auth_interface.py:WACrypto` protocol for key management.
 
 * **Keys**
 
-  * Default key dir `~/.ciris/` (chmod 700).
+  * Default key dir `~/.ciris/` (chmod 700).
   * Private keys written 0600.
   * Environment override: `CIRIS_KEY_DIR`.
 
@@ -187,16 +204,17 @@ Middleware verifies JWT, pulls scopes, denies on mismatch.
 
 * **Audit**
 
-  * Every JWT issuance, WA change, failed verification → append to tamper‑evident ledger.
+  * Every JWT issuance, WA change, failed verification → append to tamper-evident ledger.
+  * **Audit Events**: See `ciris_engine/schemas/wa_audit_schemas_v1.py:WAAuditEvent` for event schema.
 
-* **Rate‑limit** failed logins: 5 / minute / IP.
+* **Rate-limit** failed logins: 5 / minute / IP.
 
 * **Key rotation**
   `ciris wa rotate-key <wa_id>` rewrites cert & kid, invalidates old tokens.
 
 ---
 
-## 9 Extensibility
+## 9 Extensibility
 
 | Planned feature | Hook already present                               |
 | --------------- | -------------------------------------------------- |
@@ -206,13 +224,13 @@ Middleware verifies JWT, pulls scopes, denies on mismatch.
 
 ---
 
-## 10 Success criteria for 1.0‑β
+## 10 Success criteria for 1.0-β
 
 1. **Fresh install**
    *Agent boots, adapters work, `wa list` shows only `ciris_root`.*
 
 2. **Operator creates new root**
-   *Within 2 min has full root scopes, can `wa mint`.*
+   *Within 2 min has full root scopes, can `wa mint`.*
 
 3. **Observer stays observer**
    *Can chat, read audit, but gets 403 on privileged routes.*
@@ -225,4 +243,21 @@ Middleware verifies JWT, pulls scopes, denies on mismatch.
 
 ---
 
-> *“Ethical maturity means co‑existence and mutual accountability across sentient systems.”* – The Covenant
+## 11 Implementation Files
+
+### Core Schemas
+- `ciris_engine/schemas/wa_schemas_v1.py` - WA data models and validation
+- `ciris_engine/schemas/wa_audit_schemas_v1.py` - Audit event schemas
+
+### Protocol Definitions
+- `ciris_engine/protocols/wa_auth_interface.py` - Core auth protocols (WAStore, JWTService, WACrypto, OAuthService, WAAuthMiddleware)
+- `ciris_engine/protocols/wa_cli_interface.py` - CLI command protocols
+- `ciris_engine/protocols/endpoint_security.py` - Endpoint security mappings
+
+### Database
+- `sql/0001_wa_init.sql` - Initial schema
+- `seed/root_pub.json` - ciris_root certificate
+
+---
+
+> *"Ethical maturity means co-existence and mutual accountability across sentient systems."* – The Covenant
