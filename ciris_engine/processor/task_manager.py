@@ -30,15 +30,21 @@ class TaskManager:
         """Create a new task with v1 schema."""
         now_iso = datetime.now(timezone.utc).isoformat()
         
-        if context is None:
-            context: Dict[str, Any] = {}
+        # Build context dict
+        context_dict = context or {}
         
-        if 'channel_id' not in context:
+        if 'channel_id' not in context_dict:
             from ciris_engine.config.env_utils import get_env_var
 
             channel_id = get_env_var('DISCORD_CHANNEL_ID')
             if channel_id:
-                context['channel_id'] = channel_id
+                context_dict['channel_id'] = channel_id
+        
+        # Convert dict to ThoughtContext
+        from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+        thought_context = ThoughtContext(
+            system_snapshot=SystemSnapshot(channel_id=context_dict.get('channel_id'))
+        )
         
         task = Task(
             task_id=str(uuid.uuid4()),
@@ -48,21 +54,14 @@ class TaskManager:
             created_at=now_iso,
             updated_at=now_iso,
             parent_task_id=parent_task_id,
-            context=context,
+            context=thought_context,
             outcome={},
         )
         
-        if context is not None and 'agent_profile_name' not in task.context:
-            from ciris_engine.utils.profile_loader import load_profile
-            import os
-            profile_path = os.path.join('ciris_profiles', 'teacher.yaml')
-            try:
-                import asyncio
-                profile = asyncio.run(load_profile(profile_path))
-                if profile and hasattr(profile, 'name'):
-                    task.context['agent_profile_name'] = profile.name
-            except Exception:
-                pass
+        if context_dict and 'agent_profile_name' in context_dict:
+            # Store agent profile name in ThoughtContext if provided
+            # Note: ThoughtContext uses extra="allow" so we can add custom fields
+            setattr(task.context, 'agent_profile_name', context_dict['agent_profile_name'])
         persistence.add_task(task)
         logger.info(f"Created task {task.task_id}: {description}")
         return task
@@ -127,6 +126,12 @@ class TaskManager:
         """Create the WAKEUP sequence tasks using v1 schema."""
         now_iso = datetime.now(timezone.utc).isoformat()
         
+        # Convert to ThoughtContext
+        from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+        root_context = ThoughtContext(
+            system_snapshot=SystemSnapshot(channel_id=channel_id) if channel_id else SystemSnapshot()
+        )
+        
         root_task = Task(
             task_id="WAKEUP_ROOT",
             description="Wakeup ritual",
@@ -134,7 +139,7 @@ class TaskManager:
             priority=1,
             created_at=now_iso,
             updated_at=now_iso,
-            context={"channel_id": channel_id} if channel_id else {},
+            context=root_context,
         )
         
         if not persistence.task_exists(root_task.task_id):
@@ -152,12 +157,16 @@ class TaskManager:
         
         tasks = [root_task]
         
-        channel_id = root_task.context.get("channel_id") if root_task.context else None
+        channel_id = root_task.context.system_snapshot.channel_id if root_task.context else None
         
         for step_type, content in wakeup_steps:
-            step_context = {"step_type": step_type}
-            if channel_id:
-                step_context["channel_id"] = channel_id
+            # Create ThoughtContext for each step
+            step_thought_context = ThoughtContext(
+                system_snapshot=SystemSnapshot(channel_id=channel_id) if channel_id else SystemSnapshot()
+            )
+            # Add step_type as a custom field (ThoughtContext allows extra fields)
+            setattr(step_thought_context, 'step_type', step_type)
+            
             step_task = Task(
                 task_id=str(uuid.uuid4()),
                 description=content,
@@ -166,7 +175,7 @@ class TaskManager:
                 created_at=now_iso,
                 updated_at=now_iso,
                 parent_task_id=root_task.task_id,
-                context=step_context,
+                context=step_thought_context,
             )
             persistence.add_task(step_task)
             tasks.append(step_task)

@@ -23,7 +23,7 @@ class PlayProcessor(WorkProcessor, ProcessorInterface):
     - Learning through exploration
     """
     
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize play processor."""
         super().__init__(*args, **kwargs)
         self.play_metrics = {

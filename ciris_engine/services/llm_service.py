@@ -64,7 +64,7 @@ class OpenAICompatibleClient(LLMService):
             try:
                 from ciris_engine.services.mock_llm.service import MockLLMService
                 self._is_mock = True
-                self._mock_service = MockLLMService()
+                self._mock_service: Optional[MockLLMService] = MockLLMService()
                 self.model_name = 'mock-model'
                 return
             except Exception as e:
@@ -95,7 +95,7 @@ class OpenAICompatibleClient(LLMService):
 
     async def start(self) -> None:
         """Start the LLM service."""
-        if self._is_mock:
+        if self._is_mock and self._mock_service:
             await self._mock_service.start()
             logger.info("Mock LLM Service started")
             return
@@ -106,7 +106,7 @@ class OpenAICompatibleClient(LLMService):
 
     async def stop(self) -> None:
         """Stop the LLM service."""
-        if self._is_mock:
+        if self._is_mock and self._mock_service:
             await self._mock_service.stop()
             return
             
@@ -179,7 +179,7 @@ class OpenAICompatibleClient(LLMService):
     ) -> Tuple[BaseModel, ResourceUsage]:
         """Make a structured LLM call with circuit breaker protection."""
         # Delegate to mock service if using mock
-        if self._is_mock:
+        if self._is_mock and self._mock_service:
             return await self._mock_service.call_llm_structured(
                 messages, response_model, max_tokens, temperature, **kwargs
             )

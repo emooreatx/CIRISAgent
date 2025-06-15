@@ -8,8 +8,9 @@ from typing import Dict, List, Optional, Any
 
 from ciris_engine.adapters.base import Service
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
-from ciris_engine.schemas.service_actions_v1 import ActionMessage
+from ciris_engine.schemas.service_actions_v1 import ActionMessage, ActionType, LogAuditEventAction
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
+from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +47,24 @@ class MultiServiceTransactionOrchestrator(Service):
         logger.info("Multi-Service Transaction Orchestrator stopped")
 
     async def orchestrate(self, tx_id: str, actions: List[ActionMessage]) -> None:
-        """Execute a sequence of actions as a transaction."""
-        self.transactions[tx_id] = {"status": "in_progress"}
-        for action in actions:
+        """Execute a sequence of actions as a transaction, with special handling for broadcast actions."""
+        self.transactions[tx_id] = {"status": "in_progress", "actions": len(actions)}
+        
+        for i, action in enumerate(actions):
             try:
-                await self.sink.enqueue_action(action)
+                # Check if this is an audit event that needs broadcasting
+                if action.type == ActionType.LOG_AUDIT_EVENT:
+                    await self._broadcast_audit_event(tx_id, action)
+                else:
+                    # Normal single-service routing
+                    await self.sink.enqueue_action(action)
+                    
             except Exception as exc:  # noqa: BLE001
-                logger.error("Transaction %s failed on %s: %s", tx_id, action.type, exc)
-                self.transactions[tx_id] = {"status": "failed", "error": str(exc)}
+                logger.error("Transaction %s failed on action %d (%s): %s", tx_id, i, action.type, exc)
+                self.transactions[tx_id] = {"status": "failed", "error": str(exc), "failed_at": i}
                 await self.rollback(tx_id)
                 return
+                
         self.transactions[tx_id] = {"status": "complete"}
 
     async def rollback(self, tx_id: str) -> None:
@@ -151,3 +160,85 @@ class MultiServiceTransactionOrchestrator(Service):
                     
         except Exception as e:
             logger.error(f"Error updating home channel: {e}", exc_info=True)
+    
+    async def _broadcast_audit_event(self, tx_id: str, action: LogAuditEventAction) -> None:
+        """Broadcast an audit event to ALL registered audit services."""
+        if not self.registry:
+            logger.error("No service registry available for audit broadcast")
+            raise RuntimeError("Service registry required for audit broadcast")
+        
+        # Get ALL audit services (not just the best one)
+        audit_services = self.registry.get_services_by_type('audit')
+        
+        if not audit_services:
+            logger.error("No audit services available for broadcast")
+            raise RuntimeError("No audit services registered")
+        
+        logger.info(f"Broadcasting audit event to {len(audit_services)} audit services")
+        
+        # Track broadcast results
+        broadcast_results = {}
+        failures = []
+        
+        # Send to all audit services in parallel
+        tasks = []
+        for i, service in enumerate(audit_services):
+            service_id = f"{service.__class__.__name__}_{i}"
+            task = asyncio.create_task(self._send_to_audit_service(service, action, service_id))
+            tasks.append((service_id, task))
+        
+        # Wait for all to complete
+        for service_id, task in tasks:
+            try:
+                result = await task
+                broadcast_results[service_id] = result
+                if not result:
+                    failures.append(service_id)
+            except Exception as e:
+                logger.error(f"Audit broadcast failed for {service_id}: {e}")
+                broadcast_results[service_id] = False
+                failures.append(service_id)
+        
+        # Store broadcast results in transaction
+        self.transactions[tx_id]["audit_broadcast"] = {
+            "total_services": len(audit_services),
+            "results": broadcast_results,
+            "failures": failures
+        }
+        
+        # If any critical services failed, consider the broadcast failed
+        if failures:
+            logger.warning(f"Audit broadcast partially failed: {len(failures)}/{len(audit_services)} services failed")
+            # Don't throw exception - audit failures shouldn't break the transaction
+    
+    async def _send_to_audit_service(self, service: Any, action: LogAuditEventAction, service_id: str) -> bool:
+        """Send audit event to a specific service."""
+        try:
+            await service.log_event(action.event_type, action.event_data)
+            logger.debug(f"Successfully sent audit event to {service_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send audit event to {service_id}: {e}")
+            return False
+    
+    async def broadcast_audit_event(self, event_type: str, event_data: Dict[str, Any]) -> str:
+        """
+        Convenience method to broadcast an audit event to all audit services.
+        
+        Returns:
+            Transaction ID for tracking the broadcast
+        """
+        tx_id = f"audit_broadcast_{asyncio.get_event_loop().time()}"
+        
+        # Create the audit action
+        audit_action = LogAuditEventAction(
+            handler_name="TransactionOrchestrator",
+            metadata={"broadcast": True},
+            event_type=event_type,
+            event_data=event_data
+        )
+        
+        # Use orchestrate to handle the broadcast
+        await self.orchestrate(tx_id, [audit_action])
+        
+        return tx_id

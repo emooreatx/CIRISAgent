@@ -1,7 +1,9 @@
 import logging
+import asyncio
 from typing import Any, Optional, List
 
-from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage
+from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, ThoughtType
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.adapters.base_observer import BaseObserver
@@ -31,7 +33,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         communication_service: Optional[Any] = None,
     ) -> None:
         super().__init__(
-            on_observe=lambda _: None,
+            on_observe=lambda _: asyncio.sleep(0),
             memory_service=memory_service,
             agent_id=agent_id,
             multi_service_sink=multi_service_sink,
@@ -252,13 +254,15 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                         else:
                             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
                             guidance_context = ThoughtContext(
-                                guidance_message_id=msg.message_id,
-                                guidance_author=msg.author_name,
-                                guidance_content=msg.content,
-                                is_guidance_response=True,
-                                original_round_number=original_thought.round_number,
-                                original_thought_id=referenced_thought_id,
-                                deferral_reason=deferral_reason
+                                **{
+                                    "guidance_message_id": msg.message_id,
+                                    "guidance_author": msg.author_name,
+                                    "guidance_content": msg.content,
+                                    "is_guidance_response": True,
+                                    "original_round_number": original_thought.round_number,
+                                    "original_thought_id": referenced_thought_id,
+                                    "deferral_reason": deferral_reason
+                                }
                             )
                         
                         # Combine content with WA response last to ensure it's acted upon
@@ -270,7 +274,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                             thought_id=str(uuid.uuid4()),
                             source_task_id=original_task.task_id,
                             parent_thought_id=referenced_thought_id,
-                            thought_type="guidance",
+                            thought_type=ThoughtType.GUIDANCE,
                             status=ThoughtStatus.PROCESSING,  # Set to PROCESSING status
                             created_at=datetime.now(timezone.utc).isoformat(),
                             updated_at=datetime.now(timezone.utc).isoformat(),
@@ -297,16 +301,20 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                 priority=8,  # High priority for guidance
                 created_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),
-                context={
-                    "channel_id": msg.channel_id,
-                    "author_id": msg.author_id,
-                    "author_name": msg.author_name,
-                    "message_id": msg.message_id,
-                    "origin_service": "discord",
-                    "observation_type": "unsolicited_guidance",
-                    "is_guidance": True,
-                    "guidance_content": msg.content,
-                }
+                context=ThoughtContext(
+                    initial_task_context=TaskContext(
+                        channel_id=msg.channel_id,
+                        author_id=msg.author_id,
+                        author_name=msg.author_name,
+                        origin_service="discord"
+                    ),
+                    **{
+                        "message_id": msg.message_id,
+                        "observation_type": "unsolicited_guidance",
+                        "is_guidance": True,
+                        "guidance_content": msg.content,
+                    }
+                )
             )
             persistence.add_task(task)
             logger.info(f"Created unsolicited guidance task {task.task_id} - seed thought will be generated automatically")

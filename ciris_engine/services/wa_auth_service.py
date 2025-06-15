@@ -77,7 +77,7 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
         secret_path.chmod(0o600)
         return secret
     
-    def _init_database(self):
+    def _init_database(self) -> None:
         """Initialize database tables if needed."""
         # Import the table definition
         from ciris_engine.schemas.db_tables_v1 import wa_cert_table_v1
@@ -200,7 +200,7 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
         await self.create_wa(observer)
         return observer
     
-    async def update_wa(self, wa_id: str, **updates) -> None:
+    async def update_wa(self, wa_id: str, **updates: Any) -> None:
         """Update WA certificate fields."""
         if not updates:
             return
@@ -231,7 +231,7 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
             conn.row_factory = sqlite3.Row
             
             query = "SELECT * FROM wa_cert"
-            params = []
+            params: List[Any] = []
             
             if active_only:
                 query += " WHERE active = 1"
@@ -464,10 +464,10 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
         
         return context
     
-    def require_scope(self, scope: str):
+    def require_scope(self, scope: str) -> Any:
         """Decorator to require specific scope for endpoint."""
-        def decorator(func):
-            def wrapper(*args, **kwargs):
+        def decorator(func: Any) -> Any:
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
                 # This would be implemented in the actual middleware
                 # For now, it's a placeholder
                 return func(*args, **kwargs)

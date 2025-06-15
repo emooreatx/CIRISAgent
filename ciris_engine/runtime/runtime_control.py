@@ -1,7 +1,10 @@
 """Runtime control service for processor and adapter management."""
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ciris_engine.services.config_manager_service import ConfigManagerService
 
 from ciris_engine.protocols.runtime_control import RuntimeControlInterface
 from ciris_engine.runtime.adapter_manager import RuntimeAdapterManager
@@ -37,7 +40,7 @@ class RuntimeControlService(RuntimeControlInterface):
         self._last_config_change: Optional[datetime] = None
         self._events_history: List[Dict[str, Any]] = []
 
-    def _get_config_manager(self) -> Any:
+    def _get_config_manager(self) -> "ConfigManagerService":
         """Get config manager with lazy initialization to avoid circular imports."""
         if self.config_manager is None:
             from ciris_engine.services.config_manager_service import ConfigManagerService
@@ -163,8 +166,8 @@ class RuntimeControlService(RuntimeControlInterface):
             status = await self.telemetry_collector.get_processing_queue_status()
             await self._record_event("processor_query", "queue_status", success=True)
             # Type assertion: telemetry status should be a dictionary
-            return status  # type: ignore[no-any-return]
-            
+            assert isinstance(status, dict)
+            return status              
         except Exception as e:
             logger.error(f"Failed to get queue status: {e}", exc_info=True)
             await self._record_event("processor_query", "queue_status", success=False, error=str(e))
@@ -289,7 +292,7 @@ class RuntimeControlService(RuntimeControlInterface):
     ) -> Dict[str, Any]:
         """Get configuration value(s)."""
         try:
-            return await self._get_config_manager().get_config_value(path, include_sensitive)  # type: ignore[no-any-return]
+            return await self._get_config_manager().get_config_value(path, include_sensitive)
         except Exception as e:
             logger.error(f"Failed to get config: {e}")
             return {"error": str(e)}
@@ -309,7 +312,7 @@ class RuntimeControlService(RuntimeControlInterface):
             )
             if result.success:
                 self._last_config_change = result.timestamp
-            return result  # type: ignore[no-any-return]
+            return result
         except Exception as e:
             logger.error(f"Failed to update config: {e}")
             return ConfigOperationResponse(
@@ -327,7 +330,7 @@ class RuntimeControlService(RuntimeControlInterface):
     ) -> ConfigValidationResponse:
         """Validate configuration data."""
         try:
-            return await self._get_config_manager().validate_config(config_data, config_path)  # type: ignore[no-any-return]
+            return await self._get_config_manager().validate_config(config_data, config_path)
         except Exception as e:
             logger.error(f"Failed to validate config: {e}")
             return ConfigValidationResponse(
@@ -349,7 +352,7 @@ class RuntimeControlService(RuntimeControlInterface):
                 # Notify adapter manager of profile change if available
                 if self.adapter_manager and hasattr(self.adapter_manager, 'on_profile_changed'):
                     await self.adapter_manager.on_profile_changed(profile_name)
-            return result  # type: ignore[no-any-return]
+            return result
         except Exception as e:
             logger.error(f"Failed to reload profile: {e}")
             return ConfigOperationResponse(
@@ -387,7 +390,7 @@ class RuntimeControlService(RuntimeControlInterface):
             profiles = await self._get_config_manager().list_profiles()
             for profile in profiles:
                 if profile.name == profile_name:
-                    return profile.model_dump()  # type: ignore[no-any-return]
+                    return profile.model_dump()
             return None
         except Exception as e:
             logger.error(f"Failed to get profile {profile_name}: {e}")
@@ -405,7 +408,7 @@ class RuntimeControlService(RuntimeControlInterface):
         try:
             return await self._get_config_manager().create_profile(
                 name, config, description, base_profile, save_to_file
-            )  # type: ignore[no-any-return]
+            )
         except Exception as e:
             logger.error(f"Failed to create profile: {e}")
             return AgentProfileResponse(
@@ -418,33 +421,14 @@ class RuntimeControlService(RuntimeControlInterface):
 
     async def backup_config(
         self,
-        backup_request: Any
-    ) -> ConfigBackupResponse:
-        """Create a configuration backup (API method with request object)."""
-        try:
-            return await self._get_config_manager().backup_config(
-                backup_request.include_profiles, 
-                backup_request.backup_name
-            )
-        except Exception as e:
-            logger.error(f"Failed to backup config: {e}")
-            return ConfigBackupResponse(
-                success=False,
-                operation="backup_config",
-                backup_name=backup_request.backup_name or "unknown",
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
-
-    async def backup_config_direct(
-        self,
         include_profiles: bool = True,
         backup_name: Optional[str] = None
     ) -> ConfigBackupResponse:
-        """Create a configuration backup (direct method)."""
+        """Create a configuration backup."""
         try:
             return await self._get_config_manager().backup_config(
-                include_profiles, backup_name
+                include_profiles, 
+                backup_name
             )
         except Exception as e:
             logger.error(f"Failed to backup config: {e}")
@@ -456,9 +440,10 @@ class RuntimeControlService(RuntimeControlInterface):
                 error=str(e)
             )
 
+
     async def restore_config(
         self,
-        restore_request
+        restore_request: Any
     ) -> ConfigBackupResponse:
         """Restore configuration from backup."""
         try:
@@ -561,7 +546,12 @@ class RuntimeControlService(RuntimeControlInterface):
             if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
                 return {"error": "Service registry not available"}
             
-            return self.runtime.service_registry.get_provider_info(handler, service_type)
+            info = self.runtime.service_registry.get_provider_info(handler, service_type)
+            # Ensure we always return a dict
+            if isinstance(info, dict):
+                return info
+            else:
+                return {"data": info}
         except Exception as e:
             logger.error(f"Failed to get service registry info: {e}")
             return {"error": str(e)}
@@ -615,7 +605,7 @@ class RuntimeControlService(RuntimeControlInterface):
                 return {"error": "Service registry not available"}
                 
             registry_info = self.runtime.service_registry.get_provider_info()
-            health_status = {
+            health_status: Dict[str, Any] = {
                 "overall_health": "healthy",
                 "services": {},
                 "circuit_breaker_states": {},

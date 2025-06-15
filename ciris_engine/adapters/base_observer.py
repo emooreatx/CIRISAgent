@@ -4,6 +4,9 @@ from typing import Any, Awaitable, Callable, Dict, Generic, List, Optional, Type
 
 from pydantic import BaseModel
 
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtType
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext
+
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
 
@@ -174,32 +177,36 @@ class BaseObserver(Generic[MessageT], ABC):
                 priority=0,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),
-                context={
-                    "channel_id": getattr(msg, "channel_id", None),
-                    "author_id": msg.author_id,  # type: ignore[attr-defined]
-                    "author_name": msg.author_name,  # type: ignore[attr-defined]
-                    "message_id": msg.message_id,  # type: ignore[attr-defined]
-                    "origin_service": self.origin_service,
-                    "observation_type": "passive",
-                    "recent_messages": [
-                        {
-                            "id": m.message_id,  # type: ignore[attr-defined]
-                            "content": m.content,  # type: ignore[attr-defined]
-                            "author_id": m.author_id,  # type: ignore[attr-defined]
-                            "author_name": m.author_name,  # type: ignore[attr-defined]
-                            "channel_id": getattr(m, "channel_id", None),
-                            "timestamp": getattr(m, "timestamp", "n/a"),
-                        }
-                        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
-                    ],
-                },
+                context=ThoughtContext(
+                    initial_task_context=TaskContext(
+                        channel_id=getattr(msg, "channel_id", None),
+                        author_id=msg.author_id,  # type: ignore[attr-defined]
+                        author_name=msg.author_name,  # type: ignore[attr-defined]
+                        origin_service=self.origin_service
+                    ),
+                    **{
+                        "message_id": msg.message_id,  # type: ignore[attr-defined]
+                        "observation_type": "passive",
+                        "recent_messages": [
+                            {
+                                "id": m.message_id,  # type: ignore[attr-defined]
+                                "content": m.content,  # type: ignore[attr-defined]
+                                "author_id": m.author_id,  # type: ignore[attr-defined]
+                                "author_name": m.author_name,  # type: ignore[attr-defined]
+                                "channel_id": getattr(m, "channel_id", None),
+                                "timestamp": getattr(m, "timestamp", "n/a"),
+                            }
+                            for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
+                        ],
+                    }
+                ),
             )
             persistence.add_task(task)
 
             thought = Thought(
                 thought_id=str(uuid.uuid4()),
                 source_task_id=task.task_id,
-                thought_type="observation",
+                thought_type=ThoughtType.OBSERVATION,
                 status=ThoughtStatus.PENDING,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),
@@ -228,37 +235,41 @@ class BaseObserver(Generic[MessageT], ABC):
                 priority=task_priority,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),
-                context={
-                    "channel_id": getattr(msg, "channel_id", None),
-                    "author_id": msg.author_id,  # type: ignore[attr-defined]
-                    "author_name": msg.author_name,  # type: ignore[attr-defined]
-                    "message_id": msg.message_id,  # type: ignore[attr-defined]
-                    "origin_service": self.origin_service,
-                    "observation_type": "priority",
-                    "filter_priority": filter_result.priority.value,
-                    "filter_reasoning": filter_result.reasoning,
-                    "triggered_filters": filter_result.triggered_filters,
-                    "filter_confidence": filter_result.confidence,
-                    "filter_context": filter_result.context_hints,
-                    "recent_messages": [
-                        {
-                            "id": m.message_id,  # type: ignore[attr-defined]
-                            "content": m.content,  # type: ignore[attr-defined]
-                            "author_id": m.author_id,  # type: ignore[attr-defined]
-                            "author_name": m.author_name,  # type: ignore[attr-defined]
-                            "channel_id": getattr(m, "channel_id", None),
-                            "timestamp": getattr(m, "timestamp", "n/a"),
-                        }
-                        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
-                    ],
-                },
+                context=ThoughtContext(
+                    initial_task_context=TaskContext(
+                        channel_id=getattr(msg, "channel_id", None),
+                        author_id=msg.author_id,  # type: ignore[attr-defined]
+                        author_name=msg.author_name,  # type: ignore[attr-defined]
+                        origin_service=self.origin_service
+                    ),
+                    **{
+                        "message_id": msg.message_id,  # type: ignore[attr-defined]
+                        "observation_type": "priority",
+                        "filter_priority": filter_result.priority.value,
+                        "filter_reasoning": filter_result.reasoning,
+                        "triggered_filters": filter_result.triggered_filters,
+                        "filter_confidence": filter_result.confidence,
+                        "filter_context": filter_result.context_hints,
+                        "recent_messages": [
+                            {
+                                "id": m.message_id,  # type: ignore[attr-defined]
+                                "content": m.content,  # type: ignore[attr-defined]
+                                "author_id": m.author_id,  # type: ignore[attr-defined]
+                                "author_name": m.author_name,  # type: ignore[attr-defined]
+                                "channel_id": getattr(m, "channel_id", None),
+                                "timestamp": getattr(m, "timestamp", "n/a"),
+                            }
+                            for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
+                        ],
+                    }
+                ),
             )
             persistence.add_task(task)
 
             thought = Thought(
                 thought_id=str(uuid.uuid4()),
                 source_task_id=task.task_id,
-                thought_type="observation",
+                thought_type=ThoughtType.OBSERVATION,
                 status=ThoughtStatus.PENDING,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),

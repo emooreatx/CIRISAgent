@@ -19,6 +19,7 @@ class ActionType(Enum):
     FORGET = "forget"
     SEND_TOOL = "send_tool"
     FETCH_TOOL = "fetch_tool"
+    LIST_TOOLS = "list_tools"
     # Note: OBSERVE_MESSAGE removed - observation handled at adapter level
     # LLM Actions
     GENERATE_STRUCTURED = "generate_structured"
@@ -142,6 +143,16 @@ class FetchToolAction(ActionMessage):
         self.tool_name = tool_name
         self.correlation_id = correlation_id
         self.timeout = timeout
+
+
+@dataclass
+class ListToolsAction(ActionMessage):
+    """Action to list all available tools from all tool services"""
+    include_schemas: bool = True
+    
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], include_schemas: bool = True) -> None:
+        super().__init__(ActionType.LIST_TOOLS, handler_name, metadata)
+        self.include_schemas = include_schemas
 
 
 @dataclass  

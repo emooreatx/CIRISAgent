@@ -88,33 +88,32 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
     
     async def call_llm_structured(self, messages: list, response_model: type, 
                                  max_tokens: int = 1024, temperature: float = 0.0) -> tuple[Any, ...]:
-        """Call LLM via sink if available, otherwise fallback to direct service call.
+        """Call LLM via sink for centralized failover, round-robin, and circuit breaker protection.
         
         Returns:
             Tuple[BaseModel, ResourceUsage]
         """
-        if self.sink:
-            # Use sink for centralized failover, round-robin, and circuit breaker protection
-            result = await self.sink.generate_structured_sync(
-                messages=messages,
-                response_model=response_model,
-                handler_name=self.__class__.__name__,
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-            # The sink returns Optional[tuple] which we need to ensure is a valid tuple
-            return result if result is not None else (None, None)
-        else:
-            # Fallback to direct service call for backward compatibility
-            llm_service = await self.get_llm_service()
-            if not llm_service:
-                raise RuntimeError(f"No LLM service available for {self.__class__.__name__}")
-            return await llm_service.call_llm_structured(
-                messages=messages,
-                response_model=response_model,
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
+        if not self.sink:
+            # Critical system failure - DMAs cannot function without the multi-service sink
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.critical(f"FATAL: No multi-service sink available for {self.__class__.__name__}. System cannot continue.")
+            raise RuntimeError(f"FATAL: No multi-service sink available for {self.__class__.__name__}. DMAs require the sink for all LLM calls. System must shutdown.")
+            
+        # Use sink for centralized failover, round-robin, and circuit breaker protection
+        result = await self.sink.generate_structured_sync(
+            messages=messages,
+            response_model=response_model,
+            handler_name=self.__class__.__name__,
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
+        
+        # The sink returns Optional[tuple] which we need to ensure is a valid tuple
+        if result is None:
+            raise RuntimeError(f"Multi-service sink returned None for structured LLM call in {self.__class__.__name__}")
+            
+        return result
 
     async def apply_faculties(self, content: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, BaseModel]:
         """Apply available epistemic faculties to content.

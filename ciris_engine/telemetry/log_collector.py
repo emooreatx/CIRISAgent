@@ -8,7 +8,7 @@ enabling time-series queries and agent introspection of log data.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from uuid import uuid4
 
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
@@ -94,7 +94,7 @@ class LogCorrelationCollector:
         """
         self.log_levels = log_levels or ["WARNING", "ERROR", "CRITICAL"]
         self.tags = tags or {"source": "ciris_agent"}
-        self.loggers = loggers or [None]  # None means root logger
+        self.loggers: List[Optional[str]] = list(loggers) if loggers is not None else [None]  # None means root logger
         self.handlers: list[TSDBLogHandler] = []
         
     async def start(self) -> None:
@@ -119,7 +119,7 @@ class LogCorrelationCollector:
             
             # Add handler to logger
             if logger_name is None:
-                logger = logging.getLogger()  # type: ignore[unreachable]
+                logger = logging.getLogger()
             else:
                 logger = logging.getLogger(logger_name)
             

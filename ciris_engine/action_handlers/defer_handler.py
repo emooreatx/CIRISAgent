@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional # Added Optional
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import DeferParams
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType, DispatchContext
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler
@@ -19,7 +19,7 @@ class DeferHandler(BaseActionHandler):
         self,
         result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,
-        dispatch_context: Dict[str, Any]
+        dispatch_context: DispatchContext
     ) -> None:
         raw_params = result.action_parameters
         thought_id = thought.thought_id

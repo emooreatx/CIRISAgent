@@ -39,7 +39,7 @@ class ActionDispatcher:
         self,
         action_selection_result: ActionSelectionResult,
         thought: Thought, # The original thought that led to this action
-        dispatch_context: Dict[str, Any], # Context from the caller (e.g., channel_id, author_name, services)
+        dispatch_context: DispatchContext, # Context from the caller (e.g., channel_id, author_name, services)
         # Services are now expected to be part of ActionHandlerDependencies,
         # but dispatch_context can still carry event-specific data.
     ) -> None:
@@ -98,7 +98,7 @@ class ActionDispatcher:
         dependencies = getattr(handler_instance, "dependencies", None)
         if dependencies and hasattr(dependencies, "wait_registry_ready"):
             ready = await dependencies.wait_registry_ready(
-                timeout=dispatch_context.get("registry_timeout", 30.0)
+                timeout=getattr(dispatch_context, 'registry_timeout', 30.0)
             )
             if not ready:
                 logger.error(

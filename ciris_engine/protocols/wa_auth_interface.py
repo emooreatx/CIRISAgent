@@ -43,7 +43,7 @@ class WAStore(Protocol):
         ...
     
     @abstractmethod
-    async def update_wa(self, wa_id: str, **updates) -> None:
+    async def update_wa(self, wa_id: str, **updates: Any) -> None:
         """Update WA certificate fields."""
         ...
     
@@ -159,7 +159,7 @@ class WAAuthMiddleware(Protocol):
         ...
     
     @abstractmethod
-    def require_scope(self, scope: str):
+    def require_scope(self, scope: str) -> Any:
         """Decorator to require specific scope for endpoint."""
         ...
     

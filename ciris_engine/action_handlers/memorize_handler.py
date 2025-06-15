@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import MemorizeParams
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, HandlerActionType, DispatchContext
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
 from ciris_engine.protocols.services import MemoryService
@@ -22,7 +22,7 @@ class MemorizeHandler(BaseActionHandler):
         self,
         result: ActionSelectionResult,
         thought: Thought,
-        dispatch_context: Dict[str, Any]
+        dispatch_context: DispatchContext
     ) -> None:
         raw_params = result.action_parameters
         thought_id = thought.thought_id
@@ -75,7 +75,7 @@ class MemorizeHandler(BaseActionHandler):
             )
         else:
             scope = params.node.scope  # type: ignore[attr-defined]
-            if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not dispatch_context.get("wa_authorized"):
+            if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not dispatch_context.wa_authorized:
                 self.logger.warning(
                     f"WA authorization required for MEMORIZE in scope {scope}. Thought {thought_id} denied."
                 )

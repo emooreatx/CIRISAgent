@@ -126,7 +126,7 @@ class APIRuntimeControlRoutes:
     async def _handle_get_queue_status(self, request: web.Request) -> web.Response:
         """Get processor queue status."""
         try:
-            status = await self.runtime_control.get_queue_status()
+            status = await self.runtime_control.get_processor_queue_status()
             return web.json_response(status, status=200)
         except Exception as e:
             logger.error(f"Error getting queue status: {e}", exc_info=True)
@@ -354,7 +354,10 @@ class APIRuntimeControlRoutes:
             data = await request.json() if request.can_read_body else {}
             backup_request = ConfigBackupRequest(**data)
             
-            result = await self.runtime_control.backup_config(backup_request)
+            result = await self.runtime_control.backup_config(
+                include_profiles=backup_request.include_profiles,
+                backup_name=backup_request.backup_name
+            )
             return web.json_response(result.model_dump(mode="json"), status=200)
         except ValueError as e:
             logger.warning(f"Invalid backup request: {e}")

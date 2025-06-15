@@ -68,36 +68,36 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
             **kwargs
         )
         
-        self.context_builder = ActionSelectionContextBuilder(self.prompts)
+        self.context_builder = ActionSelectionContextBuilder(self.prompts, service_registry)
         self.parameter_processor = ActionParameterProcessor()
         self.faculty_integration = FacultyIntegration(faculties) if faculties else None
 
     async def evaluate(
         self, 
-        triaged_inputs: Dict[str, Any],
+        input_data: Dict[str, Any],
         enable_recursive_evaluation: bool = False,
         **kwargs: Any
     ) -> ActionSelectionResult:
         """Evaluate triaged inputs and select optimal action."""
         
-        original_thought: Thought = triaged_inputs["original_thought"]
+        original_thought: Thought = input_data["original_thought"]
         logger.debug(f"Evaluating action selection for thought ID {original_thought.thought_id}")
 
         # Handle special cases first
-        special_result = await self._handle_special_cases(triaged_inputs)
+        special_result = await self._handle_special_cases(input_data)
         if special_result:
             return special_result
 
         # Perform main evaluation
         try:
-            result = await self._perform_main_evaluation(triaged_inputs, enable_recursive_evaluation)
+            result = await self._perform_main_evaluation(input_data, enable_recursive_evaluation)
             
             # Add faculty metadata if applicable
-            if self.faculty_integration and triaged_inputs.get("faculty_enhanced"):
+            if self.faculty_integration and input_data.get("faculty_enhanced"):
                 result = self.faculty_integration.add_faculty_metadata_to_result(
                     result, 
                     faculty_enhanced=True,
-                    recursive_evaluation=triaged_inputs.get("recursive_evaluation", False)
+                    recursive_evaluation=input_data.get("recursive_evaluation", False)
                 )
             
             logger.info(f"Action selection successful for thought {original_thought.thought_id}: {result.selected_action.value}")
@@ -109,37 +109,37 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
 
     async def recursive_evaluate_with_faculties(
         self,
-        triaged_inputs: Dict[str, Any],
+        input_data: Dict[str, Any],
         guardrail_failure_context: Dict[str, Any]
     ) -> ActionSelectionResult:
         """Perform recursive evaluation using epistemic faculties."""
         
         if not self.faculty_integration:
             logger.warning("Recursive evaluation requested but no faculties available. Falling back to regular evaluation.")
-            return await self.evaluate(triaged_inputs, enable_recursive_evaluation=False)
+            return await self.evaluate(input_data, enable_recursive_evaluation=False)
         
-        original_thought: Thought = triaged_inputs["original_thought"]
+        original_thought: Thought = input_data["original_thought"]
         logger.info(f"Starting recursive evaluation with faculties for thought {original_thought.thought_id}")
         
         enhanced_inputs = await self.faculty_integration.enhance_evaluation_with_faculties(
             original_thought=original_thought,
-            triaged_inputs=triaged_inputs,
+            input_data=input_data,
             guardrail_failure_context=guardrail_failure_context
         )
         enhanced_inputs["recursive_evaluation"] = True
         
         return await self.evaluate(enhanced_inputs, enable_recursive_evaluation=False)
 
-    async def _handle_special_cases(self, triaged_inputs: Dict[str, Any]) -> Optional[ActionSelectionResult]:
+    async def _handle_special_cases(self, input_data: Dict[str, Any]) -> Optional[ActionSelectionResult]:
         """Handle special cases that override normal evaluation."""
         
         # Check for forced ponder
-        ponder_result = await ActionSelectionSpecialCases.handle_ponder_force(triaged_inputs)
+        ponder_result = await ActionSelectionSpecialCases.handle_ponder_force(input_data)
         if ponder_result:
             return ponder_result
         
         # Check wakeup task SPEAK requirement
-        wakeup_result = await ActionSelectionSpecialCases.handle_wakeup_task_speak_requirement(triaged_inputs)
+        wakeup_result = await ActionSelectionSpecialCases.handle_wakeup_task_speak_requirement(input_data)
         if wakeup_result:
             return wakeup_result
         
@@ -147,26 +147,26 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
 
     async def _perform_main_evaluation(
         self, 
-        triaged_inputs: Dict[str, Any],
+        input_data: Dict[str, Any],
         enable_recursive_evaluation: bool
     ) -> ActionSelectionResult:
         """Perform the main LLM-based evaluation."""
         
 
-        agent_profile = triaged_inputs.get("agent_profile")
+        agent_profile = input_data.get("agent_profile")
         agent_name = getattr(agent_profile, "name", None) if agent_profile else None
         
         main_user_content = self.context_builder.build_main_user_content(
-            triaged_inputs, agent_name
+            input_data, agent_name
         )
         
-        if triaged_inputs.get("faculty_evaluations") and self.faculty_integration:
+        if input_data.get("faculty_evaluations") and self.faculty_integration:
             faculty_insights = self.faculty_integration.build_faculty_insights_string(
-                triaged_inputs["faculty_evaluations"]
+                input_data["faculty_evaluations"]
             )
             main_user_content += faculty_insights
 
-        system_message = self._build_system_message(triaged_inputs)
+        system_message = self._build_system_message(input_data)
         
         messages = [
             {"role": "system", "content": COVENANT_TEXT},
@@ -182,20 +182,20 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
         )
 
         final_result = self.parameter_processor.process_action_parameters(
-            llm_response, triaged_inputs
+            llm_response, input_data
         )
 
         if final_result.selected_action == HandlerActionType.OBSERVE:
-            logger.warning(f"OBSERVE ACTION: Successfully created for thought {triaged_inputs['original_thought'].thought_id}")
+            logger.warning(f"OBSERVE ACTION: Successfully created for thought {input_data['original_thought'].thought_id}")
             logger.warning(f"OBSERVE PARAMS: {final_result.action_parameters}")
             logger.warning(f"OBSERVE RATIONALE: {final_result.rationale}")
 
         return final_result
 
-    def _build_system_message(self, triaged_inputs: Dict[str, Any]) -> str:
+    def _build_system_message(self, input_data: Dict[str, Any]) -> str:
         """Build the system message for LLM evaluation."""
         
-        processing_context = triaged_inputs.get("processing_context")
+        processing_context = input_data.get("processing_context")
         
         system_snapshot_block = ""
         user_profiles_block = ""

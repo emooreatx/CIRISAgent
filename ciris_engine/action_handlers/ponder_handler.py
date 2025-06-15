@@ -6,6 +6,7 @@ from ciris_engine.schemas.action_params_v1 import PonderParams
 from ciris_engine.schemas.foundational_schemas_v1 import (
     ThoughtStatus,
     HandlerActionType,
+    DispatchContext,
 )
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
@@ -38,7 +39,7 @@ class PonderHandler(BaseActionHandler):
         self,
         result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,
-        dispatch_context: Dict[str, Any]
+        dispatch_context: DispatchContext
     ) -> None:
         """Process ponder action and update thought."""
         params = result.action_parameters
@@ -46,16 +47,8 @@ class PonderHandler(BaseActionHandler):
         
         questions_list = ponder_params.questions if hasattr(ponder_params, 'questions') else []
         
-        epistemic_data = dispatch_context.get('epistemic_data')
-        if epistemic_data:
-            if 'optimization_veto' in epistemic_data:
-                veto = epistemic_data['optimization_veto']
-                note = f"OptVeto: {veto.get('decision')} - {veto.get('justification')}"
-                questions_list.append(note)
-            if 'epistemic_humility' in epistemic_data:
-                hum = epistemic_data['epistemic_humility']
-                h_note = f"Humility: {hum.get('recommended_action')} - {hum.get('epistemic_certainty')}"
-                questions_list.append(h_note)
+        # Note: epistemic_data handling removed - not part of typed DispatchContext
+        # If epistemic data is needed, it should be passed through proper typed fields
         
         current_ponder_count = thought.ponder_count
         new_ponder_count = current_ponder_count + 1
@@ -71,7 +64,8 @@ class PonderHandler(BaseActionHandler):
             from ciris_engine.schemas.action_params_v1 import DeferParams
             
             defer_params = DeferParams(
-                reason=f"Maximum action rounds ({self.max_rounds}) reached after {new_ponder_count} actions"
+                reason=f"Maximum action rounds ({self.max_rounds}) reached after {new_ponder_count} actions. "
+                      f"This suggests the task either cannot be completed autonomously or requires human approval."
             )
             defer_result = ActionSelectionResult(
                 selected_action=HandlerActionType.DEFER,
@@ -106,8 +100,8 @@ class PonderHandler(BaseActionHandler):
                 thought.status = ThoughtStatus.DEFERRED
                 await self._audit_log(
                     HandlerActionType.PONDER,
-                    dispatch_context,
-                    {"thought_id": thought.thought_id, "status": ThoughtStatus.DEFERRED.value, "ponder_type": "max_rounds_defer_fallback"},
+                    {**dispatch_context, "thought_id": thought.thought_id, "status": ThoughtStatus.DEFERRED.value, "ponder_type": "max_rounds_defer_fallback"},
+                    outcome="deferred"
                 )
                 return None
         else:
@@ -133,13 +127,14 @@ class PonderHandler(BaseActionHandler):
             
             await self._audit_log(
                 HandlerActionType.PONDER,
-                dispatch_context,
                 {
+                    **dispatch_context,
                     "thought_id": thought.thought_id,
                     "status": next_status.value,
                     "new_ponder_count": new_ponder_count,
                     "ponder_type": "reprocess",
                 },
+                outcome="success"
             )
             
             original_task = persistence.get_task_by_id(thought.source_task_id)
@@ -179,8 +174,8 @@ class PonderHandler(BaseActionHandler):
             )
             await self._audit_log(
                 HandlerActionType.PONDER,
-                dispatch_context,
-                {"thought_id": thought.thought_id, "status": ThoughtStatus.FAILED.value, "ponder_type": "update_failed"},
+                {**dispatch_context, "thought_id": thought.thought_id, "status": ThoughtStatus.FAILED.value, "ponder_type": "update_failed"},
+                outcome="failed"
             )
             original_task = persistence.get_task_by_id(thought.source_task_id)
             task_context = f"Task ID: {thought.source_task_id}"
@@ -231,25 +226,29 @@ class PonderHandler(BaseActionHandler):
             follow_up_content = (
                 f"Second consideration for: \"{task_context}\"\n"
                 f"Previous concerns: {base_questions}\n"
-                f"Your first attempt didn't pass guardrails. Try a different approach - perhaps more conservative, "
-                f"more detailed, or consider if no action is needed."
+                f"Your first attempt didn't pass guardrails. Consider: "
+                f"1) Is a more conservative approach possible? "
+                f"2) Does this task actually need action, or can it be marked TASK_COMPLETE? "
+                f"3) Are you overthinking a simple request?"
             )
         elif ponder_count == 3:
             follow_up_content = (
                 f"Third attempt at: \"{task_context}\"\n"
                 f"Ongoing concerns: {base_questions}\n"
-                f"Two previous attempts failed guardrails. Consider: Is this task actually necessary? "
-                f"Would a completely different action type work better? Should you defer for human guidance?"
+                f"Two previous attempts failed guardrails. Important questions: "
+                f"1) Is this task already complete or unnecessary? Consider TASK_COMPLETE. "
+                f"2) Are you making this more complex than needed? "
+                f"3) Only DEFER if this MUST be done and REQUIRES human approval."
             )
         elif ponder_count >= 4:
             follow_up_content = (
                 f"Multiple attempts ({ponder_count}) at: \"{task_context}\"\n"
                 f"Persistent issues: {base_questions}\n"
-                f"This task has been repeatedly blocked by guardrails. Consider: "
-                f"1) Is the task inherently problematic? "
-                f"2) Should you defer to human oversight? "
-                f"3) Is there a fundamentally different approach? "
-                f"4) Should this task be marked as complete without action?"
+                f"After {ponder_count} attempts, strongly consider: "
+                f"1) TASK_COMPLETE - The task may be impossible, unnecessary, or already done "
+                f"2) TASK_COMPLETE - You may be overthinking a simple request "
+                f"3) DEFER - ONLY if this task absolutely MUST be done AND requires human approval "
+                f"Remember: Most tasks that can't be acted upon should be marked complete, not deferred."
             )
         
         # Add context from previous ponder notes if available

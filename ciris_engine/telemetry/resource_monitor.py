@@ -4,12 +4,9 @@ import asyncio
 import logging
 from collections import deque
 from datetime import datetime, timedelta
-from typing import Callable, Deque, Dict, List, Optional, Tuple
+from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
-try:  # pragma: no cover - psutil optional
-    import psutil
-except Exception:  # pragma: no cover - fallback
-    psutil = None
+import psutil
 
 from ciris_engine.adapters.base import Service
 from ciris_engine.persistence import get_db_connection
@@ -59,7 +56,7 @@ class ResourceMonitor(Service):
         self._cpu_history: Deque[float] = deque(maxlen=60)
         self._last_action_time: Dict[str, datetime] = {}
         self._monitoring = False
-        self._process = psutil.Process() if psutil else None
+        self._process = psutil.Process()
 
     async def start(self) -> None:
         await super().start()

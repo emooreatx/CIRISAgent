@@ -14,8 +14,10 @@ logger = logging.getLogger(__name__)
 class ActionSelectionContextBuilder:
     """Builds context for action selection evaluation."""
     
-    def __init__(self, prompts: Dict[str, str]):
+    def __init__(self, prompts: Dict[str, str], service_registry: Optional[Any] = None):
         self.prompts = prompts
+        self.service_registry = service_registry
+        self._instruction_generator: Optional[Any] = None
     
     def build_main_user_content(
         self,
@@ -268,10 +270,7 @@ Adhere strictly to the schema for your JSON output.
             'action_selection_rationale_csdma_guidance': self._get_profile_specific_prompt(
                 "action_selection_rationale_csdma_guidance", agent_profile_name
             ),
-            'action_parameter_schemas': self.prompts.get(
-                "action_parameter_schemas",
-                self.prompts.get("action_parameter_schemas", ""),
-            ),
+            'action_parameter_schemas': self._get_dynamic_action_schemas(permitted_actions),
         }
     
     def _build_system_context(self, processing_context_data: Any) -> tuple[str, str]:
@@ -324,3 +323,24 @@ Adhere strictly to the schema for your JSON output.
             f"Prompt key for '{base_key}' (profile: {agent_profile_name}) not found. Using empty string."
         )
         return ""
+    
+    def _get_dynamic_action_schemas(self, permitted_actions: List[HandlerActionType]) -> str:
+        """Get dynamically generated action schemas or fall back to static prompts."""
+        try:
+            # Lazy initialize the instruction generator
+            if self._instruction_generator is None:
+                from ciris_engine.dma.action_selection.action_instruction_generator import ActionInstructionGenerator
+                self._instruction_generator = ActionInstructionGenerator(self.service_registry)
+            
+            # Generate dynamic instructions
+            dynamic_schemas = self._instruction_generator.generate_action_instructions(permitted_actions)
+            
+            if dynamic_schemas:
+                logger.debug("Using dynamically generated action schemas")
+                return dynamic_schemas
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate dynamic action schemas: {e}")
+        
+        # Fall back to static schemas from prompts
+        return self.prompts.get("action_parameter_schemas", "")

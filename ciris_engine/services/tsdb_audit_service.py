@@ -216,10 +216,10 @@ class TSDBSignedAuditService(Service):
                 if action_types and corr.action_type not in action_types:
                     continue
                     
-                if thought_id and corr.request_data.get("thought_id") != thought_id:
+                if thought_id and corr.request_data and corr.request_data.get("thought_id") != thought_id:
                     continue
                     
-                if task_id and corr.request_data.get("task_id") != task_id:
+                if task_id and corr.request_data and corr.request_data.get("task_id") != task_id:
                     continue
                 
                 # Format result
@@ -227,9 +227,9 @@ class TSDBSignedAuditService(Service):
                     "event_id": corr.correlation_id,
                     "timestamp": corr.timestamp.isoformat() if corr.timestamp else corr.created_at,
                     "action": corr.action_type,
-                    "summary": corr.request_data.get("event_summary", ""),
-                    "thought_id": corr.request_data.get("thought_id"),
-                    "task_id": corr.request_data.get("task_id"),
+                    "summary": corr.request_data.get("event_summary", "") if corr.request_data else "",
+                    "thought_id": corr.request_data.get("thought_id") if corr.request_data else None,
+                    "task_id": corr.request_data.get("task_id") if corr.request_data else None,
                     "outcome": corr.response_data.get("outcome") if corr.response_data else None,
                     "tags": corr.tags
                 }

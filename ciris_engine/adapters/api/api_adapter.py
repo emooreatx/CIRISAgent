@@ -132,12 +132,11 @@ class APIAdapter(CommunicationService):
             # Filter messages for the specific channel
             channel_messages = [
                 FetchedMessage(
-                    message_id=msg.message_id,
+                    id=msg.message_id,
                     author_id=msg.author_id,
                     author_name=msg.author_name,
                     content=msg.content,
-                    timestamp=msg.timestamp or datetime.now(timezone.utc).isoformat(),
-                    channel_id=channel_id
+                    timestamp=msg.timestamp or datetime.now(timezone.utc).isoformat()
                 )
                 for msg in self._message_queue
                 if msg.destination_id == channel_id
@@ -163,7 +162,7 @@ class APIAdapter(CommunicationService):
                 author_id=data["author_id"],
                 author_name=data["author_name"],
                 content=data["content"],
-                destination_id=channel_id,
+                channel_id=channel_id,
                 reference_message_id=data.get("reference_message_id"),
                 timestamp=data.get("timestamp", datetime.now(timezone.utc).isoformat()),
             )
@@ -213,7 +212,7 @@ class APIAdapter(CommunicationService):
     
     async def _handle_health_check(self, request: web.Request) -> web.Response:
         """Handle health check endpoint."""
-        health_status = {
+        health_status: Dict[str, Any] = {
             "status": "healthy",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "version": "1.0.0",

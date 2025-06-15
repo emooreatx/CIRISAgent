@@ -2,7 +2,7 @@ import logging
 from typing import Dict, Any, Optional
 
 
-from ciris_engine.schemas import Thought, SpeakParams, ThoughtStatus, HandlerActionType, ActionSelectionResult
+from ciris_engine.schemas import Thought, SpeakParams, ThoughtStatus, HandlerActionType, ActionSelectionResult, DispatchContext
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
@@ -32,7 +32,7 @@ def _build_speak_error_context(params: SpeakParams, thought_id: str, error_type:
 
 
 class SpeakHandler(BaseActionHandler):
-    def __init__(self, dependencies: ActionHandlerDependencies, snore_channel_id: str = None) -> None:
+    def __init__(self, dependencies: ActionHandlerDependencies, snore_channel_id: Optional[str] = None) -> None:
         super().__init__(dependencies)
         self.snore_channel_id = snore_channel_id
 
@@ -40,7 +40,7 @@ class SpeakHandler(BaseActionHandler):
         self,
         result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,
-        dispatch_context: Dict[str, Any]
+        dispatch_context: DispatchContext
     ) -> Optional[str]:
         thought_id = thought.thought_id
 
@@ -80,7 +80,7 @@ class SpeakHandler(BaseActionHandler):
         event_summary = params.content  # type: ignore[attr-defined]
         await self._audit_log(
             HandlerActionType.SPEAK,
-            {**dispatch_context, "thought_id": thought_id, "event_summary": event_summary},
+            dispatch_context.model_copy(update={"thought_id": thought_id, "event_summary": event_summary}),
             outcome="start",
         )
 
@@ -91,6 +91,7 @@ class SpeakHandler(BaseActionHandler):
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
         
         # Build error context if needed
+        assert isinstance(params, SpeakParams)  # Type assertion - validated earlier
         follow_up_error_context = None if success else _build_speak_error_context(params, thought_id)
         
         # Get the actual task content instead of just the ID
@@ -131,8 +132,8 @@ class SpeakHandler(BaseActionHandler):
         follow_up_text = (
             f"""
             NEXT ACTION IS TASK COMPLETE!
-            CIRIS_FOLLOW_UP_THOUGHT: YOU Spoke, as a result of your action: '{params.content}' in channel  # type: ignore[attr-defined]
-            {params.channel_id} as a response to task: {task_description}. The next  # type: ignore[attr-defined]
+            CIRIS_FOLLOW_UP_THOUGHT: YOU Spoke, as a result of your action: '{params.content}' in channel
+            {params.channel_id} as a response to task: {task_description}. The next
             action is probably TASK COMPLETE to mark the original task as handled.
             Do NOT speak again unless DRASTICALLY necessary.
             NEXT ACTION IS TASK COMPLETE UNLESS YOU NEED TO MEMORIZE SOMETHING!
@@ -156,7 +157,7 @@ class SpeakHandler(BaseActionHandler):
             persistence.add_thought(new_follow_up)
             await self._audit_log(
                 HandlerActionType.SPEAK,
-                {**dispatch_context, "thought_id": thought_id, "event_summary": event_summary},
+                dispatch_context.model_copy(update={"thought_id": thought_id, "event_summary": event_summary}),
                 outcome="success" if success else "failed",
             )
             follow_up_thought_id = new_follow_up.thought_id
