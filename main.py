@@ -171,7 +171,7 @@ def main(
     setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
 
     async def _async_main() -> None:
-        nonlocal mock_llm
+        nonlocal mock_llm, handler, params, task, num_rounds
         from ciris_engine.config.env_utils import get_env_var
 
         # Check for API key and auto-enable mock LLM if none is set
@@ -229,11 +229,30 @@ def main(
             # Validate config file exists if provided
             if config_file_path and not Path(config_file_path).exists():
                 logger.error(f"Configuration file not found: {config_file_path}")
-                sys.exit(1)
+                raise SystemExit(1)
             app_config = await load_config(config_file_path)
+        except SystemExit:
+            raise  # Re-raise SystemExit to exit cleanly
         except Exception as e:
-            logger.error(f"Failed to load configuration: {e}")
-            sys.exit(1)
+            error_msg = f"Failed to load config: {e}"
+            logger.error(error_msg)
+            # Write directly to stderr to ensure it's captured
+            print(error_msg, file=sys.stderr)
+            # Ensure outputs are flushed before exit
+            sys.stdout.flush()
+            sys.stderr.flush()
+            # Also flush logging handlers
+            for handler in logger.handlers:
+                handler.flush()
+            # Give a tiny bit of time for output to be written
+            import time
+            time.sleep(0.1)
+            # Force immediate exit to avoid hanging in subprocess
+            # Use os._exit only when running under coverage
+            if sys.gettrace() is not None or 'coverage' in sys.modules:
+                os._exit(1)
+            else:
+                sys.exit(1)
 
         if mock_llm:
             from ciris_engine.services.mock_llm import MockLLMService  # type: ignore
@@ -356,6 +375,8 @@ def main(
     except KeyboardInterrupt:
         logger.info("Interrupted by user, exiting...")
         sys.exit(0)
+    except SystemExit:
+        raise  # Re-raise SystemExit to exit with the correct code
     except Exception as e:
         logger.error(f"Fatal error in main: {e}", exc_info=True)
         sys.exit(1)

@@ -186,3 +186,43 @@ CREATE INDEX IF NOT EXISTS idx_audit_keys_active ON audit_signing_keys(created_a
 WHERE revoked_at IS NULL;
 '''
 
+wa_cert_table_v1 = '''
+CREATE TABLE IF NOT EXISTS wa_cert (
+  wa_id              TEXT PRIMARY KEY,
+  name               TEXT NOT NULL,
+  role               TEXT CHECK(role IN ('root','authority','observer')),
+  pubkey             TEXT NOT NULL,              -- base64url Ed25519
+  jwt_kid            TEXT NOT NULL UNIQUE,
+  password_hash      TEXT,
+  api_key_hash       TEXT,
+  oauth_provider     TEXT,
+  oauth_external_id  TEXT,
+  veilid_id          TEXT,
+  auto_minted        INTEGER DEFAULT 0,          -- 1 = OAuth observer
+  parent_wa_id       TEXT,
+  parent_signature   TEXT,
+  scopes_json        TEXT NOT NULL,
+  channel_id         TEXT,                       -- for adapter observers
+  token_type         TEXT DEFAULT 'standard',    -- 'channel'|'oauth'|'standard'
+  created            TEXT NOT NULL,
+  last_login         TEXT,
+  active             INTEGER DEFAULT 1,
+  
+  -- Foreign key constraints
+  FOREIGN KEY (parent_wa_id) REFERENCES wa_cert(wa_id)
+);
+
+-- Performance and constraint indexes
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_oauth ON wa_cert(oauth_provider, oauth_external_id)
+  WHERE oauth_provider IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_channel ON wa_cert(channel_id)
+  WHERE channel_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_wa_pubkey ON wa_cert(pubkey);
+CREATE INDEX IF NOT EXISTS idx_wa_active ON wa_cert(active);
+CREATE INDEX IF NOT EXISTS idx_wa_jwt_kid ON wa_cert(jwt_kid);
+CREATE INDEX IF NOT EXISTS idx_wa_role ON wa_cert(role);
+CREATE INDEX IF NOT EXISTS idx_wa_parent ON wa_cert(parent_wa_id);
+CREATE INDEX IF NOT EXISTS idx_wa_created ON wa_cert(created DESC);
+CREATE INDEX IF NOT EXISTS idx_wa_token_type ON wa_cert(token_type);
+'''
+

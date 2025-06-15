@@ -1,6 +1,6 @@
 """Wise Authority schemas for CIRIS v1.0-β."""
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Literal
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import Optional, List, Literal, ClassVar, Dict
 from datetime import datetime
 from enum import Enum
 
@@ -29,12 +29,12 @@ class JWTSubType(str, Enum):
 
 class WACertificate(BaseModel):
     """Wise Authority certificate record."""
-    wa_id: str = Field(..., regex="^wa-\\d{4}-\\d{2}-\\d{2}-[A-Z0-9]{6}$")
+    wa_id: str = Field(..., pattern="^wa-\\d{4}-\\d{2}-\\d{2}-[A-Z0-9]{6}$")
     name: str = Field(..., min_length=1, max_length=255)
     role: WARole
     
     # Cryptographic identity
-    pubkey: str = Field(..., description="Base58 encoded Ed25519 public key")
+    pubkey: str = Field(..., description="Base64url encoded Ed25519 public key")
     jwt_kid: str = Field(..., description="JWT key identifier")
     
     # Authentication methods
@@ -65,7 +65,8 @@ class WACertificate(BaseModel):
     last_login: Optional[datetime] = None
     active: bool = True
     
-    @validator('scopes_json')
+    @field_validator('scopes_json')
+    @classmethod
     def validate_scopes_json(cls, v):
         """Ensure scopes_json is valid JSON array."""
         import json
@@ -101,8 +102,7 @@ class WAToken(BaseModel):
     channel: Optional[str] = Field(None, description="Channel ID for anon tokens")
     oauth_provider: Optional[str] = None
     
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class ChannelIdentity(BaseModel):
@@ -111,10 +111,11 @@ class ChannelIdentity(BaseModel):
     adapter_type: str
     instance_id: str
     
-    @validator('channel_id')
-    def validate_channel_format(cls, v, values):
+    @field_validator('channel_id')
+    @classmethod
+    def validate_channel_format(cls, v, info):
         """Ensure channel_id matches expected format."""
-        adapter_type = values.get('adapter_type')
+        adapter_type = info.data.get('adapter_type')
         if adapter_type == 'cli' and not v.startswith('cli:'):
             raise ValueError("CLI channel must start with 'cli:'")
         elif adapter_type == 'http' and not v.startswith('http:'):
@@ -183,17 +184,18 @@ class OAuthProviderConfig(BaseModel):
     metadata_url: Optional[str] = None
     
     # Well-known metadata URLs
-    KNOWN_PROVIDERS = {
+    KNOWN_PROVIDERS: ClassVar[Dict[str, Optional[str]]] = {
         "google": "https://accounts.google.com/.well-known/openid-configuration",
         "discord": None,  # Discord doesn't support OIDC discovery
         "github": None    # GitHub uses custom OAuth2 flow
     }
     
-    @validator('metadata_url', always=True)
-    def set_metadata_url(cls, v, values):
+    @field_validator('metadata_url', mode='before')
+    @classmethod
+    def set_metadata_url(cls, v, info):
         """Set metadata URL for known providers."""
-        if not v and values.get('provider') in cls.KNOWN_PROVIDERS:
-            return cls.KNOWN_PROVIDERS[values['provider']]
+        if not v and info.data.get('provider') in cls.KNOWN_PROVIDERS:
+            return cls.KNOWN_PROVIDERS[info.data['provider']]
         return v
 
 

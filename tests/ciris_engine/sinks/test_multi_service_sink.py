@@ -23,7 +23,6 @@ from ciris_engine.schemas.service_actions_v1 import (
     ForgetAction,
     SendToolAction,
     FetchToolAction,
-    GenerateResponseAction,
     GenerateStructuredAction,
 )
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
@@ -154,7 +153,6 @@ class TestMultiServiceActionSink:
         assert routing[ActionType.FORGET] == 'memory'
         assert routing[ActionType.SEND_TOOL] == 'tool'
         assert routing[ActionType.FETCH_TOOL] == 'tool'
-        assert routing[ActionType.GENERATE_RESPONSE] == 'llm'
         assert routing[ActionType.GENERATE_STRUCTURED] == 'llm'
 
     def test_capability_map_property(self, sink):
@@ -170,8 +168,7 @@ class TestMultiServiceActionSink:
         assert capabilities[ActionType.FORGET] == ['forget']
         assert capabilities[ActionType.SEND_TOOL] == ['execute_tool']
         assert capabilities[ActionType.FETCH_TOOL] == ['get_tool_result']
-        assert capabilities[ActionType.GENERATE_RESPONSE] == ['call_llm_structured']
-        assert capabilities[ActionType.GENERATE_STRUCTURED] == ['call_llm_structured']
+        assert capabilities[ActionType.GENERATE_STRUCTURED] == ['generate_structured_response']
 
     @pytest.mark.asyncio
     async def test_validate_action_send_message(self, sink):
@@ -250,7 +247,6 @@ class TestMultiServiceActionSink:
             ForgetAction("test", {}, test_node),
             SendToolAction("test", {}, "test_tool", {}),
             FetchToolAction("test", {}, "test_tool", "corr_123"),
-            GenerateResponseAction("test", {}, []),
             GenerateStructuredAction("test", {}, [], {})
         ]
         
@@ -420,24 +416,6 @@ class TestMultiServiceActionSink:
         assert result.execution_status == ToolExecutionStatus.SUCCESS
 
     @pytest.mark.asyncio
-    async def test_handle_generate_response(self, sink, mock_llm_service):
-        """Test generate response handling."""
-        messages = [{"role": "user", "content": "Hello"}]
-        action = GenerateResponseAction(
-            handler_name="test",
-            metadata={},
-            messages=messages,
-            temperature=0.7,
-            max_tokens=100
-        )
-        
-        with patch.object(sink, '_get_filter_service', return_value=None):
-            result = await sink._handle_generate_response(mock_llm_service, action)
-        
-        mock_llm_service.call_llm_structured.assert_awaited_once()
-        assert result == "Generated response"
-
-    @pytest.mark.asyncio
     async def test_handle_generate_structured(self, sink, mock_llm_service):
         """Test generate structured response handling."""
         messages = [{"role": "user", "content": "Generate structured data"}]
@@ -505,17 +483,6 @@ class TestMultiServiceActionSink:
             result = await sink.memorize(test_node)
             
             assert result.status == MemoryOpStatus.OK
-
-    @pytest.mark.asyncio
-    async def test_convenience_method_generate_response_sync(self, sink, mock_llm_service):
-        """Test generate_response_sync convenience method."""
-        messages = [{"role": "user", "content": "Hello"}]
-        
-        with patch.object(sink, '_get_service', return_value=mock_llm_service):
-            with patch.object(sink, '_get_filter_service', return_value=None):
-                result = await sink.generate_response_sync(messages)
-                
-                assert result == "Generated response"
 
     @pytest.mark.asyncio
     async def test_error_handling_in_execute_action(self, sink):

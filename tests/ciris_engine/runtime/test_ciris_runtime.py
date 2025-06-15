@@ -347,6 +347,11 @@ class TestCIRISRuntime:
             from ciris_engine.registries.base import ServiceRegistry
             runtime.service_registry = ServiceRegistry()
             
+            # Mock WA auth system for test
+            mock_wa_auth = AsyncMock()
+            mock_wa_auth.create_adapter_token = AsyncMock(return_value="test_token")
+            runtime.wa_auth_system = mock_wa_auth
+            
             await runtime._register_adapter_services()
             
             # Verify that the mock service was registered using proper API
@@ -373,6 +378,11 @@ class TestCIRISRuntime:
             
             from ciris_engine.registries.base import ServiceRegistry
             runtime.service_registry = ServiceRegistry()
+            
+            # Mock WA auth system for test
+            mock_wa_auth = AsyncMock()
+            mock_wa_auth.create_adapter_token = AsyncMock(return_value="test_token")
+            runtime.wa_auth_system = mock_wa_auth
             
             # Should not raise an exception, just log the error
             await runtime._register_adapter_services()
@@ -402,6 +412,11 @@ class TestCIRISRuntime:
             
             from ciris_engine.registries.base import ServiceRegistry
             runtime.service_registry = ServiceRegistry()
+            
+            # Mock WA auth system for test
+            mock_wa_auth = AsyncMock()
+            mock_wa_auth.create_adapter_token = AsyncMock(return_value="test_token")
+            runtime.wa_auth_system = mock_wa_auth
             
             # Should not raise an exception, just log the error
             await runtime._register_adapter_services()

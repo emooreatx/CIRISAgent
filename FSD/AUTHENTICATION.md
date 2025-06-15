@@ -19,12 +19,13 @@ CREATE TABLE wa_cert (
   wa_id              TEXT PRIMARY KEY,
   name               TEXT NOT NULL,
   role               TEXT CHECK(role IN ('root','authority','observer')),
-  pubkey             TEXT NOT NULL,              -- base58 Ed25519
+  pubkey             TEXT NOT NULL,              -- base64url Ed25519
   jwt_kid            TEXT NOT NULL UNIQUE,
   password_hash      TEXT,
   api_key_hash       TEXT,
   oauth_provider     TEXT,
   oauth_external_id  TEXT,
+  discord_id         TEXT,                       -- Discord user ID for deferrals
   veilid_id          TEXT,
   auto_minted        INTEGER DEFAULT 0,          -- 1 = OAuth observer
   parent_wa_id       TEXT,
@@ -41,6 +42,8 @@ CREATE UNIQUE INDEX idx_oauth   ON wa_cert(oauth_provider, oauth_external_id)
   WHERE oauth_provider IS NOT NULL;
 CREATE UNIQUE INDEX idx_channel ON wa_cert(channel_id)
   WHERE channel_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_discord ON wa_cert(discord_id)
+  WHERE discord_id IS NOT NULL;
 CREATE INDEX  idx_pubkey  ON wa_cert(pubkey);
 CREATE INDEX  idx_active  ON wa_cert(active);
 ```
@@ -54,7 +57,7 @@ CREATE INDEX  idx_active  ON wa_cert(active);
   "wa_id": "wa-2025-06-14-ROOT00",
   "name": "ciris_root",
   "role": "root",
-  "pubkey": "<Eric-Moore-public-ed25519-base58>",
+  "pubkey": "<Eric-Moore-public-ed25519-base64url>",
   "jwt_kid": "wa-jwt-root00",
   "scopes_json": "[\"*\"]",
   "created": "2025-06-14T00:00:00Z",
@@ -146,6 +149,7 @@ Command reference:
 * `ciris wa oauth add google|discord|custom`
 * `ciris wa oauth-login <provider>`
 * `ciris wa link-veilid --wa-id ID --peer-id PEER`
+* `ciris wa link-discord --wa-id ID --discord-id USER`
 
 ---
 
@@ -173,13 +177,16 @@ OAuth login auto-mints an **observer** WA (`auto_minted=1`); promotion still req
 **Security Mapping**: See `ciris_engine/protocols/endpoint_security.py:EndpointSecurity` for complete endpoint-to-scope mappings.
 **Auth Context**: See `ciris_engine/schemas/wa_schemas_v1.py:AuthorizationContext` for request auth state.
 
-| HTTP / gRPC route      | Required scopes  | Typical caller |
-| ---------------------- | ---------------- | -------------- |
-| `GET /v1/chat`         | `read:any`       | every adapter  |
-| `POST /v1/chat`        | `write:message`  | every adapter  |
-| `POST /v1/task`        | `write:task`     | authority WA   |
-| `POST /v1/wa/*`        | `wa:*`           | authority/root |
-| `POST /v1/system/kill` | `system:control` | root WA        |
+| HTTP / gRPC route           | Required scopes     | Typical caller   |
+| --------------------------- | ------------------- | ---------------- |
+| `GET /v1/chat`              | `read:any`          | every adapter    |
+| `POST /v1/chat`             | `write:message`     | every adapter    |
+| `POST /v1/task`             | `write:task`        | authority WA     |
+| `POST /v1/wa/*`             | `wa:*`              | authority/root   |
+| `POST /v1/wa/link-discord`  | `wa:admin`          | authority/root   |
+| `POST /v1/deferral/approve` | `wa:approve`        | authority/root   |
+| `POST /v1/deferral/reject`  | `wa:approve`        | authority/root   |
+| `POST /v1/system/kill`      | `system:control`    | root WA          |
 
 Middleware verifies JWT, pulls scopes, denies on mismatch.
 
@@ -216,11 +223,12 @@ Middleware verifies JWT, pulls scopes, denies on mismatch.
 
 ## 9 Extensibility
 
-| Planned feature | Hook already present                               |
-| --------------- | -------------------------------------------------- |
-| **Veilid auth** | `veilid_id` column + `link-veilid` CLI.            |
-| **HSM support** | `KeyStore` interface; set `CIRIS_KEY_BACKEND=hsm`. |
-| **More OAuth**  | `oauth add custom` asks for OIDC metadata URL.     |
+| Planned feature       | Hook already present                               |
+| --------------------- | -------------------------------------------------- |
+| **Veilid auth**       | `veilid_id` column + `link-veilid` CLI.            |
+| **HSM support**       | `KeyStore` interface; set `CIRIS_KEY_BACKEND=hsm`. |
+| **More OAuth**        | `oauth add custom` asks for OIDC metadata URL.     |
+| **Discord deferrals** | `discord_id` column + `link-discord` CLI/API.      |
 
 ---
 
@@ -241,6 +249,9 @@ Middleware verifies JWT, pulls scopes, denies on mismatch.
 5. **Audit log**
    *All above actions recorded and verifiable.*
 
+6. **Discord deferrals**
+   *Discord users with linked WAs can approve/reject deferrals via Discord UI.*
+
 ---
 
 ## 11 Implementation Files
@@ -255,8 +266,14 @@ Middleware verifies JWT, pulls scopes, denies on mismatch.
 - `ciris_engine/protocols/endpoint_security.py` - Endpoint security mappings
 
 ### Database
-- `sql/0001_wa_init.sql` - Initial schema
+- `ciris_engine/schemas/db_tables_v1.py` - wa_cert table definition (integrated into base schema)
 - `seed/root_pub.json` - ciris_root certificate
+
+### Service Implementations
+- `ciris_engine/services/wa_auth_service.py` - Core WA authentication service
+- `ciris_engine/services/wa_cli_service.py` - CLI command handlers
+- `ciris_engine/services/wa_auth_middleware.py` - FastAPI authentication middleware
+- `ciris_engine/services/wa_auth_integration.py` - Runtime integration module
 
 ---
 

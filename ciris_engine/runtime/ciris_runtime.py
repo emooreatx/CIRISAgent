@@ -5,6 +5,7 @@ New simplified runtime that properly orchestrates all components.
 """
 import asyncio
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any, List, Dict
 
@@ -58,6 +59,7 @@ from ciris_engine.services.multi_service_transaction_orchestrator import MultiSe
 from ciris_engine.secrets.service import SecretsService
 
 from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
+from ciris_engine.services.wa_auth_integration import initialize_authentication, WAAuthenticationSystem
 
 
 logger = logging.getLogger(__name__)
@@ -186,11 +188,11 @@ class CIRISRuntime(RuntimeInterface):
             
             await self._load_profile()
             
-            await self._initialize_services() # Core services
-
-            await self._register_adapter_services() # Adapter-provided services
+            await self._initialize_services() # Core services (including WA auth)
             
             await self._build_components() # Agent processor and its dependencies
+
+            await self._register_adapter_services() # Adapter-provided services (needs WA auth)
             
             await self._perform_startup_maintenance()
 
@@ -288,10 +290,14 @@ class CIRISRuntime(RuntimeInterface):
         )
         await self.adaptive_filter_service.start()
         
+        # Initialize WA authentication system
+        self.wa_auth_system = await initialize_authentication()
+        logger.info("WA Authentication System initialized")
+        
         # Initialize agent configuration service
         self.agent_config_service = AgentConfigService(
             memory_service=self.memory_service,
-            wa_service=None,  # WA service not yet implemented
+            wa_service=self.wa_auth_system.get_auth_service(),
             filter_service=self.adaptive_filter_service
         )
         await self.agent_config_service.start()
@@ -337,6 +343,25 @@ class CIRISRuntime(RuntimeInterface):
 
         for adapter in self.adapters:
             try:
+                # Generate authentication token for adapter - REQUIRED for security
+                adapter_type = adapter.__class__.__name__.lower().replace('adapter', '')
+                adapter_info = {
+                    'instance_id': str(id(adapter)),
+                    'startup_time': datetime.now(timezone.utc).isoformat()
+                }
+                
+                # Get channel-specific info if available
+                if hasattr(adapter, 'get_channel_info'):
+                    adapter_info.update(adapter.get_channel_info())
+                
+                auth_token = await self.wa_auth_system.create_adapter_token(adapter_type, adapter_info)
+                
+                # Set token on adapter if it has the method
+                if hasattr(adapter, 'set_auth_token'):
+                    adapter.set_auth_token(auth_token)
+                
+                logger.info(f"Generated authentication token for {adapter_type} adapter")
+                
                 registrations = adapter.get_services_to_register()
                 for reg in registrations:
                     if not isinstance(reg, ServiceRegistration):
@@ -554,7 +579,7 @@ class CIRISRuntime(RuntimeInterface):
                 service_type="llm",
                 provider=self.llm_service,
                 priority=Priority.HIGH,
-                capabilities=["generate_response", "generate_structured_response"]
+                capabilities=["generate_structured_response"]
             )
         
         # Register secrets service globally for all handlers

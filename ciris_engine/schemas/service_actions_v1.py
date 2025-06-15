@@ -21,7 +21,6 @@ class ActionType(Enum):
     FETCH_TOOL = "fetch_tool"
     # Note: OBSERVE_MESSAGE removed - observation handled at adapter level
     # LLM Actions
-    GENERATE_RESPONSE = "generate_response"
     GENERATE_STRUCTURED = "generate_structured"
     # TSDB/Telemetry Actions
     RECORD_METRIC = "record_metric"
@@ -143,21 +142,6 @@ class FetchToolAction(ActionMessage):
         self.tool_name = tool_name
         self.correlation_id = correlation_id
         self.timeout = timeout
-
-
-@dataclass
-class GenerateResponseAction(ActionMessage):
-    """Action to generate a raw text response via LLM service"""
-    messages: list
-    max_tokens: int = 1024
-    temperature: float = 0.7
-    
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], messages: list, 
-                 max_tokens: int = 1024, temperature: float = 0.7) -> None:
-        super().__init__(ActionType.GENERATE_RESPONSE, handler_name, metadata)
-        self.messages = messages
-        self.max_tokens = max_tokens
-        self.temperature = temperature
 
 
 @dataclass  

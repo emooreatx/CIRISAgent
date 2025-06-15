@@ -6,6 +6,7 @@ PyYAML
 discord.py
 aiohttp
 cryptography
+PyJWT[crypto]
 
 # HTTP client (often a dependency, good to list)
 httpx
