@@ -12,6 +12,7 @@ from ciris_engine.schemas.db_tables_v1 import (
     audit_log_table_v1,
     audit_roots_table_v1,
     audit_signing_keys_table_v1,
+    wa_cert_table_v1,
 )
 from .migration_runner import run_migrations
 
@@ -51,6 +52,7 @@ def initialize_database(db_path: Optional[str] = None) -> None:
                 audit_log_table_v1,
                 audit_roots_table_v1,
                 audit_signing_keys_table_v1,
+                wa_cert_table_v1,
             ]
             
             for table_sql in base_tables:

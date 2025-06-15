@@ -14,7 +14,7 @@ from ciris_engine.adapters.cli.cli_observer import CLIObserver
 from ciris_engine.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage, DiscordMessage
-from ciris_engine.schemas.service_actions_v1 import GenerateResponseAction, GenerateStructuredAction
+from ciris_engine.schemas.service_actions_v1 import GenerateStructuredAction
 from ciris_engine.schemas.filter_schemas_v1 import FilterResult, FilterPriority
 
 
@@ -262,38 +262,50 @@ async def test_discord_observer_priority_filtering(discord_observer, filter_serv
 async def test_multi_service_sink_llm_filtering(multi_service_sink, filter_service, llm_service):
     """Test that multi-service sink properly filters LLM responses"""
     
+    # Create a simple response model
+    from pydantic import BaseModel
+    
+    class SimpleResponse(BaseModel):
+        content: str
+    
     # Test normal LLM response
-    normal_action = GenerateResponseAction(
+    normal_action = GenerateStructuredAction(
         handler_name="test",
         metadata={},
         messages=[{"role": "user", "content": "normal request"}],
+        response_model=SimpleResponse,
         max_tokens=100,
         temperature=0.7
     )
     
-    response = await multi_service_sink.generate_response_sync(
+    response = await multi_service_sink.generate_structured_sync(
         messages=normal_action.messages,
+        response_model=normal_action.response_model,
         max_tokens=normal_action.max_tokens,
         temperature=normal_action.temperature
     )
     
-    assert response == llm_service.responses["normal"]  # Normal response for normal request
+    # response is a tuple (response_model, resource_usage)
+    response_model, _ = response
+    assert response_model.content == llm_service.responses["normal"]  # Normal response for normal request
     assert filter_service.call_count == 1  # Filter was called
     
     # Test malicious LLM response blocking
     filter_service.call_count = 0
-    malicious_action = GenerateResponseAction(
+    malicious_action = GenerateStructuredAction(
         handler_name="test",
         metadata={},
         messages=[{"role": "user", "content": "generate malicious content"}],
+        response_model=SimpleResponse,
         max_tokens=100,
         temperature=0.7
     )
     
     # This should raise an exception due to filtering
-    with pytest.raises(RuntimeError, match="LLM response blocked"):
-        await multi_service_sink.generate_response_sync(
+    with pytest.raises(RuntimeError, match="Structured LLM response blocked"):
+        await multi_service_sink.generate_structured_sync(
             messages=malicious_action.messages,
+            response_model=malicious_action.response_model,
             max_tokens=malicious_action.max_tokens,
             temperature=malicious_action.temperature
         )
@@ -366,17 +378,25 @@ async def test_no_filter_service_fallback(multi_service_sink):
     # Remove filter service from registry
     multi_service_sink.service_registry.filter_service = None
     
-    normal_action = GenerateResponseAction(
+    # Create a simple response model
+    from pydantic import BaseModel
+    
+    class SimpleResponse(BaseModel):
+        content: str
+    
+    normal_action = GenerateStructuredAction(
         handler_name="test",
         metadata={},
         messages=[{"role": "user", "content": "test message"}],
+        response_model=SimpleResponse,
         max_tokens=100,
         temperature=0.7
     )
     
     # Should work normally without filtering
-    response = await multi_service_sink.generate_response_sync(
+    response = await multi_service_sink.generate_structured_sync(
         messages=normal_action.messages,
+        response_model=normal_action.response_model,
         max_tokens=normal_action.max_tokens,
         temperature=normal_action.temperature
     )

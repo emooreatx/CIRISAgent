@@ -1,0 +1,11 @@
+{
+  "wa_id": "wa-2025-06-14-ROOT00",
+  "name": "ciris_root",
+  "role": "root",
+  "pubkey": "Jyr8G2cXy3aL7x9jcEXBV8RbgGwxYPmKt5HoUDdQ_nM",
+  "jwt_kid": "wa-jwt-root00", 
+  "scopes_json": "[\"*\"]",
+  "created": "2025-06-14T00:00:00Z",
+  "active": 1,
+  "token_type": "standard"
+}
