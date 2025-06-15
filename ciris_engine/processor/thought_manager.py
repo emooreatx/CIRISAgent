@@ -39,22 +39,16 @@ class ThoughtManager:
         if task.context:
             logger.info(f"SEED_THOUGHT: Processing task {task.task_id}, context type: {type(task.context)}")
             
-            if hasattr(task.context, 'model_dump'):
+            if task.context and hasattr(task.context, 'model_dump'):
                 context_dict = {"initial_task_context": task.context.model_dump()}
-            elif isinstance(task.context, dict):
-                context_dict = {"initial_task_context": task.context.copy()}  # type: ignore[unreachable]
             else:
-                context_dict = {"initial_task_context": str(task.context)}
+                context_dict = {"initial_task_context": str(task.context) if task.context else {}}
             
             critical_fields = ["author_name", "author_id", "channel_id", "origin_service"]
             for key in critical_fields:
                 value = None
                 
-                if isinstance(task.context, dict):
-                    value = task.context.get(key)  # type: ignore[unreachable]
-                    if value is not None:
-                        logger.info(f"SEED_THOUGHT: Extracted {key}='{value}' from dict context")
-                elif hasattr(task.context, key):
+                if hasattr(task.context, key):
                     try:
                         value = getattr(task.context, key, None)
                         if value is not None:
@@ -88,7 +82,8 @@ class ThoughtManager:
             context = ThoughtContext.model_validate(context_dict)
         except Exception as e:
             logger.error(f"SEED_THOUGHT: Failed to validate context for task {task.task_id}: {e}")
-            context = ThoughtContext(channel_id=channel_id)
+            from ciris_engine.schemas.context_schemas_v1 import SystemSnapshot
+            context = ThoughtContext(system_snapshot=SystemSnapshot(channel_id=channel_id))
         
         thought = Thought(
             thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",

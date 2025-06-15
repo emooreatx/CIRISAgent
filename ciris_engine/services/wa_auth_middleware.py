@@ -1,6 +1,6 @@
 """WA Authentication Middleware for endpoint protection."""
 
-from typing import Optional, Callable, Dict, Any, List
+from typing import Optional, Callable, Dict, Any, List, cast
 from functools import wraps
 import logging
 
@@ -53,7 +53,7 @@ class WAAuthMiddleware:
     def require_auth(self, f: Callable) -> Callable:
         """Decorator that requires any valid authentication."""
         @wraps(f)
-        async def decorated(request: Request, *args, **kwargs):
+        async def decorated(request: Request, *args: Any, **kwargs: Any) -> Any:
             auth_context = await self(request)
             if not auth_context:
                 raise HTTPException(
@@ -68,7 +68,7 @@ class WAAuthMiddleware:
         """Decorator that requires a specific scope."""
         def decorator(f: Callable) -> Callable:
             @wraps(f)
-            async def decorated(request: Request, *args, **kwargs):
+            async def decorated(request: Request, *args: Any, **kwargs: Any) -> Any:
                 auth_context = await self(request)
                 
                 if not auth_context:
@@ -92,11 +92,11 @@ class WAAuthMiddleware:
             return decorated
         return decorator
     
-    def require_scopes(self, scopes: List[str], require_all: bool = True) -> Callable:
+    def require_scopes(self, scopes: List[str], require_all: bool = True) -> Callable[..., Any]:
         """Decorator that requires multiple scopes."""
-        def decorator(f: Callable) -> Callable:
+        def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
             @wraps(f)
-            async def decorated(request: Request, *args, **kwargs):
+            async def decorated(request: Request, *args: Any, **kwargs: Any) -> Any:
                 auth_context = await self(request)
                 
                 if not auth_context:
@@ -132,13 +132,13 @@ class WAAuthMiddleware:
             return decorated
         return decorator
     
-    def require_role(self, minimum_role: str) -> Callable:
+    def require_role(self, minimum_role: str) -> Callable[..., Any]:
         """Decorator that requires a minimum role level."""
         role_hierarchy = {"observer": 0, "authority": 1, "root": 2}
         
-        def decorator(f: Callable) -> Callable:
+        def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
             @wraps(f)
-            async def decorated(request: Request, *args, **kwargs):
+            async def decorated(request: Request, *args: Any, **kwargs: Any) -> Any:
                 auth_context = await self(request)
                 
                 if not auth_context:
@@ -165,9 +165,9 @@ class WAAuthMiddleware:
             return decorated
         return decorator
     
-    def protect_endpoint(self, endpoint_path: str, method: str = "GET") -> Callable:
+    def protect_endpoint(self, endpoint_path: str, method: str = "GET") -> Callable[..., Any]:
         """Protect an endpoint based on predefined security rules."""
-        def decorator(f: Callable) -> Callable:
+        def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
             # Get required scopes for this endpoint
             required_scopes = self.endpoint_security.get_required_scopes(method, endpoint_path)
             
@@ -176,7 +176,8 @@ class WAAuthMiddleware:
                 return f
             
             # Apply scope requirements
-            return self.require_scopes(required_scopes)(f)
+            decorated = self.require_scopes(required_scopes)(f)
+            return cast(Callable[..., Any], decorated)
         return decorator
     
     async def validate_request(self, request: Request, endpoint_path: str, method: str = "GET") -> bool:
@@ -225,4 +226,5 @@ async def require_wa(request: Request) -> AuthorizationContext:
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    assert isinstance(auth_context, AuthorizationContext)
     return auth_context

@@ -22,8 +22,10 @@ from ciris_engine.services.memory_service import LocalGraphMemoryService
 from ciris_engine.services.llm_service import OpenAICompatibleClient
 from ciris_engine.services.audit_service import AuditService
 from ciris_engine.services.signed_audit_service import SignedAuditService
+from ciris_engine.services.tsdb_audit_service import TSDBSignedAuditService
 from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
 from .runtime_interface import RuntimeInterface
+from .audit_sink_manager import AuditSinkManager
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.utils.shutdown_manager import (
     get_shutdown_manager, 
@@ -258,24 +260,70 @@ class CIRISRuntime(RuntimeInterface):
         self.memory_service = LocalGraphMemoryService()
         await self.memory_service.start()
         
-        # Initialize audit service based on configuration
-        if config.audit.enable_signed_audit:
-            self.audit_service = SignedAuditService(
-                log_path=config.audit.audit_log_path,
-                db_path=config.audit.audit_db_path,
-                key_path=config.audit.audit_key_path,
-                rotation_size_mb=config.audit.rotation_size_mb,
-                retention_days=config.audit.retention_days,
-                enable_jsonl=config.audit.enable_jsonl_audit,
-                enable_signed=config.audit.enable_signed_audit
-            )
-        else:
-            self.audit_service = AuditService(
-                log_path=config.audit.audit_log_path,
-                rotation_size_mb=config.audit.rotation_size_mb,
-                retention_days=config.audit.retention_days
-            )
-        await self.audit_service.start()
+        # Initialize ALL THREE REQUIRED audit services - they ALL receive events through the sink
+        self.audit_services = []
+        
+        # 1. Basic file-based audit service (REQUIRED - legacy compatibility and fast writes)
+        logger.info("Initializing basic file-based audit service...")
+        basic_audit = AuditService(
+            log_path=config.audit.audit_log_path,
+            rotation_size_mb=config.audit.rotation_size_mb,
+            retention_days=config.audit.retention_days
+        )
+        await basic_audit.start()
+        self.audit_services.append(basic_audit)
+        logger.info("Basic audit service started")
+        
+        # 2. Signed audit service (REQUIRED - cryptographic integrity)
+        logger.info("Initializing cryptographically signed audit service...")
+        signed_audit = SignedAuditService(
+            log_path=f"{config.audit.audit_log_path}.signed",  # Separate file to avoid conflicts
+            db_path=config.audit.audit_db_path,
+            key_path=config.audit.audit_key_path,
+            rotation_size_mb=config.audit.rotation_size_mb,
+            retention_days=config.audit.retention_days,
+            enable_jsonl=False,  # Don't double-write to JSONL
+            enable_signed=True
+        )
+        await signed_audit.start()
+        self.audit_services.append(signed_audit)
+        logger.info("Signed audit service started")
+        
+        # 3. TSDB audit service (REQUIRED - time-series queries and correlations)
+        logger.info("Initializing TSDB audit service...")
+        tsdb_audit = TSDBSignedAuditService(
+            tags={"agent_profile": self.profile_name},
+            retention_policy="raw",
+            enable_file_backup=False,  # We already have file backup from service #1
+            file_audit_service=None
+        )
+        await tsdb_audit.start()
+        self.audit_services.append(tsdb_audit)
+        logger.info("TSDB audit service started")
+        
+        # Verify all 3 services are running
+        if len(self.audit_services) != 3:
+            raise RuntimeError(f"FATAL: Expected 3 audit services, got {len(self.audit_services)}. System cannot continue.")
+        
+        logger.info("All 3 required audit services initialized successfully")
+        
+        # Keep reference to primary audit service for compatibility
+        self.audit_service = self.audit_services[0]
+        
+        # Initialize audit sink manager to handle lifecycle and cleanup
+        self.audit_sink_manager = AuditSinkManager(
+            retention_seconds=300,  # 5 minutes
+            min_consumers=3,  # All 3 audit services must acknowledge
+            cleanup_interval_seconds=60
+        )
+        
+        # Register all audit services as consumers
+        for i, audit_service in enumerate(self.audit_services):
+            consumer_id = f"{audit_service.__class__.__name__}_{i}"
+            self.audit_sink_manager.register_consumer(consumer_id)
+            
+        await self.audit_sink_manager.start()
+        logger.info("Audit sink manager started with 3 registered consumers")
         
         # Initialize secrets service
         self.secrets_service = SecretsService(
@@ -555,14 +603,30 @@ class CIRISRuntime(RuntimeInterface):
                     capabilities=["memorize", "recall", "forget"]
                 )
         
-        # Register audit service globally for all handlers
-        if self.audit_service:
-            self.service_registry.register_global(
-                service_type="audit",
-                provider=self.audit_service,
-                priority=Priority.HIGH,
-                capabilities=["log_action", "get_audit_trail"]
-            )
+        # Register ALL audit services globally - the sink will route to all of them
+        if hasattr(self, 'audit_services') and self.audit_services:
+            for i, audit_service in enumerate(self.audit_services):
+                # Determine capabilities based on service type
+                capabilities = ["log_action", "log_event"]
+                service_name = audit_service.__class__.__name__
+                
+                if "Signed" in service_name:
+                    capabilities.extend(["verify_integrity", "rotate_keys", "create_root_anchor"])
+                if "TSDB" in service_name:
+                    capabilities.extend(["time_series_query", "correlation_tracking"])
+                else:
+                    capabilities.append("get_audit_trail")
+                
+                # Register with different priorities so sink can route appropriately
+                priority = Priority.CRITICAL if i == 0 else Priority.HIGH
+                
+                self.service_registry.register_global(
+                    service_type="audit",
+                    provider=audit_service,
+                    priority=priority,
+                    capabilities=capabilities,
+                    metadata={"audit_type": service_name}
+                )
 
         # Register telemetry service globally for all handlers and components
         if self.telemetry_service:
@@ -615,7 +679,7 @@ class CIRISRuntime(RuntimeInterface):
                 service_type="orchestrator",
                 provider=self.transaction_orchestrator,
                 priority=Priority.CRITICAL,
-                capabilities=["transaction_coordination", "service_routing", "health_monitoring"]
+                capabilities=["transaction_coordination", "service_routing", "health_monitoring", "audit_broadcast"]
             )
         
         # Note: Communication and WA services will be registered by subclasses

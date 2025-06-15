@@ -3,6 +3,7 @@ from typing import Dict, Any
 
 
 from ciris_engine.schemas import Thought, ToolParams, ThoughtStatus, HandlerActionType, ActionSelectionResult
+from ciris_engine.schemas.foundational_schemas_v1 import DispatchContext
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler
@@ -19,10 +20,10 @@ class ToolHandler(BaseActionHandler):
         self,
         result: ActionSelectionResult,
         thought: Thought,
-        dispatch_context: Dict[str, Any]
+        dispatch_context: DispatchContext
     ) -> None:
         thought_id = thought.thought_id
-        await self._audit_log(HandlerActionType.TOOL, {**dispatch_context, "thought_id": thought_id}, outcome="start")
+        await self._audit_log(HandlerActionType.TOOL, {**dispatch_context.model_dump(), "thought_id": thought_id}, outcome="start")
         final_thought_status = ThoughtStatus.COMPLETED
         follow_up_content_key_info = f"TOOL action for thought {thought_id}"
         action_performed_successfully = False
@@ -83,7 +84,7 @@ class ToolHandler(BaseActionHandler):
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after TOOL attempt.")
 
         follow_up_text = ""
-        if action_performed_successfully:
+        if action_performed_successfully and isinstance(params, ToolParams):
             follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: TOOL action {params.name} executed for thought {thought_id}. Info: {follow_up_content_key_info}. Awaiting tool results or next steps. If task complete, use TASK_COMPLETE."
         else:
             follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: TOOL action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. Review and determine next steps."
@@ -92,19 +93,21 @@ class ToolHandler(BaseActionHandler):
                 parent=thought,
                 content=follow_up_text,
             )
-            context_for_follow_up = {"action_performed": HandlerActionType.TOOL.value}
+            # Update context using model_dump and model_validate
+            context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
+            context_data["action_performed"] = HandlerActionType.TOOL.value
             if final_thought_status == ThoughtStatus.FAILED:
-                context_for_follow_up["error_details"] = follow_up_content_key_info
-            context_for_follow_up["action_params"] = params
-            if isinstance(new_follow_up.context, dict):
-                new_follow_up.context.update(context_for_follow_up)  # type: ignore[unreachable]
-            else:
-                new_follow_up.context = context_for_follow_up
+                context_data["error_details"] = follow_up_content_key_info
+            if isinstance(params, ToolParams):
+                context_data["action_params"] = params.model_dump()
+            
+            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+            new_follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(new_follow_up)
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after TOOL action."
             )
-            await self._audit_log(HandlerActionType.TOOL, {**dispatch_context, "thought_id": thought_id}, outcome="success" if action_performed_successfully else "failed")
+            await self._audit_log(HandlerActionType.TOOL, {**dispatch_context.model_dump(), "thought_id": thought_id}, outcome="success" if action_performed_successfully else "failed")
         except Exception as e:
             await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e)
             raise FollowUpCreationError from e

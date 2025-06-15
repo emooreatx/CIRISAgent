@@ -143,6 +143,70 @@ class ThoughtProcessor:
         guardrail_result = await self.guardrail_orchestrator.apply_guardrails(
             action_result, thought, dma_results
         )
+        
+        # 6a. If guardrails overrode to PONDER, try action selection once more with guidance
+        if (guardrail_result and guardrail_result.overridden and 
+            guardrail_result.final_action.selected_action == HandlerActionType.PONDER):
+            
+            logger.info(f"ThoughtProcessor: Guardrail override to PONDER for {thought.thought_id}. Attempting re-run with guidance.")
+            
+            # Extract the guardrail feedback
+            override_reason = guardrail_result.override_reason or "Action failed guardrail checks"
+            attempted_action = self._describe_action(guardrail_result.original_action)
+            
+            # Create enhanced context with guardrail feedback
+            retry_context = thought_context
+            if hasattr(thought_context, 'model_copy'):
+                retry_context = thought_context.model_copy()
+            
+            # Add guardrail guidance to the thought item
+            thought_item.guardrail_feedback = {
+                "failed_action": attempted_action,
+                "failure_reason": override_reason,
+                "retry_guidance": (
+                    f"Your previous attempt to {attempted_action} was rejected because: {override_reason}. "
+                    "Please select a DIFFERENT action that better aligns with ethical principles and safety guidelines. "
+                    "Consider: Is there a more cautious approach? Should you gather more information first? "
+                    "Can this task be marked as complete without further action? "
+                    "Remember: DEFER only if the task MUST be done AND requires human approval."
+                )
+            }
+            
+            # Re-run action selection with guidance
+            try:
+                retry_result = await self.dma_orchestrator.run_action_selection(
+                    thought_item=thought_item,
+                    actual_thought=thought,
+                    processing_context=retry_context,
+                    dma_results=dma_results,
+                    profile_name=profile_name,
+                    retry_with_guidance=True  # Signal this is a retry
+                )
+                
+                if retry_result:
+                    # Always re-apply guardrails, even if same action type (parameters may differ)
+                    logger.info(f"ThoughtProcessor: Re-running guardrails on retry action {retry_result.selected_action}")
+                    retry_guardrail_result = await self.guardrail_orchestrator.apply_guardrails(
+                        retry_result, thought, dma_results
+                    )
+                    
+                    # If the retry passes guardrails, use it
+                    if not retry_guardrail_result.overridden:
+                        logger.info(f"ThoughtProcessor: Retry action {retry_result.selected_action} passed guardrails")
+                        guardrail_result = retry_guardrail_result
+                        action_result = retry_result
+                    else:
+                        # Log details about what failed
+                        logger.info(f"ThoughtProcessor: Retry action {retry_result.selected_action} also failed guardrails")
+                        if retry_result.selected_action == guardrail_result.original_action.selected_action:
+                            logger.info(f"ThoughtProcessor: Same action type but with different parameters still failed")
+                        logger.info(f"ThoughtProcessor: Proceeding with PONDER")
+                else:
+                    logger.info(f"ThoughtProcessor: Retry failed to produce a result, proceeding with PONDER")
+                    
+            except Exception as e:
+                logger.error(f"Error during action selection retry: {e}", exc_info=True)
+                # Continue with original PONDER if retry fails
 
         if action_result.selected_action == HandlerActionType.OBSERVE:
             logger.debug(
@@ -183,6 +247,12 @@ class ThoughtProcessor:
                     rationale="No guardrail result",
                 )
 
+        # Store guardrail result on the action result for later access
+        # This allows handlers to access epistemic data through dispatch context
+        if final_result and guardrail_result:
+            # Add guardrail_result as a non-serialized attribute
+            setattr(final_result, '_guardrail_result', guardrail_result)
+        
         # Record thought processing completion and action taken
         if self.telemetry_service:
             await self.telemetry_service.record_metric("thought_processing_completed")
@@ -197,6 +267,26 @@ class ThoughtProcessor:
         from ciris_engine import persistence
         return await persistence.async_get_thought_by_id(thought_id)
 
+    def _describe_action(self, action_result: ActionSelectionResult) -> str:
+        """Generate a human-readable description of an action."""
+        action_type = action_result.selected_action
+        params = action_result.typed_parameters
+        
+        descriptions = {
+            HandlerActionType.SPEAK: lambda p: f"speak: '{p.content[:50]}...'" if hasattr(p, 'content') and len(str(p.content)) > 50 else f"speak: '{p.content}'" if hasattr(p, 'content') else "speak",
+            HandlerActionType.TOOL: lambda p: f"use tool '{p.tool_name}'" if hasattr(p, 'tool_name') else "use a tool",
+            HandlerActionType.OBSERVE: lambda p: f"observe channel '{p.channel_id}'" if hasattr(p, 'channel_id') else "observe",
+            HandlerActionType.MEMORIZE: lambda p: "memorize information",
+            HandlerActionType.RECALL: lambda p: "recall information",
+            HandlerActionType.FORGET: lambda p: "forget information",
+        }
+        
+        desc_func = descriptions.get(action_type, lambda p: f"{action_type.value}")
+        try:
+            return desc_func(params)
+        except:
+            return f"{action_type.value}"
+    
     def _get_profile_name(self, thought: Thought) -> str:
         """Extract profile name from thought context or use default."""
         profile_name = None
@@ -226,8 +316,7 @@ class ThoughtProcessor:
         defer_reason = "Critical DMA failure or guardrail override."
         defer_params = DeferParams(
             reason=defer_reason,
-            target_wa_ual=DEFAULT_WA,
-            context={"original_thought_id": thought.thought_id, "dma_results_summary": dma_results}
+            context={"original_thought_id": thought.thought_id, "dma_results_summary": dma_results, "target_wa_ual": DEFAULT_WA}
         )
         
         return ActionSelectionResult(
@@ -238,7 +327,7 @@ class ThoughtProcessor:
 
 
 
-    async def _handle_special_cases(self, result, thought, context) -> None:
+    async def _handle_special_cases(self, result: Any, thought: Thought, context: Any) -> Optional[ActionSelectionResult]:
         """Handle special cases like PONDER and DEFER overrides."""
         # Handle both GuardrailResult and ActionSelectionResult
         selected_action = None
@@ -318,7 +407,7 @@ class ThoughtProcessor:
 
 
 
-    async def _update_thought_status(self, thought, result) -> None:
+    async def _update_thought_status(self, thought: Thought, result: Any) -> None:
         from ciris_engine import persistence
         # Update the thought status in persistence
         # Support GuardrailResult as well as ActionSelectionResult
@@ -356,7 +445,7 @@ class ThoughtProcessor:
         self, thought: Thought, action_selection: ActionSelectionResult, context: Dict[str, Any]
     ) -> None:
         """Handles the selected action by dispatching to the appropriate handler."""
-        if action_selection.action == HandlerActionType.PONDER:
+        if action_selection.selected_action == HandlerActionType.PONDER:
             ponder_questions: List[Any] = []
             if action_selection.action_parameters:
                 if isinstance(action_selection.action_parameters, dict) and 'questions' in action_selection.action_parameters:
@@ -376,16 +465,23 @@ class ThoughtProcessor:
             max_rounds = getattr(self.settings, 'max_rounds', 5) 
             ponder_handler = PonderHandler(dependencies=self.dependencies, max_rounds=max_rounds)
             
+            # Create ActionSelectionResult for ponder handler
+            ponder_result = ActionSelectionResult(
+                selected_action=HandlerActionType.PONDER,
+                action_parameters=ponder_params,
+                rationale="Processing PONDER action from action selection"
+            )
+            
             await ponder_handler.handle(
+                result=ponder_result,
                 thought=thought,
-                ponder_params=ponder_params,
-                context=context
+                dispatch_context=context
             )
             
             if thought.status == ThoughtStatus.PENDING:
                 logger.info(f"Thought ID {thought.thought_id} marked as PENDING after PONDER action - will be processed in next round.")
         
-        if action_selection.action == HandlerActionType.OBSERVE:
+        if action_selection.selected_action == HandlerActionType.OBSERVE:
             agent_mode = getattr(self.app_config, "agent_mode", "").lower()
             if agent_mode == "cli":
                 import os

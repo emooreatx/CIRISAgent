@@ -6,8 +6,8 @@ from ciris_engine.services.memory_service import MemoryOpStatus
 from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
-from typing import Optional
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from typing import Optional, Dict, Any
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, DispatchContext
 from ciris_engine import persistence
 import logging
 from pydantic import ValidationError
@@ -15,10 +15,10 @@ from pydantic import ValidationError
 logger = logging.getLogger(__name__)
 
 class ForgetHandler(BaseActionHandler):
-    async def handle(self, result: ActionSelectionResult, thought: Thought, dispatch_context: dict) -> None:
+    async def handle(self, result: ActionSelectionResult, thought: Thought, dispatch_context: DispatchContext) -> None:
         raw_params = result.action_parameters
         thought_id = thought.thought_id
-        await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="start")
+        await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="start")
         params = raw_params
         if not isinstance(params, ForgetParams):
             try:
@@ -39,7 +39,7 @@ class ForgetHandler(BaseActionHandler):
                 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
                 follow_up.context = ThoughtContext.model_validate(context_data)
                 persistence.add_thought(follow_up)
-                await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
+                await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="failed")
                 return
         if not isinstance(params, ForgetParams):
             logger.error(f"ForgetHandler: Invalid params type: {type(raw_params)}")
@@ -87,14 +87,14 @@ class ForgetHandler(BaseActionHandler):
             persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.FORGET,
-                {**dispatch_context, "thought_id": thought_id},
+                dispatch_context.model_copy(update={"thought_id": thought_id}),
                 outcome="failed_no_memory_service",
             )
             return
 
         node = params.node
         scope = node.scope
-        if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not dispatch_context.get("wa_authorized"):
+        if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not getattr(dispatch_context, 'wa_authorized', False):
             follow_up = create_follow_up_thought(
                 parent=thought,
                 content="FORGET action denied: WA authorization required"
@@ -111,7 +111,7 @@ class ForgetHandler(BaseActionHandler):
             persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.FORGET,
-                {**dispatch_context, "thought_id": thought_id},
+                dispatch_context.model_copy(update={"thought_id": thought_id}),
                 outcome="wa_denied",
             )
             return
@@ -146,15 +146,15 @@ class ForgetHandler(BaseActionHandler):
         persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.FORGET,
-            {**dispatch_context, "thought_id": thought_id},
+            dispatch_context.model_copy(update={"thought_id": thought_id}),
             outcome="success" if success else "failed",
         )
 
-    def _can_forget(self, params, dispatch_context: dict) -> bool:
+    def _can_forget(self, params, dispatch_context: DispatchContext) -> bool:
         if hasattr(params, 'node') and hasattr(params.node, 'scope'):
             scope = params.node.scope
             if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT):
-                return dispatch_context.get("wa_authorized", False)
+                return getattr(dispatch_context, 'wa_authorized', False)
         return True
 
     async def _audit_forget_operation(self, params, dispatch_context, result) -> None:
@@ -165,12 +165,12 @@ class ForgetHandler(BaseActionHandler):
             "forget_key": params.node.id,
             "forget_scope": params.node.scope.value,
             "operation_result": str(result.status) if hasattr(result, 'status') else str(result),
-            "timestamp": dispatch_context.get("timestamp"),
-            "thought_id": dispatch_context.get("thought_id")
+            "timestamp": getattr(dispatch_context, 'event_timestamp', None),
+            "thought_id": getattr(dispatch_context, 'thought_id', None)
         }
         
         await self._audit_log(
             HandlerActionType.FORGET,
-            {**dispatch_context, **audit_data},
+            dispatch_context.model_copy(update=audit_data),
             outcome="forget_executed"
         )

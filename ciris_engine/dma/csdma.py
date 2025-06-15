@@ -199,9 +199,9 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
                 raw_llm_response=f"Exception: {str(e)}"
             )
 
-    async def evaluate(self, thought_item: ProcessingQueueItem, **kwargs: Any) -> CSDMAResult:
-        """Alias for evaluate_thought to satisfy BaseDMA."""
-        return await self.evaluate_thought(thought_item)
+    async def evaluate(self, input_data: ProcessingQueueItem, **kwargs: Any) -> CSDMAResult:
+        """Evaluate thought for common sense alignment."""
+        return await self.evaluate_thought(input_data)
 
     def __repr__(self) -> str:
         return f"<CSDMAEvaluator model='{self.model_name}' (using instructor)>"

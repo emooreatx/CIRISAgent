@@ -33,6 +33,10 @@ class PonderParams(BaseModel):
 
 class RejectParams(BaseModel):
     reason: str
+    create_filter: bool = Field(default=False, description="Whether to create an adaptive filter to prevent similar requests")
+    filter_pattern: Optional[str] = Field(default=None, description="Pattern to filter (regex or keywords)")
+    filter_type: Optional[str] = Field(default="regex", description="Type of filter: regex, semantic, keyword")
+    filter_priority: Optional[str] = Field(default="high", description="Priority level: critical, high, medium")
 
     model_config = ConfigDict(extra="forbid")
 

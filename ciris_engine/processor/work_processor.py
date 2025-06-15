@@ -23,9 +23,9 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
 
     def __init__(
         self,
-        app_config,
-        thought_processor,
-        action_dispatcher,
+        app_config: Any,
+        thought_processor: Any,
+        action_dispatcher: Any,
         services: Dict[str, Any],
         startup_channel_id: Optional[str] = None,
         **kwargs
@@ -180,7 +180,8 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
             task=task, 
             app_config=self.app_config, 
             round_number=getattr(item, 'round_number', 0),
-            extra_context=getattr(item, 'initial_context', {})
+            extra_context=getattr(item, 'initial_context', {}),
+            action_type=result.selected_action if result else None
         )
         
         

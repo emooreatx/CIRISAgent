@@ -407,21 +407,19 @@ class WACLIService(WACLIInterface):
                 "error": str(e)
             }
     
-    async def _start_oauth_callback_server(self, port: int):
+    async def _start_oauth_callback_server(self, port: int) -> None:
         """Start local HTTP server for OAuth callback."""
+        cli_service = self
+        
         class CallbackHandler(http.server.BaseHTTPRequestHandler):
-            def __init__(self, cli_service):
-                self.cli_service = cli_service
-                super().__init__()
-            
-            def do_GET(self):
+            def do_GET(self) -> None:
                 if self.path.startswith('/callback'):
                     # Parse callback parameters
                     parsed = urllib.parse.urlparse(self.path)
                     params = urllib.parse.parse_qs(parsed.query)
                     
                     # Store callback data
-                    self.cli_service._oauth_callback_data = {
+                    cli_service._oauth_callback_data = {
                         "code": params.get("code", [None])[0],
                         "state": params.get("state", [None])[0],
                         "error": params.get("error", [None])[0]
@@ -433,11 +431,10 @@ class WACLIService(WACLIInterface):
                     self.end_headers()
                     self.wfile.write(b"<html><body><h1>OAuth callback received!</h1><p>You can close this window.</p></body></html>")
         
-        # Create handler with CLI service reference
-        handler = lambda *args: CallbackHandler.__new__(CallbackHandler, self)(*args)
+        # Create handler class
         
         # Start server in background thread
-        server = socketserver.TCPServer(("", port), handler)
+        server = socketserver.TCPServer(("", port), CallbackHandler)
         server_thread = Thread(target=server.serve_forever, daemon=True)
         server_thread.start()
         
@@ -490,7 +487,7 @@ class WACLIService(WACLIInterface):
             
             self.console.print(table)
     
-    async def _add_wa_children(self, parent_node, all_was: List[WACertificate], parent_id: str):
+    async def _add_wa_children(self, parent_node: Any, all_was: List[WACertificate], parent_id: str) -> None:
         """Recursively add children to tree node."""
         children = [wa for wa in all_was if wa.parent_wa_id == parent_id]
         

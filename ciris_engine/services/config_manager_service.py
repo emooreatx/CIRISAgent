@@ -43,6 +43,10 @@ class ConfigManagerService(Service):
         self._profile_manager = ProfileManager()
         self._backup_manager = ConfigBackupManager(self._backup_dir)
 
+    async def initialize(self) -> None:
+        """Initialize the configuration manager service."""
+        await self.start()
+
     async def start(self) -> None:
         """Start the configuration manager service."""
         try:
@@ -275,6 +279,23 @@ class ConfigManagerService(Service):
         """Create a backup of the current configuration."""
         return await self._backup_manager.backup_config(
             include_profiles, False, backup_name  # False for include_env_vars since we removed that
+        )
+
+    async def list_config_backups(self) -> List[Dict[str, Any]]:
+        """List available configuration backups."""
+        return self._backup_manager.list_backups()
+
+    async def restore_config(
+        self,
+        backup_name: str,
+        restore_profiles: bool = True,
+        restore_env_vars: bool = False,
+        restart_required: bool = False
+    ) -> ConfigBackupResponse:
+        """Restore configuration from backup."""
+        # Note: restart_required is not used by ConfigBackupManager
+        return await self._backup_manager.restore_config(
+            backup_name, restore_profiles, restore_env_vars
         )
 
     def _mask_sensitive_values(self, config_dict: Dict[str, Any]) -> Dict[str, Any]:

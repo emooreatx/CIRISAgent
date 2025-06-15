@@ -9,6 +9,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     ThoughtStatus,
     HandlerActionType,
     FetchedMessage,
+    DispatchContext,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine import persistence
@@ -64,18 +65,18 @@ class ObserveHandler(BaseActionHandler):
         self,
         result: ActionSelectionResult,
         thought: Thought,
-        dispatch_context: Dict[str, Any],
+        dispatch_context: DispatchContext,
     ) -> None:
-        params = result.action_parameters
+        raw_params = result.action_parameters
         thought_id = thought.thought_id
         
         logger.info(f"ObserveHandler: Starting handle for thought {thought_id}")
-        logger.debug(f"ObserveHandler: Parameters: {params}")
-        logger.debug(f"ObserveHandler: Dispatch context keys: {list(dispatch_context.keys())}")
+        logger.debug(f"ObserveHandler: Parameters: {raw_params}")
+        logger.debug(f"ObserveHandler: Dispatch context fields: {list(dispatch_context.model_fields.keys())}")
         
         await self._audit_log(
             HandlerActionType.OBSERVE,
-            {**dispatch_context, "thought_id": thought_id},
+            dispatch_context.model_copy(update={"thought_id": thought_id}),
             outcome="start",
         )
         
@@ -84,7 +85,8 @@ class ObserveHandler(BaseActionHandler):
         follow_up_info = f"OBSERVE action for thought {thought_id}"
 
         try:
-            params = await self._validate_and_convert_params(params, ObserveParams)
+            params = await self._validate_and_convert_params(raw_params, ObserveParams)
+            assert isinstance(params, ObserveParams)  # Type assertion after validation
         except Exception as e:
             await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, e)
             persistence.update_thought_status(
@@ -120,8 +122,8 @@ class ObserveHandler(BaseActionHandler):
 
         channel_id = (
             params.channel_id
-            or dispatch_context.get("channel_id")
-            or getattr(thought, "context", {}).get("channel_id")
+            or dispatch_context.channel_id
+            or (thought.context.system_snapshot.channel_id if thought.context and hasattr(thought.context, 'system_snapshot') else None)
         )
         if channel_id and isinstance(channel_id, str) and channel_id.startswith("@"):
             channel_id = None
@@ -187,7 +189,7 @@ class ObserveHandler(BaseActionHandler):
             )
             await self._audit_log(
                 HandlerActionType.OBSERVE,
-                {**dispatch_context, "thought_id": thought_id},
+                {**dispatch_context.model_dump(), "thought_id": thought_id},
                 outcome="failed_followup",
             )
             raise FollowUpCreationError from e

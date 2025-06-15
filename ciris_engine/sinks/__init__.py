@@ -16,6 +16,7 @@ from ciris_engine.schemas.service_actions_v1 import (
     ForgetAction,
     SendToolAction,
     FetchToolAction,
+    ListToolsAction,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "ForgetAction",
     "SendToolAction",
     "FetchToolAction",
+    "ListToolsAction",
 ]

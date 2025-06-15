@@ -1,7 +1,10 @@
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 from .versioning import SchemaVersion
-from typing import Optional, Any
+from typing import Optional, Any, Dict, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
 
 class CaseInsensitiveEnum(str, Enum):
     """Enum that allows case-insensitive value lookup."""
@@ -42,6 +45,7 @@ class TaskStatus(CaseInsensitiveEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     DEFERRED = "deferred"
+    REJECTED = "rejected"
 
 class ThoughtStatus(CaseInsensitiveEnum):
     PENDING = "pending"
@@ -158,6 +162,66 @@ class ThoughtType(str, Enum):
 CIRISSchemaVersion = SchemaVersion
 
 
+class DispatchContext(BaseModel):
+    """Type-safe context for action handler dispatch.
+    
+    This replaces the generic Dict[str, Any] with proper typed fields
+    for mission-critical production use.
+    """
+    # Core identification
+    channel_id: Optional[str] = Field(None, description="Channel where action originated")
+    author_id: Optional[str] = Field(None, description="ID of user/entity initiating action")
+    author_name: Optional[str] = Field(None, description="Display name of initiator")
+    
+    # Service references
+    origin_service: Optional[str] = Field(None, description="Service that originated the request")
+    handler_name: Optional[str] = Field(None, description="Handler processing this action")
+    
+    # Action context
+    action_type: Optional[HandlerActionType] = Field(None, description="Type of action being handled")
+    thought_id: Optional[str] = Field(None, description="Associated thought ID")
+    task_id: Optional[str] = Field(None, description="Associated task ID")
+    source_task_id: Optional[str] = Field(None, description="Source task ID from thought")
+    
+    # Event details
+    event_summary: Optional[str] = Field(None, description="Summary of the event/action")
+    event_timestamp: Optional[str] = Field(None, description="ISO8601 timestamp of event")
+    
+    # Additional context
+    wa_id: Optional[str] = Field(None, description="Wise Authority ID if applicable")
+    wa_authorized: Optional[bool] = Field(False, description="Whether WA authorized this action")
+    correlation_id: Optional[str] = Field(None, description="Correlation ID for tracking")
+    round_number: Optional[int] = Field(None, description="Processing round number")
+    
+    # Guardrail results - None for terminal actions (DEFER, REJECT, TASK_COMPLETE)
+    guardrail_result: Optional['GuardrailResult'] = Field(
+        None, 
+        description="Guardrail evaluation results. None for terminal actions that bypass guardrails."
+    )
+    
+    # Computed properties for convenience
+    @property
+    def has_guardrail_data(self) -> bool:
+        """Check if guardrail data is available."""
+        return self.guardrail_result is not None
+    
+    @property
+    def epistemic_data(self) -> Optional[Dict[str, Any]]:
+        """Get epistemic data from guardrail results if available."""
+        if self.guardrail_result and hasattr(self.guardrail_result, 'epistemic_data'):
+            return self.guardrail_result.epistemic_data
+        return None
+    
+    @property
+    def was_overridden(self) -> bool:
+        """Check if the action was overridden by guardrails."""
+        if self.guardrail_result and hasattr(self.guardrail_result, 'overridden'):
+            return self.guardrail_result.overridden
+        return False
+    
+    model_config = ConfigDict(extra="forbid")  # No arbitrary fields allowed!
+
+
 __all__ = [
     "CaseInsensitiveEnum",
     "HandlerActionType",
@@ -172,4 +236,5 @@ __all__ = [
     "SchemaVersion",
     "CIRISSchemaVersion",
     "ServiceType",
+    "DispatchContext",
 ]

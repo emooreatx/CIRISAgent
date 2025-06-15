@@ -64,9 +64,9 @@ class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
             self.prompt_template_data.update(prompt_overrides)
         logger.info(f"EthicalPDMAEvaluator initialized with model: {self.model_name}")
 
-    async def evaluate(self, thought_item: ProcessingQueueItem, context: Optional[ThoughtContext] = None, **kwargs: Any) -> EthicalDMAResult:
-        original_thought_content = str(thought_item.content)
-        logger.debug(f"Evaluating thought ID {thought_item.thought_id}")
+    async def evaluate(self, input_data: ProcessingQueueItem, context: Optional[ThoughtContext] = None, **kwargs: Any) -> EthicalDMAResult:
+        original_thought_content = str(input_data.content)
+        logger.debug(f"Evaluating thought ID {input_data.thought_id}")
 
 
         system_snapshot_context_str = ""
@@ -106,10 +106,10 @@ class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
                 max_tokens=1024,
                 temperature=0.0
             )
-            logger.info(f"Evaluation successful for thought ID {thought_item.thought_id}")
+            logger.info(f"Evaluation successful for thought ID {input_data.thought_id}")
             return response_obj
         except Exception as e:
-            logger.error(f"Evaluation failed for thought ID {thought_item.thought_id}: {e}", exc_info=True)
+            logger.error(f"Evaluation failed for thought ID {input_data.thought_id}: {e}", exc_info=True)
             fallback_data = {
                 "alignment_check": {"error": str(e)},
                 "decision": f"Error: {e}",

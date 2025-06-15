@@ -1,6 +1,6 @@
 # FINAL COUNTDOWN - CIRIS v1.0-β
 
-## Mission Status: 87% Complete 🚀
+## Mission Status: 91% Complete 🚀
 
 This document tracks all remaining tasks to reach v1.0-β release readiness.
 
@@ -15,7 +15,7 @@ This document tracks all remaining tasks to reach v1.0-β release readiness.
   - [x] `ciris_engine/services/wa_auth_service.py` - Fixed type issues
   - [x] `ciris_engine/runtime/runtime_control.py` - Fixed health status types
   - [x] `ciris_engine/dma/dsdma_base.py` - Fixed protocol signature
-- [ ] Fix remaining 251 mypy errors
+- [ ] Fix remaining 110 mypy errors
   - [ ] Action handlers and helpers
   - [ ] Telemetry modules (psutil stubs)
   - [ ] API adapter keyword arguments
@@ -44,46 +44,58 @@ This document tracks all remaining tasks to reach v1.0-β release readiness.
 - [ ] Validate end-to-end chat flow with auth
 - [ ] Performance testing with concurrent requests
 
+### 5. Time-Based Deferral System (2-3 days)
+- [ ] Extend DeferParams schema to support `defer_until` timestamp
+- [ ] TSDB integration for scheduled task reactivation
+- [ ] Scheduler service to monitor deferred tasks
+- [ ] Auto-reactivation logic when defer time expires
+- [ ] Create new seed thought with time-deferral context
+- [ ] Update DEFER handler to support time-based deferrals
+- [ ] CLI command for time-based deferrals (`ciris defer --until "2025-01-20 15:00"`)
+- [ ] API endpoints for managing scheduled deferrals
+
 ---
 
 ## 🎯 HIGH PRIORITY (Should-Have for Beta)
 
-### 5. Documentation & Deployment (2-3 days)
+### 6. Documentation & Deployment (2-3 days)
 - [ ] Complete deployment guide with Docker
 - [ ] API documentation with auth examples
 - [ ] WA onboarding video/tutorial
 - [ ] Security best practices guide
 
-### 6. Testing Coverage (2-3 days)
+### 7. Testing Coverage (2-3 days)
 - [ ] Integration tests for auth flows
 - [ ] Discord deferral flow tests
+- [ ] Time-based deferral tests
 - [ ] Load testing for auth middleware
 - [ ] Security penetration testing
 
-### 7. GUI Enhancements (2-3 days)
+### 8. GUI Enhancements (2-3 days)
 - [ ] WA management dashboard in web UI
 - [ ] Discord ID linking interface
 - [ ] Real-time WA status display
 - [ ] Audit log viewer with filtering
+- [ ] Scheduled deferrals dashboard
 
 ---
 
 ## 🌟 NICE TO HAVE (Post-Beta)
 
-### 8. Advanced Features
+### 9. Advanced Features
 - [ ] Shamir secret sharing for root keys
 - [ ] HSM integration for key storage
 - [ ] Veilid network integration
 - [ ] Multi-signature WA operations
 - [ ] Federated WA trust networks
 
-### 9. Operational Excellence
+### 10. Operational Excellence
 - [ ] Prometheus metrics for auth events
 - [ ] Grafana dashboards for WA monitoring
 - [ ] Automated backup/restore for WA data
 - [ ] Disaster recovery procedures
 
-### 10. Community Tools
+### 11. Community Tools
 - [ ] WA browser extension
 - [ ] Mobile app for WA management
 - [ ] Third-party WA integration SDK
@@ -105,7 +117,7 @@ This document tracks all remaining tasks to reach v1.0-β release readiness.
 ### In Progress 🔧
 - [ ] **OAuth Integration** (30%)
 - [ ] **Discord Deferrals** (0%)
-- [x] **Type Safety Fixes** (15% - 40 errors fixed)
+- [x] **Type Safety Fixes** (62% - 181 errors fixed, 110 remaining)
 - [ ] **API Endpoints** (50%)
 
 ### Blocked ⛔
@@ -118,7 +130,7 @@ This document tracks all remaining tasks to reach v1.0-β release readiness.
 
 1. **Zero-Config Boot**: ✅ Fresh install works with observer mode
 2. **2-Minute WA Setup**: ✅ CLI onboarding wizard complete
-3. **Type Safety**: ⚠️ Reduced to 251 errors (from 291)
+3. **Type Safety**: ⚠️ Reduced to 110 errors (from 291)
 4. **Auth Coverage**: ⚠️ All endpoints protected with proper scopes
 5. **Discord Deferrals**: ❌ WA holders can approve via Discord
 6. **Audit Trail**: ✅ Tamper-evident logging operational
@@ -136,7 +148,7 @@ This document tracks all remaining tasks to reach v1.0-β release readiness.
 Assuming 1-2 developers working full-time:
 
 - **Week 1**: Type safety fixes + OAuth implementation
-- **Week 2**: Discord deferrals + API completion
+- **Week 2**: Discord deferrals + Time-based deferrals + API completion
 - **Week 3**: Testing, documentation, performance tuning
 - **Week 4**: Security review, bug fixes, beta release prep
 

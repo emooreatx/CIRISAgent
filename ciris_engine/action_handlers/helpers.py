@@ -24,17 +24,18 @@ def create_follow_up_thought(
     from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 
     if parent.context is not None:
-        ctx = parent.context.copy() if isinstance(parent.context, dict) else parent.context.model_copy()
+        # parent.context should always be ThoughtContext, not dict
+        ctx = parent.context.model_copy()
+        # Try to get channel_id from various possible locations
         channel_id = None
-        if hasattr(parent.context, 'get'):
-            channel_id = parent.context.get('channel_id')
+        if hasattr(parent.context, 'initial_task_context') and parent.context.initial_task_context:
+            channel_id = getattr(parent.context.initial_task_context, 'channel_id', None)
         elif hasattr(parent.context, 'channel_id'):
             channel_id = getattr(parent.context, 'channel_id', None)
-        if channel_id:
-            if hasattr(ctx, 'system_snapshot') and hasattr(ctx.system_snapshot, 'channel_id'):
-                ctx.system_snapshot.channel_id = channel_id
-            elif hasattr(ctx, 'get') and 'system_snapshot' in ctx and hasattr(ctx['system_snapshot'], 'channel_id'):
-                ctx['system_snapshot'].channel_id = channel_id
+        
+        # Update system_snapshot channel_id if needed
+        if channel_id and hasattr(ctx, 'system_snapshot') and ctx.system_snapshot:
+            ctx.system_snapshot.channel_id = channel_id
     else:
         ctx = ThoughtContext(system_snapshot=SystemSnapshot())
 

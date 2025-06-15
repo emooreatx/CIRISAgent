@@ -124,7 +124,7 @@ def _create_epistemic_humility_messages(action_description: str) -> list[dict[st
 
 async def calculate_epistemic_values(
     text_to_evaluate: str,
-    sink,
+    sink: Any,
     model_name: str = DEFAULT_OPENAI_MODEL_NAME
 ) -> Dict[str, Any]:
     """

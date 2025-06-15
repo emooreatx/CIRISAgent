@@ -2,7 +2,7 @@ import logging
 from typing import Dict, Any, Optional
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType, DispatchContext
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler
@@ -10,14 +10,14 @@ from .base_handler import BaseActionHandler
 
 logger = logging.getLogger(__name__)
 
-PERSISTENT_TASK_IDS = {} 
+PERSISTENT_TASK_IDS: Dict[str, Any] = {} 
 
 class TaskCompleteHandler(BaseActionHandler):
     async def handle(
         self,
         result: ActionSelectionResult,
         thought: Thought,
-        dispatch_context: Dict[str, Any]
+        dispatch_context: DispatchContext
     ) -> Optional[str]:
         thought_id = thought.thought_id
         parent_task_id = thought.source_task_id
@@ -59,7 +59,7 @@ class TaskCompleteHandler(BaseActionHandler):
                     
                     ponder_result_dict = {
                         "selected_action": ponder_result.selected_action.value,
-                        "action_parameters": ponder_result.action_parameters.model_dump() if ponder_result.action_parameters else None,
+                        "action_parameters": ponder_result.action_parameters.model_dump() if hasattr(ponder_result.action_parameters, 'model_dump') else ponder_result.action_parameters,
                         "rationale": ponder_result.rationale
                     }
                     
@@ -117,8 +117,8 @@ class TaskCompleteHandler(BaseActionHandler):
             return True
         
         # Check if task context indicates it's a wakeup step
-        if task.context and isinstance(task.context, dict):
-            step_type = task.context.get("step_type")  # type: ignore[unreachable]
+        if task.context and hasattr(task.context, 'step_type'):
+            step_type = getattr(task.context, 'step_type', None)
             if step_type in ["VERIFY_IDENTITY", "VALIDATE_INTEGRITY", "EVALUATE_RESILIENCE", "ACCEPT_INCOMPLETENESS", "EXPRESS_GRATITUDE"]:
                 return True
         

@@ -354,11 +354,17 @@ class AgentProcessor(ProcessorInterface):
                 try:
                     # Get the task for context
                     task = persistence.get_task_by_id(thought.source_task_id)
+                    
+                    # Extract guardrail result if available
+                    guardrail_result = getattr(result, '_guardrail_result', None)
+                    
                     dispatch_context = build_dispatch_context(
                         thought=thought, 
                         task=task, 
                         app_config=self.app_config, 
-                        round_number=self.current_round_number
+                        round_number=self.current_round_number,
+                        guardrail_result=guardrail_result,
+                        action_type=result.selected_action if result else None
                     )
                     # Services should be accessed via service registry, not passed in context
                     # to avoid serialization issues during audit logging

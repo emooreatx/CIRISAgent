@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, DispatchContext
 
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
@@ -113,9 +113,43 @@ class BaseActionHandler(ABC):
         self.logger = logging.getLogger(self.__class__.__name__)
 
     async def _audit_log(self, handler_action: Any, context: Any, outcome: Optional[str] = None) -> None:
-        audit_service = await self.get_audit_service()
-        if audit_service:
-            await audit_service.log_action(handler_action, context, outcome)
+        """Log audit event through transaction orchestrator for broadcast to ALL audit services."""
+        # Get transaction orchestrator from service registry
+        if not self.dependencies.service_registry:
+            self.logger.error("No service registry available for audit logging")
+            return
+            
+        try:
+            # Get the transaction orchestrator
+            orchestrator = await self.dependencies.service_registry.get_service(
+                handler=self.__class__.__name__,
+                service_type="orchestrator"
+            )
+            
+            if not orchestrator:
+                self.logger.error("No transaction orchestrator available for audit broadcast")
+                return
+            
+            # Convert DispatchContext to dict if needed
+            audit_context = context.model_dump() if isinstance(context, DispatchContext) else context
+            
+            # Create audit event data
+            event_data = {
+                "handler_action": handler_action.value if hasattr(handler_action, 'value') else str(handler_action),
+                "handler_name": self.__class__.__name__,
+                "outcome": outcome,
+                **audit_context
+            }
+            
+            # Use transaction orchestrator to broadcast to ALL audit services
+            event_type = f"handler_action_{handler_action.value if hasattr(handler_action, 'value') else handler_action}"
+            tx_id = await orchestrator.broadcast_audit_event(event_type, event_data)
+            
+            self.logger.debug(f"Audit event broadcast initiated with transaction ID: {tx_id}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to broadcast audit event: {e}")
+            # Audit failures should not break handler execution
 
     async def get_communication_service(
         self, required_capabilities: Optional[list[str]] = None
@@ -186,9 +220,9 @@ class BaseActionHandler(ABC):
         """Get multi-service sink from dependencies."""
         return getattr(self.dependencies, 'multi_service_sink', None)
 
-    async def _get_channel_id(self, thought: Thought, dispatch_context: Dict[str, Any]) -> Optional[str]:
+    async def _get_channel_id(self, thought: Thought, dispatch_context: DispatchContext) -> Optional[str]:
         """Get channel ID from dispatch or thought context."""
-        channel_id = dispatch_context.get("channel_id")
+        channel_id = dispatch_context.channel_id
         if not channel_id and getattr(thought, "context", None):
             system_snapshot = getattr(thought.context, "system_snapshot", None) if thought.context else None
             channel_id = getattr(system_snapshot, "channel_id", None) if system_snapshot else None
@@ -281,13 +315,15 @@ class BaseActionHandler(ABC):
     async def _handle_error(
         self,
         action: HandlerActionType,
-        dispatch_context: Dict[str, Any],
+        dispatch_context: DispatchContext,
         thought_id: str,
         error: Exception,
     ) -> None:
         """Centralized error handling with audit logging."""
         self.logger.exception(f"{action.value} handler error for {thought_id}: {error}")
-        await self._audit_log(action, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
+        # Create new context with thought_id
+        error_context = dispatch_context.model_copy(update={"thought_id": thought_id})
+        await self._audit_log(action, error_context, outcome="failed")
 
     async def _decapsulate_secrets_in_params(
         self, 
@@ -342,7 +378,7 @@ class BaseActionHandler(ABC):
         self,
         result: ActionSelectionResult,  # Updated to v1 result schema
         thought: Thought,  # The original thought that led to this action
-        dispatch_context: Dict[str, Any]  # Context from the dispatcher (e.g., channel_id, author_name)
+        dispatch_context: DispatchContext  # Type-safe context from the dispatcher
     ) -> Optional[str]:  # Return follow-up thought ID if created
         """
         Handles the action.

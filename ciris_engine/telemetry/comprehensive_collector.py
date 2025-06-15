@@ -373,6 +373,13 @@ class ComprehensiveTelemetryCollector(TelemetryInterface, ProcessorControlInterf
                 "error": str(e),
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
+        
+        # Default return if no processor available
+        return {
+            "status": "error",
+            "error": "No processor available",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
     
     async def pause_processing(self) -> bool:
         """Pause the processor"""

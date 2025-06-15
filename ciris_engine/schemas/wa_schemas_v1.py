@@ -1,6 +1,6 @@
 """Wise Authority schemas for CIRIS v1.0-β."""
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, List, Literal, ClassVar, Dict
+from typing import Optional, List, Literal, ClassVar, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -67,7 +67,7 @@ class WACertificate(BaseModel):
     
     @field_validator('scopes_json')
     @classmethod
-    def validate_scopes_json(cls, v):
+    def validate_scopes_json(cls, v: str) -> str:
         """Ensure scopes_json is valid JSON array."""
         import json
         try:
@@ -82,7 +82,8 @@ class WACertificate(BaseModel):
     def scopes(self) -> List[str]:
         """Get scopes as Python list."""
         import json
-        return json.loads(self.scopes_json)
+        scopes_list: List[str] = json.loads(self.scopes_json)
+        return scopes_list
     
     def has_scope(self, scope: str) -> bool:
         """Check if WA has a specific scope."""
@@ -113,7 +114,7 @@ class ChannelIdentity(BaseModel):
     
     @field_validator('channel_id')
     @classmethod
-    def validate_channel_format(cls, v, info):
+    def validate_channel_format(cls, v: str, info: Any) -> str:
         """Ensure channel_id matches expected format."""
         adapter_type = info.data.get('adapter_type')
         if adapter_type == 'cli' and not v.startswith('cli:'):
@@ -192,7 +193,7 @@ class OAuthProviderConfig(BaseModel):
     
     @field_validator('metadata_url', mode='before')
     @classmethod
-    def set_metadata_url(cls, v, info):
+    def set_metadata_url(cls, v: Optional[str], info: Any) -> Optional[str]:
         """Set metadata URL for known providers."""
         if not v and info.data.get('provider') in cls.KNOWN_PROVIDERS:
             return cls.KNOWN_PROVIDERS[info.data['provider']]

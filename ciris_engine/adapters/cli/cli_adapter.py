@@ -312,7 +312,7 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                     author_id="cli_user",
                     author_name="User",
                     content=user_input,
-                    destination_id="cli",
+                    channel_id="cli",
                     timestamp=datetime.now(timezone.utc).isoformat()
                 )
                 

@@ -226,7 +226,7 @@ class LocalGraphMemoryService(MemoryService):
         
         # Add secret references to node metadata if any were found
         if secret_refs:
-            processed_attributes.setdefault("_secret_refs", []).extend([ref.secret_uuid for ref in secret_refs])
+            processed_attributes.setdefault("_secret_refs", []).extend([ref.uuid for ref in secret_refs])
             logger.info(f"Stored {len(secret_refs)} secret references in memory node {node.id}")
         
         return GraphNode(
@@ -245,23 +245,25 @@ class LocalGraphMemoryService(MemoryService):
         if not secret_refs:
             return attributes
         
-        should_decrypt = action_type in getattr(self.secrets_service.filter.config, "auto_decrypt_for_actions", ["speak", "tool"])
+        should_decrypt = action_type in getattr(self.secrets_service.filter.detection_config, "auto_decrypt_for_actions", ["speak", "tool"])
         
         if should_decrypt:
             attributes_str = json.dumps(attributes, cls=DateTimeEncoder)
             
-            decapsulated_text = await self.secrets_service.decapsulate_secrets(
-                attributes_str,
-                action_type=action_type,
-                context={
+            decapsulated_attributes = await self.secrets_service.decapsulate_secrets_in_parameters(
+                attributes,
+                action_type,
+                {
                     "operation": "recall", 
                     "auto_decrypt": True
                 }
             )
             
-            if decapsulated_text != attributes_str:
+            if decapsulated_attributes != attributes:
                 logger.info(f"Auto-decrypted secrets in recalled data for {action_type}")
-                return json.loads(decapsulated_text)
+                # Type assertion: decapsulate_secrets_in_parameters should return dict
+                assert isinstance(decapsulated_attributes, dict)
+                return decapsulated_attributes
         
         return attributes
 
@@ -305,26 +307,26 @@ class LocalGraphMemoryService(MemoryService):
             end_time_str = end_time.isoformat()
             
             # Default correlation types if not specified
+            enum_correlation_types: List[CorrelationType]
             if correlation_types is None:
-                correlation_types = [CorrelationType.METRIC_DATAPOINT, CorrelationType.LOG_ENTRY, CorrelationType.AUDIT_EVENT]
+                enum_correlation_types = [CorrelationType.METRIC_DATAPOINT, CorrelationType.LOG_ENTRY, CorrelationType.AUDIT_EVENT]
             else:
-                # Convert string types to enum if needed
-                from ciris_engine.schemas.correlation_schemas_v1 import CorrelationType
-                converted_types = []
+                # Convert string types to enum
+                enum_correlation_types = []
                 for corr_type in correlation_types:
-                    if isinstance(corr_type, str):
-                        try:
-                            converted_types.append(CorrelationType(corr_type))
-                        except ValueError:
-                            # Try enum name lookup
-                            converted_types.append(getattr(CorrelationType, corr_type, corr_type))
-                    else:
-                        converted_types.append(corr_type)
-                correlation_types = converted_types
+                    try:
+                        enum_correlation_types.append(CorrelationType(corr_type))
+                    except ValueError:
+                        # Try enum name lookup - skip if not valid
+                        if hasattr(CorrelationType, corr_type):
+                            enum_correlation_types.append(getattr(CorrelationType, corr_type))
+                        else:
+                            logger.warning(f"Skipping invalid correlation type: {corr_type}")
+                            continue
             
             # Query correlations for each type
             all_correlations = []
-            for corr_type in correlation_types:
+            for corr_type in enum_correlation_types:
                 correlations = get_correlations_by_type_and_time(
                     correlation_type=corr_type,
                     start_time=start_time_str,
@@ -337,11 +339,6 @@ class LocalGraphMemoryService(MemoryService):
                 for correlation in correlations:
                     # Access Pydantic model attributes directly
                     tags = correlation.tags if hasattr(correlation, 'tags') and correlation.tags else {}
-                    if isinstance(tags, str):
-                        try:
-                            tags = json.loads(tags)
-                        except json.JSONDecodeError:
-                            tags = {}
                     
                     # Include if scope matches or if no scope filtering requested
                     if scope == "default" or tags.get('scope') == scope:

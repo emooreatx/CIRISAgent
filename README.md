@@ -3,9 +3,11 @@
 
 # CIRIS Engine (CIRISAgent)
 
-> **A moral reasoning agent capable of ethical self-reflection, autonomous decision-making, and principled action across diverse environments.**
+> **A moral reasoning agent demonstrating adaptive coherence through principled self-reflection, ethical decision-making, and responsible action while maintaining transparency and human oversight.**
 
 ⚠️ **BETA SOFTWARE**: CIRIS is experimental software under active development. While the core ethical reasoning architecture is stable, advanced features are evolving. Not recommended for production use without thorough testing and oversight. See [CIS.md](CIS.md) for creator intent and risk assessment.
+
+📖 **NEW**: [The Agent Experience](docs/agent_experience.md) - A comprehensive guide through the complete lifecycle of a CIRIS agent, from initialization to continuous ethical growth.
 
 ---
 
@@ -17,13 +19,25 @@ Unlike traditional AI systems that follow rigid rules, CIRIS employs sophisticat
 
 ### Moral Reasoning Architecture
 
-CIRIS processes every input through a multi-layered **ethical reasoning pipeline** that embodies the principles of the CIRIS Covenant:
+CIRIS processes every input through a sophisticated **ethical reasoning pipeline** that embodies the principles of the CIRIS Covenant:
 
+#### Decision Making Algorithms (DMAs)
 - **Ethical PDMA**: Applies foundational principles (beneficence, non-maleficence, justice, autonomy)
-- **Common Sense Evaluation**: Ensures coherence and plausibility in reasoning
-- **Domain-Specific Analysis**: Applies specialized ethical knowledge for context
-- **Guardrails System**: Multi-tier safety framework preventing harmful actions
-- **Wisdom-Based Deferral**: Escalates complex ethical dilemmas to human authorities
+- **Common Sense DMA**: Ensures coherence and plausibility in reasoning
+- **Domain-Specific DMA**: Applies specialized ethical knowledge for context
+- All DMAs run in parallel with circuit breaker protection and graceful degradation
+
+#### Guardrail System
+- **Multi-tier safety framework** with ONE retry on failure
+- **Guardrail-guided retry**: When an action fails guardrails, the system retries with specific guidance
+- **Always re-evaluates**: Even if the same action type is selected, parameters may differ
+- **PONDER progression**: Escalating guidance favoring TASK_COMPLETE over unnecessary DEFER
+
+#### Action System (3×3×3)
+- **External Actions**: OBSERVE, SPEAK, TOOL
+- **Control Responses**: REJECT (with adaptive filtering), PONDER (with retry), DEFER (only when necessary)
+- **Memory Operations**: MEMORIZE, RECALL, FORGET
+- **Terminal**: TASK_COMPLETE (preferred resolution for problematic tasks)
 
 The system supports **moral profiles** that adapt reasoning patterns for different contexts while maintaining core ethical commitments.
 
@@ -38,8 +52,12 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 - **[Covenant-Aligned Profiles](docs/CIRIS_PROFILES.md)**: Role-specific moral reasoning while maintaining core ethical commitments
 
 ### 🔒 Trustworthy Operations
+- **[Triple Audit System](ciris_engine/audit/README.md)**: Three mandatory audit services running in parallel:
+  - Basic file-based audit for fast, reliable logging
+  - Cryptographically signed audit with hash chains and RSA signatures
+  - Time-series database audit for pattern analysis and correlations
+  - All events broadcast to ALL services via transaction orchestrator
 - **[Secrets Management](ciris_engine/secrets/README.md)**: Automatic detection, AES-256-GCM encryption, and secure handling of sensitive information with graph memory integration
-- **[Cryptographic Audit Trail](ciris_engine/audit/README.md)**: Tamper-evident logging with hash chains, RSA digital signatures, and comprehensive integrity verification
 - **[Adaptive Filtering](ciris_engine/services/README.md)**: ML-powered message prioritization with user trust tracking, spam detection, and priority-based processing
 - **[Security Filtering](ciris_engine/telemetry/README.md)**: PII detection and removal across all telemetry and logging systems
 
@@ -183,7 +201,9 @@ curl -X PUT http://localhost:8080/v1/runtime/config \
 
 ---
 
-## 3×3×3 Handler Actions
+## Action Processing & Retry Logic
+
+### 3×3×3 Handler Actions
 
 The `HandlerActionType` enum defines comprehensive operations:
 
@@ -193,6 +213,27 @@ The `HandlerActionType` enum defines comprehensive operations:
 **Terminal:** `TASK_COMPLETE`
 
 All actions are processed through sophisticated handlers with automatic audit logging, secrets processing, and service coordination.
+
+### Retry & Recovery Mechanisms
+
+1. **Base DMA Retries**: 3 attempts with 30s timeout for all DMA executions
+2. **Guardrail Override Retry**: ONE retry with guidance when guardrails reject an action
+3. **PONDER Progression**: Up to 5 rounds with escalating guidance
+4. **Validation Error Handling**: TODO - Planned retry with helpful parameter suggestions
+5. **Service Failover**: Automatic fallback through service registry priorities
+
+### Audit Event Broadcasting
+
+All audit events are broadcast to ALL THREE audit services via the transaction orchestrator:
+```
+Handler Action → Transaction Orchestrator → Broadcast to 3 Audit Services
+                                         ↓
+                              Each processes independently
+                                         ↓  
+                              Acknowledgments tracked
+                                         ↓
+                              Cleanup after all ACK or timeout
+```
 
 ### Moral Guardrails
 

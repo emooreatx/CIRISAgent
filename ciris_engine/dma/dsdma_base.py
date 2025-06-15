@@ -80,6 +80,17 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
         flags: List[str] = Field(default_factory=list)
         reasoning: str
 
+    async def evaluate(
+        self,
+        input_data: ProcessingQueueItem,
+        current_context: Optional[Dict[str, Any]] = None,
+        **kwargs: Any
+    ) -> DSDMAResult:
+        """Evaluate thought within domain-specific context."""
+        if current_context is None:
+            current_context = {}
+        return await self.evaluate_thought(input_data, current_context)
+    
     async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Dict[str, Any]) -> DSDMAResult:
 
 
@@ -198,11 +209,11 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
             )
 
     async def evaluate(
-        self, thought_item: ProcessingQueueItem, current_context: Optional[Dict[str, Any]] = None, **kwargs: Any
+        self, input_data: ProcessingQueueItem, **kwargs: Any
     ) -> DSDMAResult:
         """Alias for evaluate_thought to satisfy BaseDMA."""
-        context = current_context or {}
-        return await self.evaluate_thought(thought_item, context)
+        context = kwargs.get('current_context', {}) or {}
+        return await self.evaluate_thought(input_data, context)
 
     def __repr__(self) -> str:
         return f"<BaseDSDMA domain='{self.domain_name}'>"

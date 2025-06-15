@@ -20,6 +20,7 @@ from ciris_engine.schemas.service_actions_v1 import (
     ForgetAction,
     SendToolAction,
     FetchToolAction,
+    ListToolsAction,
     GenerateStructuredAction,
     RecordMetricAction,
     QueryTelemetryAction,
@@ -70,6 +71,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FORGET: 'memory',
             ActionType.SEND_TOOL: 'tool',
             ActionType.FETCH_TOOL: 'tool',
+            ActionType.LIST_TOOLS: 'tool',
             ActionType.GENERATE_STRUCTURED: 'llm',
             # Note: OBSERVE_MESSAGE removed - observation handled at adapter level
             # TSDB/Telemetry actions
@@ -94,6 +96,7 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             ActionType.FORGET: ['forget'],
             ActionType.SEND_TOOL: ['execute_tool'],
             ActionType.FETCH_TOOL: ['get_tool_result'],
+            ActionType.LIST_TOOLS: ['get_available_tools'],
             ActionType.GENERATE_STRUCTURED: ['generate_structured_response'],
             ActionType.RECORD_METRIC: ['record_metric'],
             ActionType.QUERY_TELEMETRY: ['query_telemetry'],
@@ -139,6 +142,8 @@ class MultiServiceActionSink(BaseMultiServiceSink):
                 await self._handle_send_tool(service, cast(SendToolAction, action))
             elif action_type == ActionType.FETCH_TOOL:
                 await self._handle_fetch_tool(service, cast(FetchToolAction, action))
+            elif action_type == ActionType.LIST_TOOLS:
+                await self._handle_list_tools(service, cast(ListToolsAction, action))
             elif action_type == ActionType.GENERATE_STRUCTURED:
                 await self._handle_generate_structured(service, cast(GenerateStructuredAction, action))
             elif action_type == ActionType.RECORD_METRIC:
@@ -246,6 +251,51 @@ class MultiServiceActionSink(BaseMultiServiceSink):
             return result
         except Exception as e:
             logger.error(f"Error fetching tool result for {action.correlation_id}: {e}")
+            raise
+    
+    async def _handle_list_tools(self, service: ToolService, action: ListToolsAction) -> Dict[str, Any]:
+        """Handle list tools action - aggregate tools from all tool services"""
+        try:
+            # Get all tool services from the registry
+            tool_services = self.service_registry.get_services_by_type('tool')
+            all_tools = {}
+            
+            # Aggregate tools from all services
+            for tool_service in tool_services:
+                try:
+                    service_tools = await tool_service.get_available_tools()
+                    # Add service identifier to tool info
+                    service_name = getattr(tool_service, 'adapter_name', type(tool_service).__name__)
+                    for tool_name, tool_info in service_tools.items():
+                        # Create unique key if tool name exists in multiple services
+                        if tool_name in all_tools:
+                            tool_key = f"{tool_name}_{service_name}"
+                        else:
+                            tool_key = tool_name
+                        
+                        # Enhance tool info with service metadata
+                        enhanced_info = {
+                            'name': tool_name,
+                            'service': service_name,
+                            'description': tool_info.get('description', 'No description'),
+                        }
+                        
+                        if action.include_schemas and 'parameters' in tool_info:
+                            enhanced_info['parameters'] = tool_info['parameters']
+                        
+                        if 'when_to_use' in tool_info:
+                            enhanced_info['when_to_use'] = tool_info['when_to_use']
+                        
+                        all_tools[tool_key] = enhanced_info
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to get tools from {type(tool_service).__name__}: {e}")
+            
+            logger.info(f"Listed {len(all_tools)} tools from {len(tool_services)} services")
+            return all_tools
+            
+        except Exception as e:
+            logger.error(f"Error listing tools: {e}")
             raise
 
 
