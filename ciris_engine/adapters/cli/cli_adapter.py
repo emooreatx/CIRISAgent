@@ -422,10 +422,13 @@ Tools available:
         if self._input_task and not self._input_task.done():
             self._input_task.cancel()
             try:
-                await asyncio.wait_for(self._input_task, timeout=0.5)
+                await asyncio.wait_for(self._input_task, timeout=0.1)
             except (asyncio.CancelledError, asyncio.TimeoutError):
-                logger.warning("CLI input task did not respond to cancellation within timeout")
+                logger.debug("CLI input task cancelled")
                 pass
+        
+        # Print message and newline to ensure prompt returns properly
+        print("\n[CIRIS CLI] Shutting down... Press Enter to return to prompt.")
 
     async def is_healthy(self) -> bool:
         """Check if the CLI adapter is healthy."""
