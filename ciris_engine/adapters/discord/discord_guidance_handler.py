@@ -1,5 +1,6 @@
 """Discord guidance handling component for wise authority operations."""
 import discord
+from discord import ui
 import logging
 import asyncio
 from typing import Dict, Any, Optional, List
@@ -95,7 +96,7 @@ class DiscordGuidanceHandler:
         reason: str, 
         context: Optional[Dict[str, Any]] = None
     ) -> None:
-        """Send a deferral report to a Discord channel.
+        """Send a deferral report to a Discord channel with helper buttons.
         
         Args:
             deferral_channel_id: The Discord channel ID for deferral reports
@@ -113,21 +114,42 @@ class DiscordGuidanceHandler:
         if not channel:
             raise RuntimeError(f"Deferral channel {deferral_channel_id} not found")
         
-        report = self._build_deferral_report(thought_id, reason, context)
+        # Create embed for better formatting
+        embed = discord.Embed(
+            title="CIRIS Deferral Report",
+            description=f"**Reason:** {reason}",
+            color=discord.Color.orange(),
+            timestamp=datetime.now(timezone.utc)
+        )
         
-        chunks = self._split_message(report)
-        for i, chunk in enumerate(chunks):
-            if len(chunks) > 1:
-                if i == 0:
-                    chunk = f"{chunk}\n\n*(Report continues...)*"
-                elif i < len(chunks) - 1:
-                    chunk = f"*(Continued from previous report)*\n\n{chunk}\n\n*(Report continues...)*"
-                else:
-                    chunk = f"*(Continued from previous report)*\n\n{chunk}"
+        embed.add_field(name="Thought ID", value=f"`{thought_id}`", inline=True)
+        
+        if context:
+            if "task_id" in context:
+                embed.add_field(name="Task ID", value=f"`{context['task_id']}`", inline=True)
             
-            await channel.send(chunk)
-            if i < len(chunks) - 1:
-                await asyncio.sleep(0.5)
+            if "priority" in context:
+                embed.add_field(name="Priority", value=context['priority'], inline=True)
+                
+            if "task_description" in context:
+                task_desc = self._truncate_text(context["task_description"], 1024)
+                embed.add_field(name="Task Description", value=task_desc, inline=False)
+                
+            if "thought_content" in context:
+                thought_content = self._truncate_text(context["thought_content"], 1024)
+                embed.add_field(name="Thought Content", value=thought_content, inline=False)
+                
+            if "attempted_action" in context:
+                embed.add_field(name="Attempted Action", value=context['attempted_action'], inline=True)
+                
+            if "max_rounds_reached" in context and context["max_rounds_reached"]:
+                embed.add_field(name="Note", value="Maximum processing rounds reached", inline=False)
+        
+        # Create view with helper buttons
+        view = DeferralHelperView(thought_id, context)
+        
+        # Send embed with view
+        await channel.send(embed=embed, view=view)
     
     def _build_deferral_report(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Build a formatted deferral report.
@@ -246,3 +268,88 @@ class DiscordGuidanceHandler:
         except (ValueError, discord.NotFound, discord.Forbidden):
             logger.error(f"Could not resolve Discord channel {channel_id}")
             return None
+
+
+class DeferralHelperView(ui.View):
+    """Simple Discord UI View with helper buttons for deferral responses."""
+    
+    def __init__(self, thought_id: str, context: Optional[Dict[str, Any]] = None):
+        super().__init__(timeout=3600)  # 1 hour timeout
+        self.thought_id = thought_id
+        self.context = context or {}
+        
+    @ui.button(label="Approve", style=discord.ButtonStyle.success, emoji="✅")
+    async def approve_button(self, interaction: discord.Interaction, button: ui.Button):
+        """Provide template response for approval."""
+        await interaction.response.send_message(
+            f"To approve this deferral, reply with:\n```\nAPPROVE {self.thought_id}\n```",
+            ephemeral=True
+        )
+        
+    @ui.button(label="Reject", style=discord.ButtonStyle.danger, emoji="❌")
+    async def reject_button(self, interaction: discord.Interaction, button: ui.Button):
+        """Provide template response for rejection."""
+        await interaction.response.send_message(
+            f"To reject this deferral, reply with:\n```\nREJECT {self.thought_id}\n```",
+            ephemeral=True
+        )
+        
+    @ui.button(label="Request Info", style=discord.ButtonStyle.secondary, emoji="❓")
+    async def info_button(self, interaction: discord.Interaction, button: ui.Button):
+        """Provide detailed context about the deferred task/thought."""
+        # Build detailed info message
+        info_lines = ["**Detailed Task/Thought Information**\n"]
+        
+        # Add thought ID
+        info_lines.append(f"**Thought ID:** `{self.thought_id}`")
+        
+        # Add task information if available
+        if "task_id" in self.context:
+            info_lines.append(f"**Task ID:** `{self.context['task_id']}`")
+        
+        if "task_description" in self.context:
+            task_desc = self._truncate_text(self.context["task_description"], 500)
+            info_lines.append(f"\n**Task Description:**\n{task_desc}")
+        
+        # Add thought history if available
+        if "thought_history" in self.context:
+            info_lines.append("\n**Recent Thought History:**")
+            for i, thought in enumerate(self.context["thought_history"][-5:], 1):  # Last 5 thoughts
+                thought_summary = self._truncate_text(thought.get("content", "No content"), 200)
+                info_lines.append(f"{i}. {thought_summary}")
+        
+        # Add ponder notes if available
+        if "ponder_notes" in self.context and self.context["ponder_notes"]:
+            info_lines.append("\n**Ponder Notes (Questions/Ambiguities):**")
+            for i, note in enumerate(self.context["ponder_notes"], 1):
+                info_lines.append(f"{i}. {note}")
+        
+        # Add processing rounds info
+        if "current_round" in self.context:
+            info_lines.append(f"\n**Processing Round:** {self.context['current_round']}/{self.context.get('max_rounds', 5)}")
+        
+        # Add attempted actions if available
+        if "attempted_actions" in self.context:
+            info_lines.append("\n**Attempted Actions:**")
+            for action in self.context["attempted_actions"]:
+                info_lines.append(f"- {action}")
+        
+        # Add template for requesting more info
+        info_lines.append(f"\n**To request specific information:**\n```\nINFO {self.thought_id} - [your question here]\n```")
+        
+        # Join all lines and ensure it fits Discord's limit
+        full_message = "\n".join(info_lines)
+        if len(full_message) > 2000:
+            # Truncate to fit Discord's message limit
+            full_message = full_message[:1997] + "..."
+        
+        await interaction.response.send_message(
+            full_message,
+            ephemeral=True
+        )
+    
+    def _truncate_text(self, text: str, max_length: int) -> str:
+        """Truncate text to a maximum length with ellipsis."""
+        if len(text) <= max_length:
+            return text
+        return text[:max_length - 3] + "..."

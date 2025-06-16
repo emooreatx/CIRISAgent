@@ -31,7 +31,8 @@ class APIAdapter(CommunicationService):
         multi_service_sink: Optional[Any] = None,
         service_registry: Optional[Any] = None,
         runtime_control: Optional[Any] = None,
-        telemetry_collector: Optional[Any] = None
+        telemetry_collector: Optional[Any] = None,
+        runtime: Optional[Any] = None
     ) -> None:
         """
         Initialize the API adapter.
@@ -43,6 +44,7 @@ class APIAdapter(CommunicationService):
             service_registry: Service registry for accessing runtime services
             runtime_control: Runtime control service for system management
             telemetry_collector: Telemetry collector for metrics
+            runtime: Runtime instance for accessing auth services
         """
         super().__init__(config={"retry": {"global": {"max_retries": 3, "base_delay": 1.0}}})
         
@@ -52,6 +54,7 @@ class APIAdapter(CommunicationService):
         self.service_registry = service_registry
         self.runtime_control = runtime_control
         self.telemetry_collector = telemetry_collector
+        self.runtime = runtime
         
         self.app = web.Application()
         self.runner: Optional[web.AppRunner] = None
@@ -80,6 +83,12 @@ class APIAdapter(CommunicationService):
         if self.telemetry_collector:
             self.app.router.add_get("/api/v1/metrics", self._handle_metrics)
             self.app.router.add_get("/api/v1/telemetry/report", self._handle_telemetry_report)
+        
+        # Authentication endpoints (if runtime available)
+        if self.runtime:
+            from .api_auth import APIAuthRoutes
+            auth_routes = APIAuthRoutes(self.runtime)
+            auth_routes.register(self.app)
     
     async def send_message(self, channel_id: str, content: str) -> bool:
         """

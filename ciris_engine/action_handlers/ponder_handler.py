@@ -74,10 +74,16 @@ class PonderHandler(BaseActionHandler):
                 raw_llm_response=None
             )
             
-            defer_handler = self.dependencies.action_dispatcher.get_handler(HandlerActionType.DEFER)
+            # Get defer handler from service registry
+            defer_handler = None
+            if self.dependencies.service_registry:
+                defer_handler = await self.dependencies.service_registry.get_service(
+                    handler=self.__class__.__name__,
+                    service_type="action_handler",
+                    metadata={"action_type": "DEFER"}
+                )
             if defer_handler:
-                enhanced_context = dispatch_context.copy()
-                enhanced_context.update({
+                enhanced_context = dispatch_context.model_copy(update={
                     "max_rounds_reached": True,
                     "attempted_action": "ponder_max_rounds",
                     "ponder_count": new_ponder_count,

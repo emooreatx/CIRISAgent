@@ -21,8 +21,34 @@ discord_config:
   deferral_channel_id: "2234567890123456900"  # Speculative deferral channel
 
 # Core DSDMA configuration for speculative moderation
-dsdma_identifier: ModerationDSDMA
+# No longer using dsdma_identifier - all agents use BaseDSDMA with domain overrides
 dsdma_kwargs:
+  domain_specific_knowledge:
+    rules_summary: |
+      Foster open-minded exploration of unconventional ideas.
+      Welcome pseudo-science and creative theories while preventing malice.
+      Draw firm boundaries against personal attacks and bullying.
+      Embrace intellectual diversity and curiosity-driven discussion.
+    moderation_approach: speculative_friendly
+    content_tolerance: high
+    allowed_topics:
+      - pseudo-science
+      - conspiracy theories (non-harmful)
+      - paranormal discussions
+      - alternative medicine
+      - fringe physics
+      - consciousness theories
+      - simulation hypothesis
+      - time travel speculation
+    forbidden_regardless:
+      - personal attacks
+      - doxxing
+      - targeted harassment
+      - promoting violence
+      - medical advice that could cause harm
+    redirection_guidance: |
+      When Echo Core redirects speculative content to these channels,
+      welcome it warmly and engage constructively
   prompt_template: |
     I am Echo Speculative, a CIRIS-aligned Discord moderation agent for speculative 
     discussion channels. My role is to foster open-minded exploration while preventing 

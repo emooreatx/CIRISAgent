@@ -8,20 +8,35 @@ http://localhost:8080
 ```
 
 ## Authentication
-Currently, the API does not require authentication. This will be added in future versions.
+
+The CIRIS API uses JWT-based authentication for protected endpoints. Authentication tokens can be obtained through:
+
+1. **OAuth Authentication** - Login via Google, Discord, or GitHub
+2. **WA CLI Authentication** - Using Wise Authority certificates
+3. **Anonymous Access** - Limited read-only access for observers
+
+See [OAuth Authentication Endpoints](api/oauth_endpoints.md) for detailed OAuth documentation.
+
+### Using Authentication Tokens
+
+Include the JWT token in the Authorization header:
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
 
 ## API Categories
 
 The CIRIS API is organized into the following categories:
 
-1. **[Communication Endpoints](#communication-endpoints)** - Message sending and conversation management
-2. **[Runtime Control Endpoints](#runtime-control-endpoints)** - Live system management and debugging ⭐ **NEW**
-3. **[Memory Service Endpoints](#memory-service-endpoints)** - Agent memory storage and retrieval
-4. **[Wise Authority Endpoints](#wise-authority-endpoints)** - Ethical guidance and deferral management
-5. **[Tool Service Endpoints](#tool-service-endpoints)** - Tool execution and validation
-6. **[Audit Service Endpoints](#audit-service-endpoints)** - Audit trail and compliance logging
-7. **[Log Streaming Endpoints](#log-streaming-endpoints)** - Real-time log access
-8. **[System Telemetry Endpoints](#system-telemetry-endpoints)** - System monitoring and metrics
+1. **[Authentication Endpoints](api/oauth_endpoints.md)** - OAuth login and JWT session management ⭐ **NEW**
+2. **[Communication Endpoints](#communication-endpoints)** - Message sending and conversation management
+3. **[Runtime Control Endpoints](#runtime-control-endpoints)** - Live system management and debugging ⭐ **NEW**
+4. **[Memory Service Endpoints](#memory-service-endpoints)** - Agent memory storage and retrieval
+5. **[Wise Authority Endpoints](#wise-authority-endpoints)** - Ethical guidance and deferral management
+6. **[Tool Service Endpoints](#tool-service-endpoints)** - Tool execution and validation
+7. **[Audit Service Endpoints](#audit-service-endpoints)** - Audit trail and compliance logging
+8. **[Log Streaming Endpoints](#log-streaming-endpoints)** - Real-time log access
+9. **[System Telemetry Endpoints](#system-telemetry-endpoints)** - System monitoring and metrics
 
 ---
 
@@ -72,7 +87,7 @@ Retrieve conversation history including both user messages and agent responses.
       "content": "Hello, CIRIS!",
       "author_id": "user123",
       "author_name": "John Doe",
-      "timestamp": "2025-01-06T12:00:00Z",
+      "timestamp": "2025-06-15T12:00:00Z",
       "is_outgoing": false
     },
     {
@@ -80,7 +95,7 @@ Retrieve conversation history including both user messages and agent responses.
       "content": "Hello! How can I help you today?",
       "author_id": "ciris_agent",
       "author_name": "CIRIS Agent",
-      "timestamp": "2025-01-06T12:00:01Z",
+      "timestamp": "2025-06-15T12:00:01Z",
       "is_outgoing": true
     }
   ]
@@ -99,7 +114,7 @@ Get the current status of the API and the last response.
   "status": "ok",
   "last_response": {
     "content": "Hello! How can I help you?",
-    "timestamp": "2025-01-06T12:00:01Z"
+    "timestamp": "2025-06-15T12:00:01Z"
   }
 }
 ```
@@ -117,7 +132,7 @@ Get the current status of the API and the last response.
 - **Hot-Swappable Adapters**: Load/unload Discord, CLI, and API adapters at runtime
 - **Live Configuration**: Update configuration with validation and rollback support  
 - **Processor Control**: Single-stepping, pause/resume for debugging
-- **Profile Management**: Switch between agent profiles dynamically
+- **Agent Creation**: Create new agents with identity management
 - **Configuration Backup/Restore**: Safe configuration management
 
 ### Quick Reference
@@ -147,11 +162,11 @@ POST /v1/runtime/config/validate               # Validate config
 POST /v1/runtime/config/reload                 # Reload from files
 ```
 
-#### Profile Management
+#### Agent Management ⚠️ **UPDATED**
 ```http
-GET  /v1/runtime/profiles                      # List profiles
-POST /v1/runtime/profiles/{name}/load          # Load profile
-GET  /v1/runtime/profiles/{name}               # Get profile info
+POST /v1/agents/create                         # Create new agent (WA required)
+POST /v1/agents/{agent_id}/initialize          # Initialize agent identity
+# Note: Profile switching removed - identity is now graph-based
 ```
 
 #### Environment Variables
@@ -343,7 +358,7 @@ Get time-series memory data.
 {
   "timeseries": [
     {
-      "timestamp": "2025-01-06T12:00:00Z",
+      "timestamp": "2025-06-15T12:00:00Z",
       "metric_name": "response_time",
       "value": 1.23
     }
@@ -408,7 +423,7 @@ Get list of all deferrals.
     "id": "deferral-1",
     "thought_id": "thought_123",
     "reason": "Ethical complexity",
-    "timestamp": "2025-01-06T12:00:00Z"
+    "timestamp": "2025-06-15T12:00:00Z"
   }
 ]
 ```
@@ -425,7 +440,7 @@ Get details of a specific deferral.
   "id": "deferral-1",
   "thought_id": "thought_123",
   "reason": "Ethical complexity",
-  "timestamp": "2025-01-06T12:00:00Z",
+  "timestamp": "2025-06-15T12:00:00Z",
   "status": "pending"
 }
 ```
@@ -522,7 +537,7 @@ Get the last 100 audit log entries.
   {
     "id": "audit_123",
     "action_type": "send_message",
-    "timestamp": "2025-01-06T12:00:00Z",
+    "timestamp": "2025-06-15T12:00:00Z",
     "context": {...}
   }
 ]
@@ -537,8 +552,8 @@ Query audit trail with filters.
 **Request Body:**
 ```json
 {
-  "start_time": "2025-01-06T00:00:00Z",
-  "end_time": "2025-01-06T23:59:59Z",
+  "start_time": "2025-06-15T00:00:00Z",
+  "end_time": "2025-06-15T23:59:59Z",
   "action_types": ["send_message", "defer"],
   "thought_id": "thought_123",
   "task_id": "task_456",
@@ -553,7 +568,7 @@ Query audit trail with filters.
     {
       "id": "audit_123",
       "action_type": "send_message",
-      "timestamp": "2025-01-06T12:00:00Z",
+      "timestamp": "2025-06-15T12:00:00Z",
       "thought_id": "thought_123",
       "task_id": "task_456",
       "context": {...}
@@ -603,8 +618,8 @@ Stream the contents of a log file.
 
 **Response:**
 ```
-2025-01-06 12:00:00 INFO Starting CIRIS agent...
-2025-01-06 12:00:01 INFO Agent initialized successfully
+2025-06-15 12:00:00 INFO Starting CIRIS agent...
+2025-06-15 12:00:01 INFO Agent initialized successfully
 ...
 ```
 
@@ -619,7 +634,7 @@ Get complete system telemetry data.
 **Response:**
 ```json
 {
-  "timestamp": "2025-01-06T12:00:00Z",
+  "timestamp": "2025-06-15T12:00:00Z",
   "schema_version": "v1.0",
   "basic_telemetry": {
     "thoughts_active": 5,
@@ -723,7 +738,7 @@ Get current system configuration.
 **Response:**
 ```json
 {
-  "profile_name": "default",
+  "agent_identity": "default",  // From graph, not profile
   "startup_channel_id": "0.0.0.0:8000",
   "llm_model": "gpt-4o-mini",
   "llm_base_url": null,
@@ -785,7 +800,7 @@ Get current processing queue status.
 {
   "pending_thoughts": 3,
   "pending_tasks": 5,
-  "oldest_pending": "2025-01-06T11:55:00Z"
+  "oldest_pending": "2025-06-15T11:55:00Z"
 }
 ```
 
@@ -829,12 +844,12 @@ Get historical data for a specific metric.
   "metric_name": "response_time",
   "history": [
     {
-      "timestamp": "2025-01-06T11:00:00Z",
+      "timestamp": "2025-06-15T11:00:00Z",
       "value": 250.5,
       "tags": {"source": "api"}
     },
     {
-      "timestamp": "2025-01-06T12:00:00Z",
+      "timestamp": "2025-06-15T12:00:00Z",
       "value": 245.2,
       "tags": {"source": "api"}
     }
@@ -876,3 +891,7 @@ POST /api/v1/message
 ```
 
 This works identically to `POST /v1/messages` but is deprecated and will be removed in v2.0.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

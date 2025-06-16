@@ -22,7 +22,7 @@ class TaskCompleteHandler(BaseActionHandler):
         thought_id = thought.thought_id
         parent_task_id = thought.source_task_id
 
-        await self._audit_log(HandlerActionType.TASK_COMPLETE, {**dispatch_context, "thought_id": thought_id}, outcome="start")
+        await self._audit_log(HandlerActionType.TASK_COMPLETE, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="start")
 
         final_thought_status = ThoughtStatus.COMPLETED
         
@@ -68,7 +68,7 @@ class TaskCompleteHandler(BaseActionHandler):
                         status=ThoughtStatus.FAILED,
                         final_action=ponder_result_dict,
                     )
-                    await self._audit_log(HandlerActionType.TASK_COMPLETE, {**dispatch_context, "thought_id": thought_id}, outcome="blocked_override_to_ponder")
+                    await self._audit_log(HandlerActionType.TASK_COMPLETE, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="blocked_override_to_ponder")
                     return None
 
         persistence.update_thought_status(
@@ -78,7 +78,7 @@ class TaskCompleteHandler(BaseActionHandler):
         )
         self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} for TASK_COMPLETE.")
         print(f"[TASK_COMPLETE_HANDLER] ✓ Thought {thought_id} marked as COMPLETED")
-        await self._audit_log(HandlerActionType.TASK_COMPLETE, {**dispatch_context, "thought_id": thought_id}, outcome="success")
+        await self._audit_log(HandlerActionType.TASK_COMPLETE, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="success")
 
         if parent_task_id:
             if parent_task_id in PERSISTENT_TASK_IDS:

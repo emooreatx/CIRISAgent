@@ -45,16 +45,28 @@ class ThoughtProcessor:
         context: Optional[Dict[str, Any]] = None
     ) -> Optional[ActionSelectionResult]:
         """Main processing pipeline - coordinates the components."""
-        # Record thought processing start
+        # Record thought processing start as HOT PATH
         if self.telemetry_service:
-            await self.telemetry_service.record_metric("thought_processing_started")
+            await self.telemetry_service.record_metric(
+                "thought_processing_started",
+                value=1.0,
+                tags={"thought_id": thought_item.thought_id},
+                path_type="hot",
+                source_module="thought_processor"
+            )
         
         # 1. Fetch the full Thought object
         thought = await self._fetch_thought(thought_item.thought_id)
         if not thought:
             logger.error(f"Thought {thought_item.thought_id} not found.")
             if self.telemetry_service:
-                await self.telemetry_service.record_metric("thought_not_found")
+                await self.telemetry_service.record_metric(
+                    "thought_not_found",
+                    value=1.0,
+                    tags={"thought_id": thought_item.thought_id},
+                    path_type="critical",  # Critical error path
+                    source_module="thought_processor"
+                )
             return None
 
         # 2. Build context (always build proper ThoughtContext for DMA orchestrator)
@@ -82,7 +94,13 @@ class ThoughtProcessor:
                 exc_info=True,
             )
             if self.telemetry_service:
-                await self.telemetry_service.record_metric("dma_failure")
+                await self.telemetry_service.record_metric(
+                    "dma_failure",
+                    value=1.0,
+                    tags={"thought_id": thought_item.thought_id, "error": str(dma_err)[:100]},
+                    path_type="critical",  # Critical failure
+                    source_module="thought_processor"
+                )
             defer_params = DeferParams(
                 reason="DMA timeout",
                 context={"error": str(dma_err)},
@@ -160,7 +178,7 @@ class ThoughtProcessor:
                 retry_context = thought_context.model_copy()
             
             # Add guardrail guidance to the thought item
-            thought_item.guardrail_feedback = {
+            setattr(thought_item, 'guardrail_feedback', {
                 "failed_action": attempted_action,
                 "failure_reason": override_reason,
                 "retry_guidance": (
@@ -170,7 +188,7 @@ class ThoughtProcessor:
                     "Can this task be marked as complete without further action? "
                     "Remember: DEFER only if the task MUST be done AND requires human approval."
                 )
-            }
+            })
             
             # Re-run action selection with guidance
             try:
@@ -232,7 +250,7 @@ class ThoughtProcessor:
 
         # 8. Ensure we return the final result
         if final_result:
-            logger.debug(f"ThoughtProcessor returning result for thought {thought.thought_id}: {final_result.selected_action}")  # type: ignore[unreachable]
+            logger.debug(f"ThoughtProcessor returning result for thought {thought.thought_id}: {final_result.selected_action}")
         else:
             # If no final result, check if we got a guardrail result we can use
             if hasattr(guardrail_result, 'final_action') and guardrail_result.final_action:
@@ -255,10 +273,22 @@ class ThoughtProcessor:
         
         # Record thought processing completion and action taken
         if self.telemetry_service:
-            await self.telemetry_service.record_metric("thought_processing_completed")
+            await self.telemetry_service.record_metric(
+                "thought_processing_completed",
+                value=1.0,
+                tags={"thought_id": thought.thought_id},
+                path_type="hot",
+                source_module="thought_processor"
+            )
             if final_result:
                 action_metric = f"action_selected_{final_result.selected_action.value}"
-                await self.telemetry_service.record_metric(action_metric)
+                await self.telemetry_service.record_metric(
+                    action_metric,
+                    value=1.0,
+                    tags={"thought_id": thought.thought_id, "action": final_result.selected_action.value},
+                    path_type="hot",  # Action selection is HOT PATH
+                    source_module="thought_processor"
+                )
 
         return final_result
 
@@ -375,7 +405,7 @@ class ThoughtProcessor:
             logger.warning(
                 f"ThoughtProcessor: Unknown result type for thought {thought.thought_id}: {type(result)}. Returning result as-is."
             )
-            return result
+            return result  # type: ignore[no-any-return]
         
         # Log the action being handled
         if selected_action:
@@ -390,16 +420,16 @@ class ThoughtProcessor:
                 )
         else:
             logger.warning(f"ThoughtProcessor: No selected_action found for thought {thought.thought_id}")
-            return final_result  # Return what we have instead of None
+            return final_result  # type: ignore[no-any-return]
         
         # TASK_COMPLETE actions should be returned as-is for proper dispatch
         if selected_action == HandlerActionType.TASK_COMPLETE:
             logger.debug(f"ThoughtProcessor: Returning TASK_COMPLETE result for thought {thought.thought_id}")
-            return final_result
+            return final_result  # type: ignore[no-any-return]
         
         # NOTE: PONDER actions are now handled by the PonderHandler in the action dispatcher
         # No special processing needed here - just return the result for normal dispatch
-        return final_result
+        return final_result  # type: ignore[no-any-return]
 
 
 
@@ -443,7 +473,7 @@ class ThoughtProcessor:
 
     async def _handle_action_selection(
         self, thought: Thought, action_selection: ActionSelectionResult, context: Dict[str, Any]
-    ) -> None:
+    ) -> Any:
         """Handles the selected action by dispatching to the appropriate handler."""
         if action_selection.selected_action == HandlerActionType.PONDER:
             ponder_questions: List[Any] = []
@@ -472,10 +502,42 @@ class ThoughtProcessor:
                 rationale="Processing PONDER action from action selection"
             )
             
+            # Create proper DispatchContext
+            from ciris_engine.schemas.foundational_schemas_v1 import DispatchContext
+            # Build proper dispatch context with all required fields
+            from datetime import datetime, timezone
+            import uuid
+            
+            dispatch_ctx = DispatchContext(
+                # Core identification
+                channel_id=context.get('channel_id', 'unknown'),
+                author_id=context.get('author_id', 'system'),
+                author_name=context.get('author_name', 'CIRIS System'),
+                
+                # Service references
+                origin_service="thought_processor",
+                handler_name="PonderHandler",
+                
+                # Action context
+                action_type=HandlerActionType.PONDER,
+                thought_id=thought.thought_id,
+                task_id=thought.source_task_id,
+                source_task_id=thought.source_task_id,
+                
+                # Event details
+                event_summary=f"Processing PONDER action for thought {thought.thought_id}",
+                event_timestamp=datetime.now(timezone.utc).isoformat(),
+                
+                # Additional context
+                wa_authorized=False,
+                correlation_id=str(uuid.uuid4()),
+                round_number=thought.round_number
+            )
+            
             await ponder_handler.handle(
                 result=ponder_result,
                 thought=thought,
-                dispatch_context=context
+                dispatch_context=dispatch_ctx
             )
             
             if thought.status == ThoughtStatus.PENDING:

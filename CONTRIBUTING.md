@@ -14,8 +14,8 @@ There are many ways to contribute, from writing tutorials or blog posts, improvi
 
 ### Reporting Bugs
 
--   **Ensure the bug was not already reported** by searching on GitHub under [Issues](https://github.com/your-username/CIRISEngine/issues). (Replace `your-username/CIRISEngine` with the actual repository URL).
--   If you're unable to find an open issue addressing the problem, [open a new one](https://github.com/your-username/CIRISEngine/issues/new). Be sure to include a **title and clear description**, as much relevant information as possible, and a **code sample or an executable test case** demonstrating the expected behavior that is not occurring.
+-   **Ensure the bug was not already reported** by searching on GitHub under [Issues](https://github.com/CIRISAI/CIRISAgent/issues).
+-   If you're unable to find an open issue addressing the problem, [open a new one](https://github.com/CIRISAI/CIRISAgent/issues/new). Be sure to include a **title and clear description**, as much relevant information as possible, and a **code sample or an executable test case** demonstrating the expected behavior that is not occurring.
 -   For bonus points, provide a **failing test** as a pull request.
 
 ### Suggesting Enhancements
@@ -37,7 +37,7 @@ There are many ways to contribute, from writing tutorials or blog posts, improvi
 (This section can be expanded with more specific setup instructions if needed, e.g., virtual environment setup, specific Python versions, pre-commit hooks.)
 
 1.  Fork the repository.
-2.  Clone your fork: `git clone https://github.com/your-username/CIRISEngine.git` (Replace with actual URL)
+2.  Clone your fork: `git clone https://github.com/your-username/CIRISAgent.git`
 3.  Create a virtual environment and activate it.
 4.  Install dependencies: `pip install -r requirements.txt`
 5.  Set up any necessary environment variables (see `README.md`).
@@ -69,11 +69,13 @@ When integrating new input sources or agents, please adhere to the following con
 
 Adhering to these guidelines ensures consistency in how new work enters the CIRIS Engine processing pipeline.
 
-### Agent Profiles
+### Agent Identity and Profile Templates
 
-The CIRIS Engine uses agent profiles (defined in `ciris_engine.config_schemas.SerializableAgentProfile`) to define the "personality" and specific configurations for different agent behaviors. This includes specifying the Domain-Specific Decision-Making Algorithm (DSDMA), permitted actions, and prompt overrides for various DMAs.
+**⚠️ IMPORTANT: The profile system has been replaced by the graph-based identity system. Profile YAML files are now ONLY used as templates during initial agent creation.**
 
-**Creating a New Profile:**
+The CIRIS Engine uses a graph-based identity system where each agent's identity is stored in the graph database at `agent/identity`. Profile YAML files in `ciris_profiles/` serve only as templates for creating new agents.
+
+**Creating a New Agent Template:**
 
 1.  **Define your DSDMA Class (Optional):**
     *   If your profile requires custom domain-specific logic, create a new Python class that inherits from `ciris_engine.dma.dsdma_base.BaseDSDMA`.
@@ -82,9 +84,9 @@ The CIRIS Engine uses agent profiles (defined in `ciris_engine.config_schemas.Se
     *   Place this class in a suitable location, e.g., `ciris_engine/dma/dsdma_yournewprofile.py`.
     *   Ensure your new DSDMA class is imported in `ciris_engine/dma/__init__.py` if you want it to be easily accessible.
 
-2.  **Create a Profile YAML File:**
-    *   Create a new YAML file in the `ciris_profiles/` directory (e.g., `ciris_profiles/yournewprofile.yaml`).
-    *   The YAML file should adhere to the `SerializableAgentProfile` schema:
+2.  **Create a Profile Template YAML File:**
+    *   Create a new YAML file in the `ciris_profiles/` directory (e.g., `ciris_profiles/yournewtemplate.yaml`).
+    *   This file will be used ONLY during initial agent creation:
         ```yaml
         name: YourProfileName # e.g., "Researcher", "HelperBot"
         dsdma_identifier: YourDSDMAClassName # e.g., "StudentDSDMA", "BasicTeacherDSDMA", or null
@@ -116,24 +118,24 @@ The CIRIS Engine uses agent profiles (defined in `ciris_engine.config_schemas.Se
           # ... other specific overrides for ActionSelectionPDMA ...
         ```
 
-**Using a Profile:**
+**Using a Profile Template:**
 
-1.  **Loading the Profile:**
-    *   The `ciris_engine.utils.profile_loader.load_profile(path_to_yaml_file)` coroutine is **asynchronous** and must be awaited when loading profiles.
-    *   Agent entry points (like `run_discord_student.py`, `run_discord_teacher.py`, `run_cli_student.py`) are responsible for loading the desired profile.
-    *   These scripts also ensure the loaded profile is registered in the `AppConfig.agent_profiles` dictionary, typically keyed by the profile's lowercase name.
+1.  **During Agent Creation:**
+    *   Use the `--profile` flag when creating a new agent: `python main.py --profile yourtemplate --wa-bootstrap`
+    *   Or via API with WA authorization: `POST /v1/agents/create` with `profile_template: "yourtemplate"`
 
-2.  **Instantiating Components:**
-    *   The loaded `SerializableAgentProfile` object (`agent_profile`) provides:
-        *   `agent_profile.name`: The agent's name.
-        *   `agent_profile.dsdma_identifier`: String key to look up the DSDMA class in a registry (e.g., `DSDMA_CLASS_REGISTRY` in the run scripts).
-        *   `agent_profile.dsdma_kwargs`: Keyword arguments for the DSDMA's constructor.
-        *   `agent_profile.permitted_actions`: List of `HandlerActionType` enums.
-        *   `agent_profile.csdma_overrides`: Dictionary of overrides for `CSDMAEvaluator`.
-        *   `agent_profile.action_selection_pdma_overrides`: Dictionary of overrides for `ActionSelectionPDMAEvaluator`.
-    *   These are used during the setup of DMAs in the run scripts. The `WorkflowCoordinator` then uses these instantiated DMAs and the `AppConfig` (which contains the profiles) to manage the processing flow.
+2.  **After Creation:**
+    *   The agent's identity is stored in the graph database at `agent/identity`
+    *   Profile YAML files are no longer referenced
+    *   All identity changes must go through the MEMORIZE action with WA approval
+    *   Changes exceeding 20% variance will trigger reconsideration
 
-By following this structure, you can easily define and integrate new agent personalities into the CIRIS Engine.
+3.  **Identity Evolution:**
+    *   Identity changes happen through the graph database with proper authorization
+    *   All changes are cryptographically logged in the audit trail
+    *   The agent maintains its identity across restarts via the persistence layer
+
+For more information, see [IDENTITY_MIGRATION_SUMMARY.md](docs/IDENTITY_MIGRATION_SUMMARY.md).
 
 ## Coding Conventions
 
@@ -148,3 +150,7 @@ By following this structure, you can easily define and integrate new agent perso
 (This section can be expanded if you use specific labels for issues and PRs.)
 
 Thank you for your contributions!
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

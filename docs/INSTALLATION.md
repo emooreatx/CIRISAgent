@@ -288,12 +288,15 @@ print('✅ Database initialized successfully')
 ls -la data/
 ```
 
-### 5. Agent Profile Configuration
+### 5. Agent Template Configuration (For New Agent Creation Only)
+
+⚠️ **IMPORTANT**: Profile templates are ONLY used during initial agent creation. After creation, identity is managed through the graph database.
 
 ```bash
-# Create custom agent profile
+# Create custom agent template for new agent creation
 cat > ciris_profiles/production.yaml << 'EOF'
 name: "production"
+description: "Template for production agents"
 dsdma_identifier: "ProductionDSDMA"
 permitted_actions:
   - "OBSERVE"
@@ -397,7 +400,7 @@ asyncio.run(test_discord())
 
 ```bash
 # Test CLI mode
-python main.py --mode cli --profile default --test-mode &
+python main.py --mode cli --test-mode &  # Profile only needed with --wa-bootstrap
 CIRIS_PID=$!
 
 # Wait for startup
@@ -436,7 +439,7 @@ User=ciris
 Group=ciris
 WorkingDirectory=/home/ciris/CIRISAgent
 Environment=PATH=/home/ciris/ciris/venv/bin
-ExecStart=/home/ciris/ciris/venv/bin/python main.py --mode discord --profile production
+ExecStart=/home/ciris/ciris/venv/bin/python main.py --mode discord
 EnvironmentFile=/home/ciris/.ciris_env
 Restart=always
 RestartSec=10
@@ -513,7 +516,7 @@ cat > ~/Library/LaunchAgents/com.ciris.agent.plist << 'EOF'
         <string>/path/to/CIRISAgent/main.py</string>
         <string>--mode</string>
         <string>cli</string>
-        <string>--profile</string>
+        <!-- Profile only used with --wa-bootstrap for new agents -->
         <string>default</string>
     </array>
     <key>WorkingDirectory</key>
@@ -604,7 +607,7 @@ After successful installation:
 1. **Read the [Deployment Guide](DEPLOYMENT_GUIDE.md)** for production setup
 2. **Review [Security Setup](SECURITY_SETUP.md)** for enterprise security
 3. **Check [Troubleshooting Guide](TROUBLESHOOTING.md)** for common issues
-4. **Explore agent profiles** in `ciris_profiles/` directory
+4. **Explore agent templates** in `ciris_profiles/` directory (used only during creation)
 5. **Run test suite** with `pytest tests/` to verify functionality
 
 Congratulations! Your CIRIS Agent installation is complete.

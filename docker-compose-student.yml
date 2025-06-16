@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  cirisagent_student:
+    container_name: student
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        - PROFILE_NAME=student
+        - MODE_LIST=discord,api
+    env_file:
+      - .env.student
+    ports:
+      - "8002:8002"  # Student API port
+    volumes:
+      - ./vol/student:/app/logs
+      - ./vol/student/data:/app/data
+    command: python main.py --profile student --modes discord,api --host 0.0.0.0 --port 8002

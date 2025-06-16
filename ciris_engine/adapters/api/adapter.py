@@ -45,7 +45,8 @@ class ApiPlatform(PlatformAdapter):
             multi_service_sink=getattr(runtime, 'multi_service_sink', None),
             service_registry=getattr(runtime, 'service_registry', None),
             runtime_control=self.runtime_control_service,
-            telemetry_collector=self.telemetry_collector
+            telemetry_collector=self.telemetry_collector,
+            runtime=runtime
         )
         
         self._web_server_stopped_event: Optional[asyncio.Event] = None

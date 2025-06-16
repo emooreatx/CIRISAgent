@@ -43,6 +43,10 @@ class RejectParams(BaseModel):
 class DeferParams(BaseModel):
     reason: str
     context: Dict[str, Any] = Field(default_factory=dict)
+    defer_until: Optional[str] = Field(
+        None, 
+        description="ISO timestamp to reactivate task (e.g., '2025-01-20T15:00:00Z')"
+    )
 
     model_config = ConfigDict(extra="forbid")
 

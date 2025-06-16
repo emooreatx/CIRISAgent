@@ -20,7 +20,7 @@ from ciris_engine.schemas.runtime_control_schemas import (
     ConfigBackupResponse
 )
 from ciris_engine.utils.config_validator import ConfigValidator
-from ciris_engine.utils.profile_manager import ProfileManager
+# Profile management removed - identity is now graph-based
 from ciris_engine.utils.config_backup_manager import ConfigBackupManager
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class ConfigManagerService(Service):
         self._is_running = False
         
         self._validator = ConfigValidator()
-        self._profile_manager = ProfileManager()
+        # Profile manager removed - identity is now graph-based
         self._backup_manager = ConfigBackupManager(self._backup_dir)
 
     async def initialize(self) -> None:
@@ -71,7 +71,6 @@ class ConfigManagerService(Service):
         """Return list of capabilities this service supports."""
         return [
             "config.get", "config.update", "config.validate",
-            "profile.list", "profile.create", "profile.reload",
             "backup.create", "backup.restore"
         ]
 
@@ -209,66 +208,12 @@ class ConfigManagerService(Service):
         current_config = self.config_manager.config if self._config_manager else None
         return await self._validator.validate_config(config_data, config_path, current_config)
 
-    async def list_profiles(self) -> List[AgentProfileInfo]:
-        """List all available agent profiles."""
-        current_config = self.config_manager.config if self._config_manager else None
-        return await self._profile_manager.list_profiles(current_config)
+    # Profile management removed - identity is now graph-based
+    # See ciris_engine/persistence/models/identity.py
 
-    async def reload_profile(
-        self,
-        profile_name: str,
-        config_path: Optional[str] = None,
-        scope: ConfigScope = ConfigScope.SESSION
-    ) -> ConfigOperationResponse:
-        """Reload an agent profile."""
-        async with self._config_lock:
-            try:
-                start_time = datetime.now(timezone.utc)
-                
-                config_path_obj = Path(config_path) if config_path else None
-                await self.config_manager.reload_profile(profile_name, config_path_obj)
-                
-                self._profile_manager._loaded_profiles.add(profile_name)
-                
-                change_record = {
-                    "timestamp": start_time.isoformat(),
-                    "operation": "reload_profile",
-                    "profile_name": profile_name,
-                    "scope": scope.value
-                }
-                self._record_config_change(change_record)
-                
-                return ConfigOperationResponse(
-                    success=True,
-                    operation="reload_profile",
-                    timestamp=start_time,
-                    path=f"profile:{profile_name}",
-                    scope=scope,
-                    message=f"Profile '{profile_name}' reloaded successfully"
-                )
-                
-            except Exception as e:
-                logger.error(f"Failed to reload profile '{profile_name}': {e}")
-                return ConfigOperationResponse(
-                    success=False,
-                    operation="reload_profile",
-                    timestamp=datetime.now(timezone.utc),
-                    path=f"profile:{profile_name}",
-                    error=str(e)
-                )
+    # reload_profile removed - identity is now graph-based
 
-    async def create_profile(
-        self,
-        name: str,
-        config: Dict[str, Any],
-        description: Optional[str] = None,
-        base_profile: Optional[str] = None,
-        save_to_file: bool = True
-    ) -> AgentProfileResponse:
-        """Create a new agent profile."""
-        return await self._profile_manager.create_profile(
-            name, config, description, base_profile, save_to_file
-        )
+    # create_profile removed - identity is now graph-based
 
     # Backup and Restore Operations
     async def backup_config(

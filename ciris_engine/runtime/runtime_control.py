@@ -338,96 +338,16 @@ class RuntimeControlService(RuntimeControlInterface):
                 errors=[str(e)]
             )
 
-    async def reload_profile(
-        self,
-        profile_name: str,
-        config_path: Optional[str] = None,
-        scope: ConfigScope = ConfigScope.SESSION
-    ) -> ConfigOperationResponse:
-        """Reload an agent profile."""
-        try:
-            result = await self._get_config_manager().reload_profile(profile_name, config_path, scope)
-            if result.success:
-                self._last_config_change = result.timestamp
-                # Notify adapter manager of profile change if available
-                if self.adapter_manager and hasattr(self.adapter_manager, 'on_profile_changed'):
-                    await self.adapter_manager.on_profile_changed(profile_name)
-            return result
-        except Exception as e:
-            logger.error(f"Failed to reload profile: {e}")
-            return ConfigOperationResponse(
-                success=False,
-                operation="reload_profile",
-                timestamp=datetime.now(timezone.utc),
-                path=f"profile:{profile_name}",
-                error=str(e)
-            )
 
-    async def list_profiles(self) -> List[Dict[str, Any]]:
-        """List all available agent profiles."""
-        try:
-            profiles = await self._get_config_manager().list_profiles()
-            return [profile.model_dump() for profile in profiles]
-        except Exception as e:
-            logger.error(f"Failed to list profiles: {e}")
-            return []
 
-    async def list_agent_profiles(self) -> List[Dict[str, Any]]:
-        """List all available agent profiles (API alias)."""
-        return await self.list_profiles()
-
-    async def load_agent_profile(self, reload_request: Any) -> ConfigOperationResponse:
-        """Load an agent profile (API method)."""
-        return await self.reload_profile(
-            reload_request.profile_name,
-            reload_request.config_path,
-            reload_request.scope
-        )
-
-    async def get_agent_profile(self, profile_name: str) -> Optional[Dict[str, Any]]:
-        """Get information about a specific agent profile."""
-        try:
-            profiles = await self._get_config_manager().list_profiles()
-            for profile in profiles:
-                if profile.name == profile_name:
-                    return profile.model_dump()
-            return None
-        except Exception as e:
-            logger.error(f"Failed to get profile {profile_name}: {e}")
-            return None
-
-    async def create_profile(
-        self,
-        name: str,
-        config: Dict[str, Any],
-        description: Optional[str] = None,
-        base_profile: Optional[str] = None,
-        save_to_file: bool = True
-    ) -> AgentProfileResponse:
-        """Create a new agent profile."""
-        try:
-            return await self._get_config_manager().create_profile(
-                name, config, description, base_profile, save_to_file
-            )
-        except Exception as e:
-            logger.error(f"Failed to create profile: {e}")
-            return AgentProfileResponse(
-                success=False,
-                profile_name=name,
-                operation="create_profile",
-                timestamp=datetime.now(timezone.utc),
-                error=str(e)
-            )
 
     async def backup_config(
         self,
-        include_profiles: bool = True,
         backup_name: Optional[str] = None
     ) -> ConfigBackupResponse:
         """Create a configuration backup."""
         try:
             return await self._get_config_manager().backup_config(
-                include_profiles, 
                 backup_name
             )
         except Exception as e:
@@ -484,8 +404,8 @@ class RuntimeControlService(RuntimeControlInterface):
             active_adapters = [a["adapter_id"] for a in adapters if a.get("status") == "active" or a.get("is_running") is True]
             loaded_adapters = [a["adapter_id"] for a in adapters]
             
-            # Get current profile (placeholder - would need integration with config)
-            current_profile = "default"  # Would get from actual config
+            # Agent identity is now stored in graph, not profiles
+            current_profile = "identity-based"
             
             return RuntimeStatusResponse(
                 processor_status=self._processor_status,
@@ -503,7 +423,7 @@ class RuntimeControlService(RuntimeControlInterface):
                 processor_status=ProcessorStatus.ERROR,
                 active_adapters=[],
                 loaded_adapters=[],
-                current_profile="unknown",
+                current_profile="identity-based",
                 config_scope=ConfigScope.RUNTIME,
                 uptime_seconds=0.0
             )
@@ -520,9 +440,9 @@ class RuntimeControlService(RuntimeControlInterface):
             
             config_data = await self._get_config_manager().get_config_value()
             
-            profiles = await self._get_config_manager().list_profiles()
-            profile_names = [p.name for p in profiles]
-            active_profile = next((p.name for p in profiles if p.is_active), "default")
+            # Profiles are no longer used after initial agent creation
+            profile_names = []
+            active_profile = "identity-based"
             
             return RuntimeStateSnapshot(
                 timestamp=current_time,

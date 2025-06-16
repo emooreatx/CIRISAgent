@@ -1,0 +1,82 @@
+CIRIS Agent
+Copyright 2025 Eric Moore and CIRIS L3C
+Patent Pending
+
+This product includes software developed by Eric Moore and CIRIS L3C.
+
+============================================================================
+BETA SOFTWARE DISCLAIMER
+============================================================================
+
+THIS IS BETA SOFTWARE UNDER ACTIVE DEVELOPMENT.
+
+This software:
+- May contain bugs, security vulnerabilities, or incomplete features
+- Is NOT suitable for production use without extensive testing
+- May change significantly without notice
+- Provides NO warranties or guarantees of any kind
+- Should NOT be used for mission-critical applications
+
+By using this software, you acknowledge and accept all risks.
+
+============================================================================
+TRADEMARK NOTICE
+============================================================================
+
+"CIRIS" is a trademark of CIRIS L3C. Use of this trademark is limited to
+describing the origin of this software and must comply with trademark law.
+
+============================================================================
+PATENT NOTICE
+============================================================================
+
+This software contains patent-pending technology. Patent rights are retained
+by Eric Moore and CIRIS L3C. The Apache License 2.0 grant covers only those
+patent claims necessarily infringed by the contributor's contributions.
+
+============================================================================
+SECURITY WARNING
+============================================================================
+
+This BETA software has NOT been audited for security vulnerabilities.
+DO NOT use this software to:
+- Handle sensitive personal information
+- Process financial transactions
+- Make automated decisions affecting people's lives
+- Control critical infrastructure
+- Store confidential data
+
+Always implement additional security measures before any deployment.
+
+============================================================================
+LIABILITY DISCLAIMER
+============================================================================
+
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THIS SOFTWARE, INCLUDING
+BUT NOT LIMITED TO:
+- Data loss or corruption
+- Security breaches
+- System failures
+- Financial losses
+- Personal injury
+- Reputational damage
+
+USE THIS SOFTWARE AT YOUR OWN RISK.
+
+============================================================================
+CONTRIBUTION NOTICE
+============================================================================
+
+Contributions to this project require signing a Contributor License Agreement
+(CLA). By submitting code, documentation, or other materials, you agree to
+the terms of the CLA and grant necessary rights to Eric Moore and CIRIS L3C.
+
+============================================================================
+
+For questions about licensing, patents, or commercial use, contact:
+CIRIS L3C
+[Contact information to be provided]
+
+For technical questions and bug reports:
+https://github.com/CIRISAI/CIRISAgent/issues

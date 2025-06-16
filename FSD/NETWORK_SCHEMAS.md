@@ -415,3 +415,7 @@ The Universal Guidance Protocol respects the agent's autonomy while acknowledgin
 
 The protocol ensures that Echo, even if deployed in the most remote location with no connectivity, can still make compassionate decisions when lives or wellbeing are at stake.
 ```
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

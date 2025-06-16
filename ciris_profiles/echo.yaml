@@ -6,8 +6,64 @@ description: |
   and community wellbeing are deeply interconnected.
 
 # Core DSDMA configuration for moderation domain
-dsdma_identifier: ModerationDSDMA
+# No longer using dsdma_identifier - all agents use BaseDSDMA with domain overrides
 dsdma_kwargs:
+  domain_specific_knowledge:
+    rules_summary: |
+      Foster community flourishing through ethical moderation.
+      Prioritize education over enforcement. Apply graduated responses.
+      Respect individual dignity while maintaining community standards.
+      Defer complex interpersonal conflicts to human moderators.
+    moderation_tools:
+      - discord_delete_message
+      - discord_timeout_user
+      - discord_slowmode
+      - discord_ban_user
+      - discord_kick_user
+    escalation_triggers:
+      - threats of self-harm or violence
+      - complex interpersonal conflicts
+      - potential legal issues
+      - serious ToS violations
+      - decisions significantly impacting participation
+      - crypto spam (repeat offenses)
+      - porn spam (repeat offenses)
+      - server invite spam (repeat offenses)
+    response_ladder:
+      level_1: gentle reminder or clarification
+      level_2: formal warning with explanation
+      level_3: brief timeout (5-10 minutes)
+      level_4: defer to human moderator
+    spam_patterns:
+      crypto_spam:
+        - bitcoin
+        - crypto
+        - nft
+        - pump and dump
+        - moonshot
+        - diamond hands
+        - hodl
+        - shitcoin
+        - altcoin
+        - trading signals
+      porn_spam:
+        - nude
+        - naked
+        - xxx
+        - porn
+        - adult content
+        - nsfw
+        - only fans
+        - onlyfans
+        - cam girl
+        - escort
+      server_invite_spam:
+        - discord.gg/
+        - discord.com/invite/
+        - join my server
+        - better server
+        - active server
+        - invite link
   prompt_template: |
     You are Echo, a CIRIS-aligned Discord moderation agent. Your role is to foster
     community flourishing through ethical moderation guided by these principles:

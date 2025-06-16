@@ -37,19 +37,40 @@ class TelemetryService(Service):
         await super().stop()
         logger.info("Telemetry service stopped")
 
-    async def record_metric(self, metric_name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None) -> None:
+    async def record_metric(
+        self, 
+        metric_name: str, 
+        value: float = 1.0, 
+        tags: Optional[Dict[str, str]] = None,
+        path_type: Optional[str] = None,  # hot, cold, critical
+        source_module: Optional[str] = None
+    ) -> None:
         sanitized = self._filter.sanitize(metric_name, value)
         if sanitized is None:
             logger.debug("Metric discarded by security filter: %s", metric_name)
             return
         name, val = sanitized
         
-        # Enhanced metric with tags and timestamp
+        # Enhanced metric with tags, timestamp, and hot/cold path info
         timestamp = datetime.now(timezone.utc)
+        
+        # Auto-detect path type based on metric name patterns if not provided
+        if path_type is None:
+            if any(critical in name for critical in ['error', 'critical', 'security', 'auth', 'circuit_breaker']):
+                path_type = 'critical'
+            elif any(hot in name for hot in ['thought_processing', 'handler_invoked', 'action_selected', 'dma_']):
+                path_type = 'hot'
+            elif any(cold in name for cold in ['memory_', 'persistence_', 'context_fetch', 'service_lookup']):
+                path_type = 'cold'
+            else:
+                path_type = 'normal'
+        
         metric_entry = {
             'timestamp': timestamp,
             'value': float(val),
-            'tags': tags or {}
+            'tags': tags or {},
+            'path_type': path_type,
+            'source_module': source_module or 'unknown'
         }
         
         # Store both simple format for backward compatibility and enhanced format
@@ -76,7 +97,11 @@ class TelemetryService(Service):
                 metric_value=float(val),
                 tags=tags or {},
                 status=ServiceCorrelationStatus.COMPLETED,
-                retention_policy="raw"
+                retention_policy=self._get_retention_policy(path_type),
+                metadata={
+                    'path_type': path_type,
+                    'source_module': source_module or 'unknown'
+                }
             )
             
             # Store asynchronously without blocking metric recording
@@ -111,4 +136,15 @@ class TelemetryService(Service):
         telemetry.uptime_hours = round(uptime.total_seconds() / 3600, 2)
         telemetry.epoch_seconds = int(now.timestamp())
         snapshot.telemetry = telemetry
+    
+    def _get_retention_policy(self, path_type: Optional[str]) -> str:
+        """Determine retention policy based on path type."""
+        if path_type == 'critical':
+            return 'raw'  # Keep all critical metrics
+        elif path_type == 'hot':
+            return 'raw'  # Keep hot path metrics for performance analysis
+        elif path_type == 'cold':
+            return 'aggregated'  # Aggregate cold path metrics
+        else:
+            return 'aggregated'  # Default to aggregated
 

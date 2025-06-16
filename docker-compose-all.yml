@@ -1,0 +1,75 @@
+version: '3.8'
+
+# Run all 4 CIRIS agents simultaneously on different ports
+services:
+  cirisagent_teacher:
+    container_name: teacher
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        - PROFILE_NAME=teacher
+        - MODE_LIST=discord,api
+    env_file:
+      - .env.teacher
+    ports:
+      - "8001:8001"  # Teacher API port
+    volumes:
+      - ./vol/teacher:/app/logs
+      - ./vol/teacher/data:/app/data
+    command: python main.py --profile teacher --modes discord,api --host 0.0.0.0 --port 8001
+    restart: unless-stopped
+
+  cirisagent_student:
+    container_name: student
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        - PROFILE_NAME=student
+        - MODE_LIST=discord,api
+    env_file:
+      - .env.student
+    ports:
+      - "8002:8002"  # Student API port
+    volumes:
+      - ./vol/student:/app/logs
+      - ./vol/student/data:/app/data
+    command: python main.py --profile student --modes discord,api --host 0.0.0.0 --port 8002
+    restart: unless-stopped
+
+  cirisagent_echo_core:
+    container_name: echo-core
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        - PROFILE_NAME=echo-core
+        - MODE_LIST=discord,api
+    env_file:
+      - .env.echo-core
+    ports:
+      - "8003:8003"  # Echo Core API port
+    volumes:
+      - ./vol/echo-core:/app/logs
+      - ./vol/echo-core/data:/app/data
+    command: python main.py --profile echo-core --modes discord,api --host 0.0.0.0 --port 8003
+    restart: unless-stopped
+
+  cirisagent_echo_spec:
+    container_name: echo-speculative
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        - PROFILE_NAME=echo-speculative
+        - MODE_LIST=discord,api
+    env_file:
+      - .env.echo-spec
+    ports:
+      - "8004:8004"  # Echo Speculative API port
+    volumes:
+      - ./vol/echo-speculative:/app/logs
+      - ./vol/echo-speculative/data:/app/data
+    command: python main.py --profile echo-speculative --modes discord,api --host 0.0.0.0 --port 8004
+    restart: unless-stopped

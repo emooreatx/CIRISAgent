@@ -13,7 +13,7 @@ The CIRIS Agent Runtime Control API provides comprehensive management capabiliti
 - **Hot-Swappable Adapters**: Load/unload platform adapters (Discord, CLI, API) at runtime with support for multiple instances
 - **Live Configuration**: Update configuration values with validation and rollback support
 - **Processor Control**: Single-stepping, pause/resume for debugging
-- **Profile Management**: Switch between agent profiles dynamically
+- **Agent Creation**: Create new agents with identity management (profiles are now creation templates only)
 - **Comprehensive Auditing**: All operations logged with cryptographic audit trails
 - **Configuration Backup/Restore**: Safe configuration management with backup support
 
@@ -367,47 +367,23 @@ POST /v1/runtime/config/reload
 
 ---
 
-## 4. Agent Profile Management
+## 4. Agent Creation & Identity Management ⚠️ **UPDATED**
 
-### List Profiles
-Get a list of all available agent profiles.
+**IMPORTANT**: The profile system has been replaced by the graph-based identity system. Profile YAML files are now ONLY used as templates during initial agent creation.
 
-```http
-GET /v1/runtime/profiles
-```
-
-**Response**:
-```json
-[
-  {
-    "name": "default",
-    "description": "Default CIRIS agent profile",
-    "file_path": "/path/to/ciris_profiles/default.json",
-    "is_active": true,
-    "permitted_actions": ["OBSERVE", "SPEAK", "TOOL", "MEMORIZE"],
-    "created_time": "2025-06-11T09:00:00Z"
-  },
-  {
-    "name": "teacher",
-    "description": "Educational assistant profile",
-    "file_path": "/path/to/ciris_profiles/teacher.json", 
-    "is_active": false,
-    "permitted_actions": ["OBSERVE", "SPEAK", "DEFER"],
-    "created_time": "2025-06-11T09:15:00Z"
-  }
-]
-```
-
-### Load Profile
-Load an agent profile at runtime, switching the agent's behavior and configuration.
+### Create New Agent
+Create a new CIRIS agent with an identity stored in the graph database.
 
 ```http
-POST /v1/runtime/profiles/teacher/load
+POST /v1/agents/create
+Authorization: Bearer <WA_JWT_TOKEN>
 Content-Type: application/json
 
 {
-  "config_path": "/custom/path/to/profile.json",
-  "scope": "session"
+  "agent_name": "TeacherBot",
+  "profile_template": "teacher",
+  "purpose": "Educational assistance and student support",
+  "initial_capabilities": ["OBSERVE", "SPEAK", "MEMORIZE", "RECALL"]
 }
 ```
 
@@ -415,36 +391,65 @@ Content-Type: application/json
 ```json
 {
   "success": true,
-  "operation": "reload_profile",
-  "timestamp": "2025-06-11T10:30:00Z",
-  "path": "profile:teacher",
-  "previous_profile": "default",
-  "adapters_reloaded": ["discord_bot_prod"],
-  "message": "Profile 'teacher' loaded successfully"
+  "agent_id": "agent-123-abc",
+  "agent_name": "TeacherBot",
+  "identity_root": {
+    "agent_id": "agent-123-abc",
+    "identity_hash": "sha256:abcdef...",
+    "core_profile": {
+      "name": "teacher",
+      "role_description": "Educational assistant"
+    },
+    "identity_metadata": {
+      "created_at": "2025-06-11T10:30:00Z",
+      "created_by": "WA-001",
+      "lineage": {
+        "parent_agent_id": null,
+        "creation_ceremony_id": "ceremony-xyz"
+      }
+    }
+  },
+  "message": "Agent created successfully. Identity stored in graph."
 }
 ```
 
-### Get Profile Info
-Get detailed information about a specific profile.
+### Initialize Agent Identity
+Initialize a newly created agent's identity in the graph database.
 
 ```http
-GET /v1/runtime/profiles/teacher
+POST /v1/agents/{agent_id}/initialize
+Authorization: Bearer <WA_JWT_TOKEN>
 ```
 
 **Response**:
 ```json
 {
-  "name": "teacher",
-  "description": "Educational assistant profile",
-  "file_path": "/path/to/ciris_profiles/teacher.json",
-  "is_active": false,
-  "permitted_actions": ["OBSERVE", "SPEAK", "DEFER"],
-  "adapter_configs": {
-    "discord": {"educational_mode": true},
-    "api": {"rate_limit": 100}
-  },
-  "created_time": "2025-06-11T09:15:00Z",
-  "modified_time": "2025-06-11T10:00:00Z"
+  "success": true,
+  "agent_id": "agent-123-abc",
+  "graph_node_id": "agent/identity",
+  "identity_stored": true,
+  "message": "Agent identity initialized in graph database"
+}
+```
+
+### Identity Change Requirements
+
+**⚠️ All identity changes require:**
+1. WA authorization via MEMORIZE action
+2. Changes exceeding 20% variance trigger reconsideration
+3. Cryptographic audit trail of all modifications
+
+**Example Identity Change (via MEMORIZE action):**
+```json
+{
+  "action": "MEMORIZE",
+  "params": {
+    "node_id": "agent/identity",
+    "scope": "IDENTITY",
+    "updates": {
+      "core_profile.role_description": "Advanced educational mentor"
+    }
+  }
 }
 ```
 
@@ -907,7 +912,7 @@ Runtime control operations coordinate across multiple services:
 
 1. **Configuration Updates** trigger service reloads
 2. **Adapter Changes** update service registrations
-3. **Profile Switches** reconfigure all affected services
+3. **Identity Changes** require WA approval and audit logging
 4. **Shutdown Operations** coordinate graceful service termination
 
 ### Event Propagation
@@ -919,3 +924,7 @@ Runtime control events are propagated to:
 - **Adapter Managers** - For coordination across platform adapters
 
 This runtime control API provides comprehensive management capabilities while maintaining the CIRIS Agent's focus on ethical reasoning, security, and operational excellence.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

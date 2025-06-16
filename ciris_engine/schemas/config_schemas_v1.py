@@ -25,7 +25,8 @@ class WorkflowConfig(BaseModel):
     """Workflow processing configuration for v1."""
     max_active_tasks: int = Field(default=10, description="Maximum tasks that can be active simultaneously")
     max_active_thoughts: int = Field(default=50, description="Maximum thoughts to pull into processing queue per round") 
-    round_delay_seconds: float = Field(default=1.0, description="Delay between processing rounds in seconds")
+    round_delay_seconds: float = Field(default=5.0, description="Delay between processing rounds in seconds")
+    mock_llm_round_delay_seconds: float = Field(default=0.1, description="Reduced delay for mock LLM testing")
     max_rounds: int = Field(default=7, description="Maximum ponder iterations before auto-defer")
     num_rounds: Optional[int] = Field(default=None, description="Maximum number of processing rounds (None = infinite)")
     DMA_RETRY_LIMIT: int = Field(default=3, description="Maximum retry attempts for DMAs")
@@ -34,6 +35,10 @@ class WorkflowConfig(BaseModel):
         description="Timeout in seconds for each DMA evaluation",
     )
     GUARDRAIL_RETRY_LIMIT: int = Field(default=2, description="Maximum retry attempts for guardrails")
+    
+    def get_round_delay(self, mock_llm: bool = False) -> float:
+        """Get the appropriate round delay based on whether mock LLM is enabled."""
+        return self.mock_llm_round_delay_seconds if mock_llm else self.round_delay_seconds
 
 class OpenAIConfig(BaseModel):
     """OpenAI/LLM service configuration for v1."""
@@ -67,10 +72,15 @@ class LLMServicesConfig(BaseModel):
     openai: OpenAIConfig = OpenAIConfig()
 
 class AgentProfile(BaseModel):
-    """Minimal v1 agent profile configuration."""
+    """Minimal v1 agent profile configuration - used as template for initial identity creation."""
     name: str
-    dsdma_identifier: Optional[str] = None
-    dsdma_kwargs: Optional[Dict[str, Any]] = None
+    description: str = Field(..., description="Agent's purpose and role")
+    role_description: str = Field(..., description="Detailed description of responsibilities")
+    # DSDMA configuration is now in dsdma_kwargs only - no identifier needed
+    dsdma_kwargs: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="DSDMA overrides including domain_specific_knowledge and prompt_template"
+    )
     permitted_actions: List[HandlerActionType] = Field(default_factory=list)
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)

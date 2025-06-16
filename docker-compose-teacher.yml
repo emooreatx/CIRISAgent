@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  cirisagent_teacher:
+    container_name: teacher
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        - PROFILE_NAME=teacher
+        - MODE_LIST=discord,api
+    env_file:
+      - .env.teacher
+    ports:
+      - "8001:8001"  # Teacher API port
+    volumes:
+      - ./vol/teacher:/app/logs
+      - ./vol/teacher/data:/app/data
+    command: python main.py --profile teacher --modes discord,api --host 0.0.0.0 --port 8001

@@ -57,7 +57,7 @@ chain.initialize()
 # Prepare entry for chaining
 entry = {
     "event_id": "evt-001",
-    "event_timestamp": "2025-01-06T12:00:00Z",
+    "event_timestamp": "2025-06-15T12:00:00Z",
     "event_type": "action_executed",
     "originator_id": "agent-001",
     "event_payload": "action details"

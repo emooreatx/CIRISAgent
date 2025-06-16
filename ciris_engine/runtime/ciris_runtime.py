@@ -18,50 +18,24 @@ from ciris_engine.utils.constants import DEFAULT_NUM_ROUNDS
 from ciris_engine.adapters import load_adapter
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration
 
-from ciris_engine.services.memory_service import LocalGraphMemoryService
-from ciris_engine.services.llm_service import OpenAICompatibleClient
-from ciris_engine.services.audit_service import AuditService
-from ciris_engine.services.signed_audit_service import SignedAuditService
-from ciris_engine.services.tsdb_audit_service import TSDBSignedAuditService
-from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
 from .runtime_interface import RuntimeInterface
-from .audit_sink_manager import AuditSinkManager
-from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from .identity_manager import IdentityManager
+from .service_initializer import ServiceInitializer
+from .component_builder import ComponentBuilder
+
 from ciris_engine.utils.shutdown_manager import (
     get_shutdown_manager, 
     register_global_shutdown_handler,
     wait_for_global_shutdown,
     is_global_shutdown_requested
 )
+from ciris_engine.utils.initialization_manager import (
+    get_initialization_manager,
+    InitializationPhase,
+    InitializationError
+)
 
 from ciris_engine.registries.base import ServiceRegistry, Priority
-from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
-
-from ciris_engine.processor.thought_processor import ThoughtProcessor
-from ciris_engine.processor.dma_orchestrator import DMAOrchestrator
-from ciris_engine.context.builder import ContextBuilder
-from ciris_engine.guardrails.orchestrator import GuardrailOrchestrator
-from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
-
-from ciris_engine.dma.pdma import EthicalPDMAEvaluator
-from ciris_engine.dma.csdma import CSDMAEvaluator
-from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
-from ciris_engine.dma.factory import create_dsdma_from_profile
-from ciris_engine.guardrails import (
-    GuardrailRegistry,
-    EntropyGuardrail,
-    CoherenceGuardrail,
-    OptimizationVetoGuardrail,
-    EpistemicHumilityGuardrail,
-)
-from ciris_engine.telemetry import TelemetryService, SecurityFilter
-from ciris_engine.services.adaptive_filter_service import AdaptiveFilterService
-from ciris_engine.services.agent_config_service import AgentConfigService
-from ciris_engine.services.multi_service_transaction_orchestrator import MultiServiceTransactionOrchestrator
-from ciris_engine.secrets.service import SecretsService
-
-from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
-from ciris_engine.services.wa_auth_integration import initialize_authentication, WAAuthenticationSystem
 
 
 logger = logging.getLogger(__name__)
@@ -87,6 +61,11 @@ class CIRISRuntime(RuntimeInterface):
         self.startup_channel_id = startup_channel_id
         self.adapter_configs = adapter_configs or {}
         self.adapters: List[PlatformAdapter] = []
+        
+        # Initialize managers
+        self.identity_manager: Optional[IdentityManager] = None
+        self.service_initializer = ServiceInitializer()
+        self.component_builder: Optional[ComponentBuilder] = None
 
         for adapter_name in adapter_types:
             try:
@@ -121,15 +100,75 @@ class CIRISRuntime(RuntimeInterface):
         
         self.agent_processor: Optional[AgentProcessor] = None
         
-        self.profile: Optional[AgentProfile] = None
-        
+        # Runtime state
+        self._initialized = False
+        self._shutdown_manager = get_shutdown_manager()
         self._shutdown_event: Optional[asyncio.Event] = None
         self._shutdown_reason: Optional[str] = None
-        self._shutdown_manager = get_shutdown_manager()
-        
+        self._agent_task: Optional[asyncio.Task] = None
         self._preload_tasks: List[str] = []
         
-        self._initialized = False
+        # Profile and identity - will be loaded during initialization
+        self.profile: Optional[AgentProfile] = None
+        self.agent_identity: Optional[Any] = None
+        self.agent_processor: Optional[AgentProcessor] = None
+    
+    # Properties to access services from the service initializer
+    @property
+    def service_registry(self) -> Optional[ServiceRegistry]:
+        return self.service_initializer.service_registry if self.service_initializer else None
+    
+    @property
+    def multi_service_sink(self) -> Optional[Any]:
+        return self.service_initializer.multi_service_sink if self.service_initializer else None
+    
+    @property
+    def memory_service(self) -> Optional[Any]:
+        return self.service_initializer.memory_service if self.service_initializer else None
+    
+    @property
+    def secrets_service(self) -> Optional[Any]:
+        return self.service_initializer.secrets_service if self.service_initializer else None
+    
+    @property
+    def wa_auth_system(self) -> Optional[Any]:
+        return self.service_initializer.wa_auth_system if self.service_initializer else None
+    
+    @property
+    def telemetry_service(self) -> Optional[Any]:
+        return self.service_initializer.telemetry_service if self.service_initializer else None
+    
+    @property
+    def llm_service(self) -> Optional[Any]:
+        return self.service_initializer.llm_service if self.service_initializer else None
+    
+    @property
+    def audit_services(self) -> List[Any]:
+        return self.service_initializer.audit_services if self.service_initializer else []
+    
+    @property
+    def audit_service(self) -> Optional[Any]:
+        return self.service_initializer.audit_service if self.service_initializer else None
+    
+    @property
+    def adaptive_filter_service(self) -> Optional[Any]:
+        return self.service_initializer.adaptive_filter_service if self.service_initializer else None
+    
+    @property
+    def agent_config_service(self) -> Optional[Any]:
+        return self.service_initializer.agent_config_service if self.service_initializer else None
+    
+    @property
+    def transaction_orchestrator(self) -> Optional[Any]:
+        return self.service_initializer.transaction_orchestrator if self.service_initializer else None
+    
+    @property
+    def core_tool_service(self) -> Optional[Any]:
+        return self.service_initializer.core_tool_service if self.service_initializer else None
+    
+    @property
+    def maintenance_service(self) -> Optional[Any]:
+        return self.service_initializer.maintenance_service if self.service_initializer else None
     
     def _ensure_shutdown_event(self) -> None:
         """Ensure shutdown event is created when needed in async context."""
@@ -182,25 +221,17 @@ class CIRISRuntime(RuntimeInterface):
         logger.info(f"Initializing CIRIS Runtime with profile '{self.profile_name}'...")
         
         try:
-            persistence.initialize_database()
+            # Set up initialization manager
+            init_manager = get_initialization_manager()
             
-            if not self.app_config:
-                from ciris_engine.config.config_manager import get_config_async
-                self.app_config = await get_config_async()
+            # Register all initialization steps with proper phases
+            await self._register_initialization_steps(init_manager)
             
-            await self._load_profile()
+            # Run the initialization sequence
+            await init_manager.initialize()
             
-            await self._initialize_services() # Core services (including WA auth)
-            
-            await self._build_components() # Agent processor and its dependencies
-
-            await self._register_adapter_services() # Adapter-provided services (needs WA auth)
-            
+            # Perform final maintenance after all initialization
             await self._perform_startup_maintenance()
-
-            # Start adapters after core components are ready but before agent processor starts full operation
-            await asyncio.gather(*(adapter.start() for adapter in self.adapters))
-            logger.info(f"All {len(self.adapters)} adapters started.")
             
             self._initialized = True
             logger.info("CIRIS Runtime initialized successfully")
@@ -211,159 +242,184 @@ class CIRISRuntime(RuntimeInterface):
                 logger.critical("Database maintenance failure during initialization - system cannot start safely")
             raise
         
-    async def _load_profile(self) -> None:
-        """Load the agent profile."""
+    async def _initialize_identity(self) -> None:
+        """Initialize agent identity - create from profile on first run, load from graph thereafter."""
         config = self._ensure_config()
-            
-        profile_path = Path(config.profile_directory) / f"{self.profile_name}.yaml"
-        self.profile = await load_profile(profile_path)
-        
-        if not self.profile:
-            logger.warning(f"Profile '{self.profile_name}' not found, loading default profile")
-            default_path = Path(config.profile_directory) / "default.yaml"
-            self.profile = await load_profile(default_path)
-            
-        if not self.profile:
-            raise RuntimeError("No profile could be loaded")
-            
-        config.agent_profiles[self.profile.name.lower()] = self.profile
-        
-        if "default" not in config.agent_profiles:
-            default_path = Path(config.profile_directory) / "default.yaml"
-            default_profile = await load_profile(default_path)
-            if default_profile:
-                config.agent_profiles["default"] = default_profile
+        self.identity_manager = IdentityManager(self.profile_name, config)
+        self.agent_identity = await self.identity_manager.initialize_identity()
+    
+    
+    
+    
+    
+    
                 
-    async def _initialize_services(self) -> None:
-        """Initialize all core services."""
-        self.service_registry = ServiceRegistry()
+    async def _register_initialization_steps(self, init_manager) -> None:
+        """Register all initialization steps with the initialization manager."""
         
-        self.multi_service_sink = MultiServiceActionSink(
-            service_registry=self.service_registry,
-            max_queue_size=1000,
-            fallback_channel_id=self.startup_channel_id,
+        # Phase 1: DATABASE
+        init_manager.register_step(
+            phase=InitializationPhase.DATABASE,
+            name="Initialize Database",
+            handler=self._init_database,
+            verifier=self._verify_database_integrity,
+            critical=True
         )
         
-        config = self._ensure_config()
-        
-        # Initialize telemetry service first so other services can use it
-        self.telemetry_service = TelemetryService(
-            buffer_size=1000,
-            security_filter=SecurityFilter()
-        )
-        await self.telemetry_service.start()
-        
-        # Initialize LLM service with telemetry
-        self.llm_service = OpenAICompatibleClient(config.llm_services.openai, telemetry_service=self.telemetry_service)
-        await self.llm_service.start()
-        
-        self.memory_service = LocalGraphMemoryService()
-        await self.memory_service.start()
-        
-        # Initialize ALL THREE REQUIRED audit services - they ALL receive events through the sink
-        self.audit_services = []
-        
-        # 1. Basic file-based audit service (REQUIRED - legacy compatibility and fast writes)
-        logger.info("Initializing basic file-based audit service...")
-        basic_audit = AuditService(
-            log_path=config.audit.audit_log_path,
-            rotation_size_mb=config.audit.rotation_size_mb,
-            retention_days=config.audit.retention_days
-        )
-        await basic_audit.start()
-        self.audit_services.append(basic_audit)
-        logger.info("Basic audit service started")
-        
-        # 2. Signed audit service (REQUIRED - cryptographic integrity)
-        logger.info("Initializing cryptographically signed audit service...")
-        signed_audit = SignedAuditService(
-            log_path=f"{config.audit.audit_log_path}.signed",  # Separate file to avoid conflicts
-            db_path=config.audit.audit_db_path,
-            key_path=config.audit.audit_key_path,
-            rotation_size_mb=config.audit.rotation_size_mb,
-            retention_days=config.audit.retention_days,
-            enable_jsonl=False,  # Don't double-write to JSONL
-            enable_signed=True
-        )
-        await signed_audit.start()
-        self.audit_services.append(signed_audit)
-        logger.info("Signed audit service started")
-        
-        # 3. TSDB audit service (REQUIRED - time-series queries and correlations)
-        logger.info("Initializing TSDB audit service...")
-        tsdb_audit = TSDBSignedAuditService(
-            tags={"agent_profile": self.profile_name},
-            retention_policy="raw",
-            enable_file_backup=False,  # We already have file backup from service #1
-            file_audit_service=None
-        )
-        await tsdb_audit.start()
-        self.audit_services.append(tsdb_audit)
-        logger.info("TSDB audit service started")
-        
-        # Verify all 3 services are running
-        if len(self.audit_services) != 3:
-            raise RuntimeError(f"FATAL: Expected 3 audit services, got {len(self.audit_services)}. System cannot continue.")
-        
-        logger.info("All 3 required audit services initialized successfully")
-        
-        # Keep reference to primary audit service for compatibility
-        self.audit_service = self.audit_services[0]
-        
-        # Initialize audit sink manager to handle lifecycle and cleanup
-        self.audit_sink_manager = AuditSinkManager(
-            retention_seconds=300,  # 5 minutes
-            min_consumers=3,  # All 3 audit services must acknowledge
-            cleanup_interval_seconds=60
+        # Phase 2: MEMORY
+        init_manager.register_step(
+            phase=InitializationPhase.MEMORY,
+            name="Memory Service",
+            handler=self._initialize_memory_service,
+            verifier=self._verify_memory_service,
+            critical=True
         )
         
-        # Register all audit services as consumers
-        for i, audit_service in enumerate(self.audit_services):
-            consumer_id = f"{audit_service.__class__.__name__}_{i}"
-            self.audit_sink_manager.register_consumer(consumer_id)
+        # Phase 3: IDENTITY
+        init_manager.register_step(
+            phase=InitializationPhase.IDENTITY,
+            name="Agent Identity",
+            handler=self._initialize_identity,
+            verifier=self._verify_identity_integrity,
+            critical=True
+        )
+        
+        # Phase 4: SECURITY
+        init_manager.register_step(
+            phase=InitializationPhase.SECURITY,
+            name="Security Services",
+            handler=self._initialize_security_services,
+            verifier=self._verify_security_services,
+            critical=True
+        )
+        
+        # Phase 5: SERVICES
+        init_manager.register_step(
+            phase=InitializationPhase.SERVICES,
+            name="Core Services",
+            handler=self._initialize_services,
+            verifier=self._verify_core_services,
+            critical=True
+        )
+        
+        init_manager.register_step(
+            phase=InitializationPhase.SERVICES,
+            name="Register Adapter Services",
+            handler=self._register_adapter_services,
+            critical=False
+        )
+        
+        # Phase 6: COMPONENTS
+        init_manager.register_step(
+            phase=InitializationPhase.COMPONENTS,
+            name="Build Components",
+            handler=self._build_components,
+            critical=True
+        )
+        
+        init_manager.register_step(
+            phase=InitializationPhase.COMPONENTS,
+            name="Start Adapters",
+            handler=self._start_adapters,
+            critical=True
+        )
+        
+        # Phase 7: VERIFICATION
+        init_manager.register_step(
+            phase=InitializationPhase.VERIFICATION,
+            name="Final System Verification",
+            handler=self._final_verification,
+            critical=True
+        )
+    
+    async def _init_database(self) -> None:
+        """Initialize database and run migrations."""
+        persistence.initialize_database()
+        persistence.run_migrations()
+        
+        if not self.app_config:
+            from ciris_engine.config.config_manager import get_config_async
+            self.app_config = await get_config_async()
+    
+    async def _verify_database_integrity(self) -> bool:
+        """Verify database integrity before proceeding."""
+        try:
+            # Check core tables exist
+            conn = persistence.get_db_connection()
+            cursor = conn.cursor()
             
-        await self.audit_sink_manager.start()
-        logger.info("Audit sink manager started with 3 registered consumers")
+            required_tables = ['tasks', 'thoughts', 'graph_nodes', 'graph_edges']
+            for table in required_tables:
+                cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'")
+                if not cursor.fetchone():
+                    raise RuntimeError(f"Required table '{table}' missing from database")
+            
+            conn.close()
+            logger.info("✓ Database integrity verified")
+            return True
+        except Exception as e:
+            logger.error(f"Database integrity check failed: {e}")
+            return False
+    
+    async def _initialize_memory_service(self) -> None:
+        """Initialize memory service early for identity storage."""
+        config = self._ensure_config()
+        await self.service_initializer.initialize_memory_service(config)
+    
+    async def _verify_memory_service(self) -> bool:
+        """Verify memory service is operational."""
+        return await self.service_initializer.verify_memory_service()
+    
+    async def _verify_identity_integrity(self) -> bool:
+        """Verify identity was properly established."""
+        if not self.identity_manager:
+            logger.error("Identity manager not initialized")
+            return False
+        return await self.identity_manager.verify_identity_integrity()
+    
+    async def _initialize_security_services(self) -> None:
+        """Initialize security-critical services first."""
+        config = self._ensure_config()
+        await self.service_initializer.initialize_security_services(config, self.app_config)
+    
+    async def _verify_security_services(self) -> bool:
+        """Verify security services are operational."""
+        return await self.service_initializer.verify_security_services()
+    
+    async def _initialize_services(self) -> None:
+        """Initialize all remaining core services."""
+        config = self._ensure_config()
+        await self.service_initializer.initialize_all_services(config, self.app_config, self.profile_name, self.startup_channel_id)
+    
+    async def _verify_core_services(self) -> bool:
+        """Verify all core services are operational."""
+        return await self.service_initializer.verify_core_services()
+    
+    async def _start_adapters(self) -> None:
+        """Start all adapters."""
+        await asyncio.gather(*(adapter.start() for adapter in self.adapters))
+        logger.info(f"All {len(self.adapters)} adapters started")
+    
+    async def _final_verification(self) -> None:
+        """Perform final system verification."""
+        # Verify initialization status
+        init_status = get_initialization_manager().get_status()
         
-        # Initialize secrets service
-        self.secrets_service = SecretsService(
-            db_path=getattr(config.secrets, 'db_path', 'secrets.db') if hasattr(config, 'secrets') else 'secrets.db'
-        )
-        await self.secrets_service.start()
+        if not init_status.get("complete"):
+            raise RuntimeError("Initialization not complete")
         
-        # Initialize adaptive filter service
-        self.adaptive_filter_service = AdaptiveFilterService(
-            memory_service=self.memory_service,
-            llm_service=self.llm_service
-        )
-        await self.adaptive_filter_service.start()
+        # Verify identity loaded
+        if not self.agent_identity:
+            raise RuntimeError("No agent identity established")
         
-        # Initialize WA authentication system
-        self.wa_auth_system = await initialize_authentication()
-        logger.info("WA Authentication System initialized")
-        
-        # Initialize agent configuration service
-        self.agent_config_service = AgentConfigService(
-            memory_service=self.memory_service,
-            wa_service=self.wa_auth_system.get_auth_service(),
-            filter_service=self.adaptive_filter_service
-        )
-        await self.agent_config_service.start()
-        
-        # Initialize transaction orchestrator
-        self.transaction_orchestrator = MultiServiceTransactionOrchestrator(
-            service_registry=self.service_registry,
-            action_sink=self.multi_service_sink,
-            app_config=self.app_config
-        )
-        await self.transaction_orchestrator.start()
-        
-        archive_dir = getattr(config, "data_archive_dir", "data_archive")
-        archive_hours = getattr(config, "archive_older_than_hours", 24)
-        self.maintenance_service = DatabaseMaintenanceService(
-            archive_dir_path=archive_dir,
-            archive_older_than_hours=archive_hours
-        )
+        # Log final status
+        logger.info("=" * 60)
+        logger.info("CIRIS Agent Pre-Wakeup Verification Complete")
+        logger.info(f"Identity: {self.agent_identity.agent_id}")
+        logger.info(f"Purpose: {self.agent_identity.core_profile.description}")
+        logger.info(f"Capabilities: {len(self.agent_identity.allowed_capabilities)} allowed")
+        logger.info(f"Services: {len(self.service_registry._services) if self.service_registry else 0} registered")
+        logger.info("=" * 60)
         
     async def _perform_startup_maintenance(self) -> None:
         """Perform database cleanup at startup."""
@@ -445,245 +501,15 @@ class CIRISRuntime(RuntimeInterface):
             
     async def _build_components(self) -> None:
         """Build all processing components."""
-        if not self.llm_service:
-            raise RuntimeError("LLM service not initialized")
+        self.component_builder = ComponentBuilder(self)
+        self.agent_processor = await self.component_builder.build_all_components()
         
-        if not self.service_registry:
-            raise RuntimeError("Service registry not initialized")
-            
-        config = self._ensure_config()
-
-        ethical_pdma = EthicalPDMAEvaluator(
-            service_registry=self.service_registry,
-            model_name=self.llm_service.model_name,
-            max_retries=config.llm_services.openai.max_retries,
-            sink=self.multi_service_sink,
-        )
-
-        csdma = CSDMAEvaluator(
-            service_registry=self.service_registry,
-            model_name=self.llm_service.model_name,
-            max_retries=config.llm_services.openai.max_retries,
-            prompt_overrides=self.profile.csdma_overrides if self.profile else None,
-            sink=self.multi_service_sink,
-        )
-
-        action_pdma = ActionSelectionPDMAEvaluator(
-            service_registry=self.service_registry,
-            model_name=self.llm_service.model_name,
-            max_retries=config.llm_services.openai.max_retries,
-            prompt_overrides=self.profile.action_selection_pdma_overrides if self.profile else None,
-            sink=self.multi_service_sink,
-        )
-
-        dsdma = await create_dsdma_from_profile(
-            self.profile,
-            self.service_registry,
-            model_name=self.llm_service.model_name,
-            sink=self.multi_service_sink,
-        )
-        
-        guardrail_registry = GuardrailRegistry()
-        guardrail_registry.register_guardrail(
-            "entropy",
-            EntropyGuardrail(self.service_registry, config.guardrails, self.llm_service.model_name, self.multi_service_sink),
-            priority=0,
-        )
-        guardrail_registry.register_guardrail(
-            "coherence",
-            CoherenceGuardrail(self.service_registry, config.guardrails, self.llm_service.model_name, self.multi_service_sink),
-            priority=1,
-        )
-        guardrail_registry.register_guardrail(
-            "optimization_veto",
-            OptimizationVetoGuardrail(self.service_registry, config.guardrails, self.llm_service.model_name, self.multi_service_sink),
-            priority=2,
-        )
-        guardrail_registry.register_guardrail(
-            "epistemic_humility",
-            EpistemicHumilityGuardrail(self.service_registry, config.guardrails, self.llm_service.model_name, self.multi_service_sink),
-            priority=3,
-        )
-        
-        graphql_provider = GraphQLContextProvider(
-            graphql_client=GraphQLClient() if config.guardrails.enable_remote_graphql else None,
-            memory_service=self.memory_service,
-            enable_remote_graphql=config.guardrails.enable_remote_graphql
-        )
-        
-        dma_orchestrator = DMAOrchestrator(
-            ethical_pdma,
-            csdma,
-            dsdma,
-            action_pdma,
-            app_config=self.app_config,
-            llm_service=self.llm_service,
-            memory_service=self.memory_service
-        )
-        
-        context_builder = ContextBuilder(
-            memory_service=self.memory_service,
-            graphql_provider=graphql_provider,
-            app_config=self.app_config,
-            telemetry_service=self.telemetry_service
-        )
-        
-        guardrail_orchestrator = GuardrailOrchestrator(guardrail_registry)
-        
+        # Register core services after components are built
         await self._register_core_services()
-        
-        dependencies = ActionHandlerDependencies(
-            service_registry=self.service_registry,
-            shutdown_callback=lambda: self.request_shutdown(
-                "Handler requested shutdown due to critical service failure"
-            ),
-            multi_service_sink=self.multi_service_sink,
-            memory_service=self.memory_service,
-            audit_service=self.audit_service,
-        )
-        
-        register_global_shutdown_handler(
-            lambda: self.request_shutdown("Global shutdown manager triggered"),
-            is_async=False
-        )
-        
-        if not self.app_config:
-            raise RuntimeError("AppConfig is required for ThoughtProcessor initialization")
-        thought_processor = ThoughtProcessor(
-            dma_orchestrator,
-            context_builder,
-            guardrail_orchestrator,
-            self.app_config,
-            dependencies,
-            telemetry_service=self.telemetry_service
-        )
-        
-        action_dispatcher = await self._build_action_dispatcher(dependencies)
-        
-
-        
-        if not self.app_config:
-            raise RuntimeError("AppConfig is required for AgentProcessor initialization")
-        if not self.profile:
-            raise RuntimeError("Profile is required for AgentProcessor initialization")
-        self.agent_processor = AgentProcessor(
-            app_config=self.app_config,
-            active_profile=self.profile,
-            thought_processor=thought_processor,
-            action_dispatcher=action_dispatcher,
-            services={
-                "llm_service": self.llm_service,
-                "memory_service": self.memory_service,
-                "audit_service": self.audit_service,
-                "service_registry": self.service_registry,
-            },
-            startup_channel_id=self.startup_channel_id,
-            runtime=self,  # Pass runtime reference for preload tasks
-        )
         
     async def _register_core_services(self) -> None:
         """Register core services in the service registry."""
-        if not self.service_registry:
-            return
-        
-        # Register memory service for all handlers that need memory operations
-        if self.memory_service:
-            # Register for all major handlers
-            handler_names = [
-                "MemorizeHandler", "RecallHandler", "ForgetHandler",
-                "SpeakHandler", "ToolHandler", "ObserveHandler", "TaskCompleteHandler"
-            ]
-            
-            for handler_name in handler_names:
-                self.service_registry.register(
-                    handler=handler_name,
-                    service_type="memory",
-                    provider=self.memory_service,
-                    priority=Priority.HIGH,
-                    capabilities=["memorize", "recall", "forget"]
-                )
-        
-        # Register ALL audit services globally - the sink will route to all of them
-        if hasattr(self, 'audit_services') and self.audit_services:
-            for i, audit_service in enumerate(self.audit_services):
-                # Determine capabilities based on service type
-                capabilities = ["log_action", "log_event"]
-                service_name = audit_service.__class__.__name__
-                
-                if "Signed" in service_name:
-                    capabilities.extend(["verify_integrity", "rotate_keys", "create_root_anchor"])
-                if "TSDB" in service_name:
-                    capabilities.extend(["time_series_query", "correlation_tracking"])
-                else:
-                    capabilities.append("get_audit_trail")
-                
-                # Register with different priorities so sink can route appropriately
-                priority = Priority.CRITICAL if i == 0 else Priority.HIGH
-                
-                self.service_registry.register_global(
-                    service_type="audit",
-                    provider=audit_service,
-                    priority=priority,
-                    capabilities=capabilities,
-                    metadata={"audit_type": service_name}
-                )
-
-        # Register telemetry service globally for all handlers and components
-        if self.telemetry_service:
-            self.service_registry.register_global(
-                service_type="telemetry",
-                provider=self.telemetry_service,
-                priority=Priority.HIGH,
-                capabilities=["record_metric", "update_system_snapshot"]
-            )
-        
-        # Register LLM service globally so processors and DMAs can fetch it
-        if self.llm_service:
-            self.service_registry.register_global(
-                service_type="llm",
-                provider=self.llm_service,
-                priority=Priority.HIGH,
-                capabilities=["generate_structured_response"]
-            )
-        
-        # Register secrets service globally for all handlers
-        if self.secrets_service:
-            self.service_registry.register_global(
-                service_type="secrets",
-                provider=self.secrets_service,
-                priority=Priority.HIGH,
-                capabilities=["detect_secrets", "store_secret", "retrieve_secret", "filter_content"]
-            )
-        
-        # Register adaptive filter service
-        if self.adaptive_filter_service:
-            self.service_registry.register_global(
-                service_type="filter",
-                provider=self.adaptive_filter_service,
-                priority=Priority.HIGH,
-                capabilities=["message_filtering", "priority_assessment", "user_trust_tracking"]
-            )
-        
-        # Register agent configuration service
-        if self.agent_config_service:
-            self.service_registry.register_global(
-                service_type="config",
-                provider=self.agent_config_service,
-                priority=Priority.HIGH,
-                capabilities=["self_configuration", "wa_deferral", "config_persistence"]
-            )
-        
-        # Register transaction orchestrator
-        if self.transaction_orchestrator:
-            self.service_registry.register_global(
-                service_type="orchestrator",
-                provider=self.transaction_orchestrator,
-                priority=Priority.CRITICAL,
-                capabilities=["transaction_coordination", "service_routing", "health_monitoring", "audit_broadcast"]
-            )
-        
-        # Note: Communication and WA services will be registered by subclasses
-        # (e.g., DiscordRuntime registers Discord adapter, CIRISNode client)
+        self.service_initializer.register_core_services()
         
     async def _build_action_dispatcher(self, dependencies: Any) -> Any:
         """Build action dispatcher. Override in subclasses for custom sinks."""
@@ -784,8 +610,12 @@ class CIRISRuntime(RuntimeInterface):
             await self.shutdown()
             
     async def shutdown(self) -> None:
-        """Gracefully shutdown all services."""
+        """Gracefully shutdown all services with consciousness preservation."""
         logger.info("Shutting down CIRIS Runtime...")
+        
+        # Preserve agent consciousness if identity exists
+        if hasattr(self, 'agent_identity') and self.agent_identity:
+            await self._preserve_shutdown_consciousness()
         
         logger.info("Initiating shutdown sequence for CIRIS Runtime...")
         self._ensure_shutdown_event()
@@ -796,6 +626,53 @@ class CIRISRuntime(RuntimeInterface):
             logger.debug("Stopping agent processor...")
             await self.agent_processor.stop_processing()
             logger.debug("Agent processor stopped.")
+    
+    async def _preserve_shutdown_consciousness(self) -> None:
+        """Preserve agent state for future reactivation."""
+        try:
+            from ciris_engine.schemas.identity_schemas_v1 import ShutdownContext
+            from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
+            
+            # Create shutdown context
+            shutdown_context = ShutdownContext(
+                reason=self._shutdown_reason or "Graceful shutdown",
+                final_state={
+                    "active_tasks": persistence.count_active_tasks(),
+                    "pending_thoughts": persistence.count_pending_thoughts(),
+                    "runtime_duration": (datetime.now(timezone.utc) - self._start_time).total_seconds()
+                        if hasattr(self, '_start_time') else 0
+                },
+                pending_tasks=[],  # TODO: Gather actual pending tasks
+                deferred_thoughts=[],  # TODO: Gather deferred thoughts
+                timestamp=datetime.now(timezone.utc).isoformat()
+            )
+            
+            # Create memory node for shutdown
+            shutdown_node = GraphNode(
+                id=f"shutdown_{datetime.now(timezone.utc).isoformat()}",
+                type=NodeType.AGENT,
+                scope=GraphScope.IDENTITY,
+                attributes={
+                    "shutdown_context": shutdown_context.model_dump(),
+                    "identity_hash": self.agent_identity.identity_hash,
+                    "reactivation_count": self.agent_identity.core_profile.reactivation_count
+                }
+            )
+            
+            # Store in memory service
+            if self.memory_service:
+                await self.memory_service.memorize(shutdown_node)
+                logger.info(f"Preserved shutdown consciousness: {shutdown_node.id}")
+                
+                # Update identity with shutdown memory reference
+                self.agent_identity.core_profile.last_shutdown_memory = shutdown_node.id
+                self.agent_identity.core_profile.reactivation_count += 1
+                
+                # Save updated identity
+                persistence.save_agent_identity(self.agent_identity.model_dump())
+                
+        except Exception as e:
+            logger.error(f"Failed to preserve shutdown consciousness: {e}")
             
         if self.multi_service_sink:
             logger.debug("Stopping multi-service sink...")

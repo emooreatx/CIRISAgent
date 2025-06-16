@@ -62,6 +62,12 @@ class SystemSnapshot(BaseModel):
     resources: Optional[ResourceSnapshot] = None
     resource_actions_taken: Dict[str, int] = Field(default_factory=dict)
     
+    # Identity graph state - loaded once at snapshot generation
+    agent_identity: Optional[Dict[str, Any]] = None
+    identity_purpose: Optional[str] = None
+    identity_capabilities: List[str] = Field(default_factory=list)
+    identity_restrictions: List[str] = Field(default_factory=list)
+    
     model_config = ConfigDict(extra="allow")
 
 class TaskContext(BaseModel):

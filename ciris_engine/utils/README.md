@@ -12,7 +12,7 @@ The utils module contains focused utility libraries that provide reusable functi
 - **Context Management** (`context_utils.py`) - Context building and processing utilities
 - **GraphQL Integration** (`graphql_context_provider.py`) - External data enrichment services
 - **Logging Infrastructure** (`logging_config.py`) - Comprehensive logging configuration
-- **Profile Management** (`profile_loader.py`) - Asynchronous agent profile loading
+- **Profile Loading** (`profile_loader.py`) - Profile template loading for agent creation only
 - **Shutdown Coordination** (`shutdown_manager.py`) - Graceful shutdown orchestration
 - **Task Formatting** (`task_formatters.py`) - LLM prompt formatting utilities
 - **User Utilities** (`user_utils.py`) - User identification and nickname extraction
@@ -151,32 +151,31 @@ setup_basic_logging(
 )
 ```
 
-### Profile Loading (`profile_loader.py`)
+### Profile Template Loading (`profile_loader.py`)
 
-Asynchronous agent profile loading from YAML configuration files.
+⚠️ **IMPORTANT**: Profiles are now ONLY used as templates during initial agent creation. After creation, identity is managed through the graph database.
 
 #### Core Function
 ```python
 async def load_profile(profile_path: Union[str, Path]) -> AgentProfile:
-    """Load and validate agent profile from YAML file"""
+    """Load profile template for new agent creation only"""
 ```
 
 #### Features
 - **Async I/O**: Non-blocking file operations using asyncio
-- **Validation**: Pydantic schema validation for loaded profiles
+- **Validation**: Pydantic schema validation for profile templates
 - **Action Conversion**: String to enum conversion for permitted actions
 - **Error Handling**: Comprehensive error reporting and fallback
 - **Case Insensitive**: Flexible action name matching
 
 #### Usage Example
 ```python
-# Load agent profile
-profile = await load_profile("ciris_profiles/teacher.yaml")
+# Load profile template for new agent creation
+profile_template = await load_profile("ciris_profiles/teacher.yaml")
 
-# Access profile data
-permitted_actions = profile.permitted_actions
-dsdma_config = profile.dsdma_kwargs
-system_prompts = profile.action_selection_pdma_overrides
+# Used only during agent creation ceremony
+# After creation, identity is stored in graph at "agent/identity"
+# All changes require MEMORIZE action with WA approval
 ```
 
 ### Shutdown Management (`shutdown_manager.py`)
@@ -313,12 +312,13 @@ Utilities provide robust error handling patterns:
 # Graceful degradation in user utilities
 nick = extract_user_nick(message) or "Unknown User"
 
-# Comprehensive error logging in profile loader
+# Profile templates only used during creation
 try:
-    profile = await load_profile(profile_path)
+    template = await load_profile(profile_path)
+    # Use template to create initial identity in graph
 except Exception as e:
-    logger.error(f"Profile loading failed: {e}")
-    profile = await load_profile("default.yaml")
+    logger.error(f"Template loading failed: {e}")
+    template = await load_profile("default.yaml")
 ```
 
 ## Testing Support
@@ -385,18 +385,23 @@ context = build_dispatch_context(thought, task, round_num=1)
 user_nick = extract_user_nick(context)
 ```
 
-### Profile Management
+### Identity Management (Profiles Deprecated)
 ```python
-from ciris_engine.utils.profile_loader import load_profile
+# Profile switching removed - identity is now graph-based
+# To access agent identity:
+from ciris_engine.persistence.models.identity import get_identity_for_context
 
-# Load agent profile
-profile = await load_profile("ciris_profiles/teacher.yaml")
+identity_info = get_identity_for_context()
+agent_name = identity_info.get("agent_name")
+permitted_actions = identity_info.get("allowed_capabilities", [])
 
-# Use profile configuration
-actions = profile.permitted_actions
-prompts = profile.action_selection_pdma_overrides
+# To modify identity: Use MEMORIZE action with WA approval
 ```
 
 ---
 
 The utilities module provides the essential infrastructure foundation that enables clean separation of concerns and reusable functionality across all CIRIS engine components, supporting reliable operation, comprehensive logging, graceful shutdown, and flexible configuration management.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

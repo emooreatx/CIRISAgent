@@ -2,7 +2,7 @@ import logging
 import inspect
 from typing import Dict, Any, Optional, Callable, Awaitable
 
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, DispatchContext
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from . import BaseActionHandler
@@ -108,10 +108,22 @@ class ActionDispatcher:
         # Logging handled by logger.info above
         
         try:
-            # Record handler invocation
+            # Record handler invocation as HOT PATH
             if self.telemetry_service:
-                await self.telemetry_service.record_metric(f"handler_invoked_{action_type.value}")
-                await self.telemetry_service.record_metric("handler_invoked_total")
+                await self.telemetry_service.record_metric(
+                    f"handler_invoked_{action_type.value}",
+                    value=1.0,
+                    tags={"handler": handler_instance.__class__.__name__, "action": action_type.value},
+                    path_type="hot",
+                    source_module="action_dispatcher"
+                )
+                await self.telemetry_service.record_metric(
+                    "handler_invoked_total",
+                    value=1.0,
+                    tags={"handler": handler_instance.__class__.__name__},
+                    path_type="hot",
+                    source_module="action_dispatcher"
+                )
             
             # The handler's `handle` method will take care of everything.
             follow_up_thought_id = await handler_instance.handle(action_selection_result, thought, dispatch_context)

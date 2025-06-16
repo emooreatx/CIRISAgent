@@ -36,9 +36,10 @@ class ActionInstructionGenerator:
         HandlerActionType.TASK_COMPLETE: TaskCompleteParams,
     }
     
-    def __init__(self, service_registry: Optional[Any] = None):
-        """Initialize with optional service registry for tool discovery."""
+    def __init__(self, service_registry: Optional[Any] = None, multi_service_sink: Optional[Any] = None):
+        """Initialize with optional service registry and multi-service sink for tool discovery."""
         self.service_registry = service_registry
+        self.multi_service_sink = multi_service_sink
         self._cached_instructions: Optional[str] = None
         
     def generate_action_instructions(self, available_actions: Optional[List[HandlerActionType]] = None) -> str:
@@ -86,7 +87,9 @@ class ActionInstructionGenerator:
                    f"scope: \"local\"|\"identity\"|\"environment\"}}, \"reason\": string (required)}}")
             
         elif action_type == HandlerActionType.DEFER:
-            return f"DEFER: {{\"reason\": string (required), \"context\"?: object}}"
+            return (f"DEFER: {{\"reason\": string (required), \"context\"?: object, "
+                   f"\"defer_until\"?: string (ISO timestamp like '2025-01-20T15:00:00Z')}}")
+            return defer_schema + "\nUse defer_until for time-based deferrals that auto-reactivate."
             
         elif action_type == HandlerActionType.REJECT:
             reject_schema = (f"REJECT: {{\"reason\": string (required), "
@@ -137,28 +140,64 @@ class ActionInstructionGenerator:
         """Generate dynamic tool schema based on available tools."""
         base_schema = "TOOL: {\"name\": string (tool name), \"parameters\": object}"
         
-        # If we have a multi-service sink, use LIST_TOOLS to get all tools
+        # If we have a service registry, try to get tools from all tool services
         if self.service_registry:
-            # Try to get the multi-service sink
-            multi_sink = None
-            # Check if we have a reference to the sink
-            if hasattr(self.service_registry, 'multi_service_sink'):
-                multi_sink = self.service_registry.multi_service_sink
-            
-            if multi_sink:
-                try:
-                    # Use the LIST_TOOLS action to get all available tools
-                    from ciris_engine.sinks import ListToolsAction
-                    list_action = ListToolsAction(
-                        handler_name="action_instruction_generator",
-                        metadata={"purpose": "dynamic_instruction_generation"},
-                        include_schemas=True
-                    )
+            try:
+                # Get all tool services from the registry
+                import asyncio
+                loop = asyncio.get_event_loop()
+                
+                # Create a coroutine to get all tools
+                async def get_all_tools():
+                    tool_services = self.service_registry.get_services_by_type('tool')
+                    all_tools = {}
                     
-                    # Execute the action synchronously (we're in a sync context)
-                    import asyncio
-                    loop = asyncio.get_event_loop()
-                    all_tools = loop.run_until_complete(multi_sink._handle_list_tools(None, list_action))
+                    # Aggregate tools from all services
+                    for tool_service in tool_services:
+                        try:
+                            service_tools = await tool_service.get_available_tools()
+                            # Add service identifier to tool info
+                            service_name = getattr(tool_service, 'adapter_name', type(tool_service).__name__)
+                            
+                            if isinstance(service_tools, list):
+                                # If it returns a list of names, convert to dict
+                                for tool_name in service_tools:
+                                    all_tools[tool_name] = {
+                                        'name': tool_name,
+                                        'description': 'No description available',
+                                        'service': service_name
+                                    }
+                            elif isinstance(service_tools, dict):
+                                # If it returns a dict with details
+                                for tool_name, tool_info in service_tools.items():
+                                    # Create unique key if tool name exists in multiple services
+                                    if tool_name in all_tools:
+                                        tool_key = f"{tool_name}_{service_name}"
+                                    else:
+                                        tool_key = tool_name
+                                    
+                                    # Enhance tool info with service metadata
+                                    enhanced_info = {
+                                        'name': tool_name,
+                                        'service': service_name,
+                                        'description': tool_info.get('description', 'No description') if isinstance(tool_info, dict) else 'No description',
+                                    }
+                                    
+                                    if isinstance(tool_info, dict):
+                                        if 'parameters' in tool_info:
+                                            enhanced_info['parameters'] = tool_info['parameters']
+                                        if 'when_to_use' in tool_info:
+                                            enhanced_info['when_to_use'] = tool_info['when_to_use']
+                                    
+                                    all_tools[tool_key] = enhanced_info
+                                    
+                        except Exception as e:
+                            logger.warning(f"Failed to get tools from {type(tool_service).__name__}: {e}")
+                    
+                    return all_tools
+                
+                # Execute the coroutine
+                all_tools = loop.run_until_complete(get_all_tools())
                     
                     if all_tools:
                         tools_info = []

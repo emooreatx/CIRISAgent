@@ -7,7 +7,7 @@ from typing import Any, Optional
 from ciris_engine.runtime.runtime_control import RuntimeControlService
 from ciris_engine.schemas.runtime_control_schemas import (
     ProcessorControlRequest, AdapterLoadRequest, AdapterUnloadRequest,
-    ConfigUpdateRequest, ConfigGetRequest, ProfileReloadRequest,
+    ConfigUpdateRequest, ConfigGetRequest,
     ConfigValidationRequest, ConfigBackupRequest, ConfigRestoreRequest
 )
 
@@ -41,14 +41,6 @@ class APIRuntimeControlRoutes:
         app.router.add_put('/v1/runtime/config', self._handle_update_config)
         app.router.add_post('/v1/runtime/config/validate', self._handle_validate_config)
         app.router.add_post('/v1/runtime/config/reload', self._handle_reload_config)
-        
-        # Agent Profile Management
-        app.router.add_get('/v1/runtime/profiles', self._handle_list_profiles)
-        app.router.add_post('/v1/runtime/profiles/{profile_name}/load', self._handle_load_profile)
-        app.router.add_get('/v1/runtime/profiles/{profile_name}', self._handle_get_profile)
-        app.router.add_post('/v1/runtime/profiles', self._handle_create_profile)
-        app.router.add_put('/v1/runtime/profiles/{profile_name}', self._handle_update_profile)
-        app.router.add_delete('/v1/runtime/profiles/{profile_name}', self._handle_delete_profile)
         
         # Configuration Backup/Restore
         app.router.add_post('/v1/runtime/config/backup', self._handle_backup_config)
@@ -268,85 +260,6 @@ class APIRuntimeControlRoutes:
             logger.error(f"Error reloading config: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
 
-    async def _handle_list_profiles(self, request: web.Request) -> web.Response:
-        """List all available agent profiles."""
-        try:
-            profiles = await self.runtime_control.list_agent_profiles()
-            return web.json_response(profiles, status=200)
-        except Exception as e:
-            logger.error(f"Error listing profiles: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_load_profile(self, request: web.Request) -> web.Response:
-        """Load an agent profile."""
-        try:
-            profile_name = request.match_info['profile_name']
-            data = await request.json() if request.can_read_body else {}
-            
-            reload_request = ProfileReloadRequest(
-                profile_name=profile_name,
-                **data
-            )
-            
-            result = await self.runtime_control.load_agent_profile(reload_request)
-            if hasattr(result, 'model_dump'):
-                return web.json_response(result.model_dump(mode="json"), status=200)
-            else:
-                return web.json_response(result, status=200)
-        except ValueError as e:
-            logger.warning(f"Invalid profile load request: {e}")
-            return web.json_response({"error": f"Invalid request: {e}"}, status=400)
-        except Exception as e:
-            logger.error(f"Error loading profile: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_get_profile(self, request: web.Request) -> web.Response:
-        """Get information about a specific agent profile."""
-        try:
-            profile_name = request.match_info['profile_name']
-            profile_info = await self.runtime_control.get_agent_profile(profile_name)
-            
-            if profile_info:
-                if hasattr(profile_info, 'model_dump'):
-                    return web.json_response(profile_info.model_dump(mode="json"), status=200)
-                else:
-                    return web.json_response(profile_info, status=200)
-            else:
-                return web.json_response({"error": "Profile not found"}, status=404)
-        except Exception as e:
-            logger.error(f"Error getting profile info: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_create_profile(self, request: web.Request) -> web.Response:
-        """Create a new agent profile."""
-        try:
-            data = await request.json()
-            # TODO: Implement profile creation logic in runtime control service
-            return web.json_response({"message": "Profile creation not yet implemented"}, status=501)
-        except Exception as e:
-            logger.error(f"Error creating profile: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_update_profile(self, request: web.Request) -> web.Response:
-        """Update an agent profile."""
-        try:
-            profile_name = request.match_info['profile_name']
-            data = await request.json()
-            # TODO: Implement profile update logic in runtime control service
-            return web.json_response({"message": "Profile update not yet implemented"}, status=501)
-        except Exception as e:
-            logger.error(f"Error updating profile: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_delete_profile(self, request: web.Request) -> web.Response:
-        """Delete an agent profile."""
-        try:
-            profile_name = request.match_info['profile_name']
-            # TODO: Implement profile deletion logic in runtime control service
-            return web.json_response({"message": "Profile deletion not yet implemented"}, status=501)
-        except Exception as e:
-            logger.error(f"Error deleting profile: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
 
     async def _handle_backup_config(self, request: web.Request) -> web.Response:
         """Backup configuration."""
@@ -355,7 +268,6 @@ class APIRuntimeControlRoutes:
             backup_request = ConfigBackupRequest(**data)
             
             result = await self.runtime_control.backup_config(
-                include_profiles=backup_request.include_profiles,
                 backup_name=backup_request.backup_name
             )
             return web.json_response(result.model_dump(mode="json"), status=200)

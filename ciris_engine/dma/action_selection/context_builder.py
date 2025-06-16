@@ -14,9 +14,10 @@ logger = logging.getLogger(__name__)
 class ActionSelectionContextBuilder:
     """Builds context for action selection evaluation."""
     
-    def __init__(self, prompts: Dict[str, str], service_registry: Optional[Any] = None):
+    def __init__(self, prompts: Dict[str, str], service_registry: Optional[Any] = None, multi_service_sink: Optional[Any] = None):
         self.prompts = prompts
         self.service_registry = service_registry
+        self.multi_service_sink = multi_service_sink
         self._instruction_generator: Optional[Any] = None
     
     def build_main_user_content(
@@ -330,7 +331,7 @@ Adhere strictly to the schema for your JSON output.
             # Lazy initialize the instruction generator
             if self._instruction_generator is None:
                 from ciris_engine.dma.action_selection.action_instruction_generator import ActionInstructionGenerator
-                self._instruction_generator = ActionInstructionGenerator(self.service_registry)
+                self._instruction_generator = ActionInstructionGenerator(self.service_registry, self.multi_service_sink)
             
             # Generate dynamic instructions
             dynamic_schemas = self._instruction_generator.generate_action_instructions(permitted_actions)

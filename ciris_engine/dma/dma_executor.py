@@ -61,7 +61,7 @@ async def run_dma_with_retries(
         None,
     )
 
-    if thought_arg is not None:
+    if thought_arg is not None and last_error is not None:
         escalate_dma_failure(thought_arg, run_fn.__name__, last_error, retry_limit)
 
     raise DMAFailure(f"{run_fn.__name__} failed after {retry_limit} attempts: {last_error}")
@@ -123,7 +123,7 @@ async def run_action_selection_pdma(
     """Select the next handler action using the triaged DMA results."""
     logger.debug(f"run_action_selection_pdma: Starting evaluation for thought {triaged_inputs.get('original_thought', {}).thought_id if triaged_inputs.get('original_thought') else 'UNKNOWN'}")
     
-    result = await evaluator.evaluate(triaged_inputs=triaged_inputs)
+    result = await evaluator.evaluate(input_data=triaged_inputs)
     
     logger.debug(f"run_action_selection_pdma: Evaluation completed. Result type: {type(result)}, Result: {result}")
     if result is None:

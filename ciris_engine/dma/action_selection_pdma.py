@@ -68,7 +68,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
             **kwargs
         )
         
-        self.context_builder = ActionSelectionContextBuilder(self.prompts, service_registry)
+        self.context_builder = ActionSelectionContextBuilder(self.prompts, service_registry, self.sink)
         self.parameter_processor = ActionParameterProcessor()
         self.faculty_integration = FacultyIntegration(faculties) if faculties else None
 
@@ -123,7 +123,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
         
         enhanced_inputs = await self.faculty_integration.enhance_evaluation_with_faculties(
             original_thought=original_thought,
-            input_data=input_data,
+            triaged_inputs=input_data,
             guardrail_failure_context=guardrail_failure_context
         )
         enhanced_inputs["recursive_evaluation"] = True
@@ -153,8 +153,8 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
         """Perform the main LLM-based evaluation."""
         
 
-        agent_profile = input_data.get("agent_profile")
-        agent_name = getattr(agent_profile, "name", None) if agent_profile else None
+        agent_identity = input_data.get("agent_identity", {})
+        agent_name = agent_identity.get("agent_name", "CIRISAgent")
         
         main_user_content = self.context_builder.build_main_user_content(
             input_data, agent_name

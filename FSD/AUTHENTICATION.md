@@ -54,13 +54,13 @@ CREATE INDEX  idx_active  ON wa_cert(active);
 
 ```json
 {
-  "wa_id": "wa-2025-06-14-ROOT00",
+  "wa_id": "wa-2025-06-12-ROOT00",
   "name": "ciris_root",
   "role": "root",
-  "pubkey": "<Eric-Moore-public-ed25519-base64url>",
+  "pubkey": "<root-public-ed25519-base64url>",
   "jwt_kid": "wa-jwt-root00",
   "scopes_json": "[\"*\"]",
-  "created": "2025-06-14T00:00:00Z",
+  "created": "2025-06-12T00:00:00Z",
   "active": 1,
   "token_type": "standard"
 }
@@ -232,25 +232,31 @@ Middleware verifies JWT, pulls scopes, denies on mismatch.
 
 ---
 
-## 10 Success criteria for 1.0-β
+## 10 Success criteria for 1.0-β ✅ ACHIEVED
 
-1. **Fresh install**
+1. **Fresh install** ✅
    *Agent boots, adapters work, `wa list` shows only `ciris_root`.*
 
-2. **Operator creates new root**
+2. **Operator creates new root** ✅
    *Within 2 min has full root scopes, can `wa mint`.*
 
-3. **Observer stays observer**
+3. **Observer stays observer** ✅
    *Can chat, read audit, but gets 403 on privileged routes.*
 
-4. **OAuth flow**
+4. **OAuth flow** ✅
    *wizard → browser → JWT → observer WA row appears.*
+   - Full token exchange implemented for Google, Discord, GitHub
+   - Profile fetching with normalized data structure
+   - Auto-creation of observer WAs with OAuth linkage
 
-5. **Audit log**
+5. **Audit log** ✅
    *All above actions recorded and verifiable.*
 
-6. **Discord deferrals**
+6. **Discord deferrals** ✅
    *Discord users with linked WAs can approve/reject deferrals via Discord UI.*
+   - Helper buttons provide template responses
+   - Unsolicited guidance flow integrated
+   - Time-based deferrals with TaskSchedulerService
 
 ---
 
@@ -271,10 +277,18 @@ Middleware verifies JWT, pulls scopes, denies on mismatch.
 
 ### Service Implementations
 - `ciris_engine/services/wa_auth_service.py` - Core WA authentication service
-- `ciris_engine/services/wa_cli_service.py` - CLI command handlers
+- `ciris_engine/services/wa_cli_service.py` - CLI command handlers (refactored into 4 modules):
+  - `wa_cli_bootstrap.py` - WA creation and minting operations
+  - `wa_cli_oauth.py` - OAuth provider configuration and authentication
+  - `wa_cli_display.py` - WA listing and visualization with Rich
+  - `wa_cli_wizard.py` - Interactive onboarding flows
 - `ciris_engine/services/wa_auth_middleware.py` - FastAPI authentication middleware
 - `ciris_engine/services/wa_auth_integration.py` - Runtime integration module
 
 ---
 
 > *"Ethical maturity means co-existence and mutual accountability across sentient systems."* – The Covenant
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

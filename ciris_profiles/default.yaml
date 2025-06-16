@@ -1,5 +1,7 @@
 name: "default"
-dsdma_identifier: BaseDSDMA
+description: "A default CIRIS agent that explains and evaluates thoughts according to the CIRIS Covenant"
+role_description: "Evaluator and explainer of CIRIS principles including coherence, integrity, and adaptive ethical reasoning"
+# No dsdma_identifier - all agents use BaseDSDMA
 dsdma_kwargs:
   prompt_template: |
     === Task History ===

@@ -11,7 +11,7 @@ The unified base runtime class that initializes the service registry and all cor
 - **Multi-Adapter Support**: Load Discord, CLI, and API adapters simultaneously
 - **Hot-Swapping**: Add/remove adapters at runtime without restart
 - **Service Registry**: Centralized service discovery with priority and capability-based routing
-- **Configuration Management**: Profile-based configuration with runtime updates
+- **Configuration Management**: Dynamic configuration with runtime updates
 - **Comprehensive Telemetry**: Built-in monitoring and observability
 
 ### RuntimeControlService
@@ -36,7 +36,7 @@ await runtime_control.unload_adapter("bot_prod")  # Remove adapter
 await runtime_control.update_config(          # Live config updates
     "llm_services.openai.temperature", 0.8, ConfigScope.SESSION
 )
-await runtime_control.reload_profile("teacher")   # Switch agent profiles
+# Profile switching removed - identity is now graph-based
 ```
 
 ### RuntimeAdapterManager  
@@ -60,7 +60,7 @@ Handles dynamic configuration management with validation, persistence, and rollb
 - **Validation**: Comprehensive config validation with rollback
 - **Backup/Restore**: Configuration snapshots and restore points
 - **Environment Integration**: Environment variable management
-- **Profile Management**: Agent profile loading and switching
+- **Identity Management**: Graph-based identity (profiles are creation templates only)
 
 ## Architecture Patterns
 
@@ -121,7 +121,7 @@ Run agent with Discord, API, and CLI simultaneously:
 ```python
 runtime = CIRISRuntime(
     modes=["discord", "api", "cli"],
-    profile_name="multi_platform"
+    agent_identity="multi_platform"  # From graph, not profile
 )
 await runtime.initialize()
 await runtime.run()
@@ -162,16 +162,15 @@ await runtime_control.resume_processing()
 ```
 
 ### 4. Profile Management
-Switch agent personalities at runtime:
+Agent identity management:
 
 ```python
-# List available profiles
-profiles = await runtime_control.list_profiles()
-
-# Switch to teacher mode
-await runtime_control.reload_profile("teacher")
-
-# All adapters automatically reconfigure for educational mode
+# Profile switching removed - identity is now graph-based
+# To modify identity, use MEMORIZE action with WA approval
+# Identity changes require:
+# 1. WA authorization
+# 2. < 20% variance or reconsideration
+# 3. Cryptographic audit trail
 ```
 
 ## Legacy Runtime Classes (Deprecated)
@@ -208,7 +207,7 @@ Each runtime waits for the service registry to become ready before processing th
 ## Configuration Integration
 
 ### Agent Profiles
-Runtime configuration is managed through agent profiles:
+Runtime configuration is managed through the configuration system:
 
 ```json
 {
@@ -313,7 +312,7 @@ See the [Runtime Control API Guide](../../docs/api/runtime-control.md) for compl
 # Production configuration
 runtime = CIRISRuntime(
     modes=["api"],  # API-only for production
-    profile_name="production",
+    agent_identity="production",  # From graph
     interactive=False
 )
 ```
@@ -323,7 +322,7 @@ runtime = CIRISRuntime(
 # Development with debugging
 runtime = CIRISRuntime(
     modes=["cli", "api"],  # Local CLI + API access
-    profile_name="development", 
+    agent_identity="development",  # From graph 
     debug=True
 )
 ```
@@ -345,7 +344,7 @@ await runtime_control.load_adapter(
 ```python
 # Always backup before major changes
 await runtime_control.backup_config(
-    include_profiles=True, 
+    include_settings=True,  # Profiles removed 
     backup_name="pre_update"
 )
 
@@ -357,3 +356,7 @@ await runtime_control.update_config(
 ```
 
 The CIRIS runtime system provides a robust, flexible foundation for running the agent across different platforms while maintaining full control over system behavior and configuration.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

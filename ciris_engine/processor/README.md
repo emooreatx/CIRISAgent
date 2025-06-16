@@ -297,7 +297,7 @@ from ciris_engine.processor import AgentProcessor
 # Initialize with configuration and dependencies
 processor = AgentProcessor(
     app_config=app_config,
-    active_profile=agent_profile,
+    # Profile removed - identity loaded from graph
     thought_processor=thought_processor,
     action_dispatcher=action_dispatcher,
     services=services,
@@ -339,7 +339,7 @@ class CustomProcessor(BaseProcessor):
 ### DMA Integration
 - Coordinates with DMA modules for thought evaluation
 - Handles DMA failures with appropriate fallbacks
-- Supports profile-specific DMA configurations
+- Supports identity-based DMA configurations (from graph)
 
 ### Persistence Integration
 - Manages thought and task persistence throughout processing
@@ -414,3 +414,7 @@ The processor module uses batch processing for efficiency:
 - Performance metrics for bottleneck identification
 
 The processor module represents the heart of CIRISAgent's cognitive architecture, providing a robust, scalable, and extensible foundation for AI agent processing with strong emphasis on ethical operation, system resilience, and principled decision-making.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*
