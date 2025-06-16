@@ -587,6 +587,14 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
     
     async def create_channel_token_for_adapter(self, adapter_type: str, adapter_info: dict) -> str:
         """Create a channel token for an adapter."""
+        # Ensure adapter_info has proper structure
+        if not adapter_info:
+            adapter_info = {}
+        
+        # Add default instance_id if not present
+        if 'instance_id' not in adapter_info:
+            adapter_info['instance_id'] = 'default'
+            
         channel_identity = ChannelIdentity.from_adapter(adapter_type, adapter_info)
         
         # Create or get channel observer

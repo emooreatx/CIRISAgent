@@ -128,7 +128,7 @@ class ChannelIdentity(BaseModel):
     @classmethod
     def from_adapter(cls, adapter_type: str, adapter_info: dict[str, Any]) -> "ChannelIdentity":
         """Create channel identity from adapter info."""
-        if adapter_type == 'cli':
+        if adapter_type == 'cli' or adapter_type == 'cliplatform':
             import os
             import socket
             channel_id = f"cli:{os.getenv('USER', 'unknown')}@{socket.gethostname()}"
@@ -136,7 +136,7 @@ class ChannelIdentity(BaseModel):
             host = adapter_info.get('host', 'localhost')
             port = adapter_info.get('port', 8080)
             channel_id = f"http:{host}:{port}"
-        elif adapter_type == 'discord':
+        elif adapter_type == 'discord' or adapter_type == 'discordplatform':
             guild = adapter_info.get('guild_id', 'unknown')
             member = adapter_info.get('member_id', 'bot')
             channel_id = f"discord:{guild}:{member}"
