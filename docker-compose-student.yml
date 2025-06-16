@@ -7,10 +7,12 @@ services:
       dockerfile: docker/Dockerfile
       args:
         - PROFILE_NAME=student
-        - MODE_LIST=discord
+        - MODE_LIST=discord,api
     env_file:
       - .env.student
+    ports:
+      - "8002:8002"  # Student API port
     volumes:
       - ./vol/student:/app/logs
-    # command: python run_discord_teacher.py
-    command: python main.py --profile student --modes discord
+      - ./vol/student/data:/app/data
+    command: python main.py --profile student --modes discord,api --host 0.0.0.0 --port 8002
