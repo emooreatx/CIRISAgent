@@ -5,7 +5,7 @@ from datetime import datetime
 if TYPE_CHECKING:
     from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
 
-from ciris_engine.schemas.foundational_schemas_v1 import DispatchContext
+from ciris_engine.schemas.foundational_schemas_v1 import DispatchContext, HandlerActionType
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ def build_dispatch_context(
         action_type=action_type or HandlerActionType.SPEAK,
         thought_id=thought_id or "",
         task_id=task_id or "",
-        source_task_id=source_task_id,
+        source_task_id=source_task_id or "",
         
         # Event details
         event_summary=event_summary or "No summary provided",
@@ -116,7 +116,7 @@ def build_dispatch_context(
         wa_id=wa_id,
         wa_authorized=wa_authorized,
         correlation_id=correlation_id or f"ctx_{datetime.utcnow().timestamp()}",
-        round_number=round_number,
+        round_number=round_number or 0,
         
         # Guardrail results (None for terminal actions)
         guardrail_result=guardrail_result

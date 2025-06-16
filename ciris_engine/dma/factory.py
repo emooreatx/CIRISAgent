@@ -109,7 +109,6 @@ async def create_dsdma_from_profile(
     service_registry: ServiceRegistry,
     *,
     model_name: Optional[str] = None,
-    default_profile_path: Path = DEFAULT_PROFILE_PATH,
     sink: Optional[Any] = None,
 ) -> Optional[BaseDSDMA]:
     """Instantiate a DSDMA based on the given profile.

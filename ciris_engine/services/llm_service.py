@@ -215,12 +215,12 @@ class OpenAICompatibleClient(LLMService):
                 
                 usage = getattr(response, "usage", None)
                 usage_obj = ResourceUsage(
-                    tokens=getattr(usage, "total_tokens", 0)
+                    tokens_used=getattr(usage, "total_tokens", 0)
                 )
                 
                 # Record token usage in telemetry
-                if self.telemetry_service and usage_obj.tokens > 0:
-                    await self.telemetry_service.record_metric("llm_tokens_used", usage_obj.tokens)
+                if self.telemetry_service and usage_obj.tokens_used > 0:
+                    await self.telemetry_service.record_metric("llm_tokens_used", usage_obj.tokens_used)
                     await self.telemetry_service.record_metric("llm_api_call_structured")
                 
                 return response, usage_obj

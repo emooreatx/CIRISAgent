@@ -5,7 +5,7 @@ from ciris_engine.services.memory_service import MemoryOpStatus
 from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, DispatchContext
 from ciris_engine import persistence
 import logging
 from typing import Optional
@@ -13,10 +13,10 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 class RecallHandler(BaseActionHandler):
-    async def handle(self, result: ActionSelectionResult, thought: Thought, dispatch_context: dict) -> None:
+    async def handle(self, result: ActionSelectionResult, thought: Thought, dispatch_context: DispatchContext) -> Optional[str]:
         raw_params = result.action_parameters
         thought_id = thought.thought_id
-        await self._audit_log(HandlerActionType.RECALL, {**dispatch_context, "thought_id": thought_id}, outcome="start")
+        await self._audit_log(HandlerActionType.RECALL, dispatch_context, outcome="start")
         try:
             params = await self._validate_and_convert_params(raw_params, RecallParams)
         except Exception as e:
@@ -26,7 +26,7 @@ class RecallHandler(BaseActionHandler):
                 content=ThoughtStatus.PENDING
             )
             persistence.add_thought(follow_up)
-            return
+            return None
         memory_service: Optional[MemoryService] = await self.get_memory_service()
 
         if not memory_service:
@@ -40,10 +40,10 @@ class RecallHandler(BaseActionHandler):
             persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.RECALL,
-                {**dispatch_context, "thought_id": thought_id},
+                dispatch_context,
                 outcome="failed_no_memory_service",
             )
-            return
+            return None
 
         node = params.node  # type: ignore[attr-defined]
         scope = node.scope
@@ -73,6 +73,7 @@ class RecallHandler(BaseActionHandler):
         persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.RECALL,
-            {**dispatch_context, "thought_id": thought_id},
+            dispatch_context,
             outcome="success" if success and data else "failed",
         )
+        return follow_up.thought_id

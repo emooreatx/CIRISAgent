@@ -14,7 +14,7 @@ from ciris_engine.persistence.models.graph import add_graph_node, get_graph_node
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.identity_schemas_v1 import (
     AgentIdentityRoot, CoreProfile, IdentityMetadata,
-    IdentityRoot, IdentityLineage, CreationCeremonyRequest
+    IdentityLineage, CreationCeremonyRequest
 )
 
 logger = logging.getLogger(__name__)

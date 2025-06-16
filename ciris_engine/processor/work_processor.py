@@ -28,7 +28,7 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
         action_dispatcher: Any,
         services: Dict[str, Any],
         startup_channel_id: Optional[str] = None,
-        **kwargs
+        **kwargs: Any
     ) -> None:
         """Initialize work processor."""
         self.startup_channel_id = startup_channel_id
@@ -63,7 +63,7 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
         start_time = datetime.now(timezone.utc)
         logger.info(f"--- Starting Work Round {round_number} ---")
         
-        round_metrics = {
+        round_metrics: Dict[str, Any] = {
             "round_number": round_number,
             "tasks_activated": 0,
             "thoughts_generated": 0,
@@ -186,7 +186,7 @@ class WorkProcessor(BaseProcessor, ProcessorInterface):
         
         
         try:
-            await self.dispatch_action(result, thought_obj, dispatch_context)
+            await self.dispatch_action(result, thought_obj, dispatch_context.model_dump())
         except Exception as e:
             logger.error(f"Error dispatching action for thought {thought_id}: {e}")
             self._mark_thought_failed(

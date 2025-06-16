@@ -257,6 +257,9 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         """Handle list tools action - aggregate tools from all tool services"""
         try:
             # Get all tool services from the registry
+            if self.service_registry is None:
+                logger.warning("Service registry is None, returning empty tools list")
+                return {}
             tool_services = self.service_registry.get_services_by_type('tool')
             all_tools = {}
             

@@ -114,11 +114,34 @@ class FetchedMessage(BaseModel):
 
 
 class ResourceUsage(BaseModel):
-    """Track LLM resource utilization."""
+    """Track LLM resource utilization with environmental awareness."""
 
-    tokens: int = 0
-    estimated_cost: Optional[float] = None
-    energy_kwh: Optional[float] = None
+    # Token usage
+    tokens_used: int = Field(default=0, description="Total tokens consumed")
+    tokens_input: int = Field(default=0, description="Input tokens")
+    tokens_output: int = Field(default=0, description="Output tokens")
+    
+    # Financial impact
+    cost_cents: float = Field(default=0.0, ge=0.0, description="Cost in cents USD")
+    
+    # Environmental impact
+    water_ml: float = Field(default=0.0, ge=0.0, description="Water usage in milliliters")
+    carbon_g: float = Field(default=0.0, ge=0.0, description="Carbon emissions in grams CO2")
+    energy_kwh: float = Field(default=0.0, ge=0.0, description="Energy consumption in kilowatt-hours")
+    
+    # Model information
+    model_used: Optional[str] = Field(default=None, description="Model that incurred these costs")
+    
+    # Legacy compatibility
+    @property
+    def tokens(self) -> int:
+        """Backward compatibility for tokens field."""
+        return self.tokens_used
+    
+    @property
+    def estimated_cost(self) -> Optional[float]:
+        """Backward compatibility for estimated_cost in dollars."""
+        return self.cost_cents / 100.0 if self.cost_cents > 0 else None
 
     model_config = ConfigDict(extra="allow")
 

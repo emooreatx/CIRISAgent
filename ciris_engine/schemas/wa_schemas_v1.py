@@ -126,7 +126,7 @@ class ChannelIdentity(BaseModel):
         return v
     
     @classmethod
-    def from_adapter(cls, adapter_type: str, adapter_info: dict) -> "ChannelIdentity":
+    def from_adapter(cls, adapter_type: str, adapter_info: dict[str, Any]) -> "ChannelIdentity":
         """Create channel identity from adapter info."""
         if adapter_type == 'cli':
             import os

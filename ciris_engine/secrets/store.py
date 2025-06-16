@@ -625,7 +625,7 @@ class SecretsStore(SecretsStoreInterface, SecretsEncryptionInterface):
         return logs
     
     async def reencrypt_all(self, new_encryption_key: bytes) -> bool:
-        """Re-encrypt all stored secrets with a new key."""  # pragma: no cover - not implemented
+        """Re-encrypt all stored secrets with a new key."""
         try:
             # Get all secrets
             with sqlite3.connect(self.db_path) as conn:

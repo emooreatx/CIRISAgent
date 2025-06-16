@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import os
+import platform
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,7 +17,7 @@ from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.schemas.runtime_control_schemas import (
     ConfigScope, ConfigValidationLevel, ConfigOperationResponse,
-    ConfigValidationResponse, AgentProfileInfo, AgentProfileResponse,
+    ConfigValidationResponse, AgentProfileInfo,
     ConfigBackupResponse
 )
 from ciris_engine.utils.config_validator import ConfigValidator
@@ -341,9 +342,106 @@ class ConfigManagerService(Service):
             self._config_history = self._config_history[-self._max_history:]
 
     async def _persist_config_change(self, path: str, value: Any, reason: Optional[str]) -> None:
-        """Persist configuration change to file (placeholder implementation)."""
-        # This would require implementing file-based configuration persistence
-        logger.info(f"Would persist config change: {path} = {value} (reason: {reason})")
+        """Persist configuration change to file with proper locking and backup."""
+        import tempfile
+        
+        # Import fcntl only on Unix-like systems
+        is_windows = platform.system() == "Windows"
+        if not is_windows:
+            import fcntl
+        
+        try:
+            # Get current configuration as dict
+            if self._config_manager is None:
+                logger.warning("Config manager not initialized, skipping persistence")
+                return
+                
+            current_config = self.config_manager.config.model_dump(mode="json")
+            
+            # Prepare config directory path
+            data_dir = Path(current_config.get("database", {}).get("data_directory", "data"))
+            data_dir.mkdir(parents=True, exist_ok=True)
+            
+            config_file = data_dir / "ciris_engine_config.json"
+            backup_dir = data_dir / "config_backups"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Load existing persisted config if it exists, otherwise use current config
+            persisted_config = {}
+            if config_file.exists():
+                try:
+                    with open(config_file, 'r') as f:
+                        persisted_config = json.load(f)
+                except Exception as e:
+                    logger.warning(f"Failed to load existing config, using current: {e}")
+                    persisted_config = current_config.copy()
+            else:
+                persisted_config = current_config.copy()
+            
+            # Create backup of existing config before changes
+            if config_file.exists():
+                timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+                backup_file = backup_dir / f"config_backup_{timestamp}.json"
+                
+                # Keep only last 10 backups
+                existing_backups = sorted(backup_dir.glob("config_backup_*.json"))
+                if len(existing_backups) >= 10:
+                    for old_backup in existing_backups[:-9]:
+                        old_backup.unlink()
+                
+                # Copy current config to backup
+                shutil.copy2(config_file, backup_file)
+                logger.debug(f"Created config backup: {backup_file}")
+            
+            # Apply the change to persisted config
+            if path:
+                self._set_nested_value(persisted_config, path, value)
+            else:
+                # Full config replacement
+                persisted_config = current_config.copy()
+            
+            # Add metadata
+            persisted_config["_metadata"] = {
+                "last_modified": datetime.now(timezone.utc).isoformat(),
+                "last_modified_path": path,
+                "last_modified_reason": reason,
+                "version": persisted_config.get("version", "1.0")
+            }
+            
+            # Write to temporary file first
+            temp_fd, temp_path = tempfile.mkstemp(dir=str(data_dir), prefix="config_", suffix=".tmp")
+            temp_file = Path(temp_path)
+            
+            try:
+                # Write config with proper locking
+                with os.fdopen(temp_fd, 'w') as f:
+                    # Acquire exclusive lock (Unix only, Windows uses file handle locking implicitly)
+                    if not is_windows:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                    try:
+                        json.dump(persisted_config, f, indent=2, sort_keys=True)
+                        f.write('\n')
+                        f.flush()
+                        os.fsync(f.fileno())
+                    finally:
+                        # Release lock (Unix only)
+                        if not is_windows:
+                            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                
+                # Atomically replace the config file
+                temp_file.replace(config_file)
+                
+                logger.info(f"Persisted config change: {path} = {value} (reason: {reason})")
+                
+            except Exception as e:
+                # Clean up temp file on error
+                if temp_file.exists():
+                    temp_file.unlink()
+                raise
+                
+        except Exception as e:
+            logger.error(f"Failed to persist config change: {e}")
+            raise
 
     async def _load_yaml(self, file_path: Path) -> Dict[str, Any]:
         """Load YAML file asynchronously."""
@@ -361,4 +459,13 @@ class ConfigManagerService(Service):
 
     def get_loaded_profiles(self) -> List[str]:
         """Get list of loaded profile names."""
-        return self._profile_manager.get_loaded_profiles()
+        # Profile management removed - identity is now graph-based
+        return []
+    
+    async def persist_full_config(self, reason: Optional[str] = None) -> None:
+        """Persist the entire current configuration to disk.
+        
+        Args:
+            reason: Optional reason for persisting the full configuration
+        """
+        await self._persist_config_change("", None, reason or "Full configuration save")

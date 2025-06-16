@@ -23,7 +23,7 @@ class MultiServiceTransactionOrchestrator(Service):
         self.registry = service_registry
         self.sink = action_sink
         self.app_config = app_config
-        self.transactions: Dict[str, Dict[str, str]] = {}
+        self.transactions: Dict[str, Dict[str, Any]] = {}
         self._tasks: List[asyncio.Task] = []
         self._health_monitor_task: Optional[asyncio.Task] = None
         self._health_check_interval = 30.0  # Check every 30 seconds
@@ -209,9 +209,9 @@ class MultiServiceTransactionOrchestrator(Service):
             tx_data = self.transactions[tx_id]
             if isinstance(tx_data, dict):
                 tx_data["audit_broadcast"] = {
-                    "total_services": str(len(audit_services)),
-                    "results": str(broadcast_results),
-                    "failures": str(failures)
+                    "total_services": len(audit_services),
+                    "results": broadcast_results,
+                    "failures": failures
                 }
         
         # If any critical services failed, consider the broadcast failed

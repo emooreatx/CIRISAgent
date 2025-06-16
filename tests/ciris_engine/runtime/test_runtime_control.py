@@ -340,8 +340,28 @@ class TestRuntimeControlService:
         assert "selection_strategies" in result["service_selection_logic"]
         assert "example_scenarios" in result
     
-    async def test_update_service_priority_not_implemented(self, runtime_control):
-        """Test that service priority updates return not implemented."""
+    async def test_update_service_priority_success(self, runtime_control, mock_runtime):
+        """Test successful service priority update."""
+        # Import required classes
+        from ciris_engine.registries.base import ServiceProvider, Priority, SelectionStrategy
+        
+        # Create a mock service provider
+        mock_provider = ServiceProvider(
+            name="test_provider",
+            priority=Priority.NORMAL,
+            instance=MagicMock(),
+            capabilities=[],
+            priority_group=0,
+            strategy=SelectionStrategy.FALLBACK
+        )
+        
+        # Set up the registry with the provider
+        mock_runtime.service_registry._providers = {
+            "test_handler": {
+                "llm": [mock_provider]
+            }
+        }
+        
         result = await runtime_control.update_service_priority(
             provider_name="test_provider",
             new_priority="HIGH",
@@ -349,8 +369,86 @@ class TestRuntimeControlService:
             new_strategy="ROUND_ROBIN"
         )
         
+        assert result["success"] is True
+        assert result["changes"]["old_priority"] == "NORMAL"
+        assert result["changes"]["new_priority"] == "HIGH"
+        assert result["changes"]["old_priority_group"] == 0
+        assert result["changes"]["new_priority_group"] == 1
+        assert result["changes"]["old_strategy"] == "FALLBACK"
+        assert result["changes"]["new_strategy"] == "ROUND_ROBIN"
+        
+        # Verify the provider was actually updated
+        assert mock_provider.priority == Priority.HIGH
+        assert mock_provider.priority_group == 1
+        assert mock_provider.strategy == SelectionStrategy.ROUND_ROBIN
+    
+    async def test_update_service_priority_invalid_priority(self, runtime_control, mock_runtime):
+        """Test service priority update with invalid priority."""
+        result = await runtime_control.update_service_priority(
+            provider_name="test_provider",
+            new_priority="INVALID_PRIORITY"
+        )
+        
         assert result["success"] is False
-        assert "not yet implemented" in result["error"]
+        assert "Invalid priority" in result["error"]
+        assert "Valid priorities" in result["error"]
+    
+    async def test_update_service_priority_invalid_strategy(self, runtime_control, mock_runtime):
+        """Test service priority update with invalid strategy."""
+        result = await runtime_control.update_service_priority(
+            provider_name="test_provider",
+            new_priority="HIGH",
+            new_strategy="INVALID_STRATEGY"
+        )
+        
+        assert result["success"] is False
+        assert "Invalid strategy" in result["error"]
+        assert "Valid strategies" in result["error"]
+    
+    async def test_update_service_priority_provider_not_found(self, runtime_control, mock_runtime):
+        """Test service priority update when provider not found."""
+        mock_runtime.service_registry._providers = {}
+        mock_runtime.service_registry._global_services = {}
+        
+        result = await runtime_control.update_service_priority(
+            provider_name="non_existent_provider",
+            new_priority="HIGH"
+        )
+        
+        assert result["success"] is False
+        assert "not found" in result["error"]
+    
+    async def test_update_service_priority_global_service(self, runtime_control, mock_runtime):
+        """Test updating priority of a global service."""
+        from ciris_engine.registries.base import ServiceProvider, Priority, SelectionStrategy
+        
+        # Create a mock global service provider
+        mock_provider = ServiceProvider(
+            name="global_test_provider",
+            priority=Priority.LOW,
+            instance=MagicMock(),
+            capabilities=[],
+            priority_group=2,
+            strategy=SelectionStrategy.ROUND_ROBIN
+        )
+        
+        # Set up the registry with the global provider
+        mock_runtime.service_registry._providers = {}
+        mock_runtime.service_registry._global_services = {
+            "communication": [mock_provider]
+        }
+        
+        result = await runtime_control.update_service_priority(
+            provider_name="global_test_provider",
+            new_priority="CRITICAL"
+        )
+        
+        assert result["success"] is True
+        assert result["changes"]["handler"] == "global"
+        assert result["changes"]["service_type"] == "communication"
+        assert result["changes"]["old_priority"] == "LOW"
+        assert result["changes"]["new_priority"] == "CRITICAL"
+        assert mock_provider.priority == Priority.CRITICAL
     
     async def test_get_runtime_status_success(self, runtime_control, mock_adapter_manager):
         """Test getting runtime status."""
@@ -370,24 +468,13 @@ class TestRuntimeControlService:
         """Test getting runtime snapshot."""
         mock_config_manager.get_config_value.return_value = {"test": "config"}
         
-        # Create proper mock profiles
-        profile1 = MagicMock()
-        profile1.name = "profile1"
-        profile1.is_active = True
-        
-        profile2 = MagicMock()
-        profile2.name = "profile2"
-        profile2.is_active = False
-        
-        mock_config_manager.list_profiles.return_value = [profile1, profile2]
-        
         result = await runtime_control.get_runtime_snapshot()
         
         assert result.processor_status == ProcessorStatus.RUNNING
         assert result.configuration == {"test": "config"}
-        assert result.active_profile == "profile1"
-        assert "profile1" in result.loaded_profiles
-        assert "profile2" in result.loaded_profiles
+        # Profiles are no longer used after initial agent creation
+        assert result.active_profile == "identity-based"
+        assert result.loaded_profiles == []
     
     async def test_error_handling_with_exception(self, runtime_control):
         """Test error handling when exceptions occur."""
@@ -461,7 +548,7 @@ class TestRuntimeControlEdgeCases:
         assert history[0]["success"] is False
         assert history[0]["error"] == "Test error"
     
-    def test_events_history_limit(self, runtime_control):
+    async def test_events_history_limit(self, runtime_control):
         """Test that events history respects limit."""
         # Get empty history first
         history = runtime_control.get_events_history(10)

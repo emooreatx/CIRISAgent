@@ -3,7 +3,7 @@ from __future__ import annotations
 import yaml
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Any, Dict, TypeVar, Generic, TYPE_CHECKING
+from typing import Optional, Any, Dict, TypeVar, Generic, TYPE_CHECKING, Tuple
 
 from pydantic import BaseModel
 
@@ -87,7 +87,7 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         return service
     
     async def call_llm_structured(self, messages: list, response_model: type, 
-                                 max_tokens: int = 1024, temperature: float = 0.0) -> tuple[Any, ...]:
+                                 max_tokens: int = 1024, temperature: float = 0.0) -> Tuple[Any, ...]:
         """Call LLM via sink for centralized failover, round-robin, and circuit breaker protection.
         
         Returns:
@@ -112,6 +112,10 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         # The sink returns Optional[tuple] which we need to ensure is a valid tuple
         if result is None:
             raise RuntimeError(f"Multi-service sink returned None for structured LLM call in {self.__class__.__name__}")
+        
+        # Ensure result is a tuple (it should be from the type annotation)
+        if not isinstance(result, tuple):
+            raise RuntimeError(f"Multi-service sink returned non-tuple: {type(result)}")
             
         return result
 

@@ -55,7 +55,7 @@ class GratitudeEvent:
     channel_id: Optional[str] = None
     community_id: Optional[str] = None
     reciprocated: bool = False
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class GratitudeService(Service):
@@ -159,7 +159,7 @@ class GratitudeService(Service):
                 service_type=ServiceType.AUDIT.value,  # Community metrics are audit-like
                 handler_name="gratitude_service",
                 action_type="record_gratitude",
-                correlation_type=CorrelationType.COMMUNITY_METRIC,
+                correlation_type=CorrelationType.METRIC_DATAPOINT,
                 timestamp=event.timestamp,
                 request_data={
                     "gratitude_type": gratitude_type.value,
@@ -171,10 +171,10 @@ class GratitudeService(Service):
                     "community_id": community_id,
                     "channel_id": channel_id
                 },
-                metadata=metadata or {},
                 tags={
                     "metric_type": "gratitude",
-                    "community": community_id or "default"
+                    "community": community_id or "default",
+                    **((metadata or {}) if metadata else {})
                 },
                 status=ServiceCorrelationStatus.COMPLETED
             )
@@ -253,7 +253,7 @@ class GratitudeService(Service):
         unique_receivers = len(set(e.to_entity for e in recent_events))
         
         # Type breakdown
-        type_counts = defaultdict(int)
+        type_counts: Dict[str, int] = defaultdict(int)
         for event in recent_events:
             type_counts[event.gratitude_type.value] += 1
             
@@ -516,7 +516,7 @@ class GratitudeService(Service):
         ))
         
         # 3. Diversity of gratitude types
-        gratitude_types = set()
+        gratitude_types: set[GratitudeType] = set()
         for events in self._gratitude_given.values():
             gratitude_types.update(e.gratitude_type for e in events)
             

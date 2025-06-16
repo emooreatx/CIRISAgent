@@ -210,7 +210,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                     
             elif action == HandlerActionType.DEFER:
                 if action_params:
-                    params = DeferParams(reason=action_params)
+                    params = DeferParams(reason=action_params, defer_until=None)
                 else:
                     error_msg = "❌ $defer requires a reason. Format: $defer <reason>\nExample: $defer I need more context to answer properly"
                     params = SpeakParams(content=error_msg, channel_id="test")

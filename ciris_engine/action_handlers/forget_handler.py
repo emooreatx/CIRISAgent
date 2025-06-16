@@ -57,7 +57,7 @@ class ForgetHandler(BaseActionHandler):
             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
             follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(follow_up)
-            await self._audit_log(HandlerActionType.FORGET, {**dispatch_context, "thought_id": thought_id}, outcome="failed")
+            await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="failed")
             return
         if not self._can_forget(params, dispatch_context):
             logger.info("ForgetHandler: Permission denied or WA required for forget operation. Creating deferral.")
@@ -150,14 +150,14 @@ class ForgetHandler(BaseActionHandler):
             outcome="success" if success else "failed",
         )
 
-    def _can_forget(self, params, dispatch_context: DispatchContext) -> bool:
+    def _can_forget(self, params: ForgetParams, dispatch_context: DispatchContext) -> bool:
         if hasattr(params, 'node') and hasattr(params.node, 'scope'):
             scope = params.node.scope
             if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT):
                 return getattr(dispatch_context, 'wa_authorized', False)
         return True
 
-    async def _audit_forget_operation(self, params, dispatch_context, result) -> None:
+    async def _audit_forget_operation(self, params: ForgetParams, dispatch_context: DispatchContext, result: Any) -> None:
         if hasattr(params, 'no_audit') and params.no_audit:
             return
             

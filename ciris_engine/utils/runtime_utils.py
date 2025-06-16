@@ -41,7 +41,7 @@ async def run_with_shutdown_handler(runtime: CIRISRuntime, num_rounds: Optional[
     except Exception as e:
         logging.critical(f"Runtime execution failed: {e}", exc_info=True)
         # Ensure shutdown is requested if a top-level error occurs in runtime.run() itself
-        if not runtime._shutdown_event.is_set():  # Accessing protected member for check
+        if runtime._shutdown_event is None or not runtime._shutdown_event.is_set():  # Accessing protected member for check
             runtime.request_shutdown(f"Runtime error: {e}")
         await runtime.shutdown()  # Attempt graceful shutdown
     finally:

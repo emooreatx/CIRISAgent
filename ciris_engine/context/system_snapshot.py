@@ -32,8 +32,11 @@ async def build_system_snapshot(
         elif status_val is not None:
             status_val = str(status_val)
         thought_type_val = getattr(thought, 'thought_type', None)
+        thought_id_val = getattr(thought, 'thought_id', None)
+        if thought_id_val is None:
+            thought_id_val = "unknown"  # Provide a default value for required field
         thought_summary = ThoughtSummary(
-            thought_id=getattr(thought, 'thought_id', None),
+            thought_id=thought_id_val,
             content=getattr(thought, 'content', None),
             status=status_val,
             source_task_id=getattr(thought, 'source_task_id', None),
@@ -72,10 +75,10 @@ async def build_system_snapshot(
         await memory_service.recall(channel_node)
     
     # Retrieve agent identity from graph - SINGLE CALL at snapshot generation
-    identity_data = {}
-    identity_purpose = None
-    identity_capabilities = []
-    identity_restrictions = []
+    identity_data: Dict[str, Any] = {}
+    identity_purpose: Optional[str] = None
+    identity_capabilities: List[str] = []
+    identity_restrictions: List[str] = []
     
     if memory_service:
         try:
@@ -87,9 +90,9 @@ async def build_system_snapshot(
             )
             identity_result = await memory_service.recall(identity_node)
             
-            if identity_result and identity_result.nodes:
-                identity_node_data = identity_result.nodes[0]
-                identity_data = identity_node_data.attributes.get("identity", {})
+            if identity_result and identity_result.data:
+                # MemoryOpResult returns data, not nodes
+                identity_data = identity_result.data.get("identity", {}) if isinstance(identity_result.data, dict) else {}
                 identity_purpose = identity_data.get("purpose_statement", "")
                 identity_capabilities = identity_data.get("allowed_capabilities", [])
                 identity_restrictions = identity_data.get("restricted_capabilities", [])
@@ -99,27 +102,22 @@ async def build_system_snapshot(
     recent_tasks_list: List[Any] = []
     db_recent_tasks = persistence.get_recent_completed_tasks(10)
     for t_obj in db_recent_tasks:
-        if isinstance(t_obj, TaskSummary):
-            recent_tasks_list.append(t_obj)  # type: ignore[unreachable]
-        elif isinstance(t_obj, BaseModel):
+        # db_recent_tasks returns list[Task], convert to TaskSummary
+        if isinstance(t_obj, BaseModel):
             recent_tasks_list.append(TaskSummary(**t_obj.model_dump()))
 
     top_tasks_list: List[Any] = []
     db_top_tasks = persistence.get_top_tasks(10)
     for t_obj in db_top_tasks:
-        if isinstance(t_obj, TaskSummary):
-            top_tasks_list.append(t_obj)  # type: ignore[unreachable]
-        elif isinstance(t_obj, BaseModel):
+        # db_top_tasks returns list[Task], convert to TaskSummary
+        if isinstance(t_obj, BaseModel):
             top_tasks_list.append(TaskSummary(**t_obj.model_dump()))
 
     current_task_summary = None
     if task:
-        if isinstance(task, TaskSummary):
-            current_task_summary = task  # type: ignore[unreachable]
-        elif isinstance(task, BaseModel):
+        # Convert Task to TaskSummary
+        if isinstance(task, BaseModel):
             current_task_summary = TaskSummary(**task.model_dump())
-        elif isinstance(task, dict):  # type: ignore[unreachable]
-            current_task_summary = TaskSummary(**task)
 
     secrets_data: Dict[str, Any] = {}
     if secrets_service:

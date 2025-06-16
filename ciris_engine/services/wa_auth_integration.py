@@ -85,9 +85,9 @@ class WAAuthenticationSystem:
     def get_oauth_service(self) -> Any:
         """Get the OAuth service from CLI service."""
         # The OAuth functionality is in wa_cli_oauth module
-        from ciris_engine.services.wa_cli_oauth import WAOAuthService
+        from ciris_engine.services.wa_cli_oauth import WACLIOAuthService
         if not hasattr(self, '_oauth_service'):
-            self._oauth_service = WAOAuthService(self.auth_service)
+            self._oauth_service = WACLIOAuthService(self.auth_service)
         return self._oauth_service
 
 

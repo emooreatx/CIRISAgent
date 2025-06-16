@@ -60,7 +60,9 @@ class ActionDispatcher:
 
         if self.action_filter:
             try:
-                should_skip = self.action_filter(action_selection_result, dispatch_context)
+                # Convert DispatchContext to dict for action_filter compatibility
+                context_dict = dispatch_context.model_dump() if hasattr(dispatch_context, 'model_dump') else vars(dispatch_context)
+                should_skip = self.action_filter(action_selection_result, context_dict)
                 if inspect.iscoroutine(should_skip):
                     should_skip = await should_skip
                 if should_skip:

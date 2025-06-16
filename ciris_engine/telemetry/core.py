@@ -86,6 +86,11 @@ class TelemetryService(Service):
         
         # Store metric in TSDB as correlation
         try:
+            # Include path_type and source_module in tags instead of metadata
+            combined_tags = tags.copy() if tags else {}
+            combined_tags['path_type'] = path_type
+            combined_tags['source_module'] = source_module or 'unknown'
+            
             metric_correlation = ServiceCorrelation(
                 correlation_id=str(uuid4()),
                 service_type="telemetry",
@@ -95,13 +100,9 @@ class TelemetryService(Service):
                 timestamp=timestamp,
                 metric_name=name,
                 metric_value=float(val),
-                tags=tags or {},
+                tags=combined_tags,
                 status=ServiceCorrelationStatus.COMPLETED,
-                retention_policy=self._get_retention_policy(path_type),
-                metadata={
-                    'path_type': path_type,
-                    'source_module': source_module or 'unknown'
-                }
+                retention_policy=self._get_retention_policy(path_type)
             )
             
             # Store asynchronously without blocking metric recording

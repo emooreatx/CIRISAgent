@@ -174,12 +174,13 @@ class CSDMAEvaluator(BaseDMA, CSDMAInterface):
         )
 
         try:
-            csdma_eval, _ = await self.call_llm_structured(
+            result_tuple = await self.call_llm_structured(
                 messages=messages,
                 response_model=CSDMAResult,
                 max_tokens=512,
                 temperature=0.0
             )
+            csdma_eval: CSDMAResult = result_tuple[0]
 
             if hasattr(csdma_eval, '_raw_response') and hasattr(csdma_eval, 'raw_llm_response'):
                 raw_resp = getattr(csdma_eval, '_raw_response', None)

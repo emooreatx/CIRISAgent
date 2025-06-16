@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class ServiceInitializer:
     """Manages initialization of all core services."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.service_registry: Optional[ServiceRegistry] = None
         self.multi_service_sink: Optional[MultiServiceActionSink] = None
         self.memory_service: Optional[LocalGraphMemoryService] = None
@@ -61,10 +61,11 @@ class ServiceInitializer:
         
         # Test basic operations
         try:
-            from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope
+            from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
             test_node = GraphNode(
                 id="_verification_test",
-                content={"test": True, "timestamp": datetime.now(timezone.utc).isoformat()},
+                type=NodeType.CONFIG,
+                attributes={"test": True, "timestamp": datetime.now(timezone.utc).isoformat()},
                 scope=GraphScope.LOCAL
             )
             
@@ -90,17 +91,16 @@ class ServiceInitializer:
         """Initialize security-related services."""
         # Initialize secrets service
         self.secrets_service = SecretsService(
-            encryption_key_path=config.secrets.encryption_key_path,
-            memory_service=self.memory_service,
-            llm_service=None  # Will be set later when LLM is initialized
+            db_path=config.secrets.encryption_key_path,  # Using encryption_key_path as db path
+            master_key=None  # Will use default key generation
         )
         await self.secrets_service.start()
         logger.info("Secrets service initialized")
         
         # Initialize WA authentication system
         self.wa_auth_system = await initialize_authentication(
-            memory_service=self.memory_service,
-            app_config=app_config
+            db_path=None,  # Will use default from config
+            key_dir=None   # Will use default ~/.ciris/
         )
         logger.info("WA authentication system initialized")
     
@@ -146,9 +146,7 @@ class ServiceInitializer:
         self.llm_service = OpenAICompatibleClient(config.llm_services.openai, telemetry_service=self.telemetry_service)
         await self.llm_service.start()
         
-        # Update secrets service with LLM
-        if self.secrets_service:
-            self.secrets_service.llm_service = self.llm_service
+        # Secrets service no longer needs LLM service reference
         
         # Initialize ALL THREE REQUIRED audit services
         await self._initialize_audit_services(config, profile_name)
@@ -163,7 +161,7 @@ class ServiceInitializer:
         # Initialize agent configuration service
         self.agent_config_service = AgentConfigService(
             memory_service=self.memory_service,
-            wa_service=self.wa_auth_system.get_auth_service(),
+            wa_service=self.wa_auth_system.get_auth_service() if self.wa_auth_system else None,
             filter_service=self.adaptive_filter_service
         )
         await self.agent_config_service.start()
@@ -228,8 +226,8 @@ class ServiceInitializer:
             file_audit_service=None
         )
         await tsdb_audit.start()
-        # Type cast to AuditService for proper typing
-        self.audit_services.append(tsdb_audit)  # type: ignore[arg-type]
+        # TSDB audit service is a valid audit service type
+        self.audit_services.append(tsdb_audit)
         logger.info("TSDB audit service started")
         
         # Verify all 3 services are running

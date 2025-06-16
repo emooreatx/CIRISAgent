@@ -1,5 +1,5 @@
 from typing import Optional, Any
-from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult, FeedbackType
+from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
 
 def optimization_veto(context: Optional[Any] = None) -> OptimizationVetoResult:
     """Mock OptimizationVetoResult with passing values, instructor compatible."""

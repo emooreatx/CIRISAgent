@@ -1,11 +1,12 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Awaitable, Callable, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Awaitable, Callable, Dict, Generic, List, Optional, TypeVar, cast
 
 from pydantic import BaseModel
 
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtType
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext
+from ciris_engine.schemas.filter_schemas_v1 import FilterResult, FilterPriority
 
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
@@ -52,8 +53,7 @@ class BaseObserver(Generic[MessageT], ABC):
             return True
         return getattr(msg, "is_bot", False)
 
-    async def _apply_message_filtering(self, msg: MessageT, adapter_type: str) -> 'FilterResult':
-        from ciris_engine.schemas.filter_schemas_v1 import FilterResult, FilterPriority
+    async def _apply_message_filtering(self, msg: MessageT, adapter_type: str) -> FilterResult:
         if not self.filter_service:
             return FilterResult(
                 message_id=getattr(msg, "message_id", "unknown"),
@@ -73,7 +73,7 @@ class BaseObserver(Generic[MessageT], ABC):
                     getattr(msg, "message_id", "unknown"),
                     filter_result.triggered_filters,
                 )
-            return filter_result
+            return cast(FilterResult, filter_result)
         except Exception as e:  # pragma: no cover - unlikely in tests
             logger.error("Error applying filter to message %s: %s", getattr(msg, "message_id", "unknown"), e)
             return FilterResult(

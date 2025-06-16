@@ -15,9 +15,8 @@ logger = logging.getLogger(__name__)
 from ciris_engine.schemas.feedback_schemas_v1 import (
     OptimizationVetoResult,
     EpistemicHumilityResult,
-    FeedbackType,
 )
-from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
+from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
 from ciris_engine.dma.dsdma_base import BaseDSDMA
 from ciris_engine.schemas.action_params_v1 import (
     PonderParams, MemorizeParams, SpeakParams, RecallParams, 

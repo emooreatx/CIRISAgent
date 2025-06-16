@@ -45,66 +45,84 @@ class WACLIService(WACLIInterface):
     
     async def mint_wa(
         self,
-        parent_wa_id: str,
-        parent_key_file: str,
         name: str,
-        role: str = "authority",
-        scopes: Optional[List[str]] = None,
-        use_password: bool = False
+        role: str,
+        auth_type: str,
+        parent_wa_id: Optional[str],
+        parent_key_file: Optional[str]
     ) -> Dict[str, Any]:
-        """Mint a new WA as a child of an existing WA."""
-        return await self.bootstrap_service.mint_wa(
-            parent_wa_id=parent_wa_id,
-            parent_key_file=parent_key_file,
-            name=name,
-            role=role,
-            scopes=scopes,
-            use_password=use_password
-        )
+        """Mint a new WA certificate."""
+        # Map auth_type to use_password for bootstrap service
+        use_password = auth_type == "password"
+        
+        # Handle optional parent parameters
+        if parent_wa_id and parent_key_file:
+            return await self.bootstrap_service.mint_wa(
+                parent_wa_id=parent_wa_id,
+                parent_key_file=parent_key_file,
+                name=name,
+                role=role,
+                scopes=None,  # Default scopes
+                use_password=use_password
+            )
+        else:
+            # If no parent, bootstrap new root
+            return await self.bootstrap_service.bootstrap_new_root(
+                name=name,
+                use_password=use_password
+            )
     
     async def generate_mint_request(
         self,
         name: str,
-        requested_role: str = "authority",
-        requested_scopes: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
-        """Generate a mint request code for approval by existing WA."""
-        return await self.bootstrap_service.generate_mint_request(
+        auth_type: str
+    ) -> str:
+        """Generate one-time code for mint request."""
+        # Generate the mint request with default role
+        result = await self.bootstrap_service.generate_mint_request(
             name=name,
-            requested_role=requested_role,
-            requested_scopes=requested_scopes
+            requested_role="authority",  # Default role
+            requested_scopes=None
         )
+        # Return just the code string from the result
+        code = result.get("code", "")
+        return str(code) if code else ""
     
     async def approve_mint_request(
         self,
-        code: str,
-        approver_wa_id: str,
-        approver_key_file: str
+        request_code: str,
+        signer_wa_id: str,
+        signer_key_file: str
     ) -> Dict[str, Any]:
-        """Approve a mint request and create new WA."""
+        """Approve a mint request with signature."""
         return await self.bootstrap_service.approve_mint_request(
-            code=code,
-            approver_wa_id=approver_wa_id,
-            approver_key_file=approver_key_file
+            code=request_code,
+            approver_wa_id=signer_wa_id,
+            approver_key_file=signer_key_file
         )
     
     async def oauth_setup(
         self,
         provider: str,
         client_id: str,
-        client_secret: str,
-        custom_metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        client_secret: str
+    ) -> None:
         """Configure OAuth provider."""
-        return await self.oauth_service.oauth_setup(
+        await self.oauth_service.oauth_setup(
             provider=provider,
             client_id=client_id,
             client_secret=client_secret,
-            custom_metadata=custom_metadata
+            custom_metadata=None
         )
     
-    async def oauth_login(self, provider: str) -> Dict[str, Any]:
-        """Initiate OAuth login flow."""
+    async def oauth_login(
+        self,
+        provider: str,
+        callback_port: int = 8888
+    ) -> Dict[str, Any]:
+        """Perform OAuth login flow."""
+        # The oauth service doesn't take callback_port parameter,
+        # but we can still conform to the protocol interface
         return await self.oauth_service.oauth_login(provider)
     
     async def list_was(self, tree_view: bool = False) -> None:

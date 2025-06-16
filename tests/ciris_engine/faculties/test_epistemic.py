@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 from ciris_engine.faculties import epistemic
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
+from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
 from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
 
 
