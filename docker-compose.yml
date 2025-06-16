@@ -7,5 +7,6 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/app
-    command: python run_discord_teacher.py
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: python main.py --modes discord --profile teacher
