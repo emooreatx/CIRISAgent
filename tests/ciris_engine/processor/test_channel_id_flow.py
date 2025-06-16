@@ -4,6 +4,24 @@ from unittest.mock import MagicMock, patch
 from ciris_engine.processor.main_processor import AgentProcessor
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.processor.thought_processor import ThoughtProcessor
+
+# Import adapter configs to resolve forward references
+try:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
+except ImportError:
+    DiscordAdapterConfig = type('DiscordAdapterConfig', (), {})
+    APIAdapterConfig = type('APIAdapterConfig', (), {})
+    CLIAdapterConfig = type('CLIAdapterConfig', (), {})
+
+# Rebuild models with resolved references  
+try:
+    AgentProfile.model_rebuild()
+    AppConfig.model_rebuild()
+except Exception:
+    pass
+
 from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 
 def test_channel_id_flows_from_env_to_processors(monkeypatch):
@@ -23,7 +41,11 @@ def test_channel_id_flows_from_env_to_processors(monkeypatch):
     app_config.guardrails = MagicMock()
 
     # Create active profile
-    active_profile = AgentProfile(name="test_profile")
+    active_profile = AgentProfile(
+            name="test_profile",
+            description="Test agent for unit tests",
+            role_description="A minimal test agent profile"
+        )
 
     # Mock all processors and dependencies
     thought_processor = MagicMock(spec=ThoughtProcessor)
@@ -34,7 +56,7 @@ def test_channel_id_flows_from_env_to_processors(monkeypatch):
     with patch("ciris_engine.processor.wakeup_processor.WakeupProcessor.__init__", return_value=None) as mock_wakeup_init:
         AgentProcessor(
             app_config=app_config,
-            active_profile=active_profile,  # Pass active profile
+            profile=active_profile,  # Pass active profile
             thought_processor=thought_processor,
             action_dispatcher=action_dispatcher,
             services=services,

@@ -7,6 +7,16 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from typing import Dict, Any
 
+# Import adapter configs to resolve forward references
+try:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
+except ImportError:
+    DiscordAdapterConfig = type('DiscordAdapterConfig', (), {})
+    APIAdapterConfig = type('APIAdapterConfig', (), {})
+    CLIAdapterConfig = type('CLIAdapterConfig', (), {})
+
 from ciris_engine.processor.main_processor import AgentProcessor
 from ciris_engine.processor.wakeup_processor import WakeupProcessor
 from ciris_engine.processor.work_processor import WorkProcessor
@@ -19,6 +29,13 @@ from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile, Work
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 
+# Rebuild models with resolved references
+try:
+    AgentProfile.model_rebuild()
+    AppConfig.model_rebuild()
+except Exception:
+    pass
+
 
 # Mock classes for testing
 class MockAppConfig:
@@ -30,6 +47,7 @@ class MockAgentProfile:
     def __init__(self, name="TestAgent"):
         self.name = name
         self.description = "Test agent for unit testing"
+        self.role_description = "A test agent profile for unit tests"
 
 
 class MockThoughtProcessor:
@@ -129,8 +147,7 @@ class TestWakeupProcessor:
                 thought_processor=mock_thought_processor,
                 action_dispatcher=mock_action_dispatcher,
                 services=mock_services,
-                startup_channel_id="test_channel",
-                agent_profile=mock_profile
+                startup_channel_id="test_channel"
             )
     
     def test_wakeup_processor_initialization(self, wakeup_processor):
@@ -138,7 +155,9 @@ class TestWakeupProcessor:
         assert isinstance(wakeup_processor, WakeupProcessor)
         assert isinstance(wakeup_processor, ProcessorInterface)
         assert wakeup_processor.startup_channel_id == "test_channel"
-        assert wakeup_processor.agent_profile.name == "TestAgent"
+        # BaseProcessor doesn't store agent_profile
+        assert hasattr(wakeup_processor, 'app_config')
+        assert hasattr(wakeup_processor, 'thought_processor')
         assert not wakeup_processor.wakeup_complete
     
     def test_get_supported_states(self, wakeup_processor):
@@ -475,7 +494,7 @@ class TestAgentProcessor:
                        mock_action_dispatcher, mock_services):
         processor = AgentProcessor(
             app_config=mock_config,
-            active_profile=mock_profile,
+            profile=mock_profile,
             thought_processor=mock_thought_processor,
             action_dispatcher=mock_action_dispatcher,
             services=mock_services,

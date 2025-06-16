@@ -134,19 +134,19 @@ class TestFoundationalSchemas:
     def test_resource_usage_schema(self):
         """Test ResourceUsage schema for tracking costs and environmental impact."""
         usage = ResourceUsage(
-            tokens=150,
-            estimated_cost=0.002,
+            tokens_used=150,
+            cost_cents=0.2,
             energy_kwh=0.5
         )
         
-        assert usage.tokens == 150
-        assert usage.estimated_cost == 0.002
+        assert usage.tokens_used == 150
+        assert usage.cost_cents == 0.2
         assert usage.energy_kwh == 0.5
         
         # Test minimal usage
         minimal_usage = ResourceUsage()
-        assert minimal_usage.tokens == 0
-        assert minimal_usage.estimated_cost is None
+        assert minimal_usage.tokens_used == 0
+        assert minimal_usage.cost_cents == 0.0  # Default value
 
 
 class TestActionParamsSchemas:
@@ -264,8 +264,8 @@ class TestDMAResultSchemas:
         
         # Test with resource usage
         usage = ResourceUsage(
-            tokens=75,
-            estimated_cost=0.001,
+            tokens_used=75,
+            cost_cents=0.001 * 100,  # Convert to cents
             energy_kwh=0.25
         )
         
@@ -277,8 +277,8 @@ class TestDMAResultSchemas:
             resource_usage=usage
         )
         
-        assert result_with_usage.resource_usage.tokens == 75
-        assert result_with_usage.resource_usage.estimated_cost == 0.001
+        assert result_with_usage.resource_usage.tokens_used == 75
+        assert result_with_usage.resource_usage.cost_cents == 0.1
     
     def test_ethical_dma_result(self):
         """Test EthicalDMAResult schema."""
@@ -468,8 +468,8 @@ class TestSchemaIntegration:
     def test_resource_usage_integration(self):
         """Test ResourceUsage integration across DMA results."""
         usage = ResourceUsage(
-            tokens=150,
-            estimated_cost=0.002,
+            tokens_used=150,
+            cost_cents=0.2,
             energy_kwh=0.5
         )
         
@@ -489,8 +489,8 @@ class TestSchemaIntegration:
             resource_usage=usage
         )
         
-        assert action_result.resource_usage.tokens == 150
-        assert ethical_result.resource_usage.estimated_cost == 0.002
+        assert action_result.resource_usage.tokens_used == 150
+        assert ethical_result.resource_usage.cost_cents == 0.2
 
 
 if __name__ == "__main__":
