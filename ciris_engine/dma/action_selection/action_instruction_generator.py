@@ -200,7 +200,17 @@ class ActionInstructionGenerator:
                     return all_tools
                 
                 # Execute the coroutine
-                all_tools = loop.run_until_complete(get_all_tools())
+                try:
+                    if loop.is_running():
+                        # If loop is already running, we can't use run_until_complete
+                        # This is a limitation of calling async from sync in an async context
+                        logger.debug("Event loop already running, skipping dynamic tool discovery")
+                        return base_schema + self._get_default_tool_instructions()
+                    else:
+                        all_tools = loop.run_until_complete(get_all_tools())
+                except RuntimeError as e:
+                    logger.debug(f"Cannot fetch tools synchronously: {e}")
+                    return base_schema + self._get_default_tool_instructions()
                 
                 if all_tools:
                     tools_info = []

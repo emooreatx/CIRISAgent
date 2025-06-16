@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, List
 from dataclasses import asdict
 from abc import ABC, abstractmethod
 from ciris_engine.schemas.service_actions_v1 import ActionType, ActionMessage
+from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 from ..registries.circuit_breaker import CircuitBreakerError
 from ..utils.shutdown_manager import is_global_shutdown_requested
 
@@ -132,7 +133,7 @@ class BaseMultiServiceSink(ABC):
             logger.error(f"Error processing action {action_type}: {e}", exc_info=True)
             await self._handle_fallback(action)
 
-    async def _get_service(self, service_type: str, action: ActionMessage) -> Optional[Any]:
+    async def _get_service(self, service_type: ServiceType, action: ActionMessage) -> Optional[Any]:
         if not self.service_registry:
             return None
         required_capabilities = self.capability_map.get(action.type, [])

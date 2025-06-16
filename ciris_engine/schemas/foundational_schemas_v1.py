@@ -18,13 +18,19 @@ class CaseInsensitiveEnum(str, Enum):
         return None
 
 class ServiceType(CaseInsensitiveEnum):
-    """The six core service types that can be provided by the runtime or an adapter."""
+    """The core service types that can be provided by the runtime or an adapter."""
     COMMUNICATION = "communication"
     TOOL = "tool"
     WISE_AUTHORITY = "wise_authority"
     MEMORY = "memory"
     AUDIT = "audit"
     LLM = "llm"
+    TELEMETRY = "telemetry"
+    ORCHESTRATOR = "orchestrator"
+    SECRETS = "secrets"
+    FILTER = "filter"
+    CONFIG = "config"
+    MAINTENANCE = "maintenance"
 
 class HandlerActionType(CaseInsensitiveEnum):
     """Core 3×3×3 action model"""
@@ -261,3 +267,7 @@ __all__ = [
     "ServiceType",
     "DispatchContext",
 ]
+
+# Rebuild models with forward references
+from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
+DispatchContext.model_rebuild()

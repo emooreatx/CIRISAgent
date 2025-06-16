@@ -15,6 +15,7 @@ from ciris_engine.schemas.identity_schemas_v1 import (
     CoreProfile,
     IdentityMetadata
 )
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +23,12 @@ logger = logging.getLogger(__name__)
 class IdentityManager:
     """Manages agent identity lifecycle."""
     
-    def __init__(self, profile_name: str, config: Any):
-        self.profile_name = profile_name
+    def __init__(self, config: Any):
         self.config = config
         self.agent_identity: Optional[AgentIdentityRoot] = None
     
     async def initialize_identity(self) -> AgentIdentityRoot:
-        """Initialize agent identity - create from profile on first run, load from graph thereafter."""
+        """Initialize agent identity - create from template on first run, load from graph thereafter."""
         # Check if identity exists in graph
         identity_data = await self._get_identity_from_graph()
         
@@ -37,31 +37,33 @@ class IdentityManager:
             logger.info("Loading existing agent identity from graph")
             self.agent_identity = AgentIdentityRoot.model_validate(identity_data)
         else:
-            # First run - use profile to create initial identity
-            logger.info("No identity found, creating from profile (first run only)")
+            # First run - use template to create initial identity
+            logger.info("No identity found, creating from template (first run only)")
             
-            # Load profile ONLY for initial identity creation
-            profile_path = Path(self.config.profile_directory) / f"{self.profile_name}.yaml"
-            initial_profile = await self._load_profile(profile_path)
+            # Load template ONLY for initial identity creation
+            # Use default_profile from config as the template name
+            template_name = getattr(self.config, 'default_profile', 'default')
+            template_path = Path(self.config.profile_directory) / f"{template_name}.yaml"
+            initial_template = await self._load_template(template_path)
             
-            if not initial_profile:
-                logger.warning(f"Profile '{self.profile_name}' not found, using default")
+            if not initial_template:
+                logger.warning(f"Template '{template_name}' not found, using default")
                 default_path = Path(self.config.profile_directory) / "default.yaml"
-                initial_profile = await self._load_profile(default_path)
+                initial_template = await self._load_template(default_path)
                 
-            if not initial_profile:
-                raise RuntimeError("No profile available for initial identity creation")
+            if not initial_template:
+                raise RuntimeError("No template available for initial identity creation")
             
-            # Create identity from profile and save to graph
-            self.agent_identity = await self._create_identity_from_profile(initial_profile)
+            # Create identity from template and save to graph
+            self.agent_identity = await self._create_identity_from_template(initial_template)
             await self._save_identity_to_graph(self.agent_identity)
         
         return self.agent_identity
     
-    async def _load_profile(self, profile_path: Path) -> Optional[AgentProfile]:
-        """Load profile from file."""
-        from ciris_engine.utils.profile_loader import load_profile
-        return await load_profile(profile_path)
+    async def _load_template(self, template_path: Path) -> Optional[AgentProfile]:
+        """Load template from file."""
+        from ciris_engine.utils.profile_loader import load_template
+        return await load_template(template_path)
     
     async def _get_identity_from_graph(self) -> Optional[Dict[str, Any]]:
         """Retrieve agent identity from the persistence tier."""
@@ -92,28 +94,28 @@ class IdentityManager:
             logger.error(f"Failed to save identity to persistence: {e}")
             raise
     
-    async def _create_identity_from_profile(self, profile: AgentProfile) -> AgentIdentityRoot:
-        """Create initial identity from profile (first run only)."""
+    async def _create_identity_from_template(self, template: AgentProfile) -> AgentIdentityRoot:
+        """Create initial identity from template (first run only)."""
         # Generate deterministic identity hash
-        identity_string = f"{profile.name}:{profile.description}:{profile.role_description}"
+        identity_string = f"{template.name}:{template.description}:{template.role_description}"
         identity_hash = hashlib.sha256(identity_string.encode()).hexdigest()
         
-        # Extract DSDMA configuration from profile
-        dsdma_kwargs = profile.dsdma_kwargs or {}
+        # Extract DSDMA configuration from template
+        dsdma_kwargs = template.dsdma_kwargs or {}
         domain_knowledge = dsdma_kwargs.get('domain_specific_knowledge', {})
         dsdma_prompt = dsdma_kwargs.get('prompt_template', None)
         
-        # Create identity root from profile
+        # Create identity root from template
         return AgentIdentityRoot(
-            agent_id=profile.name,
+            agent_id=template.name,
             identity_hash=identity_hash,
             core_profile=CoreProfile(
-                description=profile.description,
-                role_description=profile.role_description,
+                description=template.description,
+                role_description=template.role_description,
                 domain_specific_knowledge=domain_knowledge,
                 dsdma_prompt_template=dsdma_prompt,
-                csdma_overrides=profile.csdma_overrides or {},
-                action_selection_pdma_overrides=profile.action_selection_pdma_overrides or {}
+                csdma_overrides=template.csdma_overrides or {},
+                action_selection_pdma_overrides=template.action_selection_pdma_overrides or {}
             ),
             identity_metadata=IdentityMetadata(
                 created_at=datetime.now(timezone.utc).isoformat(),
@@ -125,9 +127,17 @@ class IdentityManager:
                 approved_by=None,
                 approval_timestamp=None
             ),
-            allowed_capabilities=[
-                "communication", "memory", "observation", "tool_use",
-                "ethical_reasoning", "self_modification", "task_management"
+            permitted_actions=[
+                HandlerActionType.OBSERVE,
+                HandlerActionType.SPEAK,
+                HandlerActionType.TOOL,
+                HandlerActionType.MEMORIZE,
+                HandlerActionType.RECALL,
+                HandlerActionType.FORGET,
+                HandlerActionType.DEFER,
+                HandlerActionType.REJECT,
+                HandlerActionType.PONDER,
+                HandlerActionType.TASK_COMPLETE
             ],
             restricted_capabilities=[
                 "identity_change_without_approval",

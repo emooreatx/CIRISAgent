@@ -21,24 +21,8 @@ def create_follow_up_thought(
     """
     now = datetime.now(timezone.utc).isoformat()
     parent_round = parent.round_number if hasattr(parent, 'round_number') else 0
-    from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
-
-    if parent.context is not None:
-        # parent.context should always be ThoughtContext, not dict
-        ctx = parent.context.model_copy()
-        # Try to get channel_id from various possible locations
-        channel_id = None
-        if hasattr(parent.context, 'initial_task_context') and parent.context.initial_task_context:
-            channel_id = getattr(parent.context.initial_task_context, 'channel_id', None)
-        elif hasattr(parent.context, 'channel_id'):
-            channel_id = getattr(parent.context, 'channel_id', None)
-        
-        # Update system_snapshot channel_id if needed
-        if channel_id and hasattr(ctx, 'system_snapshot') and ctx.system_snapshot:
-            ctx.system_snapshot.channel_id = channel_id
-    else:
-        ctx = ThoughtContext(system_snapshot=SystemSnapshot())
-
+    
+    # Just copy the context directly - channel_id flows through the schemas
     follow_up = Thought(
         thought_id=str(uuid.uuid4()),
         source_task_id=parent.source_task_id,
@@ -48,7 +32,7 @@ def create_follow_up_thought(
         updated_at=now,
         round_number=parent_round,
         content=content,
-        context=ctx,
+        context=parent.context.model_copy() if parent.context else None,
         ponder_count=parent.ponder_count + 1,
         ponder_notes=None,
         parent_thought_id=parent.thought_id,

@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from .versioning import SchemaVersion
 from .graph_schemas_v1 import GraphScope, NodeType
+from .foundational_schemas_v1 import HandlerActionType
 
 
 class IdentityLineage(BaseModel):
@@ -66,7 +67,7 @@ class IdentityRoot(BaseModel):
     )
     
     # Capabilities and Configuration
-    permitted_actions: List[str] = Field(..., description="Definitive list of allowed actions")
+    permitted_actions: List[HandlerActionType] = Field(..., description="Definitive list of allowed actions")
     dsdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
@@ -225,6 +226,9 @@ class CoreProfile(BaseModel):
     # Common sense and action selection overrides
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
+    # Shutdown and reactivation tracking
+    last_shutdown_memory: Optional[str] = Field(None, description="ID of last shutdown memory node")
+    reactivation_count: int = Field(default=0, description="Number of times agent has been reactivated")
 
 
 class IdentityMetadata(BaseModel):
@@ -248,5 +252,5 @@ class AgentIdentityRoot(BaseModel):
     identity_hash: str = Field(..., description="SHA-256 hash of core identity attributes")
     core_profile: CoreProfile = Field(..., description="Core behavioral profile")
     identity_metadata: IdentityMetadata = Field(..., description="Identity tracking metadata")
-    allowed_capabilities: List[str] = Field(..., description="Permitted agent capabilities")
+    permitted_actions: List[HandlerActionType] = Field(..., description="Definitive list of allowed actions")
     restricted_capabilities: List[str] = Field(..., description="Explicitly forbidden capabilities")

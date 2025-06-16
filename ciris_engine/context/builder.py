@@ -41,6 +41,13 @@ class ContextBuilder:
         channel_id = None
         resolution_source = "none"
         
+        # First check if task.context has system_snapshot with channel_id
+        if task and hasattr(task.context, 'system_snapshot') and hasattr(task.context.system_snapshot, 'channel_id'):
+            channel_id = task.context.system_snapshot.channel_id
+            if channel_id:
+                resolution_source = "task.context.system_snapshot.channel_id"
+                logger.debug(f"Resolved channel_id '{channel_id}' from task.context.system_snapshot")
+        
         
         def safe_extract_channel_id(context: Any, source_name: str) -> Optional[str]:
             """Type-safe channel_id extraction."""
@@ -107,13 +114,23 @@ class ContextBuilder:
                 resolution_source = "Discord mode fallback"
             
         
+        # Check if system_snapshot_data already has a channel_id
+        if not channel_id and hasattr(system_snapshot_data, 'channel_id') and system_snapshot_data.channel_id:
+            channel_id = system_snapshot_data.channel_id
+            resolution_source = "system_snapshot_data.channel_id"
+            logger.debug(f"Using existing channel_id '{channel_id}' from system snapshot")
+        
         if not channel_id:
             logger.warning("CRITICAL: Channel ID could not be resolved from any source - guardrails may receive None")
             channel_id = 'UNKNOWN'
             resolution_source = "emergency fallback"
         
+        # Only set channel_id if it's not already set in system_snapshot
         if channel_id and hasattr(system_snapshot_data, 'channel_id'):
-            system_snapshot_data.channel_id = channel_id
+            if not system_snapshot_data.channel_id:
+                system_snapshot_data.channel_id = channel_id
+            elif system_snapshot_data.channel_id != channel_id:
+                logger.warning(f"System snapshot already has channel_id '{system_snapshot_data.channel_id}', not overwriting with '{channel_id}'")
         
         channel_context_str = f"Our assigned channel is {channel_id} (resolved from {resolution_source})" if channel_id else None
         if identity_context_str and channel_context_str:

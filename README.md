@@ -1,11 +1,10 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Beta](https://img.shields.io/badge/Status-BETA-orange.svg)](NOTICE)
-[![Patent Pending](https://img.shields.io/badge/Patent-Pending-red.svg)](NOTICE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/CIRISAI/CIRISAgent)
 
 # CIRIS Engine (CIRISAgent)
 
-**Copyright © 2025 Eric Moore and CIRIS L3C** | **Patent Pending** | **Apache 2.0 License**
+**Copyright © 2025 Eric Moore and CIRIS L3C** | **Apache 2.0 License**
 
 > **A moral reasoning agent demonstrating adaptive coherence through principled self-reflection, ethical decision-making, and responsible action while maintaining transparency and human oversight.**
 

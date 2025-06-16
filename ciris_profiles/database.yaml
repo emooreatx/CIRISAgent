@@ -1,4 +1,0 @@
-database:
-  db_filename: ciris_engine.db
-  data_directory: data
-  graph_memory_filename: graph_memory.pkl

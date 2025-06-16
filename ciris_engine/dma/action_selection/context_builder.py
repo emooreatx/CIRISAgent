@@ -146,7 +146,7 @@ Adhere strictly to the schema for your JSON output.
             )
             permitted_actions = default_permitted_actions
         
-        # Ensure we're returning the correct type
+        # Return the permitted actions - they MUST be HandlerActionType enums
         return list(permitted_actions)
     
     def _get_available_tools_str(self, permitted_actions: List[HandlerActionType]) -> str:

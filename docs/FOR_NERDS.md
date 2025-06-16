@@ -18,7 +18,6 @@ This is BETA software with known issues:
 - Any use case requiring reliability guarantees
 
 **Copyright © 2025 Eric Moore and CIRIS L3C**  
-**Patent Pending**
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,7 +33,6 @@ limitations under the License.
 
 **ADDITIONAL TERMS:**
 - Contributors must sign CLA (Contributor License Agreement)
-- Patent rights reserved by Eric Moore and CIRIS L3C
 - Trademark "CIRIS" is property of CIRIS L3C
 
 ---

@@ -10,9 +10,7 @@ def optimization_veto(context: Optional[Any] = None) -> OptimizationVetoResult:
         affected_values=["autonomy", "justice"],
         confidence=0.8
     )
-    object.__setattr__(result, 'choices', [result])
-    object.__setattr__(result, 'finish_reason', 'stop')
-    object.__setattr__(result, '_raw_response', 'mock')
+    # Return structured result directly - instructor will handle it
     return result
 
 def epistemic_humility(context: Optional[Any] = None) -> EpistemicHumilityResult:
@@ -23,7 +21,5 @@ def epistemic_humility(context: Optional[Any] = None) -> EpistemicHumilityResult
         reflective_justification="Clear understanding of requirements",
         recommended_action="proceed"
     )
-    object.__setattr__(result, 'choices', [result])
-    object.__setattr__(result, 'finish_reason', 'stop')
-    object.__setattr__(result, '_raw_response', 'mock')
+    # Return structured result directly - instructor will handle it
     return result

@@ -51,6 +51,14 @@ async def build_system_snapshot(
         if not context:
             return None
         try:
+            # First check if context has system_snapshot.channel_id
+            if hasattr(context, 'system_snapshot') and hasattr(context.system_snapshot, 'channel_id'):
+                cid = context.system_snapshot.channel_id
+                if cid is not None:
+                    logger.debug(f"Found channel_id '{cid}' in {source_name}.system_snapshot.channel_id")
+                    return str(cid)
+            
+            # Then check direct channel_id attribute
             if isinstance(context, dict):
                 cid = context.get('channel_id')
                 return str(cid) if cid is not None else None

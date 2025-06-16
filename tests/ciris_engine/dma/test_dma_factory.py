@@ -292,6 +292,8 @@ class TestDSDMAFromProfile:
         ensure_models_rebuilt()
         return AgentProfile(
             name="test_agent",
+            description="Test agent for DMA factory tests",
+            role_description="A test agent profile for DMA creation",
             dsdma_identifier="MockDSDMA",
             dsdma_kwargs={
                 "prompt_template": "Custom domain prompt",

@@ -127,7 +127,7 @@ class MultiServiceTransactionOrchestrator(Service):
         
         try:
             # Get the best available communication service
-            communication_service = await self.registry.get_service(ServiceType.COMMUNICATION, "SpeakHandler")
+            communication_service = await self.registry.get_service("SpeakHandler", ServiceType.COMMUNICATION)
             
             if not communication_service:
                 # No communication services available - this is normal during startup

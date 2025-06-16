@@ -1,9 +1,16 @@
 from unittest.mock import Mock, AsyncMock
 from ciris_engine.action_handlers.memorize_handler import MemorizeHandler
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, DispatchContext
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
+
+# Rebuild models with resolved references
+try:
+    DispatchContext.model_rebuild()
+except Exception:
+    pass
 
 def test_memorize_handler_with_new_schema(monkeypatch):
     # Setup
@@ -42,8 +49,26 @@ def test_memorize_handler_with_new_schema(monkeypatch):
     
     thought = Mock(thought_id="test_thought", source_task_id="test_task")
     
+    # Create proper DispatchContext
+    from datetime import datetime
+    dispatch_context = DispatchContext(
+        channel_id="test_channel",
+        author_id="test_author",
+        author_name="Test Author",
+        origin_service="test_service",
+        handler_name="memorize",
+        action_type=HandlerActionType.MEMORIZE,
+        task_id="test_task",
+        thought_id="test_thought",
+        source_task_id="test_task",
+        event_summary="Test memorize action",
+        event_timestamp=datetime.utcnow().isoformat(),
+        correlation_id="test_correlation_id",
+        round_number=1
+    )
+    
     import asyncio
-    asyncio.run(handler.handle(result, thought, {"channel_id": "test"}))
+    asyncio.run(handler.handle(result, thought, dispatch_context))
     
     # Verify memory service was called correctly
     assert memory_service.memorize.called
@@ -82,6 +107,25 @@ def test_memorize_handler_with_old_schema(monkeypatch):
         rationale="test"
     )
     thought = Mock(thought_id="test_thought", source_task_id="test_task")
+    
+    # Create proper DispatchContext for old schema test
+    from datetime import datetime
+    dispatch_context = DispatchContext(
+        channel_id="test_channel",
+        author_id="test_author",
+        author_name="Test Author",
+        origin_service="test_service",
+        handler_name="memorize",
+        action_type=HandlerActionType.MEMORIZE,
+        task_id="test_task",
+        thought_id="test_thought",
+        source_task_id="test_task",
+        event_summary="Test memorize action with old schema",
+        event_timestamp=datetime.utcnow().isoformat(),
+        correlation_id="test_correlation_id_old",
+        round_number=1
+    )
+    
     import asyncio
-    asyncio.run(handler.handle(result, thought, {"channel_id": "test"}))
+    asyncio.run(handler.handle(result, thought, dispatch_context))
     assert memory_service.memorize.called

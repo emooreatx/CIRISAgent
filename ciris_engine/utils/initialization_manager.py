@@ -110,6 +110,7 @@ class InitializationManager:
                 if self._error and phase != InitializationPhase.VERIFICATION:
                     raise self._error
             
+            # Set initialization complete BEFORE the final status logging
             self._initialization_complete = True
             duration = (datetime.now(timezone.utc) - self._start_time).total_seconds()
             

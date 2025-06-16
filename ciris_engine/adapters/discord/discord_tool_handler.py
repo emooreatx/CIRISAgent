@@ -10,6 +10,7 @@ from ciris_engine.schemas.correlation_schemas_v1 import (
     ServiceCorrelation,
     ServiceCorrelationStatus,
 )
+from ciris_engine.schemas.persistence_schemas_v1 import CorrelationUpdateRequest
 from ciris_engine import persistence
 
 logger = logging.getLogger(__name__)
@@ -89,9 +90,11 @@ class DiscordToolHandler:
             if correlation_id:
                 self._tool_results[correlation_id] = result_dict
                 persistence.update_correlation(
-                    correlation_id,
-                    response_data=result_dict,
-                    status=ServiceCorrelationStatus.COMPLETED,
+                    CorrelationUpdateRequest(
+                        correlation_id=correlation_id,
+                        response_data=result_dict,
+                        status=ServiceCorrelationStatus.COMPLETED,
+                    )
                 )
             
             return result_dict
@@ -102,9 +105,11 @@ class DiscordToolHandler:
             
             if correlation_id:
                 persistence.update_correlation(
-                    correlation_id,
-                    response_data=error_result,
-                    status=ServiceCorrelationStatus.FAILED,
+                    CorrelationUpdateRequest(
+                        correlation_id=correlation_id,
+                        response_data=error_result,
+                        status=ServiceCorrelationStatus.FAILED,
+                    )
                 )
             
             raise

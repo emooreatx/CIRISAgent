@@ -13,7 +13,6 @@ from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.processor import AgentProcessor
 from ciris_engine.adapters.base import Service
 from ciris_engine import persistence
-from ciris_engine.utils.profile_loader import load_profile
 from ciris_engine.utils.constants import DEFAULT_NUM_ROUNDS
 from ciris_engine.adapters import load_adapter
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration
@@ -51,15 +50,14 @@ class CIRISRuntime(RuntimeInterface):
     def __init__(
         self,
         adapter_types: List[str],
-        profile_name: str = "default",
         app_config: Optional[AppConfig] = None,
         startup_channel_id: Optional[str] = None,
         adapter_configs: Optional[dict] = None,
         **kwargs: Any,
     ) -> None:
-        self.profile_name = profile_name
         self.app_config = app_config
-        self.startup_channel_id = startup_channel_id
+        # Ensure we always have a startup_channel_id
+        self.startup_channel_id = startup_channel_id or "default"
         self.adapter_configs = adapter_configs or {}
         self.adapters: List[PlatformAdapter] = []
         
@@ -93,8 +91,7 @@ class CIRISRuntime(RuntimeInterface):
         self._agent_task: Optional[asyncio.Task] = None
         self._preload_tasks: List[str] = []
         
-        # Profile and identity - will be loaded during initialization
-        self.profile: Optional[AgentProfile] = None
+        # Identity - will be loaded during initialization
         self.agent_identity: Optional[Any] = None
     
     # Properties to access services from the service initializer
@@ -151,6 +148,28 @@ class CIRISRuntime(RuntimeInterface):
         return self.service_initializer.core_tool_service if self.service_initializer else None
     
     @property
+    def profile(self) -> Optional[Any]:
+        """Convert agent identity to profile format for compatibility."""
+        if not self.agent_identity:
+            return None
+            
+        from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+        
+        # Create AgentProfile from identity
+        return AgentProfile(
+            name=self.agent_identity.agent_id,
+            description=self.agent_identity.core_profile.description,
+            role_description=self.agent_identity.core_profile.role_description,
+            permitted_actions=self.agent_identity.permitted_actions,
+            dsdma_kwargs={
+                'domain_specific_knowledge': self.agent_identity.core_profile.domain_specific_knowledge,
+                'prompt_template': self.agent_identity.core_profile.dsdma_prompt_template
+            } if self.agent_identity.core_profile.domain_specific_knowledge or self.agent_identity.core_profile.dsdma_prompt_template else None,
+            csdma_overrides=self.agent_identity.core_profile.csdma_overrides,
+            action_selection_pdma_overrides=self.agent_identity.core_profile.action_selection_pdma_overrides
+        )
+    
+    @property
     def maintenance_service(self) -> Optional[Any]:
         return self.service_initializer.maintenance_service if self.service_initializer else None
     
@@ -202,7 +221,7 @@ class CIRISRuntime(RuntimeInterface):
         if self._initialized:
             return
             
-        logger.info(f"Initializing CIRIS Runtime with profile '{self.profile_name}'...")
+        logger.info("Initializing CIRIS Runtime...")
         
         try:
             # Set up initialization manager
@@ -218,7 +237,8 @@ class CIRISRuntime(RuntimeInterface):
             await self._perform_startup_maintenance()
             
             self._initialized = True
-            logger.info("CIRIS Runtime initialized successfully")
+            agent_name = self.agent_identity.agent_id if self.agent_identity else "NO_IDENTITY"
+            logger.info(f"CIRIS Runtime initialized successfully with identity '{agent_name}'")
             
         except Exception as e:
             logger.critical(f"Runtime initialization failed: {e}", exc_info=True)
@@ -227,9 +247,9 @@ class CIRISRuntime(RuntimeInterface):
             raise
         
     async def _initialize_identity(self) -> None:
-        """Initialize agent identity - create from profile on first run, load from graph thereafter."""
+        """Initialize agent identity - create from template on first run, load from graph thereafter."""
         config = self._ensure_config()
-        self.identity_manager = IdentityManager(self.profile_name, config)
+        self.identity_manager = IdentityManager(config)
         self.agent_identity = await self.identity_manager.initialize_identity()
     
     
@@ -373,7 +393,10 @@ class CIRISRuntime(RuntimeInterface):
     async def _initialize_services(self) -> None:
         """Initialize all remaining core services."""
         config = self._ensure_config()
-        await self.service_initializer.initialize_all_services(config, self.app_config, self.profile_name, self.startup_channel_id)
+        # Identity MUST be established before services can be initialized
+        if not self.agent_identity:
+            raise RuntimeError("CRITICAL: Cannot initialize services without agent identity")
+        await self.service_initializer.initialize_all_services(config, self.app_config, self.agent_identity.agent_id, self.startup_channel_id)
     
     async def _verify_core_services(self) -> bool:
         """Verify all core services are operational."""
@@ -386,11 +409,8 @@ class CIRISRuntime(RuntimeInterface):
     
     async def _final_verification(self) -> None:
         """Perform final system verification."""
-        # Verify initialization status
-        init_status = get_initialization_manager().get_status()
-        
-        if not init_status.get("complete"):
-            raise RuntimeError("Initialization not complete")
+        # Don't check initialization status here - we're still IN the initialization process
+        # Just verify the critical components are ready
         
         # Verify identity loaded
         if not self.agent_identity:
@@ -401,7 +421,7 @@ class CIRISRuntime(RuntimeInterface):
         logger.info("CIRIS Agent Pre-Wakeup Verification Complete")
         logger.info(f"Identity: {self.agent_identity.agent_id}")
         logger.info(f"Purpose: {self.agent_identity.core_profile.description}")
-        logger.info(f"Capabilities: {len(self.agent_identity.allowed_capabilities)} allowed")
+        logger.info(f"Capabilities: {len(self.agent_identity.permitted_actions)} allowed")
         # Count all registered services
         service_count = 0
         if self.service_registry:
@@ -477,7 +497,7 @@ class CIRISRuntime(RuntimeInterface):
                         for handler_name in reg.handlers:
                             self.service_registry.register(
                                 handler=handler_name,
-                                service_type=reg.service_type.value, # Use the string value of the enum
+                                service_type=reg.service_type, # Use the enum directly
                                 provider=reg.provider,
                                 priority=reg.priority,
                                 capabilities=reg.capabilities
@@ -485,7 +505,7 @@ class CIRISRuntime(RuntimeInterface):
                         logger.info(f"Registered {reg.service_type.value} from {adapter.__class__.__name__} for handlers: {reg.handlers}")
                     else: # Register globally if no specific handlers
                         self.service_registry.register_global(
-                            service_type=reg.service_type.value,
+                            service_type=reg.service_type,
                             provider=reg.provider,
                             priority=reg.priority,
                             capabilities=reg.capabilities

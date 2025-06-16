@@ -8,6 +8,7 @@ from ciris_engine.schemas.correlation_schemas_v1 import (
     ServiceCorrelation,
     ServiceCorrelationStatus,
 )
+from ciris_engine.schemas.persistence_schemas_v1 import CorrelationUpdateRequest
 from ciris_engine import persistence
 
 from ciris_engine.protocols.services import ToolService
@@ -59,9 +60,11 @@ class CLIToolService(ToolService):
         if correlation_id:
             self._results[correlation_id] = result
             persistence.update_correlation(
-                correlation_id,
-                response_data=result,
-                status=ServiceCorrelationStatus.COMPLETED,
+                CorrelationUpdateRequest(
+                    correlation_id=correlation_id,
+                    response_data=result,
+                    status=ServiceCorrelationStatus.COMPLETED,
+                )
             )
         return result
 

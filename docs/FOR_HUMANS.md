@@ -6,8 +6,7 @@
 
 This is BETA software under active development. It may contain bugs, incomplete features, or undergo significant changes. Use at your own risk. No warranties, express or implied, are provided.
 
-**Copyright © 2024 Eric Moore and CIRIS L3C**  
-**Patent Pending**
+**Copyright © 2025 Eric Moore and CIRIS L3C**  
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

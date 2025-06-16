@@ -20,6 +20,7 @@ from ciris_engine.telemetry import TelemetryService, SecurityFilter
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
 from ciris_engine.registries.base import ServiceRegistry, Priority
+from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.runtime.audit_sink_manager import AuditSinkManager
 from ciris_engine.services.wa_auth_integration import initialize_authentication, WAAuthenticationSystem
@@ -49,7 +50,10 @@ class ServiceInitializer:
     
     async def initialize_memory_service(self, config: Any) -> None:
         """Initialize the memory service."""
-        self.memory_service = LocalGraphMemoryService(db_path=config.memory.memory_db_path)
+        # Use database config for memory service
+        import os
+        memory_db_path = os.path.join(config.database.data_directory, config.database.graph_memory_filename)
+        self.memory_service = LocalGraphMemoryService(db_path=memory_db_path)
         await self.memory_service.start()
         logger.info("Memory service initialized")
     
@@ -73,8 +77,8 @@ class ServiceInitializer:
             await self.memory_service.memorize(test_node)
             result = await self.memory_service.recall(test_node)
             
-            if result.status.value != "OK":
-                logger.error("Memory service verification failed")
+            if result.status.value != "ok":
+                logger.error(f"Memory service verification failed: status={result.status.value}")
                 return False
             
             # Clean up
@@ -91,7 +95,7 @@ class ServiceInitializer:
         """Initialize security-related services."""
         # Initialize secrets service
         self.secrets_service = SecretsService(
-            db_path=config.secrets.encryption_key_path,  # Using encryption_key_path as db path
+            db_path=config.secrets.storage.database_path,  # Use the correct path from storage config
             master_key=None  # Will use default key generation
         )
         await self.secrets_service.start()
@@ -125,7 +129,7 @@ class ServiceInitializer:
         logger.info("✓ Security services verified")
         return True
     
-    async def initialize_all_services(self, config: Any, app_config: Any, profile_name: str, startup_channel_id: Optional[str] = None) -> None:
+    async def initialize_all_services(self, config: Any, app_config: Any, agent_id: str, startup_channel_id: Optional[str] = None) -> None:
         """Initialize all remaining core services."""
         self.service_registry = ServiceRegistry()
         
@@ -142,14 +146,13 @@ class ServiceInitializer:
         )
         await self.telemetry_service.start()
         
-        # Initialize LLM service with telemetry
-        self.llm_service = OpenAICompatibleClient(config.llm_services.openai, telemetry_service=self.telemetry_service)
-        await self.llm_service.start()
+        # Initialize LLM service(s) based on configuration
+        await self._initialize_llm_services(config)
         
         # Secrets service no longer needs LLM service reference
         
         # Initialize ALL THREE REQUIRED audit services
-        await self._initialize_audit_services(config, profile_name)
+        await self._initialize_audit_services(config, agent_id)
         
         # Initialize adaptive filter service
         self.adaptive_filter_service = AdaptiveFilterService(
@@ -187,7 +190,77 @@ class ServiceInitializer:
             archive_older_than_hours=archive_hours
         )
     
-    async def _initialize_audit_services(self, config: Any, profile_name: str) -> None:
+    async def _initialize_llm_services(self, config: Any) -> None:
+        """Initialize LLM service(s) based on configuration.
+        
+        CRITICAL: Only mock OR real LLM services are active, never both.
+        This prevents attack vectors where mock responses could be confused with real ones.
+        """
+        # Check if mock LLM is enabled
+        mock_llm_enabled = getattr(config, 'mock_llm', False)
+        
+        if mock_llm_enabled:
+            # ONLY register mock LLM service
+            logger.info("🤖 Mock LLM mode enabled - registering ONLY mock LLM service")
+            
+            # Import here to avoid circular imports
+            from ciris_engine.services.mock_llm import MockLLMService
+            
+            # Create and start mock service
+            mock_service = MockLLMService()
+            await mock_service.start()
+            
+            # Register with CRITICAL priority as the ONLY LLM service
+            self.service_registry.register_global(
+                service_type=ServiceType.LLM,
+                provider=mock_service,
+                priority=Priority.CRITICAL,
+                capabilities=["generate_structured_response", "mock_llm"],
+                metadata={"provider": "mock", "warning": "MOCK LLM - NOT FOR PRODUCTION"}
+            )
+            
+            # Store reference for compatibility
+            self.llm_service = mock_service
+            logger.warning("⚠️  MOCK LLM SERVICE ACTIVE - ALL RESPONSES ARE SIMULATED")
+            
+        else:
+            # ONLY register real LLM service(s)
+            logger.info("Initializing real LLM service(s)")
+            
+            # Primary OpenAI service
+            openai_service = OpenAICompatibleClient(
+                config.llm_services.openai, 
+                telemetry_service=self.telemetry_service
+            )
+            await openai_service.start()
+            
+            # Register OpenAI as primary
+            self.service_registry.register_global(
+                service_type=ServiceType.LLM,
+                provider=openai_service,
+                priority=Priority.HIGH,
+                capabilities=["generate_structured_response", "openai"],
+                metadata={"provider": "openai", "model": config.llm_services.openai.model_name}
+            )
+            
+            # Store reference for compatibility
+            self.llm_service = openai_service
+            
+            # Future: Add additional real LLM providers here
+            # Example for Anthropic (when implemented):
+            # anthropic_service = AnthropicLLMService(config.llm_services.anthropic)
+            # await anthropic_service.start()
+            # self.service_registry.register_global(
+            #     service_type=ServiceType.LLM,
+            #     provider=anthropic_service,
+            #     priority=Priority.NORMAL,
+            #     capabilities=["generate_structured_response", "anthropic"],
+            #     metadata={"provider": "anthropic"}
+            # )
+            
+            logger.info(f"Real LLM service(s) initialized: {config.llm_services.openai.model_name}")
+    
+    async def _initialize_audit_services(self, config: Any, agent_id: str) -> None:
         """Initialize all three required audit services."""
         self.audit_services = []
         
@@ -220,7 +293,7 @@ class ServiceInitializer:
         # 3. TSDB audit service (REQUIRED - time-series queries and correlations)
         logger.info("Initializing TSDB audit service...")
         tsdb_audit = TSDBSignedAuditService(
-            tags={"agent_profile": profile_name},
+            tags={"agent_id": agent_id},
             retention_policy="raw",
             enable_file_backup=False,  # We already have file backup from service #1
             file_audit_service=None
@@ -304,7 +377,7 @@ class ServiceInitializer:
             for handler_name in handler_names:
                 self.service_registry.register(
                     handler=handler_name,
-                    service_type="memory",
+                    service_type=ServiceType.MEMORY,
                     provider=self.memory_service,
                     priority=Priority.HIGH,
                     capabilities=["memorize", "recall", "forget"]
@@ -328,7 +401,7 @@ class ServiceInitializer:
                 priority = Priority.CRITICAL if i == 0 else Priority.HIGH
                 
                 self.service_registry.register_global(
-                    service_type="audit",
+                    service_type=ServiceType.AUDIT,
                     provider=audit_service,
                     priority=priority,
                     capabilities=capabilities,
@@ -338,25 +411,18 @@ class ServiceInitializer:
         # Register telemetry service globally for all handlers and components
         if self.telemetry_service:
             self.service_registry.register_global(
-                service_type="telemetry",
+                service_type=ServiceType.TELEMETRY,
                 provider=self.telemetry_service,
                 priority=Priority.HIGH,
                 capabilities=["record_metric", "update_system_snapshot"]
             )
         
-        # Register LLM service globally so processors and DMAs can fetch it
-        if self.llm_service:
-            self.service_registry.register_global(
-                service_type="llm",
-                provider=self.llm_service,
-                priority=Priority.HIGH,
-                capabilities=["generate_structured_response"]
-            )
+        # Register LLM service(s) - handled by _initialize_llm_services
         
         # Register secrets service globally for all handlers
         if self.secrets_service:
             self.service_registry.register_global(
-                service_type="secrets",
+                service_type=ServiceType.SECRETS,
                 provider=self.secrets_service,
                 priority=Priority.HIGH,
                 capabilities=["detect_secrets", "store_secret", "retrieve_secret", "filter_content"]
@@ -365,7 +431,7 @@ class ServiceInitializer:
         # Register adaptive filter service
         if self.adaptive_filter_service:
             self.service_registry.register_global(
-                service_type="filter",
+                service_type=ServiceType.FILTER,
                 provider=self.adaptive_filter_service,
                 priority=Priority.HIGH,
                 capabilities=["message_filtering", "priority_assessment", "user_trust_tracking"]
@@ -374,7 +440,7 @@ class ServiceInitializer:
         # Register agent configuration service
         if self.agent_config_service:
             self.service_registry.register_global(
-                service_type="config",
+                service_type=ServiceType.CONFIG,
                 provider=self.agent_config_service,
                 priority=Priority.HIGH,
                 capabilities=["self_configuration", "wa_deferral", "config_persistence"]
@@ -383,7 +449,7 @@ class ServiceInitializer:
         # Register transaction orchestrator
         if self.transaction_orchestrator:
             self.service_registry.register_global(
-                service_type="orchestrator",
+                service_type=ServiceType.ORCHESTRATOR,
                 provider=self.transaction_orchestrator,
                 priority=Priority.CRITICAL,
                 capabilities=["transaction_coordination", "service_routing", "health_monitoring", "audit_broadcast"]
@@ -392,7 +458,7 @@ class ServiceInitializer:
         # Register core tool service globally so it's available to all handlers
         if hasattr(self, 'core_tool_service') and self.core_tool_service:
             self.service_registry.register_global(
-                service_type="tool",
+                service_type=ServiceType.TOOL,
                 provider=self.core_tool_service,
                 priority=Priority.HIGH,
                 capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"],

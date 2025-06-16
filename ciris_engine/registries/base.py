@@ -5,13 +5,14 @@ Provides unified registration and discovery for services, adapters, and tools
 with priority-based fallbacks and circuit breaker patterns for resilience.
 """
 
-from typing import Dict, List, Any, Optional, Protocol
+from typing import Dict, List, Any, Optional, Protocol, Union
 from dataclasses import dataclass
 from enum import Enum
 import logging
 import asyncio
 
 from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 
 logger = logging.getLogger(__name__)
 
@@ -56,22 +57,22 @@ class ServiceRegistry:
     circuit breaker patterns for resilience.
     """
     
-    def __init__(self, required_services: Optional[List[str]] = None) -> None:
-        self._providers: Dict[str, Dict[str, List[ServiceProvider]]] = {}
+    def __init__(self, required_services: Optional[List[ServiceType]] = None) -> None:
+        self._providers: Dict[str, Dict[ServiceType, List[ServiceProvider]]] = {}
         self._circuit_breakers: Dict[str, CircuitBreaker] = {}
-        self._global_services: Dict[str, List[ServiceProvider]] = {}
+        self._global_services: Dict[ServiceType, List[ServiceProvider]] = {}
         self._rr_state: Dict[str, int] = {}
-        self._required_service_types: List[str] = required_services or [
-            "communication",
-            "memory",
-            "audit",
-            "llm",
+        self._required_service_types: List[ServiceType] = required_services or [
+            ServiceType.COMMUNICATION,
+            ServiceType.MEMORY,
+            ServiceType.AUDIT,
+            ServiceType.LLM,
         ]
     
     def register(
         self,
         handler: str,
-        service_type: str,
+        service_type: ServiceType,
         provider: Any,
         priority: Priority = Priority.NORMAL,
         capabilities: Optional[List[str]] = None,
@@ -130,7 +131,7 @@ class ServiceRegistry:
     
     def register_global(
         self,
-        service_type: str,
+        service_type: ServiceType,
         provider: Any,
         priority: Priority = Priority.NORMAL,
         capabilities: Optional[List[str]] = None,
@@ -184,7 +185,7 @@ class ServiceRegistry:
     async def get_service(
         self, 
         handler: str, 
-        service_type: str,
+        service_type: ServiceType,
         required_capabilities: Optional[List[str]] = None,
         fallback_to_global: bool = True
     ) -> Optional[Any]:
@@ -200,11 +201,12 @@ class ServiceRegistry:
         Returns:
             Service instance or None if no suitable service available
         """
-        logger.debug(f"ServiceRegistry.get_service: handler='{handler}', service_type='{service_type}', "
+        logger.debug(f"ServiceRegistry.get_service: handler='{handler}', service_type='{service_type}' "
+                    f"({service_type.value if hasattr(service_type, 'value') else service_type}), "
                     f"capabilities={required_capabilities}")
         
         handler_providers = self._providers.get(handler, {}).get(service_type, [])
-        logger.debug(f"ServiceRegistry: Found {len(handler_providers)} handler-specific providers for {handler}.{service_type}")
+        logger.debug(f"ServiceRegistry: Found {len(handler_providers)} handler-specific providers for {handler}.{service_type.value if hasattr(service_type, 'value') else service_type}")
         
         service = await self._get_service_from_providers(
             handler_providers,
@@ -228,7 +230,7 @@ class ServiceRegistry:
                 logger.debug(f"Using global {service_type} service for handler '{handler}': {type(service).__name__}")
                 return service
         
-        logger.warning(f"No available {service_type} service found for handler '{handler}' "
+        logger.warning(f"No available {service_type.value} service found for handler '{handler}' "
                       f"with capabilities {required_capabilities}")
         return None
     
@@ -404,6 +406,49 @@ class ServiceRegistry:
         
         return False
     
+    def get_services_by_type(self, service_type: Union[str, ServiceType]) -> List[Any]:
+        """
+        Get ALL services of a given type (for broadcasting/aggregation).
+        
+        Args:
+            service_type: Type of service as string (e.g., 'audit', 'tool')
+            
+        Returns:
+            List of all service instances of that type
+        """
+        # Convert string to ServiceType enum if needed
+        service_type_enum: ServiceType
+        if isinstance(service_type, str):
+            try:
+                service_type_enum = ServiceType(service_type)
+            except ValueError:
+                logger.warning(f"Unknown service type: {service_type}")
+                return []
+        else:
+            service_type_enum = service_type
+        
+        all_services = []
+        
+        # Collect from handler-specific registrations
+        for handler, services in self._providers.items():
+            if service_type_enum in services:
+                for provider in services[service_type_enum]:
+                    # Only include healthy services
+                    if provider.circuit_breaker and provider.circuit_breaker.is_available():
+                        if provider.instance not in all_services:
+                            all_services.append(provider.instance)
+        
+        # Collect from global registrations
+        if service_type_enum in self._global_services:
+            for provider in self._global_services[service_type_enum]:
+                # Only include healthy services
+                if provider.circuit_breaker and provider.circuit_breaker.is_available():
+                    if provider.instance not in all_services:
+                        all_services.append(provider.instance)
+        
+        logger.debug(f"Found {len(all_services)} healthy {service_type} services for broadcasting/aggregation")
+        return all_services
+    
     def reset_circuit_breakers(self) -> None:
         """Reset all circuit breakers to closed state"""
         for cb in self._circuit_breakers.values():
@@ -420,7 +465,7 @@ class ServiceRegistry:
     async def wait_ready(
         self,
         timeout: float = 30.0,
-        service_types: Optional[List[str]] = None,
+        service_types: Optional[List[ServiceType]] = None,
     ) -> bool:
         """Wait for required services to be registered.
 
@@ -451,7 +496,7 @@ class ServiceRegistry:
 
             await asyncio.sleep(0.1)
 
-    def _has_service_type(self, service_type: str) -> bool:
+    def _has_service_type(self, service_type: ServiceType) -> bool:
         """Check if any provider exists for the given service type."""
         if self._global_services.get(service_type):
             return True

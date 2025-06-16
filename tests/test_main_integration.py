@@ -27,7 +27,8 @@ class TestMainIntegration:
             sys.executable, "main.py",
             "--mock-llm",
             "--adapter", "cli", 
-            "--timeout", "20"
+            "--timeout", "20",
+            "--no-interactive"
         ]
         
         # Run with timeout to prevent hanging

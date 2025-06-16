@@ -12,7 +12,7 @@ from ciris_engine.protocols.faculties import EpistemicFaculty
 
 from .dsdma_base import BaseDSDMA
 from ciris_engine.schemas.config_schemas_v1 import AgentProfile
-from ..utils.profile_loader import load_profile
+from ..utils.profile_loader import load_template
 
 logger = logging.getLogger(__name__)
 
