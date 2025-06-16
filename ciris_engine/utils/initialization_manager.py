@@ -51,7 +51,7 @@ class InitializationManager:
     with proper verification at each step.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._steps: List[InitializationStep] = []
         self._completed_steps: List[str] = []
         self._phase_status: Dict[InitializationPhase, str] = {}
@@ -94,7 +94,7 @@ class InitializationManager:
         
         try:
             # Group steps by phase
-            phases = {}
+            phases: Dict[InitializationPhase, List[InitializationStep]] = {}
             for step in self._steps:
                 if step.phase not in phases:
                     phases[step.phase] = []
@@ -110,6 +110,7 @@ class InitializationManager:
                 if self._error and phase != InitializationPhase.VERIFICATION:
                     raise self._error
             
+            # Set initialization complete BEFORE the final status logging
             self._initialization_complete = True
             duration = (datetime.now(timezone.utc) - self._start_time).total_seconds()
             

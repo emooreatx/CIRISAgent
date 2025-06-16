@@ -12,7 +12,7 @@ from ciris_engine.runtime.adapter_manager import RuntimeAdapterManager
 from ciris_engine.schemas.runtime_control_schemas import (
     ProcessorStatus, ProcessorControlResponse, AdapterOperationResponse,
     RuntimeStatusResponse, RuntimeStateSnapshot, ConfigOperationResponse,
-    ConfigValidationResponse, AgentProfileResponse,
+    ConfigValidationResponse,
     ConfigBackupResponse, ConfigScope, ConfigValidationLevel
 )
 
@@ -348,7 +348,8 @@ class RuntimeControlService(RuntimeControlInterface):
         """Create a configuration backup."""
         try:
             return await self._get_config_manager().backup_config(
-                backup_name
+                include_profiles=True,
+                backup_name=backup_name
             )
         except Exception as e:
             logger.error(f"Failed to backup config: {e}")
@@ -441,7 +442,7 @@ class RuntimeControlService(RuntimeControlInterface):
             config_data = await self._get_config_manager().get_config_value()
             
             # Profiles are no longer used after initial agent creation
-            profile_names = []
+            profile_names: List[str] = []
             active_profile = "identity-based"
             
             return RuntimeStateSnapshot(
@@ -487,14 +488,143 @@ class RuntimeControlService(RuntimeControlInterface):
         try:
             if not self.runtime or not hasattr(self.runtime, 'service_registry'):
                 return {"success": False, "error": "Service registry not available"}
-                
+            
+            registry = self.runtime.service_registry
+            
+            # Import the Priority and SelectionStrategy enums
+            from ciris_engine.registries.base import Priority, SelectionStrategy
+            
+            # Validate priority string
+            try:
+                new_priority_enum = Priority[new_priority.upper()]
+            except KeyError:
+                valid_priorities = [p.name for p in Priority]
+                return {
+                    "success": False,
+                    "error": f"Invalid priority '{new_priority}'. Valid priorities: {valid_priorities}"
+                }
+            
+            # Validate selection strategy if provided
+            new_strategy_enum = None
+            if new_strategy:
+                try:
+                    new_strategy_enum = SelectionStrategy[new_strategy.upper()]
+                except KeyError:
+                    valid_strategies = [s.name for s in SelectionStrategy]
+                    return {
+                        "success": False,
+                        "error": f"Invalid strategy '{new_strategy}'. Valid strategies: {valid_strategies}"
+                    }
+            
+            # Find the provider in handler-specific services
+            provider_found = False
+            updated_info = {}
+            
+            # Check handler-specific services
+            for handler, services in registry._providers.items():
+                for service_type, providers in services.items():
+                    for provider in providers:
+                        if provider.name == provider_name:
+                            provider_found = True
+                            old_priority = provider.priority.name
+                            old_priority_group = provider.priority_group
+                            old_strategy = provider.strategy.name
+                            
+                            # Update provider attributes
+                            provider.priority = new_priority_enum
+                            if new_priority_group is not None:
+                                provider.priority_group = new_priority_group
+                            if new_strategy_enum is not None:
+                                provider.strategy = new_strategy_enum
+                            
+                            # Re-sort providers by priority
+                            providers.sort(key=lambda x: (x.priority_group, x.priority.value))
+                            
+                            updated_info = {
+                                "handler": handler,
+                                "service_type": service_type,
+                                "old_priority": old_priority,
+                                "new_priority": provider.priority.name,
+                                "old_priority_group": old_priority_group,
+                                "new_priority_group": provider.priority_group,
+                                "old_strategy": old_strategy,
+                                "new_strategy": provider.strategy.name
+                            }
+                            break
+                    if provider_found:
+                        break
+                if provider_found:
+                    break
+            
+            # If not found in handler-specific, check global services
+            if not provider_found:
+                for service_type, providers in registry._global_services.items():
+                    for provider in providers:
+                        if provider.name == provider_name:
+                            provider_found = True
+                            old_priority = provider.priority.name
+                            old_priority_group = provider.priority_group
+                            old_strategy = provider.strategy.name
+                            
+                            # Update provider attributes
+                            provider.priority = new_priority_enum
+                            if new_priority_group is not None:
+                                provider.priority_group = new_priority_group
+                            if new_strategy_enum is not None:
+                                provider.strategy = new_strategy_enum
+                            
+                            # Re-sort providers by priority
+                            providers.sort(key=lambda x: (x.priority_group, x.priority.value))
+                            
+                            updated_info = {
+                                "handler": "global",
+                                "service_type": service_type,
+                                "old_priority": old_priority,
+                                "new_priority": provider.priority.name,
+                                "old_priority_group": old_priority_group,
+                                "new_priority_group": provider.priority_group,
+                                "old_strategy": old_strategy,
+                                "new_strategy": provider.strategy.name
+                            }
+                            break
+                    if provider_found:
+                        break
+            
+            if not provider_found:
+                return {
+                    "success": False,
+                    "error": f"Service provider '{provider_name}' not found in registry"
+                }
+            
+            # Record the event
+            await self._record_event(
+                "service_management", 
+                "update_priority", 
+                success=True,
+                result=updated_info
+            )
+            
+            logger.info(
+                f"Updated service provider '{provider_name}' priority from "
+                f"{updated_info['old_priority']} to {updated_info['new_priority']}"
+            )
+            
             return {
-                "success": False,
-                "error": "Service priority updates not yet implemented - requires service registry enhancements",
-                "suggestion": "Service priorities are currently set during adapter service registration"
+                "success": True,
+                "message": f"Successfully updated provider '{provider_name}' priority",
+                "provider_name": provider_name,
+                "changes": updated_info,
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
+            
         except Exception as e:
             logger.error(f"Failed to update service priority: {e}")
+            await self._record_event(
+                "service_management", 
+                "update_priority", 
+                success=False,
+                error=str(e)
+            )
             return {"success": False, "error": str(e)}
 
     async def reset_circuit_breakers(self, service_type: Optional[str] = None) -> Dict[str, Any]:

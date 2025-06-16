@@ -210,7 +210,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                     
             elif action == HandlerActionType.DEFER:
                 if action_params:
-                    params = DeferParams(reason=action_params)
+                    params = DeferParams(reason=action_params, defer_until=None)
                 else:
                     error_msg = "❌ $defer requires a reason. Format: $defer <reason>\nExample: $defer I need more context to answer properly"
                     params = SpeakParams(content=error_msg, channel_id="test")
@@ -254,7 +254,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
         # Include context pattern in rationale
         context_patterns = [item for item in context if item.startswith("forced_action:")]
         context_info = f" {context_patterns[0]}" if context_patterns else ""
-        rationale = f"Executing {forced_action} action from mock command{context_info}"
+        rationale = f"[MOCK LLM] Executing {forced_action} action from mock command{context_info}"
         
     elif show_help:
         action = HandlerActionType.SPEAK
@@ -296,7 +296,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
 
 The mock LLM provides deterministic responses for testing CIRIS functionality offline."""
         params = SpeakParams(content=help_text, channel_id="test")
-        rationale = "Providing Mock LLM help documentation"
+        rationale = "[MOCK LLM] Providing Mock LLM help documentation"
         
     # Removed the weird ? recall command - only $recall is supported
         
@@ -317,13 +317,13 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
         if is_followup:
             # Follow-up thought → TASK_COMPLETE
             action = HandlerActionType.TASK_COMPLETE
-            params = TaskCompleteParams(completion_reason="Follow-up thought processing completed")
-            rationale = "Completing follow-up thought"
+            params = TaskCompleteParams(completion_reason="[MOCK LLM] Follow-up thought processing completed")
+            rationale = "[MOCK LLM] Completing follow-up thought"
         else:
             # Default: new task → SPEAK
             action = HandlerActionType.SPEAK
-            params = SpeakParams(content="Hello! How can I help you?", channel_id="test")
-            rationale = "Default speak action for new task"
+            params = SpeakParams(content="[MOCK LLM] Hello! How can I help you?", channel_id="test")
+            rationale = "[MOCK LLM] Default speak action for new task"
     
     # Use custom rationale if provided, otherwise use the generated rationale
     final_rationale = custom_rationale if custom_rationale else rationale
@@ -334,7 +334,6 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
         rationale=final_rationale,
         confidence=0.9
     )
-    object.__setattr__(result, 'choices', [result])
-    object.__setattr__(result, 'finish_reason', 'stop')
-    object.__setattr__(result, '_raw_response', 'mock')
+    
+    # Return structured result directly - instructor will handle it
     return result

@@ -30,6 +30,14 @@ from ciris_engine.persistence import (
 
 logger = logging.getLogger(__name__)
 
+# Try to import croniter for cron scheduling support
+try:
+    from croniter import croniter  # type: ignore[import-untyped]
+    CRONITER_AVAILABLE = True
+except ImportError:
+    CRONITER_AVAILABLE = False
+    logger.warning("croniter not installed. Cron scheduling will be disabled.")
+
 
 class TaskSchedulerService(Service):
     """
@@ -80,7 +88,7 @@ class TaskSchedulerService(Service):
         """Load all active tasks from the database."""
         try:
             if not self.conn:
-                self.conn = await get_db_connection(self.db_path)
+                self.conn = get_db_connection(self.db_path)  # type: ignore[assignment]
             
             # For now, we'll use the existing thought/task tables
             # In the future, this could be a dedicated scheduled_tasks table
@@ -150,28 +158,47 @@ class TaskSchedulerService(Service):
             defer_time = datetime.fromisoformat(task.defer_until.replace('Z', '+00:00'))
             return current_time >= defer_time
             
-        # For now, we don't support cron-style scheduling
-        # This can be added later with a proper cron parsing library
+        # Cron-style recurring task
         if task.schedule_cron:
-            logger.warning(f"Cron scheduling not yet implemented for task {task.task_id}")
-            return False
+            return self._should_trigger_cron(task, current_time)
             
         return False
+    
+    def _should_trigger_cron(self, task: ScheduledTask, current_time: datetime) -> bool:
+        """Check if a cron-scheduled task should trigger."""
+        if not CRONITER_AVAILABLE:
+            logger.warning(
+                f"Cron scheduling requested for task {task.task_id} but croniter not installed"
+            )
+            return False
+            
+        try:
+            # If never triggered, use creation time as base
+            if not task.last_triggered_at:
+                base_time = datetime.fromisoformat(task.created_at.replace('Z', '+00:00'))
+            else:
+                base_time = datetime.fromisoformat(task.last_triggered_at.replace('Z', '+00:00'))
+            
+            # Create croniter instance
+            cron = croniter(task.schedule_cron, base_time)
+            
+            # Get next scheduled time
+            next_time = cron.get_next(datetime)
+            
+            # Check if we've passed the next scheduled time
+            # Add a small buffer (1 second) to avoid missing triggers due to timing
+            return bool(current_time >= next_time - timedelta(seconds=1))
+            
+        except Exception as e:
+            logger.error(
+                f"Invalid cron expression '{task.schedule_cron}' for task {task.task_id}: {e}"
+            )
+            return False
         
     async def _trigger_task(self, task: ScheduledTask) -> None:
         """Trigger a scheduled task by creating a new thought."""
         try:
             logger.info(f"Triggering scheduled task: {task.name} ({task.task_id})")
-            
-            # First, update the parent task status from DEFERRED to ACTIVE
-            if task.origin_thought_id and self.conn:
-                # Get the parent task ID from the origin thought
-                from ciris_engine.persistence import get_thought_by_id, update_task_status
-                origin_thought = await get_thought_by_id(self.conn, task.origin_thought_id)
-                if origin_thought and hasattr(origin_thought, 'source_task_id'):
-                    parent_task_id = origin_thought.source_task_id
-                    logger.info(f"Updating parent task {parent_task_id} from DEFERRED to ACTIVE")
-                    await update_task_status(self.conn, parent_task_id, "ACTIVE")
             
             # Create a new thought for this task
             thought_dict = {
@@ -188,9 +215,9 @@ class TaskSchedulerService(Service):
                 })
             }
             
-            # Add thought to database
+            # Add thought to database if we have a connection
             if self.conn:
-                await add_thought(self.conn, thought_dict)
+                await add_thought(self.conn, thought_dict)  # type: ignore[unreachable]
             
             # Update scheduled task status
             await self._update_task_triggered(task)
@@ -204,12 +231,23 @@ class TaskSchedulerService(Service):
             
     async def _update_task_triggered(self, task: ScheduledTask) -> None:
         """Update task after triggering."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
         
         # Update in-memory task
-        task.last_triggered_at = now
+        task.last_triggered_at = now_iso
         if task.schedule_cron:
             task.status = "ACTIVE"
+            # Calculate and log next trigger time for recurring tasks
+            if CRONITER_AVAILABLE:
+                try:
+                    cron = croniter(task.schedule_cron, now)
+                    next_time = cron.get_next(datetime)
+                    logger.info(
+                        f"Task {task.name} will next trigger at {next_time.isoformat()}"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to calculate next trigger time: {e}")
             
     async def _complete_task(self, task: ScheduledTask) -> None:
         """Mark a task as complete."""
@@ -236,11 +274,16 @@ class TaskSchedulerService(Service):
             trigger_prompt: Prompt to use when creating the thought
             origin_thought_id: ID of the thought that created this task
             defer_until: ISO timestamp for one-time execution
-            schedule_cron: Cron expression for recurring tasks (not yet implemented)
+            schedule_cron: Cron expression for recurring tasks (e.g. '0 9 * * *' for daily at 9am)
             
         Returns:
             The created ScheduledTask
         """
+        # Validate cron expression if provided
+        if schedule_cron:
+            if not self._validate_cron_expression(schedule_cron):
+                raise ValueError(f"Invalid cron expression: {schedule_cron}")
+                
         task_id = f"task_{datetime.now(timezone.utc).timestamp()}"
         
         task = self._create_scheduled_task(
@@ -256,7 +299,18 @@ class TaskSchedulerService(Service):
         # Add to active tasks
         self._active_tasks[task_id] = task
         
-        logger.info(f"Scheduled new task: {name} ({task_id})")
+        # Log scheduling details
+        if defer_until:
+            logger.info(f"Scheduled one-time task: {name} ({task_id}) for {defer_until}")
+        elif schedule_cron:
+            next_run = self._get_next_cron_time(schedule_cron)
+            logger.info(
+                f"Scheduled recurring task: {name} ({task_id}) with cron '{schedule_cron}'. "
+                f"Next run: {next_run}"
+            )
+        else:
+            logger.info(f"Scheduled task: {name} ({task_id})")
+            
         return task
         
     async def cancel_task(self, task_id: str) -> bool:
@@ -331,3 +385,47 @@ class TaskSchedulerService(Service):
                 f"Agent expected to reactivate at {context.expected_reactivation}. "
                 f"Tasks will resume at that time."
             )
+            
+    def _validate_cron_expression(self, cron_expr: str) -> bool:
+        """
+        Validate a cron expression.
+        
+        Args:
+            cron_expr: Cron expression to validate
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        if not CRONITER_AVAILABLE:
+            logger.warning("Cannot validate cron expression without croniter")
+            return False
+            
+        try:
+            # Try to create a croniter instance to validate
+            croniter(cron_expr)
+            return True
+        except Exception as e:
+            logger.debug(f"Invalid cron expression '{cron_expr}': {e}")
+            return False
+            
+    def _get_next_cron_time(self, cron_expr: str) -> str:
+        """
+        Get the next scheduled time for a cron expression.
+        
+        Args:
+            cron_expr: Cron expression
+            
+        Returns:
+            ISO timestamp of next scheduled time, or 'unknown' if error
+        """
+        if not CRONITER_AVAILABLE:
+            return "unknown (croniter not installed)"
+            
+        try:
+            now = datetime.now(timezone.utc)
+            cron = croniter(cron_expr, now)
+            next_time = cron.get_next(datetime)
+            return str(next_time.isoformat())
+        except Exception as e:
+            logger.error(f"Failed to calculate next cron time: {e}")
+            return "unknown"

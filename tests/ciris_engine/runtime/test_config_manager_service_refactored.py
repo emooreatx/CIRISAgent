@@ -13,6 +13,24 @@ from ciris_engine.schemas.runtime_control_schemas import (
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 
 
+# Import adapter configs to resolve forward references
+try:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
+except ImportError:
+    DiscordAdapterConfig = type('DiscordAdapterConfig', (), {})
+    APIAdapterConfig = type('APIAdapterConfig', (), {})
+    CLIAdapterConfig = type('CLIAdapterConfig', (), {})
+
+# Rebuild models with resolved references  
+try:
+    AgentProfile.model_rebuild()
+    AppConfig.model_rebuild()
+except Exception:
+    pass
+
+
 class TestConfigManagerServiceRefactored:
     """Test the refactored ConfigManagerService class."""
 

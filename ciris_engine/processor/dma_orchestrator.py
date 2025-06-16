@@ -254,37 +254,15 @@ class DMAOrchestrator:
         from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
         
         identity_info = get_identity_for_context()
-        triaged["agent_identity"] = identity_info
+        triaged["agent_identity"] = identity_info.model_dump()  # Convert to dict for backward compatibility
         
-        logger.debug(f"Using identity '{identity_info['agent_name']}' for thought {thought_item.thought_id}")
+        logger.debug(f"Using identity '{identity_info.agent_name}' for thought {thought_item.thought_id}")
         
-        # Extract permitted actions from allowed capabilities
-        permitted_actions = []
-        for capability in identity_info.get("allowed_capabilities", []):
-            # Map capabilities to actions - e.g., "communication" -> SPEAK
-            if capability == "communication":
-                permitted_actions.extend([HandlerActionType.SPEAK, HandlerActionType.OBSERVE])
-            elif capability == "memory":
-                permitted_actions.extend([HandlerActionType.MEMORIZE, HandlerActionType.RECALL, HandlerActionType.FORGET])
-            elif capability == "task_management":
-                permitted_actions.extend([HandlerActionType.TASK_COMPLETE, HandlerActionType.PONDER])
-            elif capability == "ethical_reasoning":
-                permitted_actions.extend([HandlerActionType.REJECT, HandlerActionType.DEFER])
-            elif capability == "tool_use":
-                permitted_actions.append(HandlerActionType.TOOL)
+        # Get permitted actions directly from identity
+        permitted_actions = identity_info.permitted_actions
         
-        # Ensure unique actions
-        permitted_actions = list(set(permitted_actions))
-        
-        if permitted_actions:
-            triaged.setdefault("permitted_actions", permitted_actions)
-        else:
-            from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-            triaged.setdefault("permitted_actions", [
-                HandlerActionType.SPEAK, HandlerActionType.PONDER,
-                HandlerActionType.REJECT, HandlerActionType.DEFER
-            ])
-            logger.warning(f"DMAOrchestrator: Agent profile '{profile_name}' or its permitted_actions not found. Using default permitted_actions.")
+        # Identity MUST have permitted actions - no defaults in a mission critical system
+        triaged["permitted_actions"] = permitted_actions
 
         try:
             result = await run_dma_with_retries(

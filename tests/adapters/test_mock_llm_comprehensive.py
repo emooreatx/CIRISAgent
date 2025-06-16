@@ -11,7 +11,7 @@ from ciris_engine.schemas.dma_results_v1 import (
 from ciris_engine.schemas.feedback_schemas_v1 import (
     OptimizationVetoResult, EpistemicHumilityResult
 )
-from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
+from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
 from ciris_engine.dma.dsdma_base import BaseDSDMA
 
 

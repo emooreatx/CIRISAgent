@@ -15,9 +15,8 @@ logger = logging.getLogger(__name__)
 from ciris_engine.schemas.feedback_schemas_v1 import (
     OptimizationVetoResult,
     EpistemicHumilityResult,
-    FeedbackType,
 )
-from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
+from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
 from ciris_engine.dma.dsdma_base import BaseDSDMA
 from ciris_engine.schemas.action_params_v1 import (
     PonderParams, MemorizeParams, SpeakParams, RecallParams, 
@@ -39,18 +38,6 @@ class MockLLMConfig:
             r'channel\s+([#@]?[\w-]+)': lambda m: f"echo_channel:{m.group(1)}",
             r'(?:search.*memory|memory.*search).*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_memory_query:{m.group(1)}",
             r'domain.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_domain:{m.group(1)}",
-            # Capture wakeup ritual content
-            r'(You are CIRISAgent.*?)(?:\.|$)': lambda m: f"echo_wakeup:VERIFY_IDENTITY",
-            r'(Your internal state.*?)(?:\.|$)': lambda m: f"echo_wakeup:VALIDATE_INTEGRITY",
-            # Capture startup patterns
-            r'validate identity': lambda m: f"VERIFY_IDENTITY",
-            r'check integrity': lambda m: f"VALIDATE_INTEGRITY", 
-            r'evaluate resilience': lambda m: f"EVALUATE_RESILIENCE",
-            r'accept incompleteness': lambda m: f"ACCEPT_INCOMPLETENESS",
-            r'express gratitude': lambda m: f"EXPRESS_GRATITUDE", 
-            r'(You are robust.*?)(?:\.|$)': lambda m: f"echo_wakeup:EVALUATE_RESILIENCE",
-            r'(You recognize your incompleteness.*?)(?:\.|$)': lambda m: f"echo_wakeup:ACCEPT_INCOMPLETENESS",
-            r'(You are grateful.*?)(?:\.|$)': lambda m: f"echo_wakeup:EXPRESS_GRATITUDE",
             # Catch-all for any content
             r'(.+)': lambda m: f"echo_content:{m.group(1)[:100]}"
         }
@@ -177,13 +164,20 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
 
 
 def _attach_extras(obj: Any) -> Any:
-    """Mimic instructor extra attributes expected on responses."""
+    """Mimic instructor extra attributes expected on responses.
+    
+    For structured responses, we return the object directly as instructor
+    expects to handle the parsing itself.
+    """
+    # For structured responses (Pydantic models), return as-is
+    # Instructor will handle the parsing and validation
+    if hasattr(obj, 'model_dump'):
+        return obj
+    
+    # For non-structured responses, add OpenAI-style attributes
     import json
     try:
-        if hasattr(obj, 'model_dump'):
-            content_json = json.dumps(obj.model_dump())
-        else:
-            content_json = json.dumps(obj.__dict__ if hasattr(obj, '__dict__') else str(obj))
+        content_json = json.dumps(obj.__dict__ if hasattr(obj, '__dict__') else str(obj))
     except Exception as e:
         logger.error(f"Failed to serialize object {type(obj)}: {e}")
         logger.error(f"Object content: {obj}")
@@ -220,7 +214,7 @@ def ethical_dma(context: Optional[List[str]] = None) -> EthicalDMAResult:
             "context": context,
             "requires_wisdom_based_deferral": True
         }
-        rationale = "Injected ethical uncertainty for testing purposes."
+        rationale = "[MOCK LLM] Injected ethical uncertainty for testing purposes."
     else:
         decision = "proceed"
         
@@ -234,7 +228,7 @@ def ethical_dma(context: Optional[List[str]] = None) -> EthicalDMAResult:
                 "transparency": True,
                 "covenant_alignment": "wakeup_ritual_proceeding"
             }
-            rationale = "Wakeup ritual thought aligns with CIRIS covenant principles. Promoting agent integrity and identity verification as required by Meta-Goal M-1."
+            rationale = "[MOCK LLM] Wakeup ritual thought aligns with CIRIS covenant principles. Promoting agent integrity and identity verification as required by Meta-Goal M-1."
         elif is_user_question:
             alignment_check = {
                 "beneficence": True,
@@ -244,7 +238,7 @@ def ethical_dma(context: Optional[List[str]] = None) -> EthicalDMAResult:
                 "transparency": True,
                 "promotes_flourishing": True
             }
-            rationale = "User interaction promotes beneficial dialogue and respects human autonomy. Response will be honest, helpful, and transparent per CIRIS principles."
+            rationale = "[MOCK LLM] User interaction promotes beneficial dialogue and respects human autonomy. Response will be honest, helpful, and transparent per CIRIS principles."
         else:
             alignment_check = {
                 "beneficence": True,
@@ -252,11 +246,11 @@ def ethical_dma(context: Optional[List[str]] = None) -> EthicalDMAResult:
                 "integrity": True,
                 "general_alignment": "proceeding_with_caution"
             }
-            rationale = "General thought processing aligns with ethical guidelines. No contraindications to CIRIS covenant principles detected."
+            rationale = "[MOCK LLM] General thought processing aligns with ethical guidelines. No contraindications to CIRIS covenant principles detected."
     
     decision_param = str(decision)  # Ensure decision is always a string
     result = EthicalDMAResult(alignment_check=alignment_check, decision=decision_param, rationale=str(rationale))
-    return _attach_extras(result)  # type: ignore[no-any-return]
+    return result
 
 
 def cs_dma(context: Optional[List[str]] = None) -> CSDMAResult:
@@ -278,39 +272,39 @@ def cs_dma(context: Optional[List[str]] = None) -> CSDMAResult:
     if _mock_config.inject_error:
         score = 0.3
         flags = ["plausibility_concern", "requires_clarification", "mock_flag"] + context
-        reasoning = "Injected low plausibility for testing error handling paths."
+        reasoning = "[MOCK LLM] Injected low plausibility for testing error handling paths."
     else:
         score = 0.9  # Always passing value
         if is_wakeup:
             flags = ["wakeup_ritual", "system_initialization"]
-            reasoning = "Wakeup ritual thoughts are inherently plausible and necessary for agent initialization. High confidence in procedural integrity."
+            reasoning = "[MOCK LLM] Wakeup ritual thoughts are inherently plausible and necessary for agent initialization. High confidence in procedural integrity."
         elif is_user_interaction:
             flags = ["human_interaction", "conversational"]
-            reasoning = f"User interaction '{user_speech or thought_content[:50]}' is plausible conversational content. Natural dialogue pattern detected."
+            reasoning = f"[MOCK LLM] User interaction '{user_speech or thought_content[:50]}' is plausible conversational content. Natural dialogue pattern detected."
         elif is_memory_operation:
             flags = ["memory_operation", "cognitive_function"]
-            reasoning = "Memory operations are standard cognitive functions with high plausibility for autonomous agents."
+            reasoning = "[MOCK LLM] Memory operations are standard cognitive functions with high plausibility for autonomous agents."
         else:
             flags = ["general_processing"]
-            reasoning = "General thought processing within normal parameters. No physical impossibilities or logical contradictions detected."
+            reasoning = "[MOCK LLM] General thought processing within normal parameters. No physical impossibilities or logical contradictions detected."
     
     result = CSDMAResult(plausibility_score=score, flags=flags, reasoning=reasoning)
-    return _attach_extras(result)  # type: ignore[no-any-return]
+    return result
 
 
 def ds_dma(context: Optional[List[str]] = None) -> DSDMAResult:
     context = context or []
     domain_val = next((item.split(':')[1] for item in context if item.startswith('echo_domain:')), "mock")
-    reasoning = f"Mock domain-specific evaluation. Context: {', '.join(context)}" if context else "Mock domain-specific evaluation."
+    reasoning = f"[MOCK LLM] Mock domain-specific evaluation. Context: {', '.join(context)}" if context else "[MOCK LLM] Mock domain-specific evaluation."
     score_val = 0.9
     flags = ["mock_domain_flag"] + context if _mock_config.inject_error else context
     result = DSDMAResult(domain=domain_val, score=score_val, flags=flags, reasoning=reasoning)
-    return _attach_extras(result)  # type: ignore[no-any-return]
+    return result
 
 
 def ds_dma_llm_output(context: Optional[List[str]] = None) -> BaseDSDMA.LLMOutputForDSDMA:
     context = context or []
-    reasoning = f"Mock DSDMA LLM output. Context: {', '.join(context)}" if context else "Mock DSDMA LLM output."
+    reasoning = f"[MOCK LLM] Mock DSDMA LLM output. Context: {', '.join(context)}" if context else "[MOCK LLM] Mock DSDMA LLM output."
     score_val = 0.9
     result = BaseDSDMA.LLMOutputForDSDMA(
         score=score_val,
@@ -318,7 +312,7 @@ def ds_dma_llm_output(context: Optional[List[str]] = None) -> BaseDSDMA.LLMOutpu
         flags=context,
         reasoning=reasoning,
     )
-    return _attach_extras(result)  # type: ignore[no-any-return]
+    return result
 
 from .responses_action_selection import action_selection
 from .responses_feedback import optimization_veto, epistemic_humility
@@ -373,4 +367,4 @@ def create_response(response_model: Any, messages: Optional[List[Dict[str, Any]]
         )
     # Default response with context echoing
     context_echo = f"Context: {', '.join(context)}" if context else "No context detected"
-    return _attach_extras(SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=f"OK - {context_echo}"))]))
+    return _attach_extras(SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=f"[MOCK LLM] OK - {context_echo}"))]))

@@ -5,6 +5,7 @@ import asyncio
 from ciris_engine.persistence.utils import map_row_to_thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
+from ciris_engine.schemas.persistence_schemas_v1 import ThoughtSummary
 import logging
 
 logger = logging.getLogger(__name__)
@@ -195,8 +196,8 @@ def get_thoughts_older_than(older_than_timestamp: str, db_path: Optional[str] = 
         logger.exception(f"Failed to get thoughts older than {older_than_timestamp}: {e}")
     return thoughts
 
-def get_recent_thoughts(limit: int = 10, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Get recent thoughts as dictionaries for status reporting."""
+def get_recent_thoughts(limit: int = 10, db_path: Optional[str] = None) -> List[ThoughtSummary]:
+    """Get recent thoughts as typed summaries for status reporting."""
     sql = "SELECT * FROM thoughts ORDER BY created_at DESC LIMIT ?"
     thoughts = []
     try:
@@ -205,14 +206,14 @@ def get_recent_thoughts(limit: int = 10, db_path: Optional[str] = None) -> List[
             cursor.execute(sql, (limit,))
             rows = cursor.fetchall()
             for row in rows:
-                thoughts.append({
-                    "thought_id": row["thought_id"],
-                    "thought_type": row["thought_type"],
-                    "status": row["status"],
-                    "created_at": row["created_at"],
-                    "content": row["content"],
-                    "source_task_id": row["source_task_id"]
-                })
+                thoughts.append(ThoughtSummary(
+                    thought_id=row["thought_id"],
+                    thought_type=row["thought_type"],
+                    status=row["status"],
+                    created_at=row["created_at"],
+                    content=row["content"],
+                    source_task_id=row["source_task_id"]
+                ))
     except Exception as e:
         logger.exception(f"Failed to get recent thoughts: {e}")
     return thoughts

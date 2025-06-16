@@ -1,0 +1,358 @@
+{
+  "_metadata": {
+    "last_modified": "2025-06-16T07:10:15.995896+00:00",
+    "last_modified_path": "workflow.max_rounds",
+    "last_modified_reason": "Testing backup",
+    "version": null
+  },
+  "adaptive": {
+    "circuit_breaker": {
+      "failure_threshold": 3,
+      "half_open_test_interval": 60,
+      "reset_timeout": 300
+    },
+    "enabled": true,
+    "filtering": {
+      "effectiveness_threshold": 0.3,
+      "false_positive_threshold": 0.2,
+      "new_user_threshold": 5,
+      "sample_rate_default": 0.1
+    },
+    "identity_updates": {
+      "allow_emergency_override": false,
+      "require_wa_approval": true,
+      "wa_timeout_hours": 72
+    },
+    "learning": {
+      "adjustment_interval": 3600,
+      "enabled": true,
+      "min_samples_for_adjustment": 10
+    }
+  },
+  "agent_mode": "",
+  "agent_profiles": {},
+  "archive_older_than_hours": 24,
+  "audit": {
+    "anchoring": {
+      "enabled": true,
+      "interval_hours": 1,
+      "method": "local"
+    },
+    "audit_db_path": "ciris_audit.db",
+    "audit_key_path": "audit_keys",
+    "audit_log_path": "audit_logs.jsonl",
+    "enable_jsonl_audit": true,
+    "enable_signed_audit": false,
+    "hash_chain": {
+      "algorithm": "sha256",
+      "enabled": true
+    },
+    "retention_days": 90,
+    "rotation_size_mb": 100,
+    "signatures": {
+      "algorithm": "rsa-pss",
+      "enabled": true,
+      "key_rotation_days": 90,
+      "key_size": 2048
+    }
+  },
+  "cirisnode": {
+    "agent_secret_jwt": null,
+    "base_url": "https://localhost:8001",
+    "max_retries": 2,
+    "timeout_seconds": 30.0
+  },
+  "data_archive_dir": "data_archive",
+  "database": {
+    "data_directory": "data",
+    "db_filename": "ciris_engine.db",
+    "graph_memory_filename": "graph_memory.pkl"
+  },
+  "default_profile": "default",
+  "guardrails": {
+    "channel_updates_require_feedback": true,
+    "coherence_check_enabled": true,
+    "coherence_threshold": 0.6,
+    "enable_remote_graphql": false,
+    "entropy_check_enabled": true,
+    "entropy_threshold": 0.4,
+    "epistemic_humility_enabled": true,
+    "epistemic_humility_threshold": 0.7,
+    "graphql_timeout_seconds": 3.0,
+    "input_sanitization_method": "bleach",
+    "max_actions_per_thought": 7,
+    "max_metadata_bytes": 1024,
+    "max_observe_per_cycle": 10,
+    "max_rounds": 5,
+    "max_speak_length": 2000,
+    "min_defer_reason_length": 20,
+    "optimization_veto_enabled": true,
+    "optimization_veto_ratio": 10.0,
+    "pii_confidence_threshold": 0.7,
+    "pii_detection_enabled": true,
+    "shutdown_timeout_seconds": 10
+  },
+  "home_channel": null,
+  "llm_services": {
+    "openai": {
+      "api_key": "3f8575debcb89afff27191061bbfaa960f871732ca0cbd503c1606c5c35dd45f",
+      "api_key_env_var": "OPENAI_API_KEY",
+      "base_url": "https://api.together.xyz/v1/",
+      "instructor_mode": "JSON",
+      "max_retries": 3,
+      "model_name": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+      "timeout_seconds": 30.0
+    }
+  },
+  "log_level": null,
+  "mock_llm": false,
+  "network": {
+    "agent_identity_path": null,
+    "enabled_networks": [
+      "local",
+      "cirisnode"
+    ],
+    "peer_discovery_interval": 300,
+    "reputation_threshold": 30
+  },
+  "persistence": {
+    "hash_chains": {
+      "graph_nodes": false,
+      "tasks": true,
+      "thoughts": true
+    },
+    "integrity": {
+      "enabled": true,
+      "mode": "full"
+    },
+    "signatures": {
+      "deferred_thoughts": true,
+      "enabled": true,
+      "high_priority_tasks": true,
+      "selective": true,
+      "wa_updates": true
+    },
+    "verification": {
+      "on_deferral": true,
+      "on_startup": false,
+      "periodic_hours": 24
+    }
+  },
+  "profile_directory": "ciris_profiles",
+  "resources": {
+    "actions": {
+      "defer": {
+        "priority_threshold": 50
+      },
+      "shutdown": {
+        "grace_period_seconds": 30,
+        "save_state": true
+      },
+      "throttle": {
+        "increment": 1.0,
+        "max_delay_seconds": 10.0,
+        "min_delay_seconds": 0.1
+      }
+    },
+    "budgets": {},
+    "enabled": true,
+    "monitoring": {
+      "history_hours": 24,
+      "interval_seconds": 1
+    }
+  },
+  "secrets": {
+    "access_control": {
+      "max_accesses_per_hour": 100,
+      "max_accesses_per_minute": 10,
+      "max_decryptions_per_hour": 20,
+      "require_confirmation_for": [
+        "CRITICAL"
+      ]
+    },
+    "audit": {
+      "log_all_access": true,
+      "log_path": "secrets_audit.log",
+      "retention_days": 365
+    },
+    "auto_decapsulation": {
+      "allowed_actions": [
+        "speak",
+        "tool",
+        "memorize"
+      ],
+      "enabled": true,
+      "require_purpose": true
+    },
+    "detection": {
+      "builtin_patterns": true,
+      "custom_patterns": [],
+      "custom_patterns_enabled": true,
+      "default_patterns": [
+        {
+          "context_hint": "API authentication key",
+          "description": "API Key",
+          "enabled": true,
+          "name": "api_keys",
+          "regex": "(?i)api[_-]?key[s]?[\\s:=]+['\\\"]?([a-z0-9_-]{20,})['\\\"]?",
+          "sensitivity": "HIGH"
+        },
+        {
+          "context_hint": "Bearer authentication token",
+          "description": "Bearer Token",
+          "enabled": true,
+          "name": "bearer_tokens",
+          "regex": "(?i)bearer[\\s]+([a-z0-9\\-_.]{20,})",
+          "sensitivity": "HIGH"
+        },
+        {
+          "context_hint": "Password credential",
+          "description": "Password",
+          "enabled": true,
+          "name": "passwords",
+          "regex": "(?i)password[s]?[\\s:=]+['\\\"]?([^\\s'\\\"]{8,})['\\\"]?",
+          "sensitivity": "CRITICAL"
+        },
+        {
+          "context_hint": "Authenticated URL",
+          "description": "URL with Authentication",
+          "enabled": true,
+          "name": "urls_with_auth",
+          "regex": "https?://[^:]+:[^@]+@[^\\s]+",
+          "sensitivity": "HIGH"
+        },
+        {
+          "context_hint": "Cryptographic private key",
+          "description": "Private Key",
+          "enabled": true,
+          "name": "private_keys",
+          "regex": "-----BEGIN [A-Z ]+PRIVATE KEY-----",
+          "sensitivity": "CRITICAL"
+        },
+        {
+          "context_hint": "Payment card number",
+          "description": "Credit Card Number",
+          "enabled": true,
+          "name": "credit_cards",
+          "regex": "\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\\b",
+          "sensitivity": "CRITICAL"
+        },
+        {
+          "context_hint": "Social Security Number",
+          "description": "Social Security Number",
+          "enabled": true,
+          "name": "social_security",
+          "regex": "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+          "sensitivity": "CRITICAL"
+        },
+        {
+          "context_hint": "AWS access key",
+          "description": "AWS Access Key",
+          "enabled": true,
+          "name": "aws_access_key",
+          "regex": "AKIA[0-9A-Z]{16}",
+          "sensitivity": "HIGH"
+        },
+        {
+          "context_hint": "AWS secret access key",
+          "description": "AWS Secret Key",
+          "enabled": true,
+          "name": "aws_secret_key",
+          "regex": "(?i)aws[_-]?secret[_-]?access[_-]?key[\\s:=]+['\\\"]?([a-z0-9/+=]{40})['\\\"]?",
+          "sensitivity": "CRITICAL"
+        },
+        {
+          "context_hint": "GitHub access token",
+          "description": "GitHub Token",
+          "enabled": true,
+          "name": "github_token",
+          "regex": "gh[ps]_[a-zA-Z0-9]{36}",
+          "sensitivity": "HIGH"
+        },
+        {
+          "context_hint": "Slack API token",
+          "description": "Slack Token",
+          "enabled": true,
+          "name": "slack_token",
+          "regex": "xox[baprs]-([0-9a-zA-Z]{10,48})",
+          "sensitivity": "HIGH"
+        },
+        {
+          "context_hint": "Discord bot token",
+          "description": "Discord Bot Token",
+          "enabled": true,
+          "name": "discord_token",
+          "regex": "[MN][A-Za-z\\d]{23}\\.[\\w-]{6}\\.[\\w-]{27}",
+          "sensitivity": "HIGH"
+        }
+      ],
+      "disabled_patterns": [],
+      "sensitivity_threshold": "MEDIUM"
+    },
+    "enabled": true,
+    "storage": {
+      "database_path": "secrets.db",
+      "encryption_key_env": "SECRETS_MASTER_KEY",
+      "key_rotation_days": 90
+    }
+  },
+  "telemetry": {
+    "buffer_size": 1000,
+    "collectors": {
+      "aggregate": {
+        "interval_ms": 30000,
+        "max_buffer_size": 1000
+      },
+      "fast": {
+        "interval_ms": 250,
+        "max_buffer_size": 5000
+      },
+      "instant": {
+        "interval_ms": 50,
+        "max_buffer_size": 1000
+      },
+      "normal": {
+        "interval_ms": 1000,
+        "max_buffer_size": 10000
+      },
+      "slow": {
+        "interval_ms": 5000,
+        "max_buffer_size": 5000
+      }
+    },
+    "enabled": false,
+    "export": {
+      "api": false,
+      "otlp": false,
+      "websocket": false
+    },
+    "internal_only": true,
+    "retention_hours": 1,
+    "security": {
+      "encryption_key_env": "TELEMETRY_ENCRYPTION_KEY",
+      "max_history_hours": 1,
+      "pii_detection": true,
+      "require_auth": true,
+      "require_tls": true
+    },
+    "snapshot_interval_ms": 1000
+  },
+  "version": null,
+  "wisdom": {
+    "allow_universal_guidance": true,
+    "minimum_urgency_for_universal": 80,
+    "peer_consensus_threshold": 3,
+    "wa_timeout_hours": 72
+  },
+  "workflow": {
+    "DMA_RETRY_LIMIT": 3,
+    "DMA_TIMEOUT_SECONDS": 30.0,
+    "GUARDRAIL_RETRY_LIMIT": 2,
+    "max_active_tasks": 10,
+    "max_active_thoughts": 50,
+    "max_rounds": 10,
+    "mock_llm_round_delay_seconds": 0.1,
+    "num_rounds": null,
+    "round_delay_seconds": 3.14159
+  }
+}

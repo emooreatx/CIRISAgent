@@ -13,11 +13,27 @@ from pathlib import Path
 import tempfile
 import logging
 
+# Import adapter configs to resolve forward references
+try:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
+except ImportError:
+    DiscordAdapterConfig = type('DiscordAdapterConfig', (), {})
+    APIAdapterConfig = type('APIAdapterConfig', (), {})
+    CLIAdapterConfig = type('CLIAdapterConfig', (), {})
+
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from ciris_engine.schemas.identity_schemas_v1 import ScheduledTask
+
+# Rebuild models with resolved references
+try:
+    AppConfig.model_rebuild()
+except Exception:
+    pass
 from ciris_engine.persistence import (
     get_db_connection,
     get_task_by_id,
@@ -58,7 +74,7 @@ async def test_memorize_future_task_with_mock_llm():
         )
         
         # Create runtime with mock LLM
-        runtime = CIRISRuntime(app_config=config)
+        runtime = CIRISRuntime(app_config=config, adapter_types=['cli'])  # Use CLI adapter
         
         # Initialize the runtime (this creates DB tables, etc.)
         await runtime.initialize()

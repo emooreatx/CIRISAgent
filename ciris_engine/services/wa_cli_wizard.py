@@ -10,6 +10,7 @@ from ciris_engine.services.wa_auth_service import WAAuthService
 from ciris_engine.services.wa_cli_bootstrap import WACLIBootstrapService
 from ciris_engine.services.wa_cli_oauth import WACLIOAuthService
 from ciris_engine.services.wa_cli_display import WACLIDisplayService
+from ciris_engine.schemas.wa_schemas_v1 import WACertificate
 
 
 class WACLIWizardService:
@@ -34,7 +35,7 @@ class WACLIWizardService:
         self.console.print("\n🎭 [bold cyan]Welcome to CIRIS WA Onboarding![/bold cyan]\n")
         
         # Check if any WAs exist
-        existing_was = await self.auth_service.list_was()
+        existing_was = await self.auth_service.list_all_was()
         root_exists = any(wa.role == "root" for wa in existing_was)
         
         if root_exists:
@@ -92,12 +93,10 @@ class WACLIWizardService:
         use_shamir = Confirm.ask("Enable Shamir secret sharing? (splits key into multiple parts)", default=False)
         shamir_shares = None
         if use_shamir:
-            total = IntPrompt.ask("Total number of shares", default=3, min_value=2, max_value=10)
+            total = IntPrompt.ask("Total number of shares (2-10)", default=3)
             threshold = IntPrompt.ask(
                 f"Threshold needed to reconstruct (must be <= {total})", 
-                default=2, 
-                min_value=1, 
-                max_value=total
+                default=2
             )
             shamir_shares = (threshold, total)
         
@@ -134,7 +133,8 @@ class WACLIWizardService:
                 raise ValueError("Certificate is not a root WA")
             
             # Import the certificate
-            await self.auth_service.import_certificate(cert_data)
+            wa_cert = WACertificate(**cert_data)
+            await self.auth_service.create_wa(wa_cert)
             
             self.console.print("✅ Root certificate imported successfully!")
             self.console.print("⚠️  You'll need the corresponding private key to use root privileges.")

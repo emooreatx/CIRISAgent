@@ -34,7 +34,8 @@ class CliPlatform(PlatformAdapter):
         self.cli_adapter = CLIAdapter(
             interactive=self.config.interactive,
             on_message=self._handle_incoming_message,
-            multi_service_sink=getattr(runtime, 'multi_service_sink', None)
+            multi_service_sink=getattr(runtime, 'multi_service_sink', None),
+            config=self.config
         )
 
     async def _handle_incoming_message(self, msg: IncomingMessage) -> None:

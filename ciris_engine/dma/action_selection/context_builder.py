@@ -57,7 +57,7 @@ class ActionSelectionContextBuilder:
         )
         
         # Build guidance sections
-        guidance_sections = self._build_guidance_sections(agent_profile_name)
+        guidance_sections = self._build_guidance_sections(agent_profile_name, permitted_actions)
         
         # Build system context
         processing_context = triaged_inputs.get("processing_context")
@@ -146,20 +146,26 @@ Adhere strictly to the schema for your JSON output.
             )
             permitted_actions = default_permitted_actions
         
-        return permitted_actions
+        # Return the permitted actions - they MUST be HandlerActionType enums
+        return list(permitted_actions)
     
     def _get_available_tools_str(self, permitted_actions: List[HandlerActionType]) -> str:
         """Get available tools string if TOOL action is permitted."""
         available_tools_str = ""
         if HandlerActionType.TOOL in permitted_actions:
             try:
-                from ciris_engine.action_handlers.tool_handler import ToolHandler
-                
-                tool_registry = ToolHandler._tool_registry
-                if tool_registry and hasattr(tool_registry, "_tools"):
-                    tool_names = list(tool_registry._tools.keys())
-                    if tool_names:
-                        available_tools_str = f"\nAvailable tools: {', '.join(tool_names)}"
+                # Get tools from service registry if available
+                if self.service_registry:
+                    from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
+                    tool_services = self.service_registry.get_services_by_type(ServiceType.TOOL)
+                    all_tools: List[str] = []
+                    for service in tool_services:
+                        if hasattr(service, 'get_available_tools'):
+                            # This is an async method, so we need to handle it properly
+                            # For now, we'll skip the async call since we're in a sync context
+                            # The dynamic instruction generator will handle this better
+                            pass
+                    # Fall back to empty string if we can't get tools synchronously
             except Exception:
                 pass
         
@@ -250,7 +256,7 @@ Adhere strictly to the schema for your JSON output.
             )
             return "\nIMPORTANT FINAL ATTEMPT: Attempt to provide a terminal action."
     
-    def _build_guidance_sections(self, agent_profile_name: Optional[str]) -> Dict[str, str]:
+    def _build_guidance_sections(self, agent_profile_name: Optional[str], permitted_actions: List[HandlerActionType]) -> Dict[str, str]:
         """Build all guidance sections."""
         return {
             'action_alignment_csdma_guidance': self._get_profile_specific_prompt(

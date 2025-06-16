@@ -94,7 +94,6 @@ For existing systems:
 All documentation includes:
 - Beta software disclaimers
 - Copyright notices (Eric Moore and CIRIS L3C)
-- Patent pending notices
 - Apache 2.0 license references
 
 ## Legal Compliance
@@ -103,7 +102,6 @@ All documentation includes:
 - Updated README with prominent warnings
 - Added copyright headers to all docs
 - Included liability disclaimers
-- Patent pending notices added
 
 ---
 

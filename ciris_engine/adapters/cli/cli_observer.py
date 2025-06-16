@@ -3,6 +3,7 @@ import logging
 from typing import Callable, Awaitable, Dict, Any, Optional
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
+from ciris_engine.schemas.filter_schemas_v1 import FilterResult
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.adapters.base_observer import BaseObserver
@@ -104,8 +105,11 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         import socket
         return {f"channel/{socket.gethostname()}"}
 
-    def _is_cli_channel(self, channel_id: str) -> bool:
+    def _is_cli_channel(self, channel_id: Optional[str]) -> bool:
         """Check if a channel ID belongs to this CLI observer instance."""
+        if not channel_id:
+            return False
+            
         if channel_id == "cli":
             return True
         
@@ -159,7 +163,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         await self._recall_context(processed_msg)
 
 
-    async def _handle_priority_observation(self, msg: IncomingMessage, filter_result) -> None:
+    async def _handle_priority_observation(self, msg: IncomingMessage, filter_result: FilterResult) -> None:
         """Handle high-priority messages with immediate processing"""
         # The CLI observer should handle any CLI-related channel, not just "cli"
         # This could be "cli", "user@hostname", or any channel ID this CLI instance is responsible for

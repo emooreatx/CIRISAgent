@@ -8,7 +8,25 @@ from typing import Dict, Any
 
 from ciris_engine.processor.main_processor import AgentProcessor
 from ciris_engine.protocols.processor_interface import ProcessorInterface
+# Import adapter configs to resolve forward references
+try:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
+except ImportError:
+    # If imports fail, create dummy classes
+    DiscordAdapterConfig = type('DiscordAdapterConfig', (), {})
+    APIAdapterConfig = type('APIAdapterConfig', (), {})
+    CLIAdapterConfig = type('CLIAdapterConfig', (), {})
+
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
+
+# Rebuild models with resolved references
+try:
+    AgentProfile.model_rebuild()
+    AppConfig.model_rebuild()
+except Exception:
+    pass
 from ciris_engine.schemas.states_v1 import AgentState
 
 
@@ -28,7 +46,11 @@ class TestAgentProcessorProtocolCompliance:
     @pytest.fixture
     def minimal_profile(self):
         """Create minimal profile for testing."""
-        return AgentProfile(name="test_profile")
+        return AgentProfile(
+            name="test_profile",
+            description="Test agent for unit tests",
+            role_description="A minimal test agent profile"
+        )
 
     @pytest.fixture
     def mock_dependencies(self):
@@ -51,7 +73,7 @@ class TestAgentProcessorProtocolCompliance:
             
             processor = AgentProcessor(
                 app_config=minimal_config,
-                active_profile=minimal_profile,
+                profile=minimal_profile,
                 thought_processor=mock_dependencies["thought_processor"],
                 action_dispatcher=mock_dependencies["action_dispatcher"],
                 services=mock_dependencies["services"]

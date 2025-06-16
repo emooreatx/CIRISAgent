@@ -39,8 +39,8 @@ class FacultyIntegration:
         
         # Call content faculties with minimal context (just the content)
         minimal_context = {
-            "evaluation_context": context.get("evaluation_context", ""),
-            "thought_metadata": context.get("thought_metadata", {})
+            "evaluation_context": context.get("evaluation_context", "") if context else "",
+            "thought_metadata": context.get("thought_metadata", {}) if context else {}
         }
         
         for name, faculty in content_faculties.items():

@@ -1,5 +1,5 @@
 # Protocol-facing mock responses for epistemic faculties
-from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
+from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
 
 def entropy(context=None):
     """Mock EntropyResult with passing value (entropy=0.1), instructor compatible."""

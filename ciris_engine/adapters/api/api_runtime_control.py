@@ -6,8 +6,8 @@ from typing import Any, Optional
 
 from ciris_engine.runtime.runtime_control import RuntimeControlService
 from ciris_engine.schemas.runtime_control_schemas import (
-    ProcessorControlRequest, AdapterLoadRequest, AdapterUnloadRequest,
-    ConfigUpdateRequest, ConfigGetRequest,
+    AdapterLoadRequest,
+    ConfigUpdateRequest,
     ConfigValidationRequest, ConfigBackupRequest, ConfigRestoreRequest
 )
 

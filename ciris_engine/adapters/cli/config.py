@@ -30,11 +30,11 @@ class CLIAdapterConfig(BaseModel):
         if self.default_channel_id:
             return self.default_channel_id
             
-        # Generate channel ID from user@hostname
+        # Generate unique channel ID for this connection
         try:
-            username = getpass.getuser()
-            hostname = socket.gethostname()
-            return f"{username}@{hostname}"
+            import uuid
+            import os
+            return f"cli_{os.getpid()}_{uuid.uuid4().hex[:8]}"
         except Exception:
             return "cli_default"
 

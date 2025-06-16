@@ -12,12 +12,19 @@ from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType, DispatchContext
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.action_params_v1 import PonderParams, RecallParams, MemorizeParams
 from ciris_engine.action_handlers.helpers import create_follow_up_thought
 from ciris_engine.action_handlers.ponder_handler import PonderHandler
+from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
+
+# Rebuild models with resolved references
+try:
+    DispatchContext.model_rebuild()
+except Exception:
+    pass
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 
 
@@ -138,6 +145,7 @@ class TestPonderCountPropagation:
         mock_action_dispatcher = Mock()
         mock_action_dispatcher.get_handler.return_value = None
         mock_dependencies.action_dispatcher = mock_action_dispatcher
+        mock_dependencies.service_registry = None  # Add service_registry attribute
         
         # Mock persistence calls
         mock_persistence.update_thought_status.return_value = True
@@ -165,7 +173,22 @@ class TestPonderCountPropagation:
         
         # Handle the ponder action
         import asyncio
-        asyncio.run(ponder_handler.handle(ponder_result, pondered_thought, {}))
+        dispatch_context = DispatchContext(
+            channel_id="test_channel",
+            author_id="test_author",
+            author_name="Test Author",
+            origin_service="test_service",
+            handler_name="ponder",
+            action_type=HandlerActionType.PONDER,
+            task_id=pondered_thought.source_task_id,
+            thought_id=pondered_thought.thought_id,
+            source_task_id=pondered_thought.source_task_id,
+            event_summary="Test ponder action",
+            event_timestamp=datetime.now(timezone.utc).isoformat(),
+            correlation_id="test_correlation_id",
+            round_number=1
+        )
+        asyncio.run(ponder_handler.handle(ponder_result, pondered_thought, dispatch_context))
         
         # Verify follow-up thought was created with correct ponder count
         assert len(captured_thoughts) == 1
@@ -188,9 +211,9 @@ class TestPonderCountPropagation:
         
         # Should include guidance about multiple attempts and suggest alternatives
         assert "Multiple attempts (4)" in content
-        assert "repeatedly blocked by guardrails" in content
-        assert "defer to human oversight" in content
-        assert "fundamentally different approach" in content
+        assert "Multiple attempts" in content  # Updated guidance text
+        assert "DEFER" in content  # Updated guidance mentions DEFER
+        assert "TASK_COMPLETE" in content  # New guidance emphasizes TASK_COMPLETE
     
     def test_max_rounds_behavior_with_ponder_count(self, heavily_pondered_thought):
         """Test that max rounds are properly enforced based on ponder count."""
@@ -199,6 +222,11 @@ class TestPonderCountPropagation:
         mock_defer_handler = AsyncMock()
         mock_action_dispatcher.get_handler.return_value = mock_defer_handler
         mock_dependencies.action_dispatcher = mock_action_dispatcher
+        
+        # Create mock service registry that returns the defer handler
+        mock_service_registry = Mock()
+        mock_service_registry.get_service = AsyncMock(return_value=mock_defer_handler)
+        mock_dependencies.service_registry = mock_service_registry
         
         # Set max rounds to 4, so a thought with ponder_count=3 should defer on next ponder
         ponder_handler = PonderHandler(mock_dependencies, max_rounds=4)
@@ -212,7 +240,22 @@ class TestPonderCountPropagation:
         
         # Should trigger defer handler when max rounds reached
         import asyncio
-        asyncio.run(ponder_handler.handle(ponder_result, heavily_pondered_thought, {}))
+        dispatch_context = DispatchContext(
+            channel_id="test_channel",
+            author_id="test_author",
+            author_name="Test Author",
+            origin_service="test_service",
+            handler_name="ponder",
+            action_type=HandlerActionType.PONDER,
+            task_id=heavily_pondered_thought.source_task_id,
+            thought_id=heavily_pondered_thought.thought_id,
+            source_task_id=heavily_pondered_thought.source_task_id,
+            event_summary="Test max ponder rounds",
+            event_timestamp=datetime.now(timezone.utc).isoformat(),
+            correlation_id="test_correlation_max",
+            round_number=4
+        )
+        asyncio.run(ponder_handler.handle(ponder_result, heavily_pondered_thought, dispatch_context))
         
         # Verify defer handler was called
         mock_defer_handler.handle.assert_called_once()

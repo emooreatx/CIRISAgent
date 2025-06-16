@@ -158,12 +158,12 @@ class ListToolsAction(ActionMessage):
 @dataclass  
 class GenerateStructuredAction(ActionMessage):
     """Action to generate a structured response via LLM service"""
-    messages: list
+    messages: list[Any]
     response_model: Any
     max_tokens: int = 1024
     temperature: float = 0.0
     
-    def __init__(self, handler_name: str, metadata: Dict[str, Any], messages: list, 
+    def __init__(self, handler_name: str, metadata: Dict[str, Any], messages: list[Any], 
                  response_model: Any, max_tokens: int = 1024, temperature: float = 0.0) -> None:
         super().__init__(ActionType.GENERATE_STRUCTURED, handler_name, metadata)
         self.messages = messages

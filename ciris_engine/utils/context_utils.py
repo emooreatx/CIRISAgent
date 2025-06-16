@@ -5,7 +5,7 @@ from datetime import datetime
 if TYPE_CHECKING:
     from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
 
-from ciris_engine.schemas.foundational_schemas_v1 import DispatchContext
+from ciris_engine.schemas.foundational_schemas_v1 import DispatchContext, HandlerActionType
 
 logger = logging.getLogger(__name__)
 
@@ -58,20 +58,24 @@ def build_dispatch_context(
     
     if task:
         task_id = getattr(task, "task_id", None)
-        if hasattr(task, "context") and isinstance(task.context, dict):
-            channel_id = task.context.get("channel_id")
-            author_id = task.context.get("author_id")
-            author_name = task.context.get("author_name")
-            
-            # Update thought context with channel_id if needed
-            if channel_id and "channel_id" in task.context:
-                if not hasattr(thought, 'context') or thought.context is None:
-                    thought.context = {}
-                if isinstance(thought.context, dict):
-                    thought.context.setdefault("channel_id", channel_id)
-                else:
-                    if getattr(thought.context, "channel_id", None) is None:
-                        thought.context = thought.context.model_copy(update={"channel_id": channel_id})
+        if hasattr(task, "context"):
+            # Handle both dict and ThoughtContext objects
+            if isinstance(task.context, dict):
+                channel_id = task.context.get("channel_id")
+                author_id = task.context.get("author_id")
+                author_name = task.context.get("author_name")
+            elif hasattr(task.context, "system_snapshot"):
+                # ThoughtContext object
+                if task.context.system_snapshot:
+                    channel_id = task.context.system_snapshot.channel_id
+                    # SystemSnapshot doesn't have user_id/user_name - these come from user_profiles
+                    # For wakeup tasks, we don't have a specific user
+                    author_id = None
+                    author_name = None
+    
+    # Check extra_context for channel_id as fallback
+    if channel_id is None and extra_context:
+        channel_id = extra_context.get("channel_id")
     
     # Channel ID is required
     if channel_id is None:
@@ -106,7 +110,7 @@ def build_dispatch_context(
         action_type=action_type or HandlerActionType.SPEAK,
         thought_id=thought_id or "",
         task_id=task_id or "",
-        source_task_id=source_task_id,
+        source_task_id=source_task_id or "",
         
         # Event details
         event_summary=event_summary or "No summary provided",
@@ -116,7 +120,7 @@ def build_dispatch_context(
         wa_id=wa_id,
         wa_authorized=wa_authorized,
         correlation_id=correlation_id or f"ctx_{datetime.utcnow().timestamp()}",
-        round_number=round_number,
+        round_number=round_number or 0,
         
         # Guardrail results (None for terminal actions)
         guardrail_result=guardrail_result

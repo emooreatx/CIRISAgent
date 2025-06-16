@@ -12,7 +12,7 @@ from ciris_engine.protocols.faculties import EpistemicFaculty
 
 from .dsdma_base import BaseDSDMA
 from ciris_engine.schemas.config_schemas_v1 import AgentProfile
-from ..utils.profile_loader import load_profile
+from ..utils.profile_loader import load_template
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,6 @@ async def create_dsdma_from_profile(
     service_registry: ServiceRegistry,
     *,
     model_name: Optional[str] = None,
-    default_profile_path: Path = DEFAULT_PROFILE_PATH,
     sink: Optional[Any] = None,
 ) -> Optional[BaseDSDMA]:
     """Instantiate a DSDMA based on the given profile.

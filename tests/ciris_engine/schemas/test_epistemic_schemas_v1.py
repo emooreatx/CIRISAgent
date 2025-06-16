@@ -1,4 +1,4 @@
-from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
+from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
 
 def test_entropy_result():
     res = EntropyResult(entropy=0.5)

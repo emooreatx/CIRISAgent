@@ -3,10 +3,11 @@ from ciris_engine.persistence.models import thoughts as thought_ops
 from ciris_engine.persistence import count_tasks
 from ciris_engine.persistence import count_thoughts
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
-from typing import Optional, List, Any
+from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+from typing import Optional, List
 
 
-def get_pending_thoughts_for_active_tasks(limit: Optional[int] = None) -> List[Any]:
+def get_pending_thoughts_for_active_tasks(limit: Optional[int] = None) -> List[Thought]:
     """Return all thoughts pending or processing for ACTIVE tasks."""
     active_tasks = task_ops.get_tasks_by_status(TaskStatus.ACTIVE)
     active_task_ids = {t.task_id for t in active_tasks}
@@ -35,10 +36,10 @@ def count_active_tasks() -> int:
     return count_tasks(TaskStatus.ACTIVE)
 
 
-def get_tasks_needing_seed_thought(limit: Optional[int] = None) -> List[Any]:
+def get_tasks_needing_seed_thought(limit: Optional[int] = None) -> List[Task]:
     """Get active tasks that don't yet have thoughts."""
     active_tasks = task_ops.get_tasks_by_status(TaskStatus.ACTIVE)
-    tasks_needing_seed: List[Any] = []
+    tasks_needing_seed: List[Task] = []
     for task in active_tasks:
         thoughts = thought_ops.get_thoughts_by_task_id(task.task_id)
         if not thoughts:

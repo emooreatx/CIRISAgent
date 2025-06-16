@@ -23,7 +23,7 @@ class WACLIDisplayService:
         """List all WAs in table or tree format."""
         try:
             # Get all WAs
-            all_was = await self.auth_service.list_was()
+            all_was = await self.auth_service.list_all_was()
             
             if not all_was:
                 self.console.print("No WAs found. Run 'ciris wa onboard' to get started.")
@@ -104,8 +104,7 @@ class WACLIDisplayService:
             if child.oauth_provider:
                 child_node.add(f"OAuth: [blue]{child.oauth_provider}[/blue]")
             
-            if child.discord_id:
-                child_node.add(f"Discord: [blue]{child.discord_id}[/blue]")
+            # Discord ID removed - not part of WACertificate schema
             
             child_node.add(f"Status: {'✅ Active' if child.active else '❌ Inactive'}")
             
@@ -140,8 +139,7 @@ class WACLIDisplayService:
                 table.add_row("OAuth Provider", wa.oauth_provider)
                 table.add_row("OAuth ID", wa.oauth_external_id or "N/A")
             
-            if wa.discord_id:
-                table.add_row("Discord ID", wa.discord_id)
+            # Discord ID removed - not part of WACertificate schema
             
             if wa.channel_id:
                 table.add_row("Channel ID", wa.channel_id)
@@ -167,7 +165,7 @@ class WACLIDisplayService:
             self.console.print(table)
             
             # Show children if any
-            all_was = await self.auth_service.list_was()
+            all_was = await self.auth_service.list_all_was()
             children = [w for w in all_was if w.parent_wa_id == wa_id]
             
             if children:

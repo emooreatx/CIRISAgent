@@ -65,6 +65,65 @@ class TSDBSignedAuditService(Service):
         await super().stop()
         logger.info("TSDB audit service stopped")
     
+    async def log_event(self, event_type: str, event_data: Dict[str, Any]) -> None:
+        """
+        Log a general event.
+        
+        Args:
+            event_type: Type of event being logged
+            event_data: Event data and context
+        """
+        try:
+            entry = AuditLogEntry(
+                event_id=str(uuid4()),
+                event_timestamp=datetime.now(timezone.utc).isoformat(),
+                event_type=event_type,
+                originator_id=event_data.get("originator_id", "system"),
+                target_id=event_data.get("target_id"),
+                event_summary=event_data.get("summary", f"Event: {event_type}"),
+                event_payload=event_data,
+                agent_profile=event_data.get("agent_profile"),
+                round_number=event_data.get("round_number"),
+                thought_id=event_data.get("thought_id"),
+                task_id=event_data.get("task_id"),
+            )
+            
+            audit_correlation = ServiceCorrelation(
+                correlation_id=entry.event_id,
+                service_type="audit",
+                handler_name="audit_service",
+                action_type=event_type,
+                correlation_type=CorrelationType.AUDIT_EVENT,
+                timestamp=datetime.fromisoformat(entry.event_timestamp),
+                request_data={
+                    "event_type": entry.event_type,
+                    "originator_id": entry.originator_id,
+                    "target_id": entry.target_id,
+                    "event_summary": entry.event_summary,
+                    "agent_profile": entry.agent_profile,
+                    "round_number": entry.round_number,
+                    "thought_id": entry.thought_id,
+                    "task_id": entry.task_id,
+                },
+                response_data=event_data,
+                tags={
+                    **self.tags,
+                    "event": event_type,
+                    "severity": event_data.get("severity", "info"),
+                    "agent_profile": entry.agent_profile or "unknown",
+                },
+                status=ServiceCorrelationStatus.COMPLETED,
+                retention_policy=self.retention_policy
+            )
+            
+            await self._store_audit_correlation(audit_correlation)
+            
+            if self.enable_file_backup and self.file_audit_service:
+                await self.file_audit_service.log_event(event_type, event_data)
+                
+        except Exception as e:
+            logger.error(f"Failed to log audit event: {e}")
+    
     async def log_action(
         self,
         handler_action: HandlerActionType,

@@ -4,6 +4,24 @@ from ciris_engine.processor.main_processor import AgentProcessor
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.states_v1 import AgentState
+
+# Import adapter configs to resolve forward references
+try:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
+except ImportError:
+    DiscordAdapterConfig = type('DiscordAdapterConfig', (), {})
+    APIAdapterConfig = type('APIAdapterConfig', (), {})
+    CLIAdapterConfig = type('CLIAdapterConfig', (), {})
+
+# Rebuild models with resolved references  
+try:
+    AgentProfile.model_rebuild()
+    AppConfig.model_rebuild()
+except Exception:
+    pass
+
 from ciris_engine.utils.context_utils import build_dispatch_context
 
 @pytest.mark.asyncio
@@ -21,12 +39,16 @@ async def test_build_dispatch_context_modes(agent_mode, task_channel_id, expecte
     # Minimal AppConfig mock
     app_config = MagicMock()
     app_config.agent_mode = agent_mode
-    active_profile = AgentProfile(name="test_profile")
+    active_profile = AgentProfile(
+            name="test_profile",
+            description="Test agent for unit tests",
+            role_description="A minimal test agent profile"
+        )
     dispatcher = MagicMock()
     services = {}
     processor = AgentProcessor(
         app_config=app_config,
-        active_profile=active_profile,  # Pass active profile
+        profile=active_profile,  # Pass active profile
         thought_processor=MagicMock(),
         action_dispatcher=dispatcher,
         services=services,

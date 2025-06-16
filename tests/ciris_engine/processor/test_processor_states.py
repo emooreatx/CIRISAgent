@@ -4,6 +4,24 @@ from unittest.mock import AsyncMock
 from ciris_engine.processor import WakeupProcessor, WorkProcessor, PlayProcessor, SolitudeProcessor, DreamProcessor
 from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, CIRISNodeConfig, AgentProfile # Corrected import for AgentProfile
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+
+# Import adapter configs to resolve forward references
+try:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
+except ImportError:
+    DiscordAdapterConfig = type('DiscordAdapterConfig', (), {})
+    APIAdapterConfig = type('APIAdapterConfig', (), {})
+    CLIAdapterConfig = type('CLIAdapterConfig', (), {})
+
+# Rebuild models with resolved references  
+try:
+    AgentProfile.model_rebuild()
+    AppConfig.model_rebuild()
+except Exception:
+    pass
+
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, ThoughtType
 
 
@@ -169,7 +187,11 @@ async def test_dream_processor_pulse(monkeypatch):
         llm_services=LLMServicesConfig(openai=OpenAIConfig(model_name="test-model")),
         cirisnode=CIRISNodeConfig(base_url="https://x") 
         )
-    mock_profile = AgentProfile(name="test_agent")
+    mock_profile = AgentProfile(
+            name="test_agent",
+            description="Test agent for unit tests",
+            role_description="A minimal test agent profile"
+        )
     
     # Create a mock audit service
     class MockAuditService:

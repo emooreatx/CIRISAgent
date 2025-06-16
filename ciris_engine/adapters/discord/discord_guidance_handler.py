@@ -279,7 +279,7 @@ class DeferralHelperView(ui.View):
         self.context = context or {}
         
     @ui.button(label="Approve", style=discord.ButtonStyle.success, emoji="✅")
-    async def approve_button(self, interaction: discord.Interaction, button: ui.Button):
+    async def approve_button(self, interaction: discord.Interaction, button: ui.Button) -> None:
         """Provide template response for approval."""
         await interaction.response.send_message(
             f"To approve this deferral, reply with:\n```\nAPPROVE {self.thought_id}\n```",
@@ -287,7 +287,7 @@ class DeferralHelperView(ui.View):
         )
         
     @ui.button(label="Reject", style=discord.ButtonStyle.danger, emoji="❌")
-    async def reject_button(self, interaction: discord.Interaction, button: ui.Button):
+    async def reject_button(self, interaction: discord.Interaction, button: ui.Button) -> None:
         """Provide template response for rejection."""
         await interaction.response.send_message(
             f"To reject this deferral, reply with:\n```\nREJECT {self.thought_id}\n```",
@@ -295,7 +295,7 @@ class DeferralHelperView(ui.View):
         )
         
     @ui.button(label="Request Info", style=discord.ButtonStyle.secondary, emoji="❓")
-    async def info_button(self, interaction: discord.Interaction, button: ui.Button):
+    async def info_button(self, interaction: discord.Interaction, button: ui.Button) -> None:
         """Provide detailed context about the deferred task/thought."""
         # Build detailed info message
         info_lines = ["**Detailed Task/Thought Information**\n"]

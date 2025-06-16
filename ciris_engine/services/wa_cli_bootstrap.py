@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.prompt import Prompt, Confirm
 
 from ciris_engine.schemas.wa_schemas_v1 import (
-    WACertificate, WACreateRequest, WARole, TokenType
+    WACertificate, WARole, TokenType
 )
 from ciris_engine.services.wa_auth_service import WAAuthService
 
@@ -149,11 +149,11 @@ class WACLIBootstrapService:
             
             # Sign with parent's key
             signature_data = f"{wa_id}:{child_wa.pubkey}:{parent_wa_id}"
-            parent_signature = self.auth_service._sign_data(
+            parent_signature = self.auth_service.sign_data(
                 signature_data.encode(), 
                 parent_private_key
             )
-            child_wa.parent_signature = self.auth_service._encode_signature(parent_signature)
+            child_wa.parent_signature = parent_signature
             
             # Add password if requested
             if use_password:

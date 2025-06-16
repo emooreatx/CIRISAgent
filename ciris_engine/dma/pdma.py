@@ -100,12 +100,14 @@ class EthicalPDMAEvaluator(BaseDMA, EthicalDMAInterface):
         messages.append({"role": "user", "content": user_message})
         
         try:
-            response_obj, resource_usage = await self.call_llm_structured(
+            result_tuple = await self.call_llm_structured(
                 messages=messages,
                 response_model=EthicalDMAResult,
                 max_tokens=1024,
                 temperature=0.0
             )
+            response_obj: EthicalDMAResult = result_tuple[0]
+            resource_usage = result_tuple[1]
             logger.info(f"Evaluation successful for thought ID {input_data.thought_id}")
             return response_obj
         except Exception as e:

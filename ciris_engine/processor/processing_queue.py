@@ -29,6 +29,7 @@ class ProcessingQueueItem(BaseModel):
     raw_input_string: Optional[str] = Field(default=None, description="The original input string that generated this thought, if applicable.")
     initial_context: Optional[Dict[str, Any] | ThoughtContext] = Field(default=None, description="Initial context when the thought was first received/generated for processing.")
     ponder_notes: Optional[List[str]] = Field(default=None, description="Key questions from a previous Ponder action if this item is being re-queued.")
+    guardrail_feedback: Optional[Any] = Field(default=None, description="Guardrail evaluation feedback if applicable.")
 
     @property
     def content_text(self) -> str:

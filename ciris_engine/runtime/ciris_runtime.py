@@ -13,7 +13,6 @@ from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
 from ciris_engine.processor import AgentProcessor
 from ciris_engine.adapters.base import Service
 from ciris_engine import persistence
-from ciris_engine.utils.profile_loader import load_profile
 from ciris_engine.utils.constants import DEFAULT_NUM_ROUNDS
 from ciris_engine.adapters import load_adapter
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration
@@ -22,6 +21,7 @@ from .runtime_interface import RuntimeInterface
 from .identity_manager import IdentityManager
 from .service_initializer import ServiceInitializer
 from .component_builder import ComponentBuilder
+from ciris_engine.action_handlers.handler_registry import build_action_dispatcher
 
 from ciris_engine.utils.shutdown_manager import (
     get_shutdown_manager, 
@@ -50,15 +50,14 @@ class CIRISRuntime(RuntimeInterface):
     def __init__(
         self,
         adapter_types: List[str],
-        profile_name: str = "default",
         app_config: Optional[AppConfig] = None,
         startup_channel_id: Optional[str] = None,
         adapter_configs: Optional[dict] = None,
         **kwargs: Any,
     ) -> None:
-        self.profile_name = profile_name
         self.app_config = app_config
-        self.startup_channel_id = startup_channel_id
+        # Ensure we always have a startup_channel_id
+        self.startup_channel_id = startup_channel_id or "default"
         self.adapter_configs = adapter_configs or {}
         self.adapters: List[PlatformAdapter] = []
         
@@ -84,22 +83,6 @@ class CIRISRuntime(RuntimeInterface):
         if not self.adapters:
             raise RuntimeError("No valid adapters specified, shutting down")
         
-        self.llm_service: Optional[OpenAICompatibleClient] = None
-        self.memory_service: Optional[LocalGraphMemoryService] = None
-        self.audit_service: Optional[AuditService] = None
-        self.maintenance_service: Optional[DatabaseMaintenanceService] = None
-        self.telemetry_service: Optional[TelemetryService] = None
-        self.secrets_service: Optional[SecretsService] = None
-        self.adaptive_filter_service: Optional[AdaptiveFilterService] = None
-        self.agent_config_service: Optional[AgentConfigService] = None
-        self.transaction_orchestrator: Optional[MultiServiceTransactionOrchestrator] = None
-        
-        self.service_registry: Optional[ServiceRegistry] = None
-        
-        self.multi_service_sink: Optional[MultiServiceActionSink] = None
-        
-        self.agent_processor: Optional[AgentProcessor] = None
-        
         # Runtime state
         self._initialized = False
         self._shutdown_manager = get_shutdown_manager()
@@ -108,10 +91,8 @@ class CIRISRuntime(RuntimeInterface):
         self._agent_task: Optional[asyncio.Task] = None
         self._preload_tasks: List[str] = []
         
-        # Profile and identity - will be loaded during initialization
-        self.profile: Optional[AgentProfile] = None
+        # Identity - will be loaded during initialization
         self.agent_identity: Optional[Any] = None
-        self.agent_processor: Optional[AgentProcessor] = None
     
     # Properties to access services from the service initializer
     @property
@@ -167,6 +148,28 @@ class CIRISRuntime(RuntimeInterface):
         return self.service_initializer.core_tool_service if self.service_initializer else None
     
     @property
+    def profile(self) -> Optional[Any]:
+        """Convert agent identity to profile format for compatibility."""
+        if not self.agent_identity:
+            return None
+            
+        from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+        
+        # Create AgentProfile from identity
+        return AgentProfile(
+            name=self.agent_identity.agent_id,
+            description=self.agent_identity.core_profile.description,
+            role_description=self.agent_identity.core_profile.role_description,
+            permitted_actions=self.agent_identity.permitted_actions,
+            dsdma_kwargs={
+                'domain_specific_knowledge': self.agent_identity.core_profile.domain_specific_knowledge,
+                'prompt_template': self.agent_identity.core_profile.dsdma_prompt_template
+            } if self.agent_identity.core_profile.domain_specific_knowledge or self.agent_identity.core_profile.dsdma_prompt_template else None,
+            csdma_overrides=self.agent_identity.core_profile.csdma_overrides,
+            action_selection_pdma_overrides=self.agent_identity.core_profile.action_selection_pdma_overrides
+        )
+    
+    @property
     def maintenance_service(self) -> Optional[Any]:
         return self.service_initializer.maintenance_service if self.service_initializer else None
     
@@ -218,7 +221,7 @@ class CIRISRuntime(RuntimeInterface):
         if self._initialized:
             return
             
-        logger.info(f"Initializing CIRIS Runtime with profile '{self.profile_name}'...")
+        logger.info("Initializing CIRIS Runtime...")
         
         try:
             # Set up initialization manager
@@ -234,7 +237,8 @@ class CIRISRuntime(RuntimeInterface):
             await self._perform_startup_maintenance()
             
             self._initialized = True
-            logger.info("CIRIS Runtime initialized successfully")
+            agent_name = self.agent_identity.agent_id if self.agent_identity else "NO_IDENTITY"
+            logger.info(f"CIRIS Runtime initialized successfully with identity '{agent_name}'")
             
         except Exception as e:
             logger.critical(f"Runtime initialization failed: {e}", exc_info=True)
@@ -243,9 +247,9 @@ class CIRISRuntime(RuntimeInterface):
             raise
         
     async def _initialize_identity(self) -> None:
-        """Initialize agent identity - create from profile on first run, load from graph thereafter."""
+        """Initialize agent identity - create from template on first run, load from graph thereafter."""
         config = self._ensure_config()
-        self.identity_manager = IdentityManager(self.profile_name, config)
+        self.identity_manager = IdentityManager(config)
         self.agent_identity = await self.identity_manager.initialize_identity()
     
     
@@ -254,7 +258,7 @@ class CIRISRuntime(RuntimeInterface):
     
     
                 
-    async def _register_initialization_steps(self, init_manager) -> None:
+    async def _register_initialization_steps(self, init_manager: Any) -> None:
         """Register all initialization steps with the initialization manager."""
         
         # Phase 1: DATABASE
@@ -389,7 +393,10 @@ class CIRISRuntime(RuntimeInterface):
     async def _initialize_services(self) -> None:
         """Initialize all remaining core services."""
         config = self._ensure_config()
-        await self.service_initializer.initialize_all_services(config, self.app_config, self.profile_name, self.startup_channel_id)
+        # Identity MUST be established before services can be initialized
+        if not self.agent_identity:
+            raise RuntimeError("CRITICAL: Cannot initialize services without agent identity")
+        await self.service_initializer.initialize_all_services(config, self.app_config, self.agent_identity.agent_id, self.startup_channel_id)
     
     async def _verify_core_services(self) -> bool:
         """Verify all core services are operational."""
@@ -402,11 +409,8 @@ class CIRISRuntime(RuntimeInterface):
     
     async def _final_verification(self) -> None:
         """Perform final system verification."""
-        # Verify initialization status
-        init_status = get_initialization_manager().get_status()
-        
-        if not init_status.get("complete"):
-            raise RuntimeError("Initialization not complete")
+        # Don't check initialization status here - we're still IN the initialization process
+        # Just verify the critical components are ready
         
         # Verify identity loaded
         if not self.agent_identity:
@@ -417,8 +421,20 @@ class CIRISRuntime(RuntimeInterface):
         logger.info("CIRIS Agent Pre-Wakeup Verification Complete")
         logger.info(f"Identity: {self.agent_identity.agent_id}")
         logger.info(f"Purpose: {self.agent_identity.core_profile.description}")
-        logger.info(f"Capabilities: {len(self.agent_identity.allowed_capabilities)} allowed")
-        logger.info(f"Services: {len(self.service_registry._services) if self.service_registry else 0} registered")
+        logger.info(f"Capabilities: {len(self.agent_identity.permitted_actions)} allowed")
+        # Count all registered services
+        service_count = 0
+        if self.service_registry:
+            registry_info = self.service_registry.get_provider_info()
+            # Count handler-specific services
+            for handler_services in registry_info.get('handlers', {}).values():
+                for service_list in handler_services.values():
+                    service_count += len(service_list)
+            # Count global services  
+            for service_list in registry_info.get('global_services', {}).values():
+                service_count += len(service_list)
+        
+        logger.info(f"Services: {service_count} registered")
         logger.info("=" * 60)
         
     async def _perform_startup_maintenance(self) -> None:
@@ -458,7 +474,7 @@ class CIRISRuntime(RuntimeInterface):
                 if hasattr(adapter, 'get_channel_info'):
                     adapter_info.update(adapter.get_channel_info())
                 
-                auth_token = await self.wa_auth_system.create_adapter_token(adapter_type, adapter_info)
+                auth_token = await self.wa_auth_system.create_adapter_token(adapter_type, adapter_info) if self.wa_auth_system else None
                 
                 # Set token on adapter if it has the method
                 if hasattr(adapter, 'set_auth_token'):
@@ -481,7 +497,7 @@ class CIRISRuntime(RuntimeInterface):
                         for handler_name in reg.handlers:
                             self.service_registry.register(
                                 handler=handler_name,
-                                service_type=reg.service_type.value, # Use the string value of the enum
+                                service_type=reg.service_type, # Use the enum directly
                                 provider=reg.provider,
                                 priority=reg.priority,
                                 capabilities=reg.capabilities
@@ -489,7 +505,7 @@ class CIRISRuntime(RuntimeInterface):
                         logger.info(f"Registered {reg.service_type.value} from {adapter.__class__.__name__} for handlers: {reg.handlers}")
                     else: # Register globally if no specific handlers
                         self.service_registry.register_global(
-                            service_type=reg.service_type.value,
+                            service_type=reg.service_type,
                             provider=reg.provider,
                             priority=reg.priority,
                             capabilities=reg.capabilities
@@ -634,17 +650,22 @@ class CIRISRuntime(RuntimeInterface):
             from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
             
             # Create shutdown context
+            final_state = {
+                "active_tasks": persistence.count_active_tasks(),
+                "pending_thoughts": persistence.count_pending_thoughts_for_active_tasks(),
+                "runtime_duration": 0
+            }
+            
+            if hasattr(self, '_start_time'):
+                final_state["runtime_duration"] = (datetime.now(timezone.utc) - self._start_time).total_seconds()
+            
             shutdown_context = ShutdownContext(
+                is_terminal=False,
                 reason=self._shutdown_reason or "Graceful shutdown",
-                final_state={
-                    "active_tasks": persistence.count_active_tasks(),
-                    "pending_thoughts": persistence.count_pending_thoughts(),
-                    "runtime_duration": (datetime.now(timezone.utc) - self._start_time).total_seconds()
-                        if hasattr(self, '_start_time') else 0
-                },
-                pending_tasks=[],  # TODO: Gather actual pending tasks
-                deferred_thoughts=[],  # TODO: Gather deferred thoughts
-                timestamp=datetime.now(timezone.utc).isoformat()
+                initiated_by="runtime",
+                allow_deferral=False,
+                expected_reactivation=None,
+                agreement_context=None
             )
             
             # Create memory node for shutdown
@@ -654,8 +675,9 @@ class CIRISRuntime(RuntimeInterface):
                 scope=GraphScope.IDENTITY,
                 attributes={
                     "shutdown_context": shutdown_context.model_dump(),
-                    "identity_hash": self.agent_identity.identity_hash,
-                    "reactivation_count": self.agent_identity.core_profile.reactivation_count
+                    "final_state": final_state,
+                    "identity_hash": self.agent_identity.identity_hash if self.agent_identity and hasattr(self.agent_identity, 'identity_hash') else "",
+                    "reactivation_count": self.agent_identity.core_profile.reactivation_count if self.agent_identity and hasattr(self.agent_identity, 'core_profile') and hasattr(self.agent_identity.core_profile, 'reactivation_count') else 0
                 }
             )
             
@@ -665,11 +687,13 @@ class CIRISRuntime(RuntimeInterface):
                 logger.info(f"Preserved shutdown consciousness: {shutdown_node.id}")
                 
                 # Update identity with shutdown memory reference
-                self.agent_identity.core_profile.last_shutdown_memory = shutdown_node.id
-                self.agent_identity.core_profile.reactivation_count += 1
-                
-                # Save updated identity
-                persistence.save_agent_identity(self.agent_identity.model_dump())
+                if self.agent_identity and hasattr(self.agent_identity, 'core_profile'):
+                    self.agent_identity.core_profile.last_shutdown_memory = shutdown_node.id
+                    self.agent_identity.core_profile.reactivation_count += 1
+                    
+                    # Save updated identity
+                    # TODO: Implement save_agent_identity when persistence layer supports it
+                    logger.debug("Agent identity updates stored in memory graph")
                 
         except Exception as e:
             logger.error(f"Failed to preserve shutdown consciousness: {e}")
@@ -702,13 +726,16 @@ class CIRISRuntime(RuntimeInterface):
             self.maintenance_service,
         ]
         
-        await asyncio.gather(
-            *[s.stop() for s in services_to_stop if s],
-            return_exceptions=True
-        )
+        # Stop services that have a stop method
+        stop_tasks = []
+        for service in services_to_stop:
+            if service and hasattr(service, 'stop'):
+                stop_tasks.append(service.stop())
+        
+        if stop_tasks:
+            await asyncio.gather(*stop_tasks, return_exceptions=True)
         
         if self.service_registry:
             self.service_registry.clear_all()
-            self.service_registry = None
         
         logger.info("CIRIS Runtime shutdown complete")

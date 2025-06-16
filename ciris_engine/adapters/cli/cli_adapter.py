@@ -27,7 +27,8 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         self,
         interactive: bool = True,
         on_message: Optional[Callable[[IncomingMessage], Awaitable[None]]] = None,
-        multi_service_sink: Optional[Any] = None
+        multi_service_sink: Optional[Any] = None,
+        config: Optional[Any] = None
     ) -> None:
         """
         Initialize the CLI adapter.
@@ -36,6 +37,7 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
             interactive: Whether to run in interactive mode with user input
             on_message: Callback for handling incoming messages
             multi_service_sink: Multi-service sink for routing messages
+            config: Optional CLIAdapterConfig
         """
         super().__init__(config={"retry": {"global": {"max_retries": 3, "base_delay": 1.0}}})
         
@@ -44,6 +46,7 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         self.multi_service_sink = multi_service_sink
         self._running = False
         self._input_task: Optional[asyncio.Task[None]] = None
+        self.cli_config = config  # Store the CLI config
         
         self._available_tools: Dict[str, Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]] = {
             "list_files": self._tool_list_files,
@@ -149,8 +152,11 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                         )
                     )
                     return guidance
-            except asyncio.TimeoutError:
-                print("\n[TIMEOUT] No guidance provided within timeout period.")
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                if not self._running:
+                    logger.debug("Guidance request cancelled due to shutdown")
+                else:
+                    print("\n[TIMEOUT] No guidance provided within timeout period.")
             
             return None
             
@@ -284,13 +290,16 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         # Check if we're still running before blocking on input
         if not self._running:
             raise asyncio.CancelledError("CLI adapter stopped")
-            
-        return await loop.run_in_executor(None, input)
+        
+        # Simple async input that works on all platforms
+        try:
+            return await loop.run_in_executor(None, input)
+        except (EOFError, KeyboardInterrupt):
+            raise asyncio.CancelledError("Input interrupted")
 
     async def _handle_interactive_input(self) -> None:
         """Handle interactive user input in a loop."""
-        print("\n[CLI] Hello! How can I help you?")
-        print("[CIRIS CLI] Interactive mode started. Type 'help' for commands or 'quit' to exit.\n")
+        print("\n[CIRIS CLI] Interactive mode started. Type 'help' for commands or 'quit' to exit.\n")
         
         while self._running:
             try:
@@ -312,7 +321,7 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                     author_id="cli_user",
                     author_name="User",
                     content=user_input,
-                    channel_id="cli",
+                    channel_id=self.get_home_channel_id(),
                     timestamp=datetime.now(timezone.utc).isoformat()
                 )
                 
@@ -325,8 +334,8 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                 else:
                     logger.warning("No message handler configured")
                     
-            except EOFError:
-                logger.info("EOF received, stopping interactive mode")
+            except (EOFError, asyncio.CancelledError):
+                logger.info("Input cancelled or EOF received, stopping interactive mode")
                 self._running = False
                 break
             except Exception as e:
@@ -413,10 +422,13 @@ Tools available:
         if self._input_task and not self._input_task.done():
             self._input_task.cancel()
             try:
-                await asyncio.wait_for(self._input_task, timeout=0.5)
+                await asyncio.wait_for(self._input_task, timeout=0.1)
             except (asyncio.CancelledError, asyncio.TimeoutError):
-                logger.warning("CLI input task did not respond to cancellation within timeout")
+                logger.debug("CLI input task cancelled")
                 pass
+        
+        # Print message and newline to ensure prompt returns properly
+        print("\n[CIRIS CLI] Shutting down... Press Enter to return to prompt.")
 
     async def is_healthy(self) -> bool:
         """Check if the CLI adapter is healthy."""
@@ -432,3 +444,13 @@ Tools available:
         if self.interactive:
             capabilities.append("interactive_mode")
         return capabilities
+    
+    def get_home_channel_id(self) -> str:
+        """Get the home channel ID for this CLI adapter instance."""
+        if self.cli_config and hasattr(self.cli_config, 'get_home_channel_id'):
+            return self.cli_config.get_home_channel_id()
+        
+        # Generate unique channel ID for this CLI instance
+        import uuid
+        import os
+        return f"cli_{os.getpid()}_{uuid.uuid4().hex[:8]}"

@@ -114,7 +114,8 @@ async def run_dsdma(
     context: Optional[Dict[str, Any]] = None,
 ) -> DSDMAResult:
     """Run the domain-specific DMA using profile-driven configuration."""
-    return await dsdma.evaluate_thought(thought, context or {})
+    # Use evaluate method which handles Dict[str, Any] to DMAInputData conversion
+    return await dsdma.evaluate(thought, current_context=context)
 
 
 async def run_action_selection_pdma(

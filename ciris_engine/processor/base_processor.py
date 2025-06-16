@@ -92,10 +92,14 @@ class BaseProcessor(ABC):
         Returns True if dispatch succeeded.
         """
         try:
+            # Convert dict to DispatchContext
+            from ciris_engine.schemas.foundational_schemas_v1 import DispatchContext
+            dispatch_ctx = DispatchContext(**context)
+                
             await self.action_dispatcher.dispatch(
                 action_selection_result=result,
                 thought=thought,
-                dispatch_context=context
+                dispatch_context=dispatch_ctx
             )
             return True
         except Exception as e:

@@ -16,6 +16,24 @@ from ciris_engine.dma.factory import (
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.schemas.config_schemas_v1 import AgentProfile
 from ciris_engine.protocols.faculties import EpistemicFaculty
+
+# Import adapter configs to resolve forward references
+try:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
+except ImportError:
+    DiscordAdapterConfig = type('DiscordAdapterConfig', (), {})
+    APIAdapterConfig = type('APIAdapterConfig', (), {})
+    CLIAdapterConfig = type('CLIAdapterConfig', (), {})
+
+# Rebuild models with resolved references  
+try:
+    AgentProfile.model_rebuild()
+    AppConfig.model_rebuild()
+except Exception:
+    pass
+
 from ciris_engine.protocols.dma_interface import (
     EthicalDMAInterface,
     CSDMAInterface,
@@ -274,6 +292,8 @@ class TestDSDMAFromProfile:
         ensure_models_rebuilt()
         return AgentProfile(
             name="test_agent",
+            description="Test agent for DMA factory tests",
+            role_description="A test agent profile for DMA creation",
             dsdma_identifier="MockDSDMA",
             dsdma_kwargs={
                 "prompt_template": "Custom domain prompt",

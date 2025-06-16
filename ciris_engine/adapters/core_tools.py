@@ -4,11 +4,11 @@ Implements tools that are available across all adapters.
 """
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from ciris_engine.schemas.tool_schemas_v1 import ToolResult, ToolExecutionStatus
 
 
-async def self_help(section: str = None) -> ToolResult:
+async def self_help(section: Optional[str] = None) -> ToolResult:
     """
     Returns the agent's comprehensive self-documentation.
     

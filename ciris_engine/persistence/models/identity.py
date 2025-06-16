@@ -14,8 +14,10 @@ from ciris_engine.persistence.models.graph import add_graph_node, get_graph_node
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.identity_schemas_v1 import (
     AgentIdentityRoot, CoreProfile, IdentityMetadata,
-    IdentityRoot, IdentityLineage, CreationCeremonyRequest
+    IdentityLineage, CreationCeremonyRequest
 )
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.persistence_schemas_v1 import IdentityContext
 
 logger = logging.getLogger(__name__)
 
@@ -216,14 +218,14 @@ async def store_creation_ceremony(
         return False
 
 
-def get_identity_for_context(db_path: Optional[str] = None) -> Dict[str, Any]:
+def get_identity_for_context(db_path: Optional[str] = None) -> IdentityContext:
     """
     Get identity information formatted for use in processing contexts.
     
     This is a synchronous version for use in contexts that can't await.
     
     Returns:
-        Dict with agent_name, agent_role, description, and capabilities
+        IdentityContext with typed fields
     """
     try:
         identity_node = get_graph_node(
@@ -233,39 +235,29 @@ def get_identity_for_context(db_path: Optional[str] = None) -> Dict[str, Any]:
         )
         
         if not identity_node:
-            # Return defaults if no identity found
-            return {
-                "agent_name": "CIRISAgent",
-                "agent_role": "AI agent",
-                "description": "A helpful AI agent",
-                "domain_specific_knowledge": {},
-                "allowed_capabilities": [],
-                "restricted_capabilities": []
-            }
+            raise RuntimeError("CRITICAL: No agent identity found in graph database. System cannot start without identity.")
             
-        identity_data = identity_node.attributes.get("identity", {})
-        core_profile = identity_data.get("core_profile", {})
+        # Extract and validate identity data using the model
+        identity_data = identity_node.attributes.get("identity")
+        if not identity_data:
+            raise RuntimeError("CRITICAL: Identity node exists but contains no identity data. Database corruption detected.")
         
-        return {
-            "agent_name": identity_data.get("agent_id", "CIRISAgent"),
-            "agent_role": core_profile.get("role_description", "AI agent"),
-            "description": core_profile.get("description", "A helpful AI agent"),
-            "domain_specific_knowledge": core_profile.get("domain_specific_knowledge", {}),
-            "allowed_capabilities": identity_data.get("allowed_capabilities", []),
-            "restricted_capabilities": identity_data.get("restricted_capabilities", []),
+        # Use model_validate to properly deserialize enums
+        identity = AgentIdentityRoot.model_validate(identity_data)
+        
+        return IdentityContext(
+            agent_name=identity.agent_id,
+            agent_role=identity.core_profile.role_description,
+            description=identity.core_profile.description,
+            domain_specific_knowledge=identity.core_profile.domain_specific_knowledge,
+            permitted_actions=identity.permitted_actions,  # Already proper enums from model_validate
+            restricted_capabilities=identity.restricted_capabilities,
             # Include overrides for DMAs
-            "dsdma_prompt_template": core_profile.get("dsdma_prompt_template", None),
-            "csdma_overrides": core_profile.get("csdma_overrides", {}),
-            "action_selection_pdma_overrides": core_profile.get("action_selection_pdma_overrides", {})
-        }
+            dsdma_prompt_template=identity.core_profile.dsdma_prompt_template,
+            csdma_overrides=identity.core_profile.csdma_overrides,
+            action_selection_pdma_overrides=identity.core_profile.action_selection_pdma_overrides
+        )
         
     except Exception as e:
-        logger.error(f"Failed to get identity for context: {e}", exc_info=True)
-        return {
-            "agent_name": "CIRISAgent",
-            "agent_role": "AI agent",
-            "description": "A helpful AI agent",
-            "dsdma_identifier": "moderation",
-            "allowed_capabilities": [],
-            "restricted_capabilities": []
-        }
+        logger.critical(f"CRITICAL: Failed to retrieve agent identity: {e}", exc_info=True)
+        raise RuntimeError(f"Cannot operate without valid agent identity: {e}") from e

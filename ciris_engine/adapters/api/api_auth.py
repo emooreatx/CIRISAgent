@@ -4,6 +4,7 @@ import json
 from aiohttp import web
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +14,8 @@ class APIAuthRoutes:
     
     def __init__(self, runtime: Any) -> None:
         self.runtime = runtime
-        self.auth_service = None
-        self.oauth_service = None
+        self.auth_service: Optional[Any] = None
+        self.oauth_service: Optional[Any] = None
         
     async def _ensure_services(self) -> bool:
         """Ensure auth services are available."""
@@ -24,7 +25,7 @@ class APIAuthRoutes:
                 self.auth_service = wa_auth_system.get_auth_service()
                 self.oauth_service = wa_auth_system.get_oauth_service()
         
-        return bool(self.auth_service and self.oauth_service)
+        return self.auth_service is not None and self.oauth_service is not None
     
     def register(self, app: web.Application) -> None:
         """Register auth routes with the application."""
@@ -60,6 +61,11 @@ class APIAuthRoutes:
                 redirect_uri = f"{scheme}://{host}/v1/auth/oauth/{provider}/callback"
             
             # Get provider config
+            if not self.oauth_service:
+                return web.json_response({
+                    "error": "OAuth service not available"
+                }, status=503)
+            
             provider_config = await self.oauth_service.get_provider_config(provider)
             if not provider_config:
                 return web.json_response({
@@ -139,6 +145,11 @@ class APIAuthRoutes:
                 'state': state
             }
             
+            if not self.oauth_service:
+                return web.json_response({
+                    "error": "OAuth service not available"
+                }, status=503)
+            
             result = await self.oauth_service.handle_oauth_callback(provider, callback_data)
             
             if result['status'] == 'success':
@@ -186,6 +197,11 @@ class APIAuthRoutes:
                 }, status=400)
             
             # Authenticate and get token
+            if not self.auth_service:
+                return web.json_response({
+                    "error": "Auth service not available"
+                }, status=503)
+            
             token = await self.auth_service.authenticate_password(wa_id, password)
             
             if token:
@@ -229,6 +245,11 @@ class APIAuthRoutes:
             token = auth_header[7:]  # Remove 'Bearer ' prefix
             
             # Verify token
+            if not self.auth_service:
+                return web.json_response({
+                    "error": "Auth service not available"
+                }, status=503)
+            
             claims = await self.auth_service.verify_token(token)
             
             if claims:
@@ -264,6 +285,11 @@ class APIAuthRoutes:
                 }, status=401)
             
             token = auth_header[7:]
+            if not self.auth_service:
+                return web.json_response({
+                    "error": "Auth service not available"
+                }, status=503)
+            
             claims = await self.auth_service.verify_token(token)
             
             if not claims or 'wa:admin' not in claims.get('scope', '').split():
@@ -282,6 +308,11 @@ class APIAuthRoutes:
                 }, status=400)
             
             # Update WA certificate
+            if not self.auth_service:
+                return web.json_response({
+                    "error": "Auth service not available"
+                }, status=503)
+            
             success = await self.auth_service.link_discord(wa_id, discord_id)
             
             if success:
@@ -316,6 +347,11 @@ class APIAuthRoutes:
                 }, status=401)
             
             token = auth_header[7:]
+            if not self.auth_service:
+                return web.json_response({
+                    "error": "Auth service not available"
+                }, status=503)
+            
             claims = await self.auth_service.verify_token(token)
             
             if not claims:
@@ -388,7 +424,8 @@ class APIAuthRoutes:
                 core_profile=CoreProfile(
                     description=agent_config['description'],
                     role_description=agent_config['purpose'],
-                    domain_specific_knowledge=agent_config['domain_specific_knowledge']
+                    domain_specific_knowledge=agent_config['domain_specific_knowledge'],
+                    dsdma_prompt_template=None  # Optional field, can be customized later
                 ),
                 identity_metadata=IdentityMetadata(
                     created_at=timestamp.isoformat(),
@@ -481,6 +518,11 @@ class APIAuthRoutes:
                 }, status=401)
             
             token = auth_header[7:]
+            if not self.auth_service:
+                return web.json_response({
+                    "error": "Auth service not available"
+                }, status=503)
+            
             claims = await self.auth_service.verify_token(token)
             
             if not claims or 'wa:mint' not in claims.get('scope', '').split():

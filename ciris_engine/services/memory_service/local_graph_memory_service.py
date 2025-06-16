@@ -356,8 +356,14 @@ class LocalGraphMemoryService(MemoryService):
                             'data_type': corr_type.value if hasattr(corr_type, 'value') else str(corr_type)
                         })
             
-            # Sort by timestamp
-            all_correlations.sort(key=lambda x: x.get('timestamp', ''))
+            # Sort by timestamp - ensure we have a datetime object for comparison
+            def get_timestamp_for_sort(item: Dict[str, Any]) -> datetime:
+                ts = item.get('timestamp')
+                if isinstance(ts, datetime):
+                    return ts
+                return datetime.min.replace(tzinfo=timezone.utc)
+            
+            all_correlations.sort(key=get_timestamp_for_sort)
             
             return all_correlations
             

@@ -137,7 +137,7 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
 @click.command()
 @click.option("--adapter", "adapter_types_list", multiple=True, default=["auto"], help="One or more adapters to run. Specify multiple times for multiple adapters (e.g., --adapter cli --adapter api --adapter discord).")
 @click.option("--modes", "legacy_modes", help="Legacy comma-separated list of modes (deprecated, use --adapter instead).")
-@click.option("--profile", default="default", help="Agent profile name")
+@click.option("--template", default="default", help="Agent template name (only used for first-time setup)")
 @click.option("--config", "config_file_path", type=click.Path(), help="Path to app config")
 @click.option("--task", multiple=True, help="Task description to add before starting")
 @click.option("--timeout", type=int, help="Maximum runtime duration in seconds")
@@ -153,7 +153,7 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
 def main(
     adapter_types_list: tuple[str, ...],
     legacy_modes: Optional[str],
-    profile: str,
+    template: str,
     config_file_path: Optional[str],
     task: tuple[str],
     timeout: Optional[int],
@@ -258,9 +258,11 @@ def main(
             from ciris_engine.services.mock_llm import MockLLMService  # type: ignore
             import ciris_engine.runtime.ciris_runtime as runtime_module
             import ciris_engine.services.llm_service as llm_service_module
+            import ciris_engine.runtime.service_initializer as service_initializer_module
             import ciris_engine.adapters as adapters_module
             runtime_module.OpenAICompatibleClient = MockLLMService  # patch
             llm_service_module.OpenAICompatibleClient = MockLLMService  # patch
+            service_initializer_module.OpenAICompatibleClient = MockLLMService  # patch
             if hasattr(adapters_module, 'OpenAICompatibleClient'):
                 adapters_module.OpenAICompatibleClient = MockLLMService  # patch
             app_config.mock_llm = True  # Set the flag in config for other components
@@ -337,10 +339,13 @@ def main(
         # Setup global exception handling
         setup_global_exception_handler()
         
+        # Update config with the template if provided
+        if template != "default":
+            app_config.default_profile = template
+            
         # Create runtime using new CIRISRuntime directly with adapter configs
         runtime = CIRISRuntime(
             adapter_types=selected_adapter_types,
-            profile_name=profile,
             app_config=app_config,
             startup_channel_id=startup_channel_id,
             adapter_configs=adapter_configs,

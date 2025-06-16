@@ -87,8 +87,8 @@ class ActionInstructionGenerator:
                    f"scope: \"local\"|\"identity\"|\"environment\"}}, \"reason\": string (required)}}")
             
         elif action_type == HandlerActionType.DEFER:
-            return (f"DEFER: {{\"reason\": string (required), \"context\"?: object, "
-                   f"\"defer_until\"?: string (ISO timestamp like '2025-01-20T15:00:00Z')}}")
+            defer_schema = (f"DEFER: {{\"reason\": string (required), \"context\"?: object, "
+                           f"\"defer_until\"?: string (ISO timestamp like '2025-01-20T15:00:00Z')}}")
             return defer_schema + "\nUse defer_until for time-based deferrals that auto-reactivate."
             
         elif action_type == HandlerActionType.REJECT:
@@ -112,8 +112,9 @@ class ActionInstructionGenerator:
                    f"Use when task is done, impossible, unnecessary, or cannot be actioned. "
                    f"This is the preferred resolution for problematic tasks.")
         
-        # Fallback to generic schema representation
-        return f"{action_type.value.upper()}: {self._simplify_schema(schema)}"
+        else:
+            # Fallback to generic schema representation for any other action types
+            return f"{action_type.value.upper()}: {self._simplify_schema(schema)}"  # type: ignore[unreachable]
     
     def _format_memory_action_schema(self, action_name: str) -> str:
         """Format schema for memory-related actions (MEMORIZE, RECALL)."""
@@ -148,7 +149,9 @@ class ActionInstructionGenerator:
                 loop = asyncio.get_event_loop()
                 
                 # Create a coroutine to get all tools
-                async def get_all_tools():
+                async def get_all_tools() -> Dict[str, Any]:
+                    if not self.service_registry:
+                        return {}
                     tool_services = self.service_registry.get_services_by_type('tool')
                     all_tools = {}
                     
@@ -197,30 +200,40 @@ class ActionInstructionGenerator:
                     return all_tools
                 
                 # Execute the coroutine
-                all_tools = loop.run_until_complete(get_all_tools())
+                try:
+                    if loop.is_running():
+                        # If loop is already running, we can't use run_until_complete
+                        # This is a limitation of calling async from sync in an async context
+                        logger.debug("Event loop already running, skipping dynamic tool discovery")
+                        return base_schema + self._get_default_tool_instructions()
+                    else:
+                        all_tools = loop.run_until_complete(get_all_tools())
+                except RuntimeError as e:
+                    logger.debug(f"Cannot fetch tools synchronously: {e}")
+                    return base_schema + self._get_default_tool_instructions()
+                
+                if all_tools:
+                    tools_info = []
+                    tools_info.append("\nAvailable tools and their parameters:")
                     
-                    if all_tools:
-                        tools_info = []
-                        tools_info.append("\nAvailable tools and their parameters:")
+                    for tool_key, tool_info in all_tools.items():
+                        tool_desc = f"  - {tool_info['name']}: {tool_info['description']}"
+                        if tool_info['service'] != tool_info['name']:
+                            tool_desc += f" (from {tool_info['service']})"
+                        tools_info.append(tool_desc)
                         
-                        for tool_key, tool_info in all_tools.items():
-                            tool_desc = f"  - {tool_info['name']}: {tool_info['description']}"
-                            if tool_info['service'] != tool_info['name']:
-                                tool_desc += f" (from {tool_info['service']})"
-                            tools_info.append(tool_desc)
-                            
-                            # Add parameter schema if available
-                            if 'parameters' in tool_info:
-                                param_text = f"    parameters: {json.dumps(tool_info['parameters'], indent=6)}"
-                                tools_info.append(param_text)
-                            
-                            # Add usage guidance if available
-                            if 'when_to_use' in tool_info:
-                                tools_info.append(f"    Use when: {tool_info['when_to_use']}")
+                        # Add parameter schema if available
+                        if 'parameters' in tool_info:
+                            param_text = f"    parameters: {json.dumps(tool_info['parameters'], indent=6)}"
+                            tools_info.append(param_text)
                         
-                        return base_schema + "\n".join(tools_info)
+                        # Add usage guidance if available
+                        if 'when_to_use' in tool_info:
+                            tools_info.append(f"    Use when: {tool_info['when_to_use']}")
                     
-                except Exception as e:
+                    return base_schema + "\n".join(tools_info)
+                
+            except Exception as e:
                     logger.warning(f"Could not fetch tools via LIST_TOOLS: {e}")
         
         # Fallback: Include some known tools

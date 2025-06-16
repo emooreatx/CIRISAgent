@@ -7,6 +7,9 @@ import hashlib
 import secrets
 import base64
 import time
+import asyncio
+import functools
+import inspect
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -18,8 +21,8 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.exceptions import InvalidSignature
 
 from ciris_engine.schemas.wa_schemas_v1 import (
-    WACertificate, WAToken, ChannelIdentity, WACreateRequest, 
-    WAPromoteRequest, AuthorizationContext, WARole, TokenType, JWTSubType
+    WACertificate, ChannelIdentity, 
+    AuthorizationContext, WARole, TokenType, JWTSubType
 )
 from ciris_engine.protocols.wa_auth_interface import (
     WAStore, JWTService, WACrypto, WAAuthMiddleware
@@ -223,7 +226,8 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
     async def revoke_wa(self, wa_id: str, revoked_by: str, reason: str) -> None:
         """Revoke WA certificate."""
         await self.update_wa(wa_id, active=False)
-        # TODO: Add audit log entry for revocation
+        # TODO: Add audit log entry for revocation using revoked_by and reason
+        _ = (revoked_by, reason)  # Parameters reserved for audit logging
     
     async def list_all_was(self, active_only: bool = True) -> List[WACertificate]:
         """List all WA certificates."""
@@ -474,6 +478,91 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
             return wrapper
         return decorator
     
+    def require_wa_auth(self, scope: str) -> Any:
+        """Decorator to require WA authentication with specific scope.
+        
+        This decorator checks for authentication tokens in the following order:
+        1. 'token' parameter in the function arguments
+        2. 'auth_context' in the function arguments
+        3. Token from the context (if available)
+        
+        Args:
+            scope: The required scope for accessing the decorated function
+            
+        Returns:
+            Decorated function that enforces authentication
+        """
+        def decorator(func: Any) -> Any:
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                # Extract token from various sources
+                token = None
+                auth_context = None
+                
+                # Check if 'token' is in kwargs
+                if 'token' in kwargs:
+                    token = kwargs.get('token')
+                
+                # Check if 'auth_context' is already provided
+                if 'auth_context' in kwargs:
+                    auth_context = kwargs.get('auth_context')
+                
+                # If no auth context yet, try to verify the token
+                if not auth_context and token:
+                    auth_context = await self.verify_token(token)
+                
+                # Check if authentication succeeded
+                if not auth_context:
+                    raise ValueError("Authentication required: No valid token provided")
+                
+                # Verify the required scope
+                if not auth_context.has_scope(scope):
+                    raise ValueError(
+                        f"Insufficient permissions: Requires scope '{scope}', "
+                        f"but user has scopes: {auth_context.scopes}"
+                    )
+                
+                # Check if the function accepts auth_context parameter
+                sig = inspect.signature(func)
+                
+                # If function has **kwargs or auth_context parameter, pass it
+                if 'auth_context' in sig.parameters or any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD 
+                    for p in sig.parameters.values()
+                ):
+                    kwargs['auth_context'] = auth_context
+                
+                # Call the original function
+                return await func(*args, **kwargs)
+            
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                # For synchronous functions, we need to handle auth differently
+                # This is a simplified version that expects auth_context to be pre-verified
+                auth_context = kwargs.get('auth_context')
+                
+                if not auth_context:
+                    raise ValueError("Authentication required: No auth_context provided")
+                
+                # Verify the required scope
+                if not hasattr(auth_context, 'has_scope') or not auth_context.has_scope(scope):
+                    raise ValueError(
+                        f"Insufficient permissions: Requires scope '{scope}'"
+                    )
+                
+                return func(*args, **kwargs)
+            
+            # Preserve function metadata and check if the function is async
+            if asyncio.iscoroutinefunction(func):
+                wrapper = functools.wraps(func)(async_wrapper)
+            else:
+                wrapper = functools.wraps(func)(sync_wrapper)
+            
+            # Add metadata to indicate this function requires authentication
+            setattr(wrapper, '_requires_wa_auth', True)
+            setattr(wrapper, '_required_scope', scope)
+            
+            return wrapper
+        return decorator
+    
     def get_channel_token(self, channel_id: str) -> Optional[str]:
         """Get cached channel token."""
         return self._channel_token_cache.get(channel_id)
@@ -498,6 +587,14 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
     
     async def create_channel_token_for_adapter(self, adapter_type: str, adapter_info: dict) -> str:
         """Create a channel token for an adapter."""
+        # Ensure adapter_info has proper structure
+        if not adapter_info:
+            adapter_info = {}
+        
+        # Add default instance_id if not present
+        if 'instance_id' not in adapter_info:
+            adapter_info['instance_id'] = 'default'
+            
         channel_identity = ChannelIdentity.from_adapter(adapter_type, adapter_info)
         
         # Create or get channel observer

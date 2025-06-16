@@ -1,12 +1,15 @@
 from enum import Enum
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime
 
 __all__ = [
     "ResourceAction",
     "ResourceLimit",
     "ResourceBudget",
     "ResourceSnapshot",
+    "ResourceCost",
+    "ResourceUsageMetrics",
 ]
 
 
@@ -75,4 +78,98 @@ class ResourceSnapshot(BaseModel):
     warnings: List[str] = Field(default_factory=list)
     critical: List[str] = Field(default_factory=list)
 
+    model_config = ConfigDict(extra="allow")
+
+
+class ResourceCost(BaseModel):
+    """Environmental and financial cost of AI operations."""
+    
+    # Token usage
+    tokens_used: int = Field(default=0, description="Total tokens consumed")
+    
+    # Financial cost
+    cost_cents: float = Field(default=0.0, ge=0.0, description="Cost in cents USD")
+    cost_per_token_cents: float = Field(default=0.002, description="Cost per token in cents")
+    
+    # Environmental impact (estimates based on research)
+    water_ml: float = Field(default=0.0, ge=0.0, description="Water usage in milliliters")
+    water_per_token_ml: float = Field(default=0.05, description="Water per token in ml (50ml per 1k tokens)")
+    
+    carbon_g: float = Field(default=0.0, ge=0.0, description="Carbon emissions in grams CO2")
+    carbon_per_token_g: float = Field(default=0.002, description="Carbon per token in grams (2g per 1k tokens)")
+    
+    # Energy consumption
+    energy_kwh: float = Field(default=0.0, ge=0.0, description="Energy consumption in kilowatt-hours")
+    energy_per_token_kwh: float = Field(default=0.00001, description="Energy per token in kWh")
+    
+    # Metadata
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="When costs were calculated")
+    model_used: Optional[str] = Field(default=None, description="Model that incurred these costs")
+    
+    def calculate_from_tokens(self, tokens: int, model: Optional[str] = None) -> None:
+        """Calculate all costs from token count."""
+        self.tokens_used = tokens
+        self.cost_cents = tokens * self.cost_per_token_cents
+        self.water_ml = tokens * self.water_per_token_ml
+        self.carbon_g = tokens * self.carbon_per_token_g
+        self.energy_kwh = tokens * self.energy_per_token_kwh
+        self.model_used = model
+        self.timestamp = datetime.utcnow()
+    
+    def add_usage(self, other: 'ResourceCost') -> None:
+        """Add another resource cost to this one."""
+        self.tokens_used += other.tokens_used
+        self.cost_cents += other.cost_cents
+        self.water_ml += other.water_ml
+        self.carbon_g += other.carbon_g
+        self.energy_kwh += other.energy_kwh
+    
+    @property
+    def cost_dollars(self) -> float:
+        """Get cost in dollars."""
+        return self.cost_cents / 100.0
+    
+    @property
+    def water_liters(self) -> float:
+        """Get water usage in liters."""
+        return self.water_ml / 1000.0
+    
+    @property
+    def carbon_kg(self) -> float:
+        """Get carbon emissions in kilograms."""
+        return self.carbon_g / 1000.0
+    
+    model_config = ConfigDict(extra="forbid")
+
+
+class ResourceUsageMetrics(BaseModel):
+    """Comprehensive resource usage tracking with costs."""
+    
+    # Traditional compute resources
+    memory_mb: int = Field(default=0, description="Memory usage in MB")
+    cpu_percent: float = Field(default=0.0, description="CPU usage percentage")
+    disk_mb: int = Field(default=0, description="Disk usage in MB")
+    
+    # AI-specific resources
+    tokens_total: int = Field(default=0, description="Total tokens processed")
+    tokens_input: int = Field(default=0, description="Input tokens")
+    tokens_output: int = Field(default=0, description="Output tokens")
+    
+    # Cost tracking
+    current_round_cost: ResourceCost = Field(default_factory=ResourceCost, description="Cost for current round")
+    session_total_cost: ResourceCost = Field(default_factory=ResourceCost, description="Total cost for session")
+    daily_total_cost: ResourceCost = Field(default_factory=ResourceCost, description="Total cost today")
+    
+    # Rate tracking
+    tokens_per_second: float = Field(default=0.0, description="Current token processing rate")
+    cost_per_hour_cents: float = Field(default=0.0, description="Projected hourly cost at current rate")
+    
+    # Efficiency metrics
+    thoughts_per_token: float = Field(default=0.0, description="Efficiency: thoughts generated per token")
+    actions_per_dollar: float = Field(default=0.0, description="Efficiency: actions taken per dollar spent")
+    
+    # Environmental awareness
+    carbon_intensity_g_per_kwh: float = Field(default=400.0, description="Grid carbon intensity")
+    renewable_energy_percent: float = Field(default=20.0, description="Estimated renewable energy %")
+    
     model_config = ConfigDict(extra="allow")

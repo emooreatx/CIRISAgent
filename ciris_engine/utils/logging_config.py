@@ -85,6 +85,14 @@ def setup_basic_logging(level: int = logging.INFO,
     if log_to_file:
         log_msg += f", Log file: {log_filename}"
     logging.info(log_msg)
+    
+    # Print to stdout regardless of console_output setting
+    if log_to_file and not console_output:
+        print("\n" + "="*80)
+        print(f"🔍 LOGGING INITIALIZED - SEE DETAILED LOGS AT: {log_filename}")
+        print(f"🔗 Symlinked to: {latest_link}")
+        print("="*80 + "\n")
+        sys.stdout.flush()
 
 if __name__ == '__main__':
     setup_basic_logging(level=logging.DEBUG)

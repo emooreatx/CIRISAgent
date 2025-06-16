@@ -17,10 +17,14 @@ class GraphQLClient:
 
     async def query(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
         try:
+            # Ensure endpoint is not None
+            if self.endpoint is None:
+                raise ValueError("GraphQL endpoint is not configured")
             resp = await self._client.post(self.endpoint, json={"query": query, "variables": variables})
             resp.raise_for_status()
             data = resp.json()
-            return data.get("data", {})
+            result = data.get("data", {})
+            return result if isinstance(result, dict) else {}
         except Exception as exc:
             logger.error("GraphQL query failed: %s", exc)
             return {}
@@ -30,13 +34,14 @@ class GraphQLContextProvider:
                  memory_service: Optional[LocalGraphMemoryService] = None,
                  enable_remote_graphql: bool = False) -> None:
         self.enable_remote_graphql = enable_remote_graphql
+        self.client: Optional[GraphQLClient]
         if enable_remote_graphql:
             self.client = graphql_client or GraphQLClient()
         else:
             self.client = graphql_client
         self.memory_service = memory_service
 
-    async def enrich_context(self, task, thought=None) -> Dict[str, Any]:
+    async def enrich_context(self, task: Any, thought: Any = None) -> Dict[str, Any]:
         authors: set[str] = set()
         if task and isinstance(task.context, dict):
             name = task.context.get("author_name")
@@ -72,9 +77,9 @@ class GraphQLContextProvider:
             memory_results = await asyncio.gather(
                 *(self.memory_service.recall(GraphNode(id=n, type=NodeType.USER, scope=GraphScope.LOCAL)) for n in missing)
             )
-            for name, result in zip(missing, memory_results):
-                if result and result.data:  # type: ignore[attr-defined]
-                    enriched[name] = result.data  # type: ignore[attr-defined]
+            for name, mem_result in zip(missing, memory_results):
+                if mem_result and hasattr(mem_result, 'data') and mem_result.data:
+                    enriched[name] = mem_result.data
 
         identity_block = ""
         if self.memory_service:

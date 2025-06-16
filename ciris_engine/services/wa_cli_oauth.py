@@ -16,9 +16,12 @@ from rich.console import Console
 from rich.prompt import Prompt
 
 from ciris_engine.schemas.wa_schemas_v1 import (
-    WACertificate, WARole, TokenType, OAuthProviderConfig
+    WACertificate, WARole, TokenType
 )
 from ciris_engine.services.wa_auth_service import WAAuthService
+
+import logging
+logger = logging.getLogger(__name__)
 
 
 class WACLIOAuthService:
@@ -189,12 +192,9 @@ class WACLIOAuthService:
             )
             
             # Generate session JWT
-            token = await self.auth_service.create_oauth_token(
-                wa_id=wa_cert.wa_id,
-                name=wa_cert.name,
-                scopes=json.loads(wa_cert.scopes_json),
-                provider=provider,
-                external_id=wa_cert.oauth_external_id
+            token = self.auth_service.create_gateway_token(
+                wa=wa_cert,
+                expires_hours=24
             )
             
             return {
@@ -230,7 +230,7 @@ class WACLIOAuthService:
             raise ValueError(f"Unsupported provider: {provider}")
         
         # Prepare token request
-        token_data = {
+        token_request_data = {
             "grant_type": "authorization_code",
             "code": code,
             "client_id": provider_config['client_id'],
@@ -242,14 +242,15 @@ class WACLIOAuthService:
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 token_endpoints[provider],
-                data=token_data,
+                data=token_request_data,
                 headers={"Accept": "application/json"}
             ) as resp:
                 if resp.status != 200:
                     error = await resp.text()
                     raise ValueError(f"Token exchange failed: {error}")
                 
-                return await resp.json()
+                token_data: Dict[str, Any] = await resp.json()
+                return token_data
     
     async def _fetch_user_profile(
         self,
@@ -306,7 +307,8 @@ class WACLIOAuthService:
                         "avatar": profile.get("avatar_url")
                     }
                 
-                return profile
+                normalized_profile: Dict[str, Any] = profile
+                return normalized_profile
     
     async def _create_oauth_wa(
         self,
@@ -324,7 +326,7 @@ class WACLIOAuthService:
         if existing_wa:
             # Update last login
             existing_wa.last_login = datetime.now(timezone.utc)
-            await self.auth_service.update_wa(existing_wa)
+            await self.auth_service.update_wa(existing_wa.wa_id, last_login=datetime.now(timezone.utc))
             return existing_wa
         
         # Generate IDs for new WA
@@ -354,9 +356,8 @@ class WACLIOAuthService:
             active=True
         )
         
-        # Add Discord ID if available
-        if provider == "discord" and user_profile.get('id'):
-            oauth_wa.discord_id = user_profile['id']
+        # Note: Discord ID is stored in oauth_external_id for OAuth users
+        # Discord-specific data can be stored in metadata if needed
         
         # Store WA
         await self.auth_service.create_wa(oauth_wa)
@@ -412,7 +413,7 @@ class WACLIOAuthService:
         OAuthCallbackHandler.oauth_service = self
         
         # Start server in background thread
-        def run_server():
+        def run_server() -> None:
             with socketserver.TCPServer(("", port), OAuthCallbackHandler) as httpd:
                 self._oauth_server_running = True
                 httpd.timeout = 60  # 60 second timeout

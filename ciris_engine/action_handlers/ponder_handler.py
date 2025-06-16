@@ -65,7 +65,9 @@ class PonderHandler(BaseActionHandler):
             
             defer_params = DeferParams(
                 reason=f"Maximum action rounds ({self.max_rounds}) reached after {new_ponder_count} actions. "
-                      f"This suggests the task either cannot be completed autonomously or requires human approval."
+                      f"This suggests the task either cannot be completed autonomously or requires human approval.",
+                context={"action_id": f"ponder_max_rounds_{thought.thought_id}"},
+                defer_until=None
             )
             defer_result = ActionSelectionResult(
                 selected_action=HandlerActionType.DEFER,
@@ -78,9 +80,8 @@ class PonderHandler(BaseActionHandler):
             defer_handler = None
             if self.dependencies.service_registry:
                 defer_handler = await self.dependencies.service_registry.get_service(
-                    handler=self.__class__.__name__,
-                    service_type="action_handler",
-                    metadata={"action_type": "DEFER"}
+                    self.__class__.__name__,
+                    "action_handler"
                 )
             if defer_handler:
                 enhanced_context = dispatch_context.model_copy(update={
@@ -104,9 +105,16 @@ class PonderHandler(BaseActionHandler):
                     },
                 )
                 thought.status = ThoughtStatus.DEFERRED
+                # Create a new dict with dispatch_context data and additional fields
+                audit_context = dispatch_context.model_dump()
+                audit_context.update({
+                    "thought_id": thought.thought_id,
+                    "status": ThoughtStatus.DEFERRED.value,
+                    "ponder_type": "max_rounds_defer_fallback"
+                })
                 await self._audit_log(
                     HandlerActionType.PONDER,
-                    {**dispatch_context, "thought_id": thought.thought_id, "status": ThoughtStatus.DEFERRED.value, "ponder_type": "max_rounds_defer_fallback"},
+                    audit_context,
                     outcome="deferred"
                 )
                 return None
@@ -131,15 +139,17 @@ class PonderHandler(BaseActionHandler):
                 f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for {next_status.value}."
             )
             
+            # Create a new dict with dispatch_context data and additional fields
+            audit_context = dispatch_context.model_dump()
+            audit_context.update({
+                "thought_id": thought.thought_id,
+                "status": next_status.value,
+                "new_ponder_count": new_ponder_count,
+                "ponder_type": "reprocess"
+            })
             await self._audit_log(
                 HandlerActionType.PONDER,
-                {
-                    **dispatch_context,
-                    "thought_id": thought.thought_id,
-                    "status": next_status.value,
-                    "new_ponder_count": new_ponder_count,
-                    "ponder_type": "reprocess",
-                },
+                audit_context,
                 outcome="success"
             )
             
@@ -178,9 +188,16 @@ class PonderHandler(BaseActionHandler):
                     "ponder_count": current_ponder_count
                 }
             )
+            # Create a new dict with dispatch_context data and additional fields
+            audit_context = dispatch_context.model_dump()
+            audit_context.update({
+                "thought_id": thought.thought_id,
+                "status": ThoughtStatus.FAILED.value,
+                "ponder_type": "update_failed"
+            })
             await self._audit_log(
                 HandlerActionType.PONDER,
-                {**dispatch_context, "thought_id": thought.thought_id, "status": ThoughtStatus.FAILED.value, "ponder_type": "update_failed"},
+                audit_context,
                 outcome="failed"
             )
             original_task = persistence.get_task_by_id(thought.source_task_id)

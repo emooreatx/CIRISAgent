@@ -163,7 +163,7 @@ class MockLLMService(LLMService):
             **kwargs
         )
         
-        usage = ResourceUsage(tokens=100)  # Mock token count
+        usage = ResourceUsage(tokens_used=100)  # Mock token count
         
         return response, usage
 

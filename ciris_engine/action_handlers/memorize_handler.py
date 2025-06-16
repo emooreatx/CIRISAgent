@@ -26,7 +26,9 @@ class MemorizeHandler(BaseActionHandler):
     ) -> None:
         raw_params = result.action_parameters
         thought_id = thought.thought_id
-        await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="start")
+        # Create audit context with thought_id
+        audit_context = dispatch_context.model_copy(update={"thought_id": thought_id})
+        await self._audit_log(HandlerActionType.MEMORIZE, audit_context, outcome="start")
         final_thought_status = ThoughtStatus.COMPLETED
         action_performed_successfully = False
         follow_up_content_key_info = f"MEMORIZE action for thought {thought_id}"
@@ -68,9 +70,10 @@ class MemorizeHandler(BaseActionHandler):
             follow_up_content_key_info = (
                 f"MEMORIZE action failed: MemoryService unavailable for thought {thought_id}."
             )
+            audit_context = dispatch_context.model_copy(update={"thought_id": thought_id})
             await self._audit_log(
                 HandlerActionType.MEMORIZE,
-                {**dispatch_context, "thought_id": thought_id},
+                audit_context,
                 outcome="failed_no_memory_service",
             )
         else:
@@ -129,11 +132,9 @@ class MemorizeHandler(BaseActionHandler):
                                 )
                                 
                                 # Audit successful identity change with full details
-                                await self._audit_log(
-                                    HandlerActionType.MEMORIZE,
-                                    {**dispatch_context, "thought_id": thought_id},
-                                    outcome="success",
-                                    details={
+                                audit_context_with_details = dispatch_context.model_copy(update={
+                                    "thought_id": thought_id,
+                                    "details": {
                                         "event_type": "identity_change",
                                         "node_id": node.id,
                                         "scope": scope.value,
@@ -144,6 +145,11 @@ class MemorizeHandler(BaseActionHandler):
                                         "approval_timestamp": dispatch_context.event_timestamp,
                                         "change_summary": "Identity graph updated with WA approval"
                                     }
+                                })
+                                await self._audit_log(
+                                    HandlerActionType.MEMORIZE,
+                                    audit_context_with_details,
+                                    outcome="success"
                                 )
                             else:
                                 final_thought_status = ThoughtStatus.DEFERRED
@@ -159,16 +165,19 @@ class MemorizeHandler(BaseActionHandler):
                     f"WA authorization required for MEMORIZE in scope {scope}. Thought {thought_id} denied."
                 )
                 # Audit the denied attempt
-                await self._audit_log(
-                    HandlerActionType.MEMORIZE,
-                    {**dispatch_context, "thought_id": thought_id},
-                    outcome="denied",
-                    details={
+                audit_context_denied = dispatch_context.model_copy(update={
+                    "thought_id": thought_id,
+                    "details": {
                         "reason": "unauthorized_environment_change_attempt",
                         "node_id": node.id,
                         "scope": scope.value,
                         "wa_authorized": False
                     }
+                })
+                await self._audit_log(
+                    HandlerActionType.MEMORIZE,
+                    audit_context_denied,
+                    outcome="denied"
                 )
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = "WA authorization missing"
@@ -184,15 +193,18 @@ class MemorizeHandler(BaseActionHandler):
                         )
                         
                         # Audit regular memory operation
-                        await self._audit_log(
-                            HandlerActionType.MEMORIZE,
-                            {**dispatch_context, "thought_id": thought_id},
-                            outcome="success",
-                            details={
+                        audit_context_regular = dispatch_context.model_copy(update={
+                            "thought_id": thought_id,
+                            "details": {
                                 "event_type": "memory_operation",
                                 "node_id": node.id,
                                 "scope": scope.value
                             }
+                        })
+                        await self._audit_log(
+                            HandlerActionType.MEMORIZE,
+                            audit_context_regular,
+                            outcome="success"
                         )
                     else:
                         final_thought_status = ThoughtStatus.DEFERRED
@@ -222,7 +234,7 @@ class MemorizeHandler(BaseActionHandler):
         try:
             new_follow_up = create_follow_up_thought(
                 parent=thought,
-                content=ThoughtStatus.PENDING,
+                content=follow_up_text,
             )
 
             context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
@@ -232,7 +244,15 @@ class MemorizeHandler(BaseActionHandler):
             if final_thought_status != ThoughtStatus.COMPLETED:
                 context_for_follow_up["error_details"] = follow_up_content_key_info
 
-            context_for_follow_up["action_params"] = result.action_parameters
+            # Store action_parameters as extra fields in context
+            if hasattr(result.action_parameters, 'model_dump'):
+                action_params_dict = result.action_parameters.model_dump()
+            else:
+                action_params_dict = result.action_parameters if isinstance(result.action_parameters, dict) else {}
+            
+            # Add action params as individual fields to avoid type issues
+            for key, value in action_params_dict.items():
+                context_for_follow_up[f"action_param_{key}"] = str(value) if value is not None else ""
             context_data.update(context_for_follow_up)
             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
             new_follow_up.context = ThoughtContext.model_validate(context_data)
@@ -240,7 +260,8 @@ class MemorizeHandler(BaseActionHandler):
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after MEMORIZE action."
             )
-            await self._audit_log(HandlerActionType.MEMORIZE, {**dispatch_context, "thought_id": thought_id}, outcome="success")
+            audit_context_final = dispatch_context.model_copy(update={"thought_id": thought_id})
+            await self._audit_log(HandlerActionType.MEMORIZE, audit_context_final, outcome="success")
         except Exception as e:
             await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e)
             raise FollowUpCreationError from e
@@ -257,11 +278,16 @@ class MemorizeHandler(BaseActionHandler):
             )
             result = await memory_service.recall(current_node)
             
-            if not result or not result.nodes:
+            if not result or result.status != MemoryOpStatus.OK or not result.data:
                 # No existing identity, this is first creation
                 return 0.0
             
-            current_identity = result.nodes[0].attributes.get("identity", {})
+            # result.data contains the attributes dict from recall
+            current_attributes = result.data
+            if isinstance(current_attributes, dict):
+                current_identity = current_attributes.get("identity", {})
+            else:
+                current_identity = {}
             proposed_identity = proposed_node.attributes.get("identity", {})
             
             # Calculate variance across key identity attributes
@@ -312,7 +338,7 @@ class MemorizeHandler(BaseActionHandler):
         value = data
         for part in parts:
             if isinstance(value, dict):
-                value = value.get(part)
+                value = value.get(part)  # type: ignore[assignment]
             else:
-                return None
+                return None  # type: ignore[unreachable]
         return value

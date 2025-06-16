@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any, List
 
 from ciris_engine.persistence import get_db_connection
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
+from ciris_engine.schemas.persistence_schemas_v1 import CorrelationUpdateRequest, MetricsQuery
 
 logger = logging.getLogger(__name__)
 
@@ -58,20 +59,24 @@ def add_correlation(corr: ServiceCorrelation, db_path: Optional[str] = None) -> 
         raise
 
 
-def update_correlation(correlation_id: str, *, response_data: Optional[Dict[str, Any]] = None,
-                        status: Optional[ServiceCorrelationStatus] = None,
-                        db_path: Optional[str] = None) -> bool:
+def update_correlation(update_request: CorrelationUpdateRequest, db_path: Optional[str] = None) -> bool:
     updates: List[Any] = []
     params: list[Any] = []
-    if response_data is not None:
+    if update_request.response_data is not None:
         updates.append("response_data = ?")
-        params.append(json.dumps(response_data))
-    if status is not None:
+        params.append(json.dumps(update_request.response_data))
+    if update_request.status is not None:
         updates.append("status = ?")
-        params.append(status.value)
+        params.append(update_request.status.value)
+    if update_request.metric_value is not None:
+        updates.append("metric_value = ?")
+        params.append(update_request.metric_value)
+    if update_request.tags is not None:
+        updates.append("tags = ?")
+        params.append(json.dumps(update_request.tags))
     updates.append("updated_at = ?")
     params.append(datetime.now(timezone.utc).isoformat())
-    params.append(correlation_id)
+    params.append(update_request.correlation_id)
 
     sql = f"UPDATE service_correlations SET {', '.join(updates)} WHERE correlation_id = ?"
     try:
@@ -80,7 +85,7 @@ def update_correlation(correlation_id: str, *, response_data: Optional[Dict[str,
             conn.commit()
             return cursor.rowcount > 0
     except Exception as e:
-        logger.exception("Failed to update correlation %s: %s", correlation_id, e)
+        logger.exception("Failed to update correlation %s: %s", update_request.correlation_id, e)
         return False
 
 
@@ -267,11 +272,7 @@ def get_correlations_by_type_and_time(
 
 
 def get_metrics_timeseries(
-    metric_name: str,
-    start_time: Optional[str] = None,
-    end_time: Optional[str] = None,
-    tags: Optional[Dict[str, str]] = None,
-    limit: int = 1000,
+    query: MetricsQuery,
     db_path: Optional[str] = None
 ) -> List[ServiceCorrelation]:
     """Get metric correlations as time series data."""
@@ -280,21 +281,23 @@ def get_metrics_timeseries(
         WHERE correlation_type = 'metric_datapoint' 
         AND metric_name = ?
     """
-    params: List[Any] = [metric_name]
+    params: List[Any] = [query.metric_name]
     
-    if start_time:
+    if query.start_time:
         sql += " AND timestamp >= ?"
-        params.append(start_time)
+        params.append(query.start_time.isoformat() if hasattr(query.start_time, 'isoformat') else query.start_time)
     
-    if end_time:
+    if query.end_time:
         sql += " AND timestamp <= ?"
-        params.append(end_time)
+        params.append(query.end_time.isoformat() if hasattr(query.end_time, 'isoformat') else query.end_time)
     
-    if tags:
-        for key, value in tags.items():
+    if query.tags:
+        for key, value in query.tags.items():
             sql += " AND json_extract(tags, ?) = ?"
             params.extend([f"$.{key}", value])
     
+    # Default limit to 1000 if not specified
+    limit = 1000 if not hasattr(query, 'limit') else getattr(query, 'limit', 1000)
     sql += " ORDER BY timestamp ASC LIMIT ?"
     params.append(limit)
     

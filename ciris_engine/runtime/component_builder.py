@@ -216,7 +216,7 @@ class ComponentBuilder:
             
         self.agent_processor = AgentProcessor(
             app_config=self.runtime.app_config,
-            active_profile=self.runtime.profile,
+            profile=self.runtime.profile,
             thought_processor=thought_processor,
             action_dispatcher=action_dispatcher,
             services={

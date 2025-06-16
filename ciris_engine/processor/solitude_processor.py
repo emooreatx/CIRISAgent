@@ -137,9 +137,9 @@ class SolitudeProcessor(BaseProcessor, ProcessorInterface):
             old_thoughts = persistence.get_thoughts_older_than(cutoff_date.isoformat())
             if old_thoughts:
                 thought_ids = [t.thought_id for t in old_thoughts]
-                deleted = persistence.delete_thoughts_by_ids(thought_ids)
-                maintenance_result["old_thoughts_cleaned"] = deleted
-                logger.info(f"Cleaned up {deleted} old thoughts")
+                deleted_thoughts = persistence.delete_thoughts_by_ids(thought_ids)
+                maintenance_result["old_thoughts_cleaned"] = deleted_thoughts
+                logger.info(f"Cleaned up {deleted_thoughts} old thoughts")
             
             self.reflection_data["cleanup_performed"] = True
             
@@ -195,7 +195,7 @@ class SolitudeProcessor(BaseProcessor, ProcessorInterface):
         Returns:
             Dict with 'should_exit' bool and optional 'reason' string
         """
-        conditions = {"should_exit": False, "reason": None}
+        conditions: Dict[str, Any] = {"should_exit": False, "reason": None}
         
         
         state_duration = 0

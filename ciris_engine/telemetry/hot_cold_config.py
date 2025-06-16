@@ -5,7 +5,7 @@ Defines which code paths are HOT (mission-critical, high-frequency) vs COLD (bac
 and enforces telemetry requirements based on the ciris_mypy_toolkit analysis.
 """
 
-from typing import Dict, Set, List
+from typing import Dict, Set, List, Any
 from dataclasses import dataclass, field
 
 @dataclass

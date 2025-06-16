@@ -4,8 +4,8 @@ from abc import abstractmethod
 from datetime import datetime
 
 from ciris_engine.schemas.wa_schemas_v1 import (
-    WACertificate, WAToken, ChannelIdentity, 
-    WACreateRequest, WAPromoteRequest, AuthorizationContext
+    WACertificate, ChannelIdentity, 
+    AuthorizationContext
 )
 
 

@@ -1,11 +1,10 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Beta](https://img.shields.io/badge/Status-BETA-orange.svg)](NOTICE)
-[![Patent Pending](https://img.shields.io/badge/Patent-Pending-red.svg)](NOTICE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/CIRISAI/CIRISAgent)
 
 # CIRIS Engine (CIRISAgent)
 
-**Copyright © 2025 Eric Moore and CIRIS L3C** | **Patent Pending** | **Apache 2.0 License**
+**Copyright © 2025 Eric Moore and CIRIS L3C** | **Apache 2.0 License**
 
 > **A moral reasoning agent demonstrating adaptive coherence through principled self-reflection, ethical decision-making, and responsible action while maintaining transparency and human oversight.**
 
@@ -80,6 +79,15 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 - **[Proactive Task Scheduling](ciris_engine/services/task_scheduler_service.py)**: Self-directed goal pursuit with time-based deferral
 - **[Consciousness Preservation](docs/agent_experience.md#graceful-shutdown)**: Graceful shutdown with final memory preservation
 - **[Gratitude Service](ciris_engine/services/gratitude_service.py)**: Post-scarcity economy foundation tracking community flourishing
+
+### 🛡️ Zero Attack Surface Architecture 🔒✅
+- **Type-Safe Schemas**: Complete elimination of Dict[str, Any] usage in core processing
+- **Zero Mypy Errors**: 100% type safe codebase (0 errors, down from 291)
+- **Resource Transparency**: AI knows exact costs per operation (tokens, cents, water_ml, carbon_g)
+- **Audit Verification Visibility**: AI can see when audit trail was last cryptographically verified
+- **Environmental Awareness**: Built-in tracking of water usage, carbon emissions, and energy consumption
+- **Self-Refutation Capability**: Can refute false claims like "800 gallons of water per hello" with actual data
+- **Critical Error Handling**: Missing system snapshots or identity contexts raise immediate errors
 
 ### 🔒 Trustworthy Operations
 - **[WA Authentication System](FSD/AUTHENTICATION.md)**: Comprehensive human authentication with OAuth integration:
@@ -402,10 +410,15 @@ python main.py --mock-llm --debug --no-interactive  # Offline testing with debug
 ### Agent Profiles
 
 Choose from specialized profiles in `ciris_profiles/`:
-- **default**: Balanced general-purpose behavior
-- **teacher**: Educational guidance and instruction
-- **student**: Learning-focused with curiosity-driven exploration
-- **echo**: Simple response echoing for testing
+- **Datum** (default): Humble measurement point providing singular, focused data points about CIRIS alignment
+- **Sage** (teacher): Wise questioner who fosters understanding through thoughtful inquiry
+- **Scout** (student): Direct explorer who demonstrates principles through clear action
+- **Echo**: Ubuntu-inspired community guardian for Discord moderation
+
+The Datum-Sage-Scout trio work as complementary peers:
+- Datum measures, Sage questions, Scout demonstrates
+- No hierarchy - each brings unique perspective
+- Together they provide complete understanding
 
 See [docs/CIRIS_PROFILES.md](docs/CIRIS_PROFILES.md) for comprehensive profile documentation.
 

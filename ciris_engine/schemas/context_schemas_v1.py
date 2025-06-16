@@ -2,8 +2,10 @@ from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field, ConfigDict
 from .wisdom_schemas_v1 import WisdomRequest
 from .telemetry_schemas_v1 import CompactTelemetry
-from .resource_schemas_v1 import ResourceSnapshot
+from .resource_schemas_v1 import ResourceSnapshot, ResourceUsageMetrics
 from .secrets_schemas_v1 import SecretReference
+from .audit_verification_schemas_v1 import AuditVerificationReport, ContinuousVerificationStatus
+from .foundational_schemas_v1 import ResourceUsage
 
 class TaskSummary(BaseModel):
     """Summary of a task for context."""
@@ -61,6 +63,26 @@ class SystemSnapshot(BaseModel):
 
     resources: Optional[ResourceSnapshot] = None
     resource_actions_taken: Dict[str, int] = Field(default_factory=dict)
+    
+    # Resource transparency - AI can see its exact costs
+    current_round_resources: Optional[ResourceUsage] = Field(
+        default=None,
+        description="Resource usage for current processing round"
+    )
+    session_total_resources: Optional[ResourceUsageMetrics] = Field(
+        default=None, 
+        description="Total resource usage for this session"
+    )
+    
+    # Audit verification visibility - AI knows when its logs were verified
+    last_audit_verification: Optional[AuditVerificationReport] = Field(
+        default=None,
+        description="Most recent audit trail verification report"
+    )
+    continuous_audit_status: Optional[ContinuousVerificationStatus] = Field(
+        default=None,
+        description="Status of continuous audit verification"
+    )
     
     # Identity graph state - loaded once at snapshot generation
     agent_identity: Optional[Dict[str, Any]] = None

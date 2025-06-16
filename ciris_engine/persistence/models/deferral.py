@@ -1,16 +1,17 @@
 import json
-from typing import Optional, Dict, Any
+from typing import Optional
 from ciris_engine.persistence import get_db_connection
+from ciris_engine.schemas.persistence_schemas_v1 import DeferralPackage, DeferralReportContext
 import logging
 
 logger = logging.getLogger(__name__)
 
-def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str, package: Optional[Dict[str, Any]] = None, db_path: Optional[str] = None) -> None:
+def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str, package: Optional[DeferralPackage] = None, db_path: Optional[str] = None) -> None:
     sql = """
         INSERT OR REPLACE INTO deferral_reports (message_id, task_id, thought_id, package_json)
         VALUES (?, ?, ?, ?)
     """
-    package_json = json.dumps(package) if package is not None else None
+    package_json = package.model_dump_json() if package is not None else None
     try:
         with get_db_connection(db_path=db_path) as conn:
             conn.execute(sql, (message_id, task_id, thought_id, package_json))
@@ -28,7 +29,7 @@ def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str,
             e,
         )
 
-def get_deferral_report_context(message_id: str, db_path: Optional[str] = None) -> Optional[tuple[str, str, Optional[Dict[str, Any]]]]:
+def get_deferral_report_context(message_id: str, db_path: Optional[str] = None) -> Optional[DeferralReportContext]:
     sql = "SELECT task_id, thought_id, package_json FROM deferral_reports WHERE message_id = ?"
     try:
         with get_db_connection(db_path=db_path) as conn:
@@ -39,10 +40,18 @@ def get_deferral_report_context(message_id: str, db_path: Optional[str] = None) 
                 pkg = None
                 if row["package_json"]:
                     try:
-                        pkg = json.loads(row["package_json"])
-                    except Exception:
+                        # Validate package data through model
+                        from pydantic import TypeAdapter
+                        pkg = TypeAdapter(DeferralPackage).validate_json(row["package_json"])
+                    except Exception as e:
+                        logger.warning(f"Failed to parse deferral package: {e}")
                         pkg = None
-                return row["task_id"], row["thought_id"], pkg
+                
+                return DeferralReportContext(
+                    task_id=row["task_id"],
+                    thought_id=row["thought_id"],
+                    package=pkg
+                )
             return None
     except Exception as e:
         logger.exception(

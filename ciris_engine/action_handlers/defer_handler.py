@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class DeferHandler(BaseActionHandler):
-    async def _get_task_scheduler_service(self):
+    async def _get_task_scheduler_service(self) -> Optional[Any]:
         """Get task scheduler service from registry."""
         try:
             if hasattr(self, '_service_registry') and self._service_registry:

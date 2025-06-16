@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional, List
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import LLMService
 from ciris_engine.protocols.faculties import EpistemicFaculty
-from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
+from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
 from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
 from . import epistemic as epi_helpers
 
@@ -27,7 +27,7 @@ class EntropyFaculty(EpistemicFaculty):
         llm = await self._get_llm()
         if not llm:
             logger.error("EntropyFaculty: No LLM service available")
-            return EntropyResult(entropy=0.0)
+            return EntropyResult(faculty_name="entropy", entropy=0.0)
         try:
             messages = epi_helpers._create_entropy_messages_for_instructor(content)
             response_model, _ = await llm.call_llm_structured(
@@ -41,7 +41,7 @@ class EntropyFaculty(EpistemicFaculty):
             return response_model
         except Exception as e:
             logger.error(f"EntropyFaculty evaluation failed: {e}", exc_info=True)
-            return EntropyResult(entropy=0.0)
+            return EntropyResult(faculty_name="entropy", entropy=0.0)
 
 class CoherenceFaculty(EpistemicFaculty):
     """Assess coherence/alignment in content."""
@@ -57,7 +57,7 @@ class CoherenceFaculty(EpistemicFaculty):
         llm = await self._get_llm()
         if not llm:
             logger.error("CoherenceFaculty: No LLM service available")
-            return CoherenceResult(coherence=0.0)
+            return CoherenceResult(faculty_name="coherence", coherence=0.0)
         try:
             messages = epi_helpers._create_coherence_messages_for_instructor(content)
             response_model, _ = await llm.call_llm_structured(
@@ -71,7 +71,7 @@ class CoherenceFaculty(EpistemicFaculty):
             return response_model
         except Exception as e:
             logger.error(f"CoherenceFaculty evaluation failed: {e}", exc_info=True)
-            return CoherenceResult(coherence=0.0)
+            return CoherenceResult(faculty_name="coherence", coherence=0.0)
 
 class OptimizationVetoFaculty(EpistemicFaculty):
     """Evaluate optimization veto for actions."""

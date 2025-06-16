@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, DispatchContext
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, DispatchContext, ServiceType
 
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
@@ -68,7 +68,7 @@ class ActionHandlerDependencies:
         return self._shutdown_requested or is_global_shutdown_requested()
 
     async def wait_registry_ready(
-        self, timeout: float = 30.0, service_types: Optional[list[str]] = None
+        self, timeout: float = 30.0, service_types: Optional[list[ServiceType]] = None
     ) -> bool:
         """Wait until the service registry is ready or timeout expires."""
         if not self.service_registry:
@@ -80,7 +80,7 @@ class ActionHandlerDependencies:
             logger.error(f"Error waiting for registry readiness: {exc}")
             return False
     
-    async def get_service(self, handler: str, service_type: str, **kwargs: Any) -> Optional[Any]:
+    async def get_service(self, handler: str, service_type: ServiceType, **kwargs: Any) -> Optional[Any]:
         """Get a service from the registry with automatic fallback to legacy services"""
         service = None
         
@@ -93,15 +93,15 @@ class ActionHandlerDependencies:
                     timeout=5.0
                 )
             except asyncio.TimeoutError:
-                logger.warning(f"Service registry lookup timed out for {handler}.{service_type}")
+                logger.warning(f"Service registry lookup timed out for {handler}.{service_type.value}")
                 service = None
             except Exception as e:
-                logger.warning(f"Service registry lookup failed for {handler}.{service_type}: {e}")
+                logger.warning(f"Service registry lookup failed for {handler}.{service_type.value}: {e}")
                 service = None
         
         # Fallback to legacy services if available
-        if not service and hasattr(self, service_type):
-            service = getattr(self, service_type)
+        if not service and hasattr(self, service_type.value):
+            service = getattr(self, service_type.value)
             
         return service
 
@@ -123,7 +123,7 @@ class BaseActionHandler(ABC):
             # Get the transaction orchestrator
             orchestrator = await self.dependencies.service_registry.get_service(
                 handler=self.__class__.__name__,
-                service_type="orchestrator"
+                service_type=ServiceType.ORCHESTRATOR
             )
             
             if not orchestrator:
@@ -163,7 +163,7 @@ class BaseActionHandler(ABC):
         
         service = await self.dependencies.get_service(
             self.__class__.__name__,
-            "communication",
+            ServiceType.COMMUNICATION,
             required_capabilities=caps,
         )
         
@@ -174,14 +174,14 @@ class BaseActionHandler(ABC):
         """Get best available WA service"""
         return await self.dependencies.get_service(
             self.__class__.__name__,
-            "wise_authority"
+            ServiceType.WISE_AUTHORITY
         )
     
     async def get_memory_service(self) -> Optional[MemoryService]:
         """Get best available memory service"""
         return await self.dependencies.get_service(
             self.__class__.__name__,
-            "memory",
+            ServiceType.MEMORY,
             required_capabilities=["memorize", "recall"]
         )
     
@@ -189,14 +189,14 @@ class BaseActionHandler(ABC):
         """Get best available audit service"""
         return await self.dependencies.get_service(
             self.__class__.__name__,
-            "audit"
+            ServiceType.AUDIT
         )
     
     async def get_llm_service(self) -> Optional[Any]:
         """Get best available LLM service"""
         return await self.dependencies.get_service(
             self.__class__.__name__,
-            "llm"
+            ServiceType.LLM
         )
 
 
@@ -205,7 +205,7 @@ class BaseActionHandler(ABC):
         """Get best available tool service"""
         return await self.dependencies.get_service(
             self.__class__.__name__,
-            "tool",
+            ServiceType.TOOL,
             required_capabilities=["execute_tool"]
         )
     
@@ -213,7 +213,7 @@ class BaseActionHandler(ABC):
         """Get telemetry service if available"""
         return await self.dependencies.get_service(
             self.__class__.__name__,
-            "telemetry"
+            ServiceType.TELEMETRY
         )
 
     def get_multi_service_sink(self) -> Optional[Any]:
@@ -222,10 +222,12 @@ class BaseActionHandler(ABC):
 
     async def _get_channel_id(self, thought: Thought, dispatch_context: DispatchContext) -> Optional[str]:
         """Get channel ID from dispatch or thought context."""
-        channel_id = dispatch_context.channel_id
+        channel_id: Optional[str] = dispatch_context.channel_id
         if not channel_id and getattr(thought, "context", None):
             system_snapshot = getattr(thought.context, "system_snapshot", None) if thought.context else None
-            channel_id = getattr(system_snapshot, "channel_id", None) if system_snapshot else None
+            channel_id_value = getattr(system_snapshot, "channel_id", None) if system_snapshot else None
+            if isinstance(channel_id_value, str):
+                channel_id = channel_id_value
         if not channel_id:
             pass
         return channel_id

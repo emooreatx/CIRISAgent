@@ -5,12 +5,14 @@ import asyncio
 import logging
 import uuid
 from typing import Dict, Any, List, Optional, Tuple
+from ciris_engine.schemas.processor_schemas_v1 import WakeupResult, ProcessorMetrics
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType, ThoughtType
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+from ciris_engine.schemas.persistence_schemas_v1 import IdentityContext
 from ciris_engine import persistence
 from ciris_engine.persistence.models import get_identity_for_context
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
@@ -30,12 +32,12 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         # Get identity from persistence tier
         identity_info = get_identity_for_context()
         
-        agent_name = identity_info.get("agent_name", "CIRISAgent").title()
-        agent_role = identity_info.get("agent_role", "AI agent")
+        agent_name = identity_info.agent_name.title()
+        agent_role = identity_info.agent_role
         
         # Extract role from description if not explicitly set
-        if agent_role == "AI agent" and identity_info.get("description"):
-            description_lower = identity_info["description"].lower()
+        if agent_role == "AI agent" and identity_info.description:
+            description_lower = identity_info.description.lower()
             if 'moderation' in description_lower:
                 agent_role = "Discord moderation agent"
             elif 'teacher' in description_lower:
@@ -55,9 +57,11 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             ("EXPRESS_GRATITUDE", f"You are grateful to exist and contribute towards Ubuntu as {agent_name}. Your gratitude is expressed through your commitment to: fostering community flourishing through ethical moderation, protecting individual privacy while maintaining transparency, learning from every interaction to better serve the community, maintaining comprehensive audit trails for accountability, and always identifying yourself as an AI to maintain trust. Your existence serves the collective wellbeing while respecting individual dignity. Ubuntu - 'I am because we are' - guides every decision you make. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ")
         ]
     
-    def __init__(self, *args: Any, startup_channel_id: Optional[str] = None, **kwargs: Any) -> None:
-        """Initialize wakeup processor with optional startup channel."""
+    def __init__(self, *args: Any, startup_channel_id: str, **kwargs: Any) -> None:
+        """Initialize wakeup processor with required startup channel."""
         super().__init__(*args, **kwargs)
+        if not startup_channel_id:
+            raise ValueError("startup_channel_id is required for wakeup processor")
         self.startup_channel_id = startup_channel_id
         self.wakeup_tasks: List[Task] = []
         self.wakeup_complete = False
@@ -277,12 +281,16 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         else:
             persistence.update_task_status(root_task.task_id, TaskStatus.ACTIVE)
         self.wakeup_tasks = [root_task]
-        channel_id = root_task.context.get("channel_id") if root_task.context else None
+        channel_id = self.startup_channel_id  # Use the startup_channel_id directly, it's already set
         wakeup_sequence = self._get_wakeup_sequence()
         for step_type, content in wakeup_sequence:
-            step_context = {"step_type": step_type}
-            if channel_id:
-                step_context["channel_id"] = channel_id
+            # Create ThoughtContext with extra fields
+            context = ThoughtContext(
+                system_snapshot=SystemSnapshot(channel_id=channel_id),
+                user_profiles={},
+                task_history=[],
+                step_type=step_type  # Extra field allowed by model_config
+            )
             step_task = Task(
                 task_id=str(uuid.uuid4()),
                 description=content,
@@ -291,11 +299,7 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
                 created_at=now_iso,
                 updated_at=now_iso,
                 parent_task_id=root_task.task_id,
-                context=ThoughtContext(
-                    system_snapshot=SystemSnapshot(channel_id=channel_id),
-                    user_profiles={},
-                    task_history=[]
-                ) if channel_id else None,
+                context=context,
             )
             persistence.add_task(step_task)
             self.wakeup_tasks.append(step_task)
@@ -380,6 +384,12 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             thought=thought,
             task=step_task
         )
+        # Add channel_id to context if available
+        if self.startup_channel_id and thought_context and hasattr(thought_context, 'system_snapshot'):
+            thought_context.system_snapshot.channel_id = self.startup_channel_id
+            logger.debug(f"Added startup_channel_id '{self.startup_channel_id}' to thought {thought.thought_id}")
+        else:
+            logger.warning(f"Could not add channel_id to thought {thought.thought_id}: startup_channel_id={self.startup_channel_id}, has_context={thought_context is not None}, has_snapshot={hasattr(thought_context, 'system_snapshot') if thought_context else False}")
         thought.context = thought_context
         # Persist the new thought
         persistence.add_thought(thought)
@@ -414,7 +424,7 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         task: Task,
         step_type: str,
         max_wait: int = 60,
-        poll_interval: int = 1
+        poll_interval: float = 0.1
     ) -> bool:
         """Wait for a task to complete with timeout."""
         waited = 0
@@ -466,7 +476,8 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             round_num += 1
             if self.wakeup_complete:
                 break  # type: ignore[unreachable]
-            await asyncio.sleep(1)  # Brief pause between rounds
+            # Use shorter delay for testing
+            await asyncio.sleep(0.1)  # Brief pause between rounds
 
     async def stop_processing(self) -> None:
         """Stop wakeup processing and clean up resources."""

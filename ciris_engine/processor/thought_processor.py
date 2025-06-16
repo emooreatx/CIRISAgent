@@ -104,6 +104,7 @@ class ThoughtProcessor:
             defer_params = DeferParams(
                 reason="DMA timeout",
                 context={"error": str(dma_err)},
+                defer_until=None
             )
             return ActionSelectionResult(
                 selected_action=HandlerActionType.DEFER,
@@ -133,6 +134,7 @@ class ThoughtProcessor:
             defer_params = DeferParams(
                 reason="DMA timeout",
                 context={"error": str(dma_err)},
+                defer_until=None
             )
             return ActionSelectionResult(
                 selected_action=HandlerActionType.DEFER,
@@ -346,7 +348,8 @@ class ThoughtProcessor:
         defer_reason = "Critical DMA failure or guardrail override."
         defer_params = DeferParams(
             reason=defer_reason,
-            context={"original_thought_id": thought.thought_id, "dma_results_summary": dma_results, "target_wa_ual": DEFAULT_WA}
+            context={"original_thought_id": thought.thought_id, "dma_results_summary": dma_results, "target_wa_ual": DEFAULT_WA},
+            defer_until=None
         )
         
         return ActionSelectionResult(
@@ -529,9 +532,11 @@ class ThoughtProcessor:
                 event_timestamp=datetime.now(timezone.utc).isoformat(),
                 
                 # Additional context
+                wa_id=None,
                 wa_authorized=False,
                 correlation_id=str(uuid.uuid4()),
-                round_number=thought.round_number
+                round_number=thought.round_number,
+                guardrail_result=None
             )
             
             await ponder_handler.handle(

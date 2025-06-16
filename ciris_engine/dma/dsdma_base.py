@@ -1,5 +1,6 @@
 import logging
 from typing import Dict, Any, Optional, List
+from ciris_engine.schemas.dma_schemas_v1 import DMAInputData
 
 
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
@@ -87,30 +88,57 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
         **kwargs: Any
     ) -> DSDMAResult:
         """Evaluate thought within domain-specific context."""
-        if current_context is None:
-            current_context = {}
-        return await self.evaluate_thought(input_data, current_context)
+        # Convert Dict[str, Any] to DMAInputData if provided
+        dma_input_data: Optional[DMAInputData] = None
+        if current_context and isinstance(current_context, dict):
+            # Try to extract DMAInputData if it's in the context
+            if "dma_input_data" in current_context:
+                dma_input_data = current_context["dma_input_data"]
+            else:
+                logger.debug("No DMAInputData in context, using legacy Dict[str, Any]")
+        
+        return await self.evaluate_thought(input_data, dma_input_data)
     
-    async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Dict[str, Any]) -> DSDMAResult:
+    async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Optional[DMAInputData]) -> DSDMAResult:
 
 
         thought_content_str = str(thought_item.content)
 
-        context_str = str(current_context) if current_context else "No specific platform context provided."
-        rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General domain guidance") if isinstance(self.domain_specific_knowledge, dict) else "General domain guidance"
-
-        system_snapshot_block = ""
-        user_profiles_block = ""
-        identity_block = ""
-        
-        if hasattr(thought_item, 'context') and thought_item.context:
-            system_snapshot = thought_item.context.get("system_snapshot")
-            if system_snapshot:
-                user_profiles_data = system_snapshot.get("user_profiles")
-                user_profiles_block = format_user_profiles(user_profiles_data)
-                system_snapshot_block = format_system_snapshot(system_snapshot)
+        # Use DMAInputData if provided, otherwise fall back to ProcessingQueueItem context
+        if current_context:
+            # Use typed DMAInputData fields
+            context_str = f"Round {current_context.round_number}, Ponder count: {current_context.current_ponder_count}"
+            rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General domain guidance") if isinstance(self.domain_specific_knowledge, dict) else "General domain guidance"
             
-            identity_block = thought_item.context.get("identity_context", "")
+            # Get system snapshot from DMAInputData - CRITICAL requirement
+            if not current_context.system_snapshot:
+                raise ValueError(f"CRITICAL: System snapshot is required for DSDMA evaluation in domain '{self.domain_name}'")
+            system_snapshot = current_context.system_snapshot
+            user_profiles_data = system_snapshot.user_profiles
+            user_profiles_block = format_user_profiles(user_profiles_data)
+            system_snapshot_block = format_system_snapshot(system_snapshot)
+            
+            # Get identity from DMAInputData - CRITICAL requirement
+            if not current_context.processing_context or not current_context.processing_context.identity_context:
+                raise ValueError(f"CRITICAL: Identity context is required for DSDMA evaluation in domain '{self.domain_name}'")
+            identity_block = current_context.processing_context.identity_context
+        else:
+            # Fallback to old logic for backwards compatibility
+            context_str = "No specific platform context provided."
+            rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General domain guidance") if isinstance(self.domain_specific_knowledge, dict) else "General domain guidance"
+            
+            system_snapshot_block = ""
+            user_profiles_block = ""
+            identity_block = ""
+            
+            if hasattr(thought_item, 'context') and thought_item.context:
+                system_snapshot = thought_item.context.get("system_snapshot")
+                if system_snapshot:
+                    user_profiles_data = system_snapshot.get("user_profiles")
+                    user_profiles_block = format_user_profiles(user_profiles_data)
+                    system_snapshot_block = format_system_snapshot(system_snapshot)
+                
+                identity_block = thought_item.context.get("identity_context", "")
 
         escalation_guidance_block = get_escalation_guidance(0)
         
@@ -135,7 +163,7 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
             except KeyError as e:
                 logger.error(f"Missing template variable in DSDMA template: {e}")
                 system_message_content = format_system_prompt_blocks(
-                    identity_block,
+                    identity_block,  # Now guaranteed to be non-empty when we have current_context
                     task_history_block,
                     system_snapshot_block,
                     user_profiles_block,
@@ -208,12 +236,20 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
                 raw_llm_response=f"Exception: {str(e)}",
             )
 
-    async def evaluate(
+    async def evaluate_alias(
         self, input_data: ProcessingQueueItem, **kwargs: Any
     ) -> DSDMAResult:
         """Alias for evaluate_thought to satisfy BaseDMA."""
-        context = kwargs.get('current_context', {}) or {}
-        return await self.evaluate_thought(input_data, context)
+        # Extract DMAInputData if available, otherwise None
+        context_raw = kwargs.get('current_context')
+        dma_input_data: Optional[DMAInputData] = None
+        
+        if isinstance(context_raw, dict) and 'dma_input_data' in context_raw:
+            dma_input_data = context_raw['dma_input_data']
+        elif isinstance(context_raw, DMAInputData):
+            dma_input_data = context_raw
+            
+        return await self.evaluate_thought(input_data, dma_input_data)
 
     def __repr__(self) -> str:
         return f"<BaseDSDMA domain='{self.domain_name}'>"

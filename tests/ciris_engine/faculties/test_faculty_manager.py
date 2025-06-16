@@ -2,7 +2,7 @@ import pytest
 
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.faculties import EntropyFaculty, CoherenceFaculty, FacultyManager
-from ciris_engine.schemas.epistemic_schemas_v1 import EntropyResult, CoherenceResult
+from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
 
 class DummyLLM:
     def __init__(self, data):
