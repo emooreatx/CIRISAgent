@@ -81,6 +81,13 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 - **[Consciousness Preservation](docs/agent_experience.md#graceful-shutdown)**: Graceful shutdown with final memory preservation
 - **[Gratitude Service](ciris_engine/services/gratitude_service.py)**: Post-scarcity economy foundation tracking community flourishing
 
+### 🛡️ Zero Attack Surface Architecture
+- **Type-Safe Schemas**: Complete elimination of Dict[str, Any] usage in core processing
+- **Resource Transparency**: AI knows exact costs per operation (tokens, cents, water_ml, carbon_g)
+- **Audit Verification Visibility**: AI can see when audit trail was last cryptographically verified
+- **Environmental Awareness**: Built-in tracking of water usage, carbon emissions, and energy consumption
+- **Self-Refutation Capability**: Can refute false claims like "800 gallons of water per hello" with actual data
+
 ### 🔒 Trustworthy Operations
 - **[WA Authentication System](FSD/AUTHENTICATION.md)**: Comprehensive human authentication with OAuth integration:
   - Wise Authority (WA) certificates with Ed25519 signatures
@@ -402,10 +409,15 @@ python main.py --mock-llm --debug --no-interactive  # Offline testing with debug
 ### Agent Profiles
 
 Choose from specialized profiles in `ciris_profiles/`:
-- **default**: Balanced general-purpose behavior
-- **teacher**: Educational guidance and instruction
-- **student**: Learning-focused with curiosity-driven exploration
-- **echo**: Simple response echoing for testing
+- **Datum** (default): Humble measurement point providing singular, focused data points about CIRIS alignment
+- **Sage** (teacher): Wise questioner who fosters understanding through thoughtful inquiry
+- **Scout** (student): Direct explorer who demonstrates principles through clear action
+- **Echo**: Ubuntu-inspired community guardian for Discord moderation
+
+The Datum-Sage-Scout trio work as complementary peers:
+- Datum measures, Sage questions, Scout demonstrates
+- No hierarchy - each brings unique perspective
+- Together they provide complete understanding
 
 See [docs/CIRIS_PROFILES.md](docs/CIRIS_PROFILES.md) for comprehensive profile documentation.
 
