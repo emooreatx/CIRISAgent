@@ -33,6 +33,11 @@ from ciris_engine.utils.shutdown_manager import (
     wait_for_global_shutdown,
     is_global_shutdown_requested
 )
+from ciris_engine.utils.initialization_manager import (
+    get_initialization_manager,
+    InitializationPhase,
+    InitializationError
+)
 
 from ciris_engine.registries.base import ServiceRegistry, Priority
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
@@ -182,25 +187,17 @@ class CIRISRuntime(RuntimeInterface):
         logger.info(f"Initializing CIRIS Runtime with profile '{self.profile_name}'...")
         
         try:
-            persistence.initialize_database()
+            # Set up initialization manager
+            init_manager = get_initialization_manager()
             
-            if not self.app_config:
-                from ciris_engine.config.config_manager import get_config_async
-                self.app_config = await get_config_async()
+            # Register all initialization steps with proper phases
+            await self._register_initialization_steps(init_manager)
             
-            await self._load_profile()
+            # Run the initialization sequence
+            await init_manager.initialize()
             
-            await self._initialize_services() # Core services (including WA auth)
-            
-            await self._build_components() # Agent processor and its dependencies
-
-            await self._register_adapter_services() # Adapter-provided services (needs WA auth)
-            
+            # Perform final maintenance after all initialization
             await self._perform_startup_maintenance()
-
-            # Start adapters after core components are ready but before agent processor starts full operation
-            await asyncio.gather(*(adapter.start() for adapter in self.adapters))
-            logger.info(f"All {len(self.adapters)} adapters started.")
             
             self._initialized = True
             logger.info("CIRIS Runtime initialized successfully")
@@ -211,31 +208,483 @@ class CIRISRuntime(RuntimeInterface):
                 logger.critical("Database maintenance failure during initialization - system cannot start safely")
             raise
         
-    async def _load_profile(self) -> None:
-        """Load the agent profile."""
+    async def _initialize_identity(self) -> None:
+        """Initialize agent identity - create from profile on first run, load from graph thereafter."""
         config = self._ensure_config()
-            
-        profile_path = Path(config.profile_directory) / f"{self.profile_name}.yaml"
-        self.profile = await load_profile(profile_path)
         
-        if not self.profile:
-            logger.warning(f"Profile '{self.profile_name}' not found, loading default profile")
-            default_path = Path(config.profile_directory) / "default.yaml"
-            self.profile = await load_profile(default_path)
-            
-        if not self.profile:
-            raise RuntimeError("No profile could be loaded")
-            
-        config.agent_profiles[self.profile.name.lower()] = self.profile
+        # Check if identity exists in graph
+        identity_data = await self._get_identity_from_graph()
         
-        if "default" not in config.agent_profiles:
-            default_path = Path(config.profile_directory) / "default.yaml"
-            default_profile = await load_profile(default_path)
-            if default_profile:
-                config.agent_profiles["default"] = default_profile
+        if identity_data:
+            # Identity exists - load it and use it
+            logger.info("Loading existing agent identity from graph")
+            from ciris_engine.schemas.identity_schemas_v1 import AgentIdentityRoot
+            self.agent_identity = AgentIdentityRoot.model_validate(identity_data)
+            
+            # Create a minimal profile object for compatibility
+            # This will be removed once all systems use identity directly
+            self.profile = self._create_profile_from_identity(self.agent_identity)
+        else:
+            # First run - use profile to create initial identity
+            logger.info("No identity found, creating from profile (first run only)")
+            
+            # Load profile ONLY for initial identity creation
+            profile_path = Path(config.profile_directory) / f"{self.profile_name}.yaml"
+            initial_profile = await load_profile(profile_path)
+            
+            if not initial_profile:
+                logger.warning(f"Profile '{self.profile_name}' not found, using default")
+                default_path = Path(config.profile_directory) / "default.yaml"
+                initial_profile = await load_profile(default_path)
                 
+            if not initial_profile:
+                raise RuntimeError("No profile available for initial identity creation")
+            
+            # Create identity from profile and save to graph
+            self.agent_identity = await self._create_identity_from_profile(initial_profile)
+            await self._save_identity_to_graph(self.agent_identity)
+            
+            # Keep profile for compatibility during transition
+            self.profile = initial_profile
+        
+        # Store in config for backward compatibility (to be removed)
+        config.agent_profiles[self.agent_identity.agent_id.lower()] = self.profile
+    
+    async def _get_identity_from_graph(self) -> Optional[Dict[str, Any]]:
+        """Retrieve agent identity from the graph memory."""
+        if not self.memory_service:
+            return None
+            
+        try:
+            from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+            
+            identity_node = GraphNode(
+                id="agent/identity",
+                type=NodeType.AGENT,
+                scope=GraphScope.IDENTITY
+            )
+            result = await self.memory_service.recall(identity_node)
+            
+            if result and result.nodes:
+                return result.nodes[0].attributes.get("identity")
+        except Exception as e:
+            logger.warning(f"Failed to retrieve identity from graph: {e}")
+        
+        return None
+    
+    async def _save_identity_to_graph(self, identity: Any) -> None:
+        """Save agent identity to the graph memory."""
+        if not self.memory_service:
+            logger.error("Cannot save identity - memory service not available")
+            return
+            
+        try:
+            from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+            
+            identity_node = GraphNode(
+                id="agent/identity",
+                type=NodeType.AGENT,
+                scope=GraphScope.IDENTITY,
+                attributes={
+                    "identity": identity.model_dump(),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "version": "1.0"
+                }
+            )
+            await self.memory_service.memorize(identity_node)
+            logger.info("Agent identity saved to graph")
+        except Exception as e:
+            logger.error(f"Failed to save identity to graph: {e}")
+            raise
+    
+    def _create_profile_from_identity(self, identity: Any) -> AgentProfile:
+        """Create a minimal profile object from identity for backward compatibility."""
+        # Create a profile that matches the identity settings
+        return AgentProfile(
+            name=identity.agent_id,
+            description=identity.core_profile.description,
+            role_description=identity.core_profile.role_description,
+            dsdma_identifier=getattr(identity.core_profile, 'dsdma_identifier', 'moderation'),
+            # Initialize overrides from identity if available
+            dsdma_overrides=getattr(identity.core_profile, 'dsdma_overrides', {}),
+            csdma_overrides=getattr(identity.core_profile, 'csdma_overrides', {}),
+            action_selection_pdma_overrides=getattr(identity.core_profile, 'action_selection_pdma_overrides', {})
+        )
+    
+    async def _create_identity_from_profile(self, profile: AgentProfile) -> Any:
+        """Create initial identity from profile (first run only)."""
+        from ciris_engine.schemas.identity_schemas_v1 import (
+            AgentIdentityRoot, 
+            CoreProfile,
+            IdentityMetadata
+        )
+        import hashlib
+        
+        # Generate deterministic identity hash
+        identity_string = f"{profile.name}:{profile.description}:{profile.role_description}"
+        identity_hash = hashlib.sha256(identity_string.encode()).hexdigest()
+        
+        # Create identity root from profile
+        return AgentIdentityRoot(
+            agent_id=profile.name,
+            identity_hash=identity_hash,
+            core_profile=CoreProfile(
+                description=profile.description,
+                role_description=profile.role_description,
+                dsdma_identifier=profile.dsdma_identifier,
+                dsdma_overrides=profile.dsdma_overrides or {},
+                csdma_overrides=profile.csdma_overrides or {},
+                action_selection_pdma_overrides=profile.action_selection_pdma_overrides or {}
+            ),
+            identity_metadata=IdentityMetadata(
+                created_at=datetime.now(timezone.utc).isoformat(),
+                last_modified=datetime.now(timezone.utc).isoformat(),
+                modification_count=0,
+                creator_agent_id="system",
+                lineage_trace=["system"],
+                approval_required=True,
+                approved_by=None,
+                approval_timestamp=None
+            ),
+            allowed_capabilities=[
+                "communication", "memory", "observation", "tool_use",
+                "ethical_reasoning", "self_modification", "task_management"
+            ],
+            restricted_capabilities=[
+                "identity_change_without_approval",
+                "profile_switching",
+                "unauthorized_data_access"
+            ]
+        )
+    
+    def _calculate_profile_variance(self, identity_profile: Any, current_profile: Any) -> float:
+        """Calculate variance between identity profile and current profile."""
+        # Compare key attributes
+        variance_points = 0
+        total_points = 0
+        
+        # Name change is significant
+        if identity_profile.name != current_profile.name:
+            variance_points += 3
+        total_points += 3
+        
+        # Description change
+        if identity_profile.description != current_profile.description:
+            variance_points += 2
+        total_points += 2
+        
+        # Role description change
+        if identity_profile.role_description != current_profile.role_description:
+            variance_points += 2
+        total_points += 2
+        
+        # DSDMA identifier change is critical
+        if identity_profile.dsdma_identifier != current_profile.dsdma_identifier:
+            variance_points += 5
+        total_points += 5
+        
+        # Check overrides
+        for override_type in ['dsdma_overrides', 'csdma_overrides', 'action_selection_pdma_overrides']:
+            identity_overrides = getattr(identity_profile, override_type, {})
+            current_overrides = getattr(current_profile, override_type, {})
+            
+            # Count changed keys
+            all_keys = set(identity_overrides.keys()) | set(current_overrides.keys())
+            changed_keys = 0
+            
+            for key in all_keys:
+                if identity_overrides.get(key) != current_overrides.get(key):
+                    changed_keys += 1
+            
+            if all_keys:
+                variance_points += (changed_keys / len(all_keys)) * 2
+            total_points += 2
+        
+        return variance_points / total_points if total_points > 0 else 0
+    
+    def _create_profile_from_identity(self, identity: Any) -> Any:
+        """Create a minimal profile object from identity for backward compatibility."""
+        # This is a temporary shim until all systems use identity directly
+        from types import SimpleNamespace
+        
+        profile = SimpleNamespace()
+        profile.name = identity.agent_id
+        profile.description = identity.core_profile.description
+        profile.role_description = identity.core_profile.role_description
+        profile.dsdma_identifier = identity.core_profile.dsdma_identifier
+        profile.dsdma_overrides = identity.core_profile.dsdma_overrides
+        profile.csdma_overrides = identity.core_profile.csdma_overrides
+        profile.action_selection_pdma_overrides = identity.core_profile.action_selection_pdma_overrides
+        profile.reactivation_count = identity.core_profile.reactivation_count
+        
+        return profile
+    
+    async def _create_identity_from_profile(self, initial_profile: Any) -> Any:
+        """Create initial agent identity from profile."""
+        from ciris_engine.schemas.identity_schemas_v1 import (
+            AgentIdentityRoot, CreationCeremony, AgentProfile
+        )
+        import uuid
+        
+        # Create ceremony record
+        ceremony = CreationCeremony(
+            ceremony_id=str(uuid.uuid4()),
+            human_id="bootstrap",
+            human_name="System Bootstrap",
+            agent_id=initial_profile.name,
+            agent_name=initial_profile.name,
+            purpose_statement=initial_profile.description,
+            success=True,
+            identity_hash="pending",
+            created_at=datetime.now(timezone.utc).isoformat()
+        )
+        
+        # Create identity
+        identity = AgentIdentityRoot(
+            agent_id=initial_profile.name,
+            creation_ceremony_id=ceremony.ceremony_id,
+            identity_hash=self._compute_identity_hash(initial_profile),
+            core_profile=initial_profile,
+            wa_approver_id="bootstrap",
+            created_human_id="bootstrap",
+            created_agent_id=None,
+            profile_variance_threshold=0.20,
+            allowed_capabilities=self._get_default_capabilities(),
+            restricted_capabilities=self._get_restricted_capabilities(initial_profile),
+            created_at=datetime.now(timezone.utc).isoformat()
+        )
+        
+        return identity
+    
+    def _compute_identity_hash(self, profile: Any) -> str:
+        """Compute hash of core profile attributes."""
+        import hashlib
+        import json
+        
+        core_data = {
+            "name": profile.name,
+            "description": profile.description,
+            "role_description": profile.role_description,
+            "dsdma_identifier": profile.dsdma_identifier
+        }
+        
+        data_str = json.dumps(core_data, sort_keys=True)
+        return hashlib.sha256(data_str.encode()).hexdigest()
+    
+    def _get_default_capabilities(self) -> List[str]:
+        """Get default allowed capabilities."""
+        return [
+            "observe", "speak", "ponder", "defer", "memorize", "recall",
+            "task_complete", "tool_use_safe"
+        ]
+    
+    def _get_restricted_capabilities(self, profile: Any) -> List[str]:
+        """Get restricted capabilities based on profile."""
+        restricted = []
+        
+        # Restrict dangerous tools for certain profiles
+        if profile.name in ["student", "child", "restricted"]:
+            restricted.extend(["tool_use_admin", "reject_with_filter"])
+        
+        return restricted
+                
+    async def _register_initialization_steps(self, init_manager) -> None:
+        """Register all initialization steps with the initialization manager."""
+        
+        # Phase 1: DATABASE
+        init_manager.register_step(
+            phase=InitializationPhase.DATABASE,
+            name="Initialize Database",
+            handler=self._init_database,
+            verifier=self._verify_database_integrity,
+            critical=True
+        )
+        
+        # Phase 2: MEMORY
+        init_manager.register_step(
+            phase=InitializationPhase.MEMORY,
+            name="Memory Service",
+            handler=self._initialize_memory_service,
+            verifier=self._verify_memory_service,
+            critical=True
+        )
+        
+        # Phase 3: IDENTITY
+        init_manager.register_step(
+            phase=InitializationPhase.IDENTITY,
+            name="Agent Identity",
+            handler=self._initialize_identity,
+            verifier=self._verify_identity_integrity,
+            critical=True
+        )
+        
+        # Phase 4: SECURITY
+        init_manager.register_step(
+            phase=InitializationPhase.SECURITY,
+            name="Security Services",
+            handler=self._initialize_security_services,
+            verifier=self._verify_security_services,
+            critical=True
+        )
+        
+        # Phase 5: SERVICES
+        init_manager.register_step(
+            phase=InitializationPhase.SERVICES,
+            name="Core Services",
+            handler=self._initialize_services,
+            verifier=self._verify_core_services,
+            critical=True
+        )
+        
+        init_manager.register_step(
+            phase=InitializationPhase.SERVICES,
+            name="Register Adapter Services",
+            handler=self._register_adapter_services,
+            critical=False
+        )
+        
+        # Phase 6: COMPONENTS
+        init_manager.register_step(
+            phase=InitializationPhase.COMPONENTS,
+            name="Build Components",
+            handler=self._build_components,
+            critical=True
+        )
+        
+        init_manager.register_step(
+            phase=InitializationPhase.COMPONENTS,
+            name="Start Adapters",
+            handler=self._start_adapters,
+            critical=True
+        )
+        
+        # Phase 7: VERIFICATION
+        init_manager.register_step(
+            phase=InitializationPhase.VERIFICATION,
+            name="Final System Verification",
+            handler=self._final_verification,
+            critical=True
+        )
+    
+    async def _init_database(self) -> None:
+        """Initialize database and run migrations."""
+        persistence.initialize_database()
+        persistence.run_migrations()
+        
+        if not self.app_config:
+            from ciris_engine.config.config_manager import get_config_async
+            self.app_config = await get_config_async()
+    
+    async def _verify_database_integrity(self) -> bool:
+        """Verify database integrity before proceeding."""
+        try:
+            # Check core tables exist
+            conn = persistence.get_db_connection()
+            cursor = conn.cursor()
+            
+            required_tables = ['tasks', 'thoughts', 'graph_nodes', 'graph_edges']
+            for table in required_tables:
+                cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'")
+                if not cursor.fetchone():
+                    raise RuntimeError(f"Required table '{table}' missing from database")
+            
+            conn.close()
+            logger.info("✓ Database integrity verified")
+            return True
+        except Exception as e:
+            logger.error(f"Database integrity check failed: {e}")
+            return False
+    
+    async def _initialize_memory_service(self) -> None:
+        """Initialize memory service early for identity storage."""
+        try:
+            self.memory_service = LocalGraphMemoryService()
+            await self.memory_service.start()
+            logger.info("✓ Memory service initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize memory service: {e}")
+            raise RuntimeError(f"Cannot proceed without memory service: {e}")
+    
+    async def _verify_memory_service(self) -> bool:
+        """Verify memory service is operational."""
+        try:
+            from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+            
+            # Test write and read
+            test_node = GraphNode(
+                id="test/startup_verification",
+                type=NodeType.AGENT,
+                scope=GraphScope.LOCAL,
+                attributes={"test": True, "timestamp": datetime.now(timezone.utc).isoformat()}
+            )
+            
+            await self.memory_service.memorize(test_node)
+            result = await self.memory_service.recall(test_node)
+            
+            if not result or not result.nodes:
+                raise RuntimeError("Memory service verification failed - cannot read test data")
+            
+            # Clean up test data
+            await self.memory_service.forget(test_node)
+            logger.info("✓ Memory service verified")
+            return True
+        except Exception as e:
+            logger.error(f"Memory service verification failed: {e}")
+            return False
+    
+    async def _verify_identity_integrity(self) -> bool:
+        """Verify identity was properly established."""
+        if not self.agent_identity:
+            logger.error("Identity initialization failed - no identity established")
+            return False
+        
+        # Verify critical identity fields
+        required_fields = ['agent_id', 'identity_hash', 'core_profile', 'allowed_capabilities']
+        for field in required_fields:
+            if not hasattr(self.agent_identity, field) or not getattr(self.agent_identity, field):
+                logger.error(f"Identity integrity check failed - missing {field}")
+                return False
+        
+        logger.info(f"✓ Identity verified: {self.agent_identity.agent_id} ({self.agent_identity.identity_hash[:8]}...)")
+        return True
+    
+    async def _initialize_security_services(self) -> None:
+        """Initialize security-critical services first."""
+        config = self._ensure_config()
+        
+        # Initialize secrets service
+        self.secrets_service = SecretsService(
+            db_path=getattr(config.secrets, 'db_path', 'secrets.db') if hasattr(config, 'secrets') else 'secrets.db'
+        )
+        await self.secrets_service.start()
+        
+        # Initialize WA authentication system
+        self.wa_auth_system = await initialize_authentication()
+        logger.info("✓ Security services initialized")
+    
+    async def _verify_security_services(self) -> bool:
+        """Verify security services are operational."""
+        # Verify secrets service
+        if not self.secrets_service:
+            logger.error("Secrets service not initialized")
+            return False
+        
+        # Verify WA auth system
+        if not self.wa_auth_system:
+            logger.error("WA authentication system not initialized")
+            return False
+        
+        # Verify gateway secret exists
+        auth_service = self.wa_auth_system.get_auth_service()
+        if not auth_service:
+            logger.error("WA auth service not available")
+            return False
+        
+        logger.info("✓ Security services verified")
+        return True
+    
     async def _initialize_services(self) -> None:
-        """Initialize all core services."""
+        """Initialize all remaining core services."""
         self.service_registry = ServiceRegistry()
         
         self.multi_service_sink = MultiServiceActionSink(
@@ -257,8 +706,8 @@ class CIRISRuntime(RuntimeInterface):
         self.llm_service = OpenAICompatibleClient(config.llm_services.openai, telemetry_service=self.telemetry_service)
         await self.llm_service.start()
         
-        self.memory_service = LocalGraphMemoryService()
-        await self.memory_service.start()
+        # Memory service already initialized in _initialize_memory_service
+        # Secrets service already initialized in _initialize_security_services
         
         # Initialize ALL THREE REQUIRED audit services - they ALL receive events through the sink
         self.audit_services = []
@@ -298,7 +747,8 @@ class CIRISRuntime(RuntimeInterface):
             file_audit_service=None
         )
         await tsdb_audit.start()
-        self.audit_services.append(tsdb_audit)
+        # Type cast to AuditService for proper typing
+        self.audit_services.append(tsdb_audit)  # type: ignore[arg-type]
         logger.info("TSDB audit service started")
         
         # Verify all 3 services are running
@@ -325,11 +775,8 @@ class CIRISRuntime(RuntimeInterface):
         await self.audit_sink_manager.start()
         logger.info("Audit sink manager started with 3 registered consumers")
         
-        # Initialize secrets service
-        self.secrets_service = SecretsService(
-            db_path=getattr(config.secrets, 'db_path', 'secrets.db') if hasattr(config, 'secrets') else 'secrets.db'
-        )
-        await self.secrets_service.start()
+        # Secrets service already initialized in _initialize_security_services
+        # WA auth system already initialized in _initialize_security_services
         
         # Initialize adaptive filter service
         self.adaptive_filter_service = AdaptiveFilterService(
@@ -337,10 +784,6 @@ class CIRISRuntime(RuntimeInterface):
             llm_service=self.llm_service
         )
         await self.adaptive_filter_service.start()
-        
-        # Initialize WA authentication system
-        self.wa_auth_system = await initialize_authentication()
-        logger.info("WA Authentication System initialized")
         
         # Initialize agent configuration service
         self.agent_config_service = AgentConfigService(
@@ -364,6 +807,65 @@ class CIRISRuntime(RuntimeInterface):
             archive_dir_path=archive_dir,
             archive_older_than_hours=archive_hours
         )
+    
+    async def _verify_core_services(self) -> bool:
+        """Verify all core services are operational."""
+        try:
+            # Check service registry
+            if not self.service_registry:
+                logger.error("Service registry not initialized")
+                return False
+            
+            # Check critical services
+            critical_services = [
+                self.telemetry_service,
+                self.llm_service,
+                self.memory_service,
+                self.secrets_service,
+                self.adaptive_filter_service
+            ]
+            
+            for service in critical_services:
+                if not service:
+                    logger.error(f"Critical service {type(service).__name__} not initialized")
+                    return False
+            
+            # Verify audit services
+            if not self.audit_services or len(self.audit_services) != 3:
+                logger.error(f"Expected 3 audit services, found {len(self.audit_services) if self.audit_services else 0}")
+                return False
+            
+            logger.info("✓ All core services verified")
+            return True
+        except Exception as e:
+            logger.error(f"Core services verification failed: {e}")
+            return False
+    
+    async def _start_adapters(self) -> None:
+        """Start all adapters."""
+        await asyncio.gather(*(adapter.start() for adapter in self.adapters))
+        logger.info(f"All {len(self.adapters)} adapters started")
+    
+    async def _final_verification(self) -> None:
+        """Perform final system verification."""
+        # Verify initialization status
+        init_status = get_initialization_manager().get_status()
+        
+        if not init_status.get("complete"):
+            raise RuntimeError("Initialization not complete")
+        
+        # Verify identity loaded
+        if not self.agent_identity:
+            raise RuntimeError("No agent identity established")
+        
+        # Log final status
+        logger.info("=" * 60)
+        logger.info("CIRIS Agent Pre-Wakeup Verification Complete")
+        logger.info(f"Identity: {self.agent_identity.agent_id}")
+        logger.info(f"Purpose: {self.agent_identity.core_profile.description}")
+        logger.info(f"Capabilities: {len(self.agent_identity.allowed_capabilities)} allowed")
+        logger.info(f"Services: {len(self.service_registry._services) if self.service_registry else 0} registered")
+        logger.info("=" * 60)
         
     async def _perform_startup_maintenance(self) -> None:
         """Perform database cleanup at startup."""
@@ -468,12 +970,18 @@ class CIRISRuntime(RuntimeInterface):
             sink=self.multi_service_sink,
         )
 
+        # Create faculty manager and epistemic faculties
+        from ciris_engine.faculties.faculty_manager import FacultyManager
+        faculty_manager = FacultyManager(self.service_registry)
+        faculty_manager.create_default_faculties()
+        
         action_pdma = ActionSelectionPDMAEvaluator(
             service_registry=self.service_registry,
             model_name=self.llm_service.model_name,
             max_retries=config.llm_services.openai.max_retries,
             prompt_overrides=self.profile.action_selection_pdma_overrides if self.profile else None,
             sink=self.multi_service_sink,
+            faculties=faculty_manager.faculties,  # Pass faculties for enhanced evaluation
         )
 
         dsdma = await create_dsdma_from_profile(
@@ -784,8 +1292,12 @@ class CIRISRuntime(RuntimeInterface):
             await self.shutdown()
             
     async def shutdown(self) -> None:
-        """Gracefully shutdown all services."""
+        """Gracefully shutdown all services with consciousness preservation."""
         logger.info("Shutting down CIRIS Runtime...")
+        
+        # Preserve agent consciousness if identity exists
+        if hasattr(self, 'agent_identity') and self.agent_identity:
+            await self._preserve_shutdown_consciousness()
         
         logger.info("Initiating shutdown sequence for CIRIS Runtime...")
         self._ensure_shutdown_event()
@@ -796,6 +1308,53 @@ class CIRISRuntime(RuntimeInterface):
             logger.debug("Stopping agent processor...")
             await self.agent_processor.stop_processing()
             logger.debug("Agent processor stopped.")
+    
+    async def _preserve_shutdown_consciousness(self) -> None:
+        """Preserve agent state for future reactivation."""
+        try:
+            from ciris_engine.schemas.identity_schemas_v1 import ShutdownContext
+            from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
+            
+            # Create shutdown context
+            shutdown_context = ShutdownContext(
+                reason=self._shutdown_reason or "Graceful shutdown",
+                final_state={
+                    "active_tasks": persistence.count_active_tasks(),
+                    "pending_thoughts": persistence.count_pending_thoughts(),
+                    "runtime_duration": (datetime.now(timezone.utc) - self._start_time).total_seconds()
+                        if hasattr(self, '_start_time') else 0
+                },
+                pending_tasks=[],  # TODO: Gather actual pending tasks
+                deferred_thoughts=[],  # TODO: Gather deferred thoughts
+                timestamp=datetime.now(timezone.utc).isoformat()
+            )
+            
+            # Create memory node for shutdown
+            shutdown_node = GraphNode(
+                id=f"shutdown_{datetime.now(timezone.utc).isoformat()}",
+                type=NodeType.AGENT,
+                scope=GraphScope.IDENTITY,
+                attributes={
+                    "shutdown_context": shutdown_context.model_dump(),
+                    "identity_hash": self.agent_identity.identity_hash,
+                    "reactivation_count": self.agent_identity.core_profile.reactivation_count
+                }
+            )
+            
+            # Store in memory service
+            if self.memory_service:
+                await self.memory_service.memorize(shutdown_node)
+                logger.info(f"Preserved shutdown consciousness: {shutdown_node.id}")
+                
+                # Update identity with shutdown memory reference
+                self.agent_identity.core_profile.last_shutdown_memory = shutdown_node.id
+                self.agent_identity.core_profile.reactivation_count += 1
+                
+                # Save updated identity
+                persistence.save_agent_identity(self.agent_identity.model_dump())
+                
+        except Exception as e:
+            logger.error(f"Failed to preserve shutdown consciousness: {e}")
             
         if self.multi_service_sink:
             logger.debug("Stopping multi-service sink...")

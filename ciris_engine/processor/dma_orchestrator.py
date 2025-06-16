@@ -15,6 +15,9 @@ from ciris_engine.dma.dma_executor import (
 )
 from ciris_engine.schemas.dma_results_v1 import (
     ActionSelectionResult,
+    EthicalDMAResult,
+    CSDMAResult,
+    DSDMAResult,
 )
 from ciris_engine.schemas.processing_schemas_v1 import DMAResults
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
@@ -191,11 +194,20 @@ class DMAOrchestrator:
                     if cb:
                         cb.record_success()
                     if name == "ethical_pdma":
-                        results.ethical_pdma = outcome
+                        if isinstance(outcome, EthicalDMAResult):
+                            results.ethical_pdma = outcome
+                        else:
+                            logger.error(f"Unexpected outcome type for ethical_pdma: {type(outcome)}")
                     elif name == "csdma":
-                        results.csdma = outcome
+                        if isinstance(outcome, CSDMAResult):
+                            results.csdma = outcome
+                        else:
+                            logger.error(f"Unexpected outcome type for csdma: {type(outcome)}")
                     elif name == "dsdma":
-                        results.dsdma = outcome
+                        if isinstance(outcome, DSDMAResult):
+                            results.dsdma = outcome
+                        else:
+                            logger.error(f"Unexpected outcome type for dsdma: {type(outcome)}")
 
         return results
 
@@ -272,4 +284,9 @@ class DMAOrchestrator:
         except Exception as e:
             logger.error(f"ActionSelectionPDMA failed: {e}", exc_info=True)
             raise
-        return result
+        
+        if isinstance(result, ActionSelectionResult):
+            return result
+        else:
+            logger.error(f"Action selection returned unexpected type: {type(result)}")
+            raise TypeError(f"Expected ActionSelectionResult, got {type(result)}")

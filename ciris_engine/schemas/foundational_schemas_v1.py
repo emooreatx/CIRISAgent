@@ -166,32 +166,32 @@ class DispatchContext(BaseModel):
     """Type-safe context for action handler dispatch.
     
     This replaces the generic Dict[str, Any] with proper typed fields
-    for mission-critical production use.
+    for mission-critical production use. All core fields are REQUIRED.
     """
-    # Core identification
-    channel_id: Optional[str] = Field(None, description="Channel where action originated")
-    author_id: Optional[str] = Field(None, description="ID of user/entity initiating action")
-    author_name: Optional[str] = Field(None, description="Display name of initiator")
+    # Core identification - ALL REQUIRED
+    channel_id: str = Field(..., description="Channel where action originated")
+    author_id: str = Field(..., description="ID of user/entity initiating action")
+    author_name: str = Field(..., description="Display name of initiator")
     
-    # Service references
-    origin_service: Optional[str] = Field(None, description="Service that originated the request")
-    handler_name: Optional[str] = Field(None, description="Handler processing this action")
+    # Service references - ALL REQUIRED
+    origin_service: str = Field(..., description="Service that originated the request")
+    handler_name: str = Field(..., description="Handler processing this action")
     
-    # Action context
-    action_type: Optional[HandlerActionType] = Field(None, description="Type of action being handled")
-    thought_id: Optional[str] = Field(None, description="Associated thought ID")
-    task_id: Optional[str] = Field(None, description="Associated task ID")
-    source_task_id: Optional[str] = Field(None, description="Source task ID from thought")
+    # Action context - ALL REQUIRED
+    action_type: HandlerActionType = Field(..., description="Type of action being handled")
+    thought_id: str = Field(..., description="Associated thought ID")
+    task_id: str = Field(..., description="Associated task ID")
+    source_task_id: str = Field(..., description="Source task ID from thought")
     
-    # Event details
-    event_summary: Optional[str] = Field(None, description="Summary of the event/action")
-    event_timestamp: Optional[str] = Field(None, description="ISO8601 timestamp of event")
+    # Event details - ALL REQUIRED
+    event_summary: str = Field(..., description="Summary of the event/action")
+    event_timestamp: str = Field(..., description="ISO8601 timestamp of event")
     
-    # Additional context
+    # Additional context - REQUIRED with sensible defaults
     wa_id: Optional[str] = Field(None, description="Wise Authority ID if applicable")
-    wa_authorized: Optional[bool] = Field(False, description="Whether WA authorized this action")
-    correlation_id: Optional[str] = Field(None, description="Correlation ID for tracking")
-    round_number: Optional[int] = Field(None, description="Processing round number")
+    wa_authorized: bool = Field(False, description="Whether WA authorized this action")
+    correlation_id: str = Field(..., description="Correlation ID for tracking")
+    round_number: int = Field(..., description="Processing round number")
     
     # Guardrail results - None for terminal actions (DEFER, REJECT, TASK_COMPLETE)
     guardrail_result: Optional['GuardrailResult'] = Field(

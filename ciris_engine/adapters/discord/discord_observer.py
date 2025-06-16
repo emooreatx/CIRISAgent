@@ -1,9 +1,9 @@
 import logging
 import asyncio
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Dict
 
 from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, ThoughtType
-from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext, SystemSnapshot
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.adapters.base_observer import BaseObserver
@@ -106,9 +106,10 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             return
         
         # Add filter context to message for downstream processing
-        processed_msg._filter_priority = filter_result.priority
-        processed_msg._filter_context = filter_result.context_hints
-        processed_msg._filter_reasoning = filter_result.reasoning
+        # Store filter info in a way that doesn't modify the message object
+        setattr(processed_msg, '_filter_priority', filter_result.priority)
+        setattr(processed_msg, '_filter_context', filter_result.context_hints)
+        setattr(processed_msg, '_filter_reasoning', filter_result.reasoning)
         
         # Process based on priority
         if filter_result.priority.value in ['critical', 'high']:
@@ -122,7 +123,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         await self._recall_context(processed_msg)
 
 
-    async def _handle_priority_observation(self, msg: DiscordMessage, filter_result) -> None:
+    async def _handle_priority_observation(self, msg: DiscordMessage, filter_result: Any) -> None:
         """Handle high-priority messages with immediate processing"""
         from ciris_engine.utils.constants import (
             DEFAULT_WA,
@@ -137,6 +138,28 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             await self._add_to_feedback_queue(msg)
         else:
             logger.debug("Ignoring priority message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id)
+
+    def _create_task_context_with_extras(self, msg: DiscordMessage, extras: Dict[str, Any]) -> ThoughtContext:
+        """Create a ThoughtContext with extra fields."""
+        from datetime import datetime, timezone
+        
+        context = ThoughtContext(
+            system_snapshot=SystemSnapshot(
+                channel_id=msg.channel_id
+            ),
+            user_profiles={},
+            task_history=[],
+            initial_task_context=TaskContext(
+                channel_id=msg.channel_id,
+                author_id=msg.author_id,
+                author_name=msg.author_name,
+                origin_service="discord"
+            )
+        )
+        # Add extra fields
+        for key, value in extras.items():
+            setattr(context, key, value)
+        return context
 
     async def _handle_passive_observation(self, msg: DiscordMessage) -> None:
         from ciris_engine.utils.constants import (
@@ -252,18 +275,23 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                                 "deferral_reason": deferral_reason
                             })
                         else:
-                            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+                            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot, UserProfile, TaskSummary
+                            # Create a minimal valid ThoughtContext
                             guidance_context = ThoughtContext(
-                                **{
-                                    "guidance_message_id": msg.message_id,
-                                    "guidance_author": msg.author_name,
-                                    "guidance_content": msg.content,
-                                    "is_guidance_response": True,
-                                    "original_round_number": original_thought.round_number,
-                                    "original_thought_id": referenced_thought_id,
-                                    "deferral_reason": deferral_reason
-                                }
+                                system_snapshot=SystemSnapshot(
+                                    channel_id=msg.channel_id
+                                ),
+                                user_profiles={},
+                                task_history=[]
                             )
+                            # Add extra fields after creation
+                            setattr(guidance_context, 'guidance_message_id', msg.message_id)
+                            setattr(guidance_context, 'guidance_author', msg.author_name)
+                            setattr(guidance_context, 'guidance_content', msg.content)
+                            setattr(guidance_context, 'is_guidance_response', True)
+                            setattr(guidance_context, 'original_round_number', original_thought.round_number)
+                            setattr(guidance_context, 'original_thought_id', referenced_thought_id)
+                            setattr(guidance_context, 'deferral_reason', deferral_reason)
                         
                         # Combine content with WA response last to ensure it's acted upon
                         combined_content = f"ORIGINAL THOUGHT: {original_thought.content}\n\n" \
@@ -301,18 +329,13 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                 priority=8,  # High priority for guidance
                 created_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),
-                context=ThoughtContext(
-                    initial_task_context=TaskContext(
-                        channel_id=msg.channel_id,
-                        author_id=msg.author_id,
-                        author_name=msg.author_name,
-                        origin_service="discord"
-                    ),
-                    **{
+                context=self._create_task_context_with_extras(
+                    msg,
+                    {
                         "message_id": msg.message_id,
                         "observation_type": "unsolicited_guidance",
                         "is_guidance": True,
-                        "guidance_content": msg.content,
+                        "guidance_content": msg.content
                     }
                 )
             )

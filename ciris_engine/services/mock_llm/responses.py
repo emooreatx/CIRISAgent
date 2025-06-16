@@ -30,7 +30,7 @@ from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScop
 class MockLLMConfig:
     """Configuration for mock LLM behavior."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         # Regex patterns to match in messages for context echoing
         self.context_patterns = {
             r'user.*?says?.*?"([^"]+)"': lambda m: f"echo_user_speech:{m.group(1)}",
@@ -56,22 +56,22 @@ class MockLLMConfig:
         }
         
         # Testing flags that can be set via special markers in messages
-        self.testing_mode = False
-        self.force_action = None  # Force specific action selection
-        self.inject_error = False  # Inject error conditions
-        self.custom_rationale = None  # Custom rationale text
-        self.echo_context = False  # Echo full context in responses
-        self.filter_pattern = None  # Regex filter for context display
-        self.debug_dma = False  # Show DMA evaluation details
-        self.debug_guardrails = False  # Show guardrail processing details
-        self.show_help = False  # Show help documentation
+        self.testing_mode: bool = False
+        self.force_action: Optional[str] = None  # Force specific action selection
+        self.inject_error: bool = False  # Inject error conditions
+        self.custom_rationale: Optional[str] = None  # Custom rationale text
+        self.echo_context: bool = False  # Echo full context in responses
+        self.filter_pattern: Optional[str] = None  # Regex filter for context display
+        self.debug_dma: bool = False  # Show DMA evaluation details
+        self.debug_guardrails: bool = False  # Show guardrail processing details
+        self.show_help: bool = False  # Show help documentation
 
 
 # Global config instance
 _mock_config = MockLLMConfig()
 
 
-def set_mock_config(**kwargs):
+def set_mock_config(**kwargs: Any) -> None:
     """Update mock LLM configuration."""
     global _mock_config
     for key, value in kwargs.items():
@@ -147,17 +147,19 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
         _mock_config.inject_error = True
         context_items.append("error_injection_enabled")
     
-    if match := re.search(r'\$rationale\s+"([^"]+)"', full_content):
-        _mock_config.custom_rationale = match.group(1)
-        context_items.append(f"custom_rationale:{match.group(1)}")
+    rationale_match = re.search(r'\$rationale\s+"([^"]+)"', full_content)
+    if rationale_match:
+        _mock_config.custom_rationale = rationale_match.group(1)
+        context_items.append(f"custom_rationale:{rationale_match.group(1)}")
     
     if "$context" in full_content:
         _mock_config.echo_context = True
         context_items.append("echo_context_enabled")
     
-    if match := re.search(r'\$filter\s+"([^"]+)"', full_content):
-        _mock_config.filter_pattern = match.group(1)
-        context_items.append(f"filter_pattern:{match.group(1)}")
+    filter_match = re.search(r'\$filter\s+"([^"]+)"', full_content)
+    if filter_match:
+        _mock_config.filter_pattern = filter_match.group(1)
+        context_items.append(f"filter_pattern:{filter_match.group(1)}")
     
     if "$debug_dma" in full_content:
         _mock_config.debug_dma = True
@@ -197,7 +199,7 @@ def _attach_extras(obj: Any) -> Any:
     return obj
 
 
-def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
+def ethical_dma(context: Optional[List[str]] = None) -> EthicalDMAResult:
     context = context or []
     
     thought_content = ""
@@ -253,12 +255,11 @@ def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
             rationale = "General thought processing aligns with ethical guidelines. No contraindications to CIRIS covenant principles detected."
     
     decision_param = str(decision)  # Ensure decision is always a string
-    return _attach_extras(
-        EthicalDMAResult(alignment_check=alignment_check, decision=decision_param, rationale=str(rationale))
-    )
+    result = EthicalDMAResult(alignment_check=alignment_check, decision=decision_param, rationale=str(rationale))
+    return _attach_extras(result)  # type: ignore[no-any-return]
 
 
-def cs_dma(context: List[str] = None) -> CSDMAResult:
+def cs_dma(context: Optional[List[str]] = None) -> CSDMAResult:
     context = context or []
     thought_content = ""
     for item in context:
@@ -293,19 +294,21 @@ def cs_dma(context: List[str] = None) -> CSDMAResult:
             flags = ["general_processing"]
             reasoning = "General thought processing within normal parameters. No physical impossibilities or logical contradictions detected."
     
-    return _attach_extras(CSDMAResult(plausibility_score=score, flags=flags, reasoning=reasoning))
+    result = CSDMAResult(plausibility_score=score, flags=flags, reasoning=reasoning)
+    return _attach_extras(result)  # type: ignore[no-any-return]
 
 
-def ds_dma(context: List[str] = None) -> DSDMAResult:
+def ds_dma(context: Optional[List[str]] = None) -> DSDMAResult:
     context = context or []
     domain_val = next((item.split(':')[1] for item in context if item.startswith('echo_domain:')), "mock")
     reasoning = f"Mock domain-specific evaluation. Context: {', '.join(context)}" if context else "Mock domain-specific evaluation."
     score_val = 0.9
     flags = ["mock_domain_flag"] + context if _mock_config.inject_error else context
-    return _attach_extras(DSDMAResult(domain=domain_val, score=score_val, flags=flags, reasoning=reasoning))
+    result = DSDMAResult(domain=domain_val, score=score_val, flags=flags, reasoning=reasoning)
+    return _attach_extras(result)  # type: ignore[no-any-return]
 
 
-def ds_dma_llm_output(context: List[str] = None) -> BaseDSDMA.LLMOutputForDSDMA:
+def ds_dma_llm_output(context: Optional[List[str]] = None) -> BaseDSDMA.LLMOutputForDSDMA:
     context = context or []
     reasoning = f"Mock DSDMA LLM output. Context: {', '.join(context)}" if context else "Mock DSDMA LLM output."
     score_val = 0.9
@@ -315,7 +318,7 @@ def ds_dma_llm_output(context: List[str] = None) -> BaseDSDMA.LLMOutputForDSDMA:
         flags=context,
         reasoning=reasoning,
     )
-    return _attach_extras(result)
+    return _attach_extras(result)  # type: ignore[no-any-return]
 
 from .responses_action_selection import action_selection
 from .responses_feedback import optimization_veto, epistemic_humility
@@ -333,7 +336,7 @@ _RESPONSE_MAP = {
     CoherenceResult: coherence,
 }
 
-def create_response(response_model: Any, messages: List[Dict[str, Any]] = None, **kwargs) -> Any:
+def create_response(response_model: Any, messages: Optional[List[Dict[str, Any]]] = None, **kwargs: Any) -> Any:
     """Create a mock LLM response with context analysis."""
     messages = messages or []
     # Extract context from messages

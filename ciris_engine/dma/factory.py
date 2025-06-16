@@ -27,19 +27,19 @@ CSDMA_REGISTRY: Dict[str, Type[CSDMAInterface]] = {}
 ACTION_SELECTION_DMA_REGISTRY: Dict[str, Type[ActionSelectionDMAInterface]] = {}
 
 try:
-    from ..pdma import EthicalPDMAEvaluator
+    from .pdma import EthicalPDMAEvaluator
     ETHICAL_DMA_REGISTRY["EthicalPDMAEvaluator"] = EthicalPDMAEvaluator
 except ImportError:
     pass
 
 try:
-    from ..csdma import CSDMAEvaluator
+    from .csdma import CSDMAEvaluator
     CSDMA_REGISTRY["CSDMAEvaluator"] = CSDMAEvaluator
 except ImportError:
     pass
 
 try:
-    from ..action_selection_pdma import ActionSelectionPDMAEvaluator
+    from .action_selection_pdma import ActionSelectionPDMAEvaluator
     ACTION_SELECTION_DMA_REGISTRY["ActionSelectionPDMAEvaluator"] = ActionSelectionPDMAEvaluator
 except ImportError:
     pass
@@ -128,6 +128,10 @@ async def create_dsdma_from_profile(
             logger.error("Default profile could not be loaded")
             return None
 
+    if not profile.dsdma_identifier:
+        logger.error("Profile has no dsdma_identifier")
+        return None
+    
     dsdma_cls = DSDMA_CLASS_REGISTRY.get(profile.dsdma_identifier)
     if not dsdma_cls:
         logger.error("Unknown DSDMA identifier: %s", profile.dsdma_identifier)
@@ -137,7 +141,7 @@ async def create_dsdma_from_profile(
     prompt_template = overrides.get("prompt_template")
     domain_knowledge = overrides.get("domain_specific_knowledge")
 
-    return await create_dma(
+    dma_result = await create_dma(
         dma_type='dsdma',
         dma_identifier=profile.dsdma_identifier,
         service_registry=service_registry,
@@ -148,3 +152,10 @@ async def create_dsdma_from_profile(
         prompt_template=prompt_template,
         sink=sink,
     )
+    
+    # Ensure we return the correct type
+    if isinstance(dma_result, BaseDSDMA):
+        return dma_result
+    
+    logger.error(f"create_dma returned unexpected type: {type(dma_result)}")
+    return None

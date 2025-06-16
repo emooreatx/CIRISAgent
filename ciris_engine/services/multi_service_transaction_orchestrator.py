@@ -48,20 +48,25 @@ class MultiServiceTransactionOrchestrator(Service):
 
     async def orchestrate(self, tx_id: str, actions: List[ActionMessage]) -> None:
         """Execute a sequence of actions as a transaction, with special handling for broadcast actions."""
-        self.transactions[tx_id] = {"status": "in_progress", "actions": len(actions)}
+        self.transactions[tx_id] = {"status": "in_progress", "actions": str(len(actions))}
         
         for i, action in enumerate(actions):
             try:
                 # Check if this is an audit event that needs broadcasting
                 if action.type == ActionType.LOG_AUDIT_EVENT:
-                    await self._broadcast_audit_event(tx_id, action)
+                    # Cast to LogAuditEventAction for broadcast
+                    if isinstance(action, LogAuditEventAction):
+                        await self._broadcast_audit_event(tx_id, action)
+                    else:
+                        logger.error("Expected LogAuditEventAction but got %s", type(action))
+                        raise TypeError(f"Cannot broadcast non-audit action: {type(action)}")
                 else:
                     # Normal single-service routing
                     await self.sink.enqueue_action(action)
                     
             except Exception as exc:  # noqa: BLE001
                 logger.error("Transaction %s failed on action %d (%s): %s", tx_id, i, action.type, exc)
-                self.transactions[tx_id] = {"status": "failed", "error": str(exc), "failed_at": i}
+                self.transactions[tx_id] = {"status": "failed", "error": str(exc), "failed_at": str(i)}
                 await self.rollback(tx_id)
                 return
                 
@@ -200,11 +205,14 @@ class MultiServiceTransactionOrchestrator(Service):
                 failures.append(service_id)
         
         # Store broadcast results in transaction
-        self.transactions[tx_id]["audit_broadcast"] = {
-            "total_services": len(audit_services),
-            "results": broadcast_results,
-            "failures": failures
-        }
+        if tx_id in self.transactions:
+            tx_data = self.transactions[tx_id]
+            if isinstance(tx_data, dict):
+                tx_data["audit_broadcast"] = {
+                    "total_services": str(len(audit_services)),
+                    "results": str(broadcast_results),
+                    "failures": str(failures)
+                }
         
         # If any critical services failed, consider the broadcast failed
         if failures:

@@ -75,14 +75,71 @@ class MemorizeHandler(BaseActionHandler):
             )
         else:
             scope = params.node.scope  # type: ignore[attr-defined]
-            if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not dispatch_context.wa_authorized:
+            node = params.node  # type: ignore[attr-defined]
+            
+            # Check if this is an identity graph node
+            is_identity_node = (
+                scope == GraphScope.IDENTITY or 
+                node.id.startswith("agent/identity") or
+                node.type == NodeType.AGENT
+            )
+            
+            if is_identity_node:
+                # Identity changes require WA approval
+                if not dispatch_context.wa_authorized:
+                    self.logger.warning(
+                        f"WA authorization required for MEMORIZE to identity graph. Thought {thought_id} denied."
+                    )
+                    final_thought_status = ThoughtStatus.FAILED
+                    follow_up_content_key_info = "WA authorization required for identity changes"
+                else:
+                    # Check variance if updating existing identity
+                    variance_check_passed = True
+                    if node.id == "agent/identity":
+                        variance_pct = await self._check_identity_variance(node, memory_service)
+                        if variance_pct > 0.2:  # 20% threshold
+                            self.logger.warning(
+                                f"Identity change variance {variance_pct:.1%} exceeds 20% threshold. "
+                                f"Agent should reconsider this change."
+                            )
+                            # Add guidance to the follow-up
+                            follow_up_content_key_info = (
+                                f"WARNING: Proposed identity change represents {variance_pct:.1%} variance. "
+                                "Changes exceeding 20% should be carefully reconsidered. "
+                                "Large identity shifts may destabilize agent coherence."
+                            )
+                            variance_check_passed = False
+                    
+                    if variance_check_passed:
+                        # Proceed with identity update
+                        node.attributes.setdefault("source", thought.source_task_id)
+                        node.attributes["wa_approved_by"] = dispatch_context.wa_authorized
+                        node.attributes["approval_timestamp"] = dispatch_context.event_timestamp
+                        
+                        try:
+                            mem_op = await memory_service.memorize(node)
+                            if mem_op.status == MemoryOpStatus.OK:
+                                action_performed_successfully = True
+                                follow_up_content_key_info = (
+                                    f"Identity update successful. Node: '{node.id}'"
+                                )
+                            else:
+                                final_thought_status = ThoughtStatus.DEFERRED
+                                follow_up_content_key_info = mem_op.reason or mem_op.error or "Identity update failed"
+                        except Exception as e_mem:
+                            await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e_mem)
+                            final_thought_status = ThoughtStatus.FAILED
+                            follow_up_content_key_info = f"Exception during identity update: {e_mem}"
+            
+            elif scope in (GraphScope.ENVIRONMENT,) and not dispatch_context.wa_authorized:
+                # Environment scope also requires WA approval
                 self.logger.warning(
                     f"WA authorization required for MEMORIZE in scope {scope}. Thought {thought_id} denied."
                 )
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = "WA authorization missing"
             else:
-                node = params.node  # type: ignore[attr-defined]
+                # Regular memory operation
                 node.attributes.setdefault("source", thought.source_task_id)
                 try:
                     mem_op = await memory_service.memorize(node)
@@ -141,3 +198,75 @@ class MemorizeHandler(BaseActionHandler):
         except Exception as e:
             await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e)
             raise FollowUpCreationError from e
+    
+    async def _check_identity_variance(self, proposed_node: Any, memory_service: MemoryService) -> float:
+        """Calculate variance between current and proposed identity."""
+        try:
+            # Retrieve current identity
+            from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+            current_node = GraphNode(
+                id="agent/identity",
+                type=NodeType.AGENT,
+                scope=GraphScope.IDENTITY
+            )
+            result = await memory_service.recall(current_node)
+            
+            if not result or not result.nodes:
+                # No existing identity, this is first creation
+                return 0.0
+            
+            current_identity = result.nodes[0].attributes.get("identity", {})
+            proposed_identity = proposed_node.attributes.get("identity", {})
+            
+            # Calculate variance across key identity attributes
+            variance_points = 0.0
+            total_points = 0.0
+            
+            # Core attributes with weights
+            attribute_weights = {
+                "agent_id": 5.0,  # Changing name is very significant
+                "core_profile.description": 3.0,
+                "core_profile.role_description": 3.0,
+                "core_profile.dsdma_identifier": 4.0,  # Changing domain is major
+                "allowed_capabilities": 2.0,
+                "restricted_capabilities": 2.0,
+            }
+            
+            for attr_path, weight in attribute_weights.items():
+                current_val = self._get_nested_value(current_identity, attr_path)
+                proposed_val = self._get_nested_value(proposed_identity, attr_path)
+                
+                if current_val != proposed_val:
+                    variance_points += weight
+                total_points += weight
+            
+            # Check override changes
+            for override_type in ['dsdma_overrides', 'csdma_overrides', 'action_selection_pdma_overrides']:
+                current_overrides = self._get_nested_value(current_identity, f"core_profile.{override_type}") or {}
+                proposed_overrides = self._get_nested_value(proposed_identity, f"core_profile.{override_type}") or {}
+                
+                # Count changed keys
+                all_keys = set(current_overrides.keys()) | set(proposed_overrides.keys())
+                changed_keys = sum(1 for key in all_keys if current_overrides.get(key) != proposed_overrides.get(key))
+                
+                if all_keys:
+                    variance_points += (changed_keys / len(all_keys)) * 2.0
+                total_points += 2.0
+            
+            return variance_points / total_points if total_points > 0 else 0.0
+            
+        except Exception as e:
+            self.logger.error(f"Error calculating identity variance: {e}")
+            # On error, return high variance to be safe
+            return 1.0
+    
+    def _get_nested_value(self, data: Dict[str, Any], path: str) -> Any:
+        """Get value from nested dict using dot notation."""
+        parts = path.split('.')
+        value = data
+        for part in parts:
+            if isinstance(value, dict):
+                value = value.get(part)
+            else:
+                return None
+        return value

@@ -18,11 +18,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class MetricData:
-    """Basic metric data structure."""
+    """Enhanced metric data structure with hot/cold path awareness."""
     name: str
     value: float
     timestamp: datetime
     tags: Dict[str, str]
+    path_type: str = "unknown"  # hot, cold, critical
+    telemetry_required: bool = False
+    source_module: Optional[str] = None
+    line_number: Optional[int] = None
     
     
 class BaseCollector(ABC):
@@ -125,8 +129,9 @@ class BaseCollector(ABC):
 
 class InstantCollector(BaseCollector):
     """
-    Instant collector for critical metrics (50ms interval).
-    Used for circuit breakers and critical errors.
+    Instant collector for critical HOT PATH metrics (50ms interval).
+    Used for circuit breakers, critical errors, and security/auth events.
+    All metrics from this collector are considered HOT PATH.
     """
     
     def __init__(
@@ -151,7 +156,10 @@ class InstantCollector(BaseCollector):
                         name=f"circuit_breaker_{name}_state",
                         value=1.0 if state == 'open' else 0.0,
                         timestamp=now,
-                        tags={"breaker": name, "state": state}
+                        tags={"breaker": name, "state": state, "priority": "critical"},
+                        path_type="hot",
+                        telemetry_required=True,
+                        source_module="circuit_breaker_registry"
                     ))
             except Exception as e:
                 logger.debug(f"Error collecting circuit breaker metrics: {e}")
@@ -167,8 +175,9 @@ class InstantCollector(BaseCollector):
 
 class FastCollector(BaseCollector):
     """
-    Fast collector for active system metrics (250ms interval).
-    Used for active thoughts and handler selection.
+    Fast collector for active HOT PATH system metrics (250ms interval).
+    Used for active thoughts, handler selection, and DMA execution.
+    These are HOT paths that directly affect agent responsiveness.
     """
     
     def __init__(
@@ -192,7 +201,10 @@ class FastCollector(BaseCollector):
                     name="thoughts_active_count",
                     value=float(active_count),
                     timestamp=now,
-                    tags={"component": "thought_manager"}
+                    tags={"component": "thought_manager", "priority": "high"},
+                    path_type="hot",
+                    telemetry_required=True,
+                    source_module="thought_manager"
                 ))
             except Exception as e:
                 logger.debug(f"Error collecting thought metrics: {e}")
@@ -259,8 +271,9 @@ class NormalCollector(BaseCollector):
 
 class SlowCollector(BaseCollector):
     """
-    Slow collector for expensive metrics (5s interval).
-    Used for memory operations and DMAs with sanitization.
+    Slow collector for COLD PATH expensive metrics (5s interval).
+    Used for memory operations, persistence, and context fetches.
+    These are COLD paths accessed via service registry or persistence.
     """
     
     def __init__(
@@ -284,7 +297,10 @@ class SlowCollector(BaseCollector):
                     name="memory_operations_total",
                     value=float(ops_count),
                     timestamp=now,
-                    tags={"component": "memory_service"}
+                    tags={"component": "memory_service", "priority": "low"},
+                    path_type="cold",
+                    telemetry_required=False,
+                    source_module="memory_service"
                 ))
             except Exception as e:
                 logger.debug(f"Error collecting memory service metrics: {e}")

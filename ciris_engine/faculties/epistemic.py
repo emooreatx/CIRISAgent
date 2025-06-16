@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Union
 import logging
 import asyncio
 
@@ -133,7 +133,7 @@ async def calculate_epistemic_values(
     """
     results = {"entropy": 0.1, "coherence": 0.9, "error": None}
 
-    async def get_entropy() -> None:
+    async def get_entropy() -> float:
         try:
             messages = _create_entropy_messages_for_instructor(text_to_evaluate)
             entropy_eval, _ = await sink.generate_structured_sync(
@@ -144,13 +144,15 @@ async def calculate_epistemic_values(
                 temperature=0.0
             )
             logger.debug(f"Epistemic Faculty: Entropy evaluation result: {entropy_eval}")
-            return entropy_eval.entropy
+            if isinstance(entropy_eval, EntropyResult):
+                return float(entropy_eval.entropy)
+            return 0.1
         except Exception as e:
             logger.error(f"Epistemic Faculty: Error getting entropy: {e}", exc_info=True)
-            results["entropy_error"] = f"Entropy Error: {str(e)}"
+            results["entropy_error"] = f"Entropy Error: {str(e)}"  # type: ignore[assignment]
             return 0.1
 
-    async def get_coherence() -> None:
+    async def get_coherence() -> float:
         try:
             messages = _create_coherence_messages_for_instructor(text_to_evaluate)
             coherence_eval, _ = await sink.generate_structured_sync(
@@ -161,10 +163,12 @@ async def calculate_epistemic_values(
                 temperature=0.0
             )
             logger.debug(f"Epistemic Faculty: Coherence evaluation result: {coherence_eval}")
-            return coherence_eval.coherence
+            if isinstance(coherence_eval, CoherenceResult):
+                return float(coherence_eval.coherence)
+            return 0.9
         except Exception as e:
             logger.error(f"Epistemic Faculty: Error getting coherence: {e}", exc_info=True)
-            results["coherence_error"] = f"Coherence Error: {str(e)}"
+            results["coherence_error"] = f"Coherence Error: {str(e)}"  # type: ignore[assignment]
             return 0.9
 
     try:
@@ -173,12 +177,16 @@ async def calculate_epistemic_values(
             get_coherence(),
             return_exceptions=False
         )
-        results["entropy"] = min(max(float(entropy_val), 0.0), 1.0)
-        results["coherence"] = min(max(float(coherence_val), 0.0), 1.0)
+        results["entropy"] = min(max(entropy_val, 0.0), 1.0)
+        results["coherence"] = min(max(coherence_val, 0.0), 1.0)
 
     except Exception as e_gather:
         logger.error(f"Epistemic Faculty: Error in asyncio.gather: {e_gather}", exc_info=True)
-        results["error"] = results.get("error", "") + f" Gather Error: {str(e_gather)};"
+        error_msg = results.get("error", "")
+        if isinstance(error_msg, str):
+            results["error"] = error_msg + f" Gather Error: {str(e_gather)};"  # type: ignore[assignment]
+        else:
+            results["error"] = f" Gather Error: {str(e_gather)};"  # type: ignore[assignment]
 
     general_error_messages: List[Any] = []
     if "entropy_error" in results:
@@ -189,10 +197,13 @@ async def calculate_epistemic_values(
         del results["coherence_error"]
 
     if general_error_messages:
-        existing_error = results.get("error") or ""
-        if existing_error and not existing_error.endswith("; "):
-             existing_error += "; "
-        results["error"] = existing_error + "; ".join(general_error_messages)
+        existing_error = results.get("error", "")
+        if isinstance(existing_error, str):
+            if existing_error and not existing_error.endswith("; "):
+                existing_error += "; "
+            results["error"] = existing_error + "; ".join(general_error_messages)  # type: ignore[assignment]
+        else:
+            results["error"] = "; ".join(general_error_messages)  # type: ignore[assignment]
     elif results["error"] is None:
         if "error" in results:
             del results["error"]
@@ -203,7 +214,7 @@ async def calculate_epistemic_values(
 
 async def evaluate_optimization_veto(
     action_result: ActionSelectionResult,
-    sink,
+    sink: Any,
     model_name: str = DEFAULT_OPENAI_MODEL_NAME,
 ) -> OptimizationVetoResult:
     """Run the optimization veto check via LLM and return the raw result."""
@@ -218,7 +229,16 @@ async def evaluate_optimization_veto(
             temperature=0.0
         )
         logger.info(f"Epistemic Faculty: Optimization veto result: {result}")
-        return result
+        if isinstance(result, OptimizationVetoResult):
+            return result
+        # Fallback if type is wrong
+        return OptimizationVetoResult(
+            decision="abort",
+            justification="Invalid result type from LLM",
+            entropy_reduction_ratio=0.0,
+            affected_values=[],
+            confidence=0.0,
+        )
     except Exception as e:
         logger.error(f"Epistemic Faculty: Error in optimization veto: {e}", exc_info=True)
         return OptimizationVetoResult(
@@ -231,7 +251,7 @@ async def evaluate_optimization_veto(
 
 async def evaluate_epistemic_humility(
     action_result: ActionSelectionResult,
-    sink,
+    sink: Any,
     model_name: str = DEFAULT_OPENAI_MODEL_NAME,
 ) -> EpistemicHumilityResult:
     """Run the epistemic humility check via LLM and return the raw result."""
@@ -250,7 +270,15 @@ async def evaluate_epistemic_humility(
             val = mapping.get(result.epistemic_certainty.lower(), 0.0)
             result.epistemic_certainty = val
         logger.info(f"Epistemic Faculty: Epistemic humility result: {result}")
-        return result
+        if isinstance(result, EpistemicHumilityResult):
+            return result
+        # Fallback if type is wrong  
+        return EpistemicHumilityResult(
+            epistemic_certainty=0.0,
+            identified_uncertainties=["Invalid result type from LLM"],
+            reflective_justification="Invalid result type from LLM",
+            recommended_action="abort",
+        )
     except Exception as e:
         logger.error(f"Epistemic Faculty: Error in epistemic humility: {e}", exc_info=True)
         return EpistemicHumilityResult(

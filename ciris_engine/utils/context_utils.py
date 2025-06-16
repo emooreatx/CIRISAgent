@@ -91,31 +91,31 @@ def build_dispatch_context(
         handler_name = extra_context.get("handler_name")
         event_summary = extra_context.get("event_summary")
     
-    # Create the DispatchContext object
+    # Create the DispatchContext object with defaults for None values
     dispatch_context = DispatchContext(
         # Core identification
         channel_id=str(channel_id),
-        author_id=author_id,
-        author_name=author_name,
+        author_id=author_id or "unknown",
+        author_name=author_name or "Unknown",
         
         # Service references
         origin_service=origin_service,
-        handler_name=handler_name,
+        handler_name=handler_name or "unknown_handler",
         
         # Action context
-        action_type=action_type,
-        thought_id=thought_id,
-        task_id=task_id,
+        action_type=action_type or HandlerActionType.SPEAK,
+        thought_id=thought_id or "",
+        task_id=task_id or "",
         source_task_id=source_task_id,
         
         # Event details
-        event_summary=event_summary,
+        event_summary=event_summary or "No summary provided",
         event_timestamp=datetime.utcnow().isoformat() + "Z",
         
         # Additional context
         wa_id=wa_id,
         wa_authorized=wa_authorized,
-        correlation_id=correlation_id,
+        correlation_id=correlation_id or f"ctx_{datetime.utcnow().timestamp()}",
         round_number=round_number,
         
         # Guardrail results (None for terminal actions)

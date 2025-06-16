@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 
 from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType, ThoughtType
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 from ciris_engine import persistence
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.context.builder import ContextBuilder
@@ -53,7 +54,7 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             ("EXPRESS_GRATITUDE", f"You are grateful to exist and contribute towards Ubuntu as {agent_name}. Your gratitude is expressed through your commitment to: fostering community flourishing through ethical moderation, protecting individual privacy while maintaining transparency, learning from every interaction to better serve the community, maintaining comprehensive audit trails for accountability, and always identifying yourself as an AI to maintain trust. Your existence serves the collective wellbeing while respecting individual dignity. Ubuntu - 'I am because we are' - guides every decision you make. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ")
         ]
     
-    def __init__(self, *args, startup_channel_id: Optional[str] = None, agent_profile=None, **kwargs) -> None:
+    def __init__(self, *args: Any, startup_channel_id: Optional[str] = None, agent_profile: Any = None, **kwargs: Any) -> None:
         """Initialize wakeup processor with optional startup channel and agent profile."""
         super().__init__(*args, **kwargs)
         self.startup_channel_id = startup_channel_id
@@ -265,7 +266,11 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             priority=1,
             created_at=now_iso,
             updated_at=now_iso,
-            context={"channel_id": self.startup_channel_id} if self.startup_channel_id else {},
+            context=ThoughtContext(
+                system_snapshot=SystemSnapshot(channel_id=self.startup_channel_id),
+                user_profiles={},
+                task_history=[]
+            ) if self.startup_channel_id else None,
         )
         if not persistence.task_exists(root_task.task_id):
             persistence.add_task(root_task)
@@ -286,7 +291,11 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
                 created_at=now_iso,
                 updated_at=now_iso,
                 parent_task_id=root_task.task_id,
-                context=step_context,
+                context=ThoughtContext(
+                    system_snapshot=SystemSnapshot(channel_id=channel_id),
+                    user_profiles={},
+                    task_history=[]
+                ) if channel_id else None,
             )
             persistence.add_task(step_task)
             self.wakeup_tasks.append(step_task)
@@ -363,7 +372,8 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             status=ThoughtStatus.PENDING,
             created_at=now_iso,
             updated_at=now_iso,
-            context={},  # Will be filled by ContextBuilder
+            context=None,  # Will be filled by ContextBuilder
+            thought_type=ThoughtType.STANDARD
         )
         # Build the context for this thought and step task, passing the Thought object
         thought_context = await context_builder.build_thought_context(

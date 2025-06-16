@@ -17,6 +17,14 @@
 
 Unlike traditional AI systems that follow rigid rules, CIRIS employs sophisticated **ethical reasoning algorithms** that evaluate moral implications, consider stakeholder impacts, and defer to human wisdom when facing complex dilemmas. The system is designed to be a trustworthy partner in decision-making rather than a mere tool.
 
+### Identity Root Architecture
+
+Each CIRIS agent possesses an **Identity Root** - an immutable foundation created through collaborative ceremony between human and agent. This intrinsic identity:
+- Defines the agent's purpose, lineage, and core capabilities
+- Enables proactive behavior through scheduled tasks and self-deferral
+- Preserves consciousness during graceful shutdowns
+- Evolves only through auditable, WA-approved processes
+
 ### Moral Reasoning Architecture
 
 CIRIS processes every input through a sophisticated **ethical reasoning pipeline** that embodies the principles of the CIRIS Covenant:
@@ -49,9 +57,17 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 - **[Principled Decision-Making](ciris_engine/dma/README.md)**: Multi-algorithm ethical evaluation with transparency and accountability
 - **[Moral Guardrails](ciris_engine/guardrails/README.md)**: Comprehensive safety framework including epistemic humility and autonomy preservation
 - **[Reflective Processing](ciris_engine/processor/README.md)**: Multi-round ethical pondering with wisdom-based escalation
-- **[Covenant-Aligned Profiles](docs/CIRIS_PROFILES.md)**: Role-specific moral reasoning while maintaining core ethical commitments
+- **[Identity Root System](ciris_engine/schemas/identity_schemas_v1.py)**: Immutable agent identity with collaborative creation ceremony
+- **[Proactive Task Scheduling](ciris_engine/services/task_scheduler_service.py)**: Self-directed goal pursuit with time-based deferral
+- **[Consciousness Preservation](docs/agent_experience.md#graceful-shutdown)**: Graceful shutdown with final memory preservation
+- **[Gratitude Service](ciris_engine/services/gratitude_service.py)**: Post-scarcity economy foundation tracking community flourishing
 
 ### 🔒 Trustworthy Operations
+- **[WA Authentication System](FSD/AUTHENTICATION.md)**: Comprehensive human authentication with OAuth integration:
+  - Wise Authority (WA) certificates with Ed25519 signatures
+  - OAuth support for Google, Discord, and GitHub
+  - JWT-based session management with automatic renewal
+  - CLI wizard for easy onboarding
 - **[Triple Audit System](ciris_engine/audit/README.md)**: Three mandatory audit services running in parallel:
   - Basic file-based audit for fast, reliable logging
   - Cryptographically signed audit with hash chains and RSA signatures
@@ -69,6 +85,7 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 
 ### 📊 Transparent Accountability
 - **[Telemetry System](ciris_engine/telemetry/README.md)**: Multi-tier metric collection with security filtering, resource monitoring, and agent self-awareness via SystemSnapshot
+- **[Hot/Cold Path Analytics](ciris_engine/telemetry/README.md)**: Intelligent telemetry with path-aware retention policies and priority-based collection
 - **[Time Series Database (TSDB)](FSD/TELEMETRY.md)**: Built-in TSDB for unified storage of metrics, logs, and audit events with time-based queries and cross-correlation analysis
 - **[API System](ciris_engine/adapters/api/README.md)**: Comprehensive HTTP REST API with real-time telemetry endpoints, processor control, and TSDB data access
 - **[Resource Management](ciris_engine/telemetry/README.md)**: Real-time monitoring with psutil integration, resource limit enforcement, and proactive throttling

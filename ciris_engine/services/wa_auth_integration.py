@@ -70,17 +70,25 @@ class WAAuthenticationSystem:
         """Run interactive onboarding wizard."""
         return await self.cli_service.onboard_wizard()
     
-    def get_middleware(self) -> WAAuthMiddleware:
-        """Get the authentication middleware for FastAPI."""
-        return self.middleware
+    def get_auth_service(self) -> WAAuthService:
+        """Get the core authentication service."""
+        return self.auth_service
     
     def get_cli_service(self) -> WACLIService:
         """Get the CLI service for command handling."""
         return self.cli_service
     
-    def get_auth_service(self) -> WAAuthService:
-        """Get the core authentication service."""
-        return self.auth_service
+    def get_middleware(self) -> WAAuthMiddleware:
+        """Get the authentication middleware for FastAPI."""
+        return self.middleware
+    
+    def get_oauth_service(self) -> Any:
+        """Get the OAuth service from CLI service."""
+        # The OAuth functionality is in wa_cli_oauth module
+        from ciris_engine.services.wa_cli_oauth import WAOAuthService
+        if not hasattr(self, '_oauth_service'):
+            self._oauth_service = WAOAuthService(self.auth_service)
+        return self._oauth_service
 
 
 # Singleton instance

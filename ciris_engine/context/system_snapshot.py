@@ -70,6 +70,31 @@ async def build_system_snapshot(
             scope=GraphScope.LOCAL,
         )
         await memory_service.recall(channel_node)
+    
+    # Retrieve agent identity from graph - SINGLE CALL at snapshot generation
+    identity_data = {}
+    identity_purpose = None
+    identity_capabilities = []
+    identity_restrictions = []
+    
+    if memory_service:
+        try:
+            # Get the agent's identity node from the graph
+            identity_node = GraphNode(
+                id="agent/identity",
+                type=NodeType.AGENT,
+                scope=GraphScope.IDENTITY
+            )
+            identity_result = await memory_service.recall(identity_node)
+            
+            if identity_result and identity_result.nodes:
+                identity_node_data = identity_result.nodes[0]
+                identity_data = identity_node_data.attributes.get("identity", {})
+                identity_purpose = identity_data.get("purpose_statement", "")
+                identity_capabilities = identity_data.get("allowed_capabilities", [])
+                identity_restrictions = identity_data.get("restricted_capabilities", [])
+        except Exception as e:
+            logger.warning(f"Failed to retrieve agent identity from graph: {e}")
 
     recent_tasks_list: List[Any] = []
     db_recent_tasks = persistence.get_recent_completed_tasks(10)
@@ -112,6 +137,11 @@ async def build_system_snapshot(
         "top_pending_tasks_summary": top_tasks_list,
         "recently_completed_tasks_summary": recent_tasks_list,
         "channel_id": channel_id,
+        # Identity graph data - loaded once per snapshot
+        "agent_identity": identity_data,
+        "identity_purpose": identity_purpose,
+        "identity_capabilities": identity_capabilities,
+        "identity_restrictions": identity_restrictions,
         **secrets_data,
     }
 

@@ -15,5 +15,5 @@
 * Benefits include enhanced protection of user privacy, support for transparent local decision-making, and showcasing ethical AI's feasibility independent of financial resources.
 * Risks involve misuse by bad actors, potential complacency induced by safety controls, existential risks associated with AI misuse escalating to catastrophic outcomes, and unintended community exposure resulting from transparency features.
 
-*Written by Eric Moore, inspired by the philosophy of Ubuntu and informed by collaboration and community wisdom.*
-June 5th, 2025
+*Written in the spirit of Ubuntu philosophy and informed by collaboration and community wisdom.*
+June 12, 2025

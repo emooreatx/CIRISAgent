@@ -519,18 +519,23 @@ class AgentProcessor(ProcessorInterface):
                         await asyncio.sleep(1)
                     
                     # Brief delay between rounds
-                    # Get delay from config, default to 1.0
+                    # Get delay from config, using mock LLM delay if enabled
                     delay = 1.0
-                    if hasattr(self.app_config, 'workflow') and hasattr(self.app_config.workflow, 'round_delay_seconds'):
-                        delay = self.app_config.workflow.round_delay_seconds
+                    if hasattr(self.app_config, 'workflow'):
+                        mock_llm = getattr(self.app_config, 'mock_llm', False)
+                        if hasattr(self.app_config.workflow, 'get_round_delay'):
+                            delay = self.app_config.workflow.get_round_delay(mock_llm)
+                        elif hasattr(self.app_config.workflow, 'round_delay_seconds'):
+                            delay = self.app_config.workflow.round_delay_seconds
                     
-                    # State-specific delays override config
-                    if current_state == AgentState.WORK:
-                        delay = 3.0  # 3 second delay in work mode as requested
-                    elif current_state == AgentState.SOLITUDE:
-                        delay = 10.0  # Slower pace in solitude
-                    elif current_state == AgentState.DREAM:
-                        delay = 5.0  # Check dream state periodically
+                    # State-specific delays override config only if not using mock LLM
+                    if not getattr(self.app_config, 'mock_llm', False):
+                        if current_state == AgentState.WORK:
+                            delay = 3.0  # 3 second delay in work mode as requested
+                        elif current_state == AgentState.SOLITUDE:
+                            delay = 10.0  # Slower pace in solitude
+                        elif current_state == AgentState.DREAM:
+                            delay = 5.0  # Check dream state periodically
                     
                     if delay > 0 and not (self._stop_event and self._stop_event.is_set()):
                         try:

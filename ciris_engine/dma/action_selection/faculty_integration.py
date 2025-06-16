@@ -20,14 +20,45 @@ class FacultyIntegration:
         content: str,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Apply available epistemic faculties to content."""
+        """Apply available epistemic faculties to content - consolidated approach."""
         results = {}
-        for name, faculty in self.faculties.items():
+        
+        # Group 1: Content Analysis Faculties (entropy, coherence)
+        # These analyze the output content and need minimal context
+        content_faculties = {
+            name: faculty for name, faculty in self.faculties.items() 
+            if name in ["entropy", "coherence"]
+        }
+        
+        # Group 2: Decision Analysis Faculties (optimization_veto, epistemic_humility)
+        # These analyze the action decision and need full identity context
+        decision_faculties = {
+            name: faculty for name, faculty in self.faculties.items()
+            if name in ["optimization_veto", "epistemic_humility"]
+        }
+        
+        # Call content faculties with minimal context (just the content)
+        minimal_context = {
+            "evaluation_context": context.get("evaluation_context", ""),
+            "thought_metadata": context.get("thought_metadata", {})
+        }
+        
+        for name, faculty in content_faculties.items():
             try:
+                result = await faculty.evaluate(content, minimal_context)
+                results[name] = result
+            except Exception as e:
+                logger.warning(f"Content faculty {name} evaluation failed: {e}")
+        
+        # Call decision faculties with full identity context
+        for name, faculty in decision_faculties.items():
+            try:
+                # These faculties need the full context including identity
                 result = await faculty.evaluate(content, context)
                 results[name] = result
             except Exception as e:
-                logger.warning(f"Faculty {name} evaluation failed: {e}")
+                logger.warning(f"Decision faculty {name} evaluation failed: {e}")
+        
         return results
     
     def build_faculty_insights_string(self, faculty_results: Dict[str, Any]) -> str:
@@ -50,7 +81,39 @@ class FacultyIntegration:
     ) -> Dict[str, Any]:
         """Enhance triaged inputs with faculty evaluations."""
         
-        # Apply faculties to the thought content
+        # Extract identity context from processing context (ThoughtContext)
+        identity_context = {}
+        processing_context = triaged_inputs.get("processing_context")
+        
+        if processing_context:
+            # Handle both dict and ThoughtContext object
+            if hasattr(processing_context, "system_snapshot"):
+                system_snapshot = processing_context.system_snapshot
+                if system_snapshot:
+                    # Extract identity data from system snapshot
+                    identity_context = {
+                        "agent_identity": getattr(system_snapshot, "agent_identity", {}),
+                        "identity_purpose": getattr(system_snapshot, "identity_purpose", ""),
+                        "identity_capabilities": getattr(system_snapshot, "identity_capabilities", []),
+                        "identity_restrictions": getattr(system_snapshot, "identity_restrictions", []),
+                    }
+            elif isinstance(processing_context, dict) and "system_snapshot" in processing_context:
+                system_snapshot = processing_context["system_snapshot"]
+                if isinstance(system_snapshot, dict):
+                    identity_context = {
+                        "agent_identity": system_snapshot.get("agent_identity", {}),
+                        "identity_purpose": system_snapshot.get("identity_purpose", ""),
+                        "identity_capabilities": system_snapshot.get("identity_capabilities", []),
+                        "identity_restrictions": system_snapshot.get("identity_restrictions", []),
+                    }
+            
+            # Also extract identity_context string if available
+            if hasattr(processing_context, "identity_context"):
+                identity_context["identity_context_string"] = processing_context.identity_context
+            elif isinstance(processing_context, dict):
+                identity_context["identity_context_string"] = processing_context.get("identity_context", "")
+        
+        # Apply faculties to the thought content with enhanced context
         context = {
             **(guardrail_failure_context or {}),
             "evaluation_context": "faculty_enhanced_action_selection",
@@ -58,7 +121,8 @@ class FacultyIntegration:
                 "thought_id": original_thought.thought_id,
                 "thought_type": original_thought.thought_type,
                 "source_task_id": original_thought.source_task_id
-            }
+            },
+            **identity_context  # Include identity context for faculties
         }
         
         faculty_results = await self.apply_faculties_to_content(

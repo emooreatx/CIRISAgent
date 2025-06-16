@@ -1,0 +1,179 @@
+"""WA CLI Display Service - Handles WA listing and visualization."""
+
+from typing import List, Any, Optional
+from datetime import datetime
+
+from rich.console import Console
+from rich.table import Table
+from rich.tree import Tree
+
+from ciris_engine.schemas.wa_schemas_v1 import WACertificate
+from ciris_engine.services.wa_auth_service import WAAuthService
+
+
+class WACLIDisplayService:
+    """Handles WA listing and visualization operations."""
+    
+    def __init__(self, auth_service: WAAuthService):
+        """Initialize display service with authentication service."""
+        self.auth_service = auth_service
+        self.console = Console()
+    
+    async def list_was(self, tree_view: bool = False) -> None:
+        """List all WAs in table or tree format."""
+        try:
+            # Get all WAs
+            all_was = await self.auth_service.list_was()
+            
+            if not all_was:
+                self.console.print("No WAs found. Run 'ciris wa onboard' to get started.")
+                return
+            
+            if tree_view:
+                await self._display_tree(all_was)
+            else:
+                await self._display_table(all_was)
+                
+        except Exception as e:
+            self.console.print(f"❌ Error listing WAs: {e}")
+    
+    async def _display_table(self, was: List[WACertificate]) -> None:
+        """Display WAs in a table format."""
+        table = Table(title="Wise Authorities")
+        
+        table.add_column("WA ID", style="cyan", no_wrap=True)
+        table.add_column("Name", style="magenta")
+        table.add_column("Role", style="green")
+        table.add_column("Type", style="yellow")
+        table.add_column("Status", style="blue")
+        table.add_column("Created", style="dim")
+        
+        for wa in was:
+            status = "✅ Active" if wa.active else "❌ Inactive"
+            created = wa.created.strftime("%Y-%m-%d") if isinstance(wa.created, datetime) else str(wa.created)
+            
+            table.add_row(
+                wa.wa_id,
+                wa.name,
+                wa.role.value,
+                wa.token_type.value,
+                status,
+                created
+            )
+        
+        self.console.print(table)
+    
+    async def _display_tree(self, was: List[WACertificate]) -> None:
+        """Display WAs in a tree format showing hierarchy."""
+        # Find root WAs
+        roots = [wa for wa in was if not wa.parent_wa_id]
+        
+        if not roots:
+            self.console.print("No root WAs found.")
+            return
+        
+        # Build tree for each root
+        for root in roots:
+            tree = Tree(f"[bold cyan]{root.name}[/bold cyan] ({root.wa_id})")
+            tree.add(f"Role: [green]{root.role.value}[/green]")
+            tree.add(f"Type: [yellow]{root.token_type.value}[/yellow]")
+            tree.add(f"Status: {'✅ Active' if root.active else '❌ Inactive'}")
+            
+            # Add children recursively
+            await self._add_wa_children(tree, was, root.wa_id)
+            
+            self.console.print(tree)
+            self.console.print()  # Space between trees
+    
+    async def _add_wa_children(
+        self, 
+        parent_node: Any, 
+        all_was: List[WACertificate], 
+        parent_id: str
+    ) -> None:
+        """Recursively add children to tree node."""
+        children = [wa for wa in all_was if wa.parent_wa_id == parent_id]
+        
+        for child in children:
+            child_node = parent_node.add(
+                f"[cyan]{child.name}[/cyan] ({child.wa_id})"
+            )
+            child_node.add(f"Role: [green]{child.role.value}[/green]")
+            child_node.add(f"Type: [yellow]{child.token_type.value}[/yellow]")
+            
+            if child.oauth_provider:
+                child_node.add(f"OAuth: [blue]{child.oauth_provider}[/blue]")
+            
+            if child.discord_id:
+                child_node.add(f"Discord: [blue]{child.discord_id}[/blue]")
+            
+            child_node.add(f"Status: {'✅ Active' if child.active else '❌ Inactive'}")
+            
+            # Recursively add this WA's children
+            await self._add_wa_children(child_node, all_was, child.wa_id)
+    
+    async def show_wa_details(self, wa_id: str) -> None:
+        """Display detailed information about a specific WA."""
+        try:
+            wa = await self.auth_service.get_wa(wa_id)
+            if not wa:
+                self.console.print(f"❌ WA not found: {wa_id}")
+                return
+            
+            # Create details table
+            table = Table(title=f"WA Details: {wa.name}", show_header=False)
+            table.add_column("Field", style="cyan")
+            table.add_column("Value", style="white")
+            
+            # Add all fields
+            table.add_row("WA ID", wa.wa_id)
+            table.add_row("Name", wa.name)
+            table.add_row("Role", wa.role.value)
+            table.add_row("Token Type", wa.token_type.value)
+            table.add_row("Public Key", wa.pubkey[:32] + "..." if len(wa.pubkey) > 32 else wa.pubkey)
+            table.add_row("JWT Kid", wa.jwt_kid)
+            
+            if wa.parent_wa_id:
+                table.add_row("Parent WA", wa.parent_wa_id)
+            
+            if wa.oauth_provider:
+                table.add_row("OAuth Provider", wa.oauth_provider)
+                table.add_row("OAuth ID", wa.oauth_external_id or "N/A")
+            
+            if wa.discord_id:
+                table.add_row("Discord ID", wa.discord_id)
+            
+            if wa.channel_id:
+                table.add_row("Channel ID", wa.channel_id)
+            
+            # Parse and display scopes
+            import json
+            try:
+                scopes = json.loads(wa.scopes_json)
+                table.add_row("Scopes", ", ".join(scopes))
+            except:
+                table.add_row("Scopes", wa.scopes_json)
+            
+            table.add_row("Status", "✅ Active" if wa.active else "❌ Inactive")
+            table.add_row("Auto-minted", "Yes" if wa.auto_minted else "No")
+            
+            created = wa.created.strftime("%Y-%m-%d %H:%M:%S UTC") if isinstance(wa.created, datetime) else str(wa.created)
+            table.add_row("Created", created)
+            
+            if wa.last_login:
+                last_login = wa.last_login.strftime("%Y-%m-%d %H:%M:%S UTC") if isinstance(wa.last_login, datetime) else str(wa.last_login)
+                table.add_row("Last Login", last_login)
+            
+            self.console.print(table)
+            
+            # Show children if any
+            all_was = await self.auth_service.list_was()
+            children = [w for w in all_was if w.parent_wa_id == wa_id]
+            
+            if children:
+                self.console.print("\n[bold]Children:[/bold]")
+                for child in children:
+                    self.console.print(f"  • {child.name} ({child.wa_id}) - {child.role.value}")
+            
+        except Exception as e:
+            self.console.print(f"❌ Error showing WA details: {e}")

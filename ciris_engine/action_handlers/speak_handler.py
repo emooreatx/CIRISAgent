@@ -119,8 +119,8 @@ class SpeakHandler(BaseActionHandler):
             request_data={
                 "task_id": thought.source_task_id,
                 "thought_id": thought_id,
-                "channel_id": params.channel_id,  # type: ignore[attr-defined]
-                "content": str(params.content)  # type: ignore[attr-defined]
+                "channel_id": params.channel_id,
+                "content": str(params.content)
             },
             response_data={"success": success, "final_status": final_thought_status.value},
             status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED,
@@ -168,9 +168,9 @@ class SpeakHandler(BaseActionHandler):
         if hasattr(thought, "context"):
             if not thought.context:
                 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
-                thought.context = ThoughtContext(system_snapshot=SystemSnapshot(channel_id=params.channel_id))  # type: ignore[attr-defined]
+                thought.context = ThoughtContext(system_snapshot=SystemSnapshot(channel_id=params.channel_id))
             if not getattr(thought.context.system_snapshot, "channel_id", None):
-                thought.context.system_snapshot.channel_id = params.channel_id  # type: ignore[attr-defined]
+                thought.context.system_snapshot.channel_id = params.channel_id
         
         return follow_up_thought_id
 

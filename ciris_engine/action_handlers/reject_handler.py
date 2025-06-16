@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import re
 
 from ciris_engine.schemas import Thought, RejectParams, ThoughtStatus, TaskStatus, HandlerActionType, ActionSelectionResult, DispatchContext
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 from ciris_engine.schemas.filter_schemas_v1 import FilterTrigger, TriggerType, FilterPriority
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from ciris_engine.schemas.action_params_v1 import MemorizeParams
@@ -80,7 +81,14 @@ class RejectHandler(BaseActionHandler):
         """Create an adaptive filter based on the rejected content."""
         try:
             # Get the adaptive filter service
-            adaptive_filter_service = self.dependencies.service_registry.get_service("adaptive_filter")
+            if not self.dependencies.service_registry:
+                self.logger.warning("No service registry available")
+                return
+                
+            adaptive_filter_service = await self.dependencies.service_registry.get_service(
+                handler=self.__class__.__name__,
+                service_type="filter"
+            )
             if not adaptive_filter_service:
                 self.logger.warning("Adaptive filter service not available, cannot create filter")
                 return
@@ -138,38 +146,65 @@ class RejectHandler(BaseActionHandler):
             )
 
             # Add the filter to the service
-            added = await adaptive_filter_service.add_filter_trigger(filter_trigger, "review")
+            # Check if it's a coroutine or method
+            if hasattr(adaptive_filter_service, 'add_filter_trigger'):
+                added = await adaptive_filter_service.add_filter_trigger(filter_trigger, "review")
+            else:
+                self.logger.error("Adaptive filter service doesn't have add_filter_trigger method")
+                return
             
             if added:
                 self.logger.info(f"Created adaptive filter {filter_trigger.trigger_id} from rejected thought {thought.thought_id}")
                 
                 # Create a MEMORIZE task to ensure the filter is persisted
+                import uuid
+                from datetime import datetime, timezone
+                
                 memorize_task = Task(
+                    task_id=str(uuid.uuid4()),
                     description=f"Memorize adaptive filter created from rejection: {params.reason}",
                     status=TaskStatus.PENDING,
                     priority=1,
-                    context={
-                        "filter_id": filter_trigger.trigger_id,
-                        "filter_pattern": filter_pattern,
-                        "rejection_reason": params.reason,
-                        "original_thought_id": thought.thought_id
-                    }
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                    context=ThoughtContext(
+                        system_snapshot=SystemSnapshot(
+                            channel_id=dispatch_context.channel_id
+                        ),
+                        user_profiles={},
+                        task_history=[]
+                    )
                 )
+                # Add extra context after creation
+                setattr(memorize_task.context, 'filter_id', filter_trigger.trigger_id)
+                setattr(memorize_task.context, 'filter_pattern', filter_pattern)
+                setattr(memorize_task.context, 'rejection_reason', params.reason)
+                setattr(memorize_task.context, 'original_thought_id', thought.thought_id)
                 
                 persistence.add_task(memorize_task)
                 
                 # Create a thought for the memorize task
                 memorize_thought = Thought(
+                    thought_id=str(uuid.uuid4()),
                     thought_type=ThoughtType.OBSERVATION,
                     content=f"Memorize adaptive filter to prevent future occurrences of: {params.reason}",
                     source_task_id=memorize_task.task_id,
-                    permitted_actions=[HandlerActionType.MEMORIZE],
-                    context={
-                        "action": "MEMORIZE",
-                        "filter_data": filter_trigger.model_dump(),
-                        "source": "reject_handler"
-                    }
+                    status=ThoughtStatus.PROCESSING,
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                    round_number=0,
+                    context=ThoughtContext(
+                        system_snapshot=SystemSnapshot(
+                            channel_id=dispatch_context.channel_id
+                        ),
+                        user_profiles={},
+                        task_history=[]
+                    )
                 )
+                # Add extra context
+                setattr(memorize_thought.context, 'action', 'MEMORIZE')
+                setattr(memorize_thought.context, 'filter_data', filter_trigger.model_dump())
+                setattr(memorize_thought.context, 'source', 'reject_handler')
                 
                 persistence.add_thought(memorize_thought)
                 self.logger.info(f"Created MEMORIZE task {memorize_task.task_id} for filter persistence")

@@ -52,7 +52,7 @@ class BaseObserver(Generic[MessageT], ABC):
             return True
         return getattr(msg, "is_bot", False)
 
-    async def _apply_message_filtering(self, msg: MessageT, adapter_type: str):
+    async def _apply_message_filtering(self, msg: MessageT, adapter_type: str) -> 'FilterResult':
         from ciris_engine.schemas.filter_schemas_v1 import FilterResult, FilterPriority
         if not self.filter_service:
             return FilterResult(
@@ -140,7 +140,7 @@ class BaseObserver(Generic[MessageT], ABC):
             if self.multi_service_sink:
                 success = await self.multi_service_sink.send_message(
                     handler_name=self.__class__.__name__,
-                    channel_id=getattr(msg, "channel_id", None),
+                    channel_id=str(getattr(msg, "channel_id", "")) or "unknown",
                     content=f"[WA_FEEDBACK] {msg.content}",  # type: ignore[attr-defined]
                     metadata={
                         "message_type": "wa_feedback",
