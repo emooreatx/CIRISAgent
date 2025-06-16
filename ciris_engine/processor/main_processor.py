@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine import persistence
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
@@ -39,7 +39,6 @@ class AgentProcessor(ProcessorInterface):
     def __init__(
         self,
         app_config: AppConfig,
-        active_profile: AgentProfile,
         thought_processor: ThoughtProcessor,
         action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any],
@@ -48,7 +47,6 @@ class AgentProcessor(ProcessorInterface):
     ) -> None:
         """Initialize the agent processor with v1 configuration."""
         self.app_config = app_config
-        self.active_profile = active_profile  # Store active profile
         self.thought_processor = thought_processor
         self._action_dispatcher = action_dispatcher  # Store internally
         self.services = services
@@ -64,8 +62,7 @@ class AgentProcessor(ProcessorInterface):
             thought_processor=thought_processor,
             action_dispatcher=self._action_dispatcher, # Use internal dispatcher
             services=services,
-            startup_channel_id=startup_channel_id,
-            agent_profile=active_profile
+            startup_channel_id=startup_channel_id
         )
         
         self.work_processor = WorkProcessor(
@@ -93,7 +90,6 @@ class AgentProcessor(ProcessorInterface):
         # Dream processor is initialized but will not be automatically entered via idle logic
         self.dream_processor = DreamProcessor(
             app_config=app_config,
-            profile=self.active_profile,
             service_registry=services.get("service_registry"),
             cirisnode_url=app_config.cirisnode.base_url if hasattr(app_config, 'cirisnode') else "https://localhost:8001"
         )

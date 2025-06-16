@@ -1541,3 +1541,7 @@ This adaptive configuration and filtering system provides Echo (and future agent
 - WA oversight for identity-critical changes
 
 The system is designed to be the final major feature needed for production deployment, providing both autonomy and safety guardrails.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

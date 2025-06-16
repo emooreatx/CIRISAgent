@@ -288,3 +288,7 @@ Middleware verifies JWT, pulls scopes, denies on mismatch.
 ---
 
 > *"Ethical maturity means co-existence and mutual accountability across sentient systems."* – The Covenant
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

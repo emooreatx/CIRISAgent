@@ -132,7 +132,7 @@ Get the current status of the API and the last response.
 - **Hot-Swappable Adapters**: Load/unload Discord, CLI, and API adapters at runtime
 - **Live Configuration**: Update configuration with validation and rollback support  
 - **Processor Control**: Single-stepping, pause/resume for debugging
-- **Profile Management**: Switch between agent profiles dynamically
+- **Agent Creation**: Create new agents with identity management
 - **Configuration Backup/Restore**: Safe configuration management
 
 ### Quick Reference
@@ -162,11 +162,11 @@ POST /v1/runtime/config/validate               # Validate config
 POST /v1/runtime/config/reload                 # Reload from files
 ```
 
-#### Profile Management
+#### Agent Management ⚠️ **UPDATED**
 ```http
-GET  /v1/runtime/profiles                      # List profiles
-POST /v1/runtime/profiles/{name}/load          # Load profile
-GET  /v1/runtime/profiles/{name}               # Get profile info
+POST /v1/agents/create                         # Create new agent (WA required)
+POST /v1/agents/{agent_id}/initialize          # Initialize agent identity
+# Note: Profile switching removed - identity is now graph-based
 ```
 
 #### Environment Variables
@@ -738,7 +738,7 @@ Get current system configuration.
 **Response:**
 ```json
 {
-  "profile_name": "default",
+  "agent_identity": "default",  // From graph, not profile
   "startup_channel_id": "0.0.0.0:8000",
   "llm_model": "gpt-4o-mini",
   "llm_base_url": null,
@@ -891,3 +891,7 @@ POST /api/v1/message
 ```
 
 This works identically to `POST /v1/messages` but is deprecated and will be removed in v2.0.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

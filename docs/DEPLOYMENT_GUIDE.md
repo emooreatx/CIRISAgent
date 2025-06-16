@@ -82,13 +82,16 @@ AUDIT_LOG_PATH="./audit_logs.jsonl"
 4. **Run the agent**:
    ```bash
    # CLI mode
-   python main.py --mode cli --profile default
+   python main.py --mode cli
 
-   # Discord mode
-   python main.py --mode discord --profile teacher
+   # Discord mode  
+   python main.py --mode discord
 
    # API mode
-   python main.py --mode api --profile production
+   python main.py --mode api
+   
+   # Note: Profiles are only used during initial agent creation
+   # Use --profile only with --wa-bootstrap for new agents
    ```
 
 ### Method 2: Docker Deployment
@@ -135,7 +138,7 @@ CIRIS Agent uses a layered configuration system:
 
 1. **Base configuration**: `config/base.yaml`
 2. **Environment-specific**: `config/production.yaml` or `config/development.yaml`
-3. **Agent profiles**: `ciris_profiles/default.yaml`, `ciris_profiles/teacher.yaml`, etc.
+3. **Agent templates**: `ciris_profiles/default.yaml`, `ciris_profiles/teacher.yaml`, etc. (used only during creation)
 4. **Environment variables**: Override any configuration value
 
 ### Key Configuration Sections
@@ -517,3 +520,7 @@ For additional support, ensure you have:
 3. Error messages with full stack traces
 4. System resource information
 5. Version information: `python --version`, `pip list`
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

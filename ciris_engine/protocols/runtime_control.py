@@ -4,9 +4,8 @@ from typing import Dict, Any, Optional, List
 
 from ciris_engine.schemas.runtime_control_schemas import (
     ProcessorControlResponse, AdapterOperationResponse, ConfigOperationResponse,
-    ConfigValidationResponse, AgentProfileResponse,
-    ConfigBackupResponse, RuntimeStatusResponse, RuntimeStateSnapshot,
-    ConfigScope, ConfigValidationLevel
+    ConfigValidationResponse, ConfigBackupResponse, RuntimeStatusResponse, 
+    RuntimeStateSnapshot, ConfigScope, ConfigValidationLevel
 )
 
 
@@ -93,43 +92,11 @@ class RuntimeControlInterface(ABC):
         """Validate configuration data."""
         pass
 
-    @abstractmethod
-    async def reload_profile(
-        self,
-        profile_name: str,
-        config_path: Optional[str] = None,
-        scope: ConfigScope = ConfigScope.SESSION
-    ) -> ConfigOperationResponse:
-        """Reload an agent profile."""
-        pass
-
-    @abstractmethod
-    async def list_profiles(self) -> List[Dict[str, Any]]:
-        """List all available agent profiles."""
-        pass
-
-    @abstractmethod
-    async def get_agent_profile(self, profile_name: str) -> Optional[Dict[str, Any]]:
-        """Get information about a specific agent profile."""
-        pass
-
-    @abstractmethod
-    async def create_profile(
-        self,
-        name: str,
-        config: Dict[str, Any],
-        description: Optional[str] = None,
-        base_profile: Optional[str] = None,
-        save_to_file: bool = True
-    ) -> AgentProfileResponse:
-        """Create a new agent profile."""
-        pass
 
     # Backup and Restore
     @abstractmethod
     async def backup_config(
         self,
-        include_profiles: bool = True,
         backup_name: Optional[str] = None
     ) -> ConfigBackupResponse:
         """Create a configuration backup."""

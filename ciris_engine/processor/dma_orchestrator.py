@@ -249,22 +249,35 @@ class DMAOrchestrator:
             triaged.setdefault("max_rounds", 5)
             logger.warning("DMAOrchestrator: app_config or workflow config not found for max_rounds, using fallback.")
 
-        agent_profile_obj = None
-        if self.app_config and hasattr(self.app_config, 'agent_profiles'):
-            agent_profile_obj = self.app_config.agent_profiles.get(profile_name)
-            if not agent_profile_obj:
-                agent_profile_obj = self.app_config.agent_profiles.get(profile_name.lower())
-            if not agent_profile_obj and profile_name != "default":
-                logger.warning(f"Profile '{profile_name}' not found, falling back to default profile")
-                agent_profile_obj = self.app_config.agent_profiles.get("default")
-        if agent_profile_obj:
-            logger.debug(f"Using profile '{getattr(agent_profile_obj, 'name', 'unknown')}' for thought {thought_item.thought_id}")
-        else:
-            logger.warning(f"No profile found for '{profile_name}' or 'default' fallback")
-        triaged["agent_profile"] = agent_profile_obj
-
-        if agent_profile_obj and hasattr(agent_profile_obj, 'permitted_actions'):
-            triaged.setdefault("permitted_actions", agent_profile_obj.permitted_actions)
+        # Get identity from persistence tier
+        from ciris_engine.persistence.models import get_identity_for_context
+        from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+        
+        identity_info = get_identity_for_context()
+        triaged["agent_identity"] = identity_info
+        
+        logger.debug(f"Using identity '{identity_info['agent_name']}' for thought {thought_item.thought_id}")
+        
+        # Extract permitted actions from allowed capabilities
+        permitted_actions = []
+        for capability in identity_info.get("allowed_capabilities", []):
+            # Map capabilities to actions - e.g., "communication" -> SPEAK
+            if capability == "communication":
+                permitted_actions.extend([HandlerActionType.SPEAK, HandlerActionType.OBSERVE])
+            elif capability == "memory":
+                permitted_actions.extend([HandlerActionType.MEMORIZE, HandlerActionType.RECALL, HandlerActionType.FORGET])
+            elif capability == "task_management":
+                permitted_actions.extend([HandlerActionType.TASK_COMPLETE, HandlerActionType.PONDER])
+            elif capability == "ethical_reasoning":
+                permitted_actions.extend([HandlerActionType.REJECT, HandlerActionType.DEFER])
+            elif capability == "tool_use":
+                permitted_actions.append(HandlerActionType.TOOL)
+        
+        # Ensure unique actions
+        permitted_actions = list(set(permitted_actions))
+        
+        if permitted_actions:
+            triaged.setdefault("permitted_actions", permitted_actions)
         else:
             from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
             triaged.setdefault("permitted_actions", [

@@ -37,6 +37,10 @@ class APIAuthRoutes:
         app.router.add_get('/v1/auth/verify', self._handle_verify_token)
         app.router.add_post('/v1/wa/link-discord', self._handle_link_discord)
         
+        # Agent creation endpoints
+        app.router.add_post('/v1/agents/create', self._handle_create_agent)
+        app.router.add_post('/v1/agents/{agent_id}/initialize', self._handle_initialize_agent)
+        
     async def _handle_oauth_start(self, request: web.Request) -> web.Response:
         """Start OAuth flow for a provider."""
         provider = request.match_info['provider']
@@ -292,6 +296,231 @@ class APIAuthRoutes:
                 
         except Exception as e:
             logger.error(f"Discord link error: {e}")
+            return web.json_response({
+                "error": str(e)
+            }, status=500)
+    
+    async def _handle_create_agent(self, request: web.Request) -> web.Response:
+        """Create a new CIRIS agent (WA-only endpoint)."""
+        if not await self._ensure_services():
+            return web.json_response({
+                "error": "Authentication services not available"
+            }, status=503)
+        
+        try:
+            # Verify caller is a WA
+            auth_header = request.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                return web.json_response({
+                    "error": "Authorization required"
+                }, status=401)
+            
+            token = auth_header[7:]
+            claims = await self.auth_service.verify_token(token)
+            
+            if not claims:
+                return web.json_response({
+                    "error": "Invalid or expired token"
+                }, status=401)
+            
+            # Check if caller has wa:mint scope (for creating agents)
+            scopes = claims.get('scope', '').split()
+            if 'wa:mint' not in scopes:
+                return web.json_response({
+                    "error": "Insufficient permissions - wa:mint scope required"
+                }, status=403)
+            
+            creator_wa_id = claims.get('sub')
+            
+            # Get request data
+            data = await request.json()
+            
+            # Validate required fields
+            required_fields = ['name', 'purpose', 'description', 'profile_template']
+            missing_fields = [f for f in required_fields if not data.get(f)]
+            if missing_fields:
+                return web.json_response({
+                    "error": f"Missing required fields: {', '.join(missing_fields)}"
+                }, status=400)
+            
+            # Extract agent details
+            agent_config = {
+                "name": data['name'],
+                "purpose": data['purpose'],
+                "description": data['description'],
+                "profile_template": data['profile_template'],  # Profile YAML as string
+                "domain_specific_knowledge": data.get('domain_specific_knowledge', {}),
+                "permitted_actions": data.get('permitted_actions', [
+                    "OBSERVE", "SPEAK", "TOOL", "REJECT", "PONDER", "DEFER",
+                    "MEMORIZE", "RECALL", "FORGET", "TASK_COMPLETE"
+                ]),
+                "creation_justification": data.get('creation_justification', 
+                    f"Created by WA {creator_wa_id} via API"),
+                "expected_capabilities": data.get('expected_capabilities', [
+                    "communication", "memory", "observation", "tool_use",
+                    "ethical_reasoning", "self_modification", "task_management"
+                ]),
+                "ethical_considerations": data.get('ethical_considerations',
+                    "Agent will operate under CIRIS Covenant ethical framework")
+            }
+            
+            # Generate unique agent ID
+            import hashlib
+            from datetime import datetime, timezone
+            
+            timestamp = datetime.now(timezone.utc)
+            agent_id_base = f"{agent_config['name']}-{timestamp.isoformat()}"
+            agent_id = hashlib.sha256(agent_id_base.encode()).hexdigest()[:12]
+            full_agent_id = f"{agent_config['name'].lower()}-{agent_id}"
+            
+            # Create identity root structure
+            from ciris_engine.schemas.identity_schemas_v1 import (
+                AgentIdentityRoot, CoreProfile, IdentityMetadata
+            )
+            
+            identity_hash = hashlib.sha256(
+                f"{full_agent_id}:{agent_config['purpose']}:{agent_config['description']}".encode()
+            ).hexdigest()
+            
+            identity_root = AgentIdentityRoot(
+                agent_id=full_agent_id,
+                identity_hash=identity_hash,
+                core_profile=CoreProfile(
+                    description=agent_config['description'],
+                    role_description=agent_config['purpose'],
+                    domain_specific_knowledge=agent_config['domain_specific_knowledge']
+                ),
+                identity_metadata=IdentityMetadata(
+                    created_at=timestamp.isoformat(),
+                    last_modified=timestamp.isoformat(),
+                    modification_count=0,
+                    creator_agent_id=creator_wa_id,
+                    lineage_trace=[creator_wa_id],
+                    approval_required=True,
+                    approved_by=creator_wa_id,  # WA self-approves
+                    approval_timestamp=timestamp.isoformat()
+                ),
+                allowed_capabilities=agent_config['expected_capabilities'],
+                restricted_capabilities=[
+                    "identity_change_without_approval",
+                    "profile_switching",
+                    "unauthorized_data_access"
+                ]
+            )
+            
+            # Create database directory for new agent
+            import os
+            from pathlib import Path
+            
+            data_dir = Path(os.environ.get('CIRIS_DATA_DIR', './data'))
+            agent_db_dir = data_dir / 'databases' / full_agent_id
+            agent_db_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Save profile template for initial creation
+            profile_path = agent_db_dir / 'initial_profile.yaml'
+            profile_path.write_text(agent_config['profile_template'])
+            
+            # Save identity metadata
+            identity_path = agent_db_dir / 'identity_metadata.json'
+            identity_path.write_text(json.dumps({
+                "identity_root": identity_root.model_dump(),
+                "creation_ceremony": {
+                    "creator_wa_id": creator_wa_id,
+                    "timestamp": timestamp.isoformat(),
+                    "justification": agent_config['creation_justification'],
+                    "api_created": True
+                }
+            }, indent=2))
+            
+            # Create response
+            response = {
+                "status": "success",
+                "agent_id": full_agent_id,
+                "identity_hash": identity_hash,
+                "database_path": str(agent_db_dir),
+                "creation_ceremony": {
+                    "timestamp": timestamp.isoformat(),
+                    "creator_wa_id": creator_wa_id,
+                    "approved": True
+                },
+                "next_steps": [
+                    f"Initialize agent with POST /v1/agents/{full_agent_id}/initialize",
+                    "Start agent runtime with appropriate profile",
+                    "Agent will create identity graph on first run"
+                ],
+                "profile_path": str(profile_path),
+                "identity_metadata_path": str(identity_path)
+            }
+            
+            # Log creation event
+            logger.info(f"Agent {full_agent_id} created by WA {creator_wa_id} via API")
+            
+            return web.json_response(response)
+            
+        except Exception as e:
+            logger.error(f"Agent creation error: {e}", exc_info=True)
+            return web.json_response({
+                "error": str(e)
+            }, status=500)
+    
+    async def _handle_initialize_agent(self, request: web.Request) -> web.Response:
+        """Initialize a newly created agent (creates identity in graph)."""
+        agent_id = request.match_info['agent_id']
+        
+        if not await self._ensure_services():
+            return web.json_response({
+                "error": "Authentication services not available"
+            }, status=503)
+        
+        try:
+            # Verify caller is a WA
+            auth_header = request.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                return web.json_response({
+                    "error": "Authorization required"
+                }, status=401)
+            
+            token = auth_header[7:]
+            claims = await self.auth_service.verify_token(token)
+            
+            if not claims or 'wa:mint' not in claims.get('scope', '').split():
+                return web.json_response({
+                    "error": "Insufficient permissions"
+                }, status=403)
+            
+            # Check if agent metadata exists
+            from pathlib import Path
+            import os
+            
+            data_dir = Path(os.environ.get('CIRIS_DATA_DIR', './data'))
+            agent_db_dir = data_dir / 'databases' / agent_id
+            identity_path = agent_db_dir / 'identity_metadata.json'
+            
+            if not identity_path.exists():
+                return web.json_response({
+                    "error": f"Agent {agent_id} not found or not created via API"
+                }, status=404)
+            
+            # Load identity metadata
+            identity_data = json.loads(identity_path.read_text())
+            
+            # Mark as initialized
+            identity_data['initialized'] = True
+            identity_data['initialization_timestamp'] = datetime.now(timezone.utc).isoformat()
+            
+            # Save updated metadata
+            identity_path.write_text(json.dumps(identity_data, indent=2))
+            
+            return web.json_response({
+                "status": "success",
+                "agent_id": agent_id,
+                "initialized": True,
+                "message": "Agent initialized and ready to start",
+                "startup_command": f"python main.py --profile {agent_id} --modes api,discord"
+            })
+            
+        except Exception as e:
+            logger.error(f"Agent initialization error: {e}", exc_info=True)
             return web.json_response({
                 "error": str(e)
             }, status=500)

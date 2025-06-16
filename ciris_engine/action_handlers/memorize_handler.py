@@ -116,12 +116,34 @@ class MemorizeHandler(BaseActionHandler):
                         node.attributes["wa_approved_by"] = dispatch_context.wa_authorized
                         node.attributes["approval_timestamp"] = dispatch_context.event_timestamp
                         
+                        # Capture identity before change for audit
+                        from ciris_engine.persistence.models import retrieve_agent_identity
+                        previous_identity = await retrieve_agent_identity()
+                        
                         try:
                             mem_op = await memory_service.memorize(node)
                             if mem_op.status == MemoryOpStatus.OK:
                                 action_performed_successfully = True
                                 follow_up_content_key_info = (
                                     f"Identity update successful. Node: '{node.id}'"
+                                )
+                                
+                                # Audit successful identity change with full details
+                                await self._audit_log(
+                                    HandlerActionType.MEMORIZE,
+                                    {**dispatch_context, "thought_id": thought_id},
+                                    outcome="success",
+                                    details={
+                                        "event_type": "identity_change",
+                                        "node_id": node.id,
+                                        "scope": scope.value,
+                                        "wa_authorized": True,
+                                        "wa_id": dispatch_context.wa_authorized,
+                                        "variance_percentage": variance_pct if 'variance_pct' in locals() else 0,
+                                        "previous_identity_hash": previous_identity.identity_hash if previous_identity else None,
+                                        "approval_timestamp": dispatch_context.event_timestamp,
+                                        "change_summary": "Identity graph updated with WA approval"
+                                    }
                                 )
                             else:
                                 final_thought_status = ThoughtStatus.DEFERRED
@@ -136,6 +158,18 @@ class MemorizeHandler(BaseActionHandler):
                 self.logger.warning(
                     f"WA authorization required for MEMORIZE in scope {scope}. Thought {thought_id} denied."
                 )
+                # Audit the denied attempt
+                await self._audit_log(
+                    HandlerActionType.MEMORIZE,
+                    {**dispatch_context, "thought_id": thought_id},
+                    outcome="denied",
+                    details={
+                        "reason": "unauthorized_environment_change_attempt",
+                        "node_id": node.id,
+                        "scope": scope.value,
+                        "wa_authorized": False
+                    }
+                )
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = "WA authorization missing"
             else:
@@ -147,6 +181,18 @@ class MemorizeHandler(BaseActionHandler):
                         action_performed_successfully = True
                         follow_up_content_key_info = (
                             f"Memorization successful. Key: '{node.id}'"
+                        )
+                        
+                        # Audit regular memory operation
+                        await self._audit_log(
+                            HandlerActionType.MEMORIZE,
+                            {**dispatch_context, "thought_id": thought_id},
+                            outcome="success",
+                            details={
+                                "event_type": "memory_operation",
+                                "node_id": node.id,
+                                "scope": scope.value
+                            }
                         )
                     else:
                         final_thought_status = ThoughtStatus.DEFERRED
@@ -227,7 +273,7 @@ class MemorizeHandler(BaseActionHandler):
                 "agent_id": 5.0,  # Changing name is very significant
                 "core_profile.description": 3.0,
                 "core_profile.role_description": 3.0,
-                "core_profile.dsdma_identifier": 4.0,  # Changing domain is major
+                "core_profile.domain_specific_knowledge": 4.0,  # Changing domain knowledge is major
                 "allowed_capabilities": 2.0,
                 "restricted_capabilities": 2.0,
             }

@@ -1206,3 +1206,7 @@ resource_actions_taken: Dict[str, int] = Field(default_factory=dict)
 - **History Storage**: ~10MB for 24h of data
 
 This system ensures CIRIS agents can run safely on constrained hardware while maintaining service quality through graceful degradation.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

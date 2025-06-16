@@ -11,15 +11,14 @@ from ciris_engine.protocols.dma_interface import (
 from ciris_engine.protocols.faculties import EpistemicFaculty
 
 from .dsdma_base import BaseDSDMA
-from .moderation_dsdma import ModerationDSDMA
 from ciris_engine.schemas.config_schemas_v1 import AgentProfile
 from ..utils.profile_loader import load_profile
 
 logger = logging.getLogger(__name__)
 
+# No longer need a registry - all agents use BaseDSDMA
 DSDMA_CLASS_REGISTRY: Dict[str, Type[BaseDSDMA]] = {
     "BaseDSDMA": BaseDSDMA,
-    "ModerationDSDMA": ModerationDSDMA,
 }
 
 ETHICAL_DMA_REGISTRY: Dict[str, Type[EthicalDMAInterface]] = {}
@@ -115,35 +114,25 @@ async def create_dsdma_from_profile(
 ) -> Optional[BaseDSDMA]:
     """Instantiate a DSDMA based on the given profile.
 
-    If ``profile`` is ``None`` or lacks ``dsdma_identifier``, the default profile
-    from ``default_profile_path`` is loaded and used instead.
-    """
-    if profile is None or not profile.dsdma_identifier:
-        logger.info(
-            "No specific DSDMA profile provided; loading default profile from %s",
-            default_profile_path,
-        )
-        profile = await load_profile(default_profile_path)
-        if profile is None:
-            logger.error("Default profile could not be loaded")
-            return None
-
-    if not profile.dsdma_identifier:
-        logger.error("Profile has no dsdma_identifier")
-        return None
+    The profile represents the agent's identity loaded from the graph. If ``profile`` 
+    is ``None``, this is a fatal error as the agent has no identity.
     
-    dsdma_cls = DSDMA_CLASS_REGISTRY.get(profile.dsdma_identifier)
-    if not dsdma_cls:
-        logger.error("Unknown DSDMA identifier: %s", profile.dsdma_identifier)
-        return None
+    All agents now use BaseDSDMA with domain-specific overrides provided through 
+    dsdma_kwargs in their identity/profile.
+    """
+    if profile is None:
+        logger.critical("FATAL: No profile provided - agent has no identity!")
+        raise RuntimeError("Cannot create DSDMA without agent identity. Who am I?")
 
+    # Extract overrides from profile - no longer need dsdma_identifier
     overrides = profile.dsdma_kwargs or {}
     prompt_template = overrides.get("prompt_template")
     domain_knowledge = overrides.get("domain_specific_knowledge")
 
+    # Always use BaseDSDMA now
     dma_result = await create_dma(
         dma_type='dsdma',
-        dma_identifier=profile.dsdma_identifier,
+        dma_identifier='BaseDSDMA',  # Always use BaseDSDMA
         service_registry=service_registry,
         model_name=model_name,
         prompt_overrides=None,

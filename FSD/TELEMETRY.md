@@ -473,3 +473,7 @@ telemetry:
 4. **Reliability**: Telemetry failures don't affect agent operation
 5. **Compliance**: Meets all data protection requirements
 
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*
+

@@ -163,7 +163,7 @@ class ConfigLoader:
 
         active_profile = None
         if profile_data:
-            if 'name' in profile_data or any(key in profile_data for key in ['dsdma_identifier', 'permitted_actions', 'discord_config', 'api_config', 'cli_config']):
+            if 'name' in profile_data or any(key in profile_data for key in ['dsdma_kwargs', 'permitted_actions', 'discord_config', 'api_config', 'cli_config']):
                 from ciris_engine.adapters.discord.config import DiscordAdapterConfig
                 
                 if 'discord_config' in profile_data:

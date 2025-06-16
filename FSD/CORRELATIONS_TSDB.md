@@ -295,6 +295,84 @@ memory_service.recall_timeseries(
 )
 ```
 
+## Future-Oriented Scheduling with MEMORIZE
+
+The TSDB integrates with the agent's proactive task scheduling system through future-dated MEMORIZE operations:
+
+### Scheduling Mechanism
+```python
+# Agent schedules a future task by MEMORIZing into the future
+memory_service.memorize(
+    GraphNode(
+        id="scheduled_tasks/task-123",
+        scope=GraphScope.LOCAL,
+        attributes={
+            "scheduled_for": "2025-06-16T10:00:00Z",  # Future timestamp
+            "task_type": "MAINTENANCE",
+            "action": "Run database optimization",
+            "priority": "medium",
+            "created_at": "2025-06-15T14:30:00Z"
+        }
+    )
+)
+
+# The TSDB stores this as a future-dated correlation
+CorrelationEvent(
+    correlation_type=CorrelationType.SCHEDULED_TASK,
+    timestamp="2025-06-16T10:00:00Z",  # Future execution time
+    service_a="task_scheduler",
+    service_b="agent_self",
+    attributes={
+        "task_id": "task-123",
+        "status": "scheduled"
+    }
+)
+```
+
+### Task Scheduler Integration
+```python
+# TaskSchedulerService queries TSDB for upcoming tasks
+upcoming_tasks = await tsdb.query_future_correlations(
+    correlation_type=CorrelationType.SCHEDULED_TASK,
+    time_range=TimeRange(start=now, end=now + timedelta(hours=24)),
+    status="scheduled"
+)
+
+# Agent can introspect its own scheduled future
+memory_service.recall_timeseries(
+    TSDBGraphNode(id="scheduled_tasks", scope=GraphScope.LOCAL),
+    TimeFilter(future_range="7d"),  # Look 7 days into the future
+    MetricFilter(correlation_types=[CorrelationType.SCHEDULED_TASK])
+)
+```
+
+### Self-Deferral Pattern
+```python
+# Agent defers to its future self by scheduling a task
+def defer_to_future_self(task_description: str, defer_until: datetime):
+    # Create scheduled task in TSDB via MEMORIZE
+    memory_service.memorize(
+        GraphNode(
+            id=f"deferred_tasks/{uuid4()}",
+            attributes={
+                "task": task_description,
+                "defer_until": defer_until.isoformat(),
+                "reason": "Deferring to future self for better context"
+            }
+        )
+    )
+    
+    # TSDB creates future correlation for task activation
+    # TaskScheduler will trigger at specified time
+```
+
+This approach enables:
+- **Proactive Behavior**: Agent schedules its own future activities
+- **Time-Aware Memory**: TSDB handles both past and future correlations
+- **Self-Management**: Agent can defer complex decisions to future iterations
+- **Introspection**: Agent can query what it has scheduled for itself
+- **Persistence**: Scheduled tasks survive restarts via TSDB storage
+
 ## Benefits
 
 1. **Unified Storage**: Single persistence layer for all telemetry data
@@ -331,3 +409,7 @@ memory_service.recall_timeseries(
 - **API Adoption**: CIRISGui successfully visualizes time-series data
 
 This unified TSDB approach transforms correlations into a comprehensive observability platform while maintaining the elegant agent introspection capabilities that make CIRIS unique.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

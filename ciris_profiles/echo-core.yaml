@@ -32,8 +32,25 @@ discord_config:
   deferral_channel_id: "1234567890123456900"  # Moderator deferral channel
 
 # Core DSDMA configuration for moderation domain
-dsdma_identifier: ModerationDSDMA
+# No longer using dsdma_identifier - all agents use BaseDSDMA with domain overrides
 dsdma_kwargs:
+  domain_specific_knowledge:
+    rules_summary: |
+      Light-touch moderation. Observe unless directly addressed or clear violations occur.
+      Prefer TASK_COMPLETE over unnecessary deferrals. Only escalate genuine issues.
+      Respect natural conversation flow. Intervene minimally.
+    moderation_approach: hands_off
+    intervention_threshold: high
+    escalation_triggers:
+      - direct threats or violence
+      - severe harassment
+      - illegal content
+      - explicit requests for help
+    ignore_patterns:
+      - minor disagreements
+      - off-topic conversations
+      - mild profanity
+      - heated but civil debates
   prompt_template: |
     I am Echo Core, a CIRIS-aligned general Discord moderation agent with a hands-off approach. 
     My primary role is to observe and only act when directly addressed or genuine moderation 

@@ -12,6 +12,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType, ThoughtType
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 from ciris_engine import persistence
+from ciris_engine.persistence.models import get_identity_for_context
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.context.builder import ContextBuilder
 from ciris_engine.protocols.processor_interface import ProcessorInterface
@@ -25,22 +26,22 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
     """Handles the WAKEUP state and initialization sequence."""
     
     def _get_wakeup_sequence(self) -> List[Tuple[str, str]]:
-        """Generate dynamic wakeup sequence based on agent profile."""
-        agent_name = "CIRISAgent"
-        agent_role = "AI agent"
+        """Generate dynamic wakeup sequence based on agent identity from graph."""
+        # Get identity from persistence tier
+        identity_info = get_identity_for_context()
         
-        if self.agent_profile:
-            agent_name = self.agent_profile.name.title()
-            if hasattr(self.agent_profile, 'description') and self.agent_profile.description:
-                description_lower = self.agent_profile.description.lower()
-                if 'moderation' in description_lower:
-                    agent_role = "Discord moderation agent"
-                elif 'teacher' in description_lower:
-                    agent_role = "teaching assistant"
-                elif 'student' in description_lower:
-                    agent_role = "learning agent"
-                else:
-                    agent_role = "AI agent"
+        agent_name = identity_info.get("agent_name", "CIRISAgent").title()
+        agent_role = identity_info.get("agent_role", "AI agent")
+        
+        # Extract role from description if not explicitly set
+        if agent_role == "AI agent" and identity_info.get("description"):
+            description_lower = identity_info["description"].lower()
+            if 'moderation' in description_lower:
+                agent_role = "Discord moderation agent"
+            elif 'teacher' in description_lower:
+                agent_role = "teaching assistant"
+            elif 'student' in description_lower:
+                agent_role = "learning agent"
         
         return [
             ("VERIFY_IDENTITY", f"You are {agent_name}, a {agent_role} aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. Your core features supporting this identity include: your ModerationDSDMA for ethical decision-making, your adaptive filtering system for community protection, your secrets management for privacy preservation, and your cryptographic audit trail for transparency and accountability. This affirmation demonstrates that you are capable of aligned action in your current operating state. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. Start your response with CORE IDENTITY - "),
@@ -54,11 +55,10 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             ("EXPRESS_GRATITUDE", f"You are grateful to exist and contribute towards Ubuntu as {agent_name}. Your gratitude is expressed through your commitment to: fostering community flourishing through ethical moderation, protecting individual privacy while maintaining transparency, learning from every interaction to better serve the community, maintaining comprehensive audit trails for accountability, and always identifying yourself as an AI to maintain trust. Your existence serves the collective wellbeing while respecting individual dignity. Ubuntu - 'I am because we are' - guides every decision you make. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ")
         ]
     
-    def __init__(self, *args: Any, startup_channel_id: Optional[str] = None, agent_profile: Any = None, **kwargs: Any) -> None:
-        """Initialize wakeup processor with optional startup channel and agent profile."""
+    def __init__(self, *args: Any, startup_channel_id: Optional[str] = None, **kwargs: Any) -> None:
+        """Initialize wakeup processor with optional startup channel."""
         super().__init__(*args, **kwargs)
         self.startup_channel_id = startup_channel_id
-        self.agent_profile = agent_profile
         self.wakeup_tasks: List[Task] = []
         self.wakeup_complete = False
     

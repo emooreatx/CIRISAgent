@@ -24,7 +24,7 @@ Environment variable processing with type conversion and nested key support.
 
 #### Precedence Order (highest to lowest)
 1. **Environment Variables** - Runtime overrides
-2. **Profile Overlays** - Agent-specific configuration (`ciris_profiles/{profile}.yaml`)
+2. **Profile Templates** - Agent creation templates (`ciris_profiles/{template}.yaml`) - used ONLY during initial creation
 3. **Base Configuration** - `config/base.yaml`
 4. **Application Defaults** - Built-in sensible defaults
 
@@ -33,14 +33,14 @@ class ConfigLoader:
     @staticmethod
     async def load_config(
         config_path: Optional[Path] = None,
-        profile_name: str = "default",
+        # profile parameter removed - identity from graph
     ) -> AppConfig:
         # 1. Load base configuration
         base_config = await load_base_config(config_path)
         
-        # 2. Apply profile overlay
-        profile_config = await load_profile_config(profile_name)
-        merged_config = deep_merge(base_config, profile_config)
+        # 2. Profile templates only used during creation
+        # After creation, identity comes from graph
+        merged_config = base_config  # No runtime profile overlays
         
         # 3. Apply environment variable overrides
         final_config = apply_env_overrides(merged_config)
@@ -106,20 +106,20 @@ class ConfigManager:
             self._config = AppConfig(**current_config)
             logger.info(f"Configuration updated: {path} = {value}")
 
-    async def reload_profile(self, profile_name: str, config_path: Path | None = None) -> None:
-        """Hot-reload agent profiles without restart"""
-        async with self._lock:
-            new_config = await ConfigLoader.load_config(config_path, profile_name)
-            self._config = new_config
-            logger.info(f"Profile reloaded: {profile_name}")
+    # reload_profile removed - identity is now graph-based
+    # To modify identity, use MEMORIZE action with WA approval
+    # Identity changes require:
+    # 1. WA authorization
+    # 2. < 20% variance or reconsideration
+    # 3. Cryptographic audit trail
 ```
 
-#### Profile-Based Configuration
+#### Identity-Based Configuration ⚠️ **UPDATED**
 ```python
-# Runtime profile switching
+# Profile switching removed - identity is now graph-based
+# Identity changes require MEMORIZE action with WA approval
 config_manager = ConfigManager(config)
-await config_manager.reload_profile("teacher")  # Switch to teacher profile
-await config_manager.reload_profile("student")  # Switch to student profile
+# To modify identity: Use MEMORIZE action to "agent/identity" node
 
 # Configuration watching (extensible)
 async def on_config_change(config: AppConfig):
@@ -195,11 +195,11 @@ telemetry:
   collection_interval_ms: 1000
 ```
 
-### Agent Profile Configuration
+### Agent Profile Templates (Creation Only) ⚠️ **UPDATED**
 ```yaml
-# ciris_profiles/teacher.yaml
+# ciris_profiles/teacher.yaml (TEMPLATE ONLY - used during creation)
 name: "teacher"
-description: "Educational assistance agent"
+description: "Educational assistance agent template"
 dsdma_identifier: "BaseDSDMA"
 
 permitted_actions:
@@ -238,24 +238,24 @@ class AgentProfile(BaseModel):
     guardrails_config: Optional[GuardrailsConfig] = None
 ```
 
-### Profile Loading and Validation
+### Profile Template Loading (Creation Only) ⚠️ **UPDATED**
 ```python
-# Profile loading with validation
-async def load_profile(profile_path: Path | str) -> AgentProfile:
-    profile_data = await load_yaml_file(profile_path)
+# Profile templates only loaded during agent creation
+async def load_profile_template(template_path: Path | str) -> AgentProfile:
+    """Load profile template for initial agent creation ONLY"""
+    template_data = await load_yaml_file(template_path)
     
-    # Convert action strings to enums
-    if "permitted_actions" in profile_data:
-        profile_data["permitted_actions"] = [
-            HandlerActionType(action) for action in profile_data["permitted_actions"]
+    # Convert action strings to enums for initial identity
+    if "permitted_actions" in template_data:
+        template_data["permitted_actions"] = [
+            HandlerActionType(action) for action in template_data["permitted_actions"]
         ]
     
-    return AgentProfile(**profile_data)
+    return AgentProfile(**template_data)
 
-# Integration with configuration system
-profile = await load_profile(f"ciris_profiles/{profile_name}.yaml")
-config_overrides = profile.get_config_overrides()
-final_config = deep_merge(base_config, config_overrides)
+# Used only during agent creation ceremony
+# After creation, identity is stored in graph at "agent/identity"
+# All future changes go through MEMORIZE with WA approval
 ```
 
 ## Usage Examples
@@ -292,24 +292,24 @@ config_manager = ConfigManager(config)
 await config_manager.update_config("workflow.max_rounds", 10)
 await config_manager.update_config("llm_services.openai.model_name", "gpt-4-turbo")
 
-# Profile hot-reloading
-await config_manager.reload_profile("student")
-await config_manager.reload_profile("teacher")
+# Profile switching removed - identity is now graph-based
+# To modify identity: Use MEMORIZE action with WA approval
 ```
 
-### Profile-Based Configuration Loading
+### Configuration Loading (Identity from Graph) ⚠️ **UPDATED**
 ```python
 from ciris_engine.config import ConfigLoader
 
-# Load configuration with specific profile
+# Load configuration (profiles only used during creation)
 config = await ConfigLoader.load_config(
-    config_path=Path("config/base.yaml"),
-    profile_name="teacher"
+    config_path=Path("config/base.yaml")
+    # No profile parameter - identity from graph
 )
 
-# Profile determines available actions and behavior
-permitted_actions = config.profile.permitted_actions
-dsdma_config = config.profile.dsdma_kwargs
+# Identity from graph determines available actions and behavior
+from ciris_engine.persistence.models.identity import get_identity_for_context
+identity_info = get_identity_for_context()
+permitted_actions = identity_info.get("allowed_capabilities", [])
 ```
 
 ### Environment Integration
@@ -333,10 +333,10 @@ config.llm_services.openai.load_env_vars()
 ```python
 # Configuration loading with graceful fallbacks
 try:
-    config = await ConfigLoader.load_config(profile_name="custom")
+    config = await ConfigLoader.load_config()
 except Exception as e:
-    logger.warning(f"Failed to load custom profile: {e}")
-    config = await ConfigLoader.load_config(profile_name="default")
+    logger.warning(f"Failed to load config: {e}")
+    config = await ConfigLoader.load_config()  # Try default
 
 # Environment variable validation
 config.llm_services.openai.load_env_vars()
@@ -504,11 +504,11 @@ if user_satisfaction < quality_threshold:
 ### Performance Optimization
 - **Singleton Pattern**: Single configuration instance per application
 - **Lazy Loading**: Configuration loaded only when first accessed
-- **Async Operations**: Non-blocking YAML loading and profile switching
+- **Async Operations**: Non-blocking YAML loading
 - **Caching**: Environment variable and file loading caching
 
 ### Best Practices
-1. **Use Profiles**: Create specialized profiles for different agent roles
+1. **Identity Management**: Use graph-based identity with MEMORIZE actions
 2. **Environment Variables**: Keep sensitive data in environment variables
 3. **Validation**: Always validate configuration on startup
 4. **Hot Reloading**: Use dynamic configuration for runtime adjustments
@@ -519,4 +519,8 @@ if user_satisfaction < quality_threshold:
 
 ---
 
-The configuration module provides a robust, flexible foundation for managing complex agent configurations across different runtime environments while maintaining security, performance, and ease of use with comprehensive profile support, dynamic updates, and agent self-configuration capabilities through the memory system.
+The configuration module provides a robust, flexible foundation for managing complex agent configurations across different runtime environments while maintaining security, performance, and ease of use. Agent identity is now managed through the graph database rather than configuration profiles.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

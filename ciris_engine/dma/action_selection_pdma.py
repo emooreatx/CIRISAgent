@@ -153,8 +153,8 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
         """Perform the main LLM-based evaluation."""
         
 
-        agent_profile = input_data.get("agent_profile")
-        agent_name = getattr(agent_profile, "name", None) if agent_profile else None
+        agent_identity = input_data.get("agent_identity", {})
+        agent_name = agent_identity.get("agent_name", "CIRISAgent")
         
         main_user_content = self.context_builder.build_main_user_content(
             input_data, agent_name

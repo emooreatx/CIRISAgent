@@ -507,3 +507,7 @@ secrets:
 - [ ] Security review passes all tests
 
 This secrets management system ensures that CIRIS can safely handle sensitive information while maintaining full transparency with the agent about what secrets it has access to and how they can be used.
+
+---
+
+*Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

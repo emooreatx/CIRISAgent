@@ -39,6 +39,13 @@ from .correlations import (
     get_correlation,
     get_correlations_by_task_and_action,
 )
+from .identity import (
+    store_agent_identity,
+    retrieve_agent_identity,
+    update_agent_identity,
+    store_creation_ceremony,
+    get_identity_for_context,
+)
 
 __all__ = [
     "update_task_status",
@@ -75,4 +82,9 @@ __all__ = [
     "update_correlation",
     "get_correlation",
     "get_correlations_by_task_and_action",
+    "store_agent_identity",
+    "retrieve_agent_identity",
+    "update_agent_identity",
+    "store_creation_ceremony",
+    "get_identity_for_context",
 ]

@@ -72,10 +72,15 @@ class LLMServicesConfig(BaseModel):
     openai: OpenAIConfig = OpenAIConfig()
 
 class AgentProfile(BaseModel):
-    """Minimal v1 agent profile configuration."""
+    """Minimal v1 agent profile configuration - used as template for initial identity creation."""
     name: str
-    dsdma_identifier: Optional[str] = None
-    dsdma_kwargs: Optional[Dict[str, Any]] = None
+    description: str = Field(..., description="Agent's purpose and role")
+    role_description: str = Field(..., description="Detailed description of responsibilities")
+    # DSDMA configuration is now in dsdma_kwargs only - no identifier needed
+    dsdma_kwargs: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="DSDMA overrides including domain_specific_knowledge and prompt_template"
+    )
     permitted_actions: List[HandlerActionType] = Field(default_factory=list)
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)

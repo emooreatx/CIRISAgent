@@ -67,7 +67,6 @@ class IdentityRoot(BaseModel):
     
     # Capabilities and Configuration
     permitted_actions: List[str] = Field(..., description="Definitive list of allowed actions")
-    dsdma_identifier: str = Field(..., description="Domain-specific DMA identifier")
     dsdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
@@ -214,8 +213,16 @@ class CoreProfile(BaseModel):
     """Core profile data that defines agent behavior."""
     description: str = Field(..., description="Agent's core description")
     role_description: str = Field(..., description="Agent's role and responsibilities")
-    dsdma_identifier: str = Field(default="moderation", description="Domain-specific DMA identifier")
-    dsdma_overrides: Dict[str, Any] = Field(default_factory=dict)
+    # DSDMA configuration - all agents use BaseDSDMA with these overrides
+    domain_specific_knowledge: Dict[str, Any] = Field(
+        default_factory=dict, 
+        description="Domain-specific knowledge and rules for DSDMA"
+    )
+    dsdma_prompt_template: Optional[str] = Field(
+        None,
+        description="Custom prompt template for DSDMA evaluation"
+    )
+    # Common sense and action selection overrides
     csdma_overrides: Dict[str, Any] = Field(default_factory=dict)
     action_selection_pdma_overrides: Dict[str, Any] = Field(default_factory=dict)
 

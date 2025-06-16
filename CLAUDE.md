@@ -6,14 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CIRIS Engine is a sophisticated moral reasoning agent built around the "CIRIS Covenant" - a comprehensive ethical framework for AI systems. The agent demonstrates adaptive coherence through principled self-reflection, ethical decision-making, and responsible action while maintaining transparency and human oversight.
 
-## CRITICAL ARCHITECTURAL NOTE
+## CRITICAL ARCHITECTURAL NOTES
 
-The identity system architecture is now complete:
+### Identity System Architecture (COMPLETE)
 - **Identity IS the Graph** - Agent identity exists as nodes in graph memory, not a separate system
 - **Profiles are ONLY for initial identity creation** - Used once on first run to bootstrap identity
 - **All identity changes use MEMORIZE action** - Standard action flow with WA approval requirement
 - **20% Variance Threshold** - Agent receives guidance to reconsider changes exceeding this threshold
 - **No special identity services needed** - Identity changes follow standard MEMORIZE → Guardrails → WA flow
+
+### Recent Major Changes (June 15, 2025)
+- **Profile System Removed**: No more runtime profile switching or management
+- **Identity Persistence Model**: New functions in `ciris_engine/persistence/models/identity.py`
+- **Agent Creation API**: WAs can create agents via API with proper ceremony
+- **Comprehensive Documentation**: 4 guides with full legal disclaimers (Apache 2.0)
+- **Copyright & Patent**: © 2025 Eric Moore and CIRIS L3C, Patent Pending
 
 ## Development Commands
 
@@ -34,10 +41,13 @@ python main.py --mock-llm --debug
 # Auto-detect modes (Discord/CLI based on token availability)
 python main.py --profile default
 
-# Specific modes
+# Specific modes (profile only affects initial creation)
 python main.py --modes cli --profile teacher
 python main.py --modes discord --profile student  
 python main.py --modes api --host 0.0.0.0 --port 8000
+
+# Multi-agent deployment with unique ports
+docker-compose -f docker-compose-all.yml up -d
 
 # Development modes with debugging
 python main.py --mock-llm --debug --no-interactive
@@ -74,12 +84,13 @@ Six core service types: COMMUNICATION, TOOL, WISE_AUTHORITY, MEMORY, AUDIT, LLM
 
 ### Entry Points
 - `main.py` - Unified entry point with comprehensive CLI interface
-- `ciris_profiles/` - Agent behavior configurations and personality settings
+- `ciris_profiles/` - ONLY used as templates for initial agent creation (not runtime switching)
 
 ### Core Architecture
 - `ciris_engine/processor/main_processor.py` - Central thought processing engine
 - `ciris_engine/dma/` - Decision Making Algorithms for ethical reasoning
 - `ciris_engine/schemas/` and `ciris_engine/protocols/` - Core data models, interfaces, and protocol definitions
+- `ciris_engine/persistence/models/identity.py` - Identity storage and retrieval functions
 
 ### Ethical Framework
 - `covenant_1.0b.txt` - Complete ethical framework and principles
@@ -141,7 +152,7 @@ Designed to run on modest hardware without requiring internet connectivity for c
 
 ### Critical Tasks for 100% Mission Critical Status 🎯
 
-#### Recent Progress (87% → 92%)
+#### Recent Progress (87% → 98%)
 - ✅ Fixed 181 critical type errors (62% reduction from 291 to 110)
 - ✅ WA Authentication system fully type-safe
 - ✅ Protocol interface contracts fixed
@@ -162,8 +173,12 @@ Designed to run on modest hardware without requiring internet connectivity for c
 - ✅ **Hot/Cold Path Telemetry**: Added path-aware telemetry with intelligent retention policies
 - ✅ **Schema Opinionation**: Made core schemas highly opinionated with required fields
 - ✅ **Type Error Reduction**: From 110 to 64 errors (42% additional reduction)
-- ⚠️ **CRITICAL REFACTOR NEEDED**: Profile system must be converted to identity graph submissions
-- ⚠️ **CRITICAL REFACTOR NEEDED**: All faculties must use identity graph instead of proto memory
+- ✅ **Profile System Removed**: Converted to identity graph - profiles only used for initial creation
+- ✅ **Identity Persistence Model**: Created robust persistence tier functions for identity
+- ✅ **WA Approval Enforcement**: All identity changes require WA via MEMORIZE action
+- ✅ **Comprehensive Audit**: Identity changes fully audited with before/after tracking
+- ✅ **Agent Creation API**: Added /v1/agents/create and /v1/agents/{agent_id}/initialize
+- ✅ **Documentation Complete**: Created 4 doc sets (humans, WAs, agents, nerds) with legal disclaimers
 
 #### Phase 1: Critical Type Safety Fixes (IMMEDIATE)
 ```bash
@@ -418,12 +433,13 @@ CIRIS is now 100% feature complete! All major implementation tasks have been com
 | Auth Coverage | ✅ | Both CLI & API OAuth implemented |
 | Discord Deferrals | ✅ | Via unsolicited guidance |
 | Audit Trail | ✅ | 3 services operational |
-| Documentation | ❌ | Ready to begin sprint |
+| Documentation | ✅ | 4 comprehensive guides created |
 | Test Coverage | ⚠️ | Core modules >90% |
 | Performance | ❓ | Untested at scale |
 | Security | ❓ | Review pending |
+| Legal Compliance | ✅ | Apache 2.0, disclaimers, copyright notices |
 
-**Score**: 6/10 complete, 2/10 partial, 2/10 pending
+**Score**: 8/11 complete, 2/11 partial, 1/11 pending
 
 ---
 
