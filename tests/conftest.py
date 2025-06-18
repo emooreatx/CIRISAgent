@@ -17,3 +17,25 @@ try:
 except ImportError:
     # If python-dotenv is not installed, silently continue
     pass
+
+# Import API fixtures to ensure port randomization
+from .fixtures_api import randomize_api_port, api_port
+
+import pytest
+import asyncio
+import gc
+
+@pytest.fixture(autouse=True, scope="function")
+def cleanup_after_test():
+    """
+    Ensure proper cleanup after each test.
+    This helps prevent interference between tests, especially when Discord is involved.
+    """
+    yield
+    
+    # Force garbage collection to clean up any lingering objects
+    gc.collect()
+    
+    # Add a small delay to allow sockets to close
+    import time
+    time.sleep(0.1)

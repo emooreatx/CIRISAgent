@@ -2,7 +2,12 @@ from typing import Protocol, Optional, runtime_checkable
 
 @runtime_checkable
 class RuntimeInterface(Protocol):
-    """Protocol for CIRIS runtimes."""
+    """
+    Protocol for CIRIS runtimes.
+    
+    Note: Do not inherit from this Protocol. Instead, implement the methods
+    and use isinstance() checks with @runtime_checkable to verify compliance.
+    """
 
     async def initialize(self) -> None:
         """Initialize runtime and all services."""
