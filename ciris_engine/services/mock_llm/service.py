@@ -136,7 +136,7 @@ class MockLLMService(LLMService):
         self._client = None
         await super().stop()
 
-    def get_client(self) -> MockLLMClient:
+    def _get_client(self) -> MockLLMClient:
         if not self._client:
             raise RuntimeError("MockLLMService has not been started")
         return self._client

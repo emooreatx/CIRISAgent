@@ -12,6 +12,7 @@ __pycache__/
 *.egg-info/
 *.egg
 *.whl
+*.jsonl
 memory_graph.pkl
 audit_logs.jsonl
 data_archive/

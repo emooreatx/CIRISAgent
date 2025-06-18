@@ -16,11 +16,11 @@ jobs:
         with:
           fetch-depth: 0  # Essential for accurate SonarQube results
       
-      # Step to set up Python (example: Python 3.11)
+      # Step to set up Python (example: Python 3.12)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       # Install dependencies (pytest and coverage)
       - name: Install Dependencies
