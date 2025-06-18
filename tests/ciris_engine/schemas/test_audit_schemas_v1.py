@@ -23,13 +23,13 @@ def test_audit_log_entry_optional_fields():
         originator_id="agent2",
         event_summary="summary2",
         event_payload={"foo": "bar"},
-        agent_profile="profile",
+        agent_template="template",
         round_number=2,
         thought_id="t1",
         task_id="task1"
     )
     assert entry.event_payload == {"foo": "bar"}
-    assert entry.agent_profile == "profile"
+    assert entry.agent_template == "template"
     assert entry.round_number == 2
     assert entry.thought_id == "t1"
     assert entry.task_id == "task1"

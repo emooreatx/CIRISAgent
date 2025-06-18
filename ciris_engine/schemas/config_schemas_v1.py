@@ -17,7 +17,7 @@ class DatabaseConfig(BaseModel):
     """Minimal v1 database configuration."""
     db_filename: str = Field(default=DEFAULT_SQLITE_DB_FILENAME, alias="db_filename")
     data_directory: str = DEFAULT_DATA_DIR
-    graph_memory_filename: str = Field(default="graph_memory.pkl", alias="graph_memory_filename")
+    # graph_memory_filename removed - all graph data now in SQLite database
 
 from .foundational_schemas_v1 import HandlerActionType
 
@@ -27,7 +27,7 @@ class WorkflowConfig(BaseModel):
     max_active_thoughts: int = Field(default=50, description="Maximum thoughts to pull into processing queue per round") 
     round_delay_seconds: float = Field(default=5.0, description="Delay between processing rounds in seconds")
     mock_llm_round_delay_seconds: float = Field(default=0.1, description="Reduced delay for mock LLM testing")
-    max_rounds: int = Field(default=7, description="Maximum ponder iterations before auto-defer")
+    max_rounds: int = Field(default=7, description="Maximum thought depth (action chain length) before auto-defer")
     num_rounds: Optional[int] = Field(default=None, description="Maximum number of processing rounds (None = infinite)")
     DMA_RETRY_LIMIT: int = Field(default=3, description="Maximum retry attempts for DMAs")
     DMA_TIMEOUT_SECONDS: float = Field(
@@ -71,8 +71,8 @@ class LLMServicesConfig(BaseModel):
     """LLM services configuration container."""
     openai: OpenAIConfig = OpenAIConfig()
 
-class AgentProfile(BaseModel):
-    """Minimal v1 agent profile configuration - used as template for initial identity creation."""
+class AgentTemplate(BaseModel):
+    """Minimal v1 agent template configuration - used as template for initial identity creation."""
     name: str
     description: str = Field(..., description="Agent's purpose and role")
     role_description: str = Field(..., description="Detailed description of responsibilities")
@@ -503,9 +503,9 @@ class AppConfig(BaseModel):
     adaptive: AdaptiveConfig = AdaptiveConfig()
     persistence: PersistenceConfig = PersistenceConfig()
     wisdom: WisdomConfig = WisdomConfig()
-    profile_directory: str = Field(default="ciris_templates", description="Directory containing agent templates")
-    default_profile: str = Field(default="default", description="Default agent template name to use if not specified")
-    agent_profiles: Dict[str, AgentProfile] = Field(default_factory=dict)
+    template_directory: str = Field(default="ciris_templates", description="Directory containing agent templates")
+    default_template: str = Field(default="default", description="Default agent template name to use if not specified")
+    agent_templates: Dict[str, AgentTemplate] = Field(default_factory=dict)
     agent_mode: str = Field(default="", description="Runtime mode: 'cli', 'discord', 'api'")
     mock_llm: bool = Field(default=False, description="Use mock LLM for testing instead of real OpenAI API")
     data_archive_dir: str = Field(default="data_archive", description="Directory for archived data")
@@ -555,7 +555,7 @@ def ensure_models_rebuilt() -> None:
             setattr(current_module, name, cls)
         
         try:
-            AgentProfile.model_rebuild()
+            AgentTemplate.model_rebuild()
             AppConfig.model_rebuild()
             _models_rebuilt = True
         except Exception:

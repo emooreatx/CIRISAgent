@@ -10,12 +10,14 @@ from ciris_engine.persistence import (
 )
 from ciris_engine.persistence import add_task
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType, ThoughtType
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType, ThoughtType, DispatchContext
+from tests.helpers import create_test_dispatch_context
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.action_params_v1 import (
     SpeakParams, RecallParams, ForgetParams, MemorizeParams, PonderParams, ObserveParams, RejectParams
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
+from ciris_engine.utils.channel_utils import create_channel_context
 from ciris_engine.action_handlers.speak_handler import SpeakHandler
 from ciris_engine.action_handlers.recall_handler import RecallHandler
 from ciris_engine.action_handlers.forget_handler import ForgetHandler
@@ -48,6 +50,12 @@ def make_task(task_id):
 
 def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING, thought_type=ThoughtType.FOLLOW_UP):
     now = datetime.now(timezone.utc).isoformat()
+    # Create a dummy action result for the thought
+    action_result = ActionSelectionResult(
+        selected_action=HandlerActionType.OBSERVE,
+        action_parameters={},
+        rationale="test"
+    )
     return Thought(
         thought_id=str(thought_id),
         source_task_id=str(source_task_id),
@@ -58,10 +66,10 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING, thoug
         round_number=0,
         content="test content",
         context=None,
-        ponder_count=0,
+        thought_depth=0,
         ponder_notes=None,
         parent_thought_id=None,
-        final_action={}
+        final_action=action_result.model_dump()
     )
 
 @pytest.mark.asyncio
@@ -71,7 +79,7 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING, thoug
         SpeakHandler,
         SpeakParams(
             content="hello",
-            channel_id="c1"
+            channel_context=create_channel_context("c1")
         ),
         HandlerActionType.SPEAK,
         None
@@ -129,7 +137,7 @@ def make_thought(thought_id, source_task_id, status=ThoughtStatus.PENDING, thoug
         ObserveHandler,
         ObserveParams(
             active=True,
-            channel_id="c1",
+            channel_context=create_channel_context("c1"),
             context={"source": "test"}
         ),
         HandlerActionType.OBSERVE,
@@ -172,7 +180,7 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
                  patch.object(handler_mod.persistence, 'get_task_by_id', side_effect=lambda task_id, db_path_=None: make_task(task_id)):
                 handler = handler_cls(deps)
                 result = ActionSelectionResult(selected_action=result_action, action_parameters=params, rationale="r")
-                dispatch_context = {"channel_id": "c1", "wa_authorized": True}
+                dispatch_context = create_test_dispatch_context(channel_id="c1", thought_id=thought.thought_id, source_task_id=thought.source_task_id, wa_authorized=True, action_type=result_action)
                 if extra_setup:
                     extra_setup(deps, thought, db_path)
                 await handler.handle(result, thought, dispatch_context)
@@ -190,6 +198,13 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
             await handler.handle(result, thought, dispatch_context)
         thoughts = get_thoughts_by_task_id("task1", db_path=db_path)
         follow_ups = [t for t in thoughts if t.parent_thought_id == "t1" and t.thought_type == "follow_up"]
+        
+        # Terminal actions (REJECT, DEFER, TASK_COMPLETE) don't create follow-up thoughts
+        terminal_actions = {HandlerActionType.REJECT, HandlerActionType.DEFER, HandlerActionType.TASK_COMPLETE}
+        if result_action in terminal_actions:
+            assert not follow_ups, f"Terminal action {handler_cls.__name__} should not create follow-up thoughts"
+            return
+            
         assert follow_ups, f"No follow-up thought created for handler {handler_cls.__name__}"
         follow_up = follow_ups[0]
         # Accept both upper/lower case for action_performed

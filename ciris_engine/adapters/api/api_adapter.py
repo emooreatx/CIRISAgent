@@ -363,6 +363,10 @@ class APIAdapter(CommunicationService):
             await self.runner.cleanup()
             self.runner = None
         logger.info("API server stopped")
+        
+        # Give aiohttp time to fully close connections
+        # This helps with subprocess exit issues
+        await asyncio.sleep(0.1)
     
     async def is_healthy(self) -> bool:
         """Check if the API adapter is healthy."""

@@ -39,7 +39,7 @@ class Thought(BaseModel):
     round_number: int = 0
     content: str
     context: Optional[ThoughtContext] = Field(default=None, description="Context object")
-    ponder_count: int = 0
+    thought_depth: int = 0  # Starting depth for new thoughts, max depth is 7
     ponder_notes: Optional[List[str]] = None
     parent_thought_id: Optional[str] = None
     final_action: Dict[str, Any] = Field(default_factory=dict)

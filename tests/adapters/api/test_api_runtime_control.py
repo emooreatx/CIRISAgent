@@ -42,11 +42,7 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
             ("GET", "/v1/runtime/config"),
             ("PUT", "/v1/runtime/config"),
             ("POST", "/v1/runtime/config/validate"),
-            ("POST", "/v1/runtime/config/reload"),
-            ("GET", "/v1/runtime/profiles"),
-            ("POST", "/v1/runtime/profiles/test_profile/load"),
-            ("GET", "/v1/runtime/profiles/test_profile"),
-            ("POST", "/v1/runtime/profiles")
+            ("POST", "/v1/runtime/config/reload")
         ]
         
         # Verify routes exist by checking they don't return 404
@@ -129,7 +125,7 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
     @unittest_run_loop
     async def test_get_queue_status(self):
         """Test get queue status."""
-        self.mock_runtime_control.get_queue_status = AsyncMock(return_value={
+        self.mock_runtime_control.get_processor_queue_status = AsyncMock(return_value={
             "queue_size": 5,
             "processing": True
         })
@@ -275,62 +271,29 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         data = await resp.json()
         assert data["status"] == "reloaded"
 
+    @pytest.mark.skip(reason="Profile endpoints not implemented - identity is now graph-based")
     @unittest_run_loop
     async def test_list_profiles(self):
         """Test list profiles."""
-        self.mock_runtime_control.list_agent_profiles = AsyncMock(return_value={
-            "profiles": ["default", "teacher", "student"]
-        })
-        
-        resp = await self.client.request("GET", "/v1/runtime/profiles")
-        assert resp.status == 200
-        
-        data = await resp.json()
-        assert len(data["profiles"]) == 3
-        assert "default" in data["profiles"]
+        pass  # Profile endpoints not implemented
 
+    @pytest.mark.skip(reason="Profile endpoints not implemented - identity is now graph-based")
     @unittest_run_loop
     async def test_load_profile(self):
         """Test load profile."""
-        self.mock_runtime_control.load_agent_profile = AsyncMock(return_value={
-            "status": "loaded",
-            "profile": "teacher"
-        })
-        
-        resp = await self.client.request("POST", "/v1/runtime/profiles/teacher/load")
-        assert resp.status == 200
-        
-        data = await resp.json()
-        assert data["status"] == "loaded"
-        assert data["profile"] == "teacher"
+        pass  # Profile endpoints not implemented
 
+    @pytest.mark.skip(reason="Profile endpoints not implemented - identity is now graph-based")
     @unittest_run_loop
     async def test_get_profile(self):
         """Test get profile."""
-        self.mock_runtime_control.get_agent_profile = AsyncMock(return_value={
-            "name": "teacher",
-            "config": {"personality": "helpful"},
-            "active": True
-        })
-        
-        resp = await self.client.request("GET", "/v1/runtime/profiles/teacher")
-        assert resp.status == 200
-        
-        data = await resp.json()
-        assert data["name"] == "teacher"
-        assert data["active"] is True
+        pass  # Profile endpoints not implemented
 
+    @pytest.mark.skip(reason="Profile endpoints not implemented - identity is now graph-based")
     @unittest_run_loop
     async def test_create_profile(self):
         """Test create profile - currently not implemented."""
-        payload = {"name": "new_profile", "config": {}}
-        resp = await self.client.request("POST", "/v1/runtime/profiles",
-                                       data=json.dumps(payload),
-                                       headers={"Content-Type": "application/json"})
-        assert resp.status == 501  # Not Implemented
-        
-        data = await resp.json()
-        assert "not yet implemented" in data["message"]
+        pass  # Profile endpoints not implemented
 
     @unittest_run_loop
     async def test_invalid_json_payload(self):

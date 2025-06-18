@@ -39,7 +39,7 @@ class BaseMultiServiceSink(ABC):
 
     @property
     @abstractmethod
-    def service_routing(self) -> Dict[ActionType, str]:
+    def service_routing(self) -> Dict[ActionType, ServiceType]:
         pass
 
     @property

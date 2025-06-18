@@ -12,7 +12,7 @@ class AuditLogEntry(BaseModel):
     event_payload: Optional[Dict[str, Any]] = None
     
     # Additional metadata
-    agent_profile: Optional[str] = None
+    agent_template: Optional[str] = None
     round_number: Optional[int] = None
     thought_id: Optional[str] = None
     task_id: Optional[str] = None

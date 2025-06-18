@@ -7,14 +7,14 @@ from typing import Dict, Any, Optional
 
 from ciris_engine.dma.factory import (
     create_dma,
-    create_dsdma_from_profile,
+    create_dsdma_from_identity,
     ETHICAL_DMA_REGISTRY,
     CSDMA_REGISTRY,
     DSDMA_CLASS_REGISTRY,
     ACTION_SELECTION_DMA_REGISTRY,
 )
 from ciris_engine.registries.base import ServiceRegistry
-from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AgentTemplate
 from ciris_engine.protocols.faculties import EpistemicFaculty
 
 # Import adapter configs to resolve forward references
@@ -29,8 +29,7 @@ except ImportError:
 
 # Rebuild models with resolved references  
 try:
-    AgentProfile.model_rebuild()
-    AppConfig.model_rebuild()
+    AgentTemplate.model_rebuild()
 except Exception:
     pass
 
@@ -82,21 +81,7 @@ class MockCSDMA(CSDMAInterface):
         )
 
 
-class MockDSDMA(DSDMAInterface):
-    """Mock DSDMA for testing."""
-    
-    def __init__(self, service_registry, domain_name="test", **kwargs):
-        self.service_registry = service_registry
-        self.domain_name = domain_name
-        self.kwargs = kwargs
-    
-    async def evaluate(self, thought_item, current_context=None, **kwargs):
-        from ciris_engine.schemas.dma_results_v1 import DSDMAResult
-        return DSDMAResult(
-            domain=self.domain_name,
-            score=0.9,
-            reasoning="Mock domain evaluation"
-        )
+# MockDSDMA removed - all agents now use BaseDSDMA with kwargs from identity schemas
 
 
 class MockActionSelectionDMA(ActionSelectionDMAInterface):
@@ -181,26 +166,22 @@ class TestDMAFactory:
     
     @pytest.mark.asyncio
     async def test_create_dma_dsdma(self, mock_service_registry):
-        """Test creating a DSDMA."""
+        """Test creating a DSDMA - now always uses BaseDSDMA."""
         
-        original_registry = DSDMA_CLASS_REGISTRY.copy()
-        DSDMA_CLASS_REGISTRY["MockDSDMA"] = MockDSDMA
+        # Import BaseDSDMA
+        from ciris_engine.dma.dsdma_base import BaseDSDMA
         
-        try:
-            dma = await create_dma(
-                dma_type="dsdma",
-                dma_identifier="MockDSDMA",
-                service_registry=mock_service_registry,
-                domain_name="test_domain"
-            )
-            
-            assert dma is not None
-            assert isinstance(dma, MockDSDMA)
-            assert dma.domain_name == "test_domain"
+        dma = await create_dma(
+            dma_type="dsdma",
+            dma_identifier="BaseDSDMA",  # Always use BaseDSDMA now
+            service_registry=mock_service_registry,
+            domain_name="test_domain"
+        )
         
-        finally:
-            DSDMA_CLASS_REGISTRY.clear()
-            DSDMA_CLASS_REGISTRY.update(original_registry)
+        assert dma is not None
+        assert isinstance(dma, BaseDSDMA)
+        assert hasattr(dma, 'domain_name')
+        assert dma.domain_name == "test_domain"
     
     @pytest.mark.asyncio
     async def test_create_dma_action_selection(self, mock_service_registry, mock_faculties):
@@ -279,22 +260,21 @@ class TestDMAFactory:
             ETHICAL_DMA_REGISTRY.update(original_registry)
 
 
-class TestDSDMAFromProfile:
-    """Test DSDMA creation from agent profiles."""
+class TestDSDMAFromTemplate:
+    """Test DSDMA creation from agent templates."""
     
     @pytest.fixture
     def mock_service_registry(self):
         return MagicMock(spec=ServiceRegistry)
     
     @pytest.fixture
-    def test_profile(self):
+    def test_template(self):
         from ciris_engine.schemas.config_schemas_v1 import ensure_models_rebuilt
         ensure_models_rebuilt()
-        return AgentProfile(
+        return AgentTemplate(
             name="test_agent",
             description="Test agent for DMA factory tests",
-            role_description="A test agent profile for DMA creation",
-            dsdma_identifier="MockDSDMA",
+            role_description="A test agent template for DMA creation",
             dsdma_kwargs={
                 "prompt_template": "Custom domain prompt",
                 "domain_specific_knowledge": {"key": "value"}
@@ -302,103 +282,101 @@ class TestDSDMAFromProfile:
         )
     
     @pytest.mark.asyncio
-    async def test_create_dsdma_from_profile(self, mock_service_registry, test_profile):
-        """Test creating DSDMA from a valid profile."""
+    async def test_create_dsdma_from_identity(self, mock_service_registry, test_template):
+        """Test creating DSDMA from a valid template."""
         
-        original_registry = DSDMA_CLASS_REGISTRY.copy()
-        DSDMA_CLASS_REGISTRY["MockDSDMA"] = MockDSDMA
+        from ciris_engine.dma.dsdma_base import BaseDSDMA
         
-        try:
-            with patch('ciris_engine.dma.factory.create_dma') as mock_create:
-                mock_create.return_value = MockDSDMA(mock_service_registry, domain_name="test_agent")
-                
-                dma = await create_dsdma_from_profile(
-                    test_profile,
-                    mock_service_registry,
-                    model_name="test-model"
-                )
-                
-                assert dma is not None
-                mock_create.assert_called_once_with(
-                    dma_type='dsdma',
-                    dma_identifier='MockDSDMA',
-                    service_registry=mock_service_registry,
-                    model_name="test-model",
-                    prompt_overrides=None,
-                    domain_name='test_agent',
-                    domain_specific_knowledge={'key': 'value'},
-                    prompt_template='Custom domain prompt',
-                    sink=None
-                )
-        
-        finally:
-            DSDMA_CLASS_REGISTRY.clear()
-            DSDMA_CLASS_REGISTRY.update(original_registry)
-    
-    @pytest.mark.asyncio
-    async def test_create_dsdma_from_none_profile(self, mock_service_registry):
-        """Test creating DSDMA with None profile."""
-        
-        with patch('ciris_engine.dma.factory.load_profile', new_callable=AsyncMock) as mock_load:
-            mock_default_profile = AgentProfile(
-                name="default",
-                dsdma_identifier="BaseDSDMA"
+        with patch('ciris_engine.dma.factory.create_dma') as mock_create:
+            mock_create.return_value = BaseDSDMA(
+                domain_name="test_agent",
+                service_registry=mock_service_registry
             )
-            mock_load.return_value = mock_default_profile
             
-            with patch('ciris_engine.dma.factory.create_dma') as mock_create:
-                mock_create.return_value = MockDSDMA(mock_service_registry)
-                
-                dma = await create_dsdma_from_profile(
-                    None,
-                    mock_service_registry
-                )
-                
-                assert dma is not None
-                mock_load.assert_called_once()
-                mock_create.assert_called_once()
+            dma = await create_dsdma_from_identity(
+                test_template,
+                mock_service_registry,
+                model_name="test-model"
+            )
+            
+            assert dma is not None
+            mock_create.assert_called_once_with(
+                dma_type='dsdma',
+                dma_identifier='BaseDSDMA',  # Always BaseDSDMA now
+                service_registry=mock_service_registry,
+                model_name="test-model",
+                prompt_overrides=None,
+                domain_name='test_agent',
+                domain_specific_knowledge={'key': 'value'},
+                prompt_template='Custom domain prompt',
+                sink=None
+            )
     
     @pytest.mark.asyncio
-    async def test_create_dsdma_profile_no_identifier(self, mock_service_registry):
+    async def test_create_dsdma_from_none_template(self, mock_service_registry):
+        """Test creating DSDMA with None template."""
+        
+        # Should raise RuntimeError for missing template
+        with pytest.raises(RuntimeError, match="Cannot create DSDMA without agent identity"):
+            await create_dsdma_from_identity(
+                None,
+                mock_service_registry
+            )
+    
+    @pytest.mark.asyncio
+    async def test_create_dsdma_template_no_identifier(self, mock_service_registry):
         """Test creating DSDMA from profile without DSDMA identifier."""
         
-        profile_without_dsdma = AgentProfile(
+        profile_without_dsdma = AgentTemplate(
             name="no_dsdma_agent",
-            dsdma_identifier=""  # Empty identifier
+            description="Test agent without DSDMA identifier",
+            role_description="Testing profile without DSDMA",
+            dsdma_identifier=""  # Empty identifier - ignored, always uses BaseDSDMA
         )
         
-        with patch('ciris_engine.dma.factory.load_profile', new_callable=AsyncMock) as mock_load:
-            mock_default_profile = AgentProfile(
-                name="default",
-                dsdma_identifier="BaseDSDMA"
+        from ciris_engine.dma.dsdma_base import BaseDSDMA
+        
+        with patch('ciris_engine.dma.factory.create_dma') as mock_create:
+            mock_create.return_value = BaseDSDMA(
+                domain_name="no_dsdma_agent",
+                service_registry=mock_service_registry
             )
-            mock_load.return_value = mock_default_profile
             
-            with patch('ciris_engine.dma.factory.create_dma') as mock_create:
-                mock_create.return_value = MockDSDMA(mock_service_registry)
-                
-                dma = await create_dsdma_from_profile(
-                    profile_without_dsdma,
-                    mock_service_registry
-                )
-                
-                # Should load default profile
-                mock_load.assert_called_once()
-                assert dma is not None
+            # Profile without dsdma_identifier is OK - always uses BaseDSDMA
+            dma = await create_dsdma_from_identity(
+                profile_without_dsdma,
+                mock_service_registry
+            )
+            
+            assert dma is not None
+            mock_create.assert_called_once_with(
+                dma_type='dsdma',
+                dma_identifier='BaseDSDMA',
+                service_registry=mock_service_registry,
+                model_name=None,
+                prompt_overrides=None,
+                domain_name='no_dsdma_agent',
+                domain_specific_knowledge=None,
+                prompt_template=None,
+                sink=None
+            )
     
     @pytest.mark.asyncio
     async def test_create_dsdma_invalid_identifier(self, mock_service_registry):
         """Test creating DSDMA with invalid identifier."""
         
-        invalid_profile = AgentProfile(
+        # Even with a non-existent identifier, it should use BaseDSDMA
+        invalid_profile = AgentTemplate(
             name="invalid_agent",
-            dsdma_identifier="NonExistentDSDMA"
+            description="Test agent with invalid DSDMA",
+            role_description="Testing invalid DSDMA identifier",
+            dsdma_identifier="NonExistentDSDMA"  # Ignored - always uses BaseDSDMA
         )
         
         with patch('ciris_engine.dma.factory.create_dma') as mock_create:
             mock_create.return_value = None  # Simulate creation failure
             
-            dma = await create_dsdma_from_profile(
+            dma = await create_dsdma_from_identity(
                 invalid_profile,
                 mock_service_registry
             )
@@ -406,18 +384,15 @@ class TestDSDMAFromProfile:
             assert dma is None
     
     @pytest.mark.asyncio
-    async def test_create_dsdma_default_profile_load_failure(self, mock_service_registry):
-        """Test handling of default profile load failure."""
+    async def test_create_dsdma_no_profile_raises_error(self, mock_service_registry):
+        """Test that missing profile raises RuntimeError."""
         
-        with patch('ciris_engine.dma.factory.load_profile', new_callable=AsyncMock) as mock_load:
-            mock_load.return_value = None  # Simulate async load failure
-            
-            dma = await create_dsdma_from_profile(
+        # No profile is a fatal error now
+        with pytest.raises(RuntimeError, match="Cannot create DSDMA without agent identity"):
+            await create_dsdma_from_identity(
                 None,
                 mock_service_registry
             )
-            
-            assert dma is None
 
 
 class TestDMARegistries:
@@ -434,9 +409,9 @@ class TestDMARegistries:
     def test_dsdma_registry_has_defaults(self):
         """Test that DSDMA registry has default entries."""
         
-        # DSDMA registry should have base entries
+        # DSDMA registry should only have BaseDSDMA now
         assert "BaseDSDMA" in DSDMA_CLASS_REGISTRY
-        assert "ModerationDSDMA" in DSDMA_CLASS_REGISTRY
+        # ModerationDSDMA no longer exists - all use BaseDSDMA with kwargs
     
     def test_registry_types(self):
         """Test that registries have correct types."""

@@ -1,5 +1,5 @@
 from typing import Callable, Dict, Any, Optional, List
-from ciris_engine.schemas.tool_schemas_v1 import ToolDescription, ToolParameter
+from ciris_engine.schemas.tool_schemas_v1 import ToolDescription, ToolParameter, ToolParameterType
 
 class ToolRegistry:
     """Central registry for available tools and their schemas."""
@@ -31,7 +31,7 @@ class ToolRegistry:
         if not tool_desc:
             return None
         # Convert back to legacy format
-        return {param.name: param.type.value for param in tool_desc.parameters}
+        return {param.name: param.type for param in tool_desc.parameters}
 
     def get_tool_description(self, name: str) -> Optional[ToolDescription]:
         """Get the full tool description."""
@@ -77,19 +77,34 @@ class ToolRegistry:
     def _convert_legacy_schema(self, name: str, schema: Dict[str, Any]) -> ToolDescription:
         """Convert legacy schema format to ToolDescription."""
         parameters = []
+        
+        # Type mapping from Python types to ToolParameterType
+        type_map = {
+            int: ToolParameterType.INTEGER,
+            str: ToolParameterType.STRING,
+            float: ToolParameterType.FLOAT,
+            bool: ToolParameterType.BOOLEAN,
+            dict: ToolParameterType.OBJECT,
+            list: ToolParameterType.ARRAY,
+            type(None): ToolParameterType.NULL
+        }
+        
         for param_name, param_type in schema.items():
             # Handle tuple format like (str, type(None))
             if isinstance(param_type, tuple):
                 # Legacy format for optional parameters
                 required = False
-                param_type_str = "string"  # Default to string
+                actual_type = param_type[0] if param_type else str
             else:
                 required = True
-                param_type_str = "string"  # Default to string
+                actual_type = param_type
+                
+            # Map Python type to ToolParameterType enum
+            param_type_enum = type_map.get(actual_type, ToolParameterType.STRING)
                 
             parameters.append(ToolParameter(
                 name=param_name,
-                type=param_type_str,  # type: ignore
+                type=param_type_enum,
                 description=f"Parameter {param_name}",
                 required=required
             ))

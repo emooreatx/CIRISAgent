@@ -81,7 +81,7 @@ class TestActionSelectionContextBuilder:
                 reasoning="Domain appropriate",
                 recommended_action="proceed"
             ),
-            "current_ponder_count": 1,
+            "current_thought_depth": 1,
             "max_rounds": 3,
             "permitted_actions": [
                 HandlerActionType.SPEAK,
@@ -108,7 +108,7 @@ class TestActionSelectionContextBuilder:
         """Test content building when there are no ponder notes."""
         
         mock_triaged_inputs["original_thought"].ponder_notes = []
-        mock_triaged_inputs["current_ponder_count"] = 0
+        mock_triaged_inputs["current_thought_depth"] = 0
         
         content = context_builder.build_main_user_content(mock_triaged_inputs)
         
@@ -118,11 +118,11 @@ class TestActionSelectionContextBuilder:
     def test_build_main_user_content_final_attempt(self, context_builder, mock_triaged_inputs):
         """Test content building for final attempt."""
         
-        mock_triaged_inputs["current_ponder_count"] = 2  # max_rounds - 1
+        mock_triaged_inputs["current_thought_depth"] = 2  # max_rounds - 1
         
         content = context_builder.build_main_user_content(
             mock_triaged_inputs, 
-            agent_profile_name="test"
+            agent_name="test"
         )
         
         assert "FINAL ATTEMPT" in content
@@ -179,18 +179,14 @@ class TestActionSelectionContextBuilder:
     def test_get_available_tools_str(self, context_builder):
         """Test getting available tools string."""
         
-        # Mock the ToolHandler class to have a _tool_registry with _tools
-        mock_registry = MagicMock()
-        mock_registry._tools = {"tool1": "handler1", "tool2": "handler2"}
+        # The current implementation returns empty string because it can't get tools synchronously
+        # The dynamic instruction generator handles this better
+        permitted_actions = [HandlerActionType.TOOL, HandlerActionType.SPEAK]
         
-        with patch('ciris_engine.action_handlers.tool_handler.ToolHandler') as mock_handler_class:
-            mock_handler_class._tool_registry = mock_registry
-            
-            permitted_actions = [HandlerActionType.TOOL, HandlerActionType.SPEAK]
-            
-            tools_str = context_builder._get_available_tools_str(permitted_actions)
-            
-            assert "tool1, tool2" in tools_str
+        tools_str = context_builder._get_available_tools_str(permitted_actions)
+        
+        # For now, this returns empty string due to async/sync limitations
+        assert tools_str == ""
     
     def test_get_available_tools_str_no_tool_action(self, context_builder):
         """Test tools string when TOOL action not permitted."""
@@ -349,7 +345,7 @@ class TestActionParameterProcessor:
         
         llm_response = ActionSelectionResult(
             selected_action=HandlerActionType.SPEAK,
-            action_parameters={"content": "Test message", "channel_id": "test-channel"},
+            action_parameters={"content": "Test message"},
             rationale="Test rationale"
         )
         

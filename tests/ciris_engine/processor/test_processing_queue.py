@@ -15,7 +15,7 @@ def make_thought():
         round_number=1,
         content="hello",
         context={"foo": "bar"},
-        ponder_count=0,
+        thought_depth=0,
         ponder_notes=None,
         parent_thought_id=None,
         final_action={},

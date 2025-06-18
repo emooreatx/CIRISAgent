@@ -202,9 +202,9 @@ class WAAuthMiddleware:
         
         return True
     
-    def get_channel_token_for_adapter(self, channel_id: str) -> Optional[str]:
+    def get_channel_token_for_adapter(self, adapter_id: str) -> Optional[str]:
         """Get cached channel token for an adapter."""
-        return self.auth_service.get_channel_token(channel_id)
+        return self.auth_service.get_adapter_token(adapter_id)
     
     async def issue_channel_token(self, adapter_type: str, adapter_info: Dict[str, Any]) -> str:
         """Issue a new channel token for an adapter."""

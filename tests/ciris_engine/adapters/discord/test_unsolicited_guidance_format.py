@@ -91,11 +91,16 @@ class TestUnsolicitedGuidanceFormat:
         
         # Verify other task properties
         assert created_task.priority == 8  # High priority
-        assert created_task.context["observation_type"] == "unsolicited_guidance"
-        assert created_task.context["is_guidance"] == True
-        assert created_task.context["guidance_content"] == wa_message.content
-        assert created_task.context["author_id"] == wa_message.author_id
-        assert created_task.context["author_name"] == wa_message.author_name
+        # Context is a ThoughtContext object with extra attributes
+        assert hasattr(created_task.context, "observation_type")
+        assert getattr(created_task.context, "observation_type") == "unsolicited_guidance"
+        assert hasattr(created_task.context, "is_guidance")
+        assert getattr(created_task.context, "is_guidance") == True
+        assert hasattr(created_task.context, "guidance_content")
+        assert getattr(created_task.context, "guidance_content") == wa_message.content
+        # Author info is in initial_task_context
+        assert created_task.context.initial_task_context.author_id == wa_message.author_id
+        assert created_task.context.initial_task_context.author_name == wa_message.author_name
 
     @patch('ciris_engine.persistence')
     @patch('ciris_engine.adapters.discord.discord_observer.logger')

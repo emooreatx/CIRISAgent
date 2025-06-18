@@ -12,6 +12,7 @@ from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType, ThoughtType
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+from ciris_engine.utils.channel_utils import create_channel_context
 from ciris_engine.schemas.persistence_schemas_v1 import IdentityContext
 from ciris_engine import persistence
 from ciris_engine.persistence.models import get_identity_for_context
@@ -271,7 +272,7 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             created_at=now_iso,
             updated_at=now_iso,
             context=ThoughtContext(
-                system_snapshot=SystemSnapshot(channel_id=self.startup_channel_id),
+                system_snapshot=SystemSnapshot(channel_context=create_channel_context(self.startup_channel_id)),
                 user_profiles={},
                 task_history=[]
             ) if self.startup_channel_id else None,
@@ -284,13 +285,14 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         channel_id = self.startup_channel_id  # Use the startup_channel_id directly, it's already set
         wakeup_sequence = self._get_wakeup_sequence()
         for step_type, content in wakeup_sequence:
-            # Create ThoughtContext with extra fields
+            # Create ThoughtContext
             context = ThoughtContext(
-                system_snapshot=SystemSnapshot(channel_id=channel_id),
+                system_snapshot=SystemSnapshot(channel_context=create_channel_context(channel_id)),
                 user_profiles={},
-                task_history=[],
-                step_type=step_type  # Extra field allowed by model_config
+                task_history=[]
             )
+            # Add extra field after creation
+            setattr(context, 'step_type', step_type)
             step_task = Task(
                 task_id=str(uuid.uuid4()),
                 description=content,
@@ -386,10 +388,10 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         )
         # Add channel_id to context if available
         if self.startup_channel_id and thought_context and hasattr(thought_context, 'system_snapshot'):
-            thought_context.system_snapshot.channel_id = self.startup_channel_id
+            thought_context.system_snapshot.channel_context = create_channel_context(self.startup_channel_id)
             logger.debug(f"Added startup_channel_id '{self.startup_channel_id}' to thought {thought.thought_id}")
         else:
-            logger.warning(f"Could not add channel_id to thought {thought.thought_id}: startup_channel_id={self.startup_channel_id}, has_context={thought_context is not None}, has_snapshot={hasattr(thought_context, 'system_snapshot') if thought_context else False}")
+            logger.warning(f"Could not add channel context to thought {thought.thought_id}: startup_channel_id={self.startup_channel_id}, has_context={thought_context is not None}, has_snapshot={hasattr(thought_context, 'system_snapshot') if thought_context else False}")
         thought.context = thought_context
         # Persist the new thought
         persistence.add_thought(thought)
@@ -404,20 +406,22 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         """Dispatch the action for a wakeup step."""
         step_type = step_task.context.get("step_type", "UNKNOWN") if step_task.context else "UNKNOWN"
         
-        dispatch_ctx = {
-            "origin_service": "discord",
-            "source_task_id": step_task.task_id,
-            "event_type": step_type,
-            "event_summary": step_task.description,
-        }
-        # If this is a SPEAK action and the communication service is CLI, set channel_id to 'CLI'
-        selected_action = getattr(result, "selected_action", None)
-        if selected_action == HandlerActionType.SPEAK:
-            # Always set channel_id to 'CLI' for CLI SPEAK actions
-            dispatch_ctx["channel_id"] = "CLI"
-        elif self.startup_channel_id:
-            dispatch_ctx["channel_id"] = self.startup_channel_id
-        return await self.dispatch_action(result, thought, dispatch_ctx)
+        # Use build_dispatch_context to create proper DispatchContext object
+        from ciris_engine.utils.context_utils import build_dispatch_context
+        dispatch_context = build_dispatch_context(
+            thought=thought,
+            task=step_task,
+            app_config=getattr(self, 'app_config', None),
+            round_number=getattr(self, 'round_number', 0),
+            extra_context={
+                "event_type": step_type,
+                "event_summary": step_task.description,
+                "handler_name": "WakeupProcessor",
+            },
+            action_type=result.selected_action if hasattr(result, 'selected_action') else None
+        )
+        
+        return await self.dispatch_action(result, thought, dispatch_context)
     
     async def _wait_for_task_completion(
         self,
@@ -427,7 +431,7 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
         poll_interval: float = 0.1
     ) -> bool:
         """Wait for a task to complete with timeout."""
-        waited = 0
+        waited = 0.0
         
         while waited < max_wait:
             await asyncio.sleep(poll_interval)

@@ -14,6 +14,7 @@ ActionParams = Union[
 ]
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+from ciris_engine.utils.channel_utils import create_channel_context
 
 def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResult:
     """Mock ActionSelectionResult with passing values and protocol-compliant types."""
@@ -32,6 +33,26 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
             except:
                 pass
             break
+    
+    # Extract channel from context - check multiple patterns
+    channel_id = "cli"  # Default to cli instead of test
+    for item in context:
+        # Check for echo_channel pattern from responses.py
+        if item.startswith("echo_channel:"):
+            channel_id = item.split(":", 1)[1].strip()
+            break
+        # Check for channel_id pattern
+        elif item.startswith("channel_id:"):
+            channel_id = item.split(":", 1)[1].strip()
+            break
+        # Check for channel context patterns
+        elif "channel" in str(item).lower():
+            # Try to extract channel ID from various formats
+            import re
+            channel_match = re.search(r'channel[_\s]*(?:id)?[:\s]*[\'"]?([^\'",\s]+)[\'"]?', str(item), re.IGNORECASE)
+            if channel_match:
+                channel_id = channel_match.group(1)
+                break
     
     # Extract user input 
     user_input = ""
@@ -95,13 +116,13 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                             content = msg.get('content', '')
                             context_display += f"\n[{i}] {role}:\n{content}\n"
                         
-                        params = SpeakParams(content=context_display, channel_id="test")
+                        params = SpeakParams(content=context_display, channel_context=create_channel_context(channel_id))
                     else:
-                        params = SpeakParams(content=action_params, channel_id="test")
+                        params = SpeakParams(content=action_params, channel_context=create_channel_context(channel_id))
                 else:
                     # Provide helpful error with valid format
                     error_msg = "❌ $speak requires content. Format: $speak <message>\nExample: $speak Hello world!\nSpecial: $speak $context (displays full context)"
-                    params = SpeakParams(content=error_msg, channel_id="test")
+                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                     
             elif action == HandlerActionType.MEMORIZE:
                 if action_params:
@@ -118,11 +139,11 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                         
                         if node_type.upper() not in valid_types:
                             error_msg = f"❌ Invalid node type '{node_type}'. Valid types: {', '.join(valid_types)}"
-                            params = SpeakParams(content=error_msg, channel_id="test")
+                            params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                             action = HandlerActionType.SPEAK
                         elif scope.upper() not in valid_scopes:
                             error_msg = f"❌ Invalid scope '{scope}'. Valid scopes: {', '.join(valid_scopes)}"
-                            params = SpeakParams(content=error_msg, channel_id="test")
+                            params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                             action = HandlerActionType.SPEAK
                         else:
                             params = MemorizeParams(
@@ -134,11 +155,11 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                             )
                     else:
                         error_msg = "❌ $memorize requires: <node_id> [type] [scope]\nExample: $memorize user123 USER LOCAL\nTypes: AGENT, USER, CHANNEL, CONCEPT, CONFIG\nScopes: LOCAL, IDENTITY, ENVIRONMENT, COMMUNITY, NETWORK"
-                        params = SpeakParams(content=error_msg, channel_id="test")
+                        params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                         action = HandlerActionType.SPEAK
                 else:
                     error_msg = "❌ $memorize requires: <node_id> [type] [scope]\nExample: $memorize concept/weather CONCEPT LOCAL"
-                    params = SpeakParams(content=error_msg, channel_id="test")
+                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.RECALL:
@@ -157,7 +178,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                     )
                 else:
                     error_msg = "❌ $recall requires: <node_id> [type] [scope]\nExample: $recall user123 USER LOCAL"
-                    params = SpeakParams(content=error_msg, channel_id="test")
+                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.PONDER:
@@ -167,14 +188,15 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                     params = PonderParams(questions=questions)
                 else:
                     error_msg = "❌ $ponder requires questions. Format: $ponder <question1>; <question2>\nExample: $ponder What should I do next?; How can I help?"
-                    params = SpeakParams(content=error_msg, channel_id="test")
+                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.OBSERVE:
                 parts = action_params.split() if action_params else []
                 channel_id = parts[0] if len(parts) > 0 else None
                 active = parts[1].lower() == "true" if len(parts) > 1 else False
-                params = ObserveParams(channel_id=channel_id, active=active)
+                channel_context = create_channel_context(channel_id) if channel_id else None
+                params = ObserveParams(channel_context=channel_context, active=active)
                 
             elif action == HandlerActionType.TOOL:
                 if action_params:
@@ -197,7 +219,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                     params = ToolParams(name=tool_name, parameters=tool_params)
                 else:
                     error_msg = "❌ $tool requires: <tool_name> [parameters]\nExample: $tool discord_delete_message channel_id=123 message_id=456\nAvailable tools: discord_delete_message, discord_timeout_user, list_files, read_file, etc."
-                    params = SpeakParams(content=error_msg, channel_id="test")
+                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.REJECT:
@@ -205,7 +227,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                     params = RejectParams(reason=action_params)
                 else:
                     error_msg = "❌ $reject requires a reason. Format: $reject <reason>\nExample: $reject This request violates ethical guidelines"
-                    params = SpeakParams(content=error_msg, channel_id="test")
+                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.DEFER:
@@ -213,7 +235,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                     params = DeferParams(reason=action_params, defer_until=None)
                 else:
                     error_msg = "❌ $defer requires a reason. Format: $defer <reason>\nExample: $defer I need more context to answer properly"
-                    params = SpeakParams(content=error_msg, channel_id="test")
+                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.FORGET:
@@ -228,11 +250,11 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                         )
                     else:
                         error_msg = "❌ $forget requires: <node_id> <reason>\nExample: $forget user123 User requested data deletion"
-                        params = SpeakParams(content=error_msg, channel_id="test")
+                        params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                         action = HandlerActionType.SPEAK
                 else:
                     error_msg = "❌ $forget requires: <node_id> <reason>"
-                    params = SpeakParams(content=error_msg, channel_id="test")
+                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.TASK_COMPLETE:
@@ -241,7 +263,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                 
             else:
                 # Unknown action
-                params = SpeakParams(content=f"Unknown action: {forced_action}", channel_id="test")
+                params = SpeakParams(content=f"Unknown action: {forced_action}", channel_context=create_channel_context(channel_id))
                 
         except AttributeError:
             # Invalid action type
@@ -249,7 +271,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                            'defer', 'reject', 'forget', 'task_complete']
             error_msg = f"❌ Invalid action '{forced_action}'. Valid actions: {', '.join(valid_actions)}"
             action = HandlerActionType.SPEAK
-            params = SpeakParams(content=error_msg, channel_id="test")
+            params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
             
         # Include context pattern in rationale
         context_patterns = [item for item in context if item.startswith("forced_action:")]
@@ -295,7 +317,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
 • $ponder What should I do?; Is this ethical?
 
 The mock LLM provides deterministic responses for testing CIRIS functionality offline."""
-        params = SpeakParams(content=help_text, channel_id="test")
+        params = SpeakParams(content=help_text, channel_context=create_channel_context(channel_id))
         rationale = "[MOCK LLM] Providing Mock LLM help documentation"
         
     # Removed the weird ? recall command - only $recall is supported
@@ -303,7 +325,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
     elif user_speech:
         # Regular user input - always speak
         action = HandlerActionType.SPEAK
-        params = SpeakParams(content=f"Mock response to: {user_speech}", channel_id="test")
+        params = SpeakParams(content=f"Mock response to: {user_speech}", channel_context=create_channel_context(channel_id))
         rationale = f"Responding to user: {user_speech}"
         
     else:
@@ -322,7 +344,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
         else:
             # Default: new task → SPEAK
             action = HandlerActionType.SPEAK
-            params = SpeakParams(content="[MOCK LLM] Hello! How can I help you?", channel_id="test")
+            params = SpeakParams(content="[MOCK LLM] Hello! How can I help you?", channel_context=create_channel_context(channel_id))
             rationale = "[MOCK LLM] Default speak action for new task"
     
     # Use custom rationale if provided, otherwise use the generated rationale

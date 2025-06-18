@@ -12,6 +12,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from dataclasses import dataclass
 
+from ciris_engine.schemas.initialization_schemas_v1 import (
+    InitializationStatus,
+    InitializationPhase as SchemaInitializationPhase
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -183,20 +188,20 @@ class InitializationManager:
             else:
                 logger.warning(f"  Continuing despite non-critical failure: {step.name}")
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> InitializationStatus:
         """Get the current initialization status."""
         duration = None
         if self._start_time:
             duration = (datetime.now(timezone.utc) - self._start_time).total_seconds()
         
-        return {
-            "complete": self._initialization_complete,
-            "start_time": self._start_time.isoformat() if self._start_time else None,
-            "duration_seconds": duration,
-            "completed_steps": self._completed_steps,
-            "phase_status": {phase.value: status for phase, status in self._phase_status.items()},
-            "error": str(self._error) if self._error else None
-        }
+        return InitializationStatus(
+            complete=self._initialization_complete,
+            start_time=self._start_time,
+            duration_seconds=duration,
+            completed_steps=self._completed_steps,
+            phase_status={phase.value: status for phase, status in self._phase_status.items()},
+            error=str(self._error) if self._error else None
+        )
     
     def is_initialized(self) -> bool:
         """Check if initialization is complete."""
@@ -244,7 +249,7 @@ def is_initialization_complete() -> bool:
     return manager.is_initialized()
 
 
-def get_initialization_status() -> Dict[str, Any]:
+def get_initialization_status() -> InitializationStatus:
     """Get the initialization status."""
     manager = get_initialization_manager()
     return manager.get_status()

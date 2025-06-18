@@ -2,8 +2,10 @@ import pytest
 from unittest.mock import AsyncMock
 
 from ciris_engine.processor import WakeupProcessor, WorkProcessor, PlayProcessor, SolitudeProcessor, DreamProcessor
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, CIRISNodeConfig, AgentProfile # Corrected import for AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig, LLMServicesConfig, OpenAIConfig, CIRISNodeConfig
+from ciris_engine.schemas.identity_schemas_v1 import AgentIdentityRoot, CoreProfile, IdentityMetadata
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+from datetime import datetime, timezone
 
 # Import adapter configs to resolve forward references
 try:
@@ -17,12 +19,11 @@ except ImportError:
 
 # Rebuild models with resolved references  
 try:
-    AgentProfile.model_rebuild()
     AppConfig.model_rebuild()
 except Exception:
     pass
 
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, ThoughtType
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, ThoughtType, HandlerActionType
 
 
 # Simple in-memory persistence mocks
@@ -182,16 +183,43 @@ async def test_solitude_processor_exit_after_critical(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_dream_processor_pulse(monkeypatch):
-    # Create mock AppConfig and AgentProfile
+    # Create mock AppConfig and AgentIdentity
     mock_app_config = AppConfig(
         llm_services=LLMServicesConfig(openai=OpenAIConfig(model_name="test-model")),
         cirisnode=CIRISNodeConfig(base_url="https://x") 
         )
-    mock_profile = AgentProfile(
-            name="test_agent",
+    mock_identity = AgentIdentityRoot(
+        agent_id="test_agent",
+        identity_hash="test_hash_123",
+        core_profile=CoreProfile(
             description="Test agent for unit tests",
-            role_description="A minimal test agent profile"
-        )
+            role_description="A minimal test agent profile",
+            domain_specific_knowledge={},
+            dsdma_prompt_template=None,
+            csdma_overrides={},
+            action_selection_pdma_overrides={},
+            last_shutdown_memory=None
+        ),
+        identity_metadata=IdentityMetadata(
+            created_at=datetime.now(timezone.utc).isoformat(),
+            last_modified=datetime.now(timezone.utc).isoformat(),
+            modification_count=0,
+            creator_agent_id="system",
+            lineage_trace=["system"],
+            approval_required=False,
+            approved_by=None,
+            approval_timestamp=None
+        ),
+        permitted_actions=[
+            HandlerActionType.OBSERVE,
+            HandlerActionType.SPEAK,
+            HandlerActionType.PONDER,
+            HandlerActionType.DEFER,
+            HandlerActionType.REJECT,
+            HandlerActionType.TASK_COMPLETE
+        ],
+        restricted_capabilities=[]
+    )
     
     # Create a mock audit service
     class MockAuditService:
@@ -200,7 +228,7 @@ async def test_dream_processor_pulse(monkeypatch):
 
     class MockServiceRegistry:
         def __init__(self):
-            self._global_services: schemas.BaseSchema = {"audit": []}
+            self._global_services = {"audit": []}
             self._audit_service = MockAuditService()
         
         async def get_global_service(self, service_type: str, **kwargs):
@@ -210,7 +238,7 @@ async def test_dream_processor_pulse(monkeypatch):
 
     # Pass mocks to DreamProcessor constructor 
     mock_service_registry = MockServiceRegistry()
-    dp = DreamProcessor(app_config=mock_app_config, profile=mock_profile, service_registry=mock_service_registry)
+    dp = DreamProcessor(app_config=mock_app_config, service_registry=mock_service_registry)
 
 
     class DummyClient:

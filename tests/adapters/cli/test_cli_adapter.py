@@ -445,7 +445,7 @@ class TestCLIAdapterIntegration:
             msg = adapter.on_message.call_args[0][0]
             assert msg.content == test_message
             assert msg.author_name == "User"
-            assert msg.destination_id == "cli"
+            assert msg.destination_id.startswith("cli")  # Should start with "cli"
 
     async def test_full_message_flow_with_sink(self, mock_multi_service_sink):
         """Test complete message flow through multi-service sink."""

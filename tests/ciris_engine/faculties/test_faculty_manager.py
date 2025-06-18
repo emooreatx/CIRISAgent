@@ -27,7 +27,7 @@ class DummyLLM:
 @pytest.mark.asyncio
 async def test_entropy_faculty_evaluate():
     registry = ServiceRegistry()
-    llm = DummyLLM({"entropy": 0.42})
+    llm = DummyLLM({"entropy": 0.42, "faculty_name": "entropy"})
     registry.register("EntropyFaculty", "llm", llm)
     faculty = EntropyFaculty(registry)
     result = await faculty.evaluate("hello")
@@ -37,8 +37,8 @@ async def test_entropy_faculty_evaluate():
 @pytest.mark.asyncio
 async def test_faculty_manager_runs_all():
     registry = ServiceRegistry()
-    registry.register("EntropyFaculty", "llm", DummyLLM({"entropy": 0.1}))
-    registry.register("CoherenceFaculty", "llm", DummyLLM({"coherence": 0.9}))
+    registry.register("EntropyFaculty", "llm", DummyLLM({"entropy": 0.1, "faculty_name": "entropy"}))
+    registry.register("CoherenceFaculty", "llm", DummyLLM({"coherence": 0.9, "faculty_name": "coherence"}))
 
     manager = FacultyManager(registry)
     manager.register_faculty("entropy", EntropyFaculty(registry))

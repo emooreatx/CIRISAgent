@@ -28,8 +28,8 @@ class WAStore(Protocol):
         ...
     
     @abstractmethod
-    async def get_wa_by_channel(self, channel_id: str) -> Optional[WACertificate]:
-        """Get WA certificate by channel ID."""
+    async def get_wa_by_adapter(self, adapter_id: str) -> Optional[WACertificate]:
+        """Get WA certificate by adapter ID."""
         ...
     
     @abstractmethod
@@ -38,8 +38,8 @@ class WAStore(Protocol):
         ...
     
     @abstractmethod
-    async def create_channel_observer(self, channel_id: str, name: str) -> WACertificate:
-        """Create or reactivate channel observer WA."""
+    async def create_adapter_observer(self, adapter_id: str, name: str) -> WACertificate:
+        """Create or reactivate adapter observer WA."""
         ...
     
     @abstractmethod
@@ -164,6 +164,6 @@ class WAAuthMiddleware(Protocol):
         ...
     
     @abstractmethod
-    def get_channel_token(self, channel_id: str) -> Optional[str]:
-        """Get cached channel token."""
+    def get_adapter_token(self, adapter_id: str) -> Optional[str]:
+        """Get cached adapter token."""
         ...

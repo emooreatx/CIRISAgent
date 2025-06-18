@@ -10,6 +10,7 @@ import time
 import asyncio
 import functools
 import inspect
+import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -27,6 +28,8 @@ from ciris_engine.schemas.wa_schemas_v1 import (
 from ciris_engine.protocols.wa_auth_interface import (
     WAStore, JWTService, WACrypto, WAAuthMiddleware
 )
+
+logger = logging.getLogger(__name__)
 
 
 class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
@@ -134,13 +137,13 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
                 return WACertificate(**dict(row))
             return None
     
-    async def get_wa_by_channel(self, channel_id: str) -> Optional[WACertificate]:
-        """Get WA certificate by channel ID."""
+    async def get_wa_by_adapter(self, adapter_id: str) -> Optional[WACertificate]:
+        """Get WA certificate by adapter ID."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
-                "SELECT * FROM wa_cert WHERE channel_id = ? AND active = 1",
-                (channel_id,)
+                "SELECT * FROM wa_cert WHERE adapter_id = ? AND active = 1",
+                (adapter_id,)
             )
             row = cursor.fetchone()
             
@@ -170,10 +173,10 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
             )
             conn.commit()
     
-    async def create_channel_observer(self, channel_id: str, name: str) -> WACertificate:
-        """Create or reactivate channel observer WA."""
+    async def create_adapter_observer(self, adapter_id: str, name: str) -> WACertificate:
+        """Create or reactivate adapter observer WA."""
         # Check if observer already exists
-        existing = await self.get_wa_by_channel(channel_id)
+        existing = await self.get_wa_by_adapter(adapter_id)
         if existing:
             # Reactivate if needed
             if not existing.active:
@@ -194,7 +197,7 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
             pubkey=self._encode_public_key(public_key),
             jwt_kid=jwt_kid,
             scopes_json='["read:any", "write:message"]',
-            channel_id=channel_id,
+            adapter_id=adapter_id,
             token_type=TokenType.CHANNEL,
             created=timestamp,
             active=True
@@ -202,6 +205,7 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
         
         await self.create_wa(observer)
         return observer
+    
     
     async def update_wa(self, wa_id: str, **updates: Any) -> None:
         """Update WA certificate fields."""
@@ -261,7 +265,7 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
             'name': wa.name,
             'scope': wa.scopes,
             'iat': int(time.time()),
-            'channel': wa.channel_id
+            'adapter': wa.adapter_id
         }
         
         return jwt.encode(
@@ -563,9 +567,9 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
             return wrapper
         return decorator
     
-    def get_channel_token(self, channel_id: str) -> Optional[str]:
-        """Get cached channel token."""
-        return self._channel_token_cache.get(channel_id)
+    def get_adapter_token(self, adapter_id: str) -> Optional[str]:
+        """Get cached adapter token."""
+        return self._channel_token_cache.get(adapter_id)
     
     # Additional helper methods
     
@@ -597,9 +601,9 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
             
         channel_identity = ChannelIdentity.from_adapter(adapter_type, adapter_info)
         
-        # Create or get channel observer
-        observer = await self.create_channel_observer(
-            channel_identity.channel_id,
+        # Create or get adapter observer
+        observer = await self.create_adapter_observer(
+            channel_identity.adapter_id,
             f"{adapter_type}_observer"
         )
         
@@ -607,6 +611,6 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
         token = self.create_channel_token(observer)
         
         # Cache the token
-        self._channel_token_cache[channel_identity.channel_id] = token
+        self._channel_token_cache[channel_identity.adapter_id] = token
         
         return token

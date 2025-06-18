@@ -75,7 +75,7 @@ class AuditService(AuditServiceProtocol):
                 target_id=context.get("target_id"),
                 event_summary=self._generate_summary(handler_action, context, outcome),  # Pass outcome
                 event_payload=context,
-                agent_profile=context.get("agent_profile"),
+                agent_template=context.get("agent_template"),
                 round_number=context.get("round_number"),
                 thought_id=context.get("thought_id"),
                 task_id=context.get("task_id") or context.get("source_task_id"),  # Handle both keys
@@ -98,7 +98,7 @@ class AuditService(AuditServiceProtocol):
             target_id=event_data.get("target_id"),
             event_summary=event_data.get("summary", f"{event_type} event"),
             event_payload=event_data,
-            agent_profile=event_data.get("agent_profile"),
+            agent_template=event_data.get("agent_template"),
             round_number=event_data.get("round_number"),
             thought_id=event_data.get("thought_id"),
             task_id=event_data.get("task_id"),

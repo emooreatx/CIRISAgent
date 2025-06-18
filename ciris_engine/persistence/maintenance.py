@@ -136,6 +136,8 @@ class DatabaseMaintenanceService:
             is_orphan = False
             if task.task_id in self.valid_root_task_ids and task.parent_task_id is None:
                 pass # Allowed active root tasks
+            elif task.task_id.startswith("shutdown_") and task.parent_task_id is None:
+                pass # Shutdown tasks are valid root tasks
             elif task.parent_task_id:
                 parent_task = get_task_by_id(task.parent_task_id)
                 if not parent_task or parent_task.status not in [TaskStatus.ACTIVE, TaskStatus.COMPLETED]:

@@ -165,7 +165,7 @@ class TestMockLLMComprehensive:
             # Test that the response can be converted to dict and serialized
             try:
                 if hasattr(response, 'model_dump'):
-                    response_dict = response.model_dump()
+                    response_dict = response.model_dump(mode="json")
                     json.dumps(response_dict)
                 else:
                     # Fallback for objects without model_dump

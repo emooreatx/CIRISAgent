@@ -29,12 +29,16 @@ class DiscordPlatform(PlatformAdapter):
             if "discord_bot_token" in kwargs:
                 self.config.bot_token = kwargs["discord_bot_token"]
             
-            profile = getattr(runtime, 'agent_profile', None)
-            if profile and profile.discord_config:
-                for key, value in profile.discord_config.items():
-                    if hasattr(self.config, key):
-                        setattr(self.config, key, value)
-                        logger.debug(f"DiscordPlatform: Set config {key} = {value} from profile")
+            template = getattr(runtime, 'template', None)
+            if template and hasattr(template, 'discord_config') and template.discord_config:
+                try:
+                    config_dict = template.discord_config.dict() if hasattr(template.discord_config, 'dict') else {}
+                    for key, value in config_dict.items():
+                        if hasattr(self.config, key):
+                            setattr(self.config, key, value)
+                            logger.debug(f"DiscordPlatform: Set config {key} = {value} from template")
+                except Exception as e:
+                    logger.debug(f"DiscordPlatform: Could not load config from template: {e}")
             
             self.config.load_env_vars()
         
@@ -45,6 +49,9 @@ class DiscordPlatform(PlatformAdapter):
         self.token = self.config.bot_token
         intents = self.config.get_intents()
         self.client = discord.Client(intents=intents)
+        
+        # Generate adapter_id - will be updated with actual guild_id when bot connects
+        self.adapter_id = "discord:pending"
 
         self.discord_adapter = DiscordAdapter(
             token=self.token,
@@ -98,6 +105,16 @@ class DiscordPlatform(PlatformAdapter):
             self.discord_adapter.tool_registry = self.tool_registry
 
         self._discord_client_task: Optional[asyncio.Task] = None
+    
+    def get_channel_info(self) -> dict[str, Any]:
+        """Provide guild info for authentication."""
+        # Get first guild if connected
+        if self.client.guilds:
+            guild_id = str(self.client.guilds[0].id)
+            # Update adapter_id with actual guild
+            self.adapter_id = f"discord:{guild_id}"
+            return {'guild_id': guild_id}
+        return {'guild_id': 'unknown'}
 
     async def _handle_discord_message_event(self, msg: DiscordMessage) -> None:
         logger.debug(f"DiscordPlatform: Received message from DiscordAdapter: {msg.message_id if msg else 'None'}")

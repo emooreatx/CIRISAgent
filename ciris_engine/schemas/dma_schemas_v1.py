@@ -32,7 +32,7 @@ class DMAInputData(BaseModel):
     dsdma_result: Optional[DSDMAResult] = Field(default=None, description="Domain-specific evaluation result")
     
     # Processing metadata
-    current_ponder_count: int = Field(default=0, description="Number of times pondered")
+    current_thought_depth: int = Field(default=0, description="Number of times pondered")
     max_rounds: int = Field(default=5, description="Maximum processing rounds")
     round_number: int = Field(default=0, description="Current round number")
     
@@ -153,7 +153,7 @@ class DMATriageInputs(BaseModel):
     ethical_pdma_result: Optional[EthicalDMAResult] = None
     csdma_result: Optional[CSDMAResult] = None
     dsdma_result: Optional[DSDMAResult] = None
-    current_ponder_count: int = 0
+    current_thought_depth: int = 0
     max_rounds: int = 5
     permitted_actions: List[HandlerActionType] = Field(default_factory=list)
     agent_identity: Optional[AgentIdentityRoot] = None
@@ -166,7 +166,7 @@ class DMATriageInputs(BaseModel):
             ethical_pdma_result=self.ethical_pdma_result,
             csdma_result=self.csdma_result,
             dsdma_result=self.dsdma_result,
-            current_ponder_count=self.current_ponder_count,
+            current_thought_depth=self.current_thought_depth,
             max_rounds=self.max_rounds,
             system_snapshot=system_snapshot,
             agent_identity=self.agent_identity or AgentIdentityRoot(
@@ -177,6 +177,7 @@ class DMATriageInputs(BaseModel):
                     role_description="Unknown role",
                     domain_specific_knowledge={},
                     dsdma_prompt_template=None,
+                    last_shutdown_memory=None,
                     csdma_overrides={},
                     action_selection_pdma_overrides={}
                 ),
@@ -190,7 +191,7 @@ class DMATriageInputs(BaseModel):
                     approved_by=None,
                     approval_timestamp=None
                 ),
-                allowed_capabilities=[],
+                permitted_actions=[],
                 restricted_capabilities=[]
             ),
             permitted_actions=self.permitted_actions

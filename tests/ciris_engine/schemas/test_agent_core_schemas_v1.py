@@ -41,7 +41,7 @@ def test_thought_minimal():
     assert th.status == fs.ThoughtStatus.PENDING
     assert th.thought_type == "standard"
     assert th.context is None
-    assert th.ponder_count == 0
+    assert th.thought_depth == 0
     assert th.ponder_notes is None
     assert th.parent_thought_id is None
     assert th.final_action == {}

@@ -18,7 +18,8 @@ from ciris_engine.schemas.action_params_v1 import (
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, TaskStatus, ThoughtType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, TaskStatus, ThoughtType, DispatchContext, ServiceType
+from tests.helpers import create_test_dispatch_context
 from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult, MemoryOpStatus
 
 
@@ -32,7 +33,7 @@ DEFAULT_THOUGHT_KWARGS = dict(
     round_number=1,
     content="content",
     context={},
-    ponder_count=0,
+    thought_depth=0,
     ponder_notes=None,
     parent_thought_id=None,
     final_action={},
@@ -61,7 +62,8 @@ async def test_forget_handler_schema_driven(monkeypatch):
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
 
-    await handler.handle(action_result, thought, {})
+    context = create_test_dispatch_context(action_type=HandlerActionType.FORGET)
+    await handler.handle(action_result, thought, context)
 
     expected_node = GraphNode(id="USER".lower(),
         type=NodeType.USER,
@@ -96,7 +98,8 @@ async def test_recall_handler_schema_driven(monkeypatch):
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
 
-    await handler.handle(action_result, thought, {})
+    context = create_test_dispatch_context(action_type=HandlerActionType.RECALL)
+    await handler.handle(action_result, thought, context)
 
     expected_node = GraphNode(id="USER".lower(),
         type=NodeType.USER,
@@ -123,7 +126,8 @@ async def test_observe_handler_passive(monkeypatch):
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
     handler = ObserveHandler(ActionHandlerDependencies())
-    await handler.handle(action_result, thought, {})
+    context = create_test_dispatch_context(action_type=HandlerActionType.OBSERVE)
+    await handler.handle(action_result, thought, context)
 
     update_status.assert_called_once()
     # Instead of assert_not_called, allow add_thought to be called for error/failure
@@ -138,12 +142,14 @@ async def test_observe_handler_passive(monkeypatch):
 async def test_reject_handler_schema_driven(monkeypatch):
     update_status = MagicMock()
     add_thought = MagicMock()
+    update_task_status = MagicMock()
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
+    monkeypatch.setattr("ciris_engine.persistence.update_task_status", update_task_status)
 
     comm_service = AsyncMock()
     async def get_service(handler, service_type, **kwargs):
-        if service_type == "communication":
+        if service_type == ServiceType.COMMUNICATION:
             return comm_service
         return None
 
@@ -158,12 +164,14 @@ async def test_reject_handler_schema_driven(monkeypatch):
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
 
-    await handler.handle(action_result, thought, {"channel_id": "chan"})
+    context = create_test_dispatch_context(channel_id="chan", action_type=HandlerActionType.REJECT)
+    await handler.handle(action_result, thought, context)
 
     # Update expected message to match actual reason string
     comm_service.send_message.assert_awaited_with("chan", "Unable to proceed: Not relevant to the task")
     update_status.assert_called_once()
-    add_thought.assert_called_once()
+    # REJECT is a terminal action, so no follow-up thought should be created
+    add_thought.assert_not_called()
     assert update_status.call_args.kwargs["status"] == ThoughtStatus.FAILED
 
 
@@ -195,7 +203,8 @@ async def test_task_complete_handler_schema_driven(monkeypatch):
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
 
-    await handler.handle(action_result, thought, {"channel_id": "chan"})
+    context = create_test_dispatch_context(channel_id="chan", action_type=HandlerActionType.TASK_COMPLETE)
+    await handler.handle(action_result, thought, context)
 
     update_thought_status.assert_called_once()
     update_task_status.assert_called_once_with("task1", TaskStatus.COMPLETED)
@@ -222,9 +231,9 @@ async def test_tool_handler_schema_driven(monkeypatch):
     audit_service = MagicMock()
     audit_service.log_action = AsyncMock()
     async def get_service(handler, service_type, **kwargs):
-        if service_type == "tool":
+        if service_type == ServiceType.TOOL:
             return DummyToolService()
-        if service_type == "audit":
+        if service_type == ServiceType.AUDIT:
             return audit_service
         return None
     deps.get_service = AsyncMock(side_effect=get_service)
@@ -238,7 +247,8 @@ async def test_tool_handler_schema_driven(monkeypatch):
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
 
-    await handler.handle(action_result, thought, {})
+    context = create_test_dispatch_context(action_type=HandlerActionType.TOOL)
+    await handler.handle(action_result, thought, context)
 
     update_status.assert_called_once()
     add_thought.assert_called_once()

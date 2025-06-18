@@ -7,6 +7,7 @@ from ciris_engine.persistence import (
     get_correlation,
 )
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
+from ciris_engine.schemas.persistence_schemas_v1 import CorrelationUpdateRequest
 
 
 def temp_db_file():
@@ -30,7 +31,12 @@ def test_add_and_update_correlation():
         fetched = get_correlation("corr1", db_path=db_path)
         assert fetched is not None
         assert fetched.request_data["a"] == 1
-        update_correlation("corr1", response_data={"ok": True}, status=ServiceCorrelationStatus.COMPLETED, db_path=db_path)
+        update_request = CorrelationUpdateRequest(
+            correlation_id="corr1",
+            response_data={"ok": True},
+            status=ServiceCorrelationStatus.COMPLETED
+        )
+        update_correlation(update_request, db_path=db_path)
         updated = get_correlation("corr1", db_path=db_path)
         assert updated.response_data["ok"] is True
         assert updated.status == ServiceCorrelationStatus.COMPLETED

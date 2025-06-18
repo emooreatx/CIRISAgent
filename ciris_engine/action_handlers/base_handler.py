@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, DispatchContext, ServiceType
+from ciris_engine.utils.channel_utils import extract_channel_id
 
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, MemoryService
@@ -222,14 +223,15 @@ class BaseActionHandler(ABC):
 
     async def _get_channel_id(self, thought: Thought, dispatch_context: DispatchContext) -> Optional[str]:
         """Get channel ID from dispatch or thought context."""
-        channel_id: Optional[str] = dispatch_context.channel_id
+        # Extract channel ID from ChannelContext in dispatch
+        channel_id: Optional[str] = extract_channel_id(dispatch_context.channel_context)
+        
+        # Fallback to thought context if needed
         if not channel_id and getattr(thought, "context", None):
             system_snapshot = getattr(thought.context, "system_snapshot", None) if thought.context else None
-            channel_id_value = getattr(system_snapshot, "channel_id", None) if system_snapshot else None
-            if isinstance(channel_id_value, str):
-                channel_id = channel_id_value
-        if not channel_id:
-            pass
+            channel_context = getattr(system_snapshot, "channel_context", None) if system_snapshot else None
+            channel_id = extract_channel_id(channel_context)
+        
         return channel_id
 
     async def _send_notification(self, channel_id: str, content: str) -> bool:

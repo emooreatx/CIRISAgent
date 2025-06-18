@@ -11,7 +11,9 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     FetchedMessage,
     DispatchContext,
 )
+from ciris_engine.schemas.context_schemas_v1 import ChannelContext
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
+from ciris_engine.utils.channel_utils import extract_channel_id, create_channel_context
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
@@ -120,14 +122,21 @@ class ObserveHandler(BaseActionHandler):
             )
             return
 
-        channel_id = (
-            params.channel_id
-            or dispatch_context.channel_id
-            or (thought.context.system_snapshot.channel_id if thought.context and hasattr(thought.context, 'system_snapshot') else None)
-        )
+        # Get channel context from params or dispatch
+        channel_context: Optional[ChannelContext] = params.channel_context or dispatch_context.channel_context
+        
+        # Fallback to thought context if needed
+        if not channel_context and thought.context and hasattr(thought.context, 'system_snapshot'):
+            channel_context = thought.context.system_snapshot.channel_context
+        
+        # Update params with the resolved channel context
+        if channel_context:
+            params.channel_context = channel_context
+        
+        # Extract channel ID for legacy API usage
+        channel_id = extract_channel_id(channel_context)
         if channel_id and isinstance(channel_id, str) and channel_id.startswith("@"):
             channel_id = None
-        params.channel_id = channel_id
 
         multi_service_sink = self.get_multi_service_sink()
         logger.debug(f"ObserveHandler: Got multi-service sink: {type(multi_service_sink).__name__ if multi_service_sink else 'None'}")

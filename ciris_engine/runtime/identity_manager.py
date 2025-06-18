@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import hashlib
 
-from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AgentTemplate
 from ciris_engine.schemas.identity_schemas_v1 import (
     AgentIdentityRoot,
     CoreProfile,
@@ -41,14 +41,14 @@ class IdentityManager:
             logger.info("No identity found, creating from template (first run only)")
             
             # Load template ONLY for initial identity creation
-            # Use default_profile from config as the template name
-            template_name = getattr(self.config, 'default_profile', 'default')
-            template_path = Path(self.config.profile_directory) / f"{template_name}.yaml"
+            # Use default_template from config as the template name
+            template_name = getattr(self.config, 'default_template', 'default')
+            template_path = Path(self.config.template_directory) / f"{template_name}.yaml"
             initial_template = await self._load_template(template_path)
             
             if not initial_template:
                 logger.warning(f"Template '{template_name}' not found, using default")
-                default_path = Path(self.config.profile_directory) / "default.yaml"
+                default_path = Path(self.config.template_directory) / "default.yaml"
                 initial_template = await self._load_template(default_path)
                 
             if not initial_template:
@@ -60,7 +60,7 @@ class IdentityManager:
         
         return self.agent_identity
     
-    async def _load_template(self, template_path: Path) -> Optional[AgentProfile]:
+    async def _load_template(self, template_path: Path) -> Optional[AgentTemplate]:
         """Load template from file."""
         from ciris_engine.utils.profile_loader import load_template
         return await load_template(template_path)
@@ -94,7 +94,7 @@ class IdentityManager:
             logger.error(f"Failed to save identity to persistence: {e}")
             raise
     
-    async def _create_identity_from_template(self, template: AgentProfile) -> AgentIdentityRoot:
+    async def _create_identity_from_template(self, template: AgentTemplate) -> AgentIdentityRoot:
         """Create initial identity from template (first run only)."""
         # Generate deterministic identity hash
         identity_string = f"{template.name}:{template.description}:{template.role_description}"
@@ -115,7 +115,8 @@ class IdentityManager:
                 domain_specific_knowledge=domain_knowledge,
                 dsdma_prompt_template=dsdma_prompt,
                 csdma_overrides=template.csdma_overrides or {},
-                action_selection_pdma_overrides=template.action_selection_pdma_overrides or {}
+                action_selection_pdma_overrides=template.action_selection_pdma_overrides or {},
+                last_shutdown_memory=None
             ),
             identity_metadata=IdentityMetadata(
                 created_at=datetime.now(timezone.utc).isoformat(),

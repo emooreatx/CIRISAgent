@@ -448,7 +448,9 @@ Tools available:
     def get_home_channel_id(self) -> str:
         """Get the home channel ID for this CLI adapter instance."""
         if self.cli_config and hasattr(self.cli_config, 'get_home_channel_id'):
-            return self.cli_config.get_home_channel_id()
+            channel_id = self.cli_config.get_home_channel_id()
+            if channel_id:
+                return str(channel_id)
         
         # Generate unique channel ID for this CLI instance
         import uuid

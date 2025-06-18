@@ -6,6 +6,7 @@ from .resource_schemas_v1 import ResourceSnapshot, ResourceUsageMetrics
 from .secrets_schemas_v1 import SecretReference
 from .audit_verification_schemas_v1 import AuditVerificationReport, ContinuousVerificationStatus
 from .foundational_schemas_v1 import ResourceUsage
+from .identity_schemas_v1 import ShutdownContext
 
 class TaskSummary(BaseModel):
     """Summary of a task for context."""
@@ -23,7 +24,7 @@ class ThoughtSummary(BaseModel):
     status: Optional[str] = None
     source_task_id: Optional[str] = None
     thought_type: Optional[str] = None
-    ponder_count: Optional[int] = None
+    thought_depth: Optional[int] = None
     model_config = ConfigDict(extra="allow")
 
 class UserProfile(BaseModel):
@@ -34,6 +35,24 @@ class UserProfile(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class ChannelContext(BaseModel):
+    """Channel context information for consistent channel handling."""
+    channel_id: str = Field(description="The unique identifier for the channel")
+    channel_name: Optional[str] = Field(default=None, description="Human-readable channel name")
+    channel_type: Optional[str] = Field(default=None, description="Type of channel (discord, cli, api, etc.)")
+    is_monitored: bool = Field(default=True, description="Whether this channel is actively monitored")
+    is_deferral: bool = Field(default=False, description="Whether this is a WA deferral channel")
+    is_home: bool = Field(default=False, description="Whether this is the agent's home channel")
+    permissions: List[str] = Field(default_factory=list, description="Channel-specific permissions")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional channel-specific data")
+    
+    # Channel preferences
+    response_format: Optional[str] = Field(default=None, description="Preferred response format for this channel")
+    max_message_length: Optional[int] = Field(default=None, description="Maximum message length for this channel")
+    
+    model_config = ConfigDict(extra="allow")
+
+
 class SystemSnapshot(BaseModel):
     current_task_details: Optional[TaskSummary] = None
     current_thought_summary: Optional[ThoughtSummary] = None
@@ -41,7 +60,7 @@ class SystemSnapshot(BaseModel):
     top_pending_tasks_summary: List[TaskSummary] = Field(default_factory=list)
     recently_completed_tasks_summary: List[TaskSummary] = Field(default_factory=list)
     user_profiles: Optional[Dict[str, UserProfile]] = None
-    channel_id: Optional[str] = None
+    channel_context: Optional[ChannelContext] = None
     
     detected_secrets: List[SecretReference] = Field(default_factory=list)
     secrets_filter_version: int = 0
@@ -90,13 +109,29 @@ class SystemSnapshot(BaseModel):
     identity_capabilities: List[str] = Field(default_factory=list)
     identity_restrictions: List[str] = Field(default_factory=list)
     
+    # Shutdown context - populated during graceful shutdown
+    shutdown_context: Optional[ShutdownContext] = Field(
+        default=None,
+        description="Context for graceful shutdown negotiation"
+    )
+    
+    # Service health and status
+    service_health: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Health status of all registered services"
+    )
+    circuit_breaker_status: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Circuit breaker status for protected services"
+    )
+    
     model_config = ConfigDict(extra="allow")
 
 class TaskContext(BaseModel):
     """Context information from the original task."""
     author_name: Optional[str] = None
     author_id: Optional[str] = None
-    channel_id: Optional[str] = None
+    channel_context: Optional[ChannelContext] = None
     origin_service: Optional[str] = None
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 

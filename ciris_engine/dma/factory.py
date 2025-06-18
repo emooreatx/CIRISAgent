@@ -11,8 +11,7 @@ from ciris_engine.protocols.dma_interface import (
 from ciris_engine.protocols.faculties import EpistemicFaculty
 
 from .dsdma_base import BaseDSDMA
-from ciris_engine.schemas.config_schemas_v1 import AgentProfile
-from ..utils.profile_loader import load_template
+from ciris_engine.schemas.config_schemas_v1 import AgentTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +41,6 @@ try:
     ACTION_SELECTION_DMA_REGISTRY["ActionSelectionPDMAEvaluator"] = ActionSelectionPDMAEvaluator
 except ImportError:
     pass
-
-DEFAULT_PROFILE_PATH = Path("ciris_profiles/default.yaml")
 
 async def create_dma(
     dma_type: str,
@@ -104,27 +101,27 @@ async def create_dma(
         logger.error(f"Failed to create {dma_type} DMA {dma_identifier}: {e}")
         return None
 
-async def create_dsdma_from_profile(
-    profile: Optional[AgentProfile],
+async def create_dsdma_from_identity(
+    identity: Optional[AgentTemplate],
     service_registry: ServiceRegistry,
     *,
     model_name: Optional[str] = None,
     sink: Optional[Any] = None,
 ) -> Optional[BaseDSDMA]:
-    """Instantiate a DSDMA based on the given profile.
+    """Instantiate a DSDMA based on the agent's identity.
 
-    The profile represents the agent's identity loaded from the graph. If ``profile`` 
+    The identity represents the agent's configuration loaded from the graph. If ``identity`` 
     is ``None``, this is a fatal error as the agent has no identity.
     
     All agents now use BaseDSDMA with domain-specific overrides provided through 
-    dsdma_kwargs in their identity/profile.
+    dsdma_kwargs in their identity configuration.
     """
-    if profile is None:
-        logger.critical("FATAL: No profile provided - agent has no identity!")
+    if identity is None:
+        logger.critical("FATAL: No identity provided - agent has no identity!")
         raise RuntimeError("Cannot create DSDMA without agent identity. Who am I?")
 
-    # Extract overrides from profile - no longer need dsdma_identifier
-    overrides = profile.dsdma_kwargs or {}
+    # Extract overrides from identity configuration
+    overrides = identity.dsdma_kwargs or {}
     prompt_template = overrides.get("prompt_template")
     domain_knowledge = overrides.get("domain_specific_knowledge")
 
@@ -135,7 +132,7 @@ async def create_dsdma_from_profile(
         service_registry=service_registry,
         model_name=model_name,
         prompt_overrides=None,
-        domain_name=profile.name,
+        domain_name=identity.name,
         domain_specific_knowledge=domain_knowledge,
         prompt_template=prompt_template,
         sink=sink,

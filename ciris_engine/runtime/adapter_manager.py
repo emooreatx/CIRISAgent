@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration
 from ciris_engine.adapters import load_adapter
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentTemplate
 from ciris_engine.config.config_loader import ConfigLoader
 from ciris_engine.registries.base import ServiceRegistry
 
@@ -341,11 +341,11 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 "error": str(e)
             }
     
-    async def load_adapter_from_profile(self, profile_name: str, adapter_id: Optional[str] = None) -> Dict[str, Any]:
-        """Load adapter configuration from an agent profile
+    async def load_adapter_from_template(self, template_name: str, adapter_id: Optional[str] = None) -> Dict[str, Any]:
+        """Load adapter configuration from an agent template
         
         Args:
-            profile_name: Name of the agent profile to load
+            template_name: Name of the agent template to load
             adapter_id: Optional unique ID for the adapter
             
         Returns:
@@ -355,67 +355,67 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             from pathlib import Path
             import yaml
             
-            profile_overlay_path = Path("ciris_profiles") / f"{profile_name}.yaml"
+            template_overlay_path = Path("ciris_templates") / f"{template_name}.yaml"
             adapter_types = []
             
-            if profile_overlay_path.exists():
+            if template_overlay_path.exists():
                 try:
-                    with open(profile_overlay_path, 'r') as f:
-                        profile_data = yaml.safe_load(f) or {}
+                    with open(template_overlay_path, 'r') as f:
+                        template_data = yaml.safe_load(f) or {}
                     
-                    if 'discord_config' in profile_data or profile_data.get('discord_config'):
+                    if 'discord_config' in template_data or template_data.get('discord_config'):
                         adapter_types.append('discord')
-                    if 'api_config' in profile_data or profile_data.get('api_config'):
+                    if 'api_config' in template_data or template_data.get('api_config'):
                         adapter_types.append('api')
-                    if 'cli_config' in profile_data or profile_data.get('cli_config'):
+                    if 'cli_config' in template_data or template_data.get('cli_config'):
                         adapter_types.append('cli')
                 except Exception:
                     adapter_types = ['discord', 'api', 'cli']
             
-            config = await ConfigLoader.load_config(profile_name=profile_name)
+            config = await ConfigLoader.load_config(template_name=template_name)
             
-            if not config.agent_profiles or profile_name not in config.agent_profiles:
+            if not config.agent_templates or template_name not in config.agent_templates:
                 return {
                     "success": False,
-                    "error": f"Profile '{profile_name}' not found in configuration"
+                    "error": f"Template '{template_name}' not found in configuration"
                 }
             
-            profile = config.agent_profiles[profile_name]
+            template = config.agent_templates[template_name]
             results = []
             
-            if profile.discord_config:
+            if template.discord_config:
                 discord_params = {
-                    "channel_id": profile.discord_config.home_channel_id,
-                    "bot_token": profile.discord_config.bot_token
+                    "channel_id": template.discord_config.home_channel_id,
+                    "bot_token": template.discord_config.bot_token
                 }
-                result = await self.load_adapter("discord", adapter_id or f"discord_{profile_name}", discord_params)
+                result = await self.load_adapter("discord", adapter_id or f"discord_{template_name}", discord_params)
                 results.append({"adapter_type": "discord", **result})
             
-            if profile.api_config:
+            if template.api_config:
                 api_params = {
-                    "host": profile.api_config.host,
-                    "port": profile.api_config.port
+                    "host": template.api_config.host,
+                    "port": template.api_config.port
                 }
-                result = await self.load_adapter("api", adapter_id or f"api_{profile_name}", api_params)
+                result = await self.load_adapter("api", adapter_id or f"api_{template_name}", api_params)
                 results.append({"adapter_type": "api", **result})
             
-            if profile.cli_config:
+            if template.cli_config:
                 cli_params: Dict[str, Any] = {}
-                result = await self.load_adapter("cli", adapter_id or f"cli_{profile_name}", cli_params)
+                result = await self.load_adapter("cli", adapter_id or f"cli_{template_name}", cli_params)
                 results.append({"adapter_type": "cli", **result})
             
             success_count = sum(1 for r in results if r.get("success", False))
             
             return {
                 "success": success_count > 0,
-                "profile_name": profile_name,
+                "template_name": template_name,
                 "adapters_loaded": success_count,
                 "total_attempted": len(results),
                 "results": results
             }
             
         except Exception as e:
-            logger.error(f"Failed to load adapters from profile {profile_name}: {e}", exc_info=True)
+            logger.error(f"Failed to load adapters from template {template_name}: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)

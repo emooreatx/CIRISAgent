@@ -10,6 +10,8 @@ from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.registries.base import ServiceRegistry, Priority
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
 from ciris_engine.schemas.graph_schemas_v1 import NodeType, GraphScope
+from tests.helpers import create_test_dispatch_context
+from ciris_engine.utils.channel_utils import create_channel_context
 
 @pytest.mark.asyncio
 async def test_speak_handler_schema_driven(monkeypatch):
@@ -27,7 +29,7 @@ async def test_speak_handler_schema_driven(monkeypatch):
 
     action_result = ActionSelectionResult(
         selected_action=HandlerActionType.SPEAK,
-        action_parameters=SpeakParams(content="Hello world!", channel_id="123"),
+        action_parameters=SpeakParams(content="Hello world!", channel_context=create_channel_context("123")),
         rationale="r",
     )
     thought = Thought(
@@ -40,7 +42,7 @@ async def test_speak_handler_schema_driven(monkeypatch):
         round_number=1,
         content="Say hi",
         context={},
-        ponder_count=0,
+        thought_depth=0,
         ponder_notes=None,
         parent_thought_id=None,
         final_action={}
@@ -56,7 +58,8 @@ async def test_speak_handler_schema_driven(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.add_correlation", add_correlation)
     monkeypatch.setattr("ciris_engine.persistence.get_task_by_id", get_task_by_id)
 
-    await handler.handle(action_result, thought, {"channel_id": "123"})
+    dispatch_context = create_test_dispatch_context(channel_id="123")
+    await handler.handle(action_result, thought, dispatch_context)
 
     comm_service.send_message.assert_awaited_with("123", "Hello world!")
     update_thought.assert_called_once()
@@ -93,7 +96,7 @@ async def test_speak_handler_missing_params(monkeypatch):
         round_number=1,
         content="Say hi",
         context={},
-        ponder_count=0,
+        thought_depth=0,
         ponder_notes=None,
         parent_thought_id=None,
         final_action={},
@@ -104,7 +107,8 @@ async def test_speak_handler_missing_params(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_thought)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
-    await handler.handle(action_result, thought, {"channel_id": None})
+    dispatch_context = create_test_dispatch_context(channel_id="")
+    await handler.handle(action_result, thought, dispatch_context)
 
     comm_service.send_message.assert_not_awaited()
     update_thought.assert_called_once()

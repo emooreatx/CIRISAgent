@@ -94,6 +94,8 @@ class DiscordToolHandler:
                         correlation_id=correlation_id,
                         response_data=result_dict,
                         status=ServiceCorrelationStatus.COMPLETED,
+                        metric_value=None,
+                        tags=None
                     )
                 )
             
@@ -109,6 +111,8 @@ class DiscordToolHandler:
                         correlation_id=correlation_id,
                         response_data=error_result,
                         status=ServiceCorrelationStatus.FAILED,
+                        metric_value=None,
+                        tags=None
                     )
                 )
             

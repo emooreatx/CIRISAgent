@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtType
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext
+from ciris_engine.utils.channel_utils import create_channel_context
 from ciris_engine.schemas.filter_schemas_v1 import FilterResult, FilterPriority
 
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
@@ -179,7 +180,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 context=ThoughtContext(
                     initial_task_context=TaskContext(
-                        channel_id=getattr(msg, "channel_id", None),
+                        channel_context=create_channel_context(getattr(msg, "channel_id", None)),
                         author_id=msg.author_id,  # type: ignore[attr-defined]
                         author_name=msg.author_name,  # type: ignore[attr-defined]
                         origin_service=self.origin_service
@@ -237,7 +238,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 context=ThoughtContext(
                     initial_task_context=TaskContext(
-                        channel_id=getattr(msg, "channel_id", None),
+                        channel_context=create_channel_context(getattr(msg, "channel_id", None)),
                         author_id=msg.author_id,  # type: ignore[attr-defined]
                         author_name=msg.author_name,  # type: ignore[attr-defined]
                         origin_service=self.origin_service

@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, TYPE_CHECKING
 import yaml
 
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentTemplate
 from .env_utils import get_env_var
 
 if TYPE_CHECKING:
@@ -140,15 +140,15 @@ class ConfigLoader:
     @staticmethod
     async def load_config(
         config_path: Optional[Path] = None,
-        profile_name: str = "default",
+        template_name: str = "default",
     ) -> AppConfig:
-        """Load config with profile overlay."""
+        """Load config with template overlay."""
 
         base_path = Path(config_path or "config/base.yaml")
-        profile_overlay_path = Path("ciris_profiles") / f"{profile_name}.yaml"
+        template_overlay_path = Path("ciris_templates") / f"{template_name}.yaml"
 
         base_config_data = await _load_yaml(base_path)
-        profile_data = await _load_yaml(profile_overlay_path)
+        template_data = await _load_yaml(template_overlay_path)
         
         base_config_data = _apply_env_defaults(base_config_data)
         
@@ -161,24 +161,35 @@ class ConfigLoader:
         if hasattr(app_config, 'cirisnode') and hasattr(app_config.cirisnode, 'load_env_vars'):
             app_config.cirisnode.load_env_vars()
 
-        active_profile = None
-        if profile_data:
-            if 'name' in profile_data or any(key in profile_data for key in ['dsdma_kwargs', 'permitted_actions', 'discord_config', 'api_config', 'cli_config']):
+        active_template = None
+        if template_data:
+            # Check if this looks like an agent template definition
+            is_agent_template = 'name' in template_data or any(key in template_data for key in ['dsdma_kwargs', 'permitted_actions', 'discord_config', 'api_config', 'cli_config'])
+            
+            # First, merge any config overrides from the template
+            config_overrides = {k: v for k, v in template_data.items() 
+                              if k not in ['name', 'description', 'role_description', 'dsdma_kwargs', 
+                                         'permitted_actions', 'discord_config', 'api_config', 'cli_config']}
+            
+            if config_overrides:
+                merged_data = _merge_configs(base_config_data, config_overrides)
+                app_config = AppConfig(**merged_data)
+            
+            # Then handle agent template creation if applicable
+            if is_agent_template:
                 from ciris_engine.adapters.discord.config import DiscordAdapterConfig
                 
-                if 'discord_config' in profile_data:
-                    discord_config = DiscordAdapterConfig(**profile_data['discord_config'])
+                if 'discord_config' in template_data:
+                    discord_config = DiscordAdapterConfig(**template_data['discord_config'])
                 else:
                     discord_config = DiscordAdapterConfig()
                 
                 discord_config.load_env_vars()
-                profile_data['discord_config'] = discord_config
+                # Convert to dict for proper validation
+                template_data['discord_config'] = discord_config.model_dump()
                 
-                active_profile = AgentProfile(**profile_data)
-                app_config.agent_profiles[profile_name] = active_profile
-            else:
-                merged_data = _merge_configs(base_config_data, profile_data)
-                app_config = AppConfig(**merged_data)
+                active_template = AgentTemplate(**template_data)
+                app_config.agent_templates[template_name] = active_template
 
         
         return app_config

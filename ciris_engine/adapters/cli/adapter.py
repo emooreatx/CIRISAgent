@@ -14,6 +14,11 @@ class CliPlatform(PlatformAdapter):
     def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
         self.runtime = runtime
         
+        # Generate stable adapter_id
+        import os
+        import socket
+        self.adapter_id = f"cli:{os.getenv('USER', 'unknown')}@{socket.gethostname()}"
+        
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
             self.config = kwargs["adapter_config"]
             logger.info(f"CLI adapter using provided config: interactive={self.config.interactive}")
@@ -22,12 +27,16 @@ class CliPlatform(PlatformAdapter):
             if "interactive" in kwargs:
                 self.config.interactive = bool(kwargs["interactive"])
             
-            profile = getattr(runtime, 'agent_profile', None)
-            if profile and profile.cli_config:
-                for key, value in profile.cli_config.dict().items():
-                    if hasattr(self.config, key):
-                        setattr(self.config, key, value)
-                        logger.debug(f"CliPlatform: Set config {key} = {value} from profile")
+            template = getattr(runtime, 'template', None)
+            if template and hasattr(template, 'cli_config') and template.cli_config:
+                try:
+                    config_dict = template.cli_config.dict() if hasattr(template.cli_config, 'dict') else {}
+                    for key, value in config_dict.items():
+                        if hasattr(self.config, key):
+                            setattr(self.config, key, value)
+                            logger.debug(f"CliPlatform: Set config {key} = {value} from template")
+                except Exception as e:
+                    logger.debug(f"CliPlatform: Could not load config from template: {e}")
             
             self.config.load_env_vars()
         

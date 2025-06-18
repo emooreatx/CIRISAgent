@@ -34,8 +34,8 @@ class ConfigManager:
                 obj = getattr(obj, part)
             setattr(obj, parts[-1], value)
 
-    async def reload_profile(self, profile_name: str, config_path: Path | None = None) -> None:
-        """Hot-reload agent profile."""
-        new_config = await ConfigLoader.load_config(config_path, profile_name)
+    async def reload_template(self, template_name: str, config_path: Path | None = None) -> None:
+        """Hot-reload agent template."""
+        new_config = await ConfigLoader.load_config(config_path, template_name)
         async with self._lock:
             self._config = new_config

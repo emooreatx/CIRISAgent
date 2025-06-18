@@ -5,6 +5,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, Disp
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
 from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
+from ciris_engine.utils.channel_utils import create_channel_context
 
 # Rebuild models with resolved references
 try:
@@ -52,7 +53,7 @@ def test_memorize_handler_with_new_schema(monkeypatch):
     # Create proper DispatchContext
     from datetime import datetime
     dispatch_context = DispatchContext(
-        channel_id="test_channel",
+        channel_context=create_channel_context("test_channel"),
         author_id="test_author",
         author_name="Test Author",
         origin_service="test_service",
@@ -111,7 +112,7 @@ def test_memorize_handler_with_old_schema(monkeypatch):
     # Create proper DispatchContext for old schema test
     from datetime import datetime
     dispatch_context = DispatchContext(
-        channel_id="test_channel",
+        channel_context=create_channel_context("test_channel"),
         author_id="test_author",
         author_name="Test Author",
         origin_service="test_service",

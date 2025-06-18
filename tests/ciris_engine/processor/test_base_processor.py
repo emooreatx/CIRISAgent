@@ -8,6 +8,22 @@ from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, ThoughtType
 
+# Import adapter configs to resolve forward references
+try:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
+except ImportError:
+    DiscordAdapterConfig = type('DiscordAdapterConfig', (), {})
+    APIAdapterConfig = type('APIAdapterConfig', (), {})
+    CLIAdapterConfig = type('CLIAdapterConfig', (), {})
+
+# Rebuild models with resolved references
+try:
+    AppConfig.model_rebuild()
+except Exception:
+    pass
+
 
 class DummyProcessor(BaseProcessor):
     def get_supported_states(self):
@@ -41,10 +57,37 @@ async def test_dispatch_action_success():
 
     result = object()
     thought = object()
-    ctx = {"a": 1}
+    from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ChannelContext
+    from datetime import datetime, timezone
+    ctx = {
+        "channel_context": ChannelContext(channel_id="test_channel", channel_name="Test Channel"),
+        "author_id": "test_author",
+        "author_name": "Test Author",
+        "origin_service": "test_service",
+        "handler_name": "test_handler",
+        "action_type": HandlerActionType.SPEAK,
+        "thought_id": "test_thought",
+        "task_id": "test_task",
+        "source_task_id": "test_source_task",
+        "event_summary": "Test dispatch action",
+        "event_timestamp": datetime.now(timezone.utc).isoformat(),
+        "round_number": 1,
+        "correlation_id": "test_correlation_123"
+    }
 
     assert await proc.dispatch_action(result, thought, ctx)
-    ad.dispatch.assert_awaited_with(action_selection_result=result, thought=thought, dispatch_context=ctx)
+    # The dispatch method is called with a DispatchContext object, not the dict
+    from ciris_engine.schemas.foundational_schemas_v1 import DispatchContext
+    expected_ctx = DispatchContext(**ctx)
+    # Check that dispatch was called with correct parameters
+    ad.dispatch.assert_awaited_once()
+    call_args = ad.dispatch.call_args
+    assert call_args.kwargs['action_selection_result'] == result
+    assert call_args.kwargs['thought'] == thought
+    # Compare the dispatch context fields
+    actual_ctx = call_args.kwargs['dispatch_context']
+    assert actual_ctx.channel_context == expected_ctx.channel_context
+    assert actual_ctx.author_id == expected_ctx.author_id
     assert proc.metrics["errors"] == 0
 
 
@@ -55,7 +98,24 @@ async def test_dispatch_action_failure():
     tp = AsyncMock()
     proc = DummyProcessor(AppConfig(), tp, ad, {})
 
-    ok = await proc.dispatch_action(object(), object(), {})
+    from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ChannelContext
+    from datetime import datetime, timezone
+    ctx = {
+        "channel_context": ChannelContext(channel_id="test_channel", channel_name="Test Channel"),
+        "author_id": "test_author",
+        "author_name": "Test Author",
+        "origin_service": "test_service",
+        "handler_name": "test_handler",
+        "action_type": HandlerActionType.SPEAK,
+        "thought_id": "test_thought",
+        "task_id": "test_task",
+        "source_task_id": "test_source_task",
+        "event_summary": "Test dispatch action",
+        "event_timestamp": datetime.now(timezone.utc).isoformat(),
+        "round_number": 1,
+        "correlation_id": "test_correlation_123"
+    }
+    ok = await proc.dispatch_action(object(), object(), ctx)
     assert not ok
     assert proc.metrics["errors"] == 1
 

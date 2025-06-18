@@ -6,6 +6,8 @@ if TYPE_CHECKING:
     from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
 
 from ciris_engine.schemas.foundational_schemas_v1 import DispatchContext, HandlerActionType
+from ciris_engine.schemas.context_schemas_v1 import ChannelContext
+from ciris_engine.utils.channel_utils import create_channel_context
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,7 @@ def build_dispatch_context(
         origin_service = "discord"
     
     # Extract task context
-    channel_id = None
+    channel_context = None
     author_id = None
     author_name = None
     task_id = None
@@ -61,25 +63,30 @@ def build_dispatch_context(
         if hasattr(task, "context"):
             # Handle both dict and ThoughtContext objects
             if isinstance(task.context, dict):
+                # Legacy dict format - create ChannelContext
                 channel_id = task.context.get("channel_id")
+                if channel_id:
+                    channel_context = create_channel_context(channel_id)
                 author_id = task.context.get("author_id")
                 author_name = task.context.get("author_name")
             elif hasattr(task.context, "system_snapshot"):
                 # ThoughtContext object
                 if task.context.system_snapshot:
-                    channel_id = task.context.system_snapshot.channel_id
+                    channel_context = task.context.system_snapshot.channel_context
                     # SystemSnapshot doesn't have user_id/user_name - these come from user_profiles
                     # For wakeup tasks, we don't have a specific user
                     author_id = None
                     author_name = None
     
     # Check extra_context for channel_id as fallback
-    if channel_id is None and extra_context:
+    if channel_context is None and extra_context:
         channel_id = extra_context.get("channel_id")
+        if channel_id:
+            channel_context = create_channel_context(channel_id)
     
-    # Channel ID is required
-    if channel_id is None:
-        raise ValueError(f"No channel_id found for thought {thought_id}. Adapters must provide channel_id in task context.")
+    # Channel context is required
+    if channel_context is None:
+        raise ValueError(f"No channel context found for thought {thought_id}. Adapters must provide channel_id in task context.")
     
     # Extract additional fields from extra_context
     wa_id = None
@@ -98,7 +105,7 @@ def build_dispatch_context(
     # Create the DispatchContext object with defaults for None values
     dispatch_context = DispatchContext(
         # Core identification
-        channel_id=str(channel_id),
+        channel_context=channel_context,
         author_id=author_id or "unknown",
         author_name=author_name or "Unknown",
         

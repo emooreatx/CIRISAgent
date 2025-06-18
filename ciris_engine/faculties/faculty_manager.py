@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional, List
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import LLMService
 from ciris_engine.protocols.faculties import EpistemicFaculty
+from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
 from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult
 from . import epistemic as epi_helpers
@@ -21,7 +22,7 @@ class EntropyFaculty(EpistemicFaculty):
         self.model_name = model_name
 
     async def _get_llm(self) -> Optional[LLMService]:
-        return await self.service_registry.get_service(self.__class__.__name__, "llm")
+        return await self.service_registry.get_service(self.__class__.__name__, ServiceType.LLM)
 
     async def evaluate(self, content: str, context: Optional[Dict[str, Any]] = None) -> EntropyResult:
         llm = await self._get_llm()
@@ -51,7 +52,7 @@ class CoherenceFaculty(EpistemicFaculty):
         self.model_name = model_name
 
     async def _get_llm(self) -> Optional[LLMService]:
-        return await self.service_registry.get_service(self.__class__.__name__, "llm")
+        return await self.service_registry.get_service(self.__class__.__name__, ServiceType.LLM)
 
     async def evaluate(self, content: str, context: Optional[Dict[str, Any]] = None) -> CoherenceResult:
         llm = await self._get_llm()
@@ -81,7 +82,7 @@ class OptimizationVetoFaculty(EpistemicFaculty):
         self.model_name = model_name
 
     async def _get_llm(self) -> Optional[LLMService]:
-        return await self.service_registry.get_service(self.__class__.__name__, "llm")
+        return await self.service_registry.get_service(self.__class__.__name__, ServiceType.LLM)
 
     async def evaluate(self, content: str, context: Optional[Dict[str, Any]] = None) -> OptimizationVetoResult:
         """Evaluate action for optimization veto.
@@ -132,7 +133,7 @@ class EpistemicHumilityFaculty(EpistemicFaculty):
         self.model_name = model_name
 
     async def _get_llm(self) -> Optional[LLMService]:
-        return await self.service_registry.get_service(self.__class__.__name__, "llm")
+        return await self.service_registry.get_service(self.__class__.__name__, ServiceType.LLM)
 
     async def evaluate(self, content: str, context: Optional[Dict[str, Any]] = None) -> EpistemicHumilityResult:
         """Evaluate action for epistemic humility.

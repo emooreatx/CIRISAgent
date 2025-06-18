@@ -27,16 +27,16 @@ class StateManager:
     """Manages agent state transitions and state-specific behaviors."""
     
     VALID_TRANSITIONS = [
-        StateTransition(AgentState.SHUTDOWN, AgentState.WAKEUP),
-        StateTransition(AgentState.SHUTDOWN, AgentState.WORK),
-        StateTransition(AgentState.SHUTDOWN, AgentState.DREAM),
-        StateTransition(AgentState.SHUTDOWN, AgentState.PLAY),
-        StateTransition(AgentState.SHUTDOWN, AgentState.SOLITUDE),
+        # Transitions TO shutdown from any state
         StateTransition(AgentState.WAKEUP, AgentState.SHUTDOWN),
         StateTransition(AgentState.WORK, AgentState.SHUTDOWN),
         StateTransition(AgentState.DREAM, AgentState.SHUTDOWN),
         StateTransition(AgentState.PLAY, AgentState.SHUTDOWN),
         StateTransition(AgentState.SOLITUDE, AgentState.SHUTDOWN),
+        # Special startup transition - only allowed during initialization
+        StateTransition(AgentState.SHUTDOWN, AgentState.WAKEUP),
+        
+        # Other valid transitions
         StateTransition(AgentState.WAKEUP, AgentState.WORK),
         StateTransition(AgentState.WAKEUP, AgentState.DREAM),
         StateTransition(AgentState.WORK, AgentState.DREAM),
@@ -55,6 +55,12 @@ class StateManager:
         self._transition_map = self._build_transition_map()
         
         self._record_state_change(initial_state, None)
+        
+        # Initialize metadata for the initial state
+        self.state_metadata[initial_state] = {
+            "entered_at": datetime.now(timezone.utc).isoformat(),
+            "metrics": {}
+        }
     
     def _build_transition_map(self) -> Dict[AgentState, Dict[AgentState, StateTransition]]:
         """Build a map for quick transition lookups."""
@@ -94,6 +100,16 @@ class StateManager:
         Attempt to transition to a new state.
         Returns True if successful, False otherwise.
         """
+        # CRITICAL: Only allow SHUTDOWN -> WAKEUP transition for startup
+        if self.current_state == AgentState.SHUTDOWN:
+            if target_state != AgentState.WAKEUP:
+                logger.warning(
+                    f"Attempted transition from SHUTDOWN to {target_state.value} - blocked! "
+                    "Only WAKEUP transition is allowed from SHUTDOWN."
+                )
+                return False
+            # Allow SHUTDOWN -> WAKEUP for startup sequence
+            
         if not self.can_transition_to(target_state):
             logger.warning(
                 f"Invalid state transition attempted: {self.current_state.value} -> {target_state.value}"
@@ -156,6 +172,10 @@ class StateManager:
         Check if an automatic state transition should occur.
         Returns the target state if a transition should happen, None otherwise.
         """
+        # NEVER auto-transition from SHUTDOWN state
+        if self.current_state == AgentState.SHUTDOWN:
+            return None
+            
         if self.current_state == AgentState.WAKEUP:
             # After successful wakeup, transition to WORK
             if self.get_state_metadata().get("wakeup_complete", False):

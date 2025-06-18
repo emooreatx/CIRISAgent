@@ -22,6 +22,7 @@ from ciris_engine.schemas.dma_results_v1 import (
 from ciris_engine.schemas.processing_schemas_v1 import DMAResults
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 from ciris_engine.registries.circuit_breaker import CircuitBreaker
+from ciris_engine.utils.channel_utils import extract_channel_id
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 
@@ -231,17 +232,17 @@ class DMAOrchestrator:
         
         channel_id = None
         
-        if hasattr(actual_thought, 'context') and isinstance(actual_thought.context, dict):
-            channel_id = actual_thought.context.get('channel_id')  # type: ignore[unreachable]
-        
-        if not channel_id and processing_context.system_snapshot:
-            channel_id = processing_context.system_snapshot.channel_id
+        # Try to get channel_id from various sources
+        if processing_context.system_snapshot and processing_context.system_snapshot.channel_context:
+            channel_id = extract_channel_id(processing_context.system_snapshot.channel_context)
         
         if not channel_id and processing_context.initial_task_context:
-            channel_id = getattr(processing_context.initial_task_context, 'channel_id', None)
+            channel_context = getattr(processing_context.initial_task_context, 'channel_context', None)
+            if channel_context:
+                channel_id = extract_channel_id(channel_context)
         
         
-        triaged.setdefault("current_ponder_count", actual_thought.ponder_count)
+        triaged.setdefault("current_thought_depth", actual_thought.thought_depth)
         
         if self.app_config and hasattr(self.app_config, 'workflow'):
             triaged.setdefault("max_rounds", self.app_config.workflow.max_rounds)

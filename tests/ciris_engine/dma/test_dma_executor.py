@@ -106,7 +106,7 @@ async def test_run_csdma():
 @pytest.mark.asyncio
 async def test_run_dsdma():
     dsdma = MagicMock()
-    dsdma.evaluate_thought = AsyncMock(return_value="ok")
+    dsdma.evaluate = AsyncMock(return_value="ok")
     result = await run_dsdma(dsdma, "item")
     assert result == "ok"
 

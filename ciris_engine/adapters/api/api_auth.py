@@ -413,6 +413,7 @@ class APIAuthRoutes:
             from ciris_engine.schemas.identity_schemas_v1 import (
                 AgentIdentityRoot, CoreProfile, IdentityMetadata
             )
+            from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
             
             identity_hash = hashlib.sha256(
                 f"{full_agent_id}:{agent_config['purpose']}:{agent_config['description']}".encode()
@@ -425,7 +426,8 @@ class APIAuthRoutes:
                     description=agent_config['description'],
                     role_description=agent_config['purpose'],
                     domain_specific_knowledge=agent_config['domain_specific_knowledge'],
-                    dsdma_prompt_template=None  # Optional field, can be customized later
+                    dsdma_prompt_template=None,  # Optional field, can be customized later
+                    last_shutdown_memory=None
                 ),
                 identity_metadata=IdentityMetadata(
                     created_at=timestamp.isoformat(),
@@ -437,7 +439,7 @@ class APIAuthRoutes:
                     approved_by=creator_wa_id,  # WA self-approves
                     approval_timestamp=timestamp.isoformat()
                 ),
-                allowed_capabilities=agent_config['expected_capabilities'],
+                permitted_actions=[HandlerActionType(cap) for cap in agent_config['expected_capabilities']],
                 restricted_capabilities=[
                     "identity_change_without_approval",
                     "profile_switching",

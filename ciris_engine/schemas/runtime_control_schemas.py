@@ -91,11 +91,11 @@ class ConfigGetRequest(BaseModel):
     include_sensitive: bool = Field(default=False, description="Include sensitive values (requires auth)")
 
 
-class ProfileReloadRequest(BaseModel):
-    """Request to reload an agent profile."""
-    profile_name: str = Field(..., description="Name of the profile to load")
+class TemplateReloadRequest(BaseModel):
+    """Request to reload an agent template."""
+    template_name: str = Field(..., description="Name of the template to load")
     config_path: Optional[str] = Field(None, description="Optional custom config path")
-    scope: ConfigScope = Field(default=ConfigScope.SESSION, description="Scope of the profile change")
+    scope: ConfigScope = Field(default=ConfigScope.SESSION, description="Scope of the template change")
 
 
 class ConfigValidationRequest(BaseModel):
@@ -163,9 +163,9 @@ class RuntimeStateSnapshot(BaseModel):
     system_health: str
 
 
-# Agent Profile Management Schemas
-class AgentProfileInfo(BaseModel):
-    """Information about an agent profile."""
+# Agent Template Management Schemas
+class AgentTemplateInfo(BaseModel):
+    """Information about an agent template."""
     name: str
     description: Optional[str] = None
     file_path: str
@@ -176,37 +176,37 @@ class AgentProfileInfo(BaseModel):
     modified_time: Optional[datetime] = None
 
 
-class AgentProfileCreateRequest(BaseModel):
-    """Request to create a new agent profile."""
-    name: str = Field(..., description="Profile name")
-    description: Optional[str] = Field(None, description="Profile description")
-    base_profile: Optional[str] = Field(None, description="Base profile to inherit from")
-    config: Dict[str, Any] = Field(..., description="Profile configuration")
-    save_to_file: bool = Field(default=True, description="Save profile to file")
+class AgentTemplateCreateRequest(BaseModel):
+    """Request to create a new agent template."""
+    name: str = Field(..., description="Template name")
+    description: Optional[str] = Field(None, description="Template description")
+    base_template: Optional[str] = Field(None, description="Base template to inherit from")
+    config: Dict[str, Any] = Field(..., description="Template configuration")
+    save_to_file: bool = Field(default=True, description="Save template to file")
 
 
-class AgentProfileUpdateRequest(BaseModel):
-    """Request to update an agent profile."""
-    name: str = Field(..., description="Profile name to update")
+class AgentTemplateUpdateRequest(BaseModel):
+    """Request to update an agent template."""
+    name: str = Field(..., description="Template name to update")
     config_updates: Dict[str, Any] = Field(..., description="Configuration updates to apply")
     merge_strategy: str = Field(default="merge", description="How to apply updates: merge, replace")
     save_to_file: bool = Field(default=True, description="Save changes to file")
 
 
-class AgentProfileResponse(BaseModel):
-    """Response from agent profile operations."""
+class AgentTemplateResponse(BaseModel):
+    """Response from agent template operations."""
     success: bool
-    profile_name: str
+    template_name: str
     operation: str
     timestamp: datetime
     message: Optional[str] = None
     error: Optional[str] = None
-    profile_info: Optional[AgentProfileInfo] = None
+    template_info: Optional[AgentTemplateInfo] = None
 
 
 class ConfigBackupRequest(BaseModel):
     """Request to backup configuration."""
-    include_profiles: bool = Field(default=True, description="Include agent profiles")
+    include_templates: bool = Field(default=True, description="Include agent templates")
     backup_name: Optional[str] = Field(None, description="Custom backup name")
 
 

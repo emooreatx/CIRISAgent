@@ -1,0 +1,17 @@
+
+================================================================================
+🔍 LOGGING INITIALIZED - SEE DETAILED LOGS AT: logs/ciris_agent_20250616_191339.log
+🔗 Symlinked to: logs/latest.log
+================================================================================
+
+
+[CIRIS CLI] Interactive mode started. Type 'help' for commands or 'quit' to exit.
+
+[STATE] Transition: shutdown -> wakeup
+[DISPATCHER] Handler SpeakHandler completed for action speak on thought 48c33add-e0b6-41d5-a934-beeb80198666 - created follow-up thought 1135c954-fcc6-4190-8804-c82b073c989b
+[DISPATCHER] Handler SpeakHandler completed for action speak on thought 4b2eaf30-6056-44a4-a22a-46623707d8f1 - created follow-up thought 60dcc1cb-86fe-4c94-bca9-32ca0856f807
+[DISPATCHER] Handler SpeakHandler completed for action speak on thought 1ec1a275-5099-4dab-a3b4-18eedd46dfe9 - created follow-up thought f860bff5-83f2-4770-b877-06f03fde0af2
+[DISPATCHER] Handler SpeakHandler completed for action speak on thought df08df2b-a9b8-4ee3-93ae-7b6eeef63b84 - created follow-up thought f0f7b9d7-6050-409c-8ebc-054a424dd432
+[DISPATCHER] Handler SpeakHandler completed for action speak on thought 8b1e1604-8205-42b7-959d-6559deade6b0 - created follow-up thought 285f5741-5417-4dda-92d6-b853ceb86b01
+
+[CIRIS CLI] Shutting down... Press Enter to return to prompt.

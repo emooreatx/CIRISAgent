@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional
 
 from ciris_engine.schemas import Thought, SpeakParams, ThoughtStatus, HandlerActionType, ActionSelectionResult, DispatchContext
 from ciris_engine import persistence
+from ciris_engine.utils.channel_utils import extract_channel_id, create_channel_context
 from .base_handler import BaseActionHandler, ActionHandlerDependencies
 from .helpers import create_follow_up_thought
 from .exceptions import FollowUpCreationError
@@ -19,12 +20,13 @@ def _build_speak_error_context(params: SpeakParams, thought_id: str, error_type:
         content_str = getattr(params.content, 'value', str(params.content))
     elif hasattr(params.content, '__str__'):
         content_str = str(params.content)
+    channel_id = extract_channel_id(params.channel_context) or "unknown"
     error_contexts = {
-        "notification_failed": f"Failed to send notification to channel '{params.channel_id}' with content: '{content_str[:100]}{'...' if len(content_str) > 100 else ''}'",
-        "channel_unavailable": f"Channel '{params.channel_id}' is not available or accessible",
+        "notification_failed": f"Failed to send notification to channel '{channel_id}' with content: '{content_str[:100]}{'...' if len(content_str) > 100 else ''}'",
+        "channel_unavailable": f"Channel '{channel_id}' is not available or accessible",
         "content_rejected": f"Content was rejected by the communication service: '{content_str[:100]}{'...' if len(content_str) > 100 else ''}'",
-        "service_timeout": f"Communication service timed out while sending to channel '{params.channel_id}'",
-        "unknown": f"Unknown error occurred while speaking to channel '{params.channel_id}'"
+        "service_timeout": f"Communication service timed out while sending to channel '{channel_id}'",
+        "unknown": f"Unknown error occurred while speaking to channel '{channel_id}'"
     }
     
     base_context = error_contexts.get(error_type, error_contexts["unknown"])
@@ -74,8 +76,13 @@ class SpeakHandler(BaseActionHandler):
                 await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, fe)
                 raise FollowUpCreationError from fe
 
-        if not params.channel_id:  # type: ignore[attr-defined]
-            params.channel_id = await self._get_channel_id(thought, dispatch_context) or self.snore_channel_id  # type: ignore[attr-defined]
+        # Get channel context if not provided
+        if not params.channel_context:  # type: ignore[attr-defined]
+            channel_id = await self._get_channel_id(thought, dispatch_context) or self.snore_channel_id
+            params.channel_context = create_channel_context(channel_id)  # type: ignore[attr-defined]
+        
+        # Extract channel ID for legacy usage
+        channel_id = extract_channel_id(params.channel_context)  # type: ignore[attr-defined]
 
         event_summary = params.content  # type: ignore[attr-defined]
         await self._audit_log(
@@ -86,7 +93,7 @@ class SpeakHandler(BaseActionHandler):
 
         # Extract string from GraphNode for notification
         content_str = params.content.attributes.get('text', str(params.content)) if hasattr(params.content, 'attributes') else str(params.content)  # type: ignore[attr-defined]
-        success = await self._send_notification(params.channel_id, content_str)  # type: ignore[attr-defined]
+        success = await self._send_notification(channel_id or "unknown", content_str)
 
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
         
@@ -119,7 +126,7 @@ class SpeakHandler(BaseActionHandler):
             request_data={
                 "task_id": thought.source_task_id,
                 "thought_id": thought_id,
-                "channel_id": params.channel_id,
+                "channel_id": channel_id,
                 "content": str(params.content)
             },
             response_data={"success": success, "final_status": final_thought_status.value},
@@ -133,7 +140,7 @@ class SpeakHandler(BaseActionHandler):
             f"""
             NEXT ACTION IS TASK COMPLETE!
             CIRIS_FOLLOW_UP_THOUGHT: YOU Spoke, as a result of your action: '{params.content}' in channel
-            {params.channel_id} as a response to task: {task_description}. The next
+            {channel_id} as a response to task: {task_description}. The next
             action is probably TASK COMPLETE to mark the original task as handled.
             Do NOT speak again unless DRASTICALLY necessary.
             NEXT ACTION IS TASK COMPLETE UNLESS YOU NEED TO MEMORIZE SOMETHING!
@@ -168,9 +175,9 @@ class SpeakHandler(BaseActionHandler):
         if hasattr(thought, "context"):
             if not thought.context:
                 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
-                thought.context = ThoughtContext(system_snapshot=SystemSnapshot(channel_id=params.channel_id))
+                thought.context = ThoughtContext(system_snapshot=SystemSnapshot(channel_context=params.channel_context))
             if not getattr(thought.context.system_snapshot, "channel_id", None):
-                thought.context.system_snapshot.channel_id = params.channel_id
+                thought.context.system_snapshot.channel_context = params.channel_context
         
         return follow_up_thought_id
 

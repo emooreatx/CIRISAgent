@@ -14,8 +14,8 @@ class DummyDSDMA(factory.BaseDSDMA):
         super().__init__(*args, **kwargs)
 
 @pytest.mark.asyncio
-async def test_create_dsdma_from_profile_valid(monkeypatch):
-    profile = types.SimpleNamespace(
+async def test_create_dsdma_from_identity_valid(monkeypatch):
+    identity = types.SimpleNamespace(
         dsdma_identifier="DummyDSDMA",
         name="test-domain",
         dsdma_kwargs={"prompt_template": "tmpl", "domain_specific_knowledge": {"foo": "bar"}}
@@ -24,68 +24,52 @@ async def test_create_dsdma_from_profile_valid(monkeypatch):
     dummy_service = SimpleNamespace(get_client=lambda: None)
     service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
     monkeypatch.setitem(factory.DSDMA_CLASS_REGISTRY, "DummyDSDMA", DummyDSDMA)
-    dsdma = await factory.create_dsdma_from_profile(profile, service_registry, model_name="m")
-    assert isinstance(dsdma, DummyDSDMA)
+    dsdma = await factory.create_dsdma_from_identity(identity, service_registry, model_name="m")
+    # Factory now always returns BaseDSDMA, not custom classes
+    assert isinstance(dsdma, factory.BaseDSDMA)
     assert dsdma.domain_name == "test-domain"
     assert dsdma.model_name == "m"
     assert dsdma.prompt_template == "tmpl"
     assert dsdma.domain_specific_knowledge == {"foo": "bar"}
 
 @pytest.mark.asyncio
-async def test_create_dsdma_from_profile_none_profile(monkeypatch):
-    default_profile = types.SimpleNamespace(
-        dsdma_identifier="DummyDSDMA",
-        name="default-domain",
-        dsdma_kwargs={}
-    )
+async def test_create_dsdma_from_identity_none_raises_error(monkeypatch):
+    # Test that passing None identity raises an error
     service_registry = ServiceRegistry()
     dummy_service = SimpleNamespace(get_client=lambda: None)
     service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
-    monkeypatch.setitem(factory.DSDMA_CLASS_REGISTRY, "DummyDSDMA", DummyDSDMA)
-    monkeypatch.setattr(factory, "load_profile", AsyncMock(return_value=default_profile))
-    dsdma = await factory.create_dsdma_from_profile(None, service_registry)
-    assert isinstance(dsdma, DummyDSDMA)
-    assert dsdma.domain_name == "default-domain"
+    
+    # Factory now raises error when identity is None - agent has no identity
+    with pytest.raises(RuntimeError, match="Cannot create DSDMA without agent identity"):
+        await factory.create_dsdma_from_identity(None, service_registry)
 
 @pytest.mark.asyncio
-async def test_create_dsdma_from_profile_missing_identifier(monkeypatch):
-    profile = types.SimpleNamespace(
+async def test_create_dsdma_from_identity_missing_identifier(monkeypatch):
+    # Test with identity that has no dsdma_identifier (which is fine since we always use BaseDSDMA)
+    identity = types.SimpleNamespace(
         dsdma_identifier=None,
         name="no-id-domain",
         dsdma_kwargs={}
     )
-    default_profile = types.SimpleNamespace(
-        dsdma_identifier="DummyDSDMA",
-        name="default-domain",
-        dsdma_kwargs={}
-    )
     service_registry = ServiceRegistry()
     dummy_service = SimpleNamespace(get_client=lambda: None)
     service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
-    monkeypatch.setitem(factory.DSDMA_CLASS_REGISTRY, "DummyDSDMA", DummyDSDMA)
-    monkeypatch.setattr(factory, "load_profile", AsyncMock(return_value=default_profile))
-    dsdma = await factory.create_dsdma_from_profile(profile, service_registry)
-    assert isinstance(dsdma, DummyDSDMA)
-    assert dsdma.domain_name == "default-domain"
+    dsdma = await factory.create_dsdma_from_identity(identity, service_registry)
+    assert isinstance(dsdma, factory.BaseDSDMA)
+    assert dsdma.domain_name == "no-id-domain"
 
 @pytest.mark.asyncio
-async def test_create_dsdma_from_profile_unknown_identifier(monkeypatch):
-    profile = types.SimpleNamespace(
+async def test_create_dsdma_from_identity_always_uses_base_dsdma(monkeypatch):
+    # Test that even with unknown identifier, it still creates BaseDSDMA
+    identity = types.SimpleNamespace(
         dsdma_identifier="UnknownDSDMA",
-        name="bad-domain",
+        name="any-domain",
         dsdma_kwargs={}
     )
     service_registry = ServiceRegistry()
     dummy_service = SimpleNamespace(get_client=lambda: None)
     service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
-    dsdma = await factory.create_dsdma_from_profile(profile, service_registry)
-    assert dsdma is None
+    dsdma = await factory.create_dsdma_from_identity(identity, service_registry)
+    assert isinstance(dsdma, factory.BaseDSDMA)
+    assert dsdma.domain_name == "any-domain"
 
-@pytest.mark.asyncio
-async def test_create_dsdma_from_profile_default_profile_missing(monkeypatch):
-    monkeypatch.setattr(factory, "load_profile", AsyncMock(return_value=None))
-    service_registry = ServiceRegistry()
-    dummy_service = SimpleNamespace(get_client=lambda: None)
-    service_registry.register_global("llm", dummy_service, priority=Priority.HIGH)
-    dsdma = await factory.create_dsdma_from_profile(None, service_registry)
-    assert dsdma is None

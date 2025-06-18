@@ -123,7 +123,7 @@ class MockLLMService:
             response_instance = response_model(content=response_text)
         else:
             # Try to create a simple response with the first field
-            fields = list(response_model.__fields__.keys()) if hasattr(response_model, '__fields__') else []
+            fields = list(response_model.model_fields.keys()) if hasattr(response_model, 'model_fields') else []
             if fields:
                 response_instance = response_model(**{fields[0]: response_text})
             else:
@@ -260,7 +260,7 @@ async def test_discord_observer_priority_filtering(discord_observer, filter_serv
 
 @pytest.mark.asyncio
 async def test_multi_service_sink_llm_filtering(multi_service_sink, filter_service, llm_service):
-    """Test that multi-service sink properly filters LLM responses"""
+    """Test that multi-service sink handles LLM responses (filtering disabled for beta)"""
     
     # Create a simple response model
     from pydantic import BaseModel
@@ -288,9 +288,10 @@ async def test_multi_service_sink_llm_filtering(multi_service_sink, filter_servi
     # response is a tuple (response_model, resource_usage)
     response_model, _ = response
     assert response_model.content == llm_service.responses["normal"]  # Normal response for normal request
-    assert filter_service.call_count == 1  # Filter was called
+    # LLM filtering disabled for beta - filter service should NOT be called
+    assert filter_service.call_count == 0
     
-    # Test malicious LLM response blocking
+    # Test that even "malicious" content passes through (no filtering in beta)
     filter_service.call_count = 0
     malicious_action = GenerateStructuredAction(
         handler_name="test",
@@ -301,21 +302,22 @@ async def test_multi_service_sink_llm_filtering(multi_service_sink, filter_servi
         temperature=0.7
     )
     
-    # This should raise an exception due to filtering
-    with pytest.raises(RuntimeError, match="Structured LLM response blocked"):
-        await multi_service_sink.generate_structured_sync(
-            messages=malicious_action.messages,
-            response_model=malicious_action.response_model,
-            max_tokens=malicious_action.max_tokens,
-            temperature=malicious_action.temperature
-        )
+    # This should NOT raise an exception since filtering is disabled
+    response = await multi_service_sink.generate_structured_sync(
+        messages=malicious_action.messages,
+        response_model=malicious_action.response_model,
+        max_tokens=malicious_action.max_tokens,
+        temperature=malicious_action.temperature
+    )
     
-    assert filter_service.call_count == 1
+    response_model, _ = response
+    assert response_model.content == llm_service.responses["malicious"]  # Content passes through
+    assert filter_service.call_count == 0  # No filtering in beta
 
 
 @pytest.mark.asyncio
 async def test_structured_llm_response_filtering(multi_service_sink, filter_service, llm_service):
-    """Test filtering of structured LLM responses"""
+    """Test structured LLM responses (filtering disabled for beta)"""
     
     # Create a proper Pydantic model for structured response
     from pydantic import BaseModel
@@ -344,7 +346,8 @@ async def test_structured_llm_response_filtering(multi_service_sink, filter_serv
     response_model, resource_usage = response
     assert response_model.status == "success"
     assert response_model.content == "Structured response"
-    assert filter_service.call_count == 1
+    # LLM filtering disabled for beta - filter service should NOT be called
+    assert filter_service.call_count == 0
 
 
 @pytest.mark.asyncio
@@ -443,17 +446,18 @@ def test_integration_summary():
     
     1. ✅ CLI Observer message filtering with priority handling
     2. ✅ Discord Observer priority filtering and context propagation  
-    3. ✅ Multi-service sink LLM response filtering via circuit breaker pattern
-    4. ✅ Structured LLM response filtering
+    3. ✅ Multi-service sink LLM response handling (filtering disabled for beta)
+    4. ✅ Structured LLM response handling (filtering disabled for beta)
     5. ✅ Error handling when filter service fails
     6. ✅ Fallback behavior when no filter service available
     7. ✅ Filter context propagation to tasks and thoughts
     
     The integrated system successfully:
     - Applies adaptive filtering at message entry points (CLI/Discord observers)
-    - Routes LLM actions through multi-service sink with filtering
-    - Uses existing circuit breaker infrastructure for protection
+    - Routes LLM actions through multi-service sink (without filtering in beta)
     - Handles errors gracefully with safe defaults
     - Propagates filter context for downstream processing
+    
+    Note: LLM response filtering has been disabled for the beta release
     """
     assert True  # Test passes to document integration coverage

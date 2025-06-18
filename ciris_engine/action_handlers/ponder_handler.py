@@ -24,16 +24,8 @@ class PonderHandler(BaseActionHandler):
             try:
                 max_rounds = get_config().workflow.max_rounds
             except Exception:
-                max_rounds = 5
+                max_rounds = 7
         self.max_rounds = max_rounds
-
-    def should_defer_for_max_rounds(
-        self,
-        thought: Thought,
-        current_ponder_count: int
-    ) -> bool:
-        """Check if thought has exceeded action round limits."""
-        return current_ponder_count >= self.max_rounds
 
     async def handle(
         self,
@@ -50,83 +42,21 @@ class PonderHandler(BaseActionHandler):
         # Note: epistemic_data handling removed - not part of typed DispatchContext
         # If epistemic data is needed, it should be passed through proper typed fields
         
-        current_ponder_count = thought.ponder_count
-        new_ponder_count = current_ponder_count + 1
+        current_thought_depth = thought.thought_depth
+        new_thought_depth = current_thought_depth + 1
         
-        logger.info(f"Thought ID {thought.thought_id} pondering (count: {new_ponder_count}). Questions: {questions_list}")
+        logger.info(f"Thought ID {thought.thought_id} pondering (depth: {new_thought_depth}). Questions: {questions_list}")
         
-        if new_ponder_count >= self.max_rounds:
-            logger.warning(f"Thought ID {thought.thought_id} has reached max rounds ({self.max_rounds}) after this ponder. Deferring to defer handler.")
-            
-            existing_notes = thought.ponder_notes or []
-            thought.ponder_notes = existing_notes + questions_list
-            
-            from ciris_engine.schemas.action_params_v1 import DeferParams
-            
-            defer_params = DeferParams(
-                reason=f"Maximum action rounds ({self.max_rounds}) reached after {new_ponder_count} actions. "
-                      f"This suggests the task either cannot be completed autonomously or requires human approval.",
-                context={"action_id": f"ponder_max_rounds_{thought.thought_id}"},
-                defer_until=None
-            )
-            defer_result = ActionSelectionResult(
-                selected_action=HandlerActionType.DEFER,
-                action_parameters=defer_params.model_dump(mode='json'),
-                rationale=f"Auto-defer after reaching max ponder count of {new_ponder_count}",
-                raw_llm_response=None
-            )
-            
-            # Get defer handler from service registry
-            defer_handler = None
-            if self.dependencies.service_registry:
-                defer_handler = await self.dependencies.service_registry.get_service(
-                    self.__class__.__name__,
-                    "action_handler"
-                )
-            if defer_handler:
-                enhanced_context = dispatch_context.model_copy(update={
-                    "max_rounds_reached": True,
-                    "attempted_action": "ponder_max_rounds",
-                    "ponder_count": new_ponder_count,
-                    "ponder_notes": questions_list
-                })
-                await defer_handler.handle(defer_result, thought, enhanced_context)
-                return None
-            else:
-                logger.error("Defer handler not available. Setting status to DEFERRED directly.")
-                persistence.update_thought_status(
-                    thought_id=thought.thought_id,
-                    status=ThoughtStatus.DEFERRED,
-                    final_action={
-                        "action": HandlerActionType.DEFER.value,
-                        "reason": f"Maximum action rounds ({self.max_rounds}) reached",
-                        "ponder_notes": questions_list,
-                        "ponder_count": new_ponder_count,
-                    },
-                )
-                thought.status = ThoughtStatus.DEFERRED
-                # Create a new dict with dispatch_context data and additional fields
-                audit_context = dispatch_context.model_dump()
-                audit_context.update({
-                    "thought_id": thought.thought_id,
-                    "status": ThoughtStatus.DEFERRED.value,
-                    "ponder_type": "max_rounds_defer_fallback"
-                })
-                await self._audit_log(
-                    HandlerActionType.PONDER,
-                    audit_context,
-                    outcome="deferred"
-                )
-                return None
-        else:
-            next_status = ThoughtStatus.COMPLETED
+        # The thought depth guardrail will handle max depth enforcement
+        # We just need to process the ponder normally
+        next_status = ThoughtStatus.COMPLETED
         
         success = persistence.update_thought_status(
             thought_id=thought.thought_id,
             status=next_status,
             final_action={
                 "action": HandlerActionType.PONDER.value,
-                "ponder_count": new_ponder_count,
+                "thought_depth": new_thought_depth,
                 "ponder_notes": questions_list,
             },
         )
@@ -136,7 +66,7 @@ class PonderHandler(BaseActionHandler):
             thought.ponder_notes = existing_notes + questions_list
             thought.status = next_status
             logger.info(
-                f"Thought ID {thought.thought_id} successfully updated (ponder_count: {new_ponder_count}) and marked for {next_status.value}."
+                f"Thought ID {thought.thought_id} successfully updated (thought_depth: {new_thought_depth}) and marked for {next_status.value}."
             )
             
             # Create a new dict with dispatch_context data and additional fields
@@ -144,7 +74,7 @@ class PonderHandler(BaseActionHandler):
             audit_context.update({
                 "thought_id": thought.thought_id,
                 "status": next_status.value,
-                "new_ponder_count": new_ponder_count,
+                "new_thought_depth": new_thought_depth,
                 "ponder_type": "reprocess"
             })
             await self._audit_log(
@@ -159,7 +89,7 @@ class PonderHandler(BaseActionHandler):
                 task_context = original_task.description
             
             follow_up_content = self._generate_ponder_follow_up_content(
-                task_context, questions_list, new_ponder_count, thought
+                task_context, questions_list, new_thought_depth, thought
             )
             from .helpers import create_follow_up_thought
             follow_up = create_follow_up_thought(
@@ -185,7 +115,7 @@ class PonderHandler(BaseActionHandler):
                 final_action={
                     "action": HandlerActionType.PONDER.value,
                     "error": "Failed to update for re-processing",
-                    "ponder_count": current_ponder_count
+                    "thought_depth": current_thought_depth
                 }
             )
             # Create a new dict with dispatch_context data and additional fields
@@ -215,15 +145,20 @@ class PonderHandler(BaseActionHandler):
                 parent=thought,
                 content=follow_up_content,
             )
-            ctx2 = {
+            # Update context properly
+            if follow_up.context:
+                context_data = follow_up.context.model_dump()
+            else:
+                context_data = {}
+            context_data.update({
                 "action_performed": HandlerActionType.PONDER.name,
                 "parent_task_id": thought.source_task_id,
                 "is_follow_up": True,
                 "ponder_notes": questions_list,
                 "error": "Failed to update for re-processing"
-            }
-            for k, v in ctx2.items():
-                setattr(follow_up.context, k, v)
+            })
+            from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
+            follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(follow_up)
             return None
     
@@ -231,47 +166,65 @@ class PonderHandler(BaseActionHandler):
         self, 
         task_context: str, 
         questions_list: list, 
-        ponder_count: int,
+        thought_depth: int,
         thought: Thought
     ) -> str:
         """Generate dynamic follow-up content based on ponder count and previous failures."""
         
         base_questions = questions_list.copy()
         
-        # Add ponder-count specific guidance
-        if ponder_count == 1:
+        # Add thought-depth specific guidance
+        if thought_depth == 1:
             follow_up_content = (
-                f"You are considering how to act on: \"{task_context}\"\n"
-                f"Initial concerns: {base_questions}\n"
-                f"Please re-evaluate and choose an appropriate response."
+                f"Continuing work on: \"{task_context}\"\n"
+                f"Current considerations: {base_questions}\n"
+                f"Please proceed with your next action."
             )
-        elif ponder_count == 2:
+        elif thought_depth == 2:
             follow_up_content = (
-                f"Second consideration for: \"{task_context}\"\n"
-                f"Previous concerns: {base_questions}\n"
-                f"Your first attempt didn't pass guardrails. Consider: "
-                f"1) Is a more conservative approach possible? "
-                f"2) Does this task actually need action, or can it be marked TASK_COMPLETE? "
-                f"3) Are you overthinking a simple request?"
+                f"Second action for: \"{task_context}\"\n"
+                f"Current focus: {base_questions}\n"
+                f"You've taken one action already. Continue making progress on this task."
             )
-        elif ponder_count == 3:
+        elif thought_depth == 3:
             follow_up_content = (
-                f"Third attempt at: \"{task_context}\"\n"
-                f"Ongoing concerns: {base_questions}\n"
-                f"Two previous attempts failed guardrails. Important questions: "
-                f"1) Is this task already complete or unnecessary? Consider TASK_COMPLETE. "
-                f"2) Are you making this more complex than needed? "
-                f"3) Only DEFER if this MUST be done and REQUIRES human approval."
+                f"Third action for: \"{task_context}\"\n"
+                f"Working on: {base_questions}\n"
+                f"You're making good progress with multiple actions. Keep going!"
             )
-        elif ponder_count >= 4:
+        elif thought_depth == 4:
             follow_up_content = (
-                f"Multiple attempts ({ponder_count}) at: \"{task_context}\"\n"
-                f"Persistent issues: {base_questions}\n"
-                f"After {ponder_count} attempts, strongly consider: "
-                f"1) TASK_COMPLETE - The task may be impossible, unnecessary, or already done "
-                f"2) TASK_COMPLETE - You may be overthinking a simple request "
-                f"3) DEFER - ONLY if this task absolutely MUST be done AND requires human approval "
-                f"Remember: Most tasks that can't be acted upon should be marked complete, not deferred."
+                f"Fourth action for: \"{task_context}\"\n"
+                f"Current needs: {base_questions}\n"
+                f"You've taken several actions (RECALL, OBSERVE, MEMORIZE, etc.). "
+                f"Continue if more work is needed, or consider if the task is complete."
+            )
+        elif thought_depth == 5:
+            follow_up_content = (
+                f"Fifth action for: \"{task_context}\"\n"
+                f"Addressing: {base_questions}\n"
+                f"You're deep into this task with multiple actions. Consider: "
+                f"1) Is the task nearly complete? "
+                f"2) Do you need just a few more steps? "
+                f"3) Remember: You have 7 actions total for this task."
+            )
+        elif thought_depth == 6:
+            follow_up_content = (
+                f"Sixth action for: \"{task_context}\"\n"
+                f"Final steps: {base_questions}\n"
+                f"You're approaching the action limit (7 total). Consider: "
+                f"1) Can you complete the task with one more action? "
+                f"2) Is the task essentially done and ready for TASK_COMPLETE? "
+                f"3) Tip: If you need more actions, someone can ask you to continue and you'll get 7 more!"
+            )
+        elif thought_depth >= 7:
+            follow_up_content = (
+                f"Seventh action for: \"{task_context}\"\n"
+                f"Final action: {base_questions}\n"
+                f"This is your last action for this task chain. You should either: "
+                f"1) TASK_COMPLETE - If the work is done or substantially complete "
+                f"2) DEFER - Only if you truly need human help to proceed "
+                f"Remember: If someone asks you to continue working on this, you'll get a fresh set of 7 actions!"
             )
         
         # Add context from previous ponder notes if available

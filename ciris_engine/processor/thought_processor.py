@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any, List
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
+from ciris_engine.utils.channel_utils import create_channel_context
 from ciris_engine.schemas import (
     ActionSelectionResult,
     Thought,
@@ -78,8 +79,8 @@ class ThoughtProcessor:
             thought_item.initial_context = thought_context
 
         # 3. Run DMAs
-        # profile_name is not an accepted argument by run_initial_dmas.
-        # If profile specific DMA behavior is needed, it might be part of thought_item's context
+        # template_name is not an accepted argument by run_initial_dmas.
+        # If template specific DMA behavior is needed, it might be part of thought_item's context
         # or run_initial_dmas and its sub-runners would need to be updated.
         # For now, removing profile_name to fix TypeError.
         # The dsdma_context argument is optional and defaults to None if not provided.
@@ -511,9 +512,15 @@ class ThoughtProcessor:
             from datetime import datetime, timezone
             import uuid
             
+            # Ensure we always have a channel context
+            channel_context = create_channel_context(context.get('channel_id', 'unknown'))
+            if channel_context is None:
+                channel_context = create_channel_context('unknown')
+            assert channel_context is not None  # For mypy
+            
             dispatch_ctx = DispatchContext(
                 # Core identification
-                channel_id=context.get('channel_id', 'unknown'),
+                channel_context=channel_context,
                 author_id=context.get('author_id', 'system'),
                 author_name=context.get('author_name', 'CIRIS System'),
                 

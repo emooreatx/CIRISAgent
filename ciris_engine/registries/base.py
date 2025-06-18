@@ -425,7 +425,7 @@ class ServiceRegistry:
                 logger.warning(f"Unknown service type: {service_type}")
                 return []
         else:
-            service_type_enum = service_type
+            service_type_enum = service_type  # type: ignore[unreachable]
         
         all_services = []
         

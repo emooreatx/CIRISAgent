@@ -8,6 +8,7 @@ from .core import (
     OptimizationVetoGuardrail,
     EpistemicHumilityGuardrail,
 )
+from .thought_depth_guardrail import ThoughtDepthGuardrail
 
 __all__ = [
     "GuardrailInterface",
@@ -16,4 +17,5 @@ __all__ = [
     "CoherenceGuardrail",
     "OptimizationVetoGuardrail",
     "EpistemicHumilityGuardrail",
+    "ThoughtDepthGuardrail",
 ]

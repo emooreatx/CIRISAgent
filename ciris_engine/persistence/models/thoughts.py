@@ -32,10 +32,10 @@ def add_thought(thought: Thought, db_path: Optional[str] = None) -> str:
     thought_dict = thought.model_dump(mode='json')
     sql = """
         INSERT INTO thoughts (thought_id, source_task_id, thought_type, status, created_at, updated_at,
-                              round_number, content, context_json, ponder_count, ponder_notes_json,
+                              round_number, content, context_json, thought_depth, ponder_notes_json,
                               parent_thought_id, final_action_json)
         VALUES (:thought_id, :source_task_id, :thought_type, :status, :created_at, :updated_at,
-                :round_number, :content, :context, :ponder_count, :ponder_notes, :parent_thought_id, :final_action)
+                :round_number, :content, :context, :thought_depth, :ponder_notes, :parent_thought_id, :final_action)
     """
     params = {
         **thought_dict,

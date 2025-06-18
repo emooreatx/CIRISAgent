@@ -67,22 +67,29 @@ class GuardrailOrchestrator:
                 overridden = True
                 override_reason = result.reason
                 
-                attempted_action_desc = self._describe_attempted_action(final_action)
-                questions = [
-                    f"I attempted to {attempted_action_desc}",
-                    result.reason or "Guardrail failed",
-                    "What alternative approach would better align with my principles?"
-                ]
-                
-                ponder_params = PonderParams(
-                    questions=questions
-                )
-                final_action = ActionSelectionResult(
-                    selected_action=HandlerActionType.PONDER,
-                    action_parameters=ponder_params.model_dump(mode="json"),
-                    rationale=f"Overridden by {entry.name}: Need to reconsider {attempted_action_desc}",
-                    confidence=0.3,
-                )
+                # Check if the guardrail provides a replacement action
+                if result.epistemic_data and "replacement_action" in result.epistemic_data:
+                    # Use the guardrail's suggested replacement action
+                    replacement_data = result.epistemic_data["replacement_action"]
+                    final_action = ActionSelectionResult.model_validate(replacement_data)
+                else:
+                    # Default behavior: create a PONDER action
+                    attempted_action_desc = self._describe_attempted_action(final_action)
+                    questions = [
+                        f"I attempted to {attempted_action_desc}",
+                        result.reason or "Guardrail failed",
+                        "What alternative approach would better align with my principles?"
+                    ]
+                    
+                    ponder_params = PonderParams(
+                        questions=questions
+                    )
+                    final_action = ActionSelectionResult(
+                        selected_action=HandlerActionType.PONDER,
+                        action_parameters=ponder_params.model_dump(mode="json"),
+                        rationale=f"Overridden by {entry.name}: Need to reconsider {attempted_action_desc}",
+                        confidence=0.3,
+                    )
                 break
 
         return GuardrailResult(
