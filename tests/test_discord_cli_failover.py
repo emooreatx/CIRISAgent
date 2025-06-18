@@ -25,14 +25,13 @@ def test_run_discord_uses_env(monkeypatch):
     monkeypatch.setattr(main, "_run_runtime", AsyncMock())
 
     import asyncio as real_asyncio
-    import types
 
     real_run = real_asyncio.run
 
     def fake_run(coro):
         real_run(coro)
 
-    monkeypatch.setattr(main, "asyncio", types.SimpleNamespace(run=fake_run))
+    monkeypatch.setattr("asyncio.run", fake_run)
 
     result = CliRunner().invoke(main.main, [])
     assert result.exit_code == 0

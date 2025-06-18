@@ -15,7 +15,7 @@ from ciris_engine.registries.base import Priority
 def mock_runtime():
     """Mock CIRIS runtime."""
     runtime = Mock()
-    runtime.agent_profile = None
+    runtime.template = None
     runtime.multi_service_sink = AsyncMock()
     runtime.service_registry = AsyncMock()
     runtime.memory_service = Mock()
@@ -65,7 +65,7 @@ class TestCliPlatform:
             "interactive": True
         }
         mock_profile.cli_config = mock_cli_config
-        mock_runtime.agent_profile = mock_profile
+        mock_runtime.template = mock_profile
         
         platform = CliPlatform(mock_runtime)
         
@@ -304,7 +304,7 @@ class TestCliPlatformIntegration:
             "interactive": True
         }
         mock_profile.cli_config = mock_cli_config
-        mock_runtime.agent_profile = mock_profile
+        mock_runtime.template = mock_profile
         
         # Setup environment override
         with patch.dict('os.environ', {'CIRIS_CLI_INTERACTIVE': 'false'}):

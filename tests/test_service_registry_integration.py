@@ -8,7 +8,7 @@ from typing import Dict, Any, List
 
 from ciris_engine.processor.dream_processor import DreamProcessor
 from ciris_engine.adapters.cirisnode_client import CIRISNodeClient
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentTemplate
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.registries.base import ServiceRegistry, Priority
 
@@ -61,11 +61,11 @@ def mock_app_config():
 
 
 @pytest.fixture
-def mock_profile():
-    """Create a mock agent profile."""
-    profile = MagicMock(spec=AgentProfile)
-    profile.name = "test-agent"
-    return profile
+def mock_template():
+    """Create a mock agent template."""
+    template = MagicMock(spec=AgentTemplate)
+    template.name = "test-agent"
+    return template
 
 
 @pytest.fixture
@@ -86,13 +86,13 @@ def service_registry():
 
 
 @pytest.mark.asyncio
-async def test_dream_processor_with_service_registry(mock_app_config, mock_profile, service_registry):
+async def test_dream_processor_with_service_registry(mock_app_config, mock_template, service_registry):
     """Test that DreamProcessor correctly uses service registry."""
     
     # Create DreamProcessor with service registry
     dream_processor = DreamProcessor(
         app_config=mock_app_config,
-        profile=mock_profile,
+        # DreamProcessor no longer needs template
         service_registry=service_registry
     )
     
@@ -167,7 +167,7 @@ async def test_cirisnode_client_audit_logging(service_registry):
 
 
 @pytest.mark.asyncio
-async def test_dream_processor_start_dreaming_with_service_registry(mock_app_config, mock_profile, service_registry, monkeypatch):
+async def test_dream_processor_start_dreaming_with_service_registry(mock_app_config, mock_template, service_registry, monkeypatch):
     """Test that DreamProcessor start_dreaming creates CIRISNodeClient with service registry."""
     
     # Mock CIRISNodeClient to avoid actual network calls
@@ -184,7 +184,7 @@ async def test_dream_processor_start_dreaming_with_service_registry(mock_app_con
     
     dream_processor = DreamProcessor(
         app_config=mock_app_config,
-        profile=mock_profile,
+        # DreamProcessor no longer needs template
         service_registry=service_registry,
         pulse_interval=0.1  # Short interval for testing
     )

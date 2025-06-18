@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Any, Set
 import json
 
 from ciris_engine.adapters.base import Service
-from ciris_engine.schemas.foundational_schemas_v1 import ServiceType, ThoughtStatus
+from ciris_engine.schemas.foundational_schemas_v1 import ServiceType, ThoughtStatus, ThoughtType
 from ciris_engine.schemas.identity_schemas_v1 import ScheduledTask, ShutdownContext
 from ciris_engine.schemas.deferral_schemas_v1 import DeferralPackage, DeferralReason
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, Task
@@ -201,23 +201,24 @@ class TaskSchedulerService(Service):
             logger.info(f"Triggering scheduled task: {task.name} ({task.task_id})")
             
             # Create a new thought for this task
-            thought_dict = {
-                "id": f"thought_{datetime.now(timezone.utc).timestamp()}",
-                "content": task.trigger_prompt,
-                "status": ThoughtStatus.PENDING.value,
-                "priority": "HIGH",  # Scheduled tasks get high priority
-                "thought_type": "SCHEDULED_TASK_TRIGGER",
-                "metadata": json.dumps({
+            thought = Thought(
+                thought_id=f"thought_{datetime.now(timezone.utc).timestamp()}",
+                content=task.trigger_prompt,
+                status=ThoughtStatus.PENDING,
+                thought_type=ThoughtType.SCHEDULED,
+                source_task_id=task.task_id,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                final_action={
                     "scheduled_task_id": task.task_id,
                     "scheduled_task_name": task.name,
                     "goal_description": task.goal_description,
                     "trigger_type": "scheduled"
-                })
-            }
+                }
+            )
             
-            # Add thought to database if we have a connection
-            if self.conn:
-                await add_thought(self.conn, thought_dict)  # type: ignore[unreachable]
+            # Add thought to database
+            add_thought(thought, db_path=self.db_path)
             
             # Update scheduled task status
             await self._update_task_triggered(task)

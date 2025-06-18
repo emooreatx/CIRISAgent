@@ -176,7 +176,8 @@ def get_graph_memory_full_path() -> str:
     """
     config = get_config()
     project_root = get_project_root_for_config()
-    graph_path = project_root / config.database.data_directory / config.database.graph_memory_filename
+    # Graph data now stored in SQLite, return legacy path for compatibility
+    graph_path = project_root / config.database.data_directory / "graph_memory.pkl"
     graph_path.parent.mkdir(parents=True, exist_ok=True)
     return str(graph_path.resolve())
 

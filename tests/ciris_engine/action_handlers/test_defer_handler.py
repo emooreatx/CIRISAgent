@@ -6,7 +6,8 @@ from ciris_engine.action_handlers.defer_handler import DeferHandler
 from ciris_engine.schemas.action_params_v1 import DeferParams, MemorizeParams
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, ThoughtType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, ThoughtType, DispatchContext, ServiceType
+from tests.helpers import create_test_dispatch_context
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
@@ -18,7 +19,7 @@ async def test_defer_handler_schema_driven(monkeypatch):
     service_registry = AsyncMock()
     
     async def get_service(handler, service_type, **kwargs):
-        if service_type == "wise_authority":
+        if service_type == ServiceType.WISE_AUTHORITY:
             return wa_service
         return None
     
@@ -43,9 +44,9 @@ async def test_defer_handler_schema_driven(monkeypatch):
         round_number=0,
         content="test content",
         context={},
-        ponder_count=0,
+        thought_depth=0,
         parent_thought_id=None,
-        final_action={}
+        final_action=action_result.model_dump()
     )
 
     update_thought = MagicMock()
@@ -53,7 +54,13 @@ async def test_defer_handler_schema_driven(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_thought)
     monkeypatch.setattr("ciris_engine.persistence.update_task_status", update_task)
 
-    await handler.handle(action_result, thought, {"channel_id": "chan1", "source_task_id": "s1"})
+    context = create_test_dispatch_context(
+        channel_id="chan1",
+        source_task_id="s1",
+        thought_id="t1",
+        action_type=HandlerActionType.DEFER
+    )
+    await handler.handle(action_result, thought, context)
 
     wa_service.send_deferral.assert_awaited()
     update_thought.assert_called_once()

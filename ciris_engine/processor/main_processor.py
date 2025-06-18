@@ -6,7 +6,8 @@ import asyncio
 import logging
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig
+from ciris_engine.schemas.identity_schemas_v1 import AgentIdentityRoot
 from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine import persistence
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought, ThoughtStatus
@@ -15,6 +16,7 @@ from ciris_engine.utils.context_utils import build_dispatch_context
 
 from ciris_engine.processor.thought_processor import ThoughtProcessor
 from ciris_engine.protocols.processor_interface import ProcessorInterface
+from ciris_engine.utils.shutdown_manager import is_global_shutdown_requested, get_global_shutdown_reason
 if TYPE_CHECKING:
     from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
 
@@ -24,6 +26,7 @@ from .work_processor import WorkProcessor
 from .play_processor import PlayProcessor
 from .dream_processor import DreamProcessor
 from .solitude_processor import SolitudeProcessor
+from .shutdown_processor import ShutdownProcessor
 
 from ciris_engine.utils.shutdown_manager import request_global_shutdown
 
@@ -39,7 +42,7 @@ class AgentProcessor(ProcessorInterface):
     def __init__(
         self,
         app_config: AppConfig,
-        profile: AgentProfile,
+        agent_identity: AgentIdentityRoot,
         thought_processor: ThoughtProcessor,
         action_dispatcher: "ActionDispatcher",
         services: Dict[str, Any],
@@ -50,14 +53,14 @@ class AgentProcessor(ProcessorInterface):
         if not startup_channel_id:
             raise ValueError("startup_channel_id is required for agent processor")
         self.app_config = app_config
-        self.profile = profile
+        self.agent_identity = agent_identity
         self.thought_processor = thought_processor
         self._action_dispatcher = action_dispatcher  # Store internally
         self.services = services
         self.startup_channel_id = startup_channel_id
         self.runtime = runtime  # Store runtime reference for preload tasks
         
-        # Initialize state manager
+        # Initialize state manager - agent always starts in SHUTDOWN state
         self.state_manager = StateManager(initial_state=AgentState.SHUTDOWN)
         
         # Initialize specialized processors, passing the initial dispatcher
@@ -94,9 +97,17 @@ class AgentProcessor(ProcessorInterface):
         # Dream processor is initialized but will not be automatically entered via idle logic
         self.dream_processor = DreamProcessor(
             app_config=app_config,
-            profile=self.profile,
             service_registry=services.get("service_registry"),
             cirisnode_url=app_config.cirisnode.base_url if hasattr(app_config, 'cirisnode') else "https://localhost:8001"
+        )
+        
+        # Shutdown processor for graceful shutdown negotiation
+        self.shutdown_processor = ShutdownProcessor(
+            app_config=app_config,
+            thought_processor=thought_processor,
+            action_dispatcher=self._action_dispatcher,
+            services=services,
+            runtime=runtime
         )
         
         # Map states to processors
@@ -105,8 +116,8 @@ class AgentProcessor(ProcessorInterface):
             AgentState.WORK: self.work_processor,
             AgentState.PLAY: self.play_processor,
             AgentState.SOLITUDE: self.solitude_processor,
+            AgentState.SHUTDOWN: self.shutdown_processor,
             # DREAM is handled separately TODO: Integrate DREAM state with processor
-            # SHUTDOWN has no processor TODO: Turn graceful shutdown into a processor
         }
         
         # Processing control
@@ -181,9 +192,16 @@ class AgentProcessor(ProcessorInterface):
             self._stop_event.clear()
         logger.info(f"Starting agent processing (rounds: {num_rounds or 'infinite'})")
         
-        if not self.state_manager.transition_to(AgentState.WAKEUP):
-            logger.error("Failed to transition to WAKEUP state")
-            return
+        # Transition from SHUTDOWN to WAKEUP state when starting processing
+        if self.state_manager.get_state() == AgentState.SHUTDOWN:
+            if not self.state_manager.transition_to(AgentState.WAKEUP):
+                logger.error("Failed to transition from SHUTDOWN to WAKEUP state")
+                return
+        elif self.state_manager.get_state() != AgentState.WAKEUP:
+            logger.warning(f"Unexpected state {self.state_manager.get_state()} when starting processing")
+            if not self.state_manager.transition_to(AgentState.WAKEUP):
+                logger.error(f"Failed to transition from {self.state_manager.get_state()} to WAKEUP state")
+                return
         
         await self.wakeup_processor.initialize()
         
@@ -254,7 +272,16 @@ class AgentProcessor(ProcessorInterface):
         not just wakeup thoughts.
         """
         try:
+            # Get current state to filter thoughts appropriately
+            current_state = self.state_manager.get_state()
+            
             pending_thoughts = persistence.get_pending_thoughts_for_active_tasks()
+            
+            # If in SHUTDOWN state, only process thoughts for shutdown tasks
+            if current_state == AgentState.SHUTDOWN:
+                shutdown_thoughts = [t for t in pending_thoughts if t.source_task_id and t.source_task_id.startswith('shutdown_')]
+                pending_thoughts = shutdown_thoughts
+                logger.info(f"In SHUTDOWN state - filtering to {len(shutdown_thoughts)} shutdown-related thoughts only")
             
             max_active = 10
             if hasattr(self.app_config, 'workflow') and self.app_config.workflow:
@@ -470,10 +497,28 @@ class AgentProcessor(ProcessorInterface):
                     # self.thought_processor.advance_round()  # Removed nonexistent method
                     self.current_round_number += 1
                     
-                    # Check for automatic state transitions
-                    next_state = self.state_manager.should_auto_transition()
-                    if next_state:
-                        await self._handle_state_transition(next_state)
+                    # Get current state
+                    current_state = self.state_manager.get_state()
+                    
+                    # Never transition away from SHUTDOWN state
+                    if current_state == AgentState.SHUTDOWN:
+                        logger.debug("In SHUTDOWN state, skipping transition checks")
+                    else:
+                        # Check if shutdown has been requested
+                        if is_global_shutdown_requested():
+                            shutdown_reason = get_global_shutdown_reason() or "Unknown reason"
+                            logger.info(f"Global shutdown requested: {shutdown_reason}")
+                            # Transition to shutdown state if not already there
+                            if self.state_manager.can_transition_to(AgentState.SHUTDOWN):
+                                await self._handle_state_transition(AgentState.SHUTDOWN)
+                            else:
+                                logger.error(f"Cannot transition from {current_state} to SHUTDOWN")
+                                break
+                        else:
+                            # Check for automatic state transitions only if not shutting down
+                            next_state = self.state_manager.should_auto_transition()
+                            if next_state:
+                                await self._handle_state_transition(next_state)
                     
                     # Process based on current state
                     current_state = self.state_manager.get_state()
@@ -515,9 +560,26 @@ class AgentProcessor(ProcessorInterface):
                         await asyncio.sleep(5)  # Check periodically
                         
                     elif current_state == AgentState.SHUTDOWN:
-                        # In shutdown state, exit the loop
-                        logger.info("In SHUTDOWN state, exiting processing loop")
-                        break
+                        # Process shutdown state with negotiation
+                        logger.info("In SHUTDOWN state, processing shutdown negotiation")
+                        processor = self.state_processors.get(current_state)
+                        if processor:
+                            try:
+                                result = await processor.process(self.current_round_number)
+                                round_count += 1
+                                consecutive_errors = 0
+                                
+                                # Check if shutdown is complete
+                                if processor == self.shutdown_processor and self.shutdown_processor.shutdown_complete:
+                                    logger.info("Shutdown negotiation complete, exiting processing loop")
+                                    break
+                            except Exception as e:
+                                consecutive_errors += 1
+                                logger.error(f"Error in shutdown processor: {e}", exc_info=True)
+                                break
+                        else:
+                            logger.error("No shutdown processor available")
+                            break
                         
                     else:
                         logger.warning(f"No processor for state: {current_state}")
@@ -579,7 +641,13 @@ class AgentProcessor(ProcessorInterface):
             logger.error(f"Failed to transition from {current_state} to {target_state}")
             return
         
-        if target_state == AgentState.DREAM:
+        if target_state == AgentState.SHUTDOWN:
+            # Special handling for shutdown transition
+            logger.info("Transitioning to SHUTDOWN - clearing non-shutdown thoughts from queue")
+            # The shutdown processor will create its own thoughts
+            # Any pending thoughts will be cleaned up on next startup
+            
+        elif target_state == AgentState.DREAM:
             logger.info("DREAM state transition requested - dream processor is available but not automatically triggered")
             
         elif target_state == AgentState.WORK and current_state == AgentState.DREAM:
@@ -663,12 +731,13 @@ class AgentProcessor(ProcessorInterface):
                 from ciris_engine.persistence.models.thoughts import get_recent_thoughts
                 recent_data = get_recent_thoughts(limit=5)
                 for thought_data in recent_data:
+                    content_str = str(thought_data.content or "")
                     recent_thoughts.append({
-                        "thought_id": thought_data.get("thought_id", "unknown"),
-                        "thought_type": thought_data.get("thought_type", "unknown"),
-                        "status": thought_data.get("status", "unknown"),
-                        "created_at": thought_data.get("created_at", "unknown"),
-                        "content_preview": str(thought_data.get("content", ""))[:100] + "..." if len(str(thought_data.get("content", ""))) > 100 else str(thought_data.get("content", ""))
+                        "thought_id": thought_data.thought_id,
+                        "thought_type": thought_data.thought_type or "unknown",
+                        "status": thought_data.status or "unknown",
+                        "created_at": getattr(thought_data, "created_at", "unknown"),
+                        "content_preview": content_str[:100] + "..." if len(content_str) > 100 else content_str
                     })
             except Exception as e:
                 logger.warning(f"Could not fetch recent thoughts: {e}")

@@ -47,6 +47,7 @@ from ciris_engine.schemas.context_schemas_v1 import (
     ThoughtContext,
     SystemSnapshot
 )
+from ciris_engine.utils.channel_utils import create_channel_context
 
 
 class TestFoundationalSchemas:
@@ -155,29 +156,31 @@ class TestActionParamsSchemas:
     def test_observe_params(self):
         """Test ObserveParams schema."""
         params = ObserveParams(
-            channel_id="channel123",
+            channel_context=create_channel_context("channel123"),
             active=True,
             context={"key": "value"}
         )
         
-        assert params.channel_id == "channel123"
+        assert params.channel_context is not None
+        assert params.channel_context.channel_id == "channel123"
         assert params.active is True
         assert params.context["key"] == "value"
         
         # Test serialization
         data = params.model_dump()
         reconstructed = ObserveParams.model_validate(data)
-        assert reconstructed.channel_id == params.channel_id
+        assert reconstructed.channel_context is not None
+        assert reconstructed.channel_context.channel_id == params.channel_context.channel_id
     
     def test_speak_params(self):
         """Test SpeakParams schema."""
         params = SpeakParams(
             content="Hello world",
-            channel_id="channel123"
-        )
+            channel_context=create_channel_context("channel123"))
         
         assert params.content == "Hello world"
-        assert params.channel_id == "channel123"
+        assert params.channel_context is not None
+        assert params.channel_context.channel_id == "channel123"
         
         # Test extra fields forbidden
         with pytest.raises(ValidationError):
@@ -440,8 +443,7 @@ class TestSchemaIntegration:
         
         speak_params = SpeakParams(
             content="Speech",
-            channel_id="dest123"
-        )
+            channel_context=create_channel_context("dest123"))
         
         # All should have content field
         for obj in [incoming, speak_params]:

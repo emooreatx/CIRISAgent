@@ -20,12 +20,16 @@ class ApiPlatform(PlatformAdapter):
         if "port" in kwargs and kwargs["port"] is not None:
             self.config.port = int(kwargs["port"])
         
-        profile = getattr(runtime, 'agent_profile', None)
-        if profile and profile.api_config:
-            for key, value in profile.api_config.dict().items():
-                if hasattr(self.config, key):
-                    setattr(self.config, key, value)
-                    logger.debug(f"ApiPlatform: Set config {key} = {value} from profile")
+        template = getattr(runtime, 'template', None)
+        if template and hasattr(template, 'api_config') and template.api_config:
+            try:
+                config_dict = template.api_config.dict() if hasattr(template.api_config, 'dict') else {}
+                for key, value in config_dict.items():
+                    if hasattr(self.config, key):
+                        setattr(self.config, key, value)
+                        logger.debug(f"ApiPlatform: Set config {key} = {value} from template")
+            except Exception as e:
+                logger.debug(f"ApiPlatform: Could not load config from template: {e}")
         
         self.config.load_env_vars()
         
@@ -39,6 +43,9 @@ class ApiPlatform(PlatformAdapter):
             config_manager=getattr(self.runtime, 'config_manager', None)
         )
         
+        # Generate stable adapter_id based on host and port
+        self.adapter_id = f"api:{self.config.host}:{self.config.port}"
+        
         self.api_adapter = APIAdapter(
             host=self.config.host,
             port=self.config.port,
@@ -50,6 +57,13 @@ class ApiPlatform(PlatformAdapter):
         )
         
         self._web_server_stopped_event: Optional[asyncio.Event] = None
+    
+    def get_channel_info(self) -> dict[str, Any]:
+        """Provide host and port info for authentication."""
+        return {
+            'host': self.config.host,
+            'port': self.config.port
+        }
 
     def _ensure_stop_event(self) -> None:
         """Ensure stop event is created when needed in async context."""

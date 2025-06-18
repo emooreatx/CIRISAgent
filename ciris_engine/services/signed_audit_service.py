@@ -112,7 +112,7 @@ class SignedAuditService(AuditService):
                 target_id=context.get("target_id"),
                 event_summary=self._generate_summary(handler_action, context, outcome),
                 event_payload=context,
-                agent_profile=context.get("agent_profile"),
+                agent_template=context.get("agent_template"),
                 round_number=context.get("round_number"),
                 thought_id=context.get("thought_id"),
                 task_id=context.get("task_id") or context.get("source_task_id"),
@@ -233,7 +233,7 @@ class SignedAuditService(AuditService):
                     target_id TEXT,
                     event_summary TEXT,
                     event_payload TEXT,
-                    agent_profile TEXT,
+                    agent_template TEXT,
                     round_number INTEGER,
                     thought_id TEXT,
                     task_id TEXT,
@@ -319,7 +319,7 @@ class SignedAuditService(AuditService):
             cursor.execute("""
                 INSERT INTO audit_log_v2 
                 (event_id, event_timestamp, event_type, originator_id, target_id,
-                 event_summary, event_payload, agent_profile, round_number,
+                 event_summary, event_payload, agent_template, round_number,
                  thought_id, task_id, sequence_number, previous_hash, 
                  entry_hash, signature, signing_key_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -331,7 +331,7 @@ class SignedAuditService(AuditService):
                 entry.target_id,
                 entry.event_summary,
                 json.dumps(entry.event_payload) if entry.event_payload else None,
-                entry.agent_profile,
+                entry.agent_template,
                 entry.round_number,
                 entry.thought_id,
                 entry.task_id,

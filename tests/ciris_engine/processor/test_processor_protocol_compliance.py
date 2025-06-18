@@ -25,13 +25,14 @@ from ciris_engine.processor.solitude_processor import SolitudeProcessor
 from ciris_engine.processor.dream_processor import DreamProcessor
 from ciris_engine.protocols.processor_interface import ProcessorInterface
 from ciris_engine.schemas.states_v1 import AgentState
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile, WorkflowConfig
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, WorkflowConfig
+from ciris_engine.schemas.identity_schemas_v1 import AgentIdentityRoot, CoreProfile, IdentityMetadata
+from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus, HandlerActionType
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
+from datetime import datetime, timezone
 
 # Rebuild models with resolved references
 try:
-    AgentProfile.model_rebuild()
     AppConfig.model_rebuild()
 except Exception:
     pass
@@ -43,11 +44,38 @@ class MockAppConfig:
         self.workflow = WorkflowConfig(max_active_tasks=10, max_active_thoughts=50)
 
 
-class MockAgentProfile:
-    def __init__(self, name="TestAgent"):
-        self.name = name
-        self.description = "Test agent for unit testing"
-        self.role_description = "A test agent profile for unit tests"
+class MockAgentIdentity:
+    def __init__(self, agent_id="TestAgent"):
+        self.agent_id = agent_id
+        self.identity_hash = "test_hash_123"
+        self.core_profile = CoreProfile(
+            description="Test agent for unit testing",
+            role_description="A test agent profile for unit tests",
+            domain_specific_knowledge={},
+            dsdma_prompt_template=None,
+            csdma_overrides={},
+            action_selection_pdma_overrides={},
+            last_shutdown_memory=None
+        )
+        self.identity_metadata = IdentityMetadata(
+            created_at=datetime.now(timezone.utc).isoformat(),
+            last_modified=datetime.now(timezone.utc).isoformat(),
+            modification_count=0,
+            creator_agent_id="system",
+            lineage_trace=["system"],
+            approval_required=False,
+            approved_by=None,
+            approval_timestamp=None
+        )
+        self.permitted_actions = [
+            HandlerActionType.OBSERVE,
+            HandlerActionType.SPEAK,
+            HandlerActionType.PONDER,
+            HandlerActionType.DEFER,
+            HandlerActionType.REJECT,
+            HandlerActionType.TASK_COMPLETE
+        ]
+        self.restricted_capabilities = []
 
 
 class MockThoughtProcessor:
@@ -91,8 +119,8 @@ def mock_config():
 
 
 @pytest.fixture
-def mock_profile():
-    return MockAgentProfile()
+def mock_identity():
+    return MockAgentIdentity()
 
 
 @pytest.fixture
@@ -136,7 +164,7 @@ class TestWakeupProcessor:
     """Comprehensive tests for WakeupProcessor."""
     
     @pytest.fixture
-    def wakeup_processor(self, mock_config, mock_profile, mock_thought_processor, 
+    def wakeup_processor(self, mock_config, mock_identity, mock_thought_processor, 
                         mock_action_dispatcher, mock_services):
         with patch('ciris_engine.persistence.task_exists', return_value=False), \
              patch('ciris_engine.persistence.add_task'), \
@@ -430,10 +458,9 @@ class TestDreamProcessor:
     """Comprehensive tests for DreamProcessor."""
     
     @pytest.fixture
-    def dream_processor(self, mock_config, mock_profile):
+    def dream_processor(self, mock_config):
         return DreamProcessor(
             app_config=mock_config,
-            profile=mock_profile,
             service_registry=None,
             cirisnode_url="http://test:8001"
         )
@@ -490,11 +517,11 @@ class TestAgentProcessor:
     """Comprehensive tests for AgentProcessor (main processor)."""
     
     @pytest.fixture
-    def agent_processor(self, mock_config, mock_profile, mock_thought_processor, 
+    def agent_processor(self, mock_config, mock_identity, mock_thought_processor, 
                        mock_action_dispatcher, mock_services):
         processor = AgentProcessor(
             app_config=mock_config,
-            profile=mock_profile,
+            agent_identity=mock_identity,
             thought_processor=mock_thought_processor,
             action_dispatcher=mock_action_dispatcher,
             services=mock_services,

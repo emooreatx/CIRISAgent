@@ -42,8 +42,10 @@ class TaskManager:
         
         # Convert dict to ThoughtContext
         from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+        from ciris_engine.utils.channel_utils import create_channel_context
+        channel_context = create_channel_context(context_dict.get('channel_id'))
         thought_context = ThoughtContext(
-            system_snapshot=SystemSnapshot(channel_id=context_dict.get('channel_id'))
+            system_snapshot=SystemSnapshot(channel_context=channel_context)
         )
         
         task = Task(
@@ -58,10 +60,10 @@ class TaskManager:
             outcome={},
         )
         
-        if context_dict and 'agent_profile_name' in context_dict:
-            # Store agent profile name in ThoughtContext if provided
+        if context_dict and 'agent_name' in context_dict:
+            # Store agent name in ThoughtContext if provided
             # Note: ThoughtContext uses extra="allow" so we can add custom fields
-            setattr(task.context, 'agent_profile_name', context_dict['agent_profile_name'])
+            setattr(task.context, 'agent_name', context_dict['agent_name'])
         persistence.add_task(task)
         logger.info(f"Created task {task.task_id}: {description}")
         return task
@@ -127,9 +129,14 @@ class TaskManager:
         now_iso = datetime.now(timezone.utc).isoformat()
         
         # Convert to ThoughtContext
-        from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+        from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot, ChannelContext
+        from ciris_engine.utils.channel_utils import create_channel_context
+        
+        # Create channel context from channel ID
+        channel_context = create_channel_context(channel_id) if channel_id else None
+        
         root_context = ThoughtContext(
-            system_snapshot=SystemSnapshot(channel_id=channel_id) if channel_id else SystemSnapshot()
+            system_snapshot=SystemSnapshot(channel_context=channel_context)
         )
         
         root_task = Task(
@@ -157,12 +164,12 @@ class TaskManager:
         
         tasks = [root_task]
         
-        channel_id = root_task.context.system_snapshot.channel_id if root_task.context else None
+        channel_context = root_task.context.system_snapshot.channel_context if root_task.context else None
         
         for step_type, content in wakeup_steps:
             # Create ThoughtContext for each step
             step_thought_context = ThoughtContext(
-                system_snapshot=SystemSnapshot(channel_id=channel_id) if channel_id else SystemSnapshot()
+                system_snapshot=SystemSnapshot(channel_context=channel_context)
             )
             # Add step_type as a custom field (ThoughtContext allows extra fields)
             setattr(step_thought_context, 'step_type', step_type)

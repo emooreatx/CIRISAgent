@@ -80,7 +80,20 @@ async def test_pdma_init_and_evaluate(monkeypatch):
     # Register the LLM service properly according to new service protocol
     service_registry.register_global("llm", mock_llm_service, priority=Priority.HIGH)
     
-    evaluator = EthicalPDMAEvaluator(service_registry=service_registry, model_name="m")
+    # Create a mock multi-service sink
+    mock_sink = MagicMock()
+    
+    # Mock the generate_structured_sync method to return our mock result
+    async def mock_generate_structured_sync(*args, **kwargs):
+        return mock_result, mock_resource_usage
+    
+    mock_sink.generate_structured_sync = mock_generate_structured_sync
+    
+    evaluator = EthicalPDMAEvaluator(
+        service_registry=service_registry,
+        model_name="m",
+        sink=mock_sink
+    )
     
     from ciris_engine.processor.processing_queue import ThoughtContent
     item = ProcessingQueueItem(

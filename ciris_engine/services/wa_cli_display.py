@@ -141,8 +141,8 @@ class WACLIDisplayService:
             
             # Discord ID removed - not part of WACertificate schema
             
-            if wa.channel_id:
-                table.add_row("Channel ID", wa.channel_id)
+            if wa.adapter_id:
+                table.add_row("Adapter ID", wa.adapter_id)
             
             # Parse and display scopes
             import json

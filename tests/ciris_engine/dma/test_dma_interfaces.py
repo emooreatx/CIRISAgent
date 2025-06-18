@@ -310,7 +310,7 @@ class TestActionSelectionDMAInterface:
                 score=0.7,
                 reasoning="Domain appropriate"
             ),
-            "current_ponder_count": 0,
+            "current_thought_depth": 0,
             "max_rounds": 3
         }
     

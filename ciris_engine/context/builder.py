@@ -19,12 +19,16 @@ class ContextBuilder:
         app_config: Optional[Any] = None,
         telemetry_service: Optional[Any] = None,
         secrets_service: Optional[SecretsService] = None,
+        runtime: Optional[Any] = None,
+        service_registry: Optional[Any] = None,
     ) -> None:
         self.memory_service = memory_service
         self.graphql_provider = graphql_provider
         self.app_config = app_config
         self.telemetry_service = telemetry_service
         self.secrets_service = secrets_service or SecretsService()
+        self.runtime = runtime
+        self.service_registry = service_registry
 
     async def build_thought_context(
         self,
@@ -35,6 +39,8 @@ class ContextBuilder:
         system_snapshot_data = await self.build_system_snapshot(task, thought)
         user_profiles_data = getattr(system_snapshot_data, 'user_profiles', None) or {}
         task_history_data = getattr(system_snapshot_data, 'recently_completed_tasks_summary', None) or []
+        
+        # Get identity context from memory service
         identity_context_str = self.memory_service.export_identity_context() if self.memory_service else None
 
         # --- Mission-Critical Channel ID Resolution ---
@@ -42,7 +48,7 @@ class ContextBuilder:
         resolution_source = "none"
         
         # First check if task.context has system_snapshot with channel_id
-        if task and hasattr(task.context, 'system_snapshot') and hasattr(task.context.system_snapshot, 'channel_id'):
+        if task and task.context and hasattr(task.context, 'system_snapshot') and task.context.system_snapshot and hasattr(task.context.system_snapshot, 'channel_id'):
             channel_id = task.context.system_snapshot.channel_id
             if channel_id:
                 resolution_source = "task.context.system_snapshot.channel_id"
@@ -165,6 +171,8 @@ class ContextBuilder:
             graphql_provider=self.graphql_provider,
             telemetry_service=self.telemetry_service,
             secrets_service=self.secrets_service,
+            runtime=self.runtime,
+            service_registry=self.service_registry,
         )
 
     async def _build_secrets_snapshot(self) -> Dict[str, Any]:

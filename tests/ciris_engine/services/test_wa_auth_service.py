@@ -38,20 +38,20 @@ async def test_bootstrap_creates_root_wa(auth_service):
 
 @pytest.mark.asyncio
 async def test_create_channel_observer(auth_service):
-    """Test creating a channel observer WA."""
-    channel_id = "cli:testuser@testhost"
+    """Test creating an adapter observer WA."""
+    adapter_id = "cli:testuser@testhost"
     name = "test_cli_observer"
     
-    # Create channel observer
-    observer = await auth_service.create_channel_observer(channel_id, name)
+    # Create adapter observer
+    observer = await auth_service.create_adapter_observer(adapter_id, name)
     
     assert observer.role == WARole.OBSERVER
-    assert observer.channel_id == channel_id
+    assert observer.adapter_id == adapter_id
     assert observer.token_type == TokenType.CHANNEL
     assert observer.name == name
     
     # Verify it was stored
-    fetched = await auth_service.get_wa_by_channel(channel_id)
+    fetched = await auth_service.get_wa_by_adapter(adapter_id)
     assert fetched is not None
     assert fetched.wa_id == observer.wa_id
 
@@ -60,8 +60,8 @@ async def test_create_channel_observer(auth_service):
 async def test_jwt_token_creation_and_validation(auth_service):
     """Test JWT token creation and validation."""
     # Create a test WA
-    channel_id = "test:channel"
-    observer = await auth_service.create_channel_observer(channel_id, "test_observer")
+    adapter_id = "test:adapter"
+    observer = await auth_service.create_adapter_observer(adapter_id, "test_observer")
     
     # Create channel token
     token = auth_service.create_channel_token(observer)
@@ -71,7 +71,7 @@ async def test_jwt_token_creation_and_validation(auth_service):
     auth_context = await auth_service.verify_token(token)
     assert auth_context is not None
     assert auth_context.wa_id == observer.wa_id
-    assert auth_context.channel_id == channel_id
+    # Note: auth_context doesn't have adapter_id field
     assert "read:any" in auth_context.scopes
 
 
@@ -132,7 +132,9 @@ async def test_wa_id_generation(auth_service):
     
     # Check format
     assert wa_id.startswith("wa-2025-06-14-")
-    assert len(wa_id) == 20  # wa-YYYY-MM-DD-XXXXXX
+    # The actual format is wa-YYYY-MM-DD-XXXXXX where XXXXXX is 6 uppercase hex chars
+    # This gives us: wa- (3) + YYYY-MM-DD (10) + - (1) + XXXXXX (6) = 20 chars
+    assert len(wa_id) == 20, f"Expected 20 chars, got {len(wa_id)} for {wa_id}"
     
     # Last 6 chars should be uppercase hex
     suffix = wa_id[-6:]

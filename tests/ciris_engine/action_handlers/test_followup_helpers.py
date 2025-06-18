@@ -19,7 +19,7 @@ def make_parent():
         round_number=0,
         content="parent content",
         context=context,
-        ponder_count=0,
+        thought_depth=0,
         parent_thought_id=None,
         final_action={},
     )

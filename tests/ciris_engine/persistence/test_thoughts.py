@@ -34,7 +34,7 @@ def make_thought(thought_id, source_task_id="task1", status=ThoughtStatus.PENDIN
         round_number=1,
         content="test content",
         context=None,
-        ponder_count=0,
+        thought_depth=0,
         ponder_notes=None,
         parent_thought_id=None,
         final_action={}

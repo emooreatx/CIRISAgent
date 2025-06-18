@@ -20,6 +20,8 @@ async def build_system_snapshot(
     graphql_provider: Optional[GraphQLContextProvider] = None,
     telemetry_service: Optional[Any] = None,
     secrets_service: Optional[SecretsService] = None,
+    runtime: Optional[Any] = None,
+    service_registry: Optional[Any] = None,
 ) -> SystemSnapshot:
     """Build system snapshot for the thought."""
     from ciris_engine.schemas.context_schemas_v1 import ThoughtSummary, TaskSummary
@@ -41,38 +43,51 @@ async def build_system_snapshot(
             status=status_val,
             source_task_id=getattr(thought, 'source_task_id', None),
             thought_type=thought_type_val,
-            ponder_count=getattr(thought, 'ponder_count', None),
+            thought_depth=getattr(thought, 'thought_depth', None),
         )
 
-    # Mission-critical channel_id resolution with type safety
+    # Mission-critical channel_id and channel_context resolution with type safety
     channel_id = None
+    channel_context = None
 
-    def safe_extract_channel_id(context: Any, source_name: str) -> Optional[str]:
+    def safe_extract_channel_info(context: Any, source_name: str) -> tuple[Optional[str], Optional[Any]]:
+        """Extract both channel_id and channel_context from context."""
         if not context:
-            return None
+            return None, None
         try:
-            # First check if context has system_snapshot.channel_id
+            extracted_id = None
+            extracted_context = None
+            
+            # First check if context has system_snapshot.channel_context
+            if hasattr(context, 'system_snapshot') and hasattr(context.system_snapshot, 'channel_context'):
+                extracted_context = context.system_snapshot.channel_context
+                if extracted_context and hasattr(extracted_context, 'channel_id'):
+                    extracted_id = str(extracted_context.channel_id)
+                    logger.debug(f"Found channel_context in {source_name}.system_snapshot.channel_context")
+                    return extracted_id, extracted_context
+            
+            # Then check if context has system_snapshot.channel_id
             if hasattr(context, 'system_snapshot') and hasattr(context.system_snapshot, 'channel_id'):
                 cid = context.system_snapshot.channel_id
                 if cid is not None:
                     logger.debug(f"Found channel_id '{cid}' in {source_name}.system_snapshot.channel_id")
-                    return str(cid)
+                    return str(cid), None
             
             # Then check direct channel_id attribute
             if isinstance(context, dict):
                 cid = context.get('channel_id')
-                return str(cid) if cid is not None else None
+                return str(cid) if cid is not None else None, None
             elif hasattr(context, 'channel_id'):
                 cid = getattr(context, 'channel_id', None)
-                return str(cid) if cid is not None else None
+                return str(cid) if cid is not None else None, None
         except Exception as e:  # pragma: no cover - defensive
-            logger.error(f"Error extracting channel_id from {source_name}: {e}")
-        return None
+            logger.error(f"Error extracting channel info from {source_name}: {e}")
+        return None, None
 
     if task and task.context:
-        channel_id = safe_extract_channel_id(task.context, "task.context")
+        channel_id, channel_context = safe_extract_channel_info(task.context, "task.context")
     if not channel_id and thought and thought.context:
-        channel_id = safe_extract_channel_id(thought.context, "thought.context")
+        channel_id, channel_context = safe_extract_channel_info(thought.context, "thought.context")
 
     if channel_id and memory_service:
         channel_node = GraphNode(
@@ -131,6 +146,44 @@ async def build_system_snapshot(
     if secrets_service:
         secrets_data = await build_secrets_snapshot(secrets_service)
 
+    # Get shutdown context from runtime
+    shutdown_context = None
+    if runtime and hasattr(runtime, 'current_shutdown_context'):
+        shutdown_context = runtime.current_shutdown_context
+
+    # Get service health status
+    service_health: Dict[str, Dict[str, Any]] = {}
+    circuit_breaker_status: Dict[str, Dict[str, Any]] = {}
+    
+    if service_registry:
+        try:
+            # Get health status from all registered services
+            registry_info = service_registry.get_provider_info()
+            
+            # Check handler-specific services
+            for handler, service_types in registry_info.get('handlers', {}).items():
+                for service_type, services in service_types.items():
+                    for service in services:
+                        if hasattr(service, 'get_health_status'):
+                            service_name = f"{handler}.{service_type}"
+                            service_health[service_name] = await service.get_health_status()
+                        if hasattr(service, 'get_circuit_breaker_status'):
+                            service_name = f"{handler}.{service_type}"
+                            circuit_breaker_status[service_name] = service.get_circuit_breaker_status()
+            
+            # Check global services
+            for service_type, services in registry_info.get('global_services', {}).items():
+                for service in services:
+                    if hasattr(service, 'get_health_status'):
+                        service_name = f"global.{service_type}"
+                        service_health[service_name] = await service.get_health_status()
+                    if hasattr(service, 'get_circuit_breaker_status'):
+                        service_name = f"global.{service_type}"
+                        circuit_breaker_status[service_name] = service.get_circuit_breaker_status()
+                        
+        except Exception as e:
+            logger.warning(f"Failed to collect service health status: {e}")
+
     context_data = {
         "current_task_details": current_task_summary,
         "current_thought_summary": thought_summary,
@@ -143,25 +196,24 @@ async def build_system_snapshot(
         "top_pending_tasks_summary": top_tasks_list,
         "recently_completed_tasks_summary": recent_tasks_list,
         "channel_id": channel_id,
+        "channel_context": channel_context,  # Preserve the full ChannelContext object
         # Identity graph data - loaded once per snapshot
         "agent_identity": identity_data,
         "identity_purpose": identity_purpose,
         "identity_capabilities": identity_capabilities,
         "identity_restrictions": identity_restrictions,
+        "shutdown_context": shutdown_context,
+        "service_health": service_health,
+        "circuit_breaker_status": circuit_breaker_status,
         **secrets_data,
     }
 
     if graphql_provider:
-        graphql_extra_raw = await graphql_provider.enrich_context(task, thought)
-        graphql_extra_processed: Dict[str, Any] = {}
-        if "user_profiles" in graphql_extra_raw and isinstance(graphql_extra_raw["user_profiles"], dict):
-            graphql_extra_processed["user_profiles"] = {}
-            for key, profile_obj in graphql_extra_raw["user_profiles"].items():
-                graphql_extra_processed["user_profiles"][key] = profile_obj
-        for key, value in graphql_extra_raw.items():
-            if key not in graphql_extra_processed:
-                graphql_extra_processed[key] = value
-        context_data.update(graphql_extra_processed)
+        enriched_context = await graphql_provider.enrich_context(task, thought)
+        # Convert EnrichedContext to dict for merging
+        if enriched_context:
+            enriched_dict = enriched_context.model_dump(exclude_none=True)
+            context_data.update(enriched_dict)
 
     snapshot = SystemSnapshot(**context_data)
 

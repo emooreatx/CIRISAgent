@@ -18,7 +18,11 @@ class DummyMemoryService:
 
 class DummyGraphQLProvider:
     async def enrich_context(self, task, thought):
-        return {"user_profiles": {"u1": {"name": "Alice"}}, "extra_field": 42}
+        from ciris_engine.schemas.graphql_schemas_v1 import EnrichedContext, UserProfile
+        return EnrichedContext(
+            user_profiles={"u1": UserProfile(nick="Alice")},
+            identity_context="Test identity"
+        )
 
 def make_thought():
     return Thought(
@@ -31,7 +35,7 @@ def make_thought():
         round_number=1,
         content="test content",
         context={},
-        ponder_count=0,
+        thought_depth=0,
         ponder_notes=None,
         parent_thought_id=None,
         final_action={}
@@ -64,13 +68,12 @@ async def test_build_thought_context_with_memory_and_graphql():
     task = make_task()
     ctx = await builder.build_thought_context(thought, task)
     # Should have user_profiles from GraphQL
-    assert ctx.user_profiles["u1"].name == "Alice"
-    # Should have identity_context from DummyMemoryService
+    assert ctx.user_profiles["u1"].nick == "Alice"
+    # Should have identity_context from memory service (not GraphQL)
     assert "Agent identity string" in ctx.identity_context
     # Should have task_history from recently_completed_tasks_summary
     assert isinstance(ctx.task_history, list)
-    # Should have system_snapshot with extra_field
-    assert getattr(ctx.system_snapshot, "extra_field", None) == 42
+    # Note: GraphQL provider's identity_context is only used when no memory service is available
 
 @pytest.mark.asyncio
 async def test_discord_channel_context(monkeypatch):
@@ -93,13 +96,24 @@ async def test_build_context_includes_task_summaries():
 
 @pytest.mark.asyncio
 async def test_followup_thought_channel_context():
+    from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+    from ciris_engine.utils.channel_utils import create_channel_context
+    
     builder = ContextBuilder()
     parent = make_thought()
-    parent.context = {"channel_id": "chan-123"}
+    # Create proper ThoughtContext with ChannelContext
+    parent.context = ThoughtContext(
+        system_snapshot=SystemSnapshot(
+            channel_context=create_channel_context("chan-123")
+        )
+    )
     child = create_follow_up_thought(parent, content="child")
     task = make_task()
     ctx = await builder.build_thought_context(child, task)
-    assert ctx.system_snapshot.channel_id == "chan-123"
+    
+    # Check channel context propagation
+    assert ctx.system_snapshot.channel_context is not None
+    assert ctx.system_snapshot.channel_context.channel_id == "chan-123"
 
 
 @pytest.mark.asyncio

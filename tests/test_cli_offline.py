@@ -1,4 +1,3 @@
-import types
 import asyncio
 from click.testing import CliRunner
 from unittest.mock import AsyncMock, MagicMock
@@ -31,8 +30,8 @@ def test_cli_offline_non_interactive(monkeypatch):
     def fake_run(coro):
         real_run(coro)
 
-    monkeypatch.setattr(main, "asyncio", types.SimpleNamespace(run=fake_run))
+    monkeypatch.setattr("asyncio.run", fake_run)
 
-    result = CliRunner().invoke(main.main, ["--modes", "cli", "--no-interactive", "--mock-llm"])
+    result = CliRunner().invoke(main.main, ["--adapter", "cli", "--no-interactive", "--mock-llm"])
     assert result.exit_code == 0
     runtime_mock.initialize.assert_called_once()

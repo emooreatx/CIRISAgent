@@ -1,9 +1,12 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from .graph_schemas_v1 import GraphScope, GraphNode
 
+if TYPE_CHECKING:
+    from .context_schemas_v1 import ChannelContext
+
 class ObserveParams(BaseModel):
-    channel_id: Optional[str] = None
+    channel_context: Optional['ChannelContext'] = None
     active: bool = False
     context: Dict[str, Any] = Field(default_factory=dict)
 
@@ -15,7 +18,7 @@ class ObserveParams(BaseModel):
         super().__init__(**data)
 
 class SpeakParams(BaseModel):
-    channel_id: Optional[str] = None
+    channel_context: Optional['ChannelContext'] = None
     content: str
 
     model_config = ConfigDict(extra="forbid")
@@ -92,3 +95,9 @@ class TaskCompleteParams(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
     
     model_config = ConfigDict(extra="forbid")
+
+
+# Rebuild models with forward references
+from ciris_engine.schemas.context_schemas_v1 import ChannelContext
+ObserveParams.model_rebuild()
+SpeakParams.model_rebuild()

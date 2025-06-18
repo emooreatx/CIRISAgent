@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from datetime import datetime, timezone
 
 from ciris_engine.adapters import CIRISNodeClient
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig
 
 if TYPE_CHECKING:
     from ciris_engine.registries.base import ServiceRegistry
@@ -25,14 +25,12 @@ class DreamProcessor:
     def __init__(
         self,
         app_config: AppConfig,
-        profile: AgentProfile,
         service_registry: Optional["ServiceRegistry"],
         cirisnode_url: str = "https://localhost:8001",
         pulse_interval: float = 60.0,
         max_snore_history: int = 5
     ) -> None:
         self.app_config = app_config
-        self.profile = profile
         self.service_registry = service_registry
         self.cirisnode_url = cirisnode_url
         self.pulse_interval = pulse_interval
@@ -154,7 +152,8 @@ class DreamProcessor:
         self.dream_metrics["total_pulses"] += 1
         pulse_num = self.dream_metrics["total_pulses"]
         
-        agent_id = self.profile.name if self.profile else "unknown_agent"
+        # Get agent_id - for now use default until identity service is available
+        agent_id = "ciris_agent"
         model_id = "unknown_model" # Default fallback
         if self.app_config and \
            self.app_config.llm_services and \

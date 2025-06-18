@@ -3,8 +3,9 @@ from typing import Dict, Any
 from datetime import datetime, timezone
 import re
 
-from ciris_engine.schemas import Thought, RejectParams, ThoughtStatus, TaskStatus, HandlerActionType, ActionSelectionResult, DispatchContext
+from ciris_engine.schemas import Thought, RejectParams, ThoughtStatus, TaskStatus, HandlerActionType, ActionSelectionResult, DispatchContext, ServiceType
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+from ciris_engine.utils.channel_utils import extract_channel_id
 from ciris_engine.schemas.filter_schemas_v1 import FilterTrigger, TriggerType, FilterPriority
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from ciris_engine.schemas.action_params_v1 import MemorizeParams
@@ -28,7 +29,7 @@ class RejectHandler(BaseActionHandler):
         thought_id = thought.thought_id
         parent_task_id = thought.source_task_id
         await self._audit_log(HandlerActionType.REJECT, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="start")
-        original_event_channel_id = dispatch_context.channel_id
+        original_event_channel_id = extract_channel_id(dispatch_context.channel_context)
 
         try:
             params = await self._validate_and_convert_params(raw_params, RejectParams)
@@ -87,7 +88,7 @@ class RejectHandler(BaseActionHandler):
                 
             adaptive_filter_service = await self.dependencies.service_registry.get_service(
                 handler=self.__class__.__name__,
-                service_type="filter"
+                service_type=ServiceType.FILTER
             )
             if not adaptive_filter_service:
                 self.logger.warning("Adaptive filter service not available, cannot create filter")
@@ -169,7 +170,7 @@ class RejectHandler(BaseActionHandler):
                     updated_at=datetime.now(timezone.utc).isoformat(),
                     context=ThoughtContext(
                         system_snapshot=SystemSnapshot(
-                            channel_id=dispatch_context.channel_id
+                            channel_context=dispatch_context.channel_context
                         ),
                         user_profiles={},
                         task_history=[]
@@ -195,7 +196,7 @@ class RejectHandler(BaseActionHandler):
                     round_number=0,
                     context=ThoughtContext(
                         system_snapshot=SystemSnapshot(
-                            channel_id=dispatch_context.channel_id
+                            channel_context=dispatch_context.channel_context
                         ),
                         user_profiles={},
                         task_history=[]

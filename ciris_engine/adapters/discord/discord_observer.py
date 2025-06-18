@@ -3,7 +3,8 @@ import asyncio
 from typing import Any, Optional, List, Dict
 
 from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, ThoughtType
-from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext, SystemSnapshot
+from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext, SystemSnapshot, ChannelContext
+from ciris_engine.utils.channel_utils import create_channel_context
 from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.adapters.base_observer import BaseObserver
@@ -143,14 +144,23 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         """Create a ThoughtContext with extra fields."""
         from datetime import datetime, timezone
         
+        # Create channel context for this Discord message
+        channel_context = create_channel_context(
+            channel_id=msg.channel_id,
+            channel_type="discord",
+            is_monitored=msg.channel_id in self.monitored_channel_ids,
+            is_deferral=msg.channel_id == self.deferral_channel_id,
+            is_home=False  # Can be set later based on config
+        )
+        
         context = ThoughtContext(
             system_snapshot=SystemSnapshot(
-                channel_id=msg.channel_id
+                channel_context=channel_context
             ),
             user_profiles={},
             task_history=[],
             initial_task_context=TaskContext(
-                channel_id=msg.channel_id,
+                channel_context=channel_context,
                 author_id=msg.author_id,
                 author_name=msg.author_name,
                 origin_service="discord"
@@ -276,10 +286,16 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                             })
                         else:
                             from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot, UserProfile, TaskSummary
+                            # Create channel context for guidance
+                            guidance_channel_context = create_channel_context(
+                                channel_id=msg.channel_id,
+                                channel_type="discord",
+                                is_deferral=True
+                            )
                             # Create a minimal valid ThoughtContext
                             guidance_context = ThoughtContext(
                                 system_snapshot=SystemSnapshot(
-                                    channel_id=msg.channel_id
+                                    channel_context=guidance_channel_context
                                 ),
                                 user_profiles={},
                                 task_history=[]

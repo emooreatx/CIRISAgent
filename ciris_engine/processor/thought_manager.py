@@ -62,6 +62,20 @@ class ThoughtManager:
                     if key == "channel_id":
                         channel_id = str(value)
             
+            # Also check for channel_id in system_snapshot.channel_context
+            if not channel_id and hasattr(task.context, 'system_snapshot'):
+                try:
+                    system_snapshot = getattr(task.context, 'system_snapshot', None)
+                    if system_snapshot and hasattr(system_snapshot, 'channel_context'):
+                        channel_context = getattr(system_snapshot, 'channel_context', None)
+                        if channel_context and hasattr(channel_context, 'channel_id'):
+                            channel_id = getattr(channel_context, 'channel_id', None)
+                            if channel_id:
+                                logger.info(f"SEED_THOUGHT: Extracted channel_id='{channel_id}' from system_snapshot.channel_context")
+                                context_dict["channel_id"] = str(channel_id)
+                except Exception as e:
+                    logger.error(f"SEED_THOUGHT: Error extracting channel_id from system_snapshot: {e}")
+            
             if not channel_id:
                 logger.warning(f"SEED_THOUGHT: No channel_id found in task context for {task.task_id}")
         else:
@@ -83,7 +97,9 @@ class ThoughtManager:
         except Exception as e:
             logger.error(f"SEED_THOUGHT: Failed to validate context for task {task.task_id}: {e}")
             from ciris_engine.schemas.context_schemas_v1 import SystemSnapshot
-            context = ThoughtContext(system_snapshot=SystemSnapshot(channel_id=channel_id))
+            from ciris_engine.utils.channel_utils import create_channel_context
+            channel_context = create_channel_context(channel_id) if channel_id else None
+            context = ThoughtContext(system_snapshot=SystemSnapshot(channel_context=channel_context))
         
         thought = Thought(
             thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",
@@ -95,7 +111,7 @@ class ThoughtManager:
             round_number=round_number,
             content=f"Initial seed thought for task: {task.description}",
             context=context,
-            ponder_count=0,
+            thought_depth=0,
         )
         
         try:
@@ -206,7 +222,7 @@ class ThoughtManager:
             content=content,
             parent_thought_id=parent_thought.thought_id,
             context=context,
-            ponder_count=parent_thought.ponder_count + 1,
+            thought_depth=parent_thought.thought_depth + 1,
             ponder_notes=None,
             final_action={},
         )

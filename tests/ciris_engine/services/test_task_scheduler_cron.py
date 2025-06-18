@@ -183,8 +183,10 @@ class TestCronScheduling:
         # Set conn to None to avoid mock issues
         scheduler_service.conn = None
         
-        # The task should still update even without database
-        await scheduler_service._trigger_task(task)
+        # Mock add_thought to avoid database dependency
+        with patch('ciris_engine.services.task_scheduler_service.add_thought'):
+            # The task should still update even without database
+            await scheduler_service._trigger_task(task)
             
         # Check that last_triggered_at was updated
         assert task.last_triggered_at is not None

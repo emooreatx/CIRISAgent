@@ -14,10 +14,10 @@ from ciris_engine.config.config_loader import ConfigLoader
 from ciris_engine.config.dynamic_config import ConfigManager
 from ciris_engine.config.env_utils import get_env_var
 from ciris_engine.adapters.base import Service
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentTemplate
 from ciris_engine.schemas.runtime_control_schemas import (
     ConfigScope, ConfigValidationLevel, ConfigOperationResponse,
-    ConfigValidationResponse, AgentProfileInfo,
+    ConfigValidationResponse, AgentTemplateInfo,
     ConfigBackupResponse
 )
 from ciris_engine.utils.config_validator import ConfigValidator

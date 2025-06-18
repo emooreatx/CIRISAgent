@@ -55,7 +55,7 @@ class TestApiPlatform:
             "port": 8080
         }
         mock_profile.api_config = mock_api_config
-        mock_runtime.agent_profile = mock_profile
+        mock_runtime.template = mock_profile
         
         platform = ApiPlatform(mock_runtime, host="127.0.0.1", port=8004)
         
@@ -211,7 +211,7 @@ class TestApiPlatformIntegration:
             "port": 7777
         }
         mock_profile.api_config = mock_api_config
-        mock_runtime.agent_profile = mock_profile
+        mock_runtime.template = mock_profile
         
         # Setup environment override
         with patch.dict('os.environ', {'CIRIS_API_PORT': '8888'}):

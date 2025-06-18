@@ -33,7 +33,7 @@ def create_follow_up_thought(
         round_number=parent_round,
         content=content,
         context=parent.context.model_copy() if parent.context else None,
-        ponder_count=parent.ponder_count + 1,
+        thought_depth=parent.thought_depth + 1,
         ponder_notes=None,
         parent_thought_id=parent.thought_id,
         final_action={},

@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any, List, Dict
 
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentTemplate
+from ciris_engine.schemas.states_v1 import AgentState
 from ciris_engine.processor import AgentProcessor
 from ciris_engine.adapters.base import Service
 from ciris_engine import persistence
@@ -65,6 +66,7 @@ class CIRISRuntime(RuntimeInterface):
         self.identity_manager: Optional[IdentityManager] = None
         self.service_initializer = ServiceInitializer()
         self.component_builder: Optional[ComponentBuilder] = None
+        self.agent_processor: Optional['AgentProcessor'] = None
 
         for adapter_name in adapter_types:
             try:
@@ -90,6 +92,7 @@ class CIRISRuntime(RuntimeInterface):
         self._shutdown_reason: Optional[str] = None
         self._agent_task: Optional[asyncio.Task] = None
         self._preload_tasks: List[str] = []
+        self._shutdown_complete = False
         
         # Identity - will be loaded during initialization
         self.agent_identity: Optional[Any] = None
@@ -153,10 +156,10 @@ class CIRISRuntime(RuntimeInterface):
         if not self.agent_identity:
             return None
             
-        from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+        from ciris_engine.schemas.config_schemas_v1 import AgentTemplate
         
-        # Create AgentProfile from identity
-        return AgentProfile(
+        # Create AgentTemplate from identity
+        return AgentTemplate(
             name=self.agent_identity.agent_id,
             description=self.agent_identity.core_profile.description,
             role_description=self.agent_identity.core_profile.role_description,
@@ -627,21 +630,145 @@ class CIRISRuntime(RuntimeInterface):
             
     async def shutdown(self) -> None:
         """Gracefully shutdown all services with consciousness preservation."""
+        # Prevent double shutdown
+        if hasattr(self, '_shutdown_complete') and self._shutdown_complete:
+            logger.debug("Shutdown already completed, skipping...")
+            return
+            
         logger.info("Shutting down CIRIS Runtime...")
+        self._shutdown_complete = True
+        
+        # Import and use the graceful shutdown manager
+        from ciris_engine.utils.shutdown_manager import get_shutdown_manager
+        shutdown_manager = get_shutdown_manager()
+        
+        # Execute any registered async shutdown handlers first
+        try:
+            await shutdown_manager.execute_async_handlers()
+        except Exception as e:
+            logger.error(f"Error executing shutdown handlers: {e}")
         
         # Preserve agent consciousness if identity exists
         if hasattr(self, 'agent_identity') and self.agent_identity:
-            await self._preserve_shutdown_consciousness()
+            try:
+                await self._preserve_shutdown_consciousness()
+            except Exception as e:
+                logger.error(f"Failed to preserve consciousness during shutdown: {e}")
         
         logger.info("Initiating shutdown sequence for CIRIS Runtime...")
         self._ensure_shutdown_event()
         if self._shutdown_event:
             self._shutdown_event.set() # Ensure event is set for any waiting components
 
-        if self.agent_processor:
-            logger.debug("Stopping agent processor...")
-            await self.agent_processor.stop_processing()
-            logger.debug("Agent processor stopped.")
+        # Initiate graceful shutdown negotiation
+        if self.agent_processor and hasattr(self.agent_processor, 'state_manager'):
+            current_state = self.agent_processor.state_manager.get_state()
+            
+            # Only do negotiation if not already in SHUTDOWN state
+            if current_state != AgentState.SHUTDOWN:
+                try:
+                    logger.info("Initiating graceful shutdown negotiation...")
+                    
+                    # Check if we can transition to shutdown state
+                    if self.agent_processor.state_manager.can_transition_to(AgentState.SHUTDOWN):
+                        logger.info(f"Transitioning from {current_state} to SHUTDOWN state")
+                        # Use the state manager directly to transition
+                        self.agent_processor.state_manager.transition_to(AgentState.SHUTDOWN)
+                        
+                        # If processing loop is running, just signal it to stop
+                        # It will handle the SHUTDOWN state in its next iteration
+                        if self.agent_processor._processing_task and not self.agent_processor._processing_task.done():
+                            logger.info("Processing loop is running, signaling stop")
+                            # Just set the stop event, don't call stop_processing yet
+                            if hasattr(self.agent_processor, '_stop_event') and self.agent_processor._stop_event:
+                                self.agent_processor._stop_event.set()
+                        else:
+                            # Processing loop not running, we need to handle shutdown ourselves
+                            logger.info("Processing loop not running, executing shutdown processor directly")
+                            if hasattr(self.agent_processor, 'shutdown_processor') and self.agent_processor.shutdown_processor:
+                                # Run a few rounds of shutdown processing
+                                for round_num in range(5):
+                                    try:
+                                        result = await self.agent_processor.shutdown_processor.process(round_num)
+                                        if self.agent_processor.shutdown_processor.shutdown_complete:
+                                            break
+                                    except Exception as e:
+                                        logger.error(f"Error in shutdown processor: {e}", exc_info=True)
+                                        break
+                                    await asyncio.sleep(0.1)
+                    else:
+                        logger.error(f"Cannot transition from {current_state} to SHUTDOWN state")
+                    
+                    # Wait a bit for ShutdownProcessor to complete
+                    # The processor will set shutdown_complete flag
+                    max_wait = 30.0  # Maximum 30 seconds for negotiation
+                    start_time = asyncio.get_event_loop().time()
+                    
+                    while (asyncio.get_event_loop().time() - start_time) < max_wait:
+                        if hasattr(self.agent_processor, 'shutdown_processor') and self.agent_processor.shutdown_processor:
+                            if self.agent_processor.shutdown_processor.shutdown_complete:
+                                result = self.agent_processor.shutdown_processor.shutdown_result
+                                if result and result.get("status") == "rejected":
+                                    logger.warning(f"Shutdown rejected by agent: {result.get('reason')}")
+                                    # For now, proceed with shutdown anyway
+                                    # TODO: Implement human override flow
+                                break
+                        await asyncio.sleep(0.5)
+                    
+                    logger.debug("Shutdown negotiation complete or timed out")
+                except Exception as e:
+                    logger.error(f"Error during shutdown negotiation: {e}")
+            
+        # Stop multi-service sink
+        if self.multi_service_sink:
+            try:
+                logger.debug("Stopping multi-service sink...")
+                await self.multi_service_sink.stop()
+                logger.debug("Multi-service sink stopped.")
+            except Exception as e:
+                logger.error(f"Error stopping multi-service sink: {e}")
+            
+        logger.debug(f"Stopping {len(self.adapters)} adapters...")
+        adapter_stop_results = await asyncio.gather(
+            *(adapter.stop() for adapter in self.adapters if hasattr(adapter, 'stop')),
+            return_exceptions=True
+        )
+        for i, result in enumerate(adapter_stop_results):
+            if isinstance(result, Exception):
+                logger.error(f"Error stopping adapter {self.adapters[i].__class__.__name__}: {result}", exc_info=result)
+        logger.debug("Adapters stopped.")
+            
+        logger.debug("Stopping core services...")
+        services_to_stop = [
+            self.llm_service, # OpenAICompatibleClient
+            self.memory_service,
+            self.audit_service,
+            self.telemetry_service,
+            self.secrets_service,
+            self.adaptive_filter_service,
+            self.agent_config_service,
+            self.transaction_orchestrator,
+            self.maintenance_service,
+        ]
+        
+        # Stop services that have a stop method
+        stop_tasks = []
+        for service in services_to_stop:
+            if service and hasattr(service, 'stop'):
+                stop_tasks.append(service.stop())
+        
+        if stop_tasks:
+            await asyncio.gather(*stop_tasks, return_exceptions=True)
+        
+        # Clear service registry
+        if self.service_registry:
+            try:
+                self.service_registry.clear_all()
+                logger.debug("Service registry cleared.")
+            except Exception as e:
+                logger.error(f"Error clearing service registry: {e}")
+        
+        logger.info("CIRIS Runtime shutdown complete")
     
     async def _preserve_shutdown_consciousness(self) -> None:
         """Preserve agent state for future reactivation."""
@@ -697,45 +824,3 @@ class CIRISRuntime(RuntimeInterface):
                 
         except Exception as e:
             logger.error(f"Failed to preserve shutdown consciousness: {e}")
-            
-        if self.multi_service_sink:
-            logger.debug("Stopping multi-service sink...")
-            await self.multi_service_sink.stop()
-            logger.debug("Multi-service sink stopped.")
-
-        logger.debug(f"Stopping {len(self.adapters)} adapters...")
-        adapter_stop_results = await asyncio.gather(
-            *(adapter.stop() for adapter in self.adapters if hasattr(adapter, 'stop')),
-            return_exceptions=True
-        )
-        for i, result in enumerate(adapter_stop_results):
-            if isinstance(result, Exception):
-                logger.error(f"Error stopping adapter {self.adapters[i].__class__.__name__}: {result}", exc_info=result)
-        logger.debug("Adapters stopped.")
-            
-        logger.debug("Stopping core services...")
-        services_to_stop = [
-            self.llm_service, # OpenAICompatibleClient
-            self.memory_service,
-            self.audit_service,
-            self.telemetry_service,
-            self.secrets_service,
-            self.adaptive_filter_service,
-            self.agent_config_service,
-            self.transaction_orchestrator,
-            self.maintenance_service,
-        ]
-        
-        # Stop services that have a stop method
-        stop_tasks = []
-        for service in services_to_stop:
-            if service and hasattr(service, 'stop'):
-                stop_tasks.append(service.stop())
-        
-        if stop_tasks:
-            await asyncio.gather(*stop_tasks, return_exceptions=True)
-        
-        if self.service_registry:
-            self.service_registry.clear_all()
-        
-        logger.info("CIRIS Runtime shutdown complete")

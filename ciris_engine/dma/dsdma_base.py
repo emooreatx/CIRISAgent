@@ -107,7 +107,7 @@ class BaseDSDMA(BaseDMA, DSDMAInterface):
         # Use DMAInputData if provided, otherwise fall back to ProcessingQueueItem context
         if current_context:
             # Use typed DMAInputData fields
-            context_str = f"Round {current_context.round_number}, Ponder count: {current_context.current_ponder_count}"
+            context_str = f"Round {current_context.round_number}, Ponder count: {current_context.current_thought_depth}"
             rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General domain guidance") if isinstance(self.domain_specific_knowledge, dict) else "General domain guidance"
             
             # Get system snapshot from DMAInputData - CRITICAL requirement

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from ciris_engine.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import LLMService
 from ciris_engine.protocols.faculties import EpistemicFaculty
+from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 
 if TYPE_CHECKING:
     pass
@@ -82,7 +83,7 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         """Return the LLM service for this DMA from the service registry."""
         service = await self.service_registry.get_service(
             handler=self.__class__.__name__,
-            service_type="llm",
+            service_type=ServiceType.LLM,
         )
         return service
     

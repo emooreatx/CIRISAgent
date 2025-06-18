@@ -23,7 +23,7 @@ class ActionSelectionContextBuilder:
     def build_main_user_content(
         self,
         triaged_inputs: Dict[str, Any],
-        agent_profile_name: Optional[str] = None
+        agent_name: Optional[str] = None
     ) -> str:
         """Build the main user content for LLM evaluation."""
         
@@ -32,7 +32,7 @@ class ActionSelectionContextBuilder:
         ethical_pdma_result = triaged_inputs["ethical_pdma_result"]
         csdma_result = triaged_inputs["csdma_result"]
         dsdma_result = triaged_inputs.get("dsdma_result")
-        current_ponder_count = triaged_inputs["current_ponder_count"]
+        current_thought_depth = triaged_inputs["current_thought_depth"]
         max_rounds = triaged_inputs["max_rounds"]
         
         # Build context sections
@@ -48,16 +48,16 @@ class ActionSelectionContextBuilder:
         
         # Build ponder context
         ponder_notes_str = self._build_ponder_context(
-            original_thought, current_ponder_count
+            original_thought, current_thought_depth
         )
         
         # Build final attempt advisory
         final_ponder_advisory = self._build_final_attempt_advisory(
-            current_ponder_count, max_rounds, agent_profile_name
+            current_thought_depth, max_rounds, agent_name
         )
         
         # Build guidance sections
-        guidance_sections = self._build_guidance_sections(agent_profile_name, permitted_actions)
+        guidance_sections = self._build_guidance_sections(agent_name, permitted_actions)
         
         # Build system context
         processing_context = triaged_inputs.get("processing_context")
@@ -204,7 +204,7 @@ Adhere strictly to the schema for your JSON output.
     def _build_ponder_context(
         self, 
         original_thought: Thought, 
-        current_ponder_count: int
+        current_thought_depth: int
     ) -> str:
         """Build ponder context string."""
         notes_list = original_thought.ponder_notes if original_thought.ponder_notes else []
@@ -213,7 +213,7 @@ Adhere strictly to the schema for your JSON output.
             ponder_notes_str = (
                 "\n\nIMPORTANT CONTEXT FROM PREVIOUS ACTION ROUNDS:\n"
             )
-            ponder_notes_str += f"This thought has been pondered {current_ponder_count} time(s). PLEASE TRY AND ACT (SPEAK) NOW\n"
+            ponder_notes_str += f"This thought has been pondered {current_thought_depth} time(s). PLEASE TRY AND ACT (SPEAK) NOW\n"
             ponder_notes_str += (
                 "The following key questions were previously identified:\n"
             )
@@ -225,29 +225,29 @@ Adhere strictly to the schema for your JSON output.
                 "from the ones listed above and aim to address any REMAINING ambiguities or guide towards a solution.\n"
             )
             return ponder_notes_str
-        elif current_ponder_count > 0:
-            return f"\n\nThis thought has been pondered {current_ponder_count} time(s) previously. If choosing 'Ponder' again, formulate new, insightful questions.\n"
+        elif current_thought_depth > 0:
+            return f"\n\nThis thought has been pondered {current_thought_depth} time(s) previously. If choosing 'Ponder' again, formulate new, insightful questions.\n"
         
         return ""
     
     def _build_final_attempt_advisory(
         self,
-        current_ponder_count: int,
+        current_thought_depth: int,
         max_rounds: int,
-        agent_profile_name: Optional[str]
+        agent_name: Optional[str]
     ) -> str:
         """Build final attempt advisory."""
-        is_final_attempt_round = current_ponder_count >= max_rounds - 1
+        is_final_attempt_round = current_thought_depth >= max_rounds - 1
         
         if not is_final_attempt_round:
             return ""
         
-        final_ponder_advisory_template = self._get_profile_specific_prompt(
-            "final_ponder_advisory", agent_profile_name
+        final_ponder_advisory_template = self._get_agent_specific_prompt(
+            "final_ponder_advisory", agent_name
         )
         try:
             return final_ponder_advisory_template.format(
-                current_ponder_count_plus_1=current_ponder_count + 1,
+                current_thought_depth_plus_1=current_thought_depth + 1,
                 max_rounds=max_rounds,
             )
         except KeyError as e:
@@ -256,26 +256,26 @@ Adhere strictly to the schema for your JSON output.
             )
             return "\nIMPORTANT FINAL ATTEMPT: Attempt to provide a terminal action."
     
-    def _build_guidance_sections(self, agent_profile_name: Optional[str], permitted_actions: List[HandlerActionType]) -> Dict[str, str]:
+    def _build_guidance_sections(self, agent_name: Optional[str], permitted_actions: List[HandlerActionType]) -> Dict[str, str]:
         """Build all guidance sections."""
         return {
-            'action_alignment_csdma_guidance': self._get_profile_specific_prompt(
-                "csdma_ambiguity_guidance", agent_profile_name
+            'action_alignment_csdma_guidance': self._get_agent_specific_prompt(
+                "csdma_ambiguity_guidance", agent_name
             ),
-            'action_alignment_example': self._get_profile_specific_prompt(
-                "csdma_ambiguity_alignment_example", agent_profile_name
+            'action_alignment_example': self._get_agent_specific_prompt(
+                "csdma_ambiguity_alignment_example", agent_name
             ),
-            'action_parameters_speak_csdma_guidance': self._get_profile_specific_prompt(
-                "action_params_speak_csdma_guidance", agent_profile_name
+            'action_parameters_speak_csdma_guidance': self._get_agent_specific_prompt(
+                "action_params_speak_csdma_guidance", agent_name
             ),
-            'action_parameters_ponder_guidance': self._get_profile_specific_prompt(
-                "action_params_ponder_guidance", agent_profile_name
+            'action_parameters_ponder_guidance': self._get_agent_specific_prompt(
+                "action_params_ponder_guidance", agent_name
             ),
-            'action_parameters_observe_guidance': self._get_profile_specific_prompt(
-                "action_params_observe_guidance", agent_profile_name
+            'action_parameters_observe_guidance': self._get_agent_specific_prompt(
+                "action_params_observe_guidance", agent_name
             ),
-            'action_selection_rationale_csdma_guidance': self._get_profile_specific_prompt(
-                "action_selection_rationale_csdma_guidance", agent_profile_name
+            'action_selection_rationale_csdma_guidance': self._get_agent_specific_prompt(
+                "action_selection_rationale_csdma_guidance", agent_name
             ),
             'action_parameter_schemas': self._get_dynamic_action_schemas(permitted_actions),
         }
@@ -314,20 +314,20 @@ Adhere strictly to the schema for your JSON output.
         """Get reject thought guidance."""
         return "\nNote on 'Reject Thought': Use this action sparingly, primarily if the original thought is nonsensical, impossible to act upon even with clarification, or fundamentally misaligned with the agent's purpose. Prefer 'Ponder' or 'Speak' for clarification if possible."
     
-    def _get_profile_specific_prompt(
-        self, base_key: str, agent_profile_name: Optional[str]
+    def _get_agent_specific_prompt(
+        self, base_key: str, agent_name: Optional[str]
     ) -> str:
-        """Get profile-specific prompt, falling back to base key."""
-        if agent_profile_name:
-            profile_key = f"{agent_profile_name.lower()}_mode_{base_key}"
-            if profile_key in self.prompts:
-                return self.prompts[profile_key]
+        """Get agent-specific prompt variation, falling back to base key."""
+        if agent_name:
+            agent_key = f"{agent_name.lower()}_mode_{base_key}"
+            if agent_key in self.prompts:
+                return self.prompts[agent_key]
 
         if base_key in self.prompts:
             return self.prompts[base_key]
 
         logger.warning(
-            f"Prompt key for '{base_key}' (profile: {agent_profile_name}) not found. Using empty string."
+            f"Prompt key for '{base_key}' (agent: {agent_name}) not found. Using empty string."
         )
         return ""
     

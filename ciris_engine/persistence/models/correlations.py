@@ -339,6 +339,6 @@ def get_metrics_timeseries(
                 ))
             return correlations
     except Exception as e:
-        logger.exception("Failed to fetch metrics timeseries for %s: %s", metric_name, e)
+        logger.exception("Failed to fetch metrics timeseries for %s: %s", query.metric_name, e)
         return []
 

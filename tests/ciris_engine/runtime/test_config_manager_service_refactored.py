@@ -7,7 +7,7 @@ from pathlib import Path
 from ciris_engine.services.config_manager_service import ConfigManagerService
 from ciris_engine.schemas.runtime_control_schemas import (
     ConfigScope, ConfigValidationLevel, ConfigOperationResponse,
-    ConfigValidationResponse, AgentProfileInfo, AgentProfileResponse,
+    ConfigValidationResponse, AgentTemplateInfo, AgentTemplateResponse,
     ConfigBackupResponse
 )
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
@@ -25,7 +25,8 @@ except ImportError:
 
 # Rebuild models with resolved references  
 try:
-    AgentProfile.model_rebuild()
+    from ciris_engine.schemas.config_schemas_v1 import AgentTemplate
+    AgentTemplate.model_rebuild()
     AppConfig.model_rebuild()
 except Exception:
     pass
@@ -72,7 +73,6 @@ class TestConfigManagerServiceRefactored:
         capabilities = await service.get_capabilities()
         expected_capabilities = [
             "config.get", "config.update", "config.validate",
-            "profile.list", "profile.create", "profile.reload",
             "backup.create", "backup.restore"
         ]
         for cap in expected_capabilities:
@@ -216,44 +216,17 @@ class TestConfigManagerServiceRefactored:
             config_data, None, None
         )
 
+    @pytest.mark.skip(reason="Profile management removed - identity is now graph-based")
     @pytest.mark.asyncio
     async def test_list_profiles_delegates(self, service):
         """Test that list_profiles delegates to profile manager."""
-        mock_config = MagicMock()
-        
-        with patch('ciris_engine.services.config_manager_service.get_config') as mock_get_config:
-            mock_get_config.return_value = mock_config
-            await service.start()
-            
-            expected_profiles = [
-                AgentProfileInfo(
-                    name="test", description="Test profile", file_path="test.yaml",
-                    is_active=False, permitted_actions=[], adapter_configs={}
-                )
-            ]
-            service._profile_manager.list_profiles = AsyncMock(return_value=expected_profiles)
-            
-            result = await service.list_profiles()
-            
-            assert result == expected_profiles
-            service._profile_manager.list_profiles.assert_called_once()
+        pass  # Profile management removed
 
+    @pytest.mark.skip(reason="Profile management removed - identity is now graph-based")
     @pytest.mark.asyncio
     async def test_create_profile_delegates(self, service):
         """Test that create_profile delegates to profile manager."""
-        config = {"permitted_actions": ["OBSERVE"]}
-        expected_response = AgentProfileResponse(
-            success=True, profile_name="test", operation="create_profile",
-            timestamp=datetime.now(timezone.utc), message="Created"
-        )
-        service._profile_manager.create_profile = AsyncMock(return_value=expected_response)
-        
-        result = await service.create_profile("test", config)
-        
-        assert result == expected_response
-        service._profile_manager.create_profile.assert_called_once_with(
-            "test", config, None, None, True
-        )
+        pass  # Profile management removed
 
     @pytest.mark.asyncio
     async def test_reload_profile_success(self, service):
@@ -266,11 +239,8 @@ class TestConfigManagerServiceRefactored:
             
             service._config_manager.reload_profile = AsyncMock()
             
-            result = await service.reload_profile("test_profile")
-            
-            assert result.success is True
-            assert result.operation == "reload_profile"
-            assert "test_profile" in service._profile_manager.get_loaded_profiles()
+            # The service doesn't have reload_profile method
+            pytest.skip("reload_profile method not implemented in ConfigManagerService")
 
     @pytest.mark.asyncio
     async def test_backup_config_delegates(self, service):
@@ -302,15 +272,10 @@ class TestConfigManagerServiceRefactored:
         # Should have kept the most recent ones
         assert "test_149" in history[-1]["operation"]
 
+    @pytest.mark.skip(reason="Profile management removed - identity is now graph-based")
     def test_get_loaded_profiles_delegates(self, service):
         """Test that get_loaded_profiles delegates to profile manager."""
-        expected_profiles = ["profile1", "profile2"]
-        service._profile_manager.get_loaded_profiles = MagicMock(return_value=expected_profiles)
-        
-        result = service.get_loaded_profiles()
-        
-        assert result == expected_profiles
-        service._profile_manager.get_loaded_profiles.assert_called_once()
+        pass  # Profile management removed
 
     @pytest.mark.asyncio
     async def test_error_handling_in_update(self, service):

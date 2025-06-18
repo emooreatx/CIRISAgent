@@ -4,6 +4,10 @@ from typing import Dict, Any, List, Optional
 import httpx
 from ciris_engine.services.memory_service import LocalGraphMemoryService
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
+from ciris_engine.schemas.graphql_schemas_v1 import (
+    GraphQLQuery, GraphQLResponse, UserQueryVariables, UserQueryResponse,
+    UserProfile, EnrichedContext
+)
 
 logger = logging.getLogger(__name__)
 
@@ -15,19 +19,25 @@ class GraphQLClient:
         self.endpoint = endpoint or get_env_var("GRAPHQL_ENDPOINT", "https://localhost:8000/graphql")
         self._client = httpx.AsyncClient(timeout=3.0)
 
-    async def query(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
+    async def query(self, query_obj: GraphQLQuery) -> GraphQLResponse:
         try:
             # Ensure endpoint is not None
             if self.endpoint is None:
                 raise ValueError("GraphQL endpoint is not configured")
-            resp = await self._client.post(self.endpoint, json={"query": query, "variables": variables})
+            payload = {
+                "query": query_obj.query,
+                "variables": query_obj.variables.model_dump()
+            }
+            if query_obj.operation_name:
+                payload["operationName"] = query_obj.operation_name
+                
+            resp = await self._client.post(self.endpoint, json=payload)
             resp.raise_for_status()
             data = resp.json()
-            result = data.get("data", {})
-            return result if isinstance(result, dict) else {}
+            return GraphQLResponse.model_validate(data)
         except Exception as exc:
             logger.error("GraphQL query failed: %s", exc)
-            return {}
+            return GraphQLResponse()
 
 class GraphQLContextProvider:
     def __init__(self, graphql_client: GraphQLClient | None = None,
@@ -41,46 +51,69 @@ class GraphQLContextProvider:
             self.client = graphql_client
         self.memory_service = memory_service
 
-    async def enrich_context(self, task: Any, thought: Any = None) -> Dict[str, Any]:
+    async def enrich_context(self, task: Any, thought: Any = None) -> EnrichedContext:
         authors: set[str] = set()
-        if task and isinstance(task.context, dict):
-            name = task.context.get("author_name")
-            if name:
-                authors.add(name)
-        if thought and hasattr(thought, 'context') and isinstance(thought.context, dict):
-            name = thought.context.get("author_name")
-            if name:
-                authors.add(name)
-        history: List[Dict[str, Any]] = []
-        for item in history:
-            name = item.get("author_name")
-            if name:
-                authors.add(name)
+        
+        # Extract author names from task context
+        if task and hasattr(task, 'context'):
+            if hasattr(task.context, 'initial_task_context') and task.context.initial_task_context:
+                if hasattr(task.context.initial_task_context, 'author_name'):
+                    authors.add(task.context.initial_task_context.author_name)
+            elif isinstance(task.context, dict) and 'author_name' in task.context:
+                authors.add(task.context['author_name'])
+                
+        # Extract author names from thought context        
+        if thought and hasattr(thought, 'context'):
+            if hasattr(thought.context, 'initial_task_context') and thought.context.initial_task_context:
+                if hasattr(thought.context.initial_task_context, 'author_name'):
+                    authors.add(thought.context.initial_task_context.author_name)
+            elif isinstance(thought.context, dict) and 'author_name' in thought.context:
+                authors.add(thought.context['author_name'])
+        
         if not authors:
-            return {}
-        query = """
+            return EnrichedContext()
+            
+        query_str = """
             query($names:[String!]!){
                 users(names:$names){ name nick channel }
             }
         """
-        result: Dict[str, Any] = {}
+        
+        user_profiles: Dict[str, UserProfile] = {}
+        
         if self.enable_remote_graphql and self.client:
-            result = await self.client.query(query, {"names": list(authors)})
-        users = result.get("users", []) if result else []
-        enriched = {
-            u["name"]: {"nick": u.get("nick"), "channel": u.get("channel")}
-            for u in users
-        }
+            query_obj = GraphQLQuery(
+                query=query_str,
+                variables=UserQueryVariables(names=list(authors))
+            )
+            response = await self.client.query(query_obj)
+            
+            if response.data and "users" in response.data:
+                try:
+                    user_response = UserQueryResponse.model_validate(response.data)
+                    for user in user_response.users:
+                        user_profiles[user.name] = UserProfile(
+                            nick=user.nick,
+                            channel=user.channel
+                        )
+                except Exception as exc:
+                    logger.warning("Failed to parse user query response: %s", exc)
 
-        missing = [name for name in authors if name not in enriched]
+        # Get missing users from memory service
+        missing = [name for name in authors if name not in user_profiles and name is not None]
         if self.memory_service and missing:
             memory_results = await asyncio.gather(
-                *(self.memory_service.recall(GraphNode(id=n, type=NodeType.USER, scope=GraphScope.LOCAL)) for n in missing)
+                *(self.memory_service.recall(GraphNode(id=n, type=NodeType.USER, scope=GraphScope.LOCAL)) for n in missing if n),
+                return_exceptions=True
             )
             for name, mem_result in zip(missing, memory_results):
-                if mem_result and hasattr(mem_result, 'data') and mem_result.data:
-                    enriched[name] = mem_result.data
+                if mem_result and not isinstance(mem_result, Exception):
+                    if hasattr(mem_result, 'data') and mem_result.data:
+                        user_profiles[name] = UserProfile(
+                            attributes=mem_result.data if isinstance(mem_result.data, dict) else {"data": mem_result.data}
+                        )
 
+        # Get identity context
         identity_block = ""
         if self.memory_service:
             try:
@@ -88,9 +121,7 @@ class GraphQLContextProvider:
             except Exception as exc:
                 logger.warning("Failed to export identity context: %s", exc)
 
-        context: Dict[str, Any] = {}
-        if enriched:
-            context["user_profiles"] = enriched
-        if identity_block:
-            context["identity_context"] = identity_block
-        return context
+        return EnrichedContext(
+            user_profiles=user_profiles,
+            identity_context=identity_block if identity_block else None
+        )

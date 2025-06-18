@@ -2,19 +2,21 @@ import pytest
 from ciris_engine.schemas import action_params_v1
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from pydantic import ValidationError
+from ciris_engine.utils.channel_utils import create_channel_context
 
 def test_observe_params_defaults():
     params = action_params_v1.ObserveParams()
-    assert params.channel_id is None
+    assert params.channel_context is None
     assert params.active is False
     assert isinstance(params.context, dict)
 
 def test_speak_params_required():
     with pytest.raises(ValidationError):
         action_params_v1.SpeakParams()
-    params = action_params_v1.SpeakParams(content="Hello", channel_id="chan")
+    params = action_params_v1.SpeakParams(content="Hello", channel_context=create_channel_context("chan"))
     assert params.content == "Hello"
-    assert params.channel_id == "chan"
+    assert params.channel_context is not None
+    assert params.channel_context.channel_id == "chan"
 
 def test_tool_params_defaults():
     params = action_params_v1.ToolParams(name="mytool")

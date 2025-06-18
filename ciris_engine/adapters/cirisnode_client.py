@@ -7,7 +7,7 @@ from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry  # Use schema version
 from ciris_engine.config.config_manager import get_config
 from ciris_engine.schemas.config_schemas_v1 import CIRISNodeConfig
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ServiceType
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services import AuditService
@@ -57,7 +57,7 @@ class CIRISNodeClient(Service):
 
         self._audit_service = await self.service_registry.get_service(
             self.__class__.__name__,
-            "audit",
+            ServiceType.AUDIT,
             required_capabilities=["log_action"],
             fallback_to_global=True,
         )

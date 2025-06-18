@@ -225,7 +225,7 @@ async def test_get_runtime_status(runtime_control_service):
     assert result.processor_status == ProcessorStatus.RUNNING
     assert result.active_adapters == []
     assert result.loaded_adapters == []
-    assert result.current_profile == "default"
+    assert result.current_profile == "identity-based"
     assert result.uptime_seconds > 0
 
 

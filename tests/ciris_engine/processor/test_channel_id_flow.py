@@ -17,15 +17,16 @@ except ImportError:
 
 # Rebuild models with resolved references  
 try:
-    AgentProfile.model_rebuild()
     AppConfig.model_rebuild()
 except Exception:
     pass
 
 from ciris_engine.action_handlers.action_dispatcher import ActionDispatcher
+from ciris_engine.schemas.identity_schemas_v1 import AgentIdentityRoot, CoreProfile, IdentityMetadata
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
+from datetime import datetime, timezone
 
 def test_channel_id_flows_from_env_to_processors(monkeypatch):
-    from ciris_engine.schemas.config_schemas_v1 import AgentProfile
     
     # Set up environment variable
     test_channel_id = "TEST_CHANNEL_123"
@@ -40,12 +41,39 @@ def test_channel_id_flows_from_env_to_processors(monkeypatch):
     app_config.llm_services = MagicMock()
     app_config.guardrails = MagicMock()
 
-    # Create active profile
-    active_profile = AgentProfile(
-            name="test_profile",
+    # Create active identity
+    active_identity = AgentIdentityRoot(
+        agent_id="test_agent",
+        identity_hash="test_hash_123",
+        core_profile=CoreProfile(
             description="Test agent for unit tests",
-            role_description="A minimal test agent profile"
-        )
+            role_description="A minimal test agent profile",
+            domain_specific_knowledge={},
+            dsdma_prompt_template=None,
+            csdma_overrides={},
+            action_selection_pdma_overrides={},
+            last_shutdown_memory=None
+        ),
+        identity_metadata=IdentityMetadata(
+            created_at=datetime.now(timezone.utc).isoformat(),
+            last_modified=datetime.now(timezone.utc).isoformat(),
+            modification_count=0,
+            creator_agent_id="system",
+            lineage_trace=["system"],
+            approval_required=False,
+            approved_by=None,
+            approval_timestamp=None
+        ),
+        permitted_actions=[
+            HandlerActionType.OBSERVE,
+            HandlerActionType.SPEAK,
+            HandlerActionType.PONDER,
+            HandlerActionType.DEFER,
+            HandlerActionType.REJECT,
+            HandlerActionType.TASK_COMPLETE
+        ],
+        restricted_capabilities=[]
+    )
 
     # Mock all processors and dependencies
     thought_processor = MagicMock(spec=ThoughtProcessor)
@@ -56,7 +84,7 @@ def test_channel_id_flows_from_env_to_processors(monkeypatch):
     with patch("ciris_engine.processor.wakeup_processor.WakeupProcessor.__init__", return_value=None) as mock_wakeup_init:
         AgentProcessor(
             app_config=app_config,
-            profile=active_profile,  # Pass active profile
+            agent_identity=active_identity,  # Pass active identity
             thought_processor=thought_processor,
             action_dispatcher=action_dispatcher,
             services=services,

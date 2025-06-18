@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from ciris_engine.services.memory_service import LocalGraphMemoryService
 from ciris_engine.services.llm_service import OpenAICompatibleClient
+from ciris_engine.protocols.services import LLMService
 from ciris_engine.services.audit_service import AuditService
 from ciris_engine.services.signed_audit_service import SignedAuditService
 from ciris_engine.services.tsdb_audit_service import TSDBSignedAuditService
@@ -38,7 +39,7 @@ class ServiceInitializer:
         self.secrets_service: Optional[SecretsService] = None
         self.wa_auth_system: Optional[WAAuthenticationSystem] = None
         self.telemetry_service: Optional[TelemetryService] = None
-        self.llm_service: Optional[OpenAICompatibleClient] = None
+        self.llm_service: Optional[LLMService] = None
         self.audit_services: List[Any] = []
         self.audit_service: Optional[AuditService] = None
         self.audit_sink_manager: Optional[AuditSinkManager] = None
@@ -50,10 +51,8 @@ class ServiceInitializer:
     
     async def initialize_memory_service(self, config: Any) -> None:
         """Initialize the memory service."""
-        # Use database config for memory service
-        import os
-        memory_db_path = os.path.join(config.database.data_directory, config.database.graph_memory_filename)
-        self.memory_service = LocalGraphMemoryService(db_path=memory_db_path)
+        # LocalGraphMemoryService uses SQLite by default
+        self.memory_service = LocalGraphMemoryService()
         await self.memory_service.start()
         logger.info("Memory service initialized")
     
@@ -211,13 +210,14 @@ class ServiceInitializer:
             await mock_service.start()
             
             # Register with CRITICAL priority as the ONLY LLM service
-            self.service_registry.register_global(
-                service_type=ServiceType.LLM,
-                provider=mock_service,
-                priority=Priority.CRITICAL,
-                capabilities=["generate_structured_response", "mock_llm"],
-                metadata={"provider": "mock", "warning": "MOCK LLM - NOT FOR PRODUCTION"}
-            )
+            if self.service_registry:
+                self.service_registry.register_global(
+                    service_type=ServiceType.LLM,
+                    provider=mock_service,
+                    priority=Priority.CRITICAL,
+                    capabilities=["generate_structured_response", "mock_llm"],
+                    metadata={"provider": "mock", "warning": "MOCK LLM - NOT FOR PRODUCTION"}
+                )
             
             # Store reference for compatibility
             self.llm_service = mock_service
@@ -235,13 +235,14 @@ class ServiceInitializer:
             await openai_service.start()
             
             # Register OpenAI as primary
-            self.service_registry.register_global(
-                service_type=ServiceType.LLM,
-                provider=openai_service,
-                priority=Priority.HIGH,
-                capabilities=["generate_structured_response", "openai"],
-                metadata={"provider": "openai", "model": config.llm_services.openai.model_name}
-            )
+            if self.service_registry:
+                self.service_registry.register_global(
+                    service_type=ServiceType.LLM,
+                    provider=openai_service,
+                    priority=Priority.HIGH,
+                    capabilities=["generate_structured_response", "openai"],
+                    metadata={"provider": "openai", "model": config.llm_services.openai.model_name}
+                )
             
             # Store reference for compatibility
             self.llm_service = openai_service

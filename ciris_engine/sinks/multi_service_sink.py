@@ -59,28 +59,28 @@ class MultiServiceActionSink(BaseMultiServiceSink):
         self._pending_tool_results: Dict[str, asyncio.Future] = {}
     
     @property
-    def service_routing(self) -> Dict[ActionType, str]:
+    def service_routing(self) -> Dict[ActionType, ServiceType]:
         """Map action types to service types"""
         return {
-            ActionType.SEND_MESSAGE: 'communication',
-            ActionType.FETCH_MESSAGES: 'communication',
-            ActionType.FETCH_GUIDANCE: 'wise_authority',
-            ActionType.SEND_DEFERRAL: 'wise_authority',
-            ActionType.MEMORIZE: 'memory',
-            ActionType.RECALL: 'memory',
-            ActionType.FORGET: 'memory',
-            ActionType.SEND_TOOL: 'tool',
-            ActionType.FETCH_TOOL: 'tool',
-            ActionType.LIST_TOOLS: 'tool',
-            ActionType.GENERATE_STRUCTURED: 'llm',
+            ActionType.SEND_MESSAGE: ServiceType.COMMUNICATION,
+            ActionType.FETCH_MESSAGES: ServiceType.COMMUNICATION,
+            ActionType.FETCH_GUIDANCE: ServiceType.WISE_AUTHORITY,
+            ActionType.SEND_DEFERRAL: ServiceType.WISE_AUTHORITY,
+            ActionType.MEMORIZE: ServiceType.MEMORY,
+            ActionType.RECALL: ServiceType.MEMORY,
+            ActionType.FORGET: ServiceType.MEMORY,
+            ActionType.SEND_TOOL: ServiceType.TOOL,
+            ActionType.FETCH_TOOL: ServiceType.TOOL,
+            ActionType.LIST_TOOLS: ServiceType.TOOL,
+            ActionType.GENERATE_STRUCTURED: ServiceType.LLM,
             # Note: OBSERVE_MESSAGE removed - observation handled at adapter level
             # TSDB/Telemetry actions
-            ActionType.RECORD_METRIC: 'telemetry',
-            ActionType.QUERY_TELEMETRY: 'telemetry',
-            ActionType.RECORD_LOG: 'telemetry',
+            ActionType.RECORD_METRIC: ServiceType.TELEMETRY,
+            ActionType.QUERY_TELEMETRY: ServiceType.TELEMETRY,
+            ActionType.RECORD_LOG: ServiceType.TELEMETRY,
             # Audit actions
-            ActionType.LOG_AUDIT_EVENT: 'audit',
-            ActionType.QUERY_AUDIT_TRAIL: 'audit',
+            ActionType.LOG_AUDIT_EVENT: ServiceType.AUDIT,
+            ActionType.QUERY_AUDIT_TRAIL: ServiceType.AUDIT,
         }
     
     @property

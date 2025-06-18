@@ -21,6 +21,7 @@ from ciris_engine.schemas.correlation_schemas_v1 import (
     ServiceCorrelationStatus,
     CorrelationType,
 )
+from ciris_engine.schemas.persistence_schemas_v1 import MetricsQuery
 
 
 class TestTSDBCorrelations:
@@ -171,12 +172,12 @@ class TestTSDBCorrelations:
             add_correlation(metric_corr, db_path=test_db_path)
         
         # Query time series
-        results = get_metrics_timeseries(
-            "cpu_usage",
-            start_time=(base_time - timedelta(minutes=15)).isoformat(),
-            tags={"host": "agent-1"},
-            db_path=test_db_path
+        query = MetricsQuery(
+            metric_name="cpu_usage",
+            start_time=base_time - timedelta(minutes=15),
+            tags={"host": "agent-1"}
         )
+        results = get_metrics_timeseries(query, db_path=test_db_path)
         
         assert len(results) > 0
         assert all(r.metric_name == "cpu_usage" for r in results)
@@ -309,11 +310,11 @@ class TestTSDBCorrelations:
             add_correlation(metric_corr, db_path=test_db_path)
         
         # Query with tag filter
-        results = get_metrics_timeseries(
-            "api_latency",
-            tags={"environment": "production"},
-            db_path=test_db_path
+        query = MetricsQuery(
+            metric_name="api_latency",
+            tags={"environment": "production"}
         )
+        results = get_metrics_timeseries(query, db_path=test_db_path)
         
         assert len(results) == 1
         assert results[0].tags["environment"] == "production"

@@ -19,15 +19,17 @@ except ImportError:
     APIAdapterConfig = type('APIAdapterConfig', (), {})
     CLIAdapterConfig = type('CLIAdapterConfig', (), {})
 
-from ciris_engine.schemas.config_schemas_v1 import AppConfig, AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AppConfig
+from ciris_engine.schemas.identity_schemas_v1 import AgentIdentityRoot, CoreProfile, IdentityMetadata
+from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 
 # Rebuild models with resolved references
 try:
-    AgentProfile.model_rebuild()
     AppConfig.model_rebuild()
 except Exception:
     pass
 from ciris_engine.schemas.states_v1 import AgentState
+from datetime import datetime, timezone
 
 
 class TestAgentProcessorProtocolCompliance:
@@ -44,12 +46,39 @@ class TestAgentProcessorProtocolCompliance:
         return config
 
     @pytest.fixture
-    def minimal_profile(self):
-        """Create minimal profile for testing."""
-        return AgentProfile(
-            name="test_profile",
-            description="Test agent for unit tests",
-            role_description="A minimal test agent profile"
+    def minimal_identity(self):
+        """Create minimal agent identity for testing."""
+        return AgentIdentityRoot(
+            agent_id="test_agent",
+            identity_hash="test_hash_123",
+            core_profile=CoreProfile(
+                description="Test agent for unit tests",
+                role_description="A minimal test agent profile",
+                domain_specific_knowledge={},
+                dsdma_prompt_template=None,
+                csdma_overrides={},
+                action_selection_pdma_overrides={},
+                last_shutdown_memory=None
+            ),
+            identity_metadata=IdentityMetadata(
+                created_at=datetime.now(timezone.utc).isoformat(),
+                last_modified=datetime.now(timezone.utc).isoformat(),
+                modification_count=0,
+                creator_agent_id="system",
+                lineage_trace=["system"],
+                approval_required=False,
+                approved_by=None,
+                approval_timestamp=None
+            ),
+            permitted_actions=[
+                HandlerActionType.OBSERVE,
+                HandlerActionType.SPEAK,
+                HandlerActionType.PONDER,
+                HandlerActionType.DEFER,
+                HandlerActionType.REJECT,
+                HandlerActionType.TASK_COMPLETE
+            ],
+            restricted_capabilities=[]
         )
 
     @pytest.fixture
@@ -62,7 +91,7 @@ class TestAgentProcessorProtocolCompliance:
         }
 
     @pytest.fixture
-    def agent_processor(self, minimal_config, minimal_profile, mock_dependencies):
+    def agent_processor(self, minimal_config, minimal_identity, mock_dependencies):
         """Create AgentProcessor with mocked sub-processors."""
         with patch('ciris_engine.processor.main_processor.WakeupProcessor'), \
              patch('ciris_engine.processor.main_processor.WorkProcessor'), \
@@ -73,10 +102,11 @@ class TestAgentProcessorProtocolCompliance:
             
             processor = AgentProcessor(
                 app_config=minimal_config,
-                profile=minimal_profile,
+                agent_identity=minimal_identity,
                 thought_processor=mock_dependencies["thought_processor"],
                 action_dispatcher=mock_dependencies["action_dispatcher"],
-                services=mock_dependencies["services"]
+                services=mock_dependencies["services"],
+                startup_channel_id="test_channel_123"
             )
             
             # Mock all sub-processor methods that get called
@@ -169,6 +199,9 @@ class TestAgentProcessorProtocolCompliance:
     @pytest.mark.asyncio
     async def test_start_processing_state_transition(self, agent_processor):
         """Test that start_processing properly transitions to WAKEUP state."""
+        # Agent should start in SHUTDOWN state
+        assert agent_processor.state_manager.get_state() == AgentState.SHUTDOWN
+        
         with patch.object(agent_processor.state_manager, 'transition_to', return_value=True) as mock_transition:
             # Mock wakeup completion to avoid full processing
             agent_processor.wakeup_processor.process = AsyncMock(return_value={"wakeup_complete": True})

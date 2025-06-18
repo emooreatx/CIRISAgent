@@ -17,7 +17,7 @@ from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.dma.csdma import CSDMAEvaluator
 from ciris_engine.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
-from ciris_engine.dma.factory import create_dsdma_from_profile
+from ciris_engine.dma.factory import create_dsdma_from_identity
 from ciris_engine.guardrails import (
     GuardrailRegistry,
     EntropyGuardrail,
@@ -25,6 +25,7 @@ from ciris_engine.guardrails import (
     OptimizationVetoGuardrail,
     EpistemicHumilityGuardrail,
 )
+from ciris_engine.guardrails.thought_depth_guardrail import ThoughtDepthGuardrail
 
 from ciris_engine.faculties.faculty_manager import FacultyManager
 from ciris_engine.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
@@ -95,15 +96,13 @@ class ComponentBuilder:
             faculties=faculty_manager.faculties,  # Pass faculties for enhanced evaluation
         )
 
-        # Create DSDMA using agent's identity-based profile
-        # The identity contains all the necessary overrides from the initial profile template
+        # Create DSDMA using agent's identity
         if not self.runtime.agent_identity:
             raise RuntimeError("Cannot create DSDMA - no agent identity loaded from graph!")
             
-        # Create a temporary profile object from identity for DSDMA creation
-        # This bridges between the identity system and the DSDMA factory
-        from ciris_engine.schemas.config_schemas_v1 import AgentProfile
-        identity_as_profile = AgentProfile(
+        # Create identity configuration for DSDMA
+        from ciris_engine.schemas.config_schemas_v1 import AgentTemplate
+        identity_config = AgentTemplate(
             name=self.runtime.agent_identity.agent_id,
             description=self.runtime.agent_identity.core_profile.description,
             role_description=self.runtime.agent_identity.core_profile.role_description,
@@ -115,8 +114,8 @@ class ComponentBuilder:
             action_selection_pdma_overrides=self.runtime.agent_identity.core_profile.action_selection_pdma_overrides
         )
         
-        dsdma = await create_dsdma_from_profile(
-            identity_as_profile,
+        dsdma = await create_dsdma_from_identity(
+            identity_config,
             self.runtime.service_registry,
             model_name=self.runtime.llm_service.model_name,
             sink=self.runtime.multi_service_sink,
@@ -144,6 +143,11 @@ class ComponentBuilder:
             EpistemicHumilityGuardrail(self.runtime.service_registry, config.guardrails, self.runtime.llm_service.model_name, self.runtime.multi_service_sink),
             priority=3,
         )
+        guardrail_registry.register_guardrail(
+            "thought_depth",
+            ThoughtDepthGuardrail(max_depth=config.workflow.max_rounds),
+            priority=4,  # Run after other guardrails
+        )
         
         # Build context provider
         graphql_provider = GraphQLContextProvider(
@@ -167,7 +171,9 @@ class ComponentBuilder:
             memory_service=self.runtime.memory_service,
             graphql_provider=graphql_provider,
             app_config=self.runtime.app_config,
-            telemetry_service=self.runtime.telemetry_service
+            telemetry_service=self.runtime.telemetry_service,
+            runtime=self.runtime,
+            service_registry=self.runtime.service_registry
         )
         
         guardrail_orchestrator = GuardrailOrchestrator(guardrail_registry)
@@ -211,12 +217,12 @@ class ComponentBuilder:
         # Build agent processor
         if not self.runtime.app_config:
             raise RuntimeError("AppConfig is required for AgentProcessor initialization")
-        if not self.runtime.profile:
-            raise RuntimeError("Profile is required for AgentProcessor initialization")
+        if not self.runtime.agent_identity:
+            raise RuntimeError("Agent identity is required for AgentProcessor initialization")
             
         self.agent_processor = AgentProcessor(
             app_config=self.runtime.app_config,
-            profile=self.runtime.profile,
+            agent_identity=self.runtime.agent_identity,
             thought_processor=thought_processor,
             action_dispatcher=action_dispatcher,
             services={

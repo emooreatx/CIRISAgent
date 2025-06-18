@@ -1,0 +1,73 @@
+"""Utilities for channel context management."""
+from typing import Optional, Union, cast, Any
+from ciris_engine.schemas.context_schemas_v1 import ChannelContext
+
+
+def create_channel_context(
+    channel_id: Union[str, ChannelContext, None],
+    channel_name: Optional[str] = None,
+    channel_type: Optional[str] = None,
+    is_monitored: bool = True,
+    is_deferral: bool = False,
+    is_home: bool = False,
+) -> Optional[ChannelContext]:
+    """
+    Create a ChannelContext from various inputs.
+    
+    Args:
+        channel_id: Channel ID string or existing ChannelContext
+        channel_name: Human-readable channel name
+        channel_type: Type of channel (discord, cli, api, etc.)
+        is_monitored: Whether this channel is actively monitored
+        is_deferral: Whether this is a WA deferral channel
+        is_home: Whether this is the agent's home channel
+        
+    Returns:
+        ChannelContext instance or None if no valid input
+    """
+    if channel_id is None:
+        return None
+        
+    if isinstance(channel_id, ChannelContext):
+        return channel_id
+        
+    # Must be a string at this point
+    channel_id_str = channel_id
+    
+    # Infer channel type from ID patterns if not provided
+    if channel_type is None:
+        if channel_id_str.startswith("cli-"):
+            channel_type = "cli"
+        elif channel_id_str.startswith("api-"):
+            channel_type = "api"
+        elif channel_id_str.isdigit() and len(channel_id_str) >= 17:  # Discord IDs are 17-19 digits
+            channel_type = "discord"
+        else:
+            channel_type = "unknown"
+            
+    return ChannelContext(
+        channel_id=channel_id_str,
+        channel_name=channel_name,
+        channel_type=channel_type,
+        is_monitored=is_monitored,
+        is_deferral=is_deferral,
+        is_home=is_home,
+    )
+
+
+def extract_channel_id(channel_context: Optional[Union[str, ChannelContext]]) -> Optional[str]:
+    """
+    Extract channel ID from either a string or ChannelContext.
+    
+    Args:
+        channel_context: Channel ID string or ChannelContext instance
+        
+    Returns:
+        Channel ID string or None
+    """
+    if channel_context is None:
+        return None
+    if isinstance(channel_context, str):
+        return channel_context
+    # Must be ChannelContext at this point
+    return channel_context.channel_id

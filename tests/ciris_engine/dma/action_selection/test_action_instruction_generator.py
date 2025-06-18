@@ -123,13 +123,17 @@ class TestActionInstructionGenerator:
         all_tools = await get_schema()
         
         # Now manually build the schema as the generator would
+        # Create a mock tool service that returns the tools
+        mock_tool_service = AsyncMock()
+        mock_tool_service.get_available_tools = AsyncMock(return_value=mock_tools)
+        mock_tool_service.adapter_name = "test_service"
+        
         with patch.object(generator, 'service_registry') as patched_registry:
-            patched_registry.multi_service_sink._handle_list_tools = AsyncMock(return_value=all_tools)
+            patched_registry.get_services_by_type = Mock(return_value=[mock_tool_service])
             # Mock the asyncio handling to return our result directly
             with patch('asyncio.get_event_loop') as mock_loop:
-                future = asyncio.Future()
-                future.set_result(all_tools)
-                mock_loop.return_value.run_until_complete = Mock(return_value=all_tools)
+                mock_loop.return_value.is_running = Mock(return_value=False)
+                mock_loop.return_value.run_until_complete = Mock(return_value=mock_tools)
                 schema = generator._generate_tool_schema()
         
         assert "TOOL:" in schema
@@ -189,9 +193,10 @@ class TestActionInstructionGenerator:
         assert "unserviceable" in reject_guidance
         assert "create_filter=true" in reject_guidance
         
-        # Test unknown action
-        unknown_guidance = generator.get_action_guidance(HandlerActionType.TASK_COMPLETE)
-        assert unknown_guidance == ""
+        # Test TASK_COMPLETE action
+        task_complete_guidance = generator.get_action_guidance(HandlerActionType.TASK_COMPLETE)
+        assert "TASK_COMPLETE" in task_complete_guidance
+        assert "done, impossible, unnecessary" in task_complete_guidance
     
     def test_simplify_schema(self, generator):
         """Test schema simplification."""

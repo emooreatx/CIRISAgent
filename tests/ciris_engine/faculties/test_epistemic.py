@@ -13,8 +13,8 @@ async def test_calculate_epistemic_values_success():
     sink = MagicMock()
     # Mock generate_structured_sync to return the expected results
     sink.generate_structured_sync = AsyncMock(side_effect=[
-        (EntropyResult(entropy=0.25), None),  # First call for entropy
-        (CoherenceResult(coherence=0.85), None)  # Second call for coherence
+        (EntropyResult(entropy=0.25, faculty_name="entropy"), None),  # First call for entropy
+        (CoherenceResult(coherence=0.85, faculty_name="coherence"), None)  # Second call for coherence
     ])
     result = await epistemic.calculate_epistemic_values("hello", sink)
     assert result["entropy"] == 0.25

@@ -64,6 +64,8 @@ class CLIToolService(ToolService):
                     correlation_id=correlation_id,
                     response_data=result,
                     status=ServiceCorrelationStatus.COMPLETED,
+                    metric_value=None,
+                    tags=None
                 )
             )
         return result

@@ -20,7 +20,7 @@ def make_thought():
         round_number=1,
         content="test content",
         context={},
-        ponder_count=0,
+        thought_depth=0,
         ponder_notes=None,
         parent_thought_id=None,
         final_action={},
@@ -47,7 +47,11 @@ async def test_build_system_snapshot_integration():
 
     # Configure mocks
     memory_service.recall.return_value = {}
-    graphql_provider.enrich_context.return_value = {"extra": 1}
+    from ciris_engine.schemas.graphql_schemas_v1 import EnrichedContext, UserProfile
+    graphql_provider.enrich_context.return_value = EnrichedContext(
+        user_profiles={"test_user": UserProfile(nick="Test User")},
+        identity_context="Test GraphQL identity"
+    )
 
     from ciris_engine.schemas.secrets_schemas_v1 import SecretReference
     secret = SecretReference(
@@ -79,7 +83,8 @@ async def test_build_system_snapshot_integration():
     telemetry_service.update_system_snapshot.assert_awaited_once_with(snapshot)
     graphql_provider.enrich_context.assert_awaited_once_with(task, thought)
     memory_service.recall.assert_awaited()
-    assert snapshot.extra == 1
+    # Check that GraphQL enriched data was incorporated
+    assert snapshot.user_profiles["test_user"].nick == "Test User"
     assert len(snapshot.detected_secrets) == 1
 
 

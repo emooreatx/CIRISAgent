@@ -56,8 +56,8 @@ class WACertificate(BaseModel):
     # Scopes and permissions
     scopes_json: str = Field(..., description="JSON array of scope strings")
     
-    # Channel-based observers
-    channel_id: Optional[str] = None
+    # Adapter-based observers
+    adapter_id: Optional[str] = None
     token_type: TokenType = TokenType.STANDARD
     
     # Metadata
@@ -107,46 +107,45 @@ class WAToken(BaseModel):
 
 
 class ChannelIdentity(BaseModel):
-    """Channel-based observer identity."""
-    channel_id: str
+    """Adapter identity for authentication."""
+    adapter_id: str
     adapter_type: str
-    instance_id: str
+    instance_id: str  # Deprecated, use adapter_id
     
-    @field_validator('channel_id')
+    @field_validator('adapter_id')
     @classmethod
-    def validate_channel_format(cls, v: str, info: Any) -> str:
-        """Ensure channel_id matches expected format."""
+    def validate_adapter_format(cls, v: str, info: Any) -> str:
+        """Ensure adapter_id matches expected format."""
         adapter_type = info.data.get('adapter_type')
         if adapter_type == 'cli' and not v.startswith('cli:'):
-            raise ValueError("CLI channel must start with 'cli:'")
-        elif adapter_type == 'http' and not v.startswith('http:'):
-            raise ValueError("HTTP channel must start with 'http:'")
+            raise ValueError("CLI adapter must start with 'cli:'")
+        elif adapter_type == 'api' and not v.startswith('api:'):
+            raise ValueError("API adapter must start with 'api:'")
         elif adapter_type == 'discord' and not v.startswith('discord:'):
-            raise ValueError("Discord channel must start with 'discord:'")
+            raise ValueError("Discord adapter must start with 'discord:'")
         return v
     
     @classmethod
     def from_adapter(cls, adapter_type: str, adapter_info: dict[str, Any]) -> "ChannelIdentity":
-        """Create channel identity from adapter info."""
+        """Create adapter identity from adapter info."""
         if adapter_type == 'cli' or adapter_type == 'cliplatform':
             import os
             import socket
-            channel_id = f"cli:{os.getenv('USER', 'unknown')}@{socket.gethostname()}"
-        elif adapter_type == 'http':
+            adapter_id = f"cli:{os.getenv('USER', 'unknown')}@{socket.gethostname()}"
+        elif adapter_type == 'api' or adapter_type == 'apiplatform':
             host = adapter_info.get('host', 'localhost')
-            port = adapter_info.get('port', 8080)
-            channel_id = f"http:{host}:{port}"
+            port = adapter_info.get('port', 8000)
+            adapter_id = f"api:{host}:{port}"
         elif adapter_type == 'discord' or adapter_type == 'discordplatform':
             guild = adapter_info.get('guild_id', 'unknown')
-            member = adapter_info.get('member_id', 'bot')
-            channel_id = f"discord:{guild}:{member}"
+            adapter_id = f"discord:{guild}"
         else:
-            channel_id = f"{adapter_type}:{adapter_info.get('instance_id', 'default')}"
+            adapter_id = f"{adapter_type}:{adapter_info.get('adapter_id', 'default')}"
         
         return cls(
-            channel_id=channel_id,
+            adapter_id=adapter_id,
             adapter_type=adapter_type,
-            instance_id=adapter_info.get('instance_id', 'default')
+            instance_id=adapter_id  # For compatibility
         )
 
 

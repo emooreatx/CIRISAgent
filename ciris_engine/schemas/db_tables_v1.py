@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS thoughts (
     round_number INTEGER DEFAULT 0,
     content TEXT NOT NULL,
     context_json TEXT,
-    ponder_count INTEGER DEFAULT 0,
+    thought_depth INTEGER DEFAULT 0,
     ponder_notes_json TEXT,
     parent_thought_id TEXT,
     final_action_json TEXT,
@@ -202,7 +202,7 @@ CREATE TABLE IF NOT EXISTS wa_cert (
   parent_wa_id       TEXT,
   parent_signature   TEXT,
   scopes_json        TEXT NOT NULL,
-  channel_id         TEXT,                       -- for adapter observers
+  adapter_id         TEXT,                       -- for adapter observers
   token_type         TEXT DEFAULT 'standard',    -- 'channel'|'oauth'|'standard'
   created            TEXT NOT NULL,
   last_login         TEXT,
@@ -215,8 +215,8 @@ CREATE TABLE IF NOT EXISTS wa_cert (
 -- Performance and constraint indexes
 CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_oauth ON wa_cert(oauth_provider, oauth_external_id)
   WHERE oauth_provider IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_channel ON wa_cert(channel_id)
-  WHERE channel_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_adapter ON wa_cert(adapter_id)
+  WHERE adapter_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_wa_pubkey ON wa_cert(pubkey);
 CREATE INDEX IF NOT EXISTS idx_wa_active ON wa_cert(active);
 CREATE INDEX IF NOT EXISTS idx_wa_jwt_kid ON wa_cert(jwt_kid);

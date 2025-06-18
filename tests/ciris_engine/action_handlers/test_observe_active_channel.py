@@ -8,6 +8,8 @@ from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, ThoughtType
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+from tests.helpers import create_test_dispatch_context
+from ciris_engine.utils.channel_utils import create_channel_context
 
 
 DEFAULT_THOUGHT_KWARGS = dict(
@@ -20,7 +22,7 @@ DEFAULT_THOUGHT_KWARGS = dict(
     round_number=1,
     content="content",
     context={},
-    ponder_count=0,
+    thought_depth=0,
     ponder_notes=None,
     parent_thought_id=None,
     final_action={},
@@ -41,7 +43,7 @@ async def test_observe_handler_active_injects_channel(monkeypatch):
     handler = ObserveHandler(deps)
     handler.get_multi_service_sink = lambda: mock_sink
 
-    params = ObserveParams(active=True, channel_id=None, context={"source": "test"})
+    params = ObserveParams(active=True, channel_context=create_channel_context(None), context={"source": "test"})
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.OBSERVE,
         action_parameters=params,
@@ -49,7 +51,8 @@ async def test_observe_handler_active_injects_channel(monkeypatch):
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
 
-    await handler.handle(action_result, thought, {"channel_id": "chanX"})
+    context = create_test_dispatch_context(channel_id="chanX", action_type=HandlerActionType.OBSERVE)
+    await handler.handle(action_result, thought, context)
 
     mock_sink.fetch_messages_sync.assert_awaited_with(
         handler_name="ObserveHandler",

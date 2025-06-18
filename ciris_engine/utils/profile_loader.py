@@ -4,14 +4,24 @@ import asyncio
 from pathlib import Path
 from typing import Optional, Any, List
 
-from ciris_engine.schemas.config_schemas_v1 import AgentProfile
+from ciris_engine.schemas.config_schemas_v1 import AgentTemplate
+
+# Import adapter configs to resolve forward references
+try:
+    from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+    from ciris_engine.adapters.api.config import APIAdapterConfig
+    from ciris_engine.adapters.cli.config import CLIAdapterConfig
+    # Rebuild models with resolved references
+    AgentTemplate.model_rebuild()
+except Exception:
+    pass  # Continue without rebuild if imports fail
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_TEMPLATE_PATH = Path("ciris_templates/default.yaml")
 
 
-async def load_template(template_path: Optional[Path]) -> Optional[AgentProfile]:
+async def load_template(template_path: Optional[Path]) -> Optional[AgentTemplate]:
     """Asynchronously load an agent template from a YAML file.
 
     This coroutine should be awaited so file I/O does not block the event loop.
@@ -20,7 +30,7 @@ async def load_template(template_path: Optional[Path]) -> Optional[AgentProfile]
         template_path: Path to the YAML template file.
 
     Returns:
-        An AgentProfile instance if loading is successful, otherwise None.
+        An AgentTemplate instance if loading is successful, otherwise None.
     """
     if template_path is None:
         template_path = DEFAULT_TEMPLATE_PATH
@@ -79,7 +89,7 @@ async def load_template(template_path: Optional[Path]) -> Optional[AgentProfile]
                     logger.warning(f"Invalid action type {type(action)} in permitted_actions")
             template_data["permitted_actions"] = [a for a in converted_actions if isinstance(a, HandlerActionType)]
 
-        template = AgentProfile(**template_data)
+        template = AgentTemplate(**template_data)
         logger.info(f"Successfully loaded template '{template.name}' from {template_path}")
         return template
         

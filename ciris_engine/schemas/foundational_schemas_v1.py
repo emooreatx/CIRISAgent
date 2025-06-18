@@ -5,6 +5,7 @@ from typing import Optional, Any, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
+    from ciris_engine.schemas.context_schemas_v1 import ChannelContext
 
 class CaseInsensitiveEnum(str, Enum):
     """Enum that allows case-insensitive value lookup."""
@@ -198,7 +199,7 @@ class DispatchContext(BaseModel):
     for mission-critical production use. All core fields are REQUIRED.
     """
     # Core identification - ALL REQUIRED
-    channel_id: str = Field(..., description="Channel where action originated")
+    channel_context: 'ChannelContext' = Field(..., description="Channel context where action originated")
     author_id: str = Field(..., description="ID of user/entity initiating action")
     author_name: str = Field(..., description="Display name of initiator")
     
@@ -270,4 +271,5 @@ __all__ = [
 
 # Rebuild models with forward references
 from ciris_engine.schemas.processing_schemas_v1 import GuardrailResult
+from ciris_engine.schemas.context_schemas_v1 import ChannelContext
 DispatchContext.model_rebuild()
