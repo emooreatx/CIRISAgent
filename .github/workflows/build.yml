@@ -22,9 +22,23 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Clean up any cached files and test databases
+      - name: Clean Python Cache and Test Artifacts
+        run: |
+          find . -type d -name __pycache__ -exec rm -rf {} + || true
+          find . -type f -name "*.pyc" -delete || true
+          find . -type f -name "*.pyo" -delete || true
+          rm -rf .pytest_cache || true
+          # Clean up test databases
+          rm -f test_*.db || true
+          rm -f ciris_engine.db || true
+          rm -rf data/*.db || true
+
       # Install dependencies (pytest and coverage)
       - name: Install Dependencies
         run: |
+          pip install --upgrade pip
+          pip install typing_extensions>=4.0.0
           pip install -r requirements.txt
           pip install pytest pytest-cov
 

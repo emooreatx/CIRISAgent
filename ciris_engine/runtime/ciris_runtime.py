@@ -42,10 +42,11 @@ from ciris_engine.registries.base import ServiceRegistry, Priority
 logger = logging.getLogger(__name__)
 
 
-class CIRISRuntime(RuntimeInterface):
+class CIRISRuntime:
     """
     Main runtime orchestrator for CIRIS Agent.
     Handles initialization of all components and services.
+    Implements the RuntimeInterface protocol.
     """
     
     def __init__(
