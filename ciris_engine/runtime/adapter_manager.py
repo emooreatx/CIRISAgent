@@ -440,7 +440,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     for handler_name in reg.handlers:
                         self.runtime.service_registry.register(
                             handler=handler_name,
-                            service_type=reg.service_type.value,
+                            service_type=reg.service_type,  # Pass ServiceType enum, not .value
                             provider=reg.provider,
                             priority=reg.priority,
                             capabilities=reg.capabilities,
@@ -450,7 +450,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                         instance.services_registered.append(f"{handler_name}:{service_key}")
                 else:  # Register globally
                     self.runtime.service_registry.register_global(
-                        service_type=reg.service_type.value,
+                        service_type=reg.service_type,  # Pass ServiceType enum, not .value
                         provider=reg.provider,
                         priority=reg.priority,
                         capabilities=reg.capabilities,

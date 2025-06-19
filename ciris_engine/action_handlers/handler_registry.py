@@ -15,28 +15,27 @@ from .forget_handler import ForgetHandler
 from .action_dispatcher import ActionDispatcher
 from .base_handler import ActionHandlerDependencies
 from .ponder_handler import PonderHandler
-from ciris_engine.config.env_utils import get_env_var
 from typing import Optional, Any, Callable
 
 def build_action_dispatcher(
-    service_registry: Optional[Any] = None, 
+    bus_manager: Any,
     max_rounds: int = 5, 
     shutdown_callback: Optional[Callable[[], None]] = None, 
     telemetry_service: Optional[Any] = None, 
-    multi_service_sink: Optional[Any] = None
+    secrets_service: Optional[Any] = None
 ) -> ActionDispatcher:
     """
     Instantiates all handlers and returns a ready-to-use ActionDispatcher.
     Uses service_registry for all service dependencies.
     """
     deps = ActionHandlerDependencies(
-        service_registry=service_registry,
+        bus_manager=bus_manager,
         shutdown_callback=shutdown_callback,
-        multi_service_sink=multi_service_sink,
+        secrets_service=secrets_service,
     )
     handlers = {
         HandlerActionType.MEMORIZE: MemorizeHandler(deps),
-        HandlerActionType.SPEAK: SpeakHandler(deps, snore_channel_id=get_env_var("SNORE_CHANNEL_ID")),
+        HandlerActionType.SPEAK: SpeakHandler(deps),
         HandlerActionType.OBSERVE: ObserveHandler(deps),
         HandlerActionType.DEFER: DeferHandler(deps),
         HandlerActionType.REJECT: RejectHandler(deps),

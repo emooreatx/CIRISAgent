@@ -5,8 +5,9 @@ from typing import List, Any, Optional
 from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration, CIRISRuntime
 from .config import APIAdapterConfig
 from ciris_engine.registries.base import Priority
-from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
+from ciris_engine.schemas.foundational_schemas_v1 import ServiceType, IncomingMessage
 from .api_adapter import APIAdapter
+from .api_observer import APIObserver
 
 logger = logging.getLogger(__name__)
 
@@ -46,17 +47,42 @@ class ApiPlatform(PlatformAdapter):
         # Generate stable adapter_id based on host and port
         self.adapter_id = f"api:{self.config.host}:{self.config.port}"
         
+        # Store runtime reference - services will be accessed lazily
+        self.runtime = runtime
+        
         self.api_adapter = APIAdapter(
             host=self.config.host,
             port=self.config.port,
-            multi_service_sink=getattr(runtime, 'multi_service_sink', None),
-            service_registry=getattr(runtime, 'service_registry', None),
+            bus_manager=None,  # Will be set lazily
+            service_registry=None,    # Will be set lazily
             runtime_control=self.runtime_control_service,
             telemetry_collector=self.telemetry_collector,
-            runtime=runtime
+            runtime=runtime,
+            on_message=self._handle_api_message_event  # Add callback for messages
+        )
+        
+        # Create API observer
+        self.api_observer = APIObserver(
+            on_observe=lambda _: asyncio.sleep(0),  # Not used in multi-service pattern
+            memory_service=getattr(self.runtime, 'memory_service', None),
+            agent_id=getattr(self.runtime, 'agent_id', None),
+            bus_manager=getattr(self.runtime, 'bus_manager', None),  # multi_service_sink returns bus_manager now
+            api_adapter=self.api_adapter,
+            secrets_service=getattr(self.runtime, 'secrets_service', None)
         )
         
         self._web_server_stopped_event: Optional[asyncio.Event] = None
+    
+    async def _handle_api_message_event(self, msg: IncomingMessage) -> None:
+        """Handle incoming API messages by routing through observer."""
+        logger.debug(f"ApiPlatform: Received message from APIAdapter: {msg.message_id if msg else 'None'}")
+        if not self.api_observer:
+            logger.warning("ApiPlatform: APIObserver not available.")
+            return
+        if not isinstance(msg, IncomingMessage):
+            logger.warning(f"ApiPlatform: Expected IncomingMessage, got {type(msg)}. Cannot process.")  # type: ignore[unreachable]
+            return
+        await self.api_observer.handle_incoming_message(msg)
     
     def get_channel_info(self) -> dict[str, Any]:
         """Provide host and port info for authentication."""
@@ -92,6 +118,37 @@ class ApiPlatform(PlatformAdapter):
     async def start(self) -> None:
         """Start the API adapter."""
         logger.info("ApiPlatform: Starting...")
+        
+        # Update services now that they should be initialized
+        if hasattr(self.runtime, 'service_initializer') and self.runtime.service_initializer:
+            if hasattr(self.runtime.service_initializer, 'bus_manager'):
+                self.api_adapter.bus_manager = self.runtime.service_initializer.bus_manager
+                self.api_observer.bus_manager = self.runtime.service_initializer.bus_manager
+                logger.info(f"ApiPlatform: Set bus_manager")
+            else:
+                logger.warning("ApiPlatform: bus_manager not available from runtime")
+        else:
+            logger.warning("ApiPlatform: service_initializer not available from runtime")
+            
+        if hasattr(self.runtime, 'service_registry'):
+            self.api_adapter.service_registry = self.runtime.service_registry
+            logger.info(f"ApiPlatform: Set service_registry: {self.api_adapter.service_registry}")
+        else:
+            logger.warning("ApiPlatform: service_registry not available from runtime")
+            
+        # Update observer services
+        if hasattr(self.runtime, 'memory_service'):
+            self.api_observer.memory_service = self.runtime.memory_service
+            logger.info("ApiPlatform: Set memory_service on observer")
+            
+        if hasattr(self.runtime, 'agent_identity') and self.runtime.agent_identity:
+            self.api_observer.agent_id = getattr(self.runtime.agent_identity, 'agent_id', None)
+            logger.info(f"ApiPlatform: Set agent_id on observer: {self.api_observer.agent_id}")
+            
+        if hasattr(self.runtime, 'secrets_service'):
+            self.api_observer.secrets_service = self.runtime.secrets_service
+            logger.info("ApiPlatform: Set secrets_service on observer")
+        
         await self.api_adapter.start()
         self._ensure_stop_event()
         logger.info("ApiPlatform: Started.")

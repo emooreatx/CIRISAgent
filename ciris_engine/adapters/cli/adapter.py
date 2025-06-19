@@ -7,6 +7,7 @@ from .config import CLIAdapterConfig
 from ciris_engine.registries.base import Priority
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType, IncomingMessage
 from .cli_adapter import CLIAdapter
+from .cli_observer import CLIObserver
 
 logger = logging.getLogger(__name__)
 
@@ -43,22 +44,37 @@ class CliPlatform(PlatformAdapter):
         self.cli_adapter = CLIAdapter(
             interactive=self.config.interactive,
             on_message=self._handle_incoming_message,
-            multi_service_sink=getattr(runtime, 'multi_service_sink', None),
+            bus_manager=getattr(runtime, 'bus_manager', None),
+            config=self.config
+        )
+        
+        # Create CLI observer
+        self.cli_observer = CLIObserver(
+            on_observe=lambda _: asyncio.sleep(0),  # Not used in multi-service pattern
+            memory_service=getattr(self.runtime, 'memory_service', None),
+            agent_id=getattr(self.runtime, 'agent_id', None),
+            bus_manager=getattr(self.runtime, 'bus_manager', None),  # multi_service_sink returns bus_manager now
+            filter_service=getattr(self.runtime, 'filter_service', None),
+            secrets_service=getattr(self.runtime, 'secrets_service', None),
+            interactive=self.config.interactive,
             config=self.config
         )
 
     async def _handle_incoming_message(self, msg: IncomingMessage) -> None:
-        """Handle incoming messages from the CLI adapter."""
+        """Handle incoming messages from the CLI adapter by routing through observer."""
         logger.debug(f"CliPlatform: Received message: {msg.message_id}")
         
-        sink = getattr(self.runtime, 'multi_service_sink', None)
-        if not sink:
-            logger.warning("CliPlatform: No multi_service_sink available")
+        if not self.cli_observer:
+            logger.warning("CliPlatform: CLIObserver not available.")
+            return
+        
+        if not isinstance(msg, IncomingMessage):
+            logger.warning(f"CliPlatform: Expected IncomingMessage, got {type(msg)}. Cannot process.")  # type: ignore[unreachable]
             return
         
         try:
-            await sink.observe_message("ObserveHandler", msg, {"source": "cli"})
-            logger.debug("CliPlatform: Message sent to multi_service_sink")
+            await self.cli_observer.handle_incoming_message(msg)
+            logger.debug("CliPlatform: Message sent to CLIObserver")
         except Exception as e:
             logger.error(f"CliPlatform: Error handling message: {e}", exc_info=True)
 
@@ -91,9 +107,11 @@ class CliPlatform(PlatformAdapter):
         return registrations
 
     async def start(self) -> None:
-        """Start the CLI adapter."""
+        """Start the CLI adapter and observer."""
         logger.info("CliPlatform: Starting...")
         await self.cli_adapter.start()
+        if self.cli_observer:
+            await self.cli_observer.start()
         logger.info("CliPlatform: Started.")
 
     async def run_lifecycle(self, agent_run_task: asyncio.Task[Any]) -> None:
@@ -109,7 +127,9 @@ class CliPlatform(PlatformAdapter):
             logger.info("CliPlatform: Lifecycle ending.")
 
     async def stop(self) -> None:
-        """Stop the CLI adapter."""
+        """Stop the CLI adapter and observer."""
         logger.info("CliPlatform: Stopping...")
+        if self.cli_observer:
+            await self.cli_observer.stop()
         await self.cli_adapter.stop()
         logger.info("CliPlatform: Stopped.")

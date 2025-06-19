@@ -16,7 +16,8 @@ def setup_basic_logging(level: int = logging.INFO,
                         prefix: Optional[str] = None,
                         log_to_file: bool = True,
                         log_dir: str = "logs",
-                        console_output: bool = False) -> None:
+                        console_output: bool = False,
+                        enable_dead_letter: bool = True) -> None:
     """
     Sets up basic logging configuration with file output and optional console output.
 
@@ -29,6 +30,7 @@ def setup_basic_logging(level: int = logging.INFO,
         log_to_file: Whether to also log to a file
         log_dir: Directory for log files
         console_output: Whether to also output to console (default: False for clean log-file-only operation)
+        enable_dead_letter: Whether to enable dead letter queue for WARNING/ERROR messages
     """
     
     from ciris_engine.config.env_utils import get_env_var
@@ -77,6 +79,11 @@ def setup_basic_logging(level: int = logging.INFO,
     target_logger.setLevel(level)
     target_logger.propagate = False
     
+    # Add dead letter queue handler if enabled
+    if enable_dead_letter:
+        from ciris_engine.utils.dead_letter_handler import add_dead_letter_handler
+        dead_letter_handler = add_dead_letter_handler(target_logger, log_dir=log_dir)
+    
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("discord").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
@@ -84,6 +91,8 @@ def setup_basic_logging(level: int = logging.INFO,
     log_msg = f"Logging configured. Level: {logging.getLevelName(level)}"
     if log_to_file:
         log_msg += f", Log file: {log_filename}"
+    if enable_dead_letter:
+        log_msg += f", Dead letter queue: {log_dir}/dead_letter_latest.log"
     logging.info(log_msg)
     
     # Print to stdout regardless of console_output setting
@@ -91,6 +100,8 @@ def setup_basic_logging(level: int = logging.INFO,
         print("\n" + "="*80)
         print(f"🔍 LOGGING INITIALIZED - SEE DETAILED LOGS AT: {log_filename}")
         print(f"🔗 Symlinked to: {latest_link}")
+        if enable_dead_letter:
+            print(f"⚠️  Dead letter queue: {log_dir}/dead_letter_latest.log (WARNING/ERROR messages)")
         print("="*80 + "\n")
         sys.stdout.flush()
 

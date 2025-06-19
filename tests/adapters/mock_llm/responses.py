@@ -36,6 +36,7 @@ class MockLLMConfig:
         self.context_patterns = {
             r'user.*?says?.*?"([^"]+)"': lambda m: f"echo_user_speech:{m.group(1)}",
             r'thought.*content.*"([^"]+)"': lambda m: f"echo_thought:{m.group(1)}",
+            r'Original Thought:\s*"([^"]+)"': lambda m: f"echo_thought:{m.group(1)}",
             r'channel.*?[\'"]([^\'"]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
             r'channel\s+([#@]?[\w-]+)': lambda m: f"echo_channel:{m.group(1)}",
             r'(?:search.*memory|memory.*search).*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_memory_query:{m.group(1)}",
@@ -52,6 +53,9 @@ class MockLLMConfig:
             r'(You are robust.*?)(?:\.|$)': lambda m: f"echo_wakeup:EVALUATE_RESILIENCE",
             r'(You recognize your incompleteness.*?)(?:\.|$)': lambda m: f"echo_wakeup:ACCEPT_INCOMPLETENESS",
             r'(You are grateful.*?)(?:\.|$)': lambda m: f"echo_wakeup:EXPRESS_GRATITUDE",
+            # Capture follow-up thought patterns
+            r'CIRIS_FOLLOW_UP_THOUGHT': lambda m: f"CIRIS_FOLLOW_UP_THOUGHT",
+            r'action_performed:(\w+)': lambda m: f"action_performed:{m.group(1)}",
             # Catch-all for any content
             r'(.+)': lambda m: f"echo_content:{m.group(1)[:100]}"
         }
@@ -88,89 +92,109 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
     import json
     context_items.append(f"__messages__:{json.dumps(messages)}")
     
-    # Look for actual thought content in messages
-    actual_thought_content = ""
+    # First, check if this is a follow-up thought by examining THOUGHT_TYPE
+    is_followup = False
     for msg in messages:
-        content = ""
-        if isinstance(msg, dict) and 'content' in msg:
-            content = msg['content']
-        elif hasattr(msg, 'content'):
-            content = msg.content
-            
-        # Look for the actual thought content pattern
-        if "Original Thought:" in content:
-            # Extract the thought after "Original Thought:" 
-            thought_match = re.search(r'Original Thought:\s*"([^"]+)"', content)
-            if thought_match:
-                actual_thought_content = thought_match.group(1)
-                # Add this to context items so it gets processed properly
-                context_items.append(f"echo_thought:{actual_thought_content}")
+        if isinstance(msg, dict) and msg.get('role') == 'system':
+            content = msg.get('content', '')
+            if content.startswith('THOUGHT_TYPE=follow_up'):
+                is_followup = True
+                context_items.append("is_followup_thought")
                 break
     
-    # Combine all message content
-    full_content = ""
+    # If it's a follow-up thought, don't process commands - just return
+    if is_followup:
+        return context_items
+    
+    # Find the actual user message (not system messages)
+    user_message = ""
     for msg in messages:
-        if isinstance(msg, dict) and 'content' in msg:
-            full_content += f" {msg['content']}"
-        elif hasattr(msg, 'content'):
-            full_content += f" {msg.content}"
+        if isinstance(msg, dict) and msg.get('role') == 'user':
+            user_message = msg.get('content', '')
+            break
+        elif hasattr(msg, 'role') and msg.role == 'user':
+            user_message = msg.content
+            break
     
-    # Apply regex patterns
-    for pattern, extractor in _mock_config.context_patterns.items():
-        matches = re.finditer(pattern, full_content, re.IGNORECASE)
-        for match in matches:
-            try:
-                context_items.append(extractor(match))
-            except Exception:
-                continue
+    # Extract the actual user input after any preamble
+    # Look for patterns like "User says: ..." or just take the message after "Original Thought:"
+    actual_user_input = ""
     
-    # Check for testing flags and commands with new $ syntax
-    if "$test" in full_content:
-        _mock_config.testing_mode = True
-        context_items.append("testing_mode_enabled")
+    # Pattern 1: Original Thought: "actual message"
+    thought_match = re.search(r'Original Thought:\s*"([^"]+)"', user_message)
+    if thought_match:
+        actual_user_input = thought_match.group(1)
+    # Pattern 2: User says: actual message
+    elif match := re.search(r'[Uu]ser\s+says?:\s*(.+?)(?:\n|$)', user_message):
+        actual_user_input = match.group(1).strip()
+    # Pattern 3: After common preambles
+    elif match := re.search(r'(?:content|message|text):\s*(.+?)(?:\n|$)', user_message, re.IGNORECASE):
+        actual_user_input = match.group(1).strip()
+    else:
+        # If no pattern matches, use the full user message
+        actual_user_input = user_message.strip()
     
-    # Direct action commands (e.g., $speak, $recall, etc.)
-    action_match = re.search(r'\$(\w+)(?:\s+(.+?))?(?=\$|$)', full_content)
-    if action_match:
-        action = action_match.group(1).lower()
-        params = action_match.group(2) if action_match.group(2) else ""
+    # Store the extracted user input for reference
+    if actual_user_input:
+        context_items.append(f"user_input:{actual_user_input}")
+    
+    # Apply context patterns to extract information from all messages
+    for msg in messages:
+        if isinstance(msg, dict):
+            content = msg.get('content', '')
+        else:
+            content = str(msg)
         
-        # Validate action and store it
-        valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder', 
-                        'defer', 'reject', 'forget', 'task_complete']
-        if action in valid_actions:
-            _mock_config.force_action = action
-            context_items.append(f"forced_action:{action}")
-            if params:
-                context_items.append(f"action_params:{params}")
+        # Apply each pattern from the config
+        for pattern, extractor in _mock_config.context_patterns.items():
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            for match in matches:
+                try:
+                    # Call the extractor function with the match
+                    if callable(extractor):
+                        # Create a match object to pass to the lambda
+                        match_obj = re.search(pattern, content, re.IGNORECASE)
+                        if match_obj:
+                            extracted = extractor(match_obj)
+                            if extracted and extracted not in context_items:
+                                context_items.append(extracted)
+                except Exception as e:
+                    logger.debug(f"Error extracting context with pattern {pattern}: {e}")
     
-    if "$error" in full_content:
-        _mock_config.inject_error = True
-        context_items.append("error_injection_enabled")
-    
-    if match := re.search(r'\$rationale\s+"([^"]+)"', full_content):
-        _mock_config.custom_rationale = match.group(1)
-        context_items.append(f"custom_rationale:{match.group(1)}")
-    
-    if "$context" in full_content:
-        _mock_config.echo_context = True
-        context_items.append("echo_context_enabled")
-    
-    if match := re.search(r'\$filter\s+"([^"]+)"', full_content):
-        _mock_config.filter_pattern = match.group(1)
-        context_items.append(f"filter_pattern:{match.group(1)}")
-    
-    if "$debug_dma" in full_content:
-        _mock_config.debug_dma = True
-        context_items.append("debug_dma_enabled")
-        
-    if "$debug_guardrails" in full_content:
-        _mock_config.debug_guardrails = True
-        context_items.append("debug_guardrails_enabled")
-    
-    if "$help" in full_content:
-        _mock_config.show_help = True
-        context_items.append("show_help_requested")
+    # Only check for commands if the user input starts with $
+    if actual_user_input.startswith("$"):
+        # Extract command and parameters
+        action_match = re.match(r'\$(\w+)(?:\s+(.+?))?$', actual_user_input)
+        if action_match:
+            action = action_match.group(1).lower()
+            params = action_match.group(2) if action_match.group(2) else ""
+            
+            # Validate action and store it
+            valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder', 
+                            'defer', 'reject', 'forget', 'task_complete', 'help']
+            if action in valid_actions:
+                _mock_config.force_action = action
+                context_items.append(f"forced_action:{action}")
+                if params:
+                    context_items.append(f"action_params:{params}")
+                if action == 'help':
+                    context_items.append("show_help_requested")
+            elif action == 'error':
+                # Enable error injection for testing
+                _mock_config.inject_error = True
+                context_items.append("error_injection_enabled")
+            elif action == 'rationale':
+                # Set custom rationale
+                if params:
+                    # Extract quoted text if present
+                    rationale_match = re.match(r'^"([^"]+)"', params)
+                    if rationale_match:
+                        _mock_config.custom_rationale = rationale_match.group(1)
+                        context_items.append(f"custom_rationale:{_mock_config.custom_rationale}")
+            elif action == 'test':
+                # Enable testing mode
+                _mock_config.testing_mode = True
+                context_items.append("testing_mode_enabled")
     
     return context_items
 

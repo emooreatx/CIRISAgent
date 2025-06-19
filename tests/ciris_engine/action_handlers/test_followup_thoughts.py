@@ -13,6 +13,7 @@ from ciris_engine.action_handlers.memorize_handler import MemorizeHandler
 from ciris_engine.action_handlers.ponder_handler import PonderHandler
 from ciris_engine.action_handlers.task_complete_handler import TaskCompleteHandler
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.message_buses.bus_manager import BusManager
 from ciris_engine.utils.channel_utils import create_channel_context
 
 @pytest.mark.asyncio
@@ -72,7 +73,9 @@ async def test_recall_handler_creates_followup(monkeypatch):
     
     memory_service = AsyncMock()
     memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
-    deps = ActionHandlerDependencies()
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     deps.persistence = MagicMock()
     deps.persistence.add_thought = add_thought_mock
     audit_service = MagicMock()
@@ -122,7 +125,9 @@ async def test_forget_handler_creates_followup(monkeypatch):
     
     memory_service = AsyncMock()
     memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))
-    deps = ActionHandlerDependencies()
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     deps.persistence = MagicMock()
     deps.persistence.add_thought = add_thought_mock
     audit_service = MagicMock()
@@ -169,7 +174,9 @@ def test_memorize_handler_creates_followup(monkeypatch):
     monkeypatch.setattr('ciris_engine.action_handlers.memorize_handler.persistence.add_thought', add_thought_mock)
     memory_service = AsyncMock()
     memory_service.memorize = AsyncMock(return_value=MagicMock(status="SAVED"))
-    deps = ActionHandlerDependencies()
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     deps.persistence = MagicMock()
     deps.persistence.add_thought = add_thought_mock
     audit_service = MagicMock()

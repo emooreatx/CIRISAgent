@@ -69,17 +69,9 @@ class PonderHandler(BaseActionHandler):
                 f"Thought ID {thought.thought_id} successfully updated (thought_depth: {new_thought_depth}) and marked for {next_status.value}."
             )
             
-            # Create a new dict with dispatch_context data and additional fields
-            audit_context = dispatch_context.model_dump()
-            audit_context.update({
-                "thought_id": thought.thought_id,
-                "status": next_status.value,
-                "new_thought_depth": new_thought_depth,
-                "ponder_type": "reprocess"
-            })
             await self._audit_log(
                 HandlerActionType.PONDER,
-                audit_context,
+                dispatch_context,
                 outcome="success"
             )
             
@@ -118,16 +110,9 @@ class PonderHandler(BaseActionHandler):
                     "thought_depth": current_thought_depth
                 }
             )
-            # Create a new dict with dispatch_context data and additional fields
-            audit_context = dispatch_context.model_dump()
-            audit_context.update({
-                "thought_id": thought.thought_id,
-                "status": ThoughtStatus.FAILED.value,
-                "ponder_type": "update_failed"
-            })
             await self._audit_log(
                 HandlerActionType.PONDER,
-                audit_context,
+                dispatch_context,
                 outcome="failed"
             )
             original_task = persistence.get_task_by_id(thought.source_task_id)

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from ciris_engine.schemas.agent_core_schemas_v1 import Task, Thought
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
-from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, ThoughtType
+from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, ThoughtType, TaskStatus
 from ciris_engine import persistence
 from ciris_engine.processor.processing_queue import ProcessingQueueItem
 
@@ -30,76 +30,34 @@ class ThoughtManager:
         task: Task,
         round_number: int = 0
     ) -> Optional[Thought]:
-        """Generate a seed thought for a task with MISSION-CRITICAL type safety."""
+        """Generate a seed thought for a task - elegantly copy the context."""
         now_iso = datetime.now(timezone.utc).isoformat()
         
-        context_dict: Dict[str, Any] = {}
-        channel_id: Optional[str] = None
+        # Simply copy the task's context to the thought
+        # The schemas handle the nested structure elegantly
+        context = task.context.model_copy() if task.context else None
         
-        if task.context:
-            logger.info(f"SEED_THOUGHT: Processing task {task.task_id}, context type: {type(task.context)}")
-            
-            if task.context and hasattr(task.context, 'model_dump'):
-                context_dict = {"initial_task_context": task.context.model_dump()}
+        # Log for debugging but don't modify the context
+        if context:
+            logger.info(f"SEED_THOUGHT: Copying context for task {task.task_id}")
+            # Check if we have channel context in the proper location
+            if context.initial_task_context and context.initial_task_context.channel_context:
+                channel_id = context.initial_task_context.channel_context.channel_id
+                logger.info(f"SEED_THOUGHT: Found channel_id='{channel_id}' in initial_task_context.channel_context")
+            elif context.system_snapshot and context.system_snapshot.channel_context:
+                channel_id = context.system_snapshot.channel_context.channel_id
+                logger.info(f"SEED_THOUGHT: Found channel_id='{channel_id}' in system_snapshot.channel_context")
             else:
-                context_dict = {"initial_task_context": str(task.context) if task.context else {}}
-            
-            critical_fields = ["author_name", "author_id", "channel_id", "origin_service"]
-            for key in critical_fields:
-                value = None
-                
-                if hasattr(task.context, key):
-                    try:
-                        value = getattr(task.context, key, None)
-                        if value is not None:
-                            logger.info(f"SEED_THOUGHT: Extracted {key}='{value}' from object context")
-                    except Exception as e:
-                        logger.error(f"SEED_THOUGHT: Error extracting {key}: {e}")
-                        continue
-                
-                if value is not None:
-                    context_dict[key] = str(value)  # Ensure string type
-                    if key == "channel_id":
-                        channel_id = str(value)
-            
-            # Also check for channel_id in system_snapshot.channel_context
-            if not channel_id and hasattr(task.context, 'system_snapshot'):
-                try:
-                    system_snapshot = getattr(task.context, 'system_snapshot', None)
-                    if system_snapshot and hasattr(system_snapshot, 'channel_context'):
-                        channel_context = getattr(system_snapshot, 'channel_context', None)
-                        if channel_context and hasattr(channel_context, 'channel_id'):
-                            channel_id = getattr(channel_context, 'channel_id', None)
-                            if channel_id:
-                                logger.info(f"SEED_THOUGHT: Extracted channel_id='{channel_id}' from system_snapshot.channel_context")
-                                context_dict["channel_id"] = str(channel_id)
-                except Exception as e:
-                    logger.error(f"SEED_THOUGHT: Error extracting channel_id from system_snapshot: {e}")
-            
-            if not channel_id:
-                logger.warning(f"SEED_THOUGHT: No channel_id found in task context for {task.task_id}")
+                logger.warning(f"SEED_THOUGHT: No channel context found for task {task.task_id}")
         else:
-            logger.warning(f"SEED_THOUGHT: Task {task.task_id} has NO context")
-        
-        if not channel_id:
-            if self.default_channel_id:
-                channel_id = self.default_channel_id
-                logger.warning(f"SEED_THOUGHT: Using default channel_id='{channel_id}' for task {task.task_id}")
-            else:
-                channel_id = "CLI_EMERGENCY_FALLBACK"
-                logger.error(f"SEED_THOUGHT: EMERGENCY FALLBACK channel_id='{channel_id}' for task {task.task_id}")
-        
-        context_dict["channel_id"] = channel_id
-        logger.info(f"SEED_THOUGHT: Final channel_id='{channel_id}' for task {task.task_id}")
-        
-        try:
-            context = ThoughtContext.model_validate(context_dict)
-        except Exception as e:
-            logger.error(f"SEED_THOUGHT: Failed to validate context for task {task.task_id}: {e}")
-            from ciris_engine.schemas.context_schemas_v1 import SystemSnapshot
-            from ciris_engine.utils.channel_utils import create_channel_context
-            channel_context = create_channel_context(channel_id) if channel_id else None
-            context = ThoughtContext(system_snapshot=SystemSnapshot(channel_context=channel_context))
+            logger.critical(f"SEED_THOUGHT: Task {task.task_id} has NO context - POTENTIAL SECURITY BREACH")
+            # Delete the malicious task immediately
+            try:
+                persistence.update_task_status(task.task_id, TaskStatus.FAILED)
+                logger.critical(f"SEED_THOUGHT: Marked malicious task {task.task_id} as FAILED")
+            except Exception as e:
+                logger.critical(f"SEED_THOUGHT: Failed to mark malicious task {task.task_id} as FAILED: {e}")
+            return None
         
         thought = Thought(
             thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",

@@ -36,10 +36,10 @@ class ActionInstructionGenerator:
         HandlerActionType.TASK_COMPLETE: TaskCompleteParams,
     }
     
-    def __init__(self, service_registry: Optional[Any] = None, multi_service_sink: Optional[Any] = None):
+    def __init__(self, service_registry: Optional[Any] = None, bus_manager: Optional[Any] = None):
         """Initialize with optional service registry and multi-service sink for tool discovery."""
         self.service_registry = service_registry
-        self.multi_service_sink = multi_service_sink
+        self.bus_manager = bus_manager
         self._cached_instructions: Optional[str] = None
         
     def generate_action_instructions(self, available_actions: Optional[List[HandlerActionType]] = None) -> str:

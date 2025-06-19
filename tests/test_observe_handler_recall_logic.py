@@ -18,6 +18,7 @@ sys.path.insert(0, '/home/emoore/CIRISAgent')
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
 from ciris_engine.action_handlers.observe_handler import ObserveHandler
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.message_buses.bus_manager import BusManager
 
 # Configure logging for tests
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -30,7 +31,7 @@ class MockMemoryService:
         self.recall_calls = []
         self.recall_errors = {}  # Dict to simulate recall failures for specific node_id/scope combinations
     
-    async def recall(self, node: GraphNode):
+    async def recall(self, node: GraphNode, handler_name: str = None):
         """Mock recall method that logs calls and can simulate failures"""
         self.recall_calls.append((node.id, node.scope))
         
@@ -55,7 +56,7 @@ def mock_memory_service():
 
 
 @pytest.fixture
-def observe_handler():
+def observe_handler(mock_memory_service):
     """Fixture providing an ObserveHandler instance with minimal dependencies"""
     from unittest.mock import AsyncMock
     
@@ -71,8 +72,15 @@ def observe_handler():
     mock_secrets_service.update_secrets_filter = AsyncMock(return_value={})
     mock_secrets_service.rotate_encryption_keys = AsyncMock(return_value=True)
     
+    bus_manager = BusManager(service_registry)
+    
+    # Mock the memory bus to use our mock_memory_service
+    mock_memory_bus = AsyncMock()
+    mock_memory_bus.recall = mock_memory_service.recall
+    bus_manager.memory = mock_memory_bus
+    
     deps = ActionHandlerDependencies(
-        service_registry=service_registry,
+        bus_manager=bus_manager,
         secrets_service=mock_secrets_service
     )
     return ObserveHandler(deps)
@@ -172,7 +180,7 @@ class TestObserveHandlerRecallLogic:
         """Test normal message processing with valid messages"""
         channel_id = "123456789012345678"
         
-        await observe_handler._recall_from_messages(mock_memory_service, channel_id, sample_messages)
+        await observe_handler._recall_from_messages(channel_id, sample_messages)
         
         # Analyze results
         recall_by_node = {}
@@ -207,12 +215,12 @@ class TestObserveHandlerRecallLogic:
         channel_id = "test_channel"
         
         # Should not raise an exception and should return gracefully
-        await observe_handler._recall_from_messages(None, channel_id, sample_messages)
+        await observe_handler._recall_from_messages(channel_id, sample_messages)
 
     @pytest.mark.asyncio
     async def test_no_channel_id(self, observe_handler, mock_memory_service, sample_messages):
         """Test handling when no channel_id is provided"""
-        await observe_handler._recall_from_messages(mock_memory_service, None, sample_messages)
+        await observe_handler._recall_from_messages(None, sample_messages)
         
         # Should only have user recalls, no channel recall
         recall_by_node = {}
@@ -233,7 +241,7 @@ class TestObserveHandlerRecallLogic:
         """Test handling when messages list is empty"""
         channel_id = "test_channel"
         
-        await observe_handler._recall_from_messages(mock_memory_service, channel_id, [])
+        await observe_handler._recall_from_messages(channel_id, [])
         
         # Should only have channel recall
         recall_by_node = {}
@@ -251,7 +259,7 @@ class TestObserveHandlerRecallLogic:
         """Test handling when messages is None"""
         channel_id = "test_channel"
         
-        await observe_handler._recall_from_messages(mock_memory_service, channel_id, None)
+        await observe_handler._recall_from_messages(channel_id, None)
         
         # Should only have channel recall
         recall_by_node = {}
@@ -268,7 +276,7 @@ class TestObserveHandlerRecallLogic:
         """Test handling of malformed messages"""
         channel_id = "test_channel"
         
-        await observe_handler._recall_from_messages(mock_memory_service, channel_id, malformed_messages)
+        await observe_handler._recall_from_messages(channel_id, malformed_messages)
         
         # Should only have channel recall (no valid author_ids in malformed messages)
         recall_by_node = {}
@@ -290,7 +298,7 @@ class TestObserveHandlerRecallLogic:
         """Test handling of duplicate author IDs"""
         channel_id = "test_channel"
         
-        await observe_handler._recall_from_messages(mock_memory_service, channel_id, duplicate_author_messages)
+        await observe_handler._recall_from_messages(channel_id, duplicate_author_messages)
         
         # Analyze results - should only recall each unique ID once per scope
         recall_by_node = {}
@@ -329,7 +337,7 @@ class TestObserveHandlerRecallLogic:
         mock_memory_service.set_recall_error(f"channel/{channel_id}", GraphScope.ENVIRONMENT, ValueError("Another test error"))
         
         # Should not raise an exception despite recall errors
-        await observe_handler._recall_from_messages(mock_memory_service, channel_id, messages)
+        await observe_handler._recall_from_messages(channel_id, messages)
         
         # Should still attempt all recalls
         assert len(mock_memory_service.recall_calls) == 6  # 2 nodes × 3 scopes each
@@ -367,7 +375,7 @@ class TestObserveHandlerRecallLogic:
             )
         ]
         
-        await observe_handler._recall_from_messages(mock_memory_service, channel_id, messages)
+        await observe_handler._recall_from_messages(channel_id, messages)
         
         # Check that all recall calls use correct ID format
         for node_id, scope in mock_memory_service.recall_calls:
@@ -394,7 +402,7 @@ class TestObserveHandlerRecallLogic:
             )
         ]
         
-        await observe_handler._recall_from_messages(mock_memory_service, channel_id, messages)
+        await observe_handler._recall_from_messages(channel_id, messages)
         
         # Collect all scopes used
         scopes_used = set()
@@ -425,7 +433,7 @@ class TestObserveHandlerRecallLogic:
             )
         ]
         
-        await observe_handler._recall_from_messages(mock_memory_service, channel_id, messages)
+        await observe_handler._recall_from_messages(channel_id, messages)
         
         # Count channel recalls
         channel_recalls = [call for call in mock_memory_service.recall_calls if call[0].startswith("channel/")]
@@ -453,7 +461,7 @@ class TestObserveHandlerRecallLogic:
         if author_id is not None:
             message.author_id = author_id
 
-        await observe_handler._recall_from_messages(mock_memory_service, "test_channel", [message])
+        await observe_handler._recall_from_messages("test_channel", [message])
         
         # Count user recalls
         user_recalls = [call for call in mock_memory_service.recall_calls if call[0].startswith("user/")]

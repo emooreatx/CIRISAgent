@@ -1,4 +1,4 @@
-"""API memory endpoints for CIRISAgent, using the multi_service_sink for persistence-backed memory service."""
+"""API memory endpoints for CIRISAgent, using the bus_manager for persistence-backed memory service."""
 import logging
 from aiohttp import web
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
@@ -8,8 +8,8 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 class APIMemoryRoutes:
-    def __init__(self, multi_service_sink: Any) -> None:
-        self.multi_service_sink = multi_service_sink
+    def __init__(self, bus_manager: Any) -> None:
+        self.bus_manager = bus_manager
 
     def register(self, app: web.Application) -> None:
         app.router.add_get('/v1/memory/scopes', self._handle_memory_scopes)
@@ -22,8 +22,8 @@ class APIMemoryRoutes:
 
     async def _handle_memory_scopes(self, request: web.Request) -> web.Response:
         try:
-            # Use the memory service from the multi_service_sink
-            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            # Use the memory service from the bus_manager
+            memory_service = getattr(self.bus_manager, 'memory_service', None)
             if memory_service and hasattr(memory_service, 'list_scopes'):
                 scopes = await memory_service.list_scopes()
             else:
@@ -37,7 +37,7 @@ class APIMemoryRoutes:
     async def _handle_memory_entries(self, request: web.Request) -> web.Response:
         scope = request.match_info.get('scope')
         try:
-            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            memory_service = getattr(self.bus_manager, 'memory_service', None)
             if memory_service is None:
                 # Service is not available at all
                 logger.error("Memory service is not available")
@@ -70,8 +70,8 @@ class APIMemoryRoutes:
             except ValueError:
                 graph_scope = GraphScope.LOCAL  # Fallback to LOCAL scope
             node = GraphNode(id=key, type=NodeType.CONCEPT, scope=graph_scope, attributes={"value": value})
-            # Use the multi_service_sink to memorize
-            result = await self.multi_service_sink.memorize(node)
+            # Use the bus_manager to memorize
+            result = await self.bus_manager.memorize(node)
             if hasattr(result, "status") and result.status == MemoryOpStatus.OK:
                 return web.json_response({"result": "ok"})
             return web.json_response({"error": getattr(result, "reason", "Unknown error")}, status=500)
@@ -87,7 +87,7 @@ class APIMemoryRoutes:
             scope = data.get("scope", "local")
             limit = data.get("limit", 10)
             
-            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            memory_service = getattr(self.bus_manager, 'memory_service', None)
             if memory_service and hasattr(memory_service, 'search'):
                 results = await memory_service.search(query, scope, limit)
                 return web.json_response({"results": results})
@@ -105,7 +105,7 @@ class APIMemoryRoutes:
             scope = data.get("scope", "local")
             max_results = data.get("max_results", 5)
             
-            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            memory_service = getattr(self.bus_manager, 'memory_service', None)
             if memory_service and hasattr(memory_service, 'recall'):
                 memories = await memory_service.recall(context, scope, max_results)
                 return web.json_response({"memories": memories})
@@ -121,7 +121,7 @@ class APIMemoryRoutes:
             scope = request.match_info.get('scope')
             node_id = request.match_info.get('node_id')
             
-            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            memory_service = getattr(self.bus_manager, 'memory_service', None)
             if memory_service and hasattr(memory_service, 'forget'):
                 result = await memory_service.forget(scope, node_id)
                 return web.json_response(result)
@@ -137,7 +137,7 @@ class APIMemoryRoutes:
             scope = request.query.get('scope', 'session')
             limit = int(request.query.get('limit', 100))
             
-            memory_service = getattr(self.multi_service_sink, 'memory_service', None)
+            memory_service = getattr(self.bus_manager, 'memory_service', None)
             if memory_service and hasattr(memory_service, 'get_timeseries'):
                 results = await memory_service.get_timeseries(scope, limit)
                 return web.json_response(results)

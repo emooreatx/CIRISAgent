@@ -193,7 +193,7 @@ def action_selection(context: Optional[List[Any]] = None) -> ActionSelectionResu
                     
             elif action == HandlerActionType.OBSERVE:
                 parts = action_params.split() if action_params else []
-                channel_id = parts[0] if len(parts) > 0 else None
+                channel_id = parts[0] if len(parts) > 0 else ""
                 active = parts[1].lower() == "true" if len(parts) > 1 else False
                 channel_context = create_channel_context(channel_id) if channel_id else None
                 params = ObserveParams(channel_context=channel_context, active=active)

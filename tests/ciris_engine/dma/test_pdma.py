@@ -84,10 +84,11 @@ async def test_pdma_init_and_evaluate(monkeypatch):
     mock_sink = MagicMock()
     
     # Mock the generate_structured_sync method to return our mock result
+    mock_sink.llm = MagicMock()
     async def mock_generate_structured_sync(*args, **kwargs):
         return mock_result, mock_resource_usage
     
-    mock_sink.generate_structured_sync = mock_generate_structured_sync
+    mock_sink.llm.generate_structured_sync = mock_generate_structured_sync
     
     evaluator = EthicalPDMAEvaluator(
         service_registry=service_registry,

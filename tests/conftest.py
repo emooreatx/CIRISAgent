@@ -4,6 +4,8 @@ Global test configuration for pytest.
 This file is automatically loaded by pytest and contains setup that applies to all tests.
 """
 import os
+import pytest
+import asyncio
 from pathlib import Path
 
 # Load environment variables from .env file for all tests
@@ -21,9 +23,8 @@ except ImportError:
 # Import API fixtures to ensure port randomization
 from .fixtures_api import randomize_api_port, api_port
 
-import pytest
-import asyncio
 import gc
+import time
 
 @pytest.fixture(autouse=True, scope="function")
 def cleanup_after_test():
@@ -37,5 +38,57 @@ def cleanup_after_test():
     gc.collect()
     
     # Add a small delay to allow sockets to close
-    import time
     time.sleep(0.1)
+
+# Import WA test harness fixtures (when available)
+try:
+    from ciris_engine.services.test_wa_auth_harness import (
+        wa_test_harness, wa_test_env, wa_test_keys
+    )
+except ImportError:
+    # WA test harness not available yet
+    wa_test_harness = None
+    wa_test_env = None
+    wa_test_keys = None
+
+# Import SDK client fixture
+try:
+    from ciris_sdk import CIRISClient
+    from ciris_sdk.exceptions import CIRISConnectionError
+    
+    @pytest.fixture
+    async def client():
+        """Provide CIRIS SDK client for tests that need API access."""
+        try:
+            async with CIRISClient(base_url="http://localhost:8080") as c:
+                # Test connection
+                await c._transport.request("GET", "/api/v1/health")
+                yield c
+        except (CIRISConnectionError, Exception):
+            pytest.skip("API not running - skipping SDK tests")
+            
+except ImportError:
+    # SDK not available
+    client = None
+
+
+# Remove the event_loop fixture - let pytest-asyncio handle it
+# The asyncio_mode = auto in pytest.ini will create event loops as needed
+
+
+@pytest.fixture
+def api_required():
+    """Mark test as requiring running API."""
+    import socket
+    
+    # Check if API is accessible
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('localhost', 8080))
+        sock.close()
+        
+        if result != 0:
+            pytest.skip("API not running on localhost:8080")
+    except Exception:
+        pytest.skip("Cannot check API availability")

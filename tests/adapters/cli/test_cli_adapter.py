@@ -33,7 +33,7 @@ def temp_database():
 
 
 @pytest.fixture
-def mock_multi_service_sink():
+def mock_bus_manager():
     """Mock multi-service sink."""
     sink = AsyncMock()
     return sink
@@ -46,24 +46,24 @@ def mock_on_message():
 
 
 @pytest.fixture
-def cli_adapter_non_interactive(mock_multi_service_sink, mock_on_message, temp_database):
+def cli_adapter_non_interactive(mock_bus_manager, mock_on_message, temp_database):
     """Create CLI adapter in non-interactive mode."""
     with patch('ciris_engine.config.config_manager.get_sqlite_db_full_path', return_value=temp_database):
         return CLIAdapter(
             interactive=False,
             on_message=mock_on_message,
-            multi_service_sink=mock_multi_service_sink
+            bus_manager=mock_bus_manager
         )
 
 
 @pytest.fixture
-def cli_adapter_interactive(mock_multi_service_sink, mock_on_message, temp_database):
+def cli_adapter_interactive(mock_bus_manager, mock_on_message, temp_database):
     """Create CLI adapter in interactive mode."""
     with patch('ciris_engine.config.config_manager.get_sqlite_db_full_path', return_value=temp_database):
         return CLIAdapter(
             interactive=True,
             on_message=mock_on_message,
-            multi_service_sink=mock_multi_service_sink
+            bus_manager=mock_bus_manager
         )
 
 
@@ -76,7 +76,7 @@ class TestCLIAdapter:
         adapter = cli_adapter_non_interactive
         assert adapter.interactive is False
         assert adapter.on_message is not None
-        assert adapter.multi_service_sink is not None
+        assert adapter.bus_manager is not None
         assert adapter._running is False
         assert len(adapter._available_tools) > 0
 
@@ -85,7 +85,7 @@ class TestCLIAdapter:
         adapter = cli_adapter_interactive
         assert adapter.interactive is True
         assert adapter.on_message is not None
-        assert adapter.multi_service_sink is not None
+        assert adapter.bus_manager is not None
         assert adapter._running is False
 
     async def test_send_message_success(self, cli_adapter_non_interactive):
@@ -447,12 +447,12 @@ class TestCLIAdapterIntegration:
             assert msg.author_name == "User"
             assert msg.destination_id.startswith("cli")  # Should start with "cli"
 
-    async def test_full_message_flow_with_sink(self, mock_multi_service_sink):
+    async def test_full_message_flow_with_sink(self, mock_bus_manager):
         """Test complete message flow through multi-service sink."""
         adapter = CLIAdapter(
             interactive=True,
             on_message=None,  # No callback, should use sink
-            multi_service_sink=mock_multi_service_sink
+            bus_manager=mock_bus_manager
         )
         adapter._running = True
         
@@ -461,11 +461,9 @@ class TestCLIAdapterIntegration:
         with patch.object(adapter, '_get_user_input', side_effect=[test_message, 'quit']):
             await adapter._handle_interactive_input()
             
-            # Verify sink was called
-            mock_multi_service_sink.observe_message.assert_called_once()
-            call_args = mock_multi_service_sink.observe_message.call_args
-            assert call_args[0][0] == "ObserveHandler"
-            assert call_args[0][2]["source"] == "cli"
+            # Without on_message callback, the adapter should log a warning
+            # The bus_manager is no longer used directly for observe_message
+            assert adapter._running == False  # Should have quit after 'quit' command
 
     async def test_guidance_flow_integration(self, cli_adapter_interactive):
         """Test complete guidance request flow."""

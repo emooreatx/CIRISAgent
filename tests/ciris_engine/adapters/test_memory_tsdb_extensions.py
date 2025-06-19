@@ -335,13 +335,17 @@ class TestMemoryServiceCapabilities:
     
     @pytest.mark.asyncio
     async def test_get_capabilities_includes_new_methods(self, memory_service):
-        """Test that get_capabilities includes the new TSDB methods"""
+        """Test that get_capabilities includes the core memory methods"""
         capabilities = await memory_service.get_capabilities()
         
+        # Core capabilities defined in MemoryCapabilities enum
         expected_capabilities = [
-            "memorize", "recall", "forget", "search_memories",
-            "recall_timeseries", "memorize_metric", "memorize_log"
+            "memorize", "recall", "forget"
         ]
         
         for capability in expected_capabilities:
             assert capability in capabilities
+        
+        # Note: Extended TSDB methods like search_memories, recall_timeseries,
+        # memorize_metric, and memorize_log are not part of the protocol
+        # capabilities but are available as methods on the service

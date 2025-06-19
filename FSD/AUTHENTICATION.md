@@ -1,5 +1,7 @@
 # CIRIS WA Authentication v1.0-β
 
+**PATENT PENDING**
+
 ## 0 Purpose
 
 Deliver a **zero-configuration install** that:

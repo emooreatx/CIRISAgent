@@ -346,7 +346,7 @@ class TestDiscordPlatform:
         runtime.app_config = MagicMock()
         runtime.memory_service = MagicMock()
         runtime.agent_id = "test_agent"
-        runtime.multi_service_sink = MagicMock()
+        runtime.bus_manager= MagicMock()
         runtime.adaptive_filter_service = MagicMock()
         runtime.secrets_service = MagicMock()
         return runtime
@@ -626,7 +626,7 @@ class TestDiscordObserver:
         return {
             'memory_service': MagicMock(),
             'agent_id': '12345',  # Bot's user ID
-            'multi_service_sink': MagicMock(),
+            'bus_manager': MagicMock(),
             'filter_service': MagicMock(),
             'secrets_service': MagicMock(),
             'communication_service': MagicMock()

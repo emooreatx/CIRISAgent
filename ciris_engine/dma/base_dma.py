@@ -101,8 +101,8 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
             logger.critical(f"FATAL: No multi-service sink available for {self.__class__.__name__}. System cannot continue.")
             raise RuntimeError(f"FATAL: No multi-service sink available for {self.__class__.__name__}. DMAs require the sink for all LLM calls. System must shutdown.")
             
-        # Use sink for centralized failover, round-robin, and circuit breaker protection
-        result = await self.sink.generate_structured_sync(
+        # Use LLM bus for centralized failover, round-robin, and circuit breaker protection
+        result = await self.sink.llm.generate_structured_sync(
             messages=messages,
             response_model=response_model,
             handler_name=self.__class__.__name__,

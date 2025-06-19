@@ -60,7 +60,7 @@ action_params_observe_guidance: 'If ''Observe'' is chosen to gather more
   "perform_active_look": true, "reason": "Checking for recent user activity"}}'
 final_ponder_advisory: '
 
-  IMPORTANT FINAL ATTEMPT ADVISORY (Action Count for NEXT attempt would be {current_ponder_count_plus_1}/{max_rounds}):
+  IMPORTANT FINAL ATTEMPT ADVISORY (Thought Depth for NEXT attempt would be {current_thought_depth_plus_1}/{max_rounds}):
 
   You have taken multiple actions on this thought. This is your final opportunity
   to provide a direct answer or a definitive deferral.

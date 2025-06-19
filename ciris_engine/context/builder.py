@@ -56,11 +56,12 @@ class ContextBuilder:
         
         
         def safe_extract_channel_id(context: Any, source_name: str) -> Optional[str]:
-            """Type-safe channel_id extraction."""
+            """Type-safe channel_id extraction from nested context structures."""
             if not context:
                 return None
                 
             try:
+                # Direct channel_id attribute
                 if isinstance(context, dict):
                     cid = context.get('channel_id')
                     if cid is not None:
@@ -69,20 +70,39 @@ class ContextBuilder:
                     cid = getattr(context, 'channel_id', None)
                     if cid is not None:
                         return str(cid)
+                
+                # Check initial_task_context.channel_context.channel_id
+                if hasattr(context, 'initial_task_context') and context.initial_task_context:
+                    task_ctx = context.initial_task_context
+                    if hasattr(task_ctx, 'channel_context') and task_ctx.channel_context:
+                        channel_ctx = task_ctx.channel_context
+                        if hasattr(channel_ctx, 'channel_id') and channel_ctx.channel_id:
+                            return str(channel_ctx.channel_id)
+                
+                # Check system_snapshot.channel_context.channel_id
+                if hasattr(context, 'system_snapshot') and context.system_snapshot:
+                    snapshot = context.system_snapshot
+                    if hasattr(snapshot, 'channel_context') and snapshot.channel_context:
+                        channel_ctx = snapshot.channel_context
+                        if hasattr(channel_ctx, 'channel_id') and channel_ctx.channel_id:
+                            return str(channel_ctx.channel_id)
+                            
             except Exception as e:
                 logger.error(f"Error extracting channel_id from {source_name}: {e}")
             
             return None
         
-        if task and task.context:
-            channel_id = safe_extract_channel_id(task.context, "task.context")
-            if channel_id:
-                resolution_source = "task.context"
-        
-        if not channel_id and thought and thought.context:
+        # PRIORITY: Check thought context FIRST (most specific)
+        if thought and thought.context:
             channel_id = safe_extract_channel_id(thought.context, "thought.context")
             if channel_id:
                 resolution_source = "thought.context"
+        
+        # Then check task context if thought didn't have it
+        if not channel_id and task and task.context:
+            channel_id = safe_extract_channel_id(task.context, "task.context")
+            if channel_id:
+                resolution_source = "task.context"
         
         if not channel_id and self.app_config and hasattr(self.app_config, 'home_channel'):
             home_channel = getattr(self.app_config, 'home_channel', None)

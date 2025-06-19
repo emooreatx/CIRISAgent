@@ -101,17 +101,30 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
     shutdown_called = False
     try:
         if timeout:
-            # Use asyncio.wait_for for timeout handling  
+            # Create task and handle timeout manually to allow graceful shutdown
             logger.info(f"[DEBUG] Setting up timeout for {timeout} seconds")
+            runtime_task = asyncio.create_task(runtime.run(num_rounds=num_rounds))
+            
             try:
-                await asyncio.wait_for(runtime.run(num_rounds=num_rounds), timeout=timeout)
+                # Wait for either the task to complete or timeout
+                await asyncio.wait_for(asyncio.shield(runtime_task), timeout=timeout)
             except asyncio.TimeoutError:
-                logger.info(f"Timeout of {timeout} seconds reached, shutting down...")
-                # When asyncio.wait_for times out, it cancels the task
-                # runtime.run() has a finally block that calls shutdown()
-                # So we just need to request shutdown and let it propagate
+                logger.info(f"Timeout of {timeout} seconds reached, initiating graceful shutdown...")
+                # Request shutdown but don't cancel the task immediately
                 runtime.request_shutdown(f"Runtime timeout after {timeout} seconds")
-                # Don't call shutdown here - it will be called by runtime.run()'s finally block
+                
+                # Give the shutdown processor time to run (up to 30 seconds)
+                try:
+                    await asyncio.wait_for(runtime_task, timeout=30.0)
+                    logger.info("Graceful shutdown completed within timeout")
+                except asyncio.TimeoutError:
+                    logger.warning("Graceful shutdown did not complete within 30 seconds, cancelling...")
+                    runtime_task.cancel()
+                    try:
+                        await runtime_task
+                    except asyncio.CancelledError:
+                        pass
+                
                 shutdown_called = True
         else:
             # Run without timeout

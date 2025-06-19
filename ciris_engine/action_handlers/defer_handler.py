@@ -86,51 +86,57 @@ class DeferHandler(BaseActionHandler):
                         logger.error(f"Failed to schedule deferred task: {e}")
                         # Fall back to standard deferral
                 
-            wa_service = await self.get_wa_service()
-            if wa_service:
-                try:
-                    deferral_context = {
-                        "task_id": thought.source_task_id,
-                        "thought_content": thought.content if hasattr(thought, 'content') else "",
-                        "priority": getattr(defer_params_obj, 'priority', 'medium'),
-                        "attempted_action": getattr(dispatch_context, 'attempted_action', 'unknown'),
-                        "defer_until": defer_params_obj.defer_until,  # Include scheduled time if present
-                        "max_rounds_reached": getattr(dispatch_context, 'max_rounds_reached', False)
-                    }
-                    
-                    if thought.source_task_id:
-                        task = persistence.get_task_by_id(thought.source_task_id)
-                        if task and hasattr(task, 'description'):
-                            deferral_context["task_description"] = task.description
-                    
-                    if hasattr(dispatch_context, 'conversation_context'):
-                        deferral_context["conversation_context"] = getattr(dispatch_context, 'conversation_context')
-                    
-                    await wa_service.send_deferral(thought_id, defer_params_obj.reason, deferral_context)
-                except Exception as e:
-                    self.logger.error(f"WiseAuthorityService deferral failed for thought {thought_id}: {e}")
-            else:
-                self.logger.warning("No WiseAuthorityService available for deferral")
-                action_performed_successfully = True  # Deferral still considered processed
+            # Use the wise authority bus for deferrals
+            try:
+                deferral_context = {
+                    "task_id": thought.source_task_id,
+                    "thought_content": thought.content if hasattr(thought, 'content') else "",
+                    "priority": getattr(defer_params_obj, 'priority', 'medium'),
+                    "attempted_action": getattr(dispatch_context, 'attempted_action', 'unknown'),
+                    "defer_until": defer_params_obj.defer_until,  # Include scheduled time if present
+                    "max_rounds_reached": getattr(dispatch_context, 'max_rounds_reached', False)
+                }
+                
+                if thought.source_task_id:
+                    task = persistence.get_task_by_id(thought.source_task_id)
+                    if task and hasattr(task, 'description'):
+                        deferral_context["task_description"] = task.description
+                
+                if hasattr(dispatch_context, 'conversation_context'):
+                    deferral_context["conversation_context"] = getattr(dispatch_context, 'conversation_context')
+                
+                await self.bus_manager.wise.send_deferral(
+                    thought_id=thought_id,
+                    reason=defer_params_obj.reason,
+                    handler_name=self.__class__.__name__,
+                    context=deferral_context
+                )
+            except Exception as e:
+                self.logger.error(f"WiseAuthorityService deferral failed for thought {thought_id}: {e}")
+                # Deferral still considered processed even if WA fails
+                action_performed_successfully = True
 
         except Exception as param_parse_error:
             self.logger.error(f"DEFER action params parsing error or unexpected structure. Type: {type(raw_params)}, Error: {param_parse_error}. Thought ID: {thought_id}")
             follow_up_content_key_info = f"DEFER action failed: Invalid parameters ({type(raw_params)}) for thought {thought_id}. Error: {param_parse_error}"
-            wa_service = await self.get_wa_service()
-            if wa_service:
-                try:
-                    error_context = {
-                        "task_id": thought.source_task_id,
-                        "thought_content": thought.content if hasattr(thought, 'content') else "",
-                        "error_type": "parameter_parsing_error",
-                        "attempted_action": getattr(dispatch_context, 'attempted_action', 'defer')
-                    }
-                    await wa_service.send_deferral(thought_id, "parameter_error", error_context)
-                except Exception as e_sink_fallback:
-                    self.logger.error(
-                        f"Fallback deferral submission failed for thought {thought_id}: {e_sink_fallback}"
-                    )
-            else:
+            # Try to send deferral despite parameter error
+            try:
+                error_context = {
+                    "task_id": thought.source_task_id,
+                    "thought_content": thought.content if hasattr(thought, 'content') else "",
+                    "error_type": "parameter_parsing_error",
+                    "attempted_action": getattr(dispatch_context, 'attempted_action', 'defer')
+                }
+                await self.bus_manager.wise.send_deferral(
+                    thought_id=thought_id,
+                    reason="parameter_error",
+                    handler_name=self.__class__.__name__,
+                    context=error_context
+                )
+            except Exception as e_sink_fallback:
+                self.logger.error(
+                    f"Fallback deferral submission failed for thought {thought_id}: {e_sink_fallback}"
+                )
                 action_performed_successfully = True
 
         persistence.update_thought_status(

@@ -78,15 +78,24 @@ class TestMainIntegration:
         
         # Should not have critical errors
         assert "CRITICAL" not in output
-        assert "ERROR" not in output or "Error during shutdown" in output  # Shutdown errors are sometimes expected
+        # Check for actual ERROR log messages, not just the word "ERROR" in informational messages
+        error_lines = [line for line in output.split('\n') if 'ERROR' in line and 'WARNING/ERROR messages' not in line]
+        if error_lines:
+            # Only fail if there are errors that aren't shutdown-related
+            non_shutdown_errors = [line for line in error_lines if 'Error during shutdown' not in line]
+            assert not non_shutdown_errors, f"Found unexpected errors: {non_shutdown_errors}"
 
     def test_main_startup_quick_modes(self):
         """Test main startup with different modes (quick timeout, no full wakeup)."""
         # Test API mode - special handling due to aiohttp subprocess issues
+        # Use a random port to avoid conflicts
+        import random
+        test_port = random.randint(8100, 8999)
         cmd = [
             sys.executable, "main.py",
             "--mock-llm",
             "--adapter", "api",
+            "--port", str(test_port),
             "--timeout", "5"
         ]
         
@@ -285,11 +294,15 @@ class TestMainIntegration:
 
     def test_main_runtime_workflow(self):
         """Test the complete runtime workflow: shutdown -> wakeup -> work."""
+        # Use a random port to avoid conflicts
+        import random
+        test_port = random.randint(8100, 8999)
         cmd = [
             sys.executable, "main.py",
             "--mock-llm",
             "--adapter", "api",
             "--adapter", "cli", 
+            "--port", str(test_port),
             "--timeout", "15",
             "--no-interactive"
         ]
@@ -424,12 +437,15 @@ class TestMainConfigurationLogic:
 
     def test_api_host_port_configuration(self):
         """Test API host and port configuration."""
+        # Use a random port to avoid conflicts
+        import random
+        test_port = random.randint(8100, 8999)
         cmd = [
             sys.executable, "main.py",
             "--mock-llm",
             "--adapter", "api",
             "--host", "127.0.0.1",
-            "--port", "8081",
+            "--port", str(test_port),
             "--timeout", "5"
         ]
         
@@ -448,11 +464,11 @@ class TestMainConfigurationLogic:
             try:
                 with open("logs/latest.log", "r") as f:
                     log_content = f.read()
-                assert "8081" in log_content, "Port 8081 not found in log file"
+                assert str(test_port) in log_content, f"Port {test_port} not found in log file"
             except FileNotFoundError:
                 # Fallback: check if port appears in stdout/stderr (for CI environments)
                 output = result.stdout + result.stderr
-                assert "8081" in output or "API" in output, f"No API indication found in output: {output[:500]}"
+                assert str(test_port) in output or "API" in output, f"No API indication found in output: {output[:500]}"
                 
         except subprocess.TimeoutExpired as e:
             # Check if the API server started with correct configuration before timeout
@@ -464,10 +480,10 @@ class TestMainConfigurationLogic:
             try:
                 with open("logs/latest.log", "r") as f:
                     log_content = f.read()
-                port_configured = "8081" in log_content
+                port_configured = str(test_port) in log_content
             except FileNotFoundError:
                 # Fallback: check output
-                port_configured = "8081" in output or "127.0.0.1:8081" in output
+                port_configured = str(test_port) in output or f"127.0.0.1:{test_port}" in output
             
             has_startup = "LOGGING INITIALIZED" in output
             

@@ -93,12 +93,13 @@ async def test_llm_success(monkeypatch):
     
     # Create a mock multi-service sink with proper return value
     mock_sink = MagicMock()
+    mock_sink.llm = MagicMock()
     async def mock_generate_structured_sync(*args, **kwargs):
         return (
             dummy_llm_response,
             ResourceUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150, cost_usd=0.001)
         )
-    mock_sink.generate_structured_sync = mock_generate_structured_sync
+    mock_sink.llm.generate_structured_sync = mock_generate_structured_sync
     
     evaluator = ActionSelectionPDMAEvaluator(
         service_registry=service_registry,

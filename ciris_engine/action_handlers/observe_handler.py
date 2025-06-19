@@ -31,12 +31,9 @@ class ObserveHandler(BaseActionHandler):
 
     async def _recall_from_messages(
         self,
-        memory_service: Optional[Any],
         channel_id: Optional[str],
         messages: List[FetchedMessage],
     ) -> None:
-        if not memory_service:
-            return
         recall_ids = set()
         if channel_id:
             recall_ids.add(f"channel/{channel_id}")
@@ -59,7 +56,10 @@ class ObserveHandler(BaseActionHandler):
                         node_type = NodeType.CONCEPT
                     
                     node = GraphNode(id=rid, type=node_type, scope=scope)
-                    await memory_service.recall(node)
+                    await self.bus_manager.memory.recall(
+                        node=node,
+                        handler_name=self.__class__.__name__
+                    )
                 except Exception:
                     continue
 
@@ -74,11 +74,11 @@ class ObserveHandler(BaseActionHandler):
         
         logger.info(f"ObserveHandler: Starting handle for thought {thought_id}")
         logger.debug(f"ObserveHandler: Parameters: {raw_params}")
-        logger.debug(f"ObserveHandler: Dispatch context fields: {list(dispatch_context.model_fields.keys())}")
+        logger.debug(f"ObserveHandler: Dispatch context fields: {list(dispatch_context.__class__.model_fields.keys())}")
         
         await self._audit_log(
             HandlerActionType.OBSERVE,
-            dispatch_context.model_copy(update={"thought_id": thought_id}),
+            dispatch_context,
             outcome="start",
         )
         
@@ -138,25 +138,21 @@ class ObserveHandler(BaseActionHandler):
         if channel_id and isinstance(channel_id, str) and channel_id.startswith("@"):
             channel_id = None
 
-        multi_service_sink = self.get_multi_service_sink()
-        logger.debug(f"ObserveHandler: Got multi-service sink: {type(multi_service_sink).__name__ if multi_service_sink else 'None'}")
-        
-        memory_service = await self.get_memory_service()
-        logger.debug(f"ObserveHandler: Got memory service: {type(memory_service).__name__ if memory_service else 'None'}")
+        # Use bus manager instead of getting services directly
+        logger.debug(f"ObserveHandler: Using bus manager for communication and memory operations")
 
         try:
             logger.info(f"ObserveHandler: Performing active observation for channel {channel_id}")
-            if not multi_service_sink or not channel_id:
-                raise RuntimeError(f"No multi-service sink ({multi_service_sink}) or channel_id ({channel_id})")
-            messages = await multi_service_sink.fetch_messages_sync(
-                handler_name="ObserveHandler",
+            if not channel_id:
+                raise RuntimeError(f"No channel_id ({channel_id})")
+            messages = await self.bus_manager.communication.fetch_messages(
                 channel_id=str(channel_id).lstrip("#"),
                 limit=ACTIVE_OBSERVE_LIMIT,
-                metadata={"active_observation": True}
+                handler_name=self.__class__.__name__
             )
             if messages is None:
                 raise RuntimeError("Failed to fetch messages via multi-service sink")
-            await self._recall_from_messages(memory_service, channel_id, messages)
+            await self._recall_from_messages(channel_id, messages)
             action_performed = True
             follow_up_info = f"Fetched {len(messages)} messages from {channel_id}"
             logger.info(f"ObserveHandler: Active observation complete - {follow_up_info}")
@@ -198,7 +194,7 @@ class ObserveHandler(BaseActionHandler):
             )
             await self._audit_log(
                 HandlerActionType.OBSERVE,
-                {**dispatch_context.model_dump(), "thought_id": thought_id},
+                dispatch_context,
                 outcome="failed_followup",
             )
             raise FollowUpCreationError from e

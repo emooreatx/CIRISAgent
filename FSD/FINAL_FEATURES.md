@@ -1,5 +1,7 @@
 # CIRIS Agent Pre-Beta Feature Implementation Status
 
+**PATENT PENDING**
+
 ## Document Status
 **Version**: 0.2.0-pre-beta  
 **Status**: PARTIAL IMPLEMENTATION - WORK IN PROGRESS  

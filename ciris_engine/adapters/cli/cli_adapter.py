@@ -27,7 +27,7 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         self,
         interactive: bool = True,
         on_message: Optional[Callable[[IncomingMessage], Awaitable[None]]] = None,
-        multi_service_sink: Optional[Any] = None,
+        bus_manager: Optional[Any] = None,
         config: Optional[Any] = None
     ) -> None:
         """
@@ -36,14 +36,14 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         Args:
             interactive: Whether to run in interactive mode with user input
             on_message: Callback for handling incoming messages
-            multi_service_sink: Multi-service sink for routing messages
+            bus_manager: Multi-service sink for routing messages
             config: Optional CLIAdapterConfig
         """
         super().__init__(config={"retry": {"global": {"max_retries": 3, "base_delay": 1.0}}})
         
         self.interactive = interactive
         self.on_message = on_message
-        self.multi_service_sink = multi_service_sink
+        self.bus_manager = bus_manager
         self._running = False
         self._input_task: Optional[asyncio.Task[None]] = None
         self.cli_config = config  # Store the CLI config
@@ -327,10 +327,6 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                 
                 if self.on_message:
                     await self.on_message(msg)
-                elif self.multi_service_sink:
-                    await self.multi_service_sink.observe_message(
-                        "ObserveHandler", msg, {"source": "cli"}
-                    )
                 else:
                     logger.warning("No message handler configured")
                     

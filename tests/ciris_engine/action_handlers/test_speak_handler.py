@@ -8,6 +8,7 @@ from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, ThoughtType
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.registries.base import ServiceRegistry, Priority
+from ciris_engine.message_buses import BusManager
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
 from ciris_engine.schemas.graph_schemas_v1 import NodeType, GraphScope
 from tests.helpers import create_test_dispatch_context
@@ -16,15 +17,12 @@ from ciris_engine.utils.channel_utils import create_channel_context
 @pytest.mark.asyncio
 async def test_speak_handler_schema_driven(monkeypatch):
     service_registry = ServiceRegistry()
-    comm_service = AsyncMock()
-    comm_service.send_message = AsyncMock(return_value=True)
-    service_registry.register_global(
-        service_type="communication",
-        provider=comm_service,
-        priority=Priority.HIGH,
-        capabilities=["send_message"],
-    )
-    deps = ActionHandlerDependencies(service_registry=service_registry)
+    bus_manager = BusManager(service_registry)
+    
+    # Mock the communication bus send_message method directly
+    bus_manager.communication.send_message = AsyncMock(return_value=True)
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     handler = SpeakHandler(deps)
 
     action_result = ActionSelectionResult(
@@ -61,7 +59,12 @@ async def test_speak_handler_schema_driven(monkeypatch):
     dispatch_context = create_test_dispatch_context(channel_id="123")
     await handler.handle(action_result, thought, dispatch_context)
 
-    comm_service.send_message.assert_awaited_with("123", "Hello world!")
+    # Check that send_message was called through the bus
+    bus_manager.communication.send_message.assert_awaited_once()
+    call_args = bus_manager.communication.send_message.call_args
+    assert call_args[1]['channel_id'] == "123"
+    assert call_args[1]['content'] == "Hello world!"
+    assert call_args[1]['handler_name'] == 'SpeakHandler'
     update_thought.assert_called_once()
     assert update_thought.call_args.kwargs["status"] == ThoughtStatus.COMPLETED
     add_thought.assert_called_once()
@@ -70,15 +73,12 @@ async def test_speak_handler_schema_driven(monkeypatch):
 @pytest.mark.asyncio
 async def test_speak_handler_missing_params(monkeypatch):
     service_registry = ServiceRegistry()
-    comm_service = AsyncMock()
-    comm_service.send_message = AsyncMock(return_value=True)
-    service_registry.register_global(
-        service_type="communication",
-        provider=comm_service,
-        priority=Priority.HIGH,
-        capabilities=["send_message"],
-    )
-    deps = ActionHandlerDependencies(service_registry=service_registry)
+    bus_manager = BusManager(service_registry)
+    
+    # Mock the communication bus send_message method directly
+    bus_manager.communication.send_message = AsyncMock(return_value=True)
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     handler = SpeakHandler(deps)
 
     action_result = ActionSelectionResult(
@@ -110,7 +110,7 @@ async def test_speak_handler_missing_params(monkeypatch):
     dispatch_context = create_test_dispatch_context(channel_id="")
     await handler.handle(action_result, thought, dispatch_context)
 
-    comm_service.send_message.assert_not_awaited()
+    bus_manager.communication.send_message.assert_not_awaited()
     update_thought.assert_called_once()
     assert update_thought.call_args.kwargs["status"] == ThoughtStatus.FAILED
     add_thought.assert_called_once()

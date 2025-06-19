@@ -34,9 +34,8 @@ def _build_speak_error_context(params: SpeakParams, thought_id: str, error_type:
 
 
 class SpeakHandler(BaseActionHandler):
-    def __init__(self, dependencies: ActionHandlerDependencies, snore_channel_id: Optional[str] = None) -> None:
+    def __init__(self, dependencies: ActionHandlerDependencies) -> None:
         super().__init__(dependencies)
-        self.snore_channel_id = snore_channel_id
 
     async def handle(
         self,
@@ -76,13 +75,13 @@ class SpeakHandler(BaseActionHandler):
                 await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, fe)
                 raise FollowUpCreationError from fe
 
-        # Get channel context if not provided
-        if not params.channel_context:  # type: ignore[attr-defined]
-            channel_id = await self._get_channel_id(thought, dispatch_context) or self.snore_channel_id
-            params.channel_context = create_channel_context(channel_id)  # type: ignore[attr-defined]
+        # Get channel ID from thought/task context - no other options
+        channel_id = await self._get_channel_id(thought, dispatch_context)
+        if not channel_id:
+            logger.error(f"CRITICAL: No channel_id found in thought {thought_id} context")
+            raise ValueError(f"Channel ID is required for SPEAK action - none found in thought {thought_id}")
         
-        # Extract channel ID for legacy usage
-        channel_id = extract_channel_id(params.channel_context)  # type: ignore[attr-defined]
+        logger.info(f"SPEAK: Using channel_id '{channel_id}' from context")
 
         event_summary = params.content  # type: ignore[attr-defined]
         await self._audit_log(
@@ -93,7 +92,7 @@ class SpeakHandler(BaseActionHandler):
 
         # Extract string from GraphNode for notification
         content_str = params.content.attributes.get('text', str(params.content)) if hasattr(params.content, 'attributes') else str(params.content)  # type: ignore[attr-defined]
-        success = await self._send_notification(channel_id or "unknown", content_str)
+        success = await self._send_notification(channel_id, content_str)
 
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
         

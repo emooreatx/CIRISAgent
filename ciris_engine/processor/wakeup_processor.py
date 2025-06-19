@@ -421,7 +421,7 @@ class WakeupProcessor(BaseProcessor, ProcessorInterface):
             action_type=result.selected_action if hasattr(result, 'selected_action') else None
         )
         
-        return await self.dispatch_action(result, thought, dispatch_context)
+        return await self.dispatch_action(result, thought, dispatch_context.model_dump())
     
     async def _wait_for_task_completion(
         self,
