@@ -117,12 +117,41 @@ class CliPlatform(PlatformAdapter):
     async def run_lifecycle(self, agent_run_task: asyncio.Task[Any]) -> None:
         """Run the CLI platform lifecycle."""
         logger.info("CliPlatform: Running lifecycle.")
+        
+        # Create tasks to monitor
+        tasks = [agent_run_task]
+        
+        # If we have an observer, monitor its stop event
+        if self.cli_observer and hasattr(self.cli_observer, '_stop_event'):
+            stop_event_task = asyncio.create_task(
+                self.cli_observer._stop_event.wait(),
+                name="CLIObserverStopEvent"
+            )
+            tasks.append(stop_event_task)
+        
         try:
-            await agent_run_task
+            # Wait for either agent task to complete or observer to signal stop
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            
+            # Check what completed
+            for task in done:
+                if task.get_name() == "CLIObserverStopEvent":
+                    logger.info("CliPlatform: Observer signaled stop (non-interactive mode)")
+                    # Request global shutdown
+                    from ciris_engine.utils.shutdown_manager import request_global_shutdown
+                    request_global_shutdown("CLI non-interactive mode completed")
+                elif task == agent_run_task:
+                    logger.info("CliPlatform: Agent run task completed")
+                    
+            # Cancel any remaining tasks
+            for task in pending:
+                if not task.done():
+                    task.cancel()
+                    
         except asyncio.CancelledError:
-            logger.info("CliPlatform: Agent run task was cancelled.")
+            logger.info("CliPlatform: Lifecycle was cancelled.")
         except Exception as e:
-            logger.error(f"CliPlatform: Agent run task error: {e}", exc_info=True)
+            logger.error(f"CliPlatform: Lifecycle error: {e}", exc_info=True)
         finally:
             logger.info("CliPlatform: Lifecycle ending.")
 

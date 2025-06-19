@@ -38,11 +38,13 @@ class APIObserver(BaseObserver[IncomingMessage]):
         pass
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:
+        logger.info(f"APIObserver handling message {msg.message_id} from {msg.author_name}")
         if not isinstance(msg, IncomingMessage):
             logger.warning("APIObserver received non-IncomingMessage")  # type: ignore[unreachable]
             return
         
         is_agent_message = self.agent_id and msg.author_id == self.agent_id
+        logger.info(f"Message from agent: {is_agent_message}, agent_id={self.agent_id}, msg.author_id={msg.author_id}")
         
         processed_msg = await self._process_message_secrets(msg)
         
@@ -52,6 +54,7 @@ class APIObserver(BaseObserver[IncomingMessage]):
             logger.debug("Added agent's own message %s to history (no task created)", msg.message_id)
             return
         
+        logger.info(f"Creating passive observation for message {msg.message_id}")
         await self._handle_passive_observation(processed_msg)
         await self._recall_context(processed_msg)
 

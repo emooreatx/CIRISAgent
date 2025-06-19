@@ -2,7 +2,7 @@ import re
 import json
 import logging
 from types import SimpleNamespace
-from typing import Any, List, Dict, Optional
+from typing import Any, List, Dict, Optional, Callable, cast
 
 from ciris_engine.schemas.dma_results_v1 import (
     EthicalDMAResult,
@@ -318,7 +318,7 @@ from .responses_action_selection import action_selection
 from .responses_feedback import optimization_veto, epistemic_humility
 from .responses_epistemic import entropy, coherence
 
-_RESPONSE_MAP = {
+_RESPONSE_MAP: Dict[Any, Callable[..., Any]] = {
     EthicalDMAResult: ethical_dma,
     CSDMAResult: cs_dma,
     DSDMAResult: ds_dma,
@@ -343,7 +343,10 @@ def create_response(response_model: Any, messages: Optional[List[Dict[str, Any]]
         logger.debug(f"Found handler: {handler.__name__}")
         import inspect
         sig = inspect.signature(handler)
-        if 'context' in sig.parameters:
+        # Pass both context and messages if the handler accepts them
+        if 'context' in sig.parameters and 'messages' in sig.parameters:
+            result = handler(context=context, messages=messages)
+        elif 'context' in sig.parameters:
             result = handler(context=context)
         else:
             result = handler()

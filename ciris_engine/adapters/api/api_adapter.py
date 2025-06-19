@@ -13,6 +13,11 @@ from aiohttp import web
 from ciris_engine.protocols.services import CommunicationService
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage, IncomingMessage
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
+from ciris_engine.schemas.api_schemas_v1 import (
+    MessageRequest, MessageResponse, MessageListResponse,
+    ServicesResponse, ServiceProvider, RuntimeStatusResponse, 
+    RuntimeStatus, HealthResponse, ErrorResponse
+)
 from ciris_engine.persistence import add_correlation
 
 logger = logging.getLogger(__name__)
@@ -196,6 +201,7 @@ class APIAdapter(CommunicationService):
             
             # Use the callback to handle the message, which will route through observer
             if self.on_message:
+                logger.info(f"API adapter routing message {msg.message_id} to observer")
                 await self.on_message(msg)
             else:
                 logger.warning("No message handler configured for API adapter")
@@ -287,43 +293,46 @@ class APIAdapter(CommunicationService):
         try:
             # Use get_provider_info which provides detailed service information
             provider_info = self.service_registry.get_provider_info()
-            service_info = {}
+            service_providers: Dict[str, List[ServiceProvider]] = {}
             
             # Process handler-specific services
             for handler, services in provider_info.get("handlers", {}).items():
                 for service_type, providers in services.items():
-                    if service_type not in service_info:
-                        service_info[service_type] = []
+                    if service_type not in service_providers:
+                        service_providers[service_type] = []
                     for provider in providers:
-                        service_info[service_type].append({
-                            "provider": provider["name"],
-                            "handler": handler,
-                            "priority": provider["priority"],
-                            "capabilities": provider["capabilities"],
-                            "global": False
-                        })
+                        service_providers[service_type].append(ServiceProvider(
+                            provider=provider["name"],
+                            handler=handler,
+                            priority=str(provider["priority"]),
+                            capabilities=provider["capabilities"],
+                            is_global=False
+                        ))
             
             # Process global services
             for service_type, providers in provider_info.get("global_services", {}).items():
-                if service_type not in service_info:
-                    service_info[service_type] = []
+                if service_type not in service_providers:
+                    service_providers[service_type] = []
                 for provider in providers:
-                    service_info[service_type].append({
-                        "provider": provider["name"],
-                        "handler": "global",
-                        "priority": provider["priority"],
-                        "capabilities": provider["capabilities"],
-                        "global": True
-                    })
+                    service_providers[service_type].append(ServiceProvider(
+                        provider=provider["name"],
+                        handler="global",
+                        priority=str(provider["priority"]),
+                        capabilities=provider["capabilities"],
+                        is_global=True
+                    ))
             
-            return web.json_response({
-                "services": service_info,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            response = ServicesResponse(
+                services=service_providers,
+                timestamp=datetime.now(timezone.utc)
+            )
+            
+            return web.json_response(response.model_dump(mode='json'))
             
         except Exception as e:
             logger.error(f"Error listing services: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
+            error_response = ErrorResponse(error=str(e))
+            return web.json_response(error_response.model_dump(mode='json'), status=500)
     
     async def _handle_runtime_status(self, request: web.Request) -> web.Response:
         """Handle runtime status endpoint."""

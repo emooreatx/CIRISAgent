@@ -202,6 +202,7 @@ class BaseObserver(Generic[MessageT], ABC):
                     }
                 ),
             )
+            
             persistence.add_task(task)
 
             thought = Thought(
@@ -215,7 +216,10 @@ class BaseObserver(Generic[MessageT], ABC):
                 content=f"User @{msg.author_name} said: {msg.content}",  # type: ignore[attr-defined]
                 context=task.context,
             )
+            
             persistence.add_thought(thought)
+            logger.info(f"Created task {task.task_id} for: {getattr(msg, 'content', 'unknown')[:50]}...")
+            
         except Exception as e:  # pragma: no cover - rarely hit in tests
             logger.error("Error creating observation task: %s", e, exc_info=True)
 

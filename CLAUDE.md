@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Core Philosophy: No Dicts, No Strings, No Kings
+
+The CIRIS codebase follows strict typing principles:
+
+- **No Dicts**: Never use `Dict[str, Any]` or untyped dictionaries. Always use Pydantic models/schemas for all data structures.
+- **No Strings**: Avoid magic strings. Use enums, typed constants, and schema fields instead.
+- **No Kings**: No special cases or bypass patterns. Every component follows the same typed, validated patterns.
+- **No Backwards Compatibility**: The codebase moves forward only. No legacy support code.
+
+This ensures type safety, validation, and clear contracts throughout the system.
+
 ## Project Overview
 
 CIRIS Engine is a sophisticated moral reasoning agent built around the "CIRIS Covenant" - a comprehensive ethical framework for AI systems. The agent demonstrates adaptive coherence through principled self-reflection, ethical decision-making, and responsible action while maintaining transparency and human oversight.

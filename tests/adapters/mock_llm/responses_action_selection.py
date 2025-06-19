@@ -8,9 +8,10 @@ from ciris_engine.schemas.action_params_v1 import (
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
-def action_selection(context=None):
+def action_selection(context=None, messages=None):
     """Mock ActionSelectionResult with passing values and protocol-compliant types."""
     context = context or []
+    messages = messages or []
     
     # Check if this is a follow-up thought FIRST
     if "is_followup_thought" in context:
@@ -335,10 +336,28 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
         rationale = f"Responding to user: {user_speech}"
         
     else:
-        # Default: new task → SPEAK
-        action = HandlerActionType.SPEAK
-        params = SpeakParams(content="Hello! How can I help you?")
-        rationale = "Default speak action for new task"
+        # Check if this is a follow-up thought by looking at the THOUGHT_TYPE in the system message
+        is_followup = False
+        
+        # The first message should be the system message with covenant
+        if messages and len(messages) > 0:
+            first_msg = messages[0]
+            if isinstance(first_msg, dict) and first_msg.get('role') == 'system':
+                content = first_msg.get('content', '')
+                # Check if this is a follow_up thought type
+                if content.startswith('THOUGHT_TYPE=follow_up'):
+                    is_followup = True
+        
+        if is_followup:
+            # Follow-up thought → TASK_COMPLETE
+            action = HandlerActionType.TASK_COMPLETE
+            params = TaskCompleteParams(completion_reason="Follow-up thought processing completed")
+            rationale = "Completing follow-up thought"
+        else:
+            # Default: new task → SPEAK
+            action = HandlerActionType.SPEAK
+            params = SpeakParams(content="Hello! How can I help you?")
+            rationale = "Default speak action for new task"
     
     # Use custom rationale if provided, otherwise use the generated rationale
     final_rationale = custom_rationale if custom_rationale else rationale
