@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import List, Any, Optional
 
-from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration, CIRISRuntime
+from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration, RuntimeInterface
 from .config import APIAdapterConfig
 from ciris_engine.registries.base import Priority
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType, IncomingMessage
@@ -12,7 +12,7 @@ from .api_observer import APIObserver
 logger = logging.getLogger(__name__)
 
 class ApiPlatform(PlatformAdapter):
-    def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
+    def __init__(self, runtime: "RuntimeInterface", **kwargs: Any) -> None:
         self.runtime = runtime
         
         self.config = APIAdapterConfig()

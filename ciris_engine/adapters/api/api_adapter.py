@@ -246,27 +246,30 @@ class APIAdapter(CommunicationService):
         
         if self.service_registry:
             try:
-                services = await self.service_registry.get_all_services()
-                for service_type, providers in services.items():
-                    healthy_count = 0
-                    for p in providers:
-                        try:
-                            if hasattr(p, "is_healthy"):
-                                if asyncio.iscoroutinefunction(p.is_healthy):
-                                    is_healthy = await p.is_healthy()
+                # Get all service types from ServiceType enum
+                from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
+                for service_type in ServiceType:
+                    providers = self.service_registry.get_services_by_type(service_type)
+                    if providers:
+                        healthy_count = 0
+                        for p in providers:
+                            try:
+                                if hasattr(p, "is_healthy"):
+                                    if asyncio.iscoroutinefunction(p.is_healthy):
+                                        is_healthy = await p.is_healthy()
+                                    else:
+                                        is_healthy = p.is_healthy()
+                                    if is_healthy:
+                                        healthy_count += 1
                                 else:
-                                    is_healthy = p.is_healthy()
-                                if is_healthy:
-                                    healthy_count += 1
-                            else:
-                                healthy_count += 1  # Assume healthy if no method
-                        except Exception:
-                            pass  # Count as unhealthy if check fails
-                    
-                    health_status["services"][service_type] = {
-                        "available": len(providers),
-                        "healthy": healthy_count
-                    }
+                                    healthy_count += 1  # Assume healthy if no method
+                            except Exception:
+                                pass  # Count as unhealthy if check fails
+                        
+                        health_status["services"][service_type.value] = {
+                            "available": len(providers),
+                            "healthy": healthy_count
+                        }
             except Exception as e:
                 logger.error(f"Error checking service health: {e}")
                 health_status["services_error"] = str(e)
@@ -282,18 +285,36 @@ class APIAdapter(CommunicationService):
             )
         
         try:
-            services = await self.service_registry.get_all_services()
+            # Use get_provider_info which provides detailed service information
+            provider_info = self.service_registry.get_provider_info()
             service_info = {}
             
-            for service_type, providers in services.items():
-                service_info[service_type] = [
-                    {
-                        "provider": provider.__class__.__name__,
-                        "capabilities": getattr(provider, "get_capabilities", lambda: [])(),
-                        "healthy": await provider.is_healthy() if hasattr(provider, "is_healthy") else True
-                    }
-                    for provider in providers
-                ]
+            # Process handler-specific services
+            for handler, services in provider_info.get("handlers", {}).items():
+                for service_type, providers in services.items():
+                    if service_type not in service_info:
+                        service_info[service_type] = []
+                    for provider in providers:
+                        service_info[service_type].append({
+                            "provider": provider["name"],
+                            "handler": handler,
+                            "priority": provider["priority"],
+                            "capabilities": provider["capabilities"],
+                            "global": False
+                        })
+            
+            # Process global services
+            for service_type, providers in provider_info.get("global_services", {}).items():
+                if service_type not in service_info:
+                    service_info[service_type] = []
+                for provider in providers:
+                    service_info[service_type].append({
+                        "provider": provider["name"],
+                        "handler": "global",
+                        "priority": provider["priority"],
+                        "capabilities": provider["capabilities"],
+                        "global": True
+                    })
             
             return web.json_response({
                 "services": service_info,

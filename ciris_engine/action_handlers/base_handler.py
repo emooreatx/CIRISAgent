@@ -170,9 +170,10 @@ class BaseActionHandler(ABC):
         try:
             # Decapsulate secrets in action parameters
             if result.action_parameters:
-                decapsulated_params = await self.dependencies.secrets_service.decapsulate_secrets(
-                    text=result.action_parameters,
-                    context_hint=f"{action_name}_params"
+                decapsulated_params = await self.dependencies.secrets_service.decapsulate_secrets_in_parameters(
+                    parameters=result.action_parameters,
+                    action_type=action_name,
+                    context={"source": "action_handler", "handler": self.__class__.__name__}
                 )
                 # Create a new result with decapsulated parameters
                 return ActionSelectionResult(
