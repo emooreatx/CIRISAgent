@@ -4,7 +4,7 @@
 
 # CIRIS Engine (CIRISAgent)
 
-**Copyright © 2025 Eric Moore and CIRIS L3C** | **Apache 2.0 License**
+**Copyright © 2025 Eric Moore and CIRIS L3C** | **Apache 2.0 License** | **PATENT PENDING**
 
 > **A moral reasoning agent demonstrating adaptive coherence through principled self-reflection, ethical decision-making, and responsible action while maintaining transparency and human oversight.**
 
