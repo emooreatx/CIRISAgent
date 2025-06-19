@@ -39,9 +39,10 @@ async def test_apply_message_filtering_no_service():
 
 @pytest.mark.asyncio
 async def test_add_to_feedback_queue():
-    sink = AsyncMock()
-    sink.send_message.return_value = True
-    obs = DummyObserver(lambda _: None, multi_service_sink=sink, origin_service="test")
+    bus_manager = AsyncMock()
+    bus_manager.communication = AsyncMock()
+    bus_manager.communication.send_message = AsyncMock(return_value=True)
+    obs = DummyObserver(lambda _: None, bus_manager=bus_manager, origin_service="test")
     msg = IncomingMessage(message_id="1", content="hello", author_id="a", author_name="A", channel_id="c")
     await obs._add_to_feedback_queue(msg)
-    sink.send_message.assert_awaited_once()
+    bus_manager.communication.send_message.assert_awaited_once()

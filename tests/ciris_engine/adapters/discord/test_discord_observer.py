@@ -20,7 +20,7 @@ class TestDiscordObserver:
         return {
             'memory_service': MagicMock(),
             'agent_id': '12345',  # Bot's user ID
-            'multi_service_sink': MagicMock(),
+            'bus_manager': MagicMock(),
             'filter_service': MagicMock(),
             'secrets_service': MagicMock(),
             'communication_service': MagicMock()

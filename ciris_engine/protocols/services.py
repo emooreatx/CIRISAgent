@@ -186,7 +186,7 @@ class MemoryService(Service):
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["memorize", "recall", "forget", "search_memories", "recall_timeseries", "memorize_metric", "memorize_log"]
+        return ["memorize", "recall", "forget"]
 
 
 class ToolService(Service):
@@ -249,13 +249,12 @@ class ToolService(Service):
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
+        return ["execute_tool", "get_available_tools", "get_tool_result"]
 
 
 class AuditService(Service):
     """Abstract base class for audit and logging services"""
     
-    @abstractmethod
     async def log_action(self, action_type: HandlerActionType, context: Dict[str, Any], outcome: Optional[str] = None) -> bool:
         """
         Log an action for audit purposes.
@@ -268,7 +267,7 @@ class AuditService(Service):
         Returns:
             True if logged successfully
         """
-        ...
+        return True
     
     @abstractmethod
     async def log_event(self, event_type: str, event_data: Dict[str, Any]) -> None:
@@ -281,7 +280,6 @@ class AuditService(Service):
         """
         ...
     
-    @abstractmethod
     async def log_guardrail_event(self, guardrail_name: str, action_type: str, result: Dict[str, Any]) -> None:
         """
         Log guardrail check events.
@@ -291,7 +289,7 @@ class AuditService(Service):
             action_type: Type of action being checked
             result: Guardrail check result
         """
-        ...
+        pass
     
     @abstractmethod
     async def get_audit_trail(self, entity_id: str, limit: int = 100) -> List[Dict[str, Any]]:
@@ -338,7 +336,7 @@ class AuditService(Service):
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["log_action", "log_event", "log_guardrail_event", "get_audit_trail", "query_audit_trail"]
+        return ["log_event", "get_audit_trail"]
 
 
 class LLMService(Service):
@@ -438,64 +436,58 @@ class TelemetryService(Service):
         ...
     
     @abstractmethod
-    async def get_metrics_history(self, metric_name: str, hours: int = 24) -> List[Dict[str, Any]]:
+    async def record_resource_usage(self, service_name: str, usage: ResourceUsage) -> bool:
         """
-        Get historical metric data.
+        Record resource usage for a service.
         
         Args:
-            metric_name: Name of the metric to retrieve
-            hours: Number of hours of history to retrieve
+            service_name: Name of the service
+            usage: Resource usage data
             
         Returns:
-            List of metric data points with timestamps
+            True if resource usage was recorded successfully
         """
         ...
     
-    async def record_log(self, log_message: str, log_level: str = "INFO", tags: Optional[Dict[str, str]] = None) -> bool:
+    @abstractmethod
+    async def query_metrics(self, metric_names: Optional[List[str]] = None, service_names: Optional[List[str]] = None, time_range: Optional[Tuple[datetime, datetime]] = None, tags: Optional[Dict[str, str]] = None, aggregation: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        Record a log entry for time-series analysis.
-        
-        Args:
-            log_message: Log message content
-            log_level: Log level (INFO, WARNING, ERROR, etc.)
-            tags: Optional tags for categorization
-            
-        Returns:
-            True if log was recorded successfully
-        """
-        return True
-    
-    async def query_telemetry(
-        self,
-        metric_names: Optional[List[str]] = None,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        tags: Optional[Dict[str, str]] = None,
-        limit: int = 1000
-    ) -> List[Dict[str, Any]]:
-        """
-        Query telemetry data with time-series filtering.
+        Query metrics with filtering and aggregation options.
         
         Args:
             metric_names: Optional list of metric names to filter by
-            start_time: Start of time range
-            end_time: End of time range
+            service_names: Optional list of service names to filter by
+            time_range: Optional tuple of (start_time, end_time)
             tags: Optional tag filters
-            limit: Maximum number of results
+            aggregation: Optional aggregation type (e.g., 'sum', 'avg', 'max', 'min')
             
         Returns:
-            List of telemetry data points
+            List of metric data points
         """
-        return []
+        ...
     
-    async def get_system_health(self) -> Dict[str, Any]:
+    @abstractmethod
+    async def get_service_status(self, service_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Get overall system health metrics.
+        Get service status information.
+        
+        Args:
+            service_name: Optional specific service name. If None, returns all services.
+            
+        Returns:
+            Dictionary with service status information
+        """
+        ...
+    
+    @abstractmethod
+    async def get_resource_limits(self) -> Dict[str, Any]:
+        """
+        Get resource limits and quotas.
         
         Returns:
-            Dictionary with health status and key metrics
+            Dictionary with resource limits for various metrics
         """
-        return {"status": "unknown", "metrics": {}}
+        ...
     
     async def is_healthy(self) -> bool:
         """Health check for circuit breaker"""
@@ -503,4 +495,4 @@ class TelemetryService(Service):
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["record_metric", "get_metrics_history", "record_log", "query_telemetry", "get_system_health"]
+        return ["record_metric", "record_resource_usage", "query_metrics", "get_service_status", "get_resource_limits"]

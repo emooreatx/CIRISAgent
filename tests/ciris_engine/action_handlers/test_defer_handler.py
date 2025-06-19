@@ -9,6 +9,7 @@ from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, ThoughtType, DispatchContext, ServiceType
 from tests.helpers import create_test_dispatch_context
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.message_buses.bus_manager import BusManager
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
 now = datetime.now(timezone.utc)
@@ -24,8 +25,9 @@ async def test_defer_handler_schema_driven(monkeypatch):
         return None
     
     service_registry.get_service = AsyncMock(side_effect=get_service)
+    bus_manager = BusManager(service_registry)
     deps = ActionHandlerDependencies(
-        service_registry=service_registry
+        bus_manager=bus_manager
     )
     handler = DeferHandler(deps)
 

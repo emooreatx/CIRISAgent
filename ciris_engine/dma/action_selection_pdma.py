@@ -168,8 +168,16 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAInterface):
 
         system_message = self._build_system_message(input_data)
         
+        # Get original thought from input_data for follow-up detection
+        original_thought = input_data.get("original_thought")
+        
+        # Prepend thought type to covenant for rock-solid follow-up detection
+        covenant_with_metadata = COVENANT_TEXT
+        if original_thought and hasattr(original_thought, 'thought_type'):
+            covenant_with_metadata = f"THOUGHT_TYPE={original_thought.thought_type.value}\n\n{COVENANT_TEXT}"
+        
         messages = [
-            {"role": "system", "content": COVENANT_TEXT},
+            {"role": "system", "content": covenant_with_metadata},
             {"role": "system", "content": system_message},
             {"role": "user", "content": main_user_content},
         ]

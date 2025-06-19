@@ -138,5 +138,8 @@ async def test_wa_id_generation(auth_service):
     
     # Last 6 chars should be uppercase hex
     suffix = wa_id[-6:]
-    assert suffix.isupper()
+    # Check that all characters are valid hex digits
     assert all(c in "0123456789ABCDEF" for c in suffix)
+    # Only check uppercase if there are actual letters (not just digits)
+    if any(c in "ABCDEF" for c in suffix):
+        assert suffix.isupper()

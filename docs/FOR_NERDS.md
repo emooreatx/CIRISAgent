@@ -1,5 +1,7 @@
 # CIRIS Agent Technical Deep Dive
 
+**PATENT PENDING**
+
 ---
 
 **⚠️ DEVELOPER DISCLAIMER - READ CAREFULLY ⚠️**

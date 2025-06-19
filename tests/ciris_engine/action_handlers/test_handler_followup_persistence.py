@@ -26,6 +26,7 @@ from ciris_engine.action_handlers.ponder_handler import PonderHandler
 from ciris_engine.action_handlers.observe_handler import ObserveHandler
 from ciris_engine.action_handlers.reject_handler import RejectHandler
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.message_buses.bus_manager import BusManager
 from unittest.mock import AsyncMock, MagicMock
 import importlib
 from unittest.mock import patch
@@ -158,7 +159,9 @@ async def test_handler_creates_followup_persistence(handler_cls, params, result_
         add_task(make_task("task1"), db_path=db_path)
         thought = make_thought("t1", source_task_id="task1")
         add_thought(thought, db_path=db_path)
-        deps = ActionHandlerDependencies()
+        mock_service_registry = AsyncMock()
+        bus_manager = BusManager(mock_service_registry)
+        deps = ActionHandlerDependencies(bus_manager=bus_manager)
         deps.memory_service = AsyncMock()
         deps.memory_service.recall = AsyncMock(return_value=MagicMock(status="OK", data="result"))
         deps.memory_service.forget = AsyncMock(return_value=MagicMock(status="OK"))

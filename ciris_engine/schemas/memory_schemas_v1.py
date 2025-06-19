@@ -6,10 +6,12 @@ from .foundational_schemas_v1 import CaseInsensitiveEnum
 class MemoryOpStatus(CaseInsensitiveEnum):
     """Status of a memory operation."""
     OK = "ok"
+    SUCCESS = "ok"  # Alias for OK
     DEFERRED = "deferred"
     DENIED = "denied"
     PENDING = "pending"
     ERROR = "error"
+    FAILED = "error"  # Alias for ERROR
 
 class MemoryOpAction(str, Enum):
     """Memory operation types."""

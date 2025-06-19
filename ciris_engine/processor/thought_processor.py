@@ -201,7 +201,7 @@ class ThoughtProcessor:
                     processing_context=retry_context,
                     dma_results=dma_results,
                     profile_name=profile_name,
-                    retry_with_guidance=True  # Signal this is a retry
+                    triaged_inputs={"retry_with_guidance": True}  # Signal this is a retry
                 )
                 
                 if retry_result:

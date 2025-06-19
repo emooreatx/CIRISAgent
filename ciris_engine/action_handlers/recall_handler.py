@@ -27,28 +27,15 @@ class RecallHandler(BaseActionHandler):
             )
             persistence.add_thought(follow_up)
             return None
-        memory_service: Optional[MemoryService] = await self.get_memory_service()
-
-        if not memory_service:
-            logger.error(
-                "RecallHandler: MemoryService not available"
-            )
-            follow_up = create_follow_up_thought(
-                parent=thought,
-                content=ThoughtStatus.PENDING
-            )
-            persistence.add_thought(follow_up)
-            await self._audit_log(
-                HandlerActionType.RECALL,
-                dispatch_context,
-                outcome="failed_no_memory_service",
-            )
-            return None
+        # Memory operations will use the memory bus
 
         node = params.node  # type: ignore[attr-defined]
         scope = node.scope
 
-        memory_result = await memory_service.recall(node)
+        memory_result = await self.bus_manager.memory.recall(
+            node=node,
+            handler_name=self.__class__.__name__
+        )
         success = memory_result.status == MemoryOpStatus.OK
         data = memory_result.data
 

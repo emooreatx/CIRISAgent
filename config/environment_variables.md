@@ -15,7 +15,6 @@ This document provides a comprehensive reference for all environment variables s
 - `DISCORD_DEFERRAL_CHANNEL_ID` - Channel ID for deferral reports
 - `WA_USER_ID` - Discord User ID for Wise Authority mentions
 - `WA_DISCORD_USER` - Fallback Discord username for WA (default: somecomputerguy)
-- `SNORE_CHANNEL_ID` - Channel ID for runtime heartbeat notifications
 
 ### CIRISNode Integration
 - `CIRISNODE_BASE_URL` - Base URL for CIRISNode service (default: https://localhost:8001)

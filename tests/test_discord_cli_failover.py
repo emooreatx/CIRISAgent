@@ -56,9 +56,8 @@ async def test_discord_runtime_cli_fallback(monkeypatch):
     monkeypatch.setattr(
         "ciris_engine.adapters.cli.adapter.CliPlatform.start", AsyncMock()
     )
-    monkeypatch.setattr(
-        "ciris_engine.sinks.multi_service_sink.MultiServiceActionSink.start", AsyncMock()
-    )
+    # MultiServiceActionSink has been replaced with BusManager
+    # No need to patch it anymore
     # Mock service_registry.wait_ready() to prevent timeout
     monkeypatch.setattr(
         "ciris_engine.registries.base.ServiceRegistry.wait_ready", AsyncMock()

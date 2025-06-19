@@ -58,9 +58,22 @@ def build_dispatch_context(
     author_name = None
     task_id = None
     
-    if task:
+    # First try to get context from thought (most specific)
+    if hasattr(thought, "context"):
+        if hasattr(thought.context, "initial_task_context") and thought.context.initial_task_context:
+            channel_context = thought.context.initial_task_context.channel_context
+            author_id = thought.context.initial_task_context.author_id
+            author_name = thought.context.initial_task_context.author_name
+    
+    # If not found in thought, check task
+    if channel_context is None and task:
         task_id = getattr(task, "task_id", None)
         if hasattr(task, "context"):
+            # Debug logging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Processing task {task_id} context type: {type(task.context)}, attributes: {dir(task.context) if task.context else 'None'}")
+            
             # Handle both dict and ThoughtContext objects
             if isinstance(task.context, dict):
                 # Legacy dict format - create ChannelContext
@@ -70,13 +83,21 @@ def build_dispatch_context(
                 author_id = task.context.get("author_id")
                 author_name = task.context.get("author_name")
             elif hasattr(task.context, "system_snapshot"):
-                # ThoughtContext object
+                # ThoughtContext object with system_snapshot
                 if task.context.system_snapshot:
                     channel_context = task.context.system_snapshot.channel_context
                     # SystemSnapshot doesn't have user_id/user_name - these come from user_profiles
                     # For wakeup tasks, we don't have a specific user
                     author_id = None
                     author_name = None
+            elif hasattr(task.context, "initial_task_context"):
+                # ThoughtContext object with initial_task_context (from observers)
+                if task.context.initial_task_context:
+                    channel_context = task.context.initial_task_context.channel_context
+                    author_id = task.context.initial_task_context.author_id
+                    author_name = task.context.initial_task_context.author_name
+                else:
+                    logger.warning(f"Task {task_id} has initial_task_context attribute but it's None/empty")
     
     # Check extra_context for channel_id as fallback
     if channel_context is None and extra_context:

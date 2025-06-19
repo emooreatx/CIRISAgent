@@ -28,11 +28,12 @@ class APIAdapter(CommunicationService):
         self,
         host: str = "0.0.0.0",
         port: int = 8000,
-        multi_service_sink: Optional[Any] = None,
+        bus_manager: Optional[Any] = None,
         service_registry: Optional[Any] = None,
         runtime_control: Optional[Any] = None,
         telemetry_collector: Optional[Any] = None,
-        runtime: Optional[Any] = None
+        runtime: Optional[Any] = None,
+        on_message: Optional[Any] = None
     ) -> None:
         """
         Initialize the API adapter.
@@ -40,7 +41,7 @@ class APIAdapter(CommunicationService):
         Args:
             host: Host to bind the API server to
             port: Port to bind the API server to
-            multi_service_sink: Multi-service sink for routing messages
+            bus_manager: Multi-service sink for routing messages
             service_registry: Service registry for accessing runtime services
             runtime_control: Runtime control service for system management
             telemetry_collector: Telemetry collector for metrics
@@ -50,11 +51,12 @@ class APIAdapter(CommunicationService):
         
         self.host = host
         self.port = port
-        self.multi_service_sink = multi_service_sink
+        self.bus_manager = bus_manager
         self.service_registry = service_registry
         self.runtime_control = runtime_control
         self.telemetry_collector = telemetry_collector
         self.runtime = runtime
+        self.on_message = on_message
         
         self.app = web.Application()
         self.runner: Optional[web.AppRunner] = None
@@ -92,7 +94,7 @@ class APIAdapter(CommunicationService):
     
     async def send_message(self, channel_id: str, content: str) -> bool:
         """
-        Send a message to a channel (in API context, this logs/stores the response).
+        Send a message to a channel (in API context, this stores the response in the queue).
         
         Args:
             channel_id: The channel/endpoint identifier
@@ -103,9 +105,22 @@ class APIAdapter(CommunicationService):
         """
         correlation_id = str(uuid.uuid4())
         try:
-            # In API context, "sending" means making the response available
-            # This could be stored in a response queue, logged, etc.
+            # In API context, "sending" means making the response available in the queue
             logger.info(f"API response for channel {channel_id}: {content[:100]}...")
+            
+            # Create a response message and add it to the queue
+            response_msg = IncomingMessage(
+                message_id=str(uuid.uuid4()),
+                author_id="ciris_agent",
+                author_name="CIRIS Agent",
+                content=content,
+                channel_id=channel_id,  # This sets destination_id via alias
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
+            
+            async with self._queue_lock:
+                self._message_queue.append(response_msg)
+                logger.debug(f"Added response to queue for channel {channel_id}: {response_msg.message_id}")
             
             # Log correlation
             add_correlation(
@@ -115,7 +130,7 @@ class APIAdapter(CommunicationService):
                     handler_name="APIAdapter",
                     action_type="send_message",
                     request_data={"channel_id": channel_id, "content": content},
-                    response_data={"sent": True},
+                    response_data={"sent": True, "message_id": response_msg.message_id},
                     status=ServiceCorrelationStatus.COMPLETED,
                     created_at=datetime.now(timezone.utc).isoformat(),
                     updated_at=datetime.now(timezone.utc).isoformat(),
@@ -179,10 +194,11 @@ class APIAdapter(CommunicationService):
             async with self._queue_lock:
                 self._message_queue.append(msg)
             
-            if self.multi_service_sink:
-                await self.multi_service_sink.observe_message(
-                    "ObserveHandler", msg, {"source": "api"}
-                )
+            # Use the callback to handle the message, which will route through observer
+            if self.on_message:
+                await self.on_message(msg)
+            else:
+                logger.warning("No message handler configured for API adapter")
             
             return web.json_response(
                 {"status": "accepted", "message_id": msg.message_id},
@@ -232,9 +248,24 @@ class APIAdapter(CommunicationService):
             try:
                 services = await self.service_registry.get_all_services()
                 for service_type, providers in services.items():
+                    healthy_count = 0
+                    for p in providers:
+                        try:
+                            if hasattr(p, "is_healthy"):
+                                if asyncio.iscoroutinefunction(p.is_healthy):
+                                    is_healthy = await p.is_healthy()
+                                else:
+                                    is_healthy = p.is_healthy()
+                                if is_healthy:
+                                    healthy_count += 1
+                            else:
+                                healthy_count += 1  # Assume healthy if no method
+                        except Exception:
+                            pass  # Count as unhealthy if check fails
+                    
                     health_status["services"][service_type] = {
                         "available": len(providers),
-                        "healthy": sum(1 for p in providers if getattr(p, "is_healthy", lambda: True)())
+                        "healthy": healthy_count
                     }
             except Exception as e:
                 logger.error(f"Error checking service health: {e}")

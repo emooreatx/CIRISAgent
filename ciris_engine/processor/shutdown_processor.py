@@ -76,6 +76,9 @@ class ShutdownProcessor(BaseProcessor):
                 self._create_shutdown_task()
             
             # Check if task is complete
+            if not self.shutdown_task:
+                logger.error("Shutdown task is None after creation")
+                return {"status": "error", "message": "Failed to create shutdown task"}
             current_task = persistence.get_task_by_id(self.shutdown_task.task_id)
             if not current_task:
                 logger.error("Shutdown task disappeared!")
@@ -105,6 +108,9 @@ class ShutdownProcessor(BaseProcessor):
             current_task = persistence.get_task_by_id(self.shutdown_task.task_id)
             
             # Check task completion status
+            if not current_task:
+                logger.error("Current task is None after fetching")
+                return {"status": "error", "message": "Task not found"}
             if current_task.status == TaskStatus.COMPLETED:
                 self.shutdown_complete = True
                 self.shutdown_result = {
@@ -281,10 +287,10 @@ class ShutdownProcessor(BaseProcessor):
                     final_action={"error": str(e)}
                 )
         
-    async def cleanup(self) -> None:
+    async def cleanup(self) -> bool:
         """Cleanup when transitioning out of SHUTDOWN state."""
         logger.info("Cleaning up shutdown processor")
         # Clear runtime shutdown context
         if self.runtime and hasattr(self.runtime, 'current_shutdown_context'):
             self.runtime.current_shutdown_context = None
-        
+        return True

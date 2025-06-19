@@ -104,8 +104,8 @@ class CIRISRuntime:
         return self.service_initializer.service_registry if self.service_initializer else None
     
     @property
-    def multi_service_sink(self) -> Optional[Any]:
-        return self.service_initializer.multi_service_sink if self.service_initializer else None
+    def bus_manager(self) -> Optional[Any]:
+        return self.service_initializer.bus_manager if self.service_initializer else None
     
     @property
     def memory_service(self) -> Optional[Any]:
@@ -534,12 +534,18 @@ class CIRISRuntime:
     async def _build_action_dispatcher(self, dependencies: Any) -> Any:
         """Build action dispatcher. Override in subclasses for custom sinks."""
         config = self._ensure_config()
+        # Create BusManager for action handlers
+        from ciris_engine.message_buses import BusManager
+        if not self.service_registry:
+            raise RuntimeError("Service registry not initialized")
+        bus_manager = BusManager(self.service_registry)
+        
         return build_action_dispatcher(
-            service_registry=self.service_registry,
+            bus_manager=bus_manager,
             shutdown_callback=dependencies.shutdown_callback,
             max_rounds=config.workflow.max_rounds,
             telemetry_service=self.telemetry_service,
-            multi_service_sink=self.multi_service_sink,
+            secrets_service=self.secrets_service,
         )
         
     async def run(self, num_rounds: Optional[int] = None) -> None:
@@ -549,8 +555,8 @@ class CIRISRuntime:
             
         try:
             # Start multi-service sink processing as background task
-            if self.multi_service_sink:
-                sink_task = asyncio.create_task(self.multi_service_sink.start())
+            if self.bus_manager:
+                sink_task = asyncio.create_task(self.bus_manager.start())
                 logger.info("Started multi-service sink as background task")
 
             if not self.agent_processor:
@@ -708,7 +714,7 @@ class CIRISRuntime:
                     while (asyncio.get_event_loop().time() - start_time) < max_wait:
                         if hasattr(self.agent_processor, 'shutdown_processor') and self.agent_processor.shutdown_processor:
                             if self.agent_processor.shutdown_processor.shutdown_complete:
-                                result = self.agent_processor.shutdown_processor.shutdown_result
+                                result = self.agent_processor.shutdown_processor.shutdown_result or {}
                                 if result and result.get("status") == "rejected":
                                     logger.warning(f"Shutdown rejected by agent: {result.get('reason')}")
                                     # For now, proceed with shutdown anyway
@@ -721,10 +727,10 @@ class CIRISRuntime:
                     logger.error(f"Error during shutdown negotiation: {e}")
             
         # Stop multi-service sink
-        if self.multi_service_sink:
+        if self.bus_manager:
             try:
                 logger.debug("Stopping multi-service sink...")
-                await self.multi_service_sink.stop()
+                await self.bus_manager.stop()
                 logger.debug("Multi-service sink stopped.")
             except Exception as e:
                 logger.error(f"Error stopping multi-service sink: {e}")
@@ -734,9 +740,9 @@ class CIRISRuntime:
             *(adapter.stop() for adapter in self.adapters if hasattr(adapter, 'stop')),
             return_exceptions=True
         )
-        for i, result in enumerate(adapter_stop_results):
-            if isinstance(result, Exception):
-                logger.error(f"Error stopping adapter {self.adapters[i].__class__.__name__}: {result}", exc_info=result)
+        for i, stop_result in enumerate(adapter_stop_results):
+            if isinstance(stop_result, Exception):
+                logger.error(f"Error stopping adapter {self.adapters[i].__class__.__name__}: {stop_result}", exc_info=stop_result)
         logger.debug("Adapters stopped.")
             
         logger.debug("Stopping core services...")

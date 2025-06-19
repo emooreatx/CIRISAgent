@@ -2,7 +2,7 @@ from typing import Callable, Awaitable, Dict, Any, Optional
 import logging
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
-from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+from ciris_engine.message_buses import BusManager
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.adapters.base_observer import BaseObserver
 
@@ -16,17 +16,17 @@ class APIObserver(BaseObserver[IncomingMessage]):
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]],
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
-        multi_service_sink: Optional[MultiServiceActionSink] = None,
+        bus_manager: Optional[BusManager] = None,
         api_adapter: Optional[Any] = None,
         secrets_service: Optional[SecretsService] = None,
     ) -> None:
         super().__init__(
             on_observe,
-            memory_service,
-            agent_id,
-            multi_service_sink,
-            None,
-            secrets_service,
+            bus_manager=bus_manager,
+            memory_service=memory_service,
+            agent_id=agent_id,
+            filter_service=None,
+            secrets_service=secrets_service,
             origin_service="api",
         )
         self.api_adapter = api_adapter

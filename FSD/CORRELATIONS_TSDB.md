@@ -1,5 +1,7 @@
 # Functional Specification Document: Correlations-Based Time Series Database
 
+**PATENT PENDING**
+
 ## Overview
 
 This FSD outlines the enhancement of CIRIS Agent's existing correlations system into a unified Time Series Database (TSDB) that handles metrics, logs, traces, and audit data while maintaining agent introspection capabilities through the graph memory interface.

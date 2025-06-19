@@ -8,6 +8,7 @@ from ciris_engine.action_handlers.reject_handler import RejectHandler
 from ciris_engine.action_handlers.task_complete_handler import TaskCompleteHandler
 from ciris_engine.action_handlers.tool_handler import ToolHandler, ToolResult, ToolExecutionStatus
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.message_buses.bus_manager import BusManager
 from ciris_engine.schemas.action_params_v1 import (
     ForgetParams,
     RecallParams,
@@ -42,11 +43,15 @@ DEFAULT_THOUGHT_KWARGS = dict(
 
 @pytest.mark.asyncio
 async def test_forget_handler_schema_driven(monkeypatch):
-    memory_service = AsyncMock()
-    memory_service.forget.return_value = MemoryOpResult(status=MemoryOpStatus.OK)
-    deps = ActionHandlerDependencies()
-    deps.get_service = AsyncMock(return_value=memory_service)
-    deps.memory_service = memory_service
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    
+    # Mock the memory bus
+    mock_memory_bus = AsyncMock()
+    mock_memory_bus.forget = AsyncMock(return_value=MemoryOpResult(status=MemoryOpStatus.OK))
+    bus_manager.memory = mock_memory_bus
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     
     # Mock the persistence module functions
     add_thought_mock = MagicMock()
@@ -65,24 +70,29 @@ async def test_forget_handler_schema_driven(monkeypatch):
     context = create_test_dispatch_context(action_type=HandlerActionType.FORGET)
     await handler.handle(action_result, thought, context)
 
-    expected_node = GraphNode(id="USER".lower(),
-        type=NodeType.USER,
-        scope=GraphScope.LOCAL,
-        attributes={},
-    )
-    memory_service.forget.assert_awaited_with(expected_node)
+    mock_memory_bus.forget.assert_awaited_once()
+    # Check that the call had the correct node and handler_name
+    call_args = mock_memory_bus.forget.call_args
+    assert call_args[1]['node'].id == "user"
+    assert call_args[1]['node'].type == NodeType.USER
+    assert call_args[1]['node'].scope == GraphScope.LOCAL
+    assert call_args[1]['handler_name'] == 'ForgetHandler'
     add_thought_mock.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_recall_handler_schema_driven(monkeypatch):
-    memory_service = AsyncMock()
-    memory_service.recall.return_value = MemoryOpResult(
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    
+    # Mock the memory bus
+    mock_memory_bus = AsyncMock()
+    mock_memory_bus.recall = AsyncMock(return_value=MemoryOpResult(
         status=MemoryOpStatus.OK, data={"foo": "bar"}
-    )
-    deps = ActionHandlerDependencies()
-    deps.get_service = AsyncMock(return_value=memory_service)
-    deps.memory_service = memory_service
+    ))
+    bus_manager.memory = mock_memory_bus
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     
     # Mock the persistence module functions
     add_thought_mock = MagicMock()
@@ -101,12 +111,13 @@ async def test_recall_handler_schema_driven(monkeypatch):
     context = create_test_dispatch_context(action_type=HandlerActionType.RECALL)
     await handler.handle(action_result, thought, context)
 
-    expected_node = GraphNode(id="USER".lower(),
-        type=NodeType.USER,
-        scope=GraphScope.LOCAL,
-        attributes={},
-    )
-    memory_service.recall.assert_awaited_with(expected_node)
+    mock_memory_bus.recall.assert_awaited_once()
+    # Check that the call had the correct node and handler_name
+    call_args = mock_memory_bus.recall.call_args
+    assert call_args[1]['node'].id == "user"
+    assert call_args[1]['node'].type == NodeType.USER
+    assert call_args[1]['node'].scope == GraphScope.LOCAL
+    assert call_args[1]['handler_name'] == 'RecallHandler'
     add_thought_mock.assert_called_once()
 
 
@@ -118,24 +129,23 @@ async def test_observe_handler_passive(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
     from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
-    params = ObserveParams(active=True, context={"source": "test"})
+    params = ObserveParams(active=False, context={"source": "test"})  # Changed to passive
     action_result = ActionSelectionResult.model_construct(
         selected_action=HandlerActionType.OBSERVE,
         action_parameters=params,
         rationale="r",
     )
     thought = Thought(**DEFAULT_THOUGHT_KWARGS)
-    handler = ObserveHandler(ActionHandlerDependencies())
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    handler = ObserveHandler(ActionHandlerDependencies(bus_manager=bus_manager))
     context = create_test_dispatch_context(action_type=HandlerActionType.OBSERVE)
     await handler.handle(action_result, thought, context)
 
+    # For passive observe, it should just complete without fetching messages
     update_status.assert_called_once()
-    # Instead of assert_not_called, allow add_thought to be called for error/failure
-    # add_thought.assert_not_called()
-    # Optionally, check the error content if desired
-    if add_thought.call_args:
-        thought_arg = add_thought.call_args[0][0]
-        assert "No multi-service sink" in thought_arg.content
+    # No follow-up thought should be created for passive observe
+    add_thought.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -147,14 +157,15 @@ async def test_reject_handler_schema_driven(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
     monkeypatch.setattr("ciris_engine.persistence.update_task_status", update_task_status)
 
-    comm_service = AsyncMock()
-    async def get_service(handler, service_type, **kwargs):
-        if service_type == ServiceType.COMMUNICATION:
-            return comm_service
-        return None
-
-    deps = ActionHandlerDependencies()
-    deps.get_service = AsyncMock(side_effect=get_service)
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    
+    # Mock the communication bus
+    mock_communication_bus = AsyncMock()
+    mock_communication_bus.send_message = AsyncMock()
+    bus_manager.communication = mock_communication_bus
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     handler = RejectHandler(deps)
 
     action_result = ActionSelectionResult.model_construct(
@@ -167,8 +178,13 @@ async def test_reject_handler_schema_driven(monkeypatch):
     context = create_test_dispatch_context(channel_id="chan", action_type=HandlerActionType.REJECT)
     await handler.handle(action_result, thought, context)
 
-    # Update expected message to match actual reason string
-    comm_service.send_message.assert_awaited_with("chan", "Unable to proceed: Not relevant to the task")
+    # Check the communication bus send_message was called
+    mock_communication_bus.send_message.assert_awaited_once()
+    call_args = mock_communication_bus.send_message.call_args
+    assert call_args[1]['channel_id'] == "chan"
+    assert call_args[1]['content'] == "Unable to proceed: Not relevant to the task"
+    assert call_args[1]['handler_name'] == 'RejectHandler'
+    
     update_status.assert_called_once()
     # REJECT is a terminal action, so no follow-up thought should be created
     add_thought.assert_not_called()
@@ -193,7 +209,9 @@ async def test_task_complete_handler_schema_driven(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_task_status", update_task_status)
     monkeypatch.setattr("ciris_engine.persistence.get_task_by_id", get_task_by_id)
 
-    deps = ActionHandlerDependencies()
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     handler = TaskCompleteHandler(deps)
 
     action_result = ActionSelectionResult(
@@ -227,7 +245,9 @@ async def test_tool_handler_schema_driven(monkeypatch):
         async def validate_parameters(self, name, params):
             return True
 
-    deps = ActionHandlerDependencies()
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     audit_service = MagicMock()
     audit_service.log_action = AsyncMock()
     async def get_service(handler, service_type, **kwargs):

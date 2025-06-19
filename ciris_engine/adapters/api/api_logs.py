@@ -8,8 +8,8 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 class APILogsRoutes:
-    def __init__(self, multi_service_sink: Any = None) -> None:
-        self.multi_service_sink = multi_service_sink
+    def __init__(self, bus_manager: Any = None) -> None:
+        self.bus_manager = bus_manager
         
     def register(self, app: web.Application) -> None:
         app.router.add_get('/v1/logs/{filename}', self._handle_logs)

@@ -22,7 +22,8 @@ from ciris_engine.secrets.service import SecretsService
 from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
 from ciris_engine.registries.base import ServiceRegistry, Priority
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
-from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+from ciris_engine.schemas.capability_schemas_v1 import LLMCapabilities
+from ciris_engine.message_buses import BusManager
 from ciris_engine.runtime.audit_sink_manager import AuditSinkManager
 from ciris_engine.services.wa_auth_integration import initialize_authentication, WAAuthenticationSystem
 
@@ -34,7 +35,7 @@ class ServiceInitializer:
     
     def __init__(self) -> None:
         self.service_registry: Optional[ServiceRegistry] = None
-        self.multi_service_sink: Optional[MultiServiceActionSink] = None
+        self.bus_manager: Optional[Any] = None  # Will be BusManager
         self.memory_service: Optional[LocalGraphMemoryService] = None
         self.secrets_service: Optional[SecretsService] = None
         self.wa_auth_system: Optional[WAAuthenticationSystem] = None
@@ -132,11 +133,8 @@ class ServiceInitializer:
         """Initialize all remaining core services."""
         self.service_registry = ServiceRegistry()
         
-        self.multi_service_sink = MultiServiceActionSink(
-            service_registry=self.service_registry,
-            max_queue_size=1000,
-            fallback_channel_id=startup_channel_id,
-        )
+        # Create BusManager with service registry
+        self.bus_manager = BusManager(self.service_registry)
         
         # Initialize telemetry service first so other services can use it
         self.telemetry_service = TelemetryService(
@@ -171,7 +169,7 @@ class ServiceInitializer:
         # Initialize transaction orchestrator
         self.transaction_orchestrator = MultiServiceTransactionOrchestrator(
             service_registry=self.service_registry,
-            action_sink=self.multi_service_sink,
+            action_sink=self.bus_manager,
             app_config=app_config
         )
         await self.transaction_orchestrator.start()
@@ -215,7 +213,7 @@ class ServiceInitializer:
                     service_type=ServiceType.LLM,
                     provider=mock_service,
                     priority=Priority.CRITICAL,
-                    capabilities=["generate_structured_response", "mock_llm"],
+                    capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
                     metadata={"provider": "mock", "warning": "MOCK LLM - NOT FOR PRODUCTION"}
                 )
             
@@ -240,7 +238,7 @@ class ServiceInitializer:
                     service_type=ServiceType.LLM,
                     provider=openai_service,
                     priority=Priority.HIGH,
-                    capabilities=["generate_structured_response", "openai"],
+                    capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
                     metadata={"provider": "openai", "model": config.llm_services.openai.model_name}
                 )
             

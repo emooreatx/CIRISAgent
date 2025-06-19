@@ -14,6 +14,7 @@ from ciris_engine.adapters.api.api_observer import APIObserver
 from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, IncomingMessage
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.action_handlers.base_handler import BaseActionHandler, ActionHandlerDependencies
+from ciris_engine.message_buses.bus_manager import BusManager
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.context.builder import ContextBuilder
 
@@ -140,9 +141,14 @@ class TestActionHandlerSecrets:
         # Mock dependencies with secrets service
         mock_secrets_service = AsyncMock()
         
-        async def mock_decapsulate(text, action_type=None, context=None):
+        async def mock_decapsulate(text, action_type=None, context=None, context_hint=None):
             # Only decapsulate for allowed action types (simulate real logic)
             allowed_actions = ["tool", "speak", "memorize"]
+            # Extract action from context_hint if action_type not provided
+            if not action_type and context_hint:
+                # context_hint is like "speak_params" - extract the action
+                action_type = context_hint.split('_')[0] if '_' in context_hint else None
+            
             def recursive_decapsulate(obj):
                 if isinstance(obj, str):
                     if action_type in allowed_actions:
@@ -158,11 +164,10 @@ class TestActionHandlerSecrets:
         
         mock_secrets_service.decapsulate_secrets.side_effect = mock_decapsulate
         mock_secrets_service.decapsulate_secrets_in_parameters.side_effect = mock_decapsulate
-        # Ensure the mock does not return an AsyncMock object
-        mock_secrets_service.decapsulate_secrets.return_value = None
-        mock_secrets_service.decapsulate_secrets_in_parameters.return_value = None
         
-        dependencies = ActionHandlerDependencies(secrets_service=mock_secrets_service)
+        mock_service_registry = AsyncMock()
+        bus_manager = BusManager(mock_service_registry)
+        dependencies = ActionHandlerDependencies(bus_manager=bus_manager, secrets_service=mock_secrets_service)
         
         # Create a test handler
         class TestHandler(BaseActionHandler):
@@ -185,12 +190,16 @@ class TestActionHandlerSecrets:
         # Process through secrets decapsulation
         processed_result = await handler._decapsulate_secrets_in_params(original_result, "speak")
         
+        # Debug print
+        print(f"Original: {original_result.action_parameters}")
+        print(f"Processed: {processed_result.action_parameters}")
+        
         # Verify secret was decapsulated
         assert "SECRET_550e8400-e29b-41d4-a716-446655440000" not in str(processed_result.action_parameters)
         assert "sk-1234567890" in processed_result.action_parameters["content"]
         
         # Verify service was called
-        mock_secrets_service.decapsulate_secrets_in_parameters.assert_called_once()
+        mock_secrets_service.decapsulate_secrets.assert_called_once()
 
 
 @pytest.mark.asyncio 
@@ -288,9 +297,14 @@ class TestEndToEndFlow:
             else:
                 return obj
 
-        async def mock_decapsulate(text, action_type=None, context=None):
+        async def mock_decapsulate(text, action_type=None, context=None, context_hint=None):
             # Only decapsulate for allowed action types (simulate real logic)
             allowed_actions = ["tool", "speak", "memorize"]
+            # Extract action from context_hint if action_type not provided
+            if not action_type and context_hint:
+                # context_hint is like "tool_params" - extract the action
+                action_type = context_hint.split('_')[0] if '_' in context_hint else None
+            
             def recursive_decapsulate(obj):
                 if isinstance(obj, str):
                     if action_type in allowed_actions:
@@ -308,7 +322,9 @@ class TestEndToEndFlow:
         mock_decap_service.decapsulate_secrets.return_value = None
         mock_decap_service.decapsulate_secrets_in_parameters.return_value = None
         
-        dependencies = ActionHandlerDependencies(secrets_service=mock_decap_service)
+        mock_service_registry = AsyncMock()
+        bus_manager = BusManager(mock_service_registry)
+        dependencies = ActionHandlerDependencies(bus_manager=bus_manager, secrets_service=mock_decap_service)
         
         class TestHandler(BaseActionHandler):
             async def handle(self, result, thought, dispatch_context):

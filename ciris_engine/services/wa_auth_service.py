@@ -28,6 +28,9 @@ from ciris_engine.schemas.wa_schemas_v1 import (
 from ciris_engine.protocols.wa_auth_interface import (
     WAStore, JWTService, WACrypto, WAAuthMiddleware
 )
+from ciris_engine.utils.time_utils import (
+    utc_now, utc_now_iso, utc_now_timestamp, parse_iso_datetime
+)
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +267,7 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
             'sub_type': JWTSubType.ANON.value,
             'name': wa.name,
             'scope': wa.scopes,
-            'iat': int(time.time()),
+            'iat': int(utc_now_timestamp()),
             'adapter': wa.adapter_id
         }
         
@@ -277,7 +280,7 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
     
     def create_gateway_token(self, wa: WACertificate, expires_hours: int = 8) -> str:
         """Create gateway-signed token (OAuth/password auth)."""
-        now = int(time.time())
+        now = int(utc_now_timestamp())
         
         payload = {
             'sub': wa.wa_id,
@@ -300,7 +303,7 @@ class WAAuthService(WAStore, JWTService, WACrypto, WAAuthMiddleware):
     
     def create_authority_token(self, wa: WACertificate, private_key: bytes) -> str:
         """Create WA-signed authority token."""
-        now = int(time.time())
+        now = int(utc_now_timestamp())
         
         payload = {
             'sub': wa.wa_id,

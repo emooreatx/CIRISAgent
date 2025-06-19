@@ -18,6 +18,7 @@ sys.path.insert(0, '/home/emoore/CIRISAgent')
 
 from ciris_engine.action_handlers.observe_handler import ObserveHandler
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.message_buses.bus_manager import BusManager
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
 
@@ -31,15 +32,16 @@ class MockMemoryService:
         self.recall_calls = []
         self.recall_details = []
         
-    async def recall(self, node: GraphNode):
+    async def recall(self, node: GraphNode, handler_name: str = None):
         """Track recall calls with full details"""
         self.recall_calls.append((node.id, node.scope))
         self.recall_details.append({
             'node_id': node.id,
             'scope': node.scope,
-            'scope_value': node.scope.value if hasattr(node.scope, 'value') else str(node.scope)
+            'scope_value': node.scope.value if hasattr(node.scope, 'value') else str(node.scope),
+            'handler_name': handler_name
         })
-        logger.info(f"MEMORY RECALL: node_id='{node.id}', scope='{node.scope}'")
+        logger.info(f"MEMORY RECALL: node_id='{node.id}', scope='{node.scope}', handler='{handler_name}'")
 
 def create_realistic_discord_messages() -> List[Dict[str, Any]]:
     """Create messages that exactly match Discord adapter output structure"""
@@ -142,14 +144,22 @@ async def test_real_observe_handler():
         logger.info(f"  Content: {msg['content'][:80]}{'...' if len(msg['content']) > 80 else ''}")
     
     # Create a mock ObserveHandler instance to call the method
-    deps = ActionHandlerDependencies()
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    
+    # Mock the memory bus to capture recall calls
+    mock_memory_bus = AsyncMock()
+    mock_memory_bus.recall = memory_service.recall
+    bus_manager.memory = mock_memory_bus
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     handler = ObserveHandler(deps)
     
     # Convert dictionaries to FetchedMessage objects
     fetched_messages = [FetchedMessage(**msg) for msg in messages]
     
     # Call the actual method
-    await handler._recall_from_messages(memory_service, channel_id, fetched_messages)
+    await handler._recall_from_messages(channel_id, fetched_messages)
     
     # Analyze results
     logger.info(f"\n--- Recall Analysis ---")
@@ -220,9 +230,16 @@ async def test_edge_cases_real_handler():
         except Exception as e:
             logger.warning(f"Failed to convert edge message {i+1}: {e}")
     
-    deps = ActionHandlerDependencies()
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    # Mock the memory bus to capture recall calls
+    mock_memory_bus = AsyncMock()
+    mock_memory_bus.recall = memory_service.recall
+    bus_manager.memory = mock_memory_bus
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     handler = ObserveHandler(deps)
-    await handler._recall_from_messages(memory_service, channel_id, fetched_edge_messages)
+    await handler._recall_from_messages(channel_id, fetched_edge_messages)
     
     # Analyze edge case results
     unique_nodes = set(call['node_id'] for call in memory_service.recall_details)
@@ -248,9 +265,16 @@ async def test_no_messages():
     memory_service = MockMemoryService()
     channel_id = "918273645012345680"
     
-    deps = ActionHandlerDependencies()
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    # Mock the memory bus to capture recall calls
+    mock_memory_bus = AsyncMock()
+    mock_memory_bus.recall = memory_service.recall
+    bus_manager.memory = mock_memory_bus
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     handler = ObserveHandler(deps)
-    await handler._recall_from_messages(memory_service, channel_id, [])
+    await handler._recall_from_messages(channel_id, [])
     
     # Should only have channel recalls
     unique_nodes = set(call['node_id'] for call in memory_service.recall_details)
@@ -264,11 +288,19 @@ async def test_no_memory_service():
     logger.info("\n=== Testing No Memory Service ===")
     
     # Should not crash and should handle gracefully
-    deps = ActionHandlerDependencies()
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    
+    # Mock the memory bus - even though we're testing "no memory service"
+    # the handler still needs the bus manager to have a memory bus
+    mock_memory_bus = AsyncMock()
+    bus_manager.memory = mock_memory_bus
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     handler = ObserveHandler(deps)
     # Convert dictionaries to FetchedMessage objects
     fetched_messages = [FetchedMessage(**msg) for msg in create_realistic_discord_messages()]
-    await handler._recall_from_messages(None, "test_channel", fetched_messages)
+    await handler._recall_from_messages("test_channel", fetched_messages)
     
     logger.info("✅ No memory service test passed!")
 
@@ -288,14 +320,22 @@ async def test_message_field_variations():
     ]
     
     # Test each message type
-    deps = ActionHandlerDependencies()
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    
+    # Mock the memory bus to capture recall calls
+    mock_memory_bus = AsyncMock()
+    mock_memory_bus.recall = memory_service.recall
+    bus_manager.memory = mock_memory_bus
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     handler = ObserveHandler(deps)
     for msg in variant_messages:
         logger.info(f"Testing message: {msg}")
         try:
             # Convert dictionary to FetchedMessage object
             fetched_msg = FetchedMessage(**msg)
-            await handler._recall_from_messages(memory_service, channel_id, [fetched_msg])
+            await handler._recall_from_messages(channel_id, [fetched_msg])
         except Exception as e:
             logger.warning(f"Error processing message {msg['id']}: {e}")
     

@@ -86,7 +86,7 @@ class DiscordPlatform(PlatformAdapter):
             wa_user_ids=self.config.admin_user_ids,
             memory_service=getattr(self.runtime, 'memory_service', None),
             agent_id=getattr(self.runtime, 'agent_id', None),
-            multi_service_sink=getattr(self.runtime, 'multi_service_sink', None),
+            bus_manager=getattr(self.runtime, 'bus_manager', None),  # multi_service_sink returns bus_manager now
             filter_service=getattr(self.runtime, 'adaptive_filter_service', None),
             secrets_service=getattr(self.runtime, 'secrets_service', None),
             communication_service=self.discord_adapter

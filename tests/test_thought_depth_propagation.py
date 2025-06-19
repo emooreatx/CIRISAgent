@@ -141,8 +141,10 @@ class TestThoughtDepthPropagation:
     @patch('ciris_engine.action_handlers.ponder_handler.persistence')
     def test_ponder_handler_creates_correct_follow_up_count(self, mock_persistence, pondered_thought):
         """Test that PonderHandler creates follow-ups with correct ponder count."""
-        # Mock dependencies with action_dispatcher
+        # Mock dependencies with bus_manager
         mock_dependencies = Mock(spec=ActionHandlerDependencies)
+        mock_bus_manager = Mock()
+        mock_dependencies.bus_manager = mock_bus_manager
         mock_action_dispatcher = Mock()
         mock_action_dispatcher.get_handler.return_value = None
         mock_dependencies.action_dispatcher = mock_action_dispatcher
@@ -200,6 +202,8 @@ class TestThoughtDepthPropagation:
     def test_ponder_handler_dynamic_content_generation(self, heavily_pondered_thought):
         """Test that PonderHandler generates appropriate content based on ponder count."""
         mock_dependencies = Mock(spec=ActionHandlerDependencies)
+        mock_bus_manager = Mock()
+        mock_dependencies.bus_manager = mock_bus_manager
         ponder_handler = PonderHandler(mock_dependencies, max_rounds=5)
         
         # Test content generation for different ponder counts
@@ -219,6 +223,8 @@ class TestThoughtDepthPropagation:
     def test_max_rounds_behavior_with_thought_depth(self, heavily_pondered_thought):
         """Test that ponder handler processes normally, relying on guardrails for max depth enforcement."""
         mock_dependencies = Mock(spec=ActionHandlerDependencies)
+        mock_bus_manager = Mock()
+        mock_dependencies.bus_manager = mock_bus_manager
         mock_dependencies.service_registry = None
         
         # Set max rounds to 4, but with guardrails the ponder handler won't enforce this

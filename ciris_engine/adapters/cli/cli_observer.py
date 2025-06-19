@@ -4,7 +4,7 @@ from typing import Callable, Awaitable, Dict, Any, Optional
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
 from ciris_engine.schemas.filter_schemas_v1 import FilterResult
-from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+from ciris_engine.message_buses import BusManager
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.adapters.base_observer import BaseObserver
 
@@ -24,7 +24,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]],
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
-        multi_service_sink: Optional[MultiServiceActionSink] = None,
+        bus_manager: Optional[BusManager] = None,
         filter_service: Optional[Any] = None,
         secrets_service: Optional[SecretsService] = None,
         *,
@@ -33,11 +33,11 @@ class CLIObserver(BaseObserver[IncomingMessage]):
     ) -> None:
         super().__init__(
             on_observe,
-            memory_service,
-            agent_id,
-            multi_service_sink,
-            filter_service,
-            secrets_service,
+            bus_manager=bus_manager,
+            memory_service=memory_service,
+            agent_id=agent_id,
+            filter_service=filter_service,
+            secrets_service=secrets_service,
             origin_service="cli",
         )
         self.interactive = interactive

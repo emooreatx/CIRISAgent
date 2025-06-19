@@ -9,7 +9,7 @@ from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext
 from ciris_engine.utils.channel_utils import create_channel_context
 from ciris_engine.schemas.filter_schemas_v1 import FilterResult, FilterPriority
 
-from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+from ciris_engine.message_buses import BusManager
 from ciris_engine.secrets.service import SecretsService
 
 logger = logging.getLogger(__name__)
@@ -24,18 +24,18 @@ class BaseObserver(Generic[MessageT], ABC):
     def __init__(
         self,
         on_observe: Callable[[Dict[str, Any]], Awaitable[None]],
+        bus_manager: Optional[BusManager] = None,
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
-        multi_service_sink: Optional[MultiServiceActionSink] = None,
         filter_service: Optional[Any] = None,
         secrets_service: Optional[SecretsService] = None,
         *,
         origin_service: str = "unknown",
     ) -> None:
         self.on_observe = on_observe
+        self.bus_manager = bus_manager
         self.memory_service = memory_service
         self.agent_id = agent_id
-        self.multi_service_sink = multi_service_sink
         self.filter_service = filter_service
         self.secrets_service = secrets_service or SecretsService()
         self.origin_service = origin_service
@@ -138,8 +138,8 @@ class BaseObserver(Generic[MessageT], ABC):
 
     async def _add_to_feedback_queue(self, msg: MessageT) -> None:
         try:
-            if self.multi_service_sink:
-                success = await self.multi_service_sink.send_message(
+            if self.bus_manager:
+                success = await self.bus_manager.communication.send_message(
                     handler_name=self.__class__.__name__,
                     channel_id=str(getattr(msg, "channel_id", "")) or "unknown",
                     content=f"[WA_FEEDBACK] {msg.content}",  # type: ignore[attr-defined]
@@ -159,7 +159,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 else:
                     logger.warning("Failed to enqueue WA feedback message %s", msg.message_id)  # type: ignore[attr-defined]
             else:
-                logger.warning("No multi_service_sink available for WA feedback routing")
+                logger.warning("No bus_manager available for WA feedback routing")
         except Exception as e:  # pragma: no cover - rarely hit in tests
             logger.error("Error adding WA feedback message %s to queue: %s", msg.message_id, e)  # type: ignore[attr-defined]
 

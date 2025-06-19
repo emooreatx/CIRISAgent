@@ -11,8 +11,9 @@ from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, Epi
 @pytest.mark.asyncio
 async def test_calculate_epistemic_values_success():
     sink = MagicMock()
-    # Mock generate_structured_sync to return the expected results
-    sink.generate_structured_sync = AsyncMock(side_effect=[
+    # Mock the llm bus with generate_structured_sync method
+    sink.llm = MagicMock()
+    sink.llm.generate_structured_sync = AsyncMock(side_effect=[
         (EntropyResult(entropy=0.25, faculty_name="entropy"), None),  # First call for entropy
         (CoherenceResult(coherence=0.85, faculty_name="coherence"), None)  # Second call for coherence
     ])
@@ -25,6 +26,7 @@ async def test_calculate_epistemic_values_success():
 @pytest.mark.asyncio
 async def test_evaluate_optimization_veto_returns_schema():
     sink = MagicMock()
+    sink.llm = MagicMock()
     mock_result = OptimizationVetoResult(
         decision="proceed",
         justification="ok",
@@ -32,7 +34,7 @@ async def test_evaluate_optimization_veto_returns_schema():
         affected_values=[],
         confidence=0.9,
     )
-    sink.generate_structured_sync = AsyncMock(return_value=(mock_result, None))
+    sink.llm.generate_structured_sync = AsyncMock(return_value=(mock_result, None))
     action = ActionSelectionResult(
         selected_action=HandlerActionType.SPEAK,
         action_parameters={"content": "hi"},
@@ -46,13 +48,14 @@ async def test_evaluate_optimization_veto_returns_schema():
 @pytest.mark.asyncio
 async def test_evaluate_epistemic_humility_returns_schema():
     sink = MagicMock()
+    sink.llm = MagicMock()
     mock_result = EpistemicHumilityResult(
         epistemic_certainty=0.8,
         identified_uncertainties=[],
         reflective_justification="none",
         recommended_action="proceed",
     )
-    sink.generate_structured_sync = AsyncMock(return_value=(mock_result, None))
+    sink.llm.generate_structured_sync = AsyncMock(return_value=(mock_result, None))
     action = ActionSelectionResult(
         selected_action=HandlerActionType.SPEAK,
         action_parameters={"content": "hi"},

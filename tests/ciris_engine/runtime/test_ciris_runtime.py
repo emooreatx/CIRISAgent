@@ -558,7 +558,7 @@ class TestCIRISRuntime:
             # Create mock services
             from ciris_engine.runtime.service_initializer import ServiceInitializer
             runtime.service_initializer = ServiceInitializer()
-            runtime.service_initializer.multi_service_sink = AsyncMock()
+            runtime.service_initializer.bus_manager = AsyncMock()
             runtime.service_initializer.service_registry = MagicMock()
             
             # Mock other services that shutdown expects
@@ -591,8 +591,8 @@ class TestCIRISRuntime:
                 # Verify state transition to SHUTDOWN
                 assert runtime.agent_processor.state_manager.get_state() == AgentState.SHUTDOWN
                 
-                # Verify multi-service sink was stopped
-                runtime.service_initializer.multi_service_sink.stop.assert_called_once()
+                # Verify bus manager was stopped
+                runtime.service_initializer.bus_manager.stop.assert_called_once()
                 
                 # Verify adapters were stopped
                 assert runtime.adapters[0].stopped is True
@@ -664,8 +664,8 @@ class TestCIRISRuntimeIntegration:
             assert len(global_services) > 0 or len(info.get("handlers", {})) > 0
     
     @pytest.mark.asyncio
-    async def test_multi_service_sink_creation(self, mock_app_config: AppConfig):
-        """Test that multi-service sink is properly created and configured."""
+    async def test_bus_manager_creation(self, mock_app_config: AppConfig):
+        """Test that bus manager is properly created and configured."""
         with patch('ciris_engine.runtime.ciris_runtime.load_adapter') as mock_load_adapter:
             mock_load_adapter.return_value = MockAdapter
             
@@ -676,26 +676,25 @@ class TestCIRISRuntimeIntegration:
                 startup_channel_id="test_channel"
             )
         
-        # Mock the MultiServiceActionSink import and initialization
-        with patch('ciris_engine.sinks.multi_service_sink.MultiServiceActionSink') as mock_sink_class:
-            mock_sink_instance = AsyncMock()
-            mock_sink_instance.fallback_channel_id = "test_channel"
-            mock_sink_class.return_value = mock_sink_instance
+        # Mock the BusManager import and initialization
+        with patch('ciris_engine.message_buses.bus_manager.BusManager') as mock_bus_class:
+            mock_bus_instance = AsyncMock()
+            mock_bus_instance.communication = AsyncMock()
+            mock_bus_class.return_value = mock_bus_instance
             
-            # Create service registry and call the sink creation method
+            # Create service registry and call the bus creation method
             from ciris_engine.registries.base import ServiceRegistry
             runtime.service_initializer.service_registry = ServiceRegistry()
             
-            # Call the method that creates the multi-service sink
-            runtime.service_initializer.multi_service_sink = mock_sink_class(
-                service_registry=runtime.service_registry,
-                fallback_channel_id="test_channel"
+            # Call the method that creates the bus manager
+            runtime.service_initializer.bus_manager = mock_bus_class(
+                service_registry=runtime.service_registry
             )
             
-            # Verify multi-service sink was created
-            assert runtime.multi_service_sink is not None
-            # Verify it was configured with the startup channel
-            assert runtime.multi_service_sink.fallback_channel_id == "test_channel"
+            # Verify bus manager was created
+            assert runtime.bus_manager is not None
+            # Verify it has the communication bus
+            assert runtime.bus_manager.communication is not None
 
 
 class TestCIRISRuntimeTypesSafety:

@@ -26,7 +26,7 @@ class TestDiscordPlatform:
         runtime.app_config = MagicMock()
         runtime.memory_service = MagicMock()
         runtime.agent_id = "test_agent"
-        runtime.multi_service_sink = MagicMock()
+        runtime.bus_manager= MagicMock()
         runtime.adaptive_filter_service = MagicMock()
         runtime.secrets_service = MagicMock()
         return runtime

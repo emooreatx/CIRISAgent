@@ -5,7 +5,7 @@ from typing import Any, Optional, List, Dict
 from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, ThoughtType
 from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, TaskContext, SystemSnapshot, ChannelContext
 from ciris_engine.utils.channel_utils import create_channel_context
-from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
+from ciris_engine.message_buses import BusManager
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.adapters.base_observer import BaseObserver
 
@@ -28,16 +28,16 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         wa_user_ids: Optional[List[str]] = None,
         memory_service: Optional[Any] = None,
         agent_id: Optional[str] = None,
-        multi_service_sink: Optional[MultiServiceActionSink] = None,
+        bus_manager: Optional[BusManager] = None,
         filter_service: Optional[Any] = None,
         secrets_service: Optional[SecretsService] = None,
         communication_service: Optional[Any] = None,
     ) -> None:
         super().__init__(
             on_observe=lambda _: asyncio.sleep(0),
+            bus_manager=bus_manager,
             memory_service=memory_service,
             agent_id=agent_id,
-            multi_service_sink=multi_service_sink,
             filter_service=filter_service,
             secrets_service=secrets_service,
             origin_service="discord",

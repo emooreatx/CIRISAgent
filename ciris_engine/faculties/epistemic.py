@@ -136,7 +136,7 @@ async def calculate_epistemic_values(
     async def get_entropy() -> float:
         try:
             messages = _create_entropy_messages_for_instructor(text_to_evaluate)
-            entropy_eval, _ = await sink.generate_structured_sync(
+            entropy_eval, _ = await sink.llm.generate_structured_sync(
                 messages=messages,
                 response_model=EntropyResult,
                 handler_name="epistemic_entropy",
@@ -155,7 +155,7 @@ async def calculate_epistemic_values(
     async def get_coherence() -> float:
         try:
             messages = _create_coherence_messages_for_instructor(text_to_evaluate)
-            coherence_eval, _ = await sink.generate_structured_sync(
+            coherence_eval, _ = await sink.llm.generate_structured_sync(
                 messages=messages,
                 response_model=CoherenceResult,
                 handler_name="epistemic_coherence",
@@ -221,7 +221,7 @@ async def evaluate_optimization_veto(
     action_desc = f"{action_result.selected_action.value} {action_result.action_parameters}" # Corrected field name
     messages = _create_optimization_veto_messages(action_desc)
     try:
-        result, _ = await sink.generate_structured_sync(
+        result, _ = await sink.llm.generate_structured_sync(
             messages=messages,
             response_model=OptimizationVetoResult,
             handler_name="epistemic_optimization_veto",
@@ -258,7 +258,7 @@ async def evaluate_epistemic_humility(
     desc = f"{action_result.selected_action.value} {action_result.action_parameters}"
     messages = _create_epistemic_humility_messages(desc)
     try:
-        result, _ = await sink.generate_structured_sync(
+        result, _ = await sink.llm.generate_structured_sync(
             messages=messages,
             response_model=EpistemicHumilityResult,
             handler_name="epistemic_humility",

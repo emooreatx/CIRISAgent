@@ -30,9 +30,10 @@ async def test_csdma_evaluate_thought():
     
     # Create a mock multi-service sink with proper response
     mock_sink = MagicMock()
+    mock_sink.llm = MagicMock()
     async def mock_generate_structured_sync(*args, **kwargs):
         return (mock_result, ResourceUsage(prompt_tokens=50, completion_tokens=50, total_tokens=100))
-    mock_sink.generate_structured_sync = mock_generate_structured_sync
+    mock_sink.llm.generate_structured_sync = mock_generate_structured_sync
     
     evaluator = CSDMAEvaluator(service_registry=service_registry, model_name="m", sink=mock_sink)
     from ciris_engine.processor.processing_queue import ThoughtContent

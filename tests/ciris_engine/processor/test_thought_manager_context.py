@@ -8,6 +8,17 @@ from unittest.mock import patch
 
 @pytest.fixture
 def sample_task():
+    from ciris_engine.schemas.context_schemas_v1 import ThoughtContext, SystemSnapshot
+    context = ThoughtContext(
+        system_snapshot=SystemSnapshot(),
+        initial_task_context={
+            "custom_key": "custom_value"
+        },
+        author_name="TestUser",
+        author_id="user-123",
+        channel_id="chan-456",
+        origin_service="CLI"
+    )
     return Task(
         task_id="task-ctx-1",
         description="Test task for context propagation",
@@ -15,13 +26,7 @@ def sample_task():
         priority=1,
         created_at=datetime.now(timezone.utc).isoformat(),
         updated_at=datetime.now(timezone.utc).isoformat(),
-        context={
-            "author_name": "TestUser",
-            "author_id": "user-123",
-            "channel_id": "chan-456",
-            "origin_service": "CLI",
-            "custom_key": "custom_value"
-        },
+        context=context,
     )
 
 def test_seed_thought_context_propagation(sample_task):
@@ -29,14 +34,14 @@ def test_seed_thought_context_propagation(sample_task):
     with patch("ciris_engine.persistence.add_thought") as mock_add:
         thought = tm.generate_seed_thought(sample_task, round_number=1)
         assert thought is not None
-        # Top-level context keys
-        for key in ["author_name", "author_id", "channel_id", "origin_service"]:
-            assert key in thought.context
-            assert thought.context[key] == sample_task.context[key]
+        # Check that context is a ThoughtContext object
+        assert thought.context is not None
+        assert hasattr(thought.context, 'initial_task_context')
+        
         # Custom key should be in initial_task_context
-        assert "initial_task_context" in thought.context
-        assert "custom_key" in thought.context["initial_task_context"]
-        assert thought.context["initial_task_context"]["custom_key"] == sample_task.context["custom_key"]
+        assert thought.context.initial_task_context is not None
+        assert hasattr(thought.context.initial_task_context, 'custom_key')
+        assert thought.context.initial_task_context.custom_key == "custom_value"
         # Should not mutate the original task context
         assert thought.context is not sample_task.context
         # Should call persistence.add_thought

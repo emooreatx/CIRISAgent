@@ -13,15 +13,15 @@ def map_row_to_task(row: Any) -> Task:
         try:
             ctx_data = json.loads(row_dict["context_json"])
             if isinstance(ctx_data, dict):
-                ctx_data.setdefault("system_snapshot", {})
+                # Don't set default system_snapshot - let the model validation handle the data as-is
                 row_dict["context"] = ThoughtContext.model_validate(ctx_data)
             else:
-                row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
-        except Exception:
-            logger.warning(f"Failed to decode context_json for task {row_dict.get('task_id')}")
-            row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
+                row_dict["context"] = ThoughtContext()
+        except Exception as e:
+            logger.warning(f"Failed to decode context_json for task {row_dict.get('task_id')}: {e}")
+            row_dict["context"] = ThoughtContext()
     else:
-        row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
+        row_dict["context"] = ThoughtContext()
     if row_dict.get("outcome_json"):
         try:
             row_dict["outcome"] = json.loads(row_dict["outcome_json"])
@@ -46,15 +46,15 @@ def map_row_to_thought(row: Any) -> Thought:
         try:
             ctx_data = json.loads(row_dict["context_json"])
             if isinstance(ctx_data, dict):
-                ctx_data.setdefault("system_snapshot", {})
+                # Don't set default system_snapshot - let the model validation handle the data as-is
                 row_dict["context"] = ThoughtContext.model_validate(ctx_data)
             else:
-                row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
-        except Exception:
-            logger.warning(f"Failed to decode context_json for thought {row_dict.get('thought_id')}")
-            row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
+                row_dict["context"] = ThoughtContext()
+        except Exception as e:
+            logger.warning(f"Failed to decode context_json for thought {row_dict.get('thought_id')}: {e}")
+            row_dict["context"] = ThoughtContext()
     else:
-        row_dict["context"] = ThoughtContext(system_snapshot=SystemSnapshot())
+        row_dict["context"] = ThoughtContext()
     if row_dict.get("ponder_notes_json"):
         try:
             row_dict["ponder_notes"] = json.loads(row_dict["ponder_notes_json"])

@@ -7,6 +7,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus, ThoughtType
 from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.message_buses.bus_manager import BusManager
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 from tests.helpers import create_test_dispatch_context
 from ciris_engine.utils.channel_utils import create_channel_context
@@ -36,12 +37,21 @@ async def test_observe_handler_active_injects_channel(monkeypatch):
     monkeypatch.setattr("ciris_engine.persistence.update_thought_status", update_status)
     monkeypatch.setattr("ciris_engine.persistence.add_thought", add_thought)
 
-    mock_sink = AsyncMock()
-    mock_sink.fetch_messages_sync = AsyncMock(return_value=[])
-    deps = ActionHandlerDependencies()
-    deps.get_multi_service_sink = lambda: mock_sink
+    mock_service_registry = AsyncMock()
+    bus_manager = BusManager(mock_service_registry)
+    
+    # Mock the communication bus to have fetch_messages method
+    mock_communication_bus = AsyncMock()
+    mock_communication_bus.fetch_messages = AsyncMock(return_value=[])
+    bus_manager.communication = mock_communication_bus
+    
+    # Mock the memory bus for recall operations
+    mock_memory_bus = AsyncMock()
+    mock_memory_bus.recall = AsyncMock()
+    bus_manager.memory = mock_memory_bus
+    
+    deps = ActionHandlerDependencies(bus_manager=bus_manager)
     handler = ObserveHandler(deps)
-    handler.get_multi_service_sink = lambda: mock_sink
 
     params = ObserveParams(active=True, channel_context=create_channel_context(None), context={"source": "test"})
     action_result = ActionSelectionResult.model_construct(
@@ -54,9 +64,8 @@ async def test_observe_handler_active_injects_channel(monkeypatch):
     context = create_test_dispatch_context(channel_id="chanX", action_type=HandlerActionType.OBSERVE)
     await handler.handle(action_result, thought, context)
 
-    mock_sink.fetch_messages_sync.assert_awaited_with(
+    mock_communication_bus.fetch_messages.assert_awaited_with(
         handler_name="ObserveHandler",
         channel_id="chanX",
-        limit=50,
-        metadata={"active_observation": True},
+        limit=50
     )

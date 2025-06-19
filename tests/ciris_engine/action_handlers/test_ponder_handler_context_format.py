@@ -102,17 +102,18 @@ class TestPonderHandlerContextFormat:
         assert task_id in expected_content
 
     def test_mock_llm_ponder_help_shows_new_format(self):
-        """Test that the mock LLM help shows the correct ponder usage."""
+        """Test that the mock LLM ponder command works correctly."""
         
-        messages = [{"role": "user", "content": "$help"}]
+        # Test direct ponder command
+        messages = [{"role": "user", "content": "$ponder What is the user asking?; How should I respond?"}]
         result = create_response(ActionSelectionResult, messages=messages)
         
-        help_content = result.action_parameters.content
-        
-        # Verify help shows ponder command format
-        assert '$ponder' in help_content
-        assert 'Ask questions' in help_content
-        assert 'What should I do?; Is this ethical?' in help_content
+        # Verify ponder action was selected
+        assert result.selected_action == HandlerActionType.PONDER
+        assert hasattr(result.action_parameters, 'questions')
+        assert len(result.action_parameters.questions) == 2
+        assert "What is the user asking?" in result.action_parameters.questions
+        assert "How should I respond?" in result.action_parameters.questions
 
     def test_ponder_error_handling_in_mock_llm(self):
         """Test that mock LLM handles ponder command errors correctly."""

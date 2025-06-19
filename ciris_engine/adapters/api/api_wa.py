@@ -1,4 +1,4 @@
-"""API WA (Wise Authority) endpoints for CIRISAgent, using the multi_service_sink for backend logic."""
+"""API WA (Wise Authority) endpoints for CIRISAgent, using the bus_manager for backend logic."""
 import logging
 from aiohttp import web
 from typing import Any
@@ -6,8 +6,8 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 class APIWARoutes:
-    def __init__(self, multi_service_sink: Any) -> None:
-        self.multi_service_sink = multi_service_sink
+    def __init__(self, bus_manager: Any) -> None:
+        self.bus_manager = bus_manager
 
     def register(self, app: web.Application) -> None:
         app.router.add_post('/v1/guidance', self._handle_guidance)
@@ -22,7 +22,7 @@ class APIWARoutes:
         except Exception:
             data = {}
         try:
-            guidance = await self.multi_service_sink.fetch_guidance(data)
+            guidance = await self.bus_manager.fetch_guidance(data)
             return web.json_response({"result": guidance, "guidance": guidance})
         except Exception as e:
             logger.error(f"Error fetching guidance: {e}")
@@ -33,7 +33,7 @@ class APIWARoutes:
             data = await request.json()
             thought_id = data.get("thought_id")
             reason = data.get("reason", "")
-            await self.multi_service_sink.send_deferral(thought_id or "unknown", reason)
+            await self.bus_manager.send_deferral(thought_id or "unknown", reason)
             return web.json_response({"result": "deferred"})
         except Exception as e:
             logger.error(f"Error deferring: {e}")
@@ -41,7 +41,7 @@ class APIWARoutes:
 
     async def _handle_wa_deferrals(self, request: web.Request) -> web.Response:
         try:
-            deferrals = await self.multi_service_sink.get_deferrals()
+            deferrals = await self.bus_manager.get_deferrals()
             return web.json_response(deferrals)
         except Exception as e:
             logger.error(f"Error getting deferrals: {e}")
@@ -50,7 +50,7 @@ class APIWARoutes:
     async def _handle_wa_deferral_detail(self, request: web.Request) -> web.Response:
         deferral_id = request.match_info.get('deferral_id')
         try:
-            detail = await self.multi_service_sink.get_deferral_detail(deferral_id)
+            detail = await self.bus_manager.get_deferral_detail(deferral_id)
             return web.json_response(detail)
         except Exception as e:
             logger.error(f"Error getting deferral detail: {e}")
@@ -59,7 +59,7 @@ class APIWARoutes:
     async def _handle_wa_feedback(self, request: web.Request) -> web.Response:
         try:
             data = await request.json()
-            result = await self.multi_service_sink.submit_feedback(data)
+            result = await self.bus_manager.submit_feedback(data)
             return web.json_response({"result": result or "ok"})
         except Exception as e:
             logger.error(f"Error submitting feedback: {e}")

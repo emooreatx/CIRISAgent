@@ -9,7 +9,7 @@ from typing import Dict, Any
 
 from ciris_engine.dma.action_selection.action_instruction_generator import ActionInstructionGenerator
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.sinks import ListToolsAction
+from ciris_engine.schemas.service_actions_v1 import ListToolsAction
 
 
 class TestActionInstructionGenerator:
@@ -89,7 +89,7 @@ class TestActionInstructionGenerator:
         """Test TOOL schema generation with dynamic tool discovery."""
         # Mock the multi-service sink
         mock_sink = AsyncMock()
-        mock_service_registry.multi_service_sink = mock_sink
+        mock_service_registry.bus_manager= mock_sink
         
         # Mock tool information
         mock_tools = {
@@ -229,7 +229,7 @@ class TestActionInstructionGenerator:
         """Test error handling in tool schema generation."""
         # Mock sink that raises an error
         mock_sink = AsyncMock()
-        mock_service_registry.multi_service_sink = mock_sink
+        mock_service_registry.bus_manager= mock_sink
         mock_sink._handle_list_tools = AsyncMock(side_effect=Exception("Test error"))
         
         with patch('asyncio.get_event_loop') as mock_loop:

@@ -41,9 +41,9 @@ class _BaseGuardrail(GuardrailInterface):
         """Get the multi-service sink for centralized LLM calls with circuit breakers."""
         if self.sink:
             return self.sink
-        # Fallback to creating a sink if not provided
-        from ciris_engine.sinks.multi_service_sink import MultiServiceActionSink
-        return MultiServiceActionSink(service_registry=self.service_registry)
+        # Fallback to creating a bus manager if not provided
+        from ciris_engine.message_buses import BusManager
+        return BusManager(self.service_registry)
 
 
 class EntropyGuardrail(_BaseGuardrail):

@@ -76,21 +76,7 @@ class ForgetHandler(BaseActionHandler):
             follow_up.context = ThoughtContext.model_validate(context_data)
             persistence.add_thought(follow_up)
             return
-        memory_service: Optional[MemoryService] = await self.get_memory_service()
-
-        if not memory_service:
-            logger.error("ForgetHandler: MemoryService not available")
-            follow_up = create_follow_up_thought(
-                parent=thought,
-                content=f"FORGET action failed: MemoryService unavailable for thought {thought_id}"
-            )
-            persistence.add_thought(follow_up)
-            await self._audit_log(
-                HandlerActionType.FORGET,
-                dispatch_context.model_copy(update={"thought_id": thought_id}),
-                outcome="failed_no_memory_service",
-            )
-            return
+        # Memory operations will use the memory bus
 
         node = params.node
         scope = node.scope
@@ -111,12 +97,15 @@ class ForgetHandler(BaseActionHandler):
             persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.FORGET,
-                dispatch_context.model_copy(update={"thought_id": thought_id}),
+                dispatch_context,
                 outcome="wa_denied",
             )
             return
 
-        forget_result = await memory_service.forget(node)
+        forget_result = await self.bus_manager.memory.forget(
+            node=node,
+            handler_name=self.__class__.__name__
+        )
         await self._audit_forget_operation(params, dispatch_context, forget_result)
         success = forget_result.status == MemoryOpStatus.OK
 

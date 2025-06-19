@@ -57,9 +57,10 @@ class TestEnhancedMockLLM:
         result = create_response(ActionSelectionResult, messages=messages)
         
         assert result.selected_action == HandlerActionType.SPEAK
-        # Updated expectation: the mock LLM now returns default message since no direct user input pattern matched
-        assert "Hello! How can I help you?" in result.action_parameters.content
-        assert "Default speak action" in result.rationale
+        # Mock LLM responds to user speech by echoing it
+        assert "Mock response to:" in result.action_parameters.content
+        assert 'User says "How are you?" in the chat.' in result.action_parameters.content
+        assert "Responding to user:" in result.rationale
     
     def test_action_selection_with_memory_context(self):
         """Test that memory query context triggers RECALL action when using $recall command."""
@@ -153,7 +154,7 @@ class TestEnhancedMockLLM:
         result = create_response(ActionSelectionResult, messages=messages)
         
         assert result.selected_action == HandlerActionType.SPEAK
-        assert "Hello! How can I help you?" in str(result.action_parameters)
+        assert "Mock response to: Just a regular message with no special patterns." in str(result.action_parameters)
 
 
 if __name__ == "__main__":

@@ -62,7 +62,7 @@ class ComponentBuilder:
             service_registry=self.runtime.service_registry,
             model_name=self.runtime.llm_service.model_name,
             max_retries=config.llm_services.openai.max_retries,
-            sink=self.runtime.multi_service_sink,
+            sink=self.runtime.bus_manager,
         )
 
         # Get overrides from agent identity
@@ -75,7 +75,7 @@ class ComponentBuilder:
             model_name=self.runtime.llm_service.model_name,
             max_retries=config.llm_services.openai.max_retries,
             prompt_overrides=csdma_overrides,
-            sink=self.runtime.multi_service_sink,
+            sink=self.runtime.bus_manager,
         )
 
         # Create faculty manager and epistemic faculties
@@ -92,7 +92,7 @@ class ComponentBuilder:
             model_name=self.runtime.llm_service.model_name,
             max_retries=config.llm_services.openai.max_retries,
             prompt_overrides=action_selection_overrides,
-            sink=self.runtime.multi_service_sink,
+            sink=self.runtime.bus_manager,
             faculties=faculty_manager.faculties,  # Pass faculties for enhanced evaluation
         )
 
@@ -118,29 +118,29 @@ class ComponentBuilder:
             identity_config,
             self.runtime.service_registry,
             model_name=self.runtime.llm_service.model_name,
-            sink=self.runtime.multi_service_sink,
+            sink=self.runtime.bus_manager,
         )
         
         # Build guardrails
         guardrail_registry = GuardrailRegistry()
         guardrail_registry.register_guardrail(
             "entropy",
-            EntropyGuardrail(self.runtime.service_registry, config.guardrails, self.runtime.llm_service.model_name, self.runtime.multi_service_sink),
+            EntropyGuardrail(self.runtime.service_registry, config.guardrails, self.runtime.llm_service.model_name, self.runtime.bus_manager),
             priority=0,
         )
         guardrail_registry.register_guardrail(
             "coherence",
-            CoherenceGuardrail(self.runtime.service_registry, config.guardrails, self.runtime.llm_service.model_name, self.runtime.multi_service_sink),
+            CoherenceGuardrail(self.runtime.service_registry, config.guardrails, self.runtime.llm_service.model_name, self.runtime.bus_manager),
             priority=1,
         )
         guardrail_registry.register_guardrail(
             "optimization_veto",
-            OptimizationVetoGuardrail(self.runtime.service_registry, config.guardrails, self.runtime.llm_service.model_name, self.runtime.multi_service_sink),
+            OptimizationVetoGuardrail(self.runtime.service_registry, config.guardrails, self.runtime.llm_service.model_name, self.runtime.bus_manager),
             priority=2,
         )
         guardrail_registry.register_guardrail(
             "epistemic_humility",
-            EpistemicHumilityGuardrail(self.runtime.service_registry, config.guardrails, self.runtime.llm_service.model_name, self.runtime.multi_service_sink),
+            EpistemicHumilityGuardrail(self.runtime.service_registry, config.guardrails, self.runtime.llm_service.model_name, self.runtime.bus_manager),
             priority=3,
         )
         guardrail_registry.register_guardrail(
@@ -182,14 +182,16 @@ class ComponentBuilder:
         await self.runtime._register_core_services()
         
         # Build action handler dependencies
+        # TODO: Create BusManager instance
+        from ciris_engine.message_buses import BusManager
+        bus_manager = BusManager(self.runtime.service_registry)
+        
         dependencies = ActionHandlerDependencies(
-            service_registry=self.runtime.service_registry,
+            bus_manager=bus_manager,
             shutdown_callback=lambda: self.runtime.request_shutdown(
                 "Handler requested shutdown due to critical service failure"
             ),
-            multi_service_sink=self.runtime.multi_service_sink,
-            memory_service=self.runtime.memory_service,
-            audit_service=self.runtime.audit_service,
+            secrets_service=getattr(self.runtime, 'secrets_service', None),
         )
         
         # Register global shutdown handler
@@ -241,9 +243,9 @@ class ComponentBuilder:
         """Build action dispatcher. Override in subclasses for custom sinks."""
         config = self.runtime._ensure_config()
         return build_action_dispatcher(
-            service_registry=self.runtime.service_registry,
+            bus_manager=dependencies.bus_manager,
             shutdown_callback=dependencies.shutdown_callback,
             max_rounds=config.workflow.max_rounds,
             telemetry_service=self.runtime.telemetry_service,
-            multi_service_sink=self.runtime.multi_service_sink,
+            secrets_service=dependencies.secrets_service,
         )
