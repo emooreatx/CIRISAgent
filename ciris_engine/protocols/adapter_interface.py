@@ -6,7 +6,8 @@ from ciris_engine.registries.base import Priority, SelectionStrategy
 from ciris_engine.adapters.base import Service
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 
-class CIRISRuntime(Protocol):
+class RuntimeInterface(Protocol):
+    """Protocol for the CIRIS runtime interface."""
     pass
 
 @dataclasses.dataclass(frozen=True)
@@ -27,7 +28,7 @@ class PlatformAdapter(Protocol):
     responsible for both inbound (listening) and outbound (acting) logic.
     """
 
-    def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
+    def __init__(self, runtime: "RuntimeInterface", **kwargs: Any) -> None:
         """Initializes the adapter with a reference to the core runtime."""
         ...
 

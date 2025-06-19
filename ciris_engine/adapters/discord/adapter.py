@@ -4,7 +4,7 @@ from typing import List, Any, Optional
 
 import discord # Ensure discord.py is available
 
-from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration, CIRISRuntime
+from ciris_engine.protocols.adapter_interface import PlatformAdapter, ServiceRegistration, RuntimeInterface
 from .config import DiscordAdapterConfig
 from ciris_engine.registries.base import Priority
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType, DiscordMessage
@@ -18,7 +18,7 @@ from ciris_engine.adapters.tool_registry import ToolRegistry
 logger = logging.getLogger(__name__)
 
 class DiscordPlatform(PlatformAdapter):
-    def __init__(self, runtime: "CIRISRuntime", **kwargs: Any) -> None:
+    def __init__(self, runtime: "RuntimeInterface", **kwargs: Any) -> None:
         self.runtime = runtime
         
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
