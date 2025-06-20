@@ -10,6 +10,7 @@ from ciris_engine.adapters.base import Service
 from ciris_engine.protocols.services import AuditService as AuditServiceProtocol
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry  # Import from schemas
+from ciris_engine.schemas.protocol_schemas_v1 import ActionContext, AuditEntry, GuardrailCheckResult
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class AuditService(AuditServiceProtocol):
     async def log_action(
         self,
         handler_action: HandlerActionType,
-        context: Dict[str, Any],
+        context: ActionContext,
         outcome: Optional[str] = None,
     ) -> bool:
         """Log an action with context and outcome."""
@@ -71,14 +72,14 @@ class AuditService(AuditServiceProtocol):
                 event_id=str(uuid.uuid4()),
                 event_timestamp=datetime.now(timezone.utc).isoformat(),
                 event_type=handler_action.value,
-                originator_id=context.get("thought_id", "unknown"),
-                target_id=context.get("target_id"),
+                originator_id=context.thought_id,
+                target_id=context.task_id,
                 event_summary=self._generate_summary(handler_action, context, outcome),  # Pass outcome
-                event_payload=context,
-                agent_template=context.get("agent_template"),
-                round_number=context.get("round_number"),
-                thought_id=context.get("thought_id"),
-                task_id=context.get("task_id") or context.get("source_task_id"),  # Handle both keys
+                event_payload={"thought_id": context.thought_id, "task_id": context.task_id, "handler_name": context.handler_name, "parameters": context.parameters},
+                agent_template="default",
+                round_number=0,
+                thought_id=context.thought_id,
+                task_id=context.task_id,
             )
             self._buffer.append(entry)
             if len(self._buffer) >= 100:  # Flush every 100 entries
@@ -107,12 +108,12 @@ class AuditService(AuditServiceProtocol):
         if len(self._buffer) >= 100:  # Flush every 100 entries
             await self._flush_buffer()
 
-    async def log_guardrail_event(self, guardrail_name: str, action_type: str, result: Dict[str, Any]) -> None:
+    async def log_guardrail_event(self, guardrail_name: str, action_type: str, result: GuardrailCheckResult) -> None:
         """Log guardrail check events (specific helper for guardrail logging)."""
         event_data = {
             "guardrail_name": guardrail_name,
             "action_type": action_type,
-            "result": result,
+            "result": {"allowed": result.allowed, "reason": result.reason, "risk_level": result.risk_level},
             "originator_id": "guardrail_system",
             "summary": f"Guardrail {guardrail_name} check for {action_type}"
         }
@@ -125,7 +126,7 @@ class AuditService(AuditServiceProtocol):
         # Placeholder: implement log search logic as needed
         return []
 
-    async def get_audit_trail(self, entity_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    async def get_audit_trail(self, entity_id: str, limit: int = 100) -> List[AuditEntry]:
         """
         Get audit trail for an entity.
         
@@ -143,7 +144,7 @@ class AuditService(AuditServiceProtocol):
             if not self.log_path.exists():
                 return []
             
-            entries: List[Any] = []
+            entries: List[AuditEntry] = []
             with self.log_path.open("r", encoding="utf-8") as f:
                 for line in f:
                     try:
@@ -152,10 +153,20 @@ class AuditService(AuditServiceProtocol):
                         if (entry_dict.get("originator_id") == entity_id or
                             entry_dict.get("thought_id") == entity_id or
                             entry_dict.get("task_id") == entity_id):
-                            entries.append(entry_dict)
+                            # Convert to AuditEntry
+                            audit_entry = AuditEntry(
+                                entry_id=entry_dict.get("event_id", str(uuid.uuid4())),
+                                timestamp=datetime.fromisoformat(entry_dict.get("event_timestamp", datetime.now(timezone.utc).isoformat())),
+                                entity_id=entity_id,
+                                event_type=entry_dict.get("event_type", "unknown"),
+                                actor=entry_dict.get("originator_id", "system"),
+                                details=entry_dict,
+                                outcome=entry_dict.get("event_summary")
+                            )
+                            entries.append(audit_entry)
                             if len(entries) >= limit:
                                 break
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, ValueError):
                         continue
             
             return entries[-limit:] if len(entries) > limit else entries
@@ -203,10 +214,10 @@ class AuditService(AuditServiceProtocol):
         await self.retry_with_backoff(perform_rotation)  # type: ignore[unused-coroutine]
 
     def _generate_summary(
-        self, handler_action: HandlerActionType, context: Dict[str, Any], outcome: Optional[str] = None
+        self, handler_action: HandlerActionType, context: ActionContext, outcome: Optional[str] = None
     ) -> str:
         """Generate a summary including outcome if provided."""
-        base_summary = f"{handler_action.value} action for thought {context.get('thought_id', 'unknown')}"
+        base_summary = f"{handler_action.value} action for thought {context.thought_id}"
         if outcome:
             return f"{base_summary} - {outcome}"
         return base_summary

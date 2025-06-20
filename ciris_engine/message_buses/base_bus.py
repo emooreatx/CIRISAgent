@@ -4,13 +4,14 @@ Base message bus implementation
 
 import asyncio
 import logging
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict, List, TypeVar, Generic
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 from ciris_engine.registries.base import ServiceRegistry
+from ciris_engine.protocols.services import Service
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,11 @@ class BusMessage:
     metadata: Dict[str, Any]
 
 
-class BaseBus(ABC):
+# Define the service type variable
+ServiceT = TypeVar('ServiceT', bound=Service)
+
+
+class BaseBus(ABC, Generic[ServiceT]):
     """
     Base class for all typed message buses.
     
@@ -121,14 +126,16 @@ class BaseBus(ABC):
         self,
         handler_name: str,
         required_capabilities: Optional[List[str]] = None
-    ) -> Optional[Any]:
+    ) -> Optional[ServiceT]:
         """Get a service instance for this bus's service type"""
-        return await self.service_registry.get_service(
+        service = await self.service_registry.get_service(
             handler=handler_name,
             service_type=self.service_type,
             required_capabilities=required_capabilities,
             fallback_to_global=True
         )
+        # Trust the registry returns the right type
+        return service
     
     def get_queue_size(self) -> int:
         """Get current queue size"""

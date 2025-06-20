@@ -249,7 +249,7 @@ class WACLIBootstrapService:
         self,
         code: str,
         approver_wa_id: str,
-        approver_key_file: str
+        _approver_key_file: str
     ) -> Dict[str, Any]:
         """Approve a mint request and create new WA."""
         try:

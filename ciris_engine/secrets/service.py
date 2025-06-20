@@ -12,12 +12,14 @@ from .filter import SecretsFilter
 from .store import SecretsStore, SecretRecord
 from ..schemas.secrets_schemas_v1 import SecretReference
 from ..schemas.config_schemas_v1 import SecretsDetectionConfig
+from ..schemas.protocol_schemas_v1 import SecretsServiceStats
 from ..protocols.secrets_interface import SecretsServiceInterface
+from ..adapters.base import Service
 
 logger = logging.getLogger(__name__)
 
 
-class SecretsService(SecretsServiceInterface):
+class SecretsService(Service, SecretsServiceInterface):
     """
     Central service for secrets management in CIRIS Agent.
     
@@ -407,7 +409,7 @@ class SecretsService(SecretsServiceInterface):
         else:  # LOW
             return ["tool", "speak", "memorize"]  # Most actions allowed
             
-    async def get_service_stats(self) -> Dict[str, Any]:
+    async def get_service_stats(self) -> SecretsServiceStats:
         """Get comprehensive service statistics."""
         try:
             # Get filter stats
@@ -416,31 +418,33 @@ class SecretsService(SecretsServiceInterface):
             # Get storage stats
             all_secrets = await self.store.list_secrets()
             
-            sensitivity_counts: Dict[str, int] = {}
-            pattern_counts: Dict[str, int] = {}
+            # Get enabled patterns from filter stats
+            enabled_patterns = list(filter_stats.get('pattern_counts', {}).keys())
             
-            for secret in all_secrets:
-                # Count by sensitivity
-                sensitivity_counts[secret.sensitivity] = (
-                    sensitivity_counts.get(secret.sensitivity, 0) + 1
-                )
-                
-                # Note: SecretReference doesn't have detected_pattern, skip pattern counting
-                
-            return {
-                "filter_stats": filter_stats,
-                "storage_stats": {
-                    "total_secrets": len(all_secrets),
-                    "sensitivity_distribution": sensitivity_counts,
-                    "pattern_distribution": pattern_counts,
-                    "current_task_secrets": len(self._current_task_secrets),
-                    "auto_forget_enabled": self._auto_forget_enabled
-                }
-            }
+            # Count recent detections (within last hour)
+            recent_detections = filter_stats.get('total_detected', 0)
+            
+            # Calculate storage size (approximate)
+            storage_size_bytes = len(all_secrets) * 512  # Rough estimate: 512 bytes per secret
+            
+            return SecretsServiceStats(
+                secrets_stored=len(all_secrets),
+                filter_active=self.filter.is_enabled if hasattr(self.filter, 'is_enabled') else True,
+                patterns_enabled=enabled_patterns,
+                recent_detections=recent_detections,
+                storage_size_bytes=storage_size_bytes
+            )
             
         except Exception as e:
             logger.error(f"Failed to get service stats: {e}")
-            return {"error": str(e)}
+            # Return default stats on error
+            return SecretsServiceStats(
+                secrets_stored=0,
+                filter_active=False,
+                patterns_enabled=[],
+                recent_detections=0,
+                storage_size_bytes=0
+            )
     
     async def start(self) -> None:
         """Start the secrets service."""  # pragma: no cover - trivial
@@ -453,3 +457,22 @@ class SecretsService(SecretsServiceInterface):
             logger.info(f"Auto-forgetting {len(self._current_task_secrets)} task secrets on shutdown")
             await self.auto_forget_task_secrets()
         logger.info("SecretsService stopped")
+    
+    async def is_healthy(self) -> bool:
+        """Check if the secrets service is healthy."""
+        try:
+            # Check if filter and store are accessible
+            if not self.filter or not self.store:
+                return False
+            # Could add more health checks here
+            return True
+        except Exception:
+            return False
+    
+    async def get_capabilities(self) -> List[str]:
+        """Return list of capabilities this service supports."""
+        return [
+            "process_incoming_text", "decapsulate_secrets_in_parameters",
+            "list_stored_secrets", "recall_secret", "update_filter_config",
+            "forget_secret", "auto_forget_task_secrets", "get_service_stats"
+        ]

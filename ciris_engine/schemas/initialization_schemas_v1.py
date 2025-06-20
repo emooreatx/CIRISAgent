@@ -12,12 +12,15 @@ from enum import Enum
 class InitializationPhase(str, Enum):
     """Phases of the initialization process."""
     DATABASE = "database"
+    MEMORY = "memory"
     IDENTITY = "identity"
     SECURITY = "security"
     SERVICES = "services"
+    COMPONENTS = "components"
     ADAPTERS = "adapters"
     PROCESSOR = "processor"
     VERIFICATION = "verification"
+    READY = "ready"
 
 
 class InitializationStatus(BaseModel):

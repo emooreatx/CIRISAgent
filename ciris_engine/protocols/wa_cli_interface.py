@@ -60,8 +60,8 @@ class WACLIInterface(Protocol):
     @abstractmethod
     async def oauth_login(
         self,
-        provider: str,
-        callback_port: int = 8888
+        _provider: str,
+        _callback_port: int = 8888
     ) -> Dict[str, Any]:
         """Perform OAuth login flow."""
         ...

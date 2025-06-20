@@ -12,7 +12,7 @@ Key principles:
 """
 
 from .resource_monitor import ResourceMonitor, ResourceSignalBus
-from .core import TelemetryService
+from .core import BasicTelemetryCollector
 from .security import SecurityFilter
 from .collectors import (
     BaseCollector,
@@ -29,7 +29,7 @@ from .log_collector import LogCorrelationCollector, TSDBLogHandler
 __all__ = [
     "ResourceMonitor",
     "ResourceSignalBus", 
-    "TelemetryService",
+    "BasicTelemetryCollector",
     "SecurityFilter",
     "BaseCollector",
     "InstantCollector",

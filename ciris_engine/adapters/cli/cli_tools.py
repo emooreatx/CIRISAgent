@@ -12,13 +12,14 @@ from ciris_engine.schemas.persistence_schemas_v1 import CorrelationUpdateRequest
 from ciris_engine import persistence
 
 from ciris_engine.protocols.services import ToolService
+from ciris_engine.schemas.protocol_schemas_v1 import ToolExecutionResult, ToolInfo, ToolParameterSchema
 
 class CLIToolService(ToolService):
     """Simple ToolService providing local filesystem browsing."""
 
     def __init__(self) -> None:
         super().__init__()
-        self._results: Dict[str, Dict[str, Any]] = {}
+        self._results: Dict[str, ToolExecutionResult] = {}
         self._tools = {
             "list_files": self._list_files,
             "read_file": self._read_file,
@@ -35,7 +36,7 @@ class CLIToolService(ToolService):
         """Stop the CLI tool service."""
         await super().stop()
 
-    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> ToolExecutionResult:
         correlation_id = parameters.get("correlation_id", str(uuid.uuid4()))
         corr = ServiceCorrelation(
             correlation_id=correlation_id,
@@ -49,16 +50,37 @@ class CLIToolService(ToolService):
         )
         persistence.add_correlation(corr)
 
+        import time
+        start_time = time.time()
+        
         if tool_name not in self._tools:
             result = {"error": f"Unknown tool: {tool_name}"}
+            success = False
+            error_msg: Optional[str] = f"Unknown tool: {tool_name}"
         else:
             try:
                 result = await self._tools[tool_name](parameters)
+                success = result.get("error") is None
+                error_msg = result.get("error")
             except Exception as e:
                 result = {"error": str(e)}
+                success = False
+                error_msg = str(e)
+
+        execution_time = (time.time() - start_time) * 1000  # milliseconds
+
+        tool_result = ToolExecutionResult(
+            success=success,
+            result=result,
+            error=error_msg,
+            execution_time=execution_time / 1000,  # Convert to seconds
+            adapter_id="cli",
+            output=None,
+            metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+        )
 
         if correlation_id:
-            self._results[correlation_id] = result
+            self._results[correlation_id] = tool_result
             persistence.update_correlation(
                 CorrelationUpdateRequest(
                     correlation_id=correlation_id,
@@ -68,7 +90,7 @@ class CLIToolService(ToolService):
                     tags=None
                 )
             )
-        return result
+        return tool_result
 
     async def _list_files(self, params: Dict[str, Any]) -> Dict[str, Any]:
         path = params.get("path", ".")
@@ -140,7 +162,7 @@ class CLIToolService(ToolService):
     async def get_available_tools(self) -> List[str]:
         return list(self._tools.keys())
 
-    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
+    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
         for _ in range(int(timeout * 10)):
             if correlation_id in self._results:
                 return self._results.pop(correlation_id)

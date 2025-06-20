@@ -17,7 +17,7 @@ from .security import SecurityFilter
 logger = logging.getLogger(__name__)
 
 
-class TelemetryService(Service):
+class BasicTelemetryCollector(Service):
     """Collects and exposes basic telemetry for agent introspection."""
 
     def __init__(self, buffer_size: int = 1000, security_filter: SecurityFilter | None = None) -> None:

@@ -144,18 +144,9 @@ class Service(ABC):
             "timestamp": asyncio.get_event_loop().time()
         }
 
-    async def get_status(self) -> Dict[str, Any]:
-        """
-        Get detailed status information about the service.
-        
-        Returns:
-            Dictionary with service status and metrics
-        """
-        return {
-            "service_name": self.service_name,
-            "config": self.config,
-            "timestamp": asyncio.get_event_loop().time()
-        }
+    # Note: get_status() is NOT defined in base class
+    # Each service protocol defines its own typed status return
+    # This follows "No Dicts, No Strings, No Kings" philosophy
 
     def __repr__(self) -> str:
         return f"<{self.service_name}>"

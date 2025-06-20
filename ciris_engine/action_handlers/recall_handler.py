@@ -1,7 +1,7 @@
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
 from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import RecallParams
-from ciris_engine.services.memory_service import MemoryOpStatus
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus, MemoryQuery
 from ciris_engine.protocols.services import MemoryService
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
@@ -30,16 +30,30 @@ class RecallHandler(BaseActionHandler):
         # Memory operations will use the memory bus
 
         node = params.node  # type: ignore[attr-defined]
-        scope = node.scope
+        
+        # Create MemoryQuery from node
+        memory_query = MemoryQuery(
+            node_id=node.id,
+            scope=node.scope,
+            type=node.type if hasattr(node, 'type') else None,
+            include_edges=False,
+            depth=1
+        )
 
-        memory_result = await self.bus_manager.memory.recall(
-            node=node,
+        nodes = await self.bus_manager.memory.recall(
+            recall_query=memory_query,
             handler_name=self.__class__.__name__
         )
-        success = memory_result.status == MemoryOpStatus.OK
-        data = memory_result.data
-
-        if success and data:
+        
+        success = bool(nodes)
+        
+        if success:
+            # Format the recalled nodes for display
+            data = {}
+            for n in nodes:
+                # GraphNode object
+                if n.attributes:
+                    data[n.id] = n.attributes
             follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{node.id}' returned: {data}"
         else:
             follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: No memories found for query '{node.id}' in scope {node.scope.value}"
@@ -53,7 +67,7 @@ class RecallHandler(BaseActionHandler):
             "is_follow_up": True,
         }
         if not success:
-            follow_up_context["error_details"] = str(memory_result.status)
+            follow_up_context["error_details"] = "No memories found"
         context_data.update(follow_up_context)
         from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
         follow_up.context = ThoughtContext.model_validate(context_data)

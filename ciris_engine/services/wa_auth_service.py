@@ -29,7 +29,7 @@ from ciris_engine.protocols.wa_auth_interface import (
     WAStore, JWTService, WACrypto, WAAuthMiddleware
 )
 from ciris_engine.utils.time_utils import (
-    utc_now, utc_now_iso, utc_now_timestamp, parse_iso_datetime
+    utc_now, utc_now_iso, utc_now_timestamp
 )
 
 logger = logging.getLogger(__name__)

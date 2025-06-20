@@ -158,7 +158,7 @@ class TestMemoryTSDBExtensions:
             results = await memory_service.recall_timeseries(scope="local")
             
             # Should only include correlations with scope="local"
-            local_results = [r for r in results if r.get('tags', {}).get('scope') == 'local']
+            local_results = [r for r in results if r.tags and r.tags.get('scope') == 'local']
             assert len(local_results) > 0
     
     @pytest.mark.asyncio
@@ -312,9 +312,9 @@ class TestMemoryTSDBExtensions:
             
             # Should parse the JSON tags correctly
             if results:
-                assert isinstance(results[0]['tags'], dict)
-                assert results[0]['tags']['scope'] == 'local'
-                assert results[0]['tags']['environment'] == 'test'
+                assert isinstance(results[0].tags, dict)
+                assert results[0].tags['scope'] == 'local'
+                assert results[0].tags['environment'] == 'test'
 
 
 class TestMemoryServiceCapabilities:

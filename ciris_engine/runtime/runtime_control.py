@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 from ciris_engine.protocols.runtime_control import RuntimeControlInterface
 from ciris_engine.runtime.adapter_manager import RuntimeAdapterManager
+from ciris_engine.adapters.base import Service
 # ConfigManagerService is injected via dependency injection to avoid circular imports
 from ciris_engine.schemas.runtime_control_schemas import (
     ProcessorStatus, ProcessorControlResponse, AdapterOperationResponse,
@@ -19,7 +20,7 @@ from ciris_engine.schemas.runtime_control_schemas import (
 logger = logging.getLogger(__name__)
 
 
-class RuntimeControlService(RuntimeControlInterface):
+class RuntimeControlService(Service, RuntimeControlInterface):
     """Service for runtime control of processor, adapters, and configuration."""
 
     def __init__(
@@ -833,3 +834,43 @@ class RuntimeControlService(RuntimeControlInterface):
                 "error": str(e),
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
+    
+    # Service interface methods required by Service base class
+    async def is_healthy(self) -> bool:
+        """Check if the runtime control service is healthy."""
+        try:
+            # Check if core components are available
+            if not self.runtime:
+                return False
+            
+            # Check processor status
+            if self._processor_status == ProcessorStatus.ERROR:
+                return False
+            
+            return True
+        except Exception:
+            return False
+    
+    async def get_capabilities(self) -> List[str]:
+        """Return list of capabilities this service supports."""
+        return [
+            "single_step", "pause_processing", "resume_processing",
+            "get_processor_queue_status", "shutdown_runtime",
+            "load_adapter", "unload_adapter", "list_adapters", "get_adapter_info",
+            "get_config", "update_config", "validate_config", "backup_config",
+            "restore_config", "list_config_backups", "reload_config_profile",
+            "get_runtime_status", "get_runtime_snapshot",
+            "get_service_registry_info", "update_service_priority",
+            "reset_circuit_breakers", "get_service_health_status"
+        ]
+    
+    async def start(self) -> None:
+        """Start the runtime control service."""
+        await self.initialize()
+        logger.info("Runtime control service started")
+    
+    async def stop(self) -> None:
+        """Stop the runtime control service."""
+        logger.info("Runtime control service stopping")
+        # Clean up any resources if needed
+        self._events_history.clear()

@@ -373,11 +373,16 @@ class TestProtocolDefinitionsIntegrity:
         
         class TestToolService(ToolService):
             async def execute_tool(self, tool_name: str, parameters):
-                return {}
+                from ciris_engine.schemas.protocol_schemas_v1 import ToolExecutionResult
+                return ToolExecutionResult(success=True, result={}, error=None, execution_time=0.0)
             async def get_available_tools(self):
                 return []
             async def get_tool_result(self, correlation_id: str, timeout: float = 30.0):
                 return None
+            def get_tool_info(self, tool_name: str):
+                return None
+            def get_all_tool_info(self):
+                return {}
             async def start(self):
                 pass
             async def stop(self):

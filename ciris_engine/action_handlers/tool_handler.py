@@ -52,19 +52,19 @@ class ToolHandler(BaseActionHandler):
                 # Use the tool bus to execute the tool
                 tool_result = await self.bus_manager.tool.execute_tool(
                     tool_name=params.name,
-                    args=params.parameters,
-                    handler_name=self.__class__.__name__,
-                    correlation_id=correlation_id
+                    parameters=params.parameters,
+                    handler_name=self.__class__.__name__
                 )
                 
-                if tool_result.execution_status == ToolExecutionStatus.SUCCESS:
+                # tool_result is now ToolExecutionResult per protocol
+                if tool_result.success:
                     action_performed_successfully = True
                     follow_up_content_key_info = (
-                        f"Tool '{params.name}' executed successfully. Result: {tool_result.result_data}"
+                        f"Tool '{params.name}' executed successfully. Result: {tool_result.result or 'No result data'}"
                     )
                 else:
                     final_thought_status = ThoughtStatus.FAILED
-                    follow_up_content_key_info = f"Tool '{params.name}' failed: {tool_result.error_message or 'Unknown error'}"
+                    follow_up_content_key_info = f"Tool '{params.name}' failed: {tool_result.error or 'Unknown error'}"
             except Exception as e_tool:
                 await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e_tool)
                 final_thought_status = ThoughtStatus.FAILED

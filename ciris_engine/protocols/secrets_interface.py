@@ -20,6 +20,7 @@ from ciris_engine.schemas.config_schemas_v1 import (
     SecretsFilter,
     SecretPattern
 )
+from ciris_engine.schemas.protocol_schemas_v1 import SecretsServiceStats
 
 
 class SecretsFilterInterface(ABC):
@@ -258,14 +259,21 @@ class SecretsServiceInterface(ABC):
         """
     
     # Non-abstract methods can be implemented optionally
-    async def get_service_stats(self) -> Dict[str, Any]:
+    async def get_service_stats(self) -> SecretsServiceStats:
         """
         Get service statistics for monitoring
         
         Returns:
-            Dictionary with service statistics
+            SecretsServiceStats with service statistics
         """
-        return {"secrets_stored": 0, "filter_active": True}
+        from ciris_engine.schemas.protocol_schemas_v1 import SecretsServiceStats
+        return SecretsServiceStats(
+            secrets_stored=0, 
+            filter_active=True, 
+            patterns_enabled=[],
+            recent_detections=0,
+            storage_size_bytes=None
+        )
     
     async def auto_forget_task_secrets(self) -> List[str]:
         """

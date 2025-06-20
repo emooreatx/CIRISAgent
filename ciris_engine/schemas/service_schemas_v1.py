@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     )
     from ciris_engine.services.wa_auth_service import WAAuthService
     from ciris_engine.secrets.service import SecretsService
-    from ciris_engine.telemetry.core import TelemetryService
+    from ciris_engine.telemetry.core import BasicTelemetryCollector
     from ciris_engine.services.adaptive_filter_service import AdaptiveFilterService
     from ciris_engine.services.agent_config_service import AgentConfigService
     from ciris_engine.services.multi_service_transaction_orchestrator import MultiServiceTransactionOrchestrator
@@ -36,7 +36,7 @@ class ServiceContainer(BaseModel):
     wa_auth_system: Optional['WAAuthService'] = Field(None, description="WA authentication system")
     
     # Infrastructure services
-    telemetry_service: Optional['TelemetryService'] = Field(None, description="Telemetry and monitoring")
+    telemetry_service: Optional['BasicTelemetryCollector'] = Field(None, description="Telemetry and monitoring")
     adaptive_filter_service: Optional['AdaptiveFilterService'] = Field(None, description="Adaptive content filtering")
     agent_config_service: Optional['AgentConfigService'] = Field(None, description="Agent configuration management")
     transaction_orchestrator: Optional['MultiServiceTransactionOrchestrator'] = Field(None, description="Transaction coordination")

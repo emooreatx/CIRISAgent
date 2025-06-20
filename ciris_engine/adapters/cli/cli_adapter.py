@@ -12,6 +12,8 @@ from typing import List, Optional, Dict, Any, Callable, Awaitable
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage, IncomingMessage
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
+from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext, DeferralContext
+from ciris_engine.schemas.protocol_schemas_v1 import ToolInfo, ToolParameterSchema, ToolExecutionResult
 from ciris_engine import persistence
 
 logger = logging.getLogger(__name__)
@@ -108,7 +110,7 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         """
         return []
 
-    async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:
+    async def fetch_guidance(self, context: GuidanceContext) -> Optional[str]:
         """
         Request guidance from the user via CLI.
         
@@ -126,9 +128,10 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         try:
             print("\n" + "=" * 60)
             print("[GUIDANCE REQUEST]")
-            print(f"Context: {context.get('reason', 'No reason provided')}")
-            if 'thought_summary' in context:
-                print(f"Thought: {context['thought_summary']}")
+            print(f"Question: {context.question}")
+            print(f"Task ID: {context.task_id}")
+            if context.ethical_considerations:
+                print(f"Ethical considerations: {', '.join(context.ethical_considerations)}")
             print("=" * 60)
             print("Please provide guidance (or press Enter to skip): ")
             
@@ -144,7 +147,7 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                             service_type="cli",
                             handler_name="CLIAdapter",
                             action_type="fetch_guidance",
-                            request_data=context,
+                            request_data=context.model_dump(),
                             response_data={"guidance": guidance},
                             status=ServiceCorrelationStatus.COMPLETED,
                             created_at=datetime.now(timezone.utc).isoformat(),
@@ -164,14 +167,12 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
             logger.error(f"Error fetching guidance: {e}")
             return None
 
-    async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
+    async def send_deferral(self, context: DeferralContext) -> bool:
         """
         Display a deferral notice to the user.
         
         Args:
-            thought_id: ID of the thought being deferred
-            reason: Reason for deferral
-            context: Additional context
+            context: Typed deferral context
             
         Returns:
             True if deferral was displayed successfully
@@ -180,10 +181,13 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         try:
             print("\n" + "*" * 60)
             print("[DEFERRED TO WISE AUTHORITY]")
-            print(f"Thought ID: {thought_id}")
-            print(f"Reason: {reason}")
-            if context:
-                print(f"Context: {context}")
+            print(f"Thought ID: {context.thought_id}")
+            print(f"Task ID: {context.task_id}")
+            print(f"Reason: {context.reason}")
+            if context.defer_until:
+                print(f"Defer until: {context.defer_until}")
+            if context.metadata:
+                print(f"Additional info: {context.metadata}")
             print("*" * 60 + "\n")
             
             persistence.add_correlation(
@@ -192,11 +196,7 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                     service_type="cli",
                     handler_name="CLIAdapter",
                     action_type="send_deferral",
-                    request_data={
-                        "thought_id": thought_id,
-                        "reason": reason,
-                        "context": context
-                    },
+                    request_data=context.model_dump(),
                     response_data={"displayed": True},
                     status=ServiceCorrelationStatus.COMPLETED,
                     created_at=datetime.now(timezone.utc).isoformat(),
@@ -209,7 +209,7 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
             logger.error(f"Error sending deferral: {e}")
             return False
 
-    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> ToolExecutionResult:
         """
         Execute a CLI tool.
         
@@ -223,14 +223,21 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
         correlation_id = str(uuid.uuid4())
         
         if tool_name not in self._available_tools:
-            return {
-                "success": False,
-                "error": f"Unknown tool: {tool_name}",
-                "available_tools": list(self._available_tools.keys())
-            }
+            return ToolExecutionResult(
+                success=False,
+                error=f"Unknown tool: {tool_name}",
+                result={"available_tools": list(self._available_tools.keys())},
+                execution_time=0,
+                adapter_id="cli",
+                output=None,
+                metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+            )
         
         try:
+            import time
+            start_time = time.time()
             result = await self._available_tools[tool_name](parameters)
+            execution_time = (time.time() - start_time) * 1000
             
             persistence.add_correlation(
                 ServiceCorrelation(
@@ -246,17 +253,33 @@ class CLIAdapter(CommunicationService, WiseAuthorityService, ToolService):
                 )
             )
             
-            return result
+            return ToolExecutionResult(
+                success=result.get("success", True),
+                result=result,
+                error=result.get("error"),
+                execution_time=execution_time / 1000,  # Convert to seconds
+                adapter_id="cli",
+                output=None,
+                metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+            )
             
         except Exception as e:
             logger.error(f"Error executing tool {tool_name}: {e}")
-            return {"success": False, "error": str(e)}
+            return ToolExecutionResult(
+                success=False,
+                error=str(e),
+                result=None,
+                execution_time=0,
+                adapter_id="cli",
+                output=None,
+                metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+            )
 
     async def get_available_tools(self) -> List[str]:
         """Get list of available CLI tools."""
         return list(self._available_tools.keys())
 
-    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
+    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
         """CLI tools execute synchronously, so results are immediate."""
         return None
 
@@ -430,12 +453,46 @@ Tools available:
         """Check if the CLI adapter is healthy."""
         return self._running
 
+    async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
+        """Get detailed information about a specific tool."""
+        if tool_name not in self._available_tools:
+            return None
+        
+        # Return basic tool info for CLI tools
+        return ToolInfo(
+            tool_name=tool_name,
+            display_name=tool_name.replace("_", " ").title(),
+            description=f"CLI tool: {tool_name}",
+            category="cli",
+            adapter_id="cli",
+            adapter_type="cli",
+            adapter_instance_name="CLI Adapter",
+            parameters=[],
+            returns_schema=None,
+            examples=None,
+            requires_auth=False,
+            rate_limit=None,
+            timeout_seconds=30.0,
+            enabled=True,
+            health_status="healthy"
+        )
+    
+    async def get_all_tool_info(self) -> List[ToolInfo]:
+        """Get detailed information about all available tools."""
+        tools = []
+        for tool_name in self._available_tools:
+            tool_info = await self.get_tool_info(tool_name)
+            if tool_info:
+                tools.append(tool_info)
+        return tools
+
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
         capabilities = [
             "send_message", "fetch_messages",
             "fetch_guidance", "send_deferral",
-            "execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"
+            "execute_tool", "get_available_tools", "get_tool_result", "validate_parameters",
+            "get_tool_info", "get_all_tool_info"
         ]
         if self.interactive:
             capabilities.append("interactive_mode")

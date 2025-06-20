@@ -32,16 +32,21 @@ class MockMemoryService:
         self.recall_calls = []
         self.recall_details = []
         
-    async def recall(self, node: GraphNode, handler_name: str = None):
+    async def recall(self, recall_query, handler_name: str = None):
         """Track recall calls with full details"""
-        self.recall_calls.append((node.id, node.scope))
+        # Handle MemoryQuery object
+        node_id = recall_query.node_id if hasattr(recall_query, 'node_id') else str(recall_query)
+        scope = recall_query.scope if hasattr(recall_query, 'scope') else None
+        
+        self.recall_calls.append((node_id, scope))
         self.recall_details.append({
-            'node_id': node.id,
-            'scope': node.scope,
-            'scope_value': node.scope.value if hasattr(node.scope, 'value') else str(node.scope),
+            'node_id': node_id,
+            'scope': scope,
+            'scope_value': scope.value if hasattr(scope, 'value') else str(scope),
             'handler_name': handler_name
         })
-        logger.info(f"MEMORY RECALL: node_id='{node.id}', scope='{node.scope}', handler='{handler_name}'")
+        logger.info(f"MEMORY RECALL: node_id='{node_id}', scope='{scope}', handler='{handler_name}'")
+        return []  # Return empty list as expected by protocol
 
 def create_realistic_discord_messages() -> List[Dict[str, Any]]:
     """Create messages that exactly match Discord adapter output structure"""

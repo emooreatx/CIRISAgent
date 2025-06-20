@@ -173,6 +173,7 @@ class TestDiscordPlatform:
         # Mock stop methods and client
         platform.discord_observer.stop = AsyncMock()
         platform.discord_adapter.stop = AsyncMock()
+        # Platform's client is a Discord client instance
         platform.client.is_closed.return_value = False
         platform.client.close = AsyncMock()
         
@@ -180,6 +181,7 @@ class TestDiscordPlatform:
         
         platform.discord_observer.stop.assert_called_once()
         platform.discord_adapter.stop.assert_called_once()
+        # Verify Discord client was closed
         platform.client.close.assert_called_once()
     
     @pytest.mark.asyncio
@@ -270,6 +272,7 @@ class TestDiscordPlatform:
         platform = DiscordPlatform(mock_runtime, discord_bot_token="test_token")
         
         # Mock successful client start and ready
+        # Platform's client is the actual Discord client instance
         platform.client.start = AsyncMock()
         platform.client.wait_until_ready = AsyncMock()
         platform.client.user = MagicMock()
@@ -291,4 +294,5 @@ class TestDiscordPlatform:
         with patch('asyncio.wait', side_effect=mock_wait):
             await platform.run_lifecycle(agent_task)
         
+        # Verify Discord client was closed
         platform.client.close.assert_called_once()

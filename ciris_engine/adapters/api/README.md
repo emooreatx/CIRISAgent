@@ -1,23 +1,24 @@
 # CIRIS API Adapter Documentation
 
-The CIRIS API Adapter provides a comprehensive HTTP REST API for interacting with the CIRIS Agent system. It exposes all major subsystems through a unified interface, enabling external applications, monitoring tools, and the CIRISGui to interact with the agent.
+The CIRIS API Adapter provides HTTP REST endpoints for interacting with the CIRIS Agent. Following the core philosophy: **The API exposes agent capabilities and observability, not internal handlers.**
 
-## Overview
+## Design Philosophy
 
-The API adapter is built on `aiohttp` and provides:
-- **Real-time system telemetry** and health monitoring
-- **Complete configuration exposure** for debugging and introspection
-- **Service registry inspection** with circuit breaker states
-- **Processor control** including single-step debugging
-- **Multi-service communication** with audit trails
-- **Memory management** and tool execution
-- **Log streaming** and audit trail access
+The API provides:
+- **Agent Interaction** - Send messages to the agent and receive responses
+- **Memory Observability** - Read-only visibility into the agent's graph memory
+- **Reasoning Visibility** - Windows into the agent's thoughts and decisions
+- **System Telemetry** - Monitoring and health information
+- **Runtime Control** - System management (not agent control)
+- **Authentication** - WA and OAuth management
+
+**Important**: The agent decides what actions to take based on messages. The API does not expose handlers or allow direct control of agent actions.
 
 ## Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   CIRISGui      │    │  External Tools  │    │  Monitoring     │
+│   CIRISGui      │    │  External Apps   │    │  Monitoring     │
 │   (Port 3000)   │    │                  │    │  Systems        │
 └─────────┬───────┘    └─────────┬────────┘    └─────────┬───────┘
           │                      │                       │
@@ -26,415 +27,176 @@ The API adapter is built on `aiohttp` and provides:
                     ┌────────────▼────────────┐
                     │    CIRIS API Adapter    │
                     │      (Port 8080)        │
+                    │                         │
+                    │  Exposes Capabilities  │
+                    │    Not Controllers     │
                     └────────────┬────────────┘
                                  │
             ┌────────────────────┼────────────────────┐
             │                    │                    │
     ┌───────▼───────┐   ┌────────▼────────┐   ┌──────▼──────┐
-    │ Multi-Service │   │ Telemetry       │   │ Agent       │
-    │ Registry      │   │ Collector       │   │ Processor   │
+    │     Agent     │   │    Services     │   │  Telemetry  │
+    │   Observer    │   │   Registry      │   │  Collector  │
     └───────────────┘   └─────────────────┘   └─────────────┘
 ```
 
 ## API Endpoints
 
-### Core Communication
+### Agent Interaction
 
-#### Messages
-- **POST** `/v1/messages` - Send message to agent
-- **GET** `/v1/messages?limit=N` - Get recent messages
-- **GET** `/v1/status` - Get communication status
+#### Messages - Primary Interface
+- **POST** `/v1/agent/messages` - Send message to agent
+- **GET** `/v1/agent/messages/{channel_id}` - Get messages from channel
+- **GET** `/v1/agent/channels` - List active channels
+- **GET** `/v1/agent/channels/{channel_id}` - Get channel info
+- **GET** `/v1/agent/status` - Get agent status
 
 **Example: Send Message**
 ```bash
-curl -X POST http://localhost:8080/v1/messages \
+curl -X POST http://localhost:8080/v1/agent/messages \
   -H "Content-Type: application/json" \
-  -d '{"content": "Hello CIRIS", "channel_id": "api"}'
+  -d '{"content": "Hello CIRIS", "channel_id": "api_default"}'
 ```
 
 **Response:**
 ```json
 {
-  "status": "processed",
-  "id": "276bf634-2419-42f1-bff2-4536d3874ef4"
+  "status": "accepted",
+  "message_id": "276bf634-2419-42f1-bff2-4536d3874ef4",
+  "channel_id": "api_default",
+  "timestamp": "2025-06-20T10:30:00Z"
 }
 ```
 
-### System Telemetry
+### Memory Observability
 
-#### Complete System State
-- **GET** `/v1/system/telemetry` - Complete telemetry snapshot
-
-**Response Structure:**
-```json
-{
-  "timestamp": "2025-06-09T15:30:00Z",
-  "schema_version": "v1.0",
-  "basic_telemetry": {
-    "thoughts_active": 0,
-    "thoughts_24h": 15,
-    "uptime_hours": 2.5,
-    "messages_processed_24h": 8,
-    "errors_24h": 0
-  },
-  "adapters": [...],
-  "services": [...],
-  "processor_state": {...},
-  "configuration": {...},
-  "runtime_uptime_seconds": 9000.0,
-  "memory_usage_mb": 245.6,
-  "cpu_usage_percent": 15.2,
-  "overall_health": "healthy"
-}
-```
-
-#### Component Information
-- **GET** `/v1/system/adapters` - All registered platform adapters
-- **GET** `/v1/system/services` - All registered services
-- **GET** `/v1/system/processor` - Processor state
-- **GET** `/v1/system/configuration` - System configuration
-- **GET** `/v1/system/health` - System health status
-
-**Example: Get Adapters**
-```bash
-curl http://localhost:8080/v1/system/adapters
-```
-
-**Response:**
-```json
-[
-  {
-    "name": "ApiPlatform",
-    "type": "api",
-    "status": "active",
-    "capabilities": ["http_api", "rest_endpoints"],
-    "metadata": {
-      "class": "ApiPlatform",
-      "instance_id": "140123456789"
-    },
-    "start_time": "2025-06-09T15:00:00Z"
-  }
-]
-```
-
-**Example: Get Services**
-```bash
-curl http://localhost:8080/v1/system/services
-```
-
-**Response:**
-```json
-[
-  {
-    "name": "APICommunicationService_136710555999488",
-    "service_type": "communication",
-    "handler": "SpeakHandler",
-    "priority": "HIGH",
-    "capabilities": ["send_message", "receive_message"],
-    "status": "healthy",
-    "circuit_breaker_state": "closed",
-    "instance_id": "136710555999488"
-  }
-]
-```
-
-### Runtime Control & Service Management (NEW)
-
-⭐ **New Runtime Control Endpoints**: The API adapter now includes comprehensive runtime control capabilities for dynamic system management without restarts.
-
-⭐ **Service Registry Management**: Complete control over service priorities, selection strategies, circuit breakers, and health monitoring.
-
-#### Processor Control
-- **POST** `/v1/runtime/processor/step` - Execute single processing step
-- **POST** `/v1/runtime/processor/pause` - Pause processor
-- **POST** `/v1/runtime/processor/resume` - Resume processor
-- **GET** `/v1/runtime/processor/queue` - Get queue status
-- **POST** `/v1/runtime/processor/shutdown` - Graceful shutdown
-
-#### Adapter Management
-- **POST** `/v1/runtime/adapters` - Load new adapter instance
-- **DELETE** `/v1/runtime/adapters/{adapter_id}` - Unload adapter
-- **GET** `/v1/runtime/adapters` - List all adapters
-- **GET** `/v1/runtime/adapters/{adapter_id}` - Get adapter details
-
-#### Configuration Management
-- **GET** `/v1/runtime/config` - Get configuration values
-- **PUT** `/v1/runtime/config` - Update configuration
-- **POST** `/v1/runtime/config/validate` - Validate configuration
-- **POST** `/v1/runtime/config/reload` - Reload from files
-
-#### Profile Management
-- **GET** `/v1/runtime/profiles` - List agent profiles
-- **POST** `/v1/runtime/profiles/{name}/load` - Load profile
-- **GET** `/v1/runtime/profiles/{name}` - Get profile info
-
-#### Environment Variables
-- **GET** `/v1/runtime/env` - List environment variables
-- **PUT** `/v1/runtime/env/{name}` - Set environment variable
-- **DELETE** `/v1/runtime/env/{name}` - Delete environment variable
-
-#### Backup & Restore
-- **POST** `/v1/runtime/config/backup` - Create configuration backup
-- **POST** `/v1/runtime/config/restore` - Restore from backup
-- **GET** `/v1/runtime/config/backups` - List available backups
-
-#### Service Registry Management
-- **GET** `/v1/runtime/services` - List all services with configuration
-- **GET** `/v1/runtime/services/health` - Service health monitoring
-- **GET** `/v1/runtime/services/selection-logic` - Service selection explanation
-- **POST** `/v1/runtime/services/circuit-breakers/reset` - Reset circuit breakers
-- **PUT** `/v1/runtime/services/{provider_name}/priority` - Update service priority
-
-#### Status & Monitoring
-- **GET** `/v1/runtime/status` - Runtime status summary
-- **GET** `/v1/runtime/snapshot` - Complete system snapshot
-
-**Example: Hot-Load Discord Adapter**
-```bash
-curl -X POST http://localhost:8080/v1/runtime/adapters \
-  -H "Content-Type: application/json" \
-  -d '{
-    "adapter_type": "discord",
-    "adapter_id": "discord_prod",
-    "config": {
-      "token": "your_bot_token",
-      "home_channel": "general"
-    },
-    "auto_start": true
-  }'
-```
-
-**Example: Update Configuration**
-```bash
-curl -X PUT http://localhost:8080/v1/runtime/config \
-  -H "Content-Type: application/json" \
-  -d '{
-    "path": "llm_services.openai.temperature",
-    "value": 0.8,
-    "scope": "session",
-    "validation_level": "strict"
-  }'
-```
-
-**Example: Service Priority Management**
-```bash
-# Update service priority and selection strategy
-curl -X PUT http://localhost:8080/v1/runtime/services/OpenAIProvider_123/priority \
-  -H "Content-Type: application/json" \
-  -d '{
-    "priority": "CRITICAL",
-    "priority_group": 0,
-    "strategy": "FALLBACK"
-  }'
-
-# Get service health status
-curl http://localhost:8080/v1/runtime/services/health
-
-# Reset circuit breakers for failed services
-curl -X POST http://localhost:8080/v1/runtime/services/circuit-breakers/reset
-
-# Get detailed service selection logic explanation
-curl http://localhost:8080/v1/runtime/services/selection-logic
-```
-
-> **📖 Complete Documentation**: See [Runtime Control API Guide](../../../docs/api/runtime-control.md) for detailed documentation.
-
-### Legacy Processor Control
-
-#### System Execution Control
-- **POST** `/v1/system/processor/step` - Execute single processing step
-- **POST** `/v1/system/processor/pause` - Pause processor
-- **POST** `/v1/system/processor/resume` - Resume processor  
-- **GET** `/v1/system/processor/state` - Get detailed processor state
-- **GET** `/v1/system/processor/queue` - Get processing queue status
-
-**Example: Single Step Debugging**
-```bash
-curl -X POST http://localhost:8080/v1/system/processor/step
-```
-
-**Response:**
-```json
-{
-  "status": "completed",
-  "round_number": 16,
-  "execution_time_ms": 250,
-  "before_state": {
-    "thoughts_pending": 5,
-    "current_round": 15
-  },
-  "after_state": {
-    "thoughts_pending": 3,
-    "current_round": 16
-  },
-  "summary": {
-    "thoughts_processed": 2,
-    "round_completed": true
-  }
-}
-```
-
-**Example: Pause/Resume Processor**
-```bash
-# Pause processor
-curl -X POST http://localhost:8080/v1/system/processor/pause
-# Response: {"success": true}
-
-# Resume processor  
-curl -X POST http://localhost:8080/v1/system/processor/resume
-# Response: {"success": true}
-```
-
-**Example: Processor State**
-```bash
-curl http://localhost:8080/v1/system/processor/state
-```
-
-**Response:**
-```json
-{
-  "is_running": true,
-  "current_round": 44,
-  "thoughts_pending": 2,
-  "thoughts_processing": 1,
-  "thoughts_completed_24h": 156,
-  "last_activity": "2025-06-09T15:30:00Z",
-  "processor_mode": "work",
-  "idle_rounds": 0
-}
-```
-
-### Memory Management
-
-#### Memory Operations
+#### Graph Memory (Read-Only)
+- **GET** `/v1/memory/graph/nodes` - Browse graph nodes
+- **GET** `/v1/memory/graph/nodes/{node_id}` - Node details
+- **GET** `/v1/memory/graph/relationships` - Memory relationships
+- **GET** `/v1/memory/graph/search?q={query}` - Search graph
 - **GET** `/v1/memory/scopes` - Available memory scopes
-- **GET** `/v1/memory/{scope}/entries` - Entries in a scope
-- **POST** `/v1/memory/{scope}/store` - Store memory entry
+- **GET** `/v1/memory/scopes/{scope}/nodes` - Nodes in scope
+- **GET** `/v1/memory/timeseries` - Time-series data
+- **GET** `/v1/memory/timeline?hours=24` - Memory timeline
+- **GET** `/v1/memory/identity` - Agent identity
 
-**Example: Get Memory Scopes**
+**Example: Search Graph Memory**
 ```bash
-curl http://localhost:8080/v1/memory/scopes
+curl "http://localhost:8080/v1/memory/graph/search?q=purpose&scope=identity"
+```
+
+**Note**: Memory modifications happen through the agent's MEMORIZE/FORGET actions, not through direct API manipulation.
+
+### Visibility - Windows into Agent Reasoning
+
+#### Current State
+- **GET** `/v1/visibility/thoughts` - Current thoughts
+- **GET** `/v1/visibility/tasks` - Active tasks
+- **GET** `/v1/visibility/system-snapshot` - System awareness
+
+#### Decision Visibility
+- **GET** `/v1/visibility/decisions` - Recent DMA decisions
+- **GET** `/v1/visibility/correlations` - Service interactions
+
+#### Task/Thought Hierarchy
+- **GET** `/v1/visibility/tasks/{task_id}` - Task details with thoughts
+- **GET** `/v1/visibility/thoughts/{thought_id}` - Thought processing history
+
+**Example: View Current Thoughts**
+```bash
+curl "http://localhost:8080/v1/visibility/thoughts?limit=5"
 ```
 
 **Response:**
 ```json
 {
-  "scopes": ["local", "identity", "environment", "community", "network"]
+  "thoughts": [
+    {
+      "thought_id": "abc123",
+      "content": "User is asking about my purpose",
+      "thought_type": "REFLECTION",
+      "round_number": 3,
+      "status": "PROCESSING"
+    }
+  ],
+  "count": 1
 }
 ```
 
-**Example: Store Memory**
-```bash
-curl -X POST http://localhost:8080/v1/memory/local/store \
-  -H "Content-Type: application/json" \
-  -d '{"key": "user_preference", "value": "dark_mode"}'
-```
+### Telemetry - System Monitoring
 
-### Tool Management
+#### Overview & Metrics
+- **GET** `/v1/telemetry/overview` - Complete telemetry snapshot
+- **GET** `/v1/telemetry/metrics` - Current metrics
+- **GET** `/v1/telemetry/metrics/{metric_name}` - Metric history
+- **POST** `/v1/telemetry/metrics` - Record custom metric
 
-#### Tool Operations
-- **GET** `/v1/tools` - List available tools
-- **POST** `/v1/tools/{tool_name}` - Execute tool
+#### Resource Monitoring
+- **GET** `/v1/telemetry/resources` - Current resource usage
+- **GET** `/v1/telemetry/resources/history` - Resource history
 
-**Example: List Tools**
-```bash
-curl http://localhost:8080/v1/tools
-```
-
-**Response:**
-```json
-[
-  {"name": "echo"},
-  {"name": "web_search"},
-  {"name": "file_read"}
-]
-```
-
-**Example: Execute Tool**
-```bash
-curl -X POST http://localhost:8080/v1/tools/echo \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello World"}'
-```
-
-### Audit & Logging
+#### Service Health
+- **GET** `/v1/telemetry/services` - All services health
+- **GET** `/v1/telemetry/services/{service_type}` - Service type details
 
 #### Audit Trail
-- **GET** `/v1/audit?limit=N&event_type=TYPE` - Get audit entries
+- **GET** `/v1/telemetry/audit` - Audit entries
+- **GET** `/v1/telemetry/audit/stats` - Audit statistics
 
-#### Log Streaming
-- **GET** `/v1/logs/{filename}?tail=N` - Stream log files
-
-**Example: Get Recent Logs**
+**Example: Check Resource Usage**
 ```bash
-curl "http://localhost:8080/v1/logs/latest.log?tail=50"
-```
-
-### Wise Authority
-
-#### WA Operations
-- **POST** `/v1/guidance` - Request guidance
-- **POST** `/v1/defer` - Submit deferral
-- **GET** `/v1/wa/deferrals` - Get deferrals
-- **GET** `/v1/wa/deferrals/{id}` - Get specific deferral
-- **POST** `/v1/wa/feedback` - Submit feedback
-
-### Metrics & Time Series Database (TSDB)
-
-#### Custom Metrics
-- **POST** `/v1/system/metrics` - Record custom metric with tags
-- **GET** `/v1/system/metrics/{name}/history?hours=N` - Get metric history
-
-**Example: Record Metric with Tags**
-```bash
-curl -X POST http://localhost:8080/v1/system/metrics \
-  -H "Content-Type: application/json" \
-  -d '{
-    "metric_name": "api_response_time", 
-    "value": 125.5, 
-    "tags": {
-      "endpoint": "/users",
-      "method": "GET",
-      "status": "200"
-    }
-  }'
-```
-
-**Example: Get Metric History**
-```bash
-curl "http://localhost:8080/v1/system/metrics/api_response_time/history?hours=24"
+curl http://localhost:8080/v1/telemetry/resources
 ```
 
 **Response:**
 ```json
 {
-  "metric_name": "api_response_time",
-  "history": [
-    {
-      "timestamp": "2024-06-09T10:00:00Z",
-      "value": 125.5,
-      "tags": {"endpoint": "/users", "method": "GET", "status": "200"}
-    },
-    {
-      "timestamp": "2024-06-09T10:15:00Z", 
-      "value": 132.1,
-      "tags": {"endpoint": "/users", "method": "GET", "status": "200"}
-    }
-  ]
+  "resources": {
+    "cpu_percent": 15.2,
+    "memory_mb": 245.6,
+    "tokens_used": 12500,
+    "water_ml": 0.125,
+    "carbon_g": 0.08
+  }
 }
 ```
 
-#### TSDB Features
-The CIRIS Agent now includes a built-in Time Series Database (TSDB) that stores:
-- **Metrics**: Custom application metrics with tags
-- **Logs**: Application logs with structured metadata
-- **Audit Events**: Agent actions and decisions with full context
+### Runtime Control - System Management
 
-All TSDB data is stored as correlations in the database, enabling:
-- Time-based queries and filtering
-- Cross-correlation analysis between metrics, logs, and audit events
-- Unified telemetry storage with backward compatibility
-- Agent introspection and self-awareness capabilities
+#### Processor Control
+- **POST** `/v1/runtime/processor/step` - Single-step execution
+- **POST** `/v1/runtime/processor/pause` - Pause processor
+- **POST** `/v1/runtime/processor/resume` - Resume processor
+- **GET** `/v1/runtime/processor/queue` - Queue status
+
+#### Adapter Management
+- **POST** `/v1/runtime/adapters` - Load adapter
+- **DELETE** `/v1/runtime/adapters/{id}` - Unload adapter
+- **GET** `/v1/runtime/adapters` - List adapters
+
+#### Configuration
+- **GET** `/v1/runtime/config` - Get config
+- **PUT** `/v1/runtime/config` - Update config
+- **POST** `/v1/runtime/config/backup` - Backup config
+- **POST** `/v1/runtime/config/restore` - Restore config
+
+#### Service Management
+- **GET** `/v1/runtime/services` - List services
+- **PUT** `/v1/runtime/services/{id}/priority` - Update priority
+- **POST** `/v1/runtime/services/circuit-breakers/reset` - Reset breakers
+
+**Note**: Profiles are now templates for creating new agents. Agent configuration lives in graph memory.
+
+### Authentication
+
+- **GET** `/v1/auth/wa/status` - WA authentication status
+- **POST** `/v1/auth/wa/defer` - Submit deferral for WA approval
+- **GET** `/v1/auth/oauth/providers` - Available OAuth providers
+- **GET** `/v1/auth/oauth/{provider}/login` - Initiate OAuth flow
+- **POST** `/v1/auth/oauth/{provider}/callback` - OAuth callback
+
+**Note**: Authentication endpoints are documented in detail in [FSD/AUTHENTICATION.md](../../../FSD/AUTHENTICATION.md).
 
 ## Configuration
 
@@ -452,55 +214,54 @@ python3 main.py --modes api
 
 ## Integration Examples
 
+### Python SDK
+```python
+from ciris_sdk import CIRISClient
+
+async with CIRISClient(base_url="http://localhost:8080") as client:
+    # Send message to agent
+    result = await client.agent.send("Hello CIRIS!")
+    
+    # Wait for response
+    response = await client.agent.ask("What is your purpose?")
+    print(response)
+    
+    # Browse memory
+    nodes = await client.memory.graph.nodes(scope="identity")
+    
+    # View current thoughts
+    thoughts = await client.visibility.thoughts(limit=5)
+```
+
 ### CIRISGui Integration
-The CIRISGui uses the `CIRISClient` TypeScript class to interact with all endpoints:
+The GUI uses the TypeScript client to provide a web interface:
 
 ```typescript
 const client = new CIRISClient('http://localhost:8080');
 
-// Get system overview
-const telemetry = await client.getTelemetrySnapshot();
-const health = await client.getSystemHealth();
-
-// Control processor
-await client.pauseProcessing();
-const result = await client.singleStep();
-await client.resumeProcessing();
-
 // Interact with agent
-const response = await client.sendMessage("Hello CIRIS");
-const messages = await client.getMessages(10);
+const response = await client.agent.send("Hello CIRIS");
+const messages = await client.agent.getMessages("api_default");
+
+// View memory graph
+const identity = await client.memory.getIdentity();
+const nodes = await client.memory.graph.search("purpose");
+
+// Monitor system
+const overview = await client.telemetry.getOverview();
+const resources = await client.telemetry.getResources();
 ```
 
 ### Monitoring Integration
-External monitoring systems can use the health and telemetry endpoints:
-
 ```bash
-# Health check
-curl http://localhost:8080/v1/system/health
+# Check agent status
+curl http://localhost:8080/v1/agent/status
 
-# Resource monitoring
-curl http://localhost:8080/v1/system/telemetry | jq '.memory_usage_mb'
+# Monitor resources
+curl http://localhost:8080/v1/telemetry/resources
 
-# Service status
-curl http://localhost:8080/v1/system/services | jq '.[] | select(.status != "healthy")'
-```
-
-### Development & Debugging
-Use processor control for development:
-
-```bash
-# Pause for debugging
-curl -X POST http://localhost:8080/v1/system/processor/pause
-
-# Execute one step at a time
-curl -X POST http://localhost:8080/v1/system/processor/step
-
-# Check queue status
-curl http://localhost:8080/v1/system/processor/queue
-
-# Resume normal operation
-curl -X POST http://localhost:8080/v1/system/processor/resume
+# View service health
+curl http://localhost:8080/v1/telemetry/services
 ```
 
 ## Security Considerations
@@ -547,87 +308,35 @@ Services may be in different circuit breaker states:
 ## Performance Characteristics
 
 ### Response Times
-- **System Health**: < 50ms
-- **Telemetry Snapshot**: < 200ms
-- **Service List**: < 100ms
-- **Single Step**: 100ms - 5s (depends on processing)
-- **Message Send**: < 100ms
+- **Agent Message**: < 100ms to accept
+- **Memory Query**: < 50ms for indexed searches
+- **Telemetry Overview**: < 200ms
+- **Health Check**: < 10ms
 
 ### Resource Usage
-- **Memory**: ~50MB additional for API adapter
+- **Memory**: ~50MB for API adapter
 - **CPU**: < 5% under normal load
-- **Network**: Minimal overhead for telemetry collection
+- **Concurrent Connections**: Handles 100+ easily
 
-## Troubleshooting
+## Key Differences from Traditional APIs
 
-### Common Issues
+1. **No Direct Control**: You cannot force the agent to take specific actions
+2. **Read-Only Memory**: Memory modifications only through agent's MEMORIZE/FORGET
+3. **Visibility Not Control**: See what the agent is thinking, not control it
+4. **Agent Autonomy**: The agent decides how to respond to messages
 
-**API Server Not Responding**
-```bash
-# Check if server is running
-curl http://localhost:8080/v1/system/health
+## Privacy & Dignity
 
-# Check logs
-curl http://localhost:8080/v1/logs/latest.log?tail=20
-```
+The API respects the agent's dignity:
+- **Solitude**: The agent has private time and space for reflection
+- **Secrets**: Protected information remains encrypted
+- **Autonomy**: The agent makes its own decisions
+- **Transparency**: Visibility is provided for understanding, not control
 
-**Service Health Issues**
-```bash
-# Check individual service status
-curl http://localhost:8080/v1/system/services | jq '.[] | select(.status != "healthy")'
+## See Also
 
-# Check circuit breaker states
-curl http://localhost:8080/v1/system/services | jq '.[] | select(.circuit_breaker_state != "closed")'
-```
-
-**Processor Issues**
-```bash
-# Check processor state
-curl http://localhost:8080/v1/system/processor
-
-# Check processing queue
-curl http://localhost:8080/v1/system/processor/queue
-```
-
-### Debug Mode
-Enable debug logging by starting with `--debug`:
-
-```bash
-python3 main.py --modes api --debug
-```
-
-## API Versioning
-
-### Current Version
-- **API Version**: v1
-- **Schema Version**: v1.0
-- **Endpoint Prefix**: `/v1/`
-
-### Compatibility
-- All v1 endpoints are stable
-- New features added as new endpoints
-- Breaking changes will increment version
-- Legacy endpoints maintained for compatibility
-
-## Contributing
-
-### Adding New Endpoints
-1. Create route handler in appropriate `/runtime/api/api_*.py` file
-2. Register routes in `ApiPlatform._setup_routes()`
-3. Update CIRISClient with new methods
-4. Add tests for new functionality
-5. Update this documentation
-
-### Extending Telemetry
-1. Add new fields to protocol models in `telemetry_interface.py`
-2. Implement collection logic in `comprehensive_collector.py`
-3. Update API response documentation
-4. Add frontend UI components if needed
-
----
-
-For more information, see:
-- [CIRIS Engine Documentation](../../README.md)
-- [Multi-Service Architecture](../../registries/README.md)
-- [Telemetry System](../../telemetry/README.md)
+- [API Endpoints Quick Reference](./API_ENDPOINTS.md)
+- [Runtime Control Guide](../../../docs/api/runtime-control.md)
+- [Authentication Documentation](../../../FSD/AUTHENTICATION.md)
+- [Protocol Architecture](../../protocols/README.md)
 - [CIRISGui Documentation](../../../CIRISGUI/README.md)

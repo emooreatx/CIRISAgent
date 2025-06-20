@@ -3,7 +3,9 @@ Telemetry message bus - handles all telemetry service operations
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
+from datetime import datetime
+from ciris_engine.schemas.protocol_schemas_v1 import MetricDataPoint
 
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
 from ciris_engine.protocols.services import TelemetryService
@@ -12,7 +14,7 @@ from .base_bus import BaseBus, BusMessage
 logger = logging.getLogger(__name__)
 
 
-class TelemetryBus(BaseBus):
+class TelemetryBus(BaseBus[TelemetryService]):
     """
     Message bus for all telemetry operations.
     
@@ -60,7 +62,7 @@ class TelemetryBus(BaseBus):
         end_time: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MetricDataPoint]:
         """Query telemetry data"""
         service = await self.get_service(
             handler_name=handler_name,
@@ -72,15 +74,25 @@ class TelemetryBus(BaseBus):
             return []
             
         try:
-            result = await service.query_telemetry(
-                metric_names=metric_names,
-                start_time=start_time,
-                end_time=end_time,
-                tags=tags,
-                limit=limit
+            # Convert string timestamps to datetime if provided
+            time_range: Optional[Tuple[datetime, datetime]] = None
+            if start_time and end_time:
+                try:
+                    start_dt = datetime.fromisoformat(start_time)
+                    end_dt = datetime.fromisoformat(end_time)
+                    time_range = (start_dt, end_dt)
+                except ValueError:
+                    logger.warning(f"Invalid timestamp format: start={start_time}, end={end_time}")
+            
+            result = await service.query_metrics(
+                _metric_names=metric_names,
+                _service_names=None,
+                _time_range=time_range,
+                _tags=tags,
+                _aggregation=None
             )
-            # Ensure we return a list
-            return list(result) if result else []
+            # Return the result directly - it's already a list
+            return result if result else []
         except Exception as e:
             logger.error(f"Failed to query telemetry: {e}", exc_info=True)
             return []

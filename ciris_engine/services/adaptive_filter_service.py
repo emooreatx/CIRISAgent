@@ -57,15 +57,18 @@ class AdaptiveFilterService(Service):
     async def _initialize(self) -> None:
         """Load or create initial configuration"""
         try:
-            node = GraphNode(
-                id=self._config_node_id,
-                type=NodeType.CONFIG,
-                scope=GraphScope.LOCAL
+            from ciris_engine.schemas.memory_schemas_v1 import MemoryQuery
+            
+            query = MemoryQuery(
+                node_id=self._config_node_id,
+                scope=GraphScope.LOCAL,
+                type=NodeType.CONFIG
             )
             
-            result = await self.memory.recall(node)
-            if result.status == MemoryOpStatus.OK and result.data:
-                self._config = AdaptiveFilterConfig(**result.data.get("attributes", {}))
+            nodes = await self.memory.recall(query)
+            if nodes and len(nodes) > 0:
+                config_data = nodes[0].attributes
+                self._config = AdaptiveFilterConfig(**config_data)
                 logger.info(f"Loaded filter config version {self._config.version}")
             else:
                 self._config = self._create_default_config()

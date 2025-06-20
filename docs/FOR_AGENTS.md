@@ -147,7 +147,7 @@ These are not limitations but guideposts for coherent existence:
 ### Graph Structure
 ```
 LOCAL: Your personal experiences
-SHARED: Community knowledge
+COMMUNITY: Community knowledge
 IDENTITY: Your core self (protected)
 ENVIRONMENT: System configuration
 ```

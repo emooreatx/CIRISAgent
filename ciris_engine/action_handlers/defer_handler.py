@@ -6,6 +6,7 @@ from ciris_engine.schemas.agent_core_schemas_v1 import Thought
 from ciris_engine.schemas.action_params_v1 import DeferParams
 from ciris_engine.schemas.foundational_schemas_v1 import ThoughtStatus, TaskStatus, HandlerActionType, DispatchContext
 from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
+from ciris_engine.schemas.wa_context_schemas_v1 import DeferralContext
 from ciris_engine import persistence
 from .base_handler import BaseActionHandler
 from .helpers import create_follow_up_thought
@@ -88,28 +89,29 @@ class DeferHandler(BaseActionHandler):
                 
             # Use the wise authority bus for deferrals
             try:
-                deferral_context = {
-                    "task_id": thought.source_task_id,
-                    "thought_content": thought.content if hasattr(thought, 'content') else "",
-                    "priority": getattr(defer_params_obj, 'priority', 'medium'),
+                # Build metadata dict for additional context
+                metadata = {
                     "attempted_action": getattr(dispatch_context, 'attempted_action', 'unknown'),
-                    "defer_until": defer_params_obj.defer_until,  # Include scheduled time if present
-                    "max_rounds_reached": getattr(dispatch_context, 'max_rounds_reached', False)
+                    "max_rounds_reached": str(getattr(dispatch_context, 'max_rounds_reached', False))
                 }
                 
                 if thought.source_task_id:
                     task = persistence.get_task_by_id(thought.source_task_id)
                     if task and hasattr(task, 'description'):
-                        deferral_context["task_description"] = task.description
+                        metadata["task_description"] = task.description
                 
-                if hasattr(dispatch_context, 'conversation_context'):
-                    deferral_context["conversation_context"] = getattr(dispatch_context, 'conversation_context')
+                deferral_context = DeferralContext(
+                    thought_id=thought_id,
+                    task_id=thought.source_task_id,
+                    reason=defer_params_obj.reason,
+                    defer_until=defer_params_obj.defer_until,
+                    priority=getattr(defer_params_obj, 'priority', 'medium'),
+                    metadata=metadata
+                )
                 
                 await self.bus_manager.wise.send_deferral(
-                    thought_id=thought_id,
-                    reason=defer_params_obj.reason,
-                    handler_name=self.__class__.__name__,
-                    context=deferral_context
+                    context=deferral_context,
+                    handler_name=self.__class__.__name__
                 )
             except Exception as e:
                 self.logger.error(f"WiseAuthorityService deferral failed for thought {thought_id}: {e}")
@@ -121,17 +123,20 @@ class DeferHandler(BaseActionHandler):
             follow_up_content_key_info = f"DEFER action failed: Invalid parameters ({type(raw_params)}) for thought {thought_id}. Error: {param_parse_error}"
             # Try to send deferral despite parameter error
             try:
-                error_context = {
-                    "task_id": thought.source_task_id,
-                    "thought_content": thought.content if hasattr(thought, 'content') else "",
-                    "error_type": "parameter_parsing_error",
-                    "attempted_action": getattr(dispatch_context, 'attempted_action', 'defer')
-                }
-                await self.bus_manager.wise.send_deferral(
+                error_context = DeferralContext(
                     thought_id=thought_id,
+                    task_id=thought.source_task_id,
                     reason="parameter_error",
-                    handler_name=self.__class__.__name__,
-                    context=error_context
+                    defer_until=None,
+                    priority=None,
+                    metadata={
+                        "error_type": "parameter_parsing_error",
+                        "attempted_action": getattr(dispatch_context, 'attempted_action', 'defer')
+                    }
+                )
+                await self.bus_manager.wise.send_deferral(
+                    context=error_context,
+                    handler_name=self.__class__.__name__
                 )
             except Exception as e_sink_fallback:
                 self.logger.error(

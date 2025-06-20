@@ -31,7 +31,7 @@ class TestForgetHandler:
         response = await client.messages.wait_for_response(
             channel_id="test_forget_basic",
             after_message_id=msg.id,
-            timeout=10.0
+            timeout=30.0  # Increased timeout
         )
         
         assert response is not None

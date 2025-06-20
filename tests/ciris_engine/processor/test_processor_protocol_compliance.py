@@ -470,7 +470,7 @@ class TestDreamProcessor:
         assert isinstance(dream_processor, DreamProcessor)
         assert dream_processor.cirisnode_url == "http://test:8001"
         assert hasattr(dream_processor, 'dream_metrics')
-        assert "total_pulses" in dream_processor.dream_metrics
+        assert "total_dreams" in dream_processor.dream_metrics
     
     @pytest.mark.asyncio
     async def test_start_dreaming(self, dream_processor):
@@ -502,7 +502,7 @@ class TestDreamProcessor:
         assert isinstance(summary, dict)
         assert "state" in summary
         assert "metrics" in summary
-        assert "recent_snores" in summary
+        assert "current_session" in summary  # May be None if not dreaming
     
     def test_should_enter_dream_state(self, dream_processor):
         """Test dream state recommendation logic."""

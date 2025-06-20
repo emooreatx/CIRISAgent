@@ -14,6 +14,7 @@ from ciris_engine.protocols.services import LLMService
 from ciris_engine.config.config_manager import get_config
 from ciris_engine.schemas.config_schemas_v1 import OpenAIConfig, LLMServicesConfig
 from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
+from ciris_engine.schemas.protocol_schemas_v1 import LLMStatus
 from ciris_engine.registries.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError
 
 logger = logging.getLogger(__name__)
@@ -260,14 +261,24 @@ class OpenAICompatibleClient(LLMService):
 
 
 
-    async def get_status(self) -> Dict[str, Any]:
+    async def get_status(self) -> LLMStatus:
         """Get detailed status including circuit breaker metrics."""
-        base_status = await super().get_status()
+        # Get circuit breaker stats
+        cb_stats = self.circuit_breaker.get_stats()
         
-        return {
-            **base_status,
-            "model_name": self.model_name,
-            "circuit_breaker": self.circuit_breaker.get_stats(),
-            "api_base_url": self.openai_config.base_url,
-            "timeout_config": getattr(self.openai_config, 'timeout', 30.0)
-        }
+        # Calculate average response time if we have metrics
+        avg_response_time = None
+        if hasattr(self, '_response_times') and self._response_times:
+            avg_response_time = sum(self._response_times) / len(self._response_times)
+        
+        return LLMStatus(
+            available=self.circuit_breaker.is_available(),
+            model=self.model_name,
+            usage={
+                "total_calls": cb_stats.get("call_count", 0),
+                "failed_calls": cb_stats.get("failure_count", 0),
+                "success_rate": cb_stats.get("success_rate", 1.0)
+            },
+            rate_limit_remaining=None,  # Would need to track from API responses
+            response_time_avg=avg_response_time
+        )

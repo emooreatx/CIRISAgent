@@ -5,6 +5,7 @@ Uses v1 schemas and integrates state management.
 import asyncio
 import logging
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
+from datetime import datetime, timezone, timedelta
 
 from ciris_engine.schemas.config_schemas_v1 import AppConfig
 from ciris_engine.schemas.identity_schemas_v1 import AgentIdentityRoot
@@ -94,10 +95,12 @@ class AgentProcessor(ProcessorInterface):
             services=services
         )
         
-        # Dream processor is initialized but will not be automatically entered via idle logic
+        # Enhanced dream processor with self-configuration and memory consolidation
         self.dream_processor = DreamProcessor(
             app_config=app_config,
             service_registry=services.get("service_registry"),
+            identity_manager=services.get("identity_manager"),
+            startup_channel_id=startup_channel_id,
             cirisnode_url=app_config.cirisnode.base_url if hasattr(app_config, 'cirisnode') else "https://localhost:8001"
         )
         
@@ -243,6 +246,9 @@ class AgentProcessor(ProcessorInterface):
         self.state_manager.update_state_metadata("wakeup_complete", True)
 
         await self._load_preload_tasks()
+        
+        # Schedule first dream session
+        await self._schedule_initial_dream()
 
         if hasattr(self, "runtime") and self.runtime is not None and hasattr(self.runtime, "start_interactive_console"):
             print("[STATE] Initializing interactive console for user input...")
@@ -535,8 +541,10 @@ class AgentProcessor(ProcessorInterface):
                             
                             # Check for state transition recommendations
                             if current_state == AgentState.WORK:
-                                # Dream processor exists but no automatic idle-based transition to DREAM state
-                                pass
+                                # Check for scheduled dream tasks
+                                if await self._check_scheduled_dream():
+                                    logger.info("Scheduled dream time has arrived")
+                                    await self._handle_state_transition(AgentState.DREAM)
                             
                             elif current_state == AgentState.SOLITUDE and processor == self.solitude_processor:
                                 if result.get("should_exit_solitude"):
@@ -556,8 +564,13 @@ class AgentProcessor(ProcessorInterface):
                             await asyncio.sleep(min(consecutive_errors * 2, 30))
                             
                     elif current_state == AgentState.DREAM:
-                        # Dream processing is handled by dream_processor
-                        await asyncio.sleep(5)  # Check periodically
+                        # Dream processing is handled by enhanced dream processor
+                        if not self.dream_processor._dream_task or self.dream_processor._dream_task.done():
+                            # Dream ended, transition back to WORK
+                            logger.info("Dream processing complete, returning to WORK state")
+                            await self._handle_state_transition(AgentState.WORK)
+                        else:
+                            await asyncio.sleep(5)  # Check periodically
                         
                     elif current_state == AgentState.SHUTDOWN:
                         # Process shutdown state with negotiation
@@ -648,7 +661,12 @@ class AgentProcessor(ProcessorInterface):
             # Any pending thoughts will be cleaned up on next startup
             
         elif target_state == AgentState.DREAM:
-            logger.info("DREAM state transition requested - dream processor is available but not automatically triggered")
+            logger.info("Entering DREAM state for self-reflection")
+            # Start the enhanced dream processor
+            if self.dream_processor:
+                await self.dream_processor.start_dreaming(duration=30 * 60)  # 30 minutes default
+            else:
+                logger.error("Dream processor not available")
             
         elif target_state == AgentState.WORK and current_state == AgentState.DREAM:
             if self.dream_processor:
@@ -711,6 +729,109 @@ class AgentProcessor(ProcessorInterface):
         status["queue_status"] = self._get_detailed_queue_status()
         
         return status
+    
+    async def _schedule_initial_dream(self) -> None:
+        """Schedule the first dream session 6 hours from startup."""
+        try:
+            from ciris_engine.message_buses.memory_bus import MemoryBus
+            from ciris_engine.schemas.graph_schemas_v1 import GraphNode, GraphScope, NodeType
+            
+            if not self.services.get("service_registry"):
+                logger.warning("Cannot schedule initial dream - no service registry")
+                return
+            
+            memory_bus = MemoryBus(self.services["service_registry"])
+            
+            # Schedule 6 hours from now
+            dream_time = datetime.now(timezone.utc) + timedelta(hours=6)
+            
+            dream_task = GraphNode(
+                id=f"dream_schedule_{int(dream_time.timestamp())}",
+                type=NodeType.CONCEPT,
+                scope=GraphScope.LOCAL,
+                attributes={
+                    "task_type": "scheduled_dream",
+                    "scheduled_for": dream_time.isoformat(),
+                    "duration_minutes": 30,
+                    "priority": "health_maintenance",
+                    "can_defer": True,
+                    "defer_window_hours": 2,
+                    "message": "Time for introspection and learning",
+                    "is_initial": True
+                }
+            )
+            
+            await memory_bus.memorize(
+                node=dream_task,
+                handler_name="main_processor",
+                metadata={"future_task": True, "trigger_at": dream_time.isoformat()}
+            )
+            
+            logger.info(f"Scheduled initial dream session for {dream_time.isoformat()}")
+            
+        except Exception as e:
+            logger.error(f"Failed to schedule initial dream: {e}")
+    
+    async def _check_scheduled_dream(self) -> bool:
+        """Check if there's a scheduled dream task that's due."""
+        try:
+            # Import at function level to avoid circular imports
+            from ciris_engine.message_buses.memory_bus import MemoryBus
+            from ciris_engine.schemas.memory_schemas_v1 import MemoryQuery
+            from ciris_engine.schemas.graph_schemas_v1 import GraphScope
+            
+            if not self.services.get("service_registry"):
+                return False
+            
+            memory_bus = MemoryBus(self.services["service_registry"])
+            
+            # Query for scheduled dream tasks
+            query = MemoryQuery(
+                node_id="dream_schedule_*",
+                scope=GraphScope.LOCAL,
+                type=None,
+                include_edges=False,
+                depth=1
+            )
+            
+            dream_tasks = await memory_bus.recall(
+                recall_query=query,
+                handler_name="main_processor"
+            )
+            
+            now = datetime.now(timezone.utc)
+            
+            for task in dream_tasks:
+                scheduled_for = task.attributes.get("scheduled_for")
+                if scheduled_for:
+                    # Parse ISO format datetime
+                    if isinstance(scheduled_for, str):
+                        scheduled_time = datetime.fromisoformat(scheduled_for.replace('Z', '+00:00'))
+                    else:
+                        scheduled_time = scheduled_for
+                    
+                    # Check if it's time (with 2 hour defer window)
+                    defer_window = timedelta(hours=task.attributes.get("defer_window_hours", 2))
+                    
+                    if now >= scheduled_time and now <= scheduled_time + defer_window:
+                        # Check dream health - when was last dream?
+                        if self.dream_processor and self.dream_processor.dream_metrics.get("end_time"):
+                            last_dream = datetime.fromisoformat(self.dream_processor.dream_metrics["end_time"])
+                            hours_since = (now - last_dream).total_seconds() / 3600
+                            
+                            # Don't dream if we dreamed less than 4 hours ago
+                            if hours_since < 4:
+                                logger.debug(f"Skipping scheduled dream - last dream was {hours_since:.1f} hours ago")
+                                return False
+                        
+                        logger.info(f"Scheduled dream task {task.id} is due")
+                        return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking scheduled dreams: {e}")
+            return False
     
     def _get_detailed_queue_status(self) -> Dict[str, Any]:
         """Get detailed processing queue status information."""

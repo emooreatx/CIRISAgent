@@ -55,9 +55,16 @@ class ObserveHandler(BaseActionHandler):
                     else:
                         node_type = NodeType.CONCEPT
                     
-                    node = GraphNode(id=rid, type=node_type, scope=scope)
+                    from ciris_engine.schemas.memory_schemas_v1 import MemoryQuery
+                    query = MemoryQuery(
+                        node_id=rid,
+                        scope=scope,
+                        type=node_type,
+                        include_edges=False,
+                        depth=1
+                    )
                     await self.bus_manager.memory.recall(
-                        node=node,
+                        recall_query=query,
                         handler_name=self.__class__.__name__
                     )
                 except Exception:

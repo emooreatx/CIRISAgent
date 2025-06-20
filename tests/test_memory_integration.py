@@ -4,6 +4,7 @@ import tempfile
 import os
 from ciris_engine.services.memory_service import LocalGraphMemoryService
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.memory_schemas_v1 import MemoryQuery
 
 @pytest.mark.asyncio
 async def test_memory_operations():
@@ -27,13 +28,21 @@ async def test_memory_operations():
         assert result.status.value == "ok"
         
         # Test recall
-        recall_node = GraphNode(id="test_key", type=NodeType.CONCEPT, scope=GraphScope.LOCAL)
-        result = await memory.recall(recall_node)
-        assert result.status.value == "ok"
-        assert result.data["value"] == "test_data"
+        recall_query = MemoryQuery(
+            node_id="test_key",
+            type=NodeType.CONCEPT,
+            scope=GraphScope.LOCAL,
+            include_edges=False,
+            depth=1
+        )
+        results = await memory.recall(recall_query)
+        assert len(results) == 1
+        assert results[0].id == "test_key"
+        assert results[0].attributes["value"] == "test_data"
         
-        # Test forget
-        result = await memory.forget(recall_node)
+        # Test forget - forget takes a GraphNode
+        forget_node = GraphNode(id="test_key", type=NodeType.CONCEPT, scope=GraphScope.LOCAL)
+        result = await memory.forget(forget_node)
         assert result.status.value == "ok"
         
         await memory.stop()

@@ -1,5 +1,5 @@
 """API-specific schemas for request/response validation."""
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 
@@ -16,13 +16,10 @@ class MessageRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     """Response schema for message operations."""
-    id: str = Field(..., description="Message ID")
-    content: str = Field(..., description="Message content")
+    status: str = Field(..., description="Message status")
+    message_id: str = Field(..., description="Message ID")
     channel_id: str = Field(..., description="Channel ID")
-    author_id: str = Field(..., description="Author ID")
-    author_name: str = Field(..., description="Author display name")
-    timestamp: datetime = Field(..., description="Message timestamp")
-    is_bot: bool = Field(False, description="Whether message is from bot")
+    timestamp: str = Field(..., description="Message timestamp")
 
 
 class MessageListResponse(BaseModel):
@@ -71,3 +68,21 @@ class ErrorResponse(BaseModel):
     """Response schema for errors."""
     error: str = Field(..., description="Error message")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp")
+
+
+class ChannelInfo(BaseModel):
+    """Schema for channel information."""
+    channel_id: str = Field(..., description="Channel ID")
+    message_count: int = Field(..., description="Total messages in channel")
+    unique_authors: int = Field(..., description="Number of unique authors")
+    created_at: str = Field(..., description="Channel creation time")
+    last_activity: str = Field(..., description="Last activity time")
+
+
+class AgentStatus(BaseModel):
+    """Schema for agent status."""
+    online: bool = Field(..., description="Whether agent is online")
+    timestamp: str = Field(..., description="Status timestamp")
+    identity: Optional[Dict[str, Any]] = Field(None, description="Agent identity info")
+    processor: Optional[Dict[str, Any]] = Field(None, description="Processor status")
+    active_channels: int = Field(..., description="Number of active channels")

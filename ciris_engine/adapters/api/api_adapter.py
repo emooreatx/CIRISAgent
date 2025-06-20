@@ -14,9 +14,9 @@ from ciris_engine.protocols.services import CommunicationService
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage, IncomingMessage
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
 from ciris_engine.schemas.api_schemas_v1 import (
-    MessageRequest, MessageResponse, MessageListResponse,
+    MessageResponse,
     ServicesResponse, ServiceProvider, RuntimeStatusResponse, 
-    RuntimeStatus, HealthResponse, ErrorResponse
+    RuntimeStatus, ErrorResponse
 )
 from ciris_engine.persistence import add_correlation
 
@@ -72,30 +72,52 @@ class APIAdapter(CommunicationService):
         self._queue_lock = asyncio.Lock()
     
     def _setup_routes(self) -> None:
-        """Set up API routes."""
-        # Communication endpoints
-        self.app.router.add_post("/api/v1/message", self._handle_send_message)
-        self.app.router.add_get("/api/v1/messages/{channel_id}", self._handle_fetch_messages)
+        """Set up API routes following the agent capabilities philosophy."""
+        # Core principle: Expose agent capabilities and observability, not handlers
         
-        # System endpoints
-        self.app.router.add_get("/api/v1/health", self._handle_health_check)
-        self.app.router.add_get("/api/v1/services", self._handle_list_services)
+        # Agent Interaction - How to communicate with the agent
+        from .api_agent import APIAgentRoutes
+        agent_routes = APIAgentRoutes(self.bus_manager, self.on_message)
+        agent_routes.register(self.app)
         
-        # Runtime control endpoints (if available)
-        if self.runtime_control:
-            self.app.router.add_get("/api/v1/runtime/status", self._handle_runtime_status)
-            self.app.router.add_post("/api/v1/runtime/control", self._handle_runtime_control)
+        # Memory Observability - View into the agent's graph memory
+        from .api_memory import APIMemoryRoutes
+        memory_routes = APIMemoryRoutes(self.bus_manager)
+        memory_routes.register(self.app)
         
-        # Telemetry endpoints (if available)
-        if self.telemetry_collector:
-            self.app.router.add_get("/api/v1/metrics", self._handle_metrics)
-            self.app.router.add_get("/api/v1/telemetry/report", self._handle_telemetry_report)
+        # Visibility - Windows into agent reasoning and state
+        from .api_visibility import APIVisibilityRoutes
+        visibility_routes = APIVisibilityRoutes(
+            bus_manager=self.bus_manager,
+            telemetry_collector=self.telemetry_collector
+        )
+        visibility_routes.register(self.app)
         
-        # Authentication endpoints (if runtime available)
+        # Telemetry - System monitoring and observability
+        from .api_telemetry import APITelemetryRoutes
+        telemetry_routes = APITelemetryRoutes(
+            telemetry_collector=self.telemetry_collector,
+            service_registry=self.service_registry,
+            bus_manager=self.bus_manager
+        )
+        telemetry_routes.register(self.app)
+        
+        # Runtime Control - System management (not agent control)
+        from .api_runtime_control import APIRuntimeControlRoutes
+        runtime_routes = APIRuntimeControlRoutes(
+            runtime_control=self.runtime_control,
+            service_registry=self.service_registry
+        )
+        runtime_routes.register(self.app)
+        
+        # Authentication - WA and OAuth management
         if self.runtime:
             from .api_auth import APIAuthRoutes
             auth_routes = APIAuthRoutes(self.runtime)
             auth_routes.register(self.app)
+        
+        # Health check endpoint (simple, always available)
+        self.app.router.add_get("/v1/health", self._handle_health_check)
     
     async def send_message(self, channel_id: str, content: str) -> bool:
         """

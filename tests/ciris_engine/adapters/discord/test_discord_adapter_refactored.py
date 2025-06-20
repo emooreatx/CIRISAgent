@@ -6,6 +6,7 @@ from datetime import datetime
 
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, FetchedMessage
+from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext, DeferralContext
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
 
 
@@ -39,7 +40,7 @@ class TestDiscordAdapterRefactored:
     def test_initialization_basic(self, adapter):
         """Test basic adapter initialization."""
         assert adapter.token == "fake_token"
-        assert adapter.client is None
+        # Discord adapter doesn't expose client directly - uses internal handlers
         assert isinstance(adapter, CommunicationService)
         assert isinstance(adapter, WiseAuthorityService)
         assert isinstance(adapter, ToolService)
@@ -49,18 +50,20 @@ class TestDiscordAdapterRefactored:
         adapter = DiscordAdapter("test_token", mock_tool_registry, mock_client, mock_callback)
         
         assert adapter.token == "test_token"
-        assert adapter.client == mock_client
+        # Discord adapter uses internal handlers to manage the client
         assert adapter._channel_manager.client == mock_client
         assert adapter._message_handler.client == mock_client
         assert adapter._guidance_handler.client == mock_client
         assert adapter._tool_handler.client == mock_client
 
     def test_client_property(self, adapter, mock_client):
-        """Test client property access."""
-        assert adapter.client is None
+        """Test client access through internal handlers."""
+        # Discord adapter doesn't expose client directly
+        assert adapter._channel_manager.client is None
         
         adapter._channel_manager.set_client(mock_client)
-        assert adapter.client == mock_client
+        # Client is managed internally by the channel manager
+        assert adapter._channel_manager.client == mock_client
 
     @pytest.mark.asyncio
     async def test_send_message_success(self, adapter, mock_client):
@@ -110,7 +113,12 @@ class TestDiscordAdapterRefactored:
     async def test_fetch_guidance_success(self, adapter, mock_client):
         """Test successful guidance fetching."""
         adapter._channel_manager.set_client(mock_client)
-        context = {"task": "test task"}
+        context = GuidanceContext(
+            thought_id="thought_123",
+            task_id="task_456",
+            question="test task",
+            ethical_considerations=["test consideration"]
+        )
         expected_guidance = {"guidance": "Test guidance response"}
         
         with patch.object(adapter, 'retry_with_backoff', return_value=expected_guidance):
@@ -134,7 +142,12 @@ class TestDiscordAdapterRefactored:
             mock_get_config.return_value = mock_config
             
             with pytest.raises(RuntimeError, match="Guidance channel not configured"):
-                await adapter.fetch_guidance({"task": "test"})
+                context = GuidanceContext(
+                    thought_id="thought_123",
+                    task_id="task_456",
+                    question="test"
+                )
+                await adapter.fetch_guidance(context)
 
     @pytest.mark.asyncio
     async def test_send_deferral_success(self, adapter, mock_client):
@@ -148,7 +161,13 @@ class TestDiscordAdapterRefactored:
                 mock_get_config.return_value = mock_config
                 
                 with patch('ciris_engine.adapters.discord.discord_adapter.persistence'):
-                    result = await adapter.send_deferral("thought_123", "test reason", {"context": "data"})
+                    context = DeferralContext(
+                        thought_id="thought_123",
+                        task_id="task_456",
+                        reason="test reason",
+                        metadata={"context": "data"}
+                    )
+                    result = await adapter.send_deferral(context)
                     assert result is True
 
     @pytest.mark.asyncio
@@ -161,27 +180,55 @@ class TestDiscordAdapterRefactored:
             mock_config.discord_deferral_channel_id = None
             mock_get_config.return_value = mock_config
             
-            result = await adapter.send_deferral("thought_123", "test reason")
+            context = DeferralContext(
+                thought_id="thought_123",
+                task_id="task_456",
+                reason="test reason"
+            )
+            result = await adapter.send_deferral(context)
             assert result is False
 
     @pytest.mark.asyncio
     async def test_execute_tool_success(self, adapter, mock_client):
         """Test successful tool execution."""
-        adapter._channel_manager.set_client(mock_client)
-        expected_result = {"status": "success", "data": "test"}
+        from ciris_engine.schemas.protocol_schemas_v1 import ToolExecutionResult
         
-        with patch.object(adapter, 'retry_with_backoff', return_value=expected_result):
+        adapter._channel_manager.set_client(mock_client)
+        expected_result = ToolExecutionResult(
+            success=True,
+            result={"data": "test"},
+            error=None,
+            execution_time=0.5,
+            adapter_id="discord",
+            output=None,
+            metadata=None
+        )
+        
+        with patch.object(adapter._tool_handler, 'execute_tool', return_value=expected_result):
             result = await adapter.execute_tool("test_tool", {"param": "value"})
-            assert result == expected_result
+            assert result.success is True
+            assert result.result == {"data": "test"}
+            assert result.adapter_id == "discord"
 
     @pytest.mark.asyncio
     async def test_get_tool_result(self, adapter):
         """Test tool result retrieval."""
-        expected_result = {"status": "success"}
+        from ciris_engine.schemas.protocol_schemas_v1 import ToolExecutionResult
+        
+        expected_result = ToolExecutionResult(
+            success=True,
+            result={"status": "success"},
+            error=None,
+            execution_time=0.5,
+            adapter_id="discord",
+            output=None,
+            metadata=None
+        )
         
         with patch.object(adapter._tool_handler, 'get_tool_result', return_value=expected_result):
             result = await adapter.get_tool_result("correlation_123", 30.0)
-            assert result == expected_result
+            assert result.success is True
+            assert result.result == {"status": "success"}
 
     @pytest.mark.asyncio
     async def test_get_available_tools(self, adapter):
@@ -217,21 +264,22 @@ class TestDiscordAdapterRefactored:
 
     @pytest.mark.asyncio
     async def test_send_output(self, adapter, mock_client):
-        """Test sending output."""
+        """Test sending output using send_message."""
         adapter._channel_manager.set_client(mock_client)
         
-        with patch.object(adapter, 'retry_with_backoff', new_callable=AsyncMock) as mock_retry:
-            await adapter.send_output("123456", "Test output")
-            mock_retry.assert_called_once()
+        with patch.object(adapter._message_handler, 'send_message_to_channel', new_callable=AsyncMock) as mock_send:
+            result = await adapter.send_message("123456", "Test output")
+            assert result is True
+            mock_send.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_on_message(self, adapter, mock_client):
-        """Test message handling."""
+        """Test message handling through channel manager."""
         adapter._channel_manager.set_client(mock_client)
         mock_message = MagicMock()
         
         with patch.object(adapter._channel_manager, 'on_message', new_callable=AsyncMock) as mock_on_message:
-            await adapter.on_message(mock_message)
+            await adapter._on_message(mock_message)
             mock_on_message.assert_called_once_with(mock_message)
 
     def test_attach_to_client(self, adapter, mock_client):
@@ -337,7 +385,12 @@ class TestDiscordAdapterRefactored:
                 mock_get_config.return_value = mock_config
                 
                 with pytest.raises(RuntimeError):
-                    await adapter.fetch_guidance({"task": "test"})
+                    context = GuidanceContext(
+                        thought_id="thought_123",
+                        task_id="task_456",
+                        question="test"
+                    )
+                    await adapter.fetch_guidance(context)
 
     def test_protocol_compliance(self, adapter):
         """Test that the adapter properly implements all required protocols."""
