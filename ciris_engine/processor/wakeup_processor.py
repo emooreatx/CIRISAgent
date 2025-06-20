@@ -5,7 +5,7 @@ import asyncio
 import logging
 import uuid
 from typing import Dict, Any, List, Optional, Tuple
-from ciris_engine.schemas.processor_schemas_v1 import WakeupResult, ProcessorMetrics
+from ciris_engine.schemas.processor_schemas_v1 import ProcessorMetrics
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.states_v1 import AgentState

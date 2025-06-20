@@ -8,4 +8,4 @@ async def test_discord_adapter_initialization():
     adapter = DiscordAdapter("fake_token")
 
     assert adapter.token == "fake_token"
-    assert adapter.client is None
+    # Discord adapter uses internal handlers, not direct client access

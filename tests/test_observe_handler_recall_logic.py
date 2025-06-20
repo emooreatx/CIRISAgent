@@ -31,14 +31,26 @@ class MockMemoryService:
         self.recall_calls = []
         self.recall_errors = {}  # Dict to simulate recall failures for specific node_id/scope combinations
     
-    async def recall(self, node: GraphNode, handler_name: str = None):
+    async def recall(self, recall_query, handler_name: str = None):
         """Mock recall method that logs calls and can simulate failures"""
-        self.recall_calls.append((node.id, node.scope))
+        # Handle both MemoryQuery and direct parameters
+        if hasattr(recall_query, 'node_id') and hasattr(recall_query, 'scope'):
+            node_id = recall_query.node_id
+            scope = recall_query.scope
+        else:
+            # Fallback for any other format
+            node_id = getattr(recall_query, 'id', str(recall_query))
+            scope = getattr(recall_query, 'scope', None)
+            
+        self.recall_calls.append((node_id, scope))
         
         # Check if we should simulate an error for this call
-        error_key = (node.id, node.scope)
+        error_key = (node_id, scope)
         if error_key in self.recall_errors:
             raise self.recall_errors[error_key]
+        
+        # Return empty list as expected by the protocol
+        return []
     
     def set_recall_error(self, node_id: str, scope: GraphScope, error: Exception):
         """Set an error to be raised for a specific recall call"""

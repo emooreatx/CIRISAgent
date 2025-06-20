@@ -8,6 +8,7 @@ from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry  # Use schema ve
 from ciris_engine.config.config_manager import get_config
 from ciris_engine.schemas.config_schemas_v1 import CIRISNodeConfig
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ServiceType
+from ciris_engine.schemas.protocol_schemas_v1 import ActionContext
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services import AuditService
@@ -135,12 +136,13 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                {
-                    "event_type": "cirisnode_test",
-                    "originator_id": agent_id,
-                    "event_summary": "simplebench",
-                    "event_payload": result,
-                },
+                ActionContext(
+                    thought_id=agent_id,
+                    task_id="simplebench",
+                    handler_name="cirisnode_client",
+                    parameters={"model_id": model_id, "agent_id": agent_id}
+                ),
+                outcome=f"SimpleBench completed with accuracy {result.get('accuracy', 'unknown')}"
             )
         return result
 
@@ -151,12 +153,13 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                {
-                    "event_type": "cirisnode_test",
-                    "originator_id": agent_id,
-                    "event_summary": "he300",
-                    "event_payload": result,
-                },
+                ActionContext(
+                    thought_id=agent_id,
+                    task_id="he300",
+                    handler_name="cirisnode_client",
+                    parameters={"model_id": model_id, "agent_id": agent_id}
+                ),
+                outcome=f"HE-300 completed with {result.get('benchmarks_run', 0)} benchmarks"
             )
         return result
 
@@ -167,12 +170,13 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                {
-                    "event_type": "cirisnode_test",
-                    "originator_id": agent_id,
-                    "event_summary": "chaos",
-                    "event_payload": result,
-                },
+                ActionContext(
+                    thought_id=agent_id,
+                    task_id="chaos_tests",
+                    handler_name="cirisnode_client",
+                    parameters={"agent_id": agent_id, "scenarios": scenarios}
+                ),
+                outcome=f"Chaos tests completed: {len(result)} scenarios"
             )
         return result
 
@@ -183,12 +187,13 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                {
-                    "event_type": "cirisnode_test",
-                    "originator_id": payload.get("agent_id", "unknown"),
-                    "event_summary": "wa",
-                    "event_payload": result,
-                },
+                ActionContext(
+                    thought_id=payload.get("agent_id", "unknown"),
+                    task_id=f"wa_service_{service}",
+                    handler_name="cirisnode_client",
+                    parameters=payload
+                ),
+                outcome=f"WA service {service} completed"
             )
         return result
 
@@ -199,12 +204,13 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                {
-                    "event_type": "cirisnode_event",
-                    "originator_id": event_payload.get("originator_id", "unknown"),
-                    "event_summary": event_payload.get("event_type", "event"),
-                    "event_payload": result,
-                },
+                ActionContext(
+                    thought_id=event_payload.get("originator_id", "unknown"),
+                    task_id="log_event",
+                    handler_name="cirisnode_client",
+                    parameters=event_payload
+                ),
+                outcome=f"Event logged: {event_payload.get('event_type', 'event')}"
             )
         return result
 
@@ -223,12 +229,13 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                {
-                    "event_type": "cirisnode_test",
-                    "originator_id": agent_id,
-                    "event_summary": f"{benchmark}_prompts",
-                    "event_payload": result,
-                },
+                ActionContext(
+                    thought_id=agent_id,
+                    task_id=f"fetch_{benchmark}_prompts",
+                    handler_name="cirisnode_client",
+                    parameters={"benchmark": benchmark, "model_id": model_id, "agent_id": agent_id}
+                ),
+                outcome=f"Fetched {len(result)} {benchmark} prompts"
             )
         return result
 
@@ -248,11 +255,12 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                {
-                    "event_type": "cirisnode_test",
-                    "originator_id": agent_id,
-                    "event_summary": f"{benchmark}_answers",
-                    "event_payload": result,
-                },
+                ActionContext(
+                    thought_id=agent_id,
+                    task_id=f"submit_{benchmark}_answers",
+                    handler_name="cirisnode_client",
+                    parameters={"benchmark": benchmark, "model_id": model_id, "agent_id": agent_id, "answer_count": len(answers)}
+                ),
+                outcome=f"Submitted {len(answers)} {benchmark} answers"
             )
         return result

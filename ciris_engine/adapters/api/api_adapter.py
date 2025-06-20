@@ -13,6 +13,11 @@ from aiohttp import web
 from ciris_engine.protocols.services import CommunicationService
 from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage, IncomingMessage
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus
+from ciris_engine.schemas.api_schemas_v1 import (
+    MessageResponse,
+    ServicesResponse, ServiceProvider, RuntimeStatusResponse, 
+    RuntimeStatus, ErrorResponse
+)
 from ciris_engine.persistence import add_correlation
 
 logger = logging.getLogger(__name__)
@@ -67,30 +72,52 @@ class APIAdapter(CommunicationService):
         self._queue_lock = asyncio.Lock()
     
     def _setup_routes(self) -> None:
-        """Set up API routes."""
-        # Communication endpoints
-        self.app.router.add_post("/api/v1/message", self._handle_send_message)
-        self.app.router.add_get("/api/v1/messages/{channel_id}", self._handle_fetch_messages)
+        """Set up API routes following the agent capabilities philosophy."""
+        # Core principle: Expose agent capabilities and observability, not handlers
         
-        # System endpoints
-        self.app.router.add_get("/api/v1/health", self._handle_health_check)
-        self.app.router.add_get("/api/v1/services", self._handle_list_services)
+        # Agent Interaction - How to communicate with the agent
+        from .api_agent import APIAgentRoutes
+        agent_routes = APIAgentRoutes(self.bus_manager, self.on_message)
+        agent_routes.register(self.app)
         
-        # Runtime control endpoints (if available)
-        if self.runtime_control:
-            self.app.router.add_get("/api/v1/runtime/status", self._handle_runtime_status)
-            self.app.router.add_post("/api/v1/runtime/control", self._handle_runtime_control)
+        # Memory Observability - View into the agent's graph memory
+        from .api_memory import APIMemoryRoutes
+        memory_routes = APIMemoryRoutes(self.bus_manager)
+        memory_routes.register(self.app)
         
-        # Telemetry endpoints (if available)
-        if self.telemetry_collector:
-            self.app.router.add_get("/api/v1/metrics", self._handle_metrics)
-            self.app.router.add_get("/api/v1/telemetry/report", self._handle_telemetry_report)
+        # Visibility - Windows into agent reasoning and state
+        from .api_visibility import APIVisibilityRoutes
+        visibility_routes = APIVisibilityRoutes(
+            bus_manager=self.bus_manager,
+            telemetry_collector=self.telemetry_collector
+        )
+        visibility_routes.register(self.app)
         
-        # Authentication endpoints (if runtime available)
+        # Telemetry - System monitoring and observability
+        from .api_telemetry import APITelemetryRoutes
+        telemetry_routes = APITelemetryRoutes(
+            telemetry_collector=self.telemetry_collector,
+            service_registry=self.service_registry,
+            bus_manager=self.bus_manager
+        )
+        telemetry_routes.register(self.app)
+        
+        # Runtime Control - System management (not agent control)
+        from .api_runtime_control import APIRuntimeControlRoutes
+        runtime_routes = APIRuntimeControlRoutes(
+            runtime_control=self.runtime_control,
+            service_registry=self.service_registry
+        )
+        runtime_routes.register(self.app)
+        
+        # Authentication - WA and OAuth management
         if self.runtime:
             from .api_auth import APIAuthRoutes
             auth_routes = APIAuthRoutes(self.runtime)
             auth_routes.register(self.app)
+        
+        # Health check endpoint (simple, always available)
+        self.app.router.add_get("/v1/health", self._handle_health_check)
     
     async def send_message(self, channel_id: str, content: str) -> bool:
         """
@@ -196,6 +223,7 @@ class APIAdapter(CommunicationService):
             
             # Use the callback to handle the message, which will route through observer
             if self.on_message:
+                logger.info(f"API adapter routing message {msg.message_id} to observer")
                 await self.on_message(msg)
             else:
                 logger.warning("No message handler configured for API adapter")
@@ -287,43 +315,46 @@ class APIAdapter(CommunicationService):
         try:
             # Use get_provider_info which provides detailed service information
             provider_info = self.service_registry.get_provider_info()
-            service_info = {}
+            service_providers: Dict[str, List[ServiceProvider]] = {}
             
             # Process handler-specific services
             for handler, services in provider_info.get("handlers", {}).items():
                 for service_type, providers in services.items():
-                    if service_type not in service_info:
-                        service_info[service_type] = []
+                    if service_type not in service_providers:
+                        service_providers[service_type] = []
                     for provider in providers:
-                        service_info[service_type].append({
-                            "provider": provider["name"],
-                            "handler": handler,
-                            "priority": provider["priority"],
-                            "capabilities": provider["capabilities"],
-                            "global": False
-                        })
+                        service_providers[service_type].append(ServiceProvider(
+                            provider=provider["name"],
+                            handler=handler,
+                            priority=str(provider["priority"]),
+                            capabilities=provider["capabilities"],
+                            is_global=False
+                        ))
             
             # Process global services
             for service_type, providers in provider_info.get("global_services", {}).items():
-                if service_type not in service_info:
-                    service_info[service_type] = []
+                if service_type not in service_providers:
+                    service_providers[service_type] = []
                 for provider in providers:
-                    service_info[service_type].append({
-                        "provider": provider["name"],
-                        "handler": "global",
-                        "priority": provider["priority"],
-                        "capabilities": provider["capabilities"],
-                        "global": True
-                    })
+                    service_providers[service_type].append(ServiceProvider(
+                        provider=provider["name"],
+                        handler="global",
+                        priority=str(provider["priority"]),
+                        capabilities=provider["capabilities"],
+                        is_global=True
+                    ))
             
-            return web.json_response({
-                "services": service_info,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            response = ServicesResponse(
+                services=service_providers,
+                timestamp=datetime.now(timezone.utc)
+            )
+            
+            return web.json_response(response.model_dump(mode='json'))
             
         except Exception as e:
             logger.error(f"Error listing services: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
+            error_response = ErrorResponse(error=str(e))
+            return web.json_response(error_response.model_dump(mode='json'), status=500)
     
     async def _handle_runtime_status(self, request: web.Request) -> web.Response:
         """Handle runtime status endpoint."""

@@ -399,9 +399,16 @@ class TestCliPlatformIntegration:
         with patch('os.listdir', return_value=['file.txt']), \
              patch('ciris_engine.persistence.add_correlation'):
             result = await adapter.execute_tool("list_files", {"path": "/test"})
-            assert result["success"] is True
+            assert result.success is True
         
         # Test wise authority service
         with patch('builtins.print'), patch('ciris_engine.persistence.add_correlation'):
-            result = await adapter.send_deferral("thought_123", "Complex decision")
+            from ciris_engine.schemas.wa_context_schemas_v1 import DeferralContext
+            result = await adapter.send_deferral(
+                DeferralContext(
+                    thought_id="thought_123",
+                    task_id="task_456",
+                    reason="Complex decision"
+                )
+            )
             assert result is True

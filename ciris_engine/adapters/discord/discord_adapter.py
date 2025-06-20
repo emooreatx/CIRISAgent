@@ -12,6 +12,8 @@ from ciris_engine.schemas.correlation_schemas_v1 import (
     ServiceCorrelation,
     ServiceCorrelationStatus,
 )
+from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext, DeferralContext
+from ciris_engine.schemas.protocol_schemas_v1 import ToolInfo, ToolParameterSchema, ToolExecutionResult
 from ciris_engine import persistence
 
 from .discord_message_handler import DiscordMessageHandler
@@ -101,7 +103,7 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
 
 
     # --- WiseAuthorityService ---
-    async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:
+    async def fetch_guidance(self, context: GuidanceContext) -> Optional[str]:
         """Send a guidance request to the configured guidance channel and wait for a response."""
         from ciris_engine.config.config_manager import get_config
         
@@ -115,7 +117,7 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
             correlation_id = str(uuid.uuid4())
             guidance_result = await self.retry_with_backoff(
                 self._guidance_handler.fetch_guidance_from_channel,
-                deferral_channel_id, context,
+                deferral_channel_id, context.model_dump(),
                 operation_name="fetch_guidance",
                 config_key="discord_api"
             )
@@ -128,7 +130,7 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
                     service_type="discord",
                     handler_name="DiscordAdapter",
                     action_type="fetch_guidance",
-                    request_data=context,
+                    request_data=context.model_dump(),
                     response_data=guidance,
                     status=ServiceCorrelationStatus.COMPLETED,
                     created_at=datetime.now(timezone.utc).isoformat(),
@@ -141,7 +143,7 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
             raise
 
 
-    async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
+    async def send_deferral(self, context: DeferralContext) -> bool:
         """Send a deferral report to the configured deferral channel."""
         from ciris_engine.config.config_manager import get_config
         
@@ -155,7 +157,7 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
             correlation_id = str(uuid.uuid4())
             result = await self.retry_with_backoff(
                 self._guidance_handler.send_deferral_to_channel,
-                deferral_channel_id, thought_id, reason, context,
+                deferral_channel_id, context.thought_id, context.reason, context.model_dump(),
                 operation_name="send_deferral",
                 config_key="discord_api"
             )
@@ -166,7 +168,7 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
                     service_type="discord",
                     handler_name="DiscordAdapter",
                     action_type="send_deferral",
-                    request_data={"thought_id": thought_id, "reason": reason},
+                    request_data=context.model_dump(),
                     response_data={"status": "sent"},
                     status=ServiceCorrelationStatus.COMPLETED,
                     created_at=datetime.now(timezone.utc).isoformat(),
@@ -180,17 +182,22 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
 
 
     # --- ToolService ---
-    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> ToolExecutionResult:
         """Execute a registered Discord tool via the tool registry and store the result."""
-        return await self.retry_with_backoff(
-            self._tool_handler.execute_tool,  # type: ignore[arg-type]
-            tool_name, parameters,
-            operation_name="execute_tool",
-            config_key="discord_api"
-        )
+        # The handler returns ToolExecutionResult
+        # Note: execute_tool is already async, so we call it directly
+        return await self._tool_handler.execute_tool(tool_name, parameters)
 
 
-    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
+    async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
+        """Get detailed information about a specific tool."""
+        return await self._tool_handler.get_tool_info(tool_name)
+    
+    async def get_all_tool_info(self) -> List[ToolInfo]:
+        """Get detailed information about all available tools."""
+        return await self._tool_handler.get_all_tool_info()
+    
+    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
         """Fetch a tool result by correlation ID from the internal cache."""
         return await self._tool_handler.get_tool_result(correlation_id, int(timeout))
 
@@ -206,10 +213,11 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
         """Return list of capabilities this service supports."""
         communication_caps = await super().get_capabilities()
         wise_authority_caps = ["fetch_guidance", "send_deferral"]
-        tool_caps = ["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
+        tool_caps = ["execute_tool", "get_available_tools", "get_tool_result", 
+                     "validate_parameters", "get_tool_info", "get_all_tool_info"]
         return communication_caps + wise_authority_caps + tool_caps
 
-    async def send_output(self, channel_id: str, content: str) -> None:
+    async def _send_output(self, channel_id: str, content: str) -> None:
         """Send output to a Discord channel with retry logic"""
         result = await self.retry_with_backoff(
             self._message_handler.send_message_to_channel,
@@ -221,7 +229,7 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
 
 
 
-    async def on_message(self, message: discord.Message) -> None:
+    async def _on_message(self, message: discord.Message) -> None:
         """Handle incoming Discord messages."""
         await self._channel_manager.on_message(message)
 
@@ -276,6 +284,6 @@ class DiscordAdapter(CommunicationService, WiseAuthorityService, ToolService):
             return False
     
     @property
-    def client(self) -> Optional[discord.Client]:
+    def _client(self) -> Optional[discord.Client]:
         """Get the Discord client instance."""
         return self._channel_manager.client

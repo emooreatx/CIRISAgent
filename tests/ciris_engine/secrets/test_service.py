@@ -365,18 +365,15 @@ class TestSecretsService:
         # Get stats
         stats = await temp_service.get_service_stats()
         
-        assert "filter_stats" in stats
-        assert "storage_stats" in stats
+        # Now returns SecretsServiceStats object
+        assert hasattr(stats, 'secrets_stored')
+        assert hasattr(stats, 'filter_active')
+        assert hasattr(stats, 'patterns_enabled')
+        assert hasattr(stats, 'recent_detections')
         
-        storage_stats = stats["storage_stats"]
-        assert storage_stats["total_secrets"] >= 3
-        assert "sensitivity_distribution" in storage_stats
-        assert "pattern_distribution" in storage_stats
-        assert "auto_forget_enabled" in storage_stats
-        
-        # Check that we have different sensitivities
-        sensitivity_dist = storage_stats["sensitivity_distribution"]
-        assert len(sensitivity_dist) > 1  # Should have HIGH and CRITICAL at least
+        assert stats.secrets_stored >= 3
+        assert stats.filter_active is True
+        assert isinstance(stats.patterns_enabled, list)
         
     @pytest.mark.asyncio
     async def test_nested_parameter_decapsulation(self, temp_service):

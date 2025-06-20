@@ -141,7 +141,7 @@ class TestActionHandlerSecrets:
         # Mock dependencies with secrets service
         mock_secrets_service = AsyncMock()
         
-        async def mock_decapsulate(text, action_type=None, context=None, context_hint=None):
+        def mock_decapsulate(text, action_type=None, context=None, context_hint=None):
             # Only decapsulate for allowed action types (simulate real logic)
             allowed_actions = ["tool", "speak", "memorize"]
             # Extract action from context_hint if action_type not provided
@@ -162,8 +162,14 @@ class TestActionHandlerSecrets:
                     return obj
             return recursive_decapsulate(text)
         
+        # Create wrapper that accepts the expected parameters
+        async def mock_decapsulate_secrets_in_parameters(parameters, **kwargs):
+            # Extract action_type from kwargs
+            action_type = kwargs.get('action_type', 'speak')
+            return mock_decapsulate(parameters, action_type=action_type)
+        
         mock_secrets_service.decapsulate_secrets.side_effect = mock_decapsulate
-        mock_secrets_service.decapsulate_secrets_in_parameters.side_effect = mock_decapsulate
+        mock_secrets_service.decapsulate_secrets_in_parameters.side_effect = mock_decapsulate_secrets_in_parameters
         
         mock_service_registry = AsyncMock()
         bus_manager = BusManager(mock_service_registry)
@@ -199,7 +205,7 @@ class TestActionHandlerSecrets:
         assert "sk-1234567890" in processed_result.action_parameters["content"]
         
         # Verify service was called
-        mock_secrets_service.decapsulate_secrets.assert_called_once()
+        mock_secrets_service.decapsulate_secrets_in_parameters.assert_called_once()
 
 
 @pytest.mark.asyncio 
@@ -297,7 +303,7 @@ class TestEndToEndFlow:
             else:
                 return obj
 
-        async def mock_decapsulate(text, action_type=None, context=None, context_hint=None):
+        def mock_decapsulate(text, action_type=None, context=None, context_hint=None):
             # Only decapsulate for allowed action types (simulate real logic)
             allowed_actions = ["tool", "speak", "memorize"]
             # Extract action from context_hint if action_type not provided
@@ -317,10 +323,14 @@ class TestEndToEndFlow:
                 else:
                     return obj
             return recursive_decapsulate(text)
+        # Create wrapper that accepts the expected parameters
+        async def mock_decapsulate_secrets_in_parameters(parameters, **kwargs):
+            # Extract action_type from kwargs
+            action_type = kwargs.get('action_type', 'tool')
+            return mock_decapsulate(parameters, action_type=action_type)
+        
         mock_decap_service.decapsulate_secrets.side_effect = mock_decapsulate
-        mock_decap_service.decapsulate_secrets_in_parameters.side_effect = mock_decapsulate
-        mock_decap_service.decapsulate_secrets.return_value = None
-        mock_decap_service.decapsulate_secrets_in_parameters.return_value = None
+        mock_decap_service.decapsulate_secrets_in_parameters.side_effect = mock_decapsulate_secrets_in_parameters
         
         mock_service_registry = AsyncMock()
         bus_manager = BusManager(mock_service_registry)

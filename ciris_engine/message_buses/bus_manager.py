@@ -3,7 +3,7 @@ BusManager - Orchestrates all message buses
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 
 from ciris_engine.registries.base import ServiceRegistry
 from .communication_bus import CommunicationBus
@@ -13,6 +13,9 @@ from .audit_bus import AuditBus
 from .telemetry_bus import TelemetryBus
 from .wise_bus import WiseBus
 from .llm_bus import LLMBus
+from .secrets_bus import SecretsBus
+from .runtime_control_bus import RuntimeControlBus
+from .base_bus import BaseBus
 
 logger = logging.getLogger(__name__)
 
@@ -40,18 +43,22 @@ class BusManager:
         self.audit = AuditBus(service_registry)
         self.telemetry = TelemetryBus(service_registry)
         self.wise = WiseBus(service_registry)
+        self.secrets = SecretsBus(service_registry)
+        self.runtime_control = RuntimeControlBus(service_registry)
         # LLM bus needs telemetry bus for resource tracking
         self.llm = LLMBus(service_registry, telemetry_bus=self.telemetry)
         
         # Store all buses for lifecycle management
-        self._buses = {
+        self._buses: Dict[str, BaseBus[Any]] = {
             "communication": self.communication,
             "memory": self.memory,
             "tool": self.tool,
             "audit": self.audit,
             "telemetry": self.telemetry,
             "wise": self.wise,
-            "llm": self.llm
+            "llm": self.llm,
+            "secrets": self.secrets,
+            "runtime_control": self.runtime_control
         }
         
         logger.info("BusManager initialized with all message buses")

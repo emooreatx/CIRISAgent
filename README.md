@@ -133,10 +133,10 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 
 ### 🛠 Principled Infrastructure
 - **[Epistemic Faculties](ciris_engine/faculties/README.md)**: Advanced content evaluation through specialized entropy, coherence, and decision analysis capabilities
-- **[Utility Framework](ciris_engine/utils/README.md)**: Comprehensive infrastructure including logging, context management, GraphQL providers, shutdown coordination, and task formatting
-- **[Prompt Engineering](ciris_engine/formatters/README.md)**: Composable text formatting utilities for consistent LLM prompt engineering and response processing
-- **[Service Coordination](ciris_engine/services/README.md)**: Adaptive filter service, agent configuration service, and multi-service transaction orchestrator
-- **[Mock LLM System](docs/MOCK_LLM.md)**: Deterministic testing framework with `$` command syntax for offline development and debugging
+- **[Utility Framework](ciris_engine/utils/README.md)**: Comprehensive infrastructure including logging, context management, shutdown coordination, and task formatting
+- **[Prompt Engineering](ciris_engine/formatters/README.md)**: Composable text formatting utilities for consistent LLM prompt engineering
+- **[Service Coordination](ciris_engine/services/README.md)**: Adaptive filter service, agent configuration service, and multi-service orchestration
+- **[Mock LLM System](docs/MOCK_LLM.md)**: Deterministic testing framework with `$` command syntax for testing
 
 ### 🚀 Advanced Features (FSDs)
 - **[Circuit Breaker & Self-Configuration](FSD/LLMCB_SELFCONFIG.md)**: Advanced fault tolerance with self-healing capabilities
@@ -147,96 +147,51 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 
 ---
 
-## Runtime Control & Management ⭐ **NEW**
+## Runtime Control & Management
 
-CIRIS includes comprehensive **runtime control capabilities** that enable dynamic system management, debugging, and configuration changes without requiring restarts. This provides unprecedented operational flexibility for production deployments and development workflows.
+CIRIS includes comprehensive **runtime control capabilities** for system management and debugging.
 
-### 🎛️ Hot-Swappable Architecture
-- **[Dynamic Adapter Management](ciris_engine/runtime/README.md)**: Load, unload, and reconfigure Discord, CLI, and API adapters at runtime
-- **[Multi-Instance Support](ciris_engine/runtime/README.md)**: Run multiple instances of the same adapter type with different configurations (e.g., multiple Discord bots)
-- **[Live Configuration Updates](ciris_engine/config/README.md)**: Change system settings with validation and rollback support
-- **[Profile Hot-Switching](docs/CIRIS_PROFILES.md)**: Switch between agent personalities and capabilities without downtime
+### 🎛️ System Management
+- **[Dynamic Adapter Management](ciris_engine/runtime/README.md)**: Load, unload, and reconfigure adapters at runtime
+- **[Multi-Instance Support](ciris_engine/runtime/README.md)**: Run multiple instances of the same adapter type
+- **[Live Configuration Updates](ciris_engine/config/README.md)**: Change system settings with validation
+- **[Service Management](ciris_engine/registries/README.md)**: Monitor and control service health
 
-### 🔧 Runtime Control Endpoints
-The API adapter exposes comprehensive runtime management through `/v1/runtime/*` endpoints:
+### 🔧 Key API Capabilities
+The API exposes agent capabilities, not controllers:
 
 ```bash
-# Hot-load a new Discord adapter
-curl -X POST http://localhost:8080/v1/runtime/adapters \
+# Send message to agent
+curl -X POST http://localhost:8080/v1/agent/messages \
   -H "Content-Type: application/json" \
-  -d '{
-    "adapter_type": "discord",
-    "adapter_id": "discord_prod", 
-    "config": {"token": "...", "home_channel": "general"},
-    "auto_start": true
-  }'
+  -d '{"content": "Hello CIRIS!"}'  
 
-# Update configuration dynamically
-curl -X PUT http://localhost:8080/v1/runtime/config \
-  -H "Content-Type: application/json" \
-  -d '{
-    "path": "llm_services.openai.temperature",
-    "value": 0.8,
-    "scope": "session",
-    "validation_level": "strict"
-  }'
+# Browse agent's memory graph
+curl "http://localhost:8080/v1/memory/graph/search?q=purpose"
 
-# Manage service priorities and selection strategies
-curl -X PUT http://localhost:8080/v1/runtime/services/OpenAIProvider_123/priority \
-  -H "Content-Type: application/json" \
-  -d '{
-    "priority": "CRITICAL",
-    "priority_group": 0,
-    "strategy": "FALLBACK"
-  }'
+# View current thoughts
+curl http://localhost:8080/v1/visibility/thoughts
 
-# Reset circuit breakers for failing services
-curl -X POST http://localhost:8080/v1/runtime/services/circuit-breakers/reset
+# Monitor resources
+curl http://localhost:8080/v1/telemetry/resources
 
-# Switch agent profiles
-curl -X POST http://localhost:8080/v1/runtime/profiles/teacher/load
+# Manage runtime (system control, not agent control)
+curl -X POST http://localhost:8080/v1/runtime/processor/pause
 ```
 
-### 🐛 Live Debugging Capabilities
-- **[Processor Control](docs/api/runtime-control.md)**: Single-step execution, pause/resume, and queue inspection
-- **[System State Snapshots](ciris_engine/telemetry/README.md)**: Complete runtime state capture for analysis
-- **[Configuration Backup/Restore](ciris_engine/config/README.md)**: Safe configuration management with restoration points
-- **[Comprehensive Auditing](ciris_engine/audit/README.md)**: All runtime control operations are cryptographically logged
+### 🐛 Debugging & Observability
+- **[Processor Control](ciris_engine/adapters/api/README.md)**: Single-step execution, pause/resume
+- **[Visibility Windows](ciris_engine/adapters/api/README.md)**: See agent thoughts and decisions
+- **[Memory Browsing](ciris_engine/adapters/api/README.md)**: Explore the agent's graph memory
+- **[Audit Trail](ciris_engine/audit/README.md)**: Cryptographically signed operation logs
 
 ### 📊 Operational Insights
-- **[Real-Time Monitoring](docs/api/runtime-control.md)**: Live system status, resource usage, and health metrics
-- **[Service Health Tracking](ciris_engine/registries/README.md)**: Circuit breaker states, service availability, and priority group monitoring
-- **[Service Selection Analytics](docs/api/runtime-control.md)**: Detailed insights into service selection logic, strategy effectiveness, and load distribution
-- **[Configuration History](ciris_engine/config/README.md)**: Track all configuration changes with rationale and rollback capability
-- **[Adapter Lifecycle Management](ciris_engine/runtime/README.md)**: Complete visibility into adapter loading, unloading, and status
+- **[Real-Time Telemetry](ciris_engine/adapters/api/README.md)**: System metrics and health
+- **[Service Health](ciris_engine/adapters/api/README.md)**: Circuit breaker states and availability
+- **[Memory Timeline](ciris_engine/adapters/api/README.md)**: Time-based memory queries
+- **[Audit Statistics](ciris_engine/adapters/api/README.md)**: Action patterns and compliance
 
-> **📖 Complete Documentation**: See [Runtime Control API Guide](docs/api/runtime-control.md) for detailed endpoint documentation and examples.
-
-### Example: Production Hot-Swap Workflow
-
-```bash
-# 1. Backup current configuration
-curl -X POST http://localhost:8080/v1/runtime/config/backup \
-  -d '{"backup_name": "pre_update", "include_profiles": true}'
-
-# 2. Load new Discord adapter with updated configuration
-curl -X POST http://localhost:8080/v1/runtime/adapters \
-  -d '{
-    "adapter_type": "discord",
-    "adapter_id": "discord_v2",
-    "config": {"token": "new_token", "home_channel": "updated-general"}
-  }'
-
-# 3. Verify new adapter is healthy
-curl http://localhost:8080/v1/runtime/adapters/discord_v2
-
-# 4. Unload old adapter
-curl -X DELETE http://localhost:8080/v1/runtime/adapters/discord_v1
-
-# 5. Update system configuration for new setup
-curl -X PUT http://localhost:8080/v1/runtime/config \
-  -d '{"path": "discord.default_adapter", "value": "discord_v2"}'
-```
+> **📖 API Documentation**: See [API Adapter Documentation](ciris_engine/adapters/api/README.md) for complete endpoint reference.
 
 ---
 
@@ -383,87 +338,52 @@ CIRIS Agent/
 
 ### Running the Agent
 
-**Automatic mode detection:**
+**API Server mode (recommended):**
 ```bash
-python main.py --profile default  # Auto-detects Discord/CLI based on token availability
+python main.py --adapter api --template datum --host 0.0.0.0 --port 8080
 ```
 
-**API Server mode:**
+**Other adapters:**
 ```bash
-python main.py --modes api --host 0.0.0.0 --port 8080
+python main.py --adapter cli --template sage      # CLI interaction
+python main.py --adapter discord --template echo  # Discord bot
 ```
 
-For comprehensive API documentation, see [docs/api_reference.md](docs/api_reference.md).
-
-**Specific runtime modes:**
+**Development with mock LLM:**
 ```bash
-python main.py --modes cli --profile teacher    # CLI-only mode
-python main.py --modes discord --profile student # Discord bot mode  
-python main.py --modes api --host 0.0.0.0 --port 8080 # API server mode
+python main.py --adapter api --template datum --mock-llm --debug
 ```
 
-**Development and testing:**
-```bash
-python main.py --mock-llm --debug --no-interactive  # Offline testing with debug logging
-```
+### Agent Creation Templates
 
-### Agent Profiles
+Templates in `ciris_templates/` are used when creating new agents:
+- **datum** (default): Humble measurement point providing focused data points
+- **sage**: Wise questioner who fosters understanding through inquiry
+- **scout**: Direct explorer who demonstrates principles through action
+- **echo**: Ubuntu-inspired community guardian for Discord
 
-Choose from specialized profiles in `ciris_profiles/`:
-- **Datum** (default): Humble measurement point providing singular, focused data points about CIRIS alignment
-- **Sage** (teacher): Wise questioner who fosters understanding through thoughtful inquiry
-- **Scout** (student): Direct explorer who demonstrates principles through clear action
-- **Echo**: Ubuntu-inspired community guardian for Discord moderation
-
-The Datum-Sage-Scout trio work as complementary peers:
-- Datum measures, Sage questions, Scout demonstrates
-- No hierarchy - each brings unique perspective
-- Together they provide complete understanding
-
-See [docs/CIRIS_PROFILES.md](docs/CIRIS_PROFILES.md) for comprehensive profile documentation.
+**Note**: These are templates for agent creation. Once created, the agent's identity and configuration live in the graph memory and evolve through the agent's own decisions (with WA approval for identity changes).
 
 ---
 
-## Advanced Configuration
+## Configuration Philosophy
 
-### Security Configuration
-```yaml
-# In agent profile
-secrets_management:
-  enable_automatic_detection: true
-  encryption_algorithm: "AES-256-GCM"  
-  key_rotation_days: 30
+**Templates** define initial agent characteristics:
+- Located in `ciris_templates/`
+- Used only during agent creation
+- Set initial personality and capabilities
 
-audit:
-  enable_signed_audit: true
-  hash_chain_validation: true
-  retention_days: 365
-```
+**Identity** lives in graph memory:
+- Created during agent initialization ceremony
+- Evolves through agent decisions (with WA approval)
+- Includes purpose, lineage, and capabilities
+- 20% variance threshold triggers self-reflection
 
-### Performance Tuning
-```yaml
-# Resource management
-resource_limits:
-  cpu_warning_threshold: 70.0
-  memory_critical_threshold: 95.0
-  enable_adaptive_throttling: true
-
-# Telemetry configuration  
-telemetry:
-  buffer_size: 1000
-  enable_security_filtering: true
-  metric_retention_hours: 48
-```
-
-### Multi-Service Architecture
-```yaml
-# Service registry configuration
-service_registry:
-  discovery_timeout: 30
-  health_check_interval: 60
-  circuit_breaker_threshold: 5
-  enable_automatic_failover: true
-```
+**Configuration** is managed by the agent:
+- Agent uses MEMORIZE to update its own config
+- WA approval required for identity changes
+- Configs stored as graph nodes
+- Self-configuration based on experience
 
 ---
 
@@ -498,26 +418,27 @@ pytest tests/ciris_engine/audit/ -v          # Transparency and audit systems
 
 ### Docker Deployment
 
-#### Single Agent Deployment
 ```bash
-# Build and run with Docker Compose
+# API mode with mock LLM (for testing)
+docker-compose -f docker-compose-api-mock.yml up -d
+
+# Production deployment
 docker-compose up -d
 
-# Individual service deployment
-docker build -f docker/Dockerfile -t ciris-agent .
-docker run -e OPENAI_API_KEY=$OPENAI_API_KEY ciris-agent
+# Multi-agent deployment
+docker-compose -f docker-compose-all.yml up -d
 ```
 
-#### Multi-Agent Deployment ⭐ **NEW**
+**Docker Commands:**
 ```bash
-# Deploy 4 agents on different ports (8001-8004)
-docker-compose -f docker-compose-all.yml up -d
+# Check logs
+docker logs ciris-api-mock --tail 50
 
-# Or deploy individual agents:
-docker-compose -f docker-compose-teacher.yml up -d     # Port 8001
-docker-compose -f docker-compose-student.yml up -d     # Port 8002
-docker-compose -f docker-compose-echo-core.yml up -d   # Port 8003
-docker-compose -f docker-compose-echo-spec.yml up -d   # Port 8004
+# Run debug tools inside container
+docker exec ciris-api-mock python debug_tools.py tasks
+
+# Check dead letter queue
+docker exec ciris-api-mock cat logs/dead_letter_latest.log
 ```
 
 ### Monitoring & Observability

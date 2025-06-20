@@ -12,6 +12,8 @@ from .tool_bus import ToolBus
 from .audit_bus import AuditBus
 from .telemetry_bus import TelemetryBus
 from .wise_bus import WiseBus
+from .secrets_bus import SecretsBus
+from .runtime_control_bus import RuntimeControlBus
 
 __all__ = [
     'BusManager',
@@ -20,5 +22,7 @@ __all__ = [
     'ToolBus',
     'AuditBus',
     'TelemetryBus',
-    'WiseBus'
+    'WiseBus',
+    'SecretsBus',
+    'RuntimeControlBus'
 ]

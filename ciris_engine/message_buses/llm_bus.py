@@ -127,7 +127,7 @@ class CircuitBreaker:
         return self.half_open_calls < self.half_open_max_calls
 
 
-class LLMBus(BaseBus):
+class LLMBus(BaseBus[LLMService]):
     """
     Message bus for all LLM operations with redundancy and distribution.
     
@@ -167,13 +167,13 @@ class LLMBus(BaseBus):
             f"LLMBus initialized with {distribution_strategy} distribution strategy"
         )
     
-    async def generate_structured(
+    async def call_llm_structured(
         self,
         messages: List[Dict[str, str]],
         response_model: Type[BaseModel],
-        handler_name: str,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        handler_name: str = "default",
         **kwargs: Any
     ) -> Tuple[BaseModel, ResourceUsage]:
         """
@@ -271,7 +271,8 @@ class LLMBus(BaseBus):
             f"Last error: {last_error}"
         )
     
-    async def generate_structured_sync(
+    # Note: This method is not in the protocol but kept for internal use
+    async def _generate_structured_sync(
         self,
         messages: List[Dict[str, str]],
         response_model: Type[BaseModel],
@@ -285,7 +286,7 @@ class LLMBus(BaseBus):
         
         This is what the handlers will call directly.
         """
-        return await self.generate_structured(
+        return await self.call_llm_structured(
             messages=messages,
             response_model=response_model,
             handler_name=handler_name,
@@ -468,18 +469,10 @@ class LLMBus(BaseBus):
                 )
             
             # Record environmental impact
-            if usage.water_ml > 0:
+            if usage.carbon_grams > 0:
                 await self.telemetry_bus.record_metric(
-                    metric_name="llm.environmental.water_ml",
-                    value=usage.water_ml,
-                    handler_name=handler_name,
-                    tags={"service": service_name, "model": usage.model_used or "unknown"}
-                )
-            
-            if usage.carbon_g > 0:
-                await self.telemetry_bus.record_metric(
-                    metric_name="llm.environmental.carbon_g",
-                    value=usage.carbon_g,
+                    metric_name="llm.environmental.carbon_grams",
+                    value=usage.carbon_grams,
                     handler_name=handler_name,
                     tags={"service": service_name, "model": usage.model_used or "unknown"}
                 )
@@ -522,6 +515,45 @@ class LLMBus(BaseBus):
             }
         
         return stats
+    
+    async def get_available_models(self, handler_name: str = "default") -> List[str]:
+        """Get list of available LLM models"""
+        service = await self.get_service(
+            handler_name=handler_name,
+            required_capabilities=["get_available_models"]
+        )
+        
+        if not service:
+            logger.error(f"No LLM service available for {handler_name}")
+            return []
+            
+        try:
+            return await service.get_available_models()
+        except Exception as e:
+            logger.error(f"Error getting available models: {e}", exc_info=True)
+            return []
+    
+    async def is_healthy(self, handler_name: str = "default") -> bool:
+        """Check if LLM service is healthy"""
+        service = await self.get_service(handler_name=handler_name)
+        if not service:
+            return False
+        try:
+            return await service.is_healthy()
+        except Exception as e:
+            logger.error(f"Failed to check health: {e}")
+            return False
+    
+    async def get_capabilities(self, handler_name: str = "default") -> List[str]:
+        """Get LLM service capabilities"""
+        service = await self.get_service(handler_name=handler_name)
+        if not service:
+            return []
+        try:
+            return await service.get_capabilities()
+        except Exception as e:
+            logger.error(f"Failed to get capabilities: {e}")
+            return []
     
     async def _process_message(self, message: BusMessage) -> None:
         """Process an LLM message from the queue"""

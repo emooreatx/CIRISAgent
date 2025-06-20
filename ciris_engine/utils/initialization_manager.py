@@ -14,22 +14,10 @@ from dataclasses import dataclass
 
 from ciris_engine.schemas.initialization_schemas_v1 import (
     InitializationStatus,
-    InitializationPhase as SchemaInitializationPhase
+    InitializationPhase
 )
 
 logger = logging.getLogger(__name__)
-
-
-class InitializationPhase(Enum):
-    """Phases of the initialization process."""
-    DATABASE = "database"
-    MEMORY = "memory"
-    IDENTITY = "identity"
-    SECURITY = "security"
-    SERVICES = "services"
-    COMPONENTS = "components"
-    VERIFICATION = "verification"
-    READY = "ready"
 
 
 @dataclass

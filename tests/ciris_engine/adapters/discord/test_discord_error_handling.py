@@ -9,6 +9,7 @@ import discord
 from discord.errors import Forbidden, NotFound, InvalidData, HTTPException, ConnectionClosed
 
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
+from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext, DeferralContext
 
 
 class TestDiscordErrorHandling:
@@ -163,7 +164,12 @@ class TestDiscordErrorHandling:
             )
             
             with pytest.raises(RuntimeError, match="Channel not found"):
-                await adapter.fetch_guidance({"task": "test"})
+                context = GuidanceContext(
+                    thought_id="thought_123",
+                    task_id="task_456",
+                    question="test"
+                )
+                await adapter.fetch_guidance(context)
     
     @pytest.mark.asyncio
     async def test_fetch_guidance_no_channel_config_error(self):
@@ -178,7 +184,12 @@ class TestDiscordErrorHandling:
             mock_get_config.return_value = mock_config
             
             with pytest.raises(RuntimeError, match="Guidance channel not configured"):
-                await adapter.fetch_guidance({"task": "test"})
+                context = GuidanceContext(
+                    thought_id="thought_123",
+                    task_id="task_456",
+                    question="test"
+                )
+                await adapter.fetch_guidance(context)
     
     @pytest.mark.asyncio
     async def test_send_deferral_error_handling(self):
@@ -196,7 +207,12 @@ class TestDiscordErrorHandling:
             adapter.retry_with_backoff = AsyncMock(side_effect=Exception("Deferral failed"))
             
             with patch('ciris_engine.adapters.discord.discord_adapter.persistence'):
-                result = await adapter.send_deferral("thought_123", "test reason")
+                context = DeferralContext(
+                    thought_id="thought_123",
+                    task_id="task_456",
+                    reason="test reason"
+                )
+                result = await adapter.send_deferral(context)
                 
                 # Should return False on failure
                 assert result is False
@@ -212,13 +228,12 @@ class TestDiscordErrorHandling:
         adapter.retry_with_backoff = AsyncMock(side_effect=Exception("Tool execution failed"))
         
         # Should handle the exception gracefully
-        try:
-            result = await adapter.execute_tool("test_tool", {"param": "value"})
-            # If no exception is raised, check result is error-like
-            assert result is None or (isinstance(result, dict) and "error" in result)
-        except Exception as e:
-            # Exception is expected if not handled internally
-            assert "Tool execution failed" in str(e)
+        result = await adapter.execute_tool("test_tool", {"param": "value"})
+        # Check that result is a ToolExecutionResult with error
+        from ciris_engine.schemas.protocol_schemas_v1 import ToolExecutionResult
+        assert isinstance(result, ToolExecutionResult)
+        assert result.success is False
+        assert result.error is not None
     
     @pytest.mark.asyncio
     async def test_health_check_error_handling(self):

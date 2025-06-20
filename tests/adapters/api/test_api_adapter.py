@@ -24,7 +24,7 @@ def mock_bus_manager():
 @pytest.fixture
 def mock_service_registry():
     """Mock service registry."""
-    registry = AsyncMock()
+    registry = Mock()
     
     # Create mock providers with proper async methods
     mock_provider1 = Mock()
@@ -39,6 +39,23 @@ def mock_service_registry():
         "communication": [mock_provider1],
         "tool": [mock_provider2]
     }
+    
+    # Mock get_provider_info for the list services endpoint
+    registry.get_provider_info.return_value = {
+        "handlers": {},
+        "global_services": {
+            "communication": [{"name": "MockProvider1", "priority": 1, "capabilities": ["cap1"], "global": True}],
+            "tool": [{"name": "MockProvider2", "priority": 1, "capabilities": ["cap2"], "global": True}]
+        }
+    }
+    
+    # Mock get_services_by_type for the health check endpoint
+    from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
+    registry.get_services_by_type.side_effect = lambda st: {
+        ServiceType.COMMUNICATION: [mock_provider1],
+        ServiceType.TOOL: [mock_provider2],
+    }.get(st, [])
+    
     return registry
 
 
@@ -260,7 +277,7 @@ class TestAPIAdapter:
 
     async def test_handle_health_check_service_error(self, api_adapter):
         """Test health check with service registry error."""
-        api_adapter.service_registry.get_all_services.side_effect = Exception("Service error")
+        api_adapter.service_registry.get_services_by_type.side_effect = Exception("Service error")
         
         request = Mock()
         response = await api_adapter._handle_health_check(request)
@@ -281,7 +298,7 @@ class TestAPIAdapter:
         assert "timestamp" in response_data
         
         # Verify service registry was called
-        api_adapter.service_registry.get_all_services.assert_called_once()
+        api_adapter.service_registry.get_provider_info.assert_called_once()
 
     async def test_handle_list_services_no_registry(self, api_adapter):
         """Test listing services without service registry."""

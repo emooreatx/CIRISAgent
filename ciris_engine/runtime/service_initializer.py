@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from ciris_engine.services.memory_service import LocalGraphMemoryService
 from ciris_engine.services.llm_service import OpenAICompatibleClient
-from ciris_engine.protocols.services import LLMService
+from ciris_engine.protocols.services import LLMService, TelemetryService
 from ciris_engine.services.audit_service import AuditService
 from ciris_engine.services.signed_audit_service import SignedAuditService
 from ciris_engine.services.tsdb_audit_service import TSDBSignedAuditService
@@ -17,7 +17,7 @@ from ciris_engine.services.adaptive_filter_service import AdaptiveFilterService
 from ciris_engine.services.agent_config_service import AgentConfigService
 from ciris_engine.services.multi_service_transaction_orchestrator import MultiServiceTransactionOrchestrator
 from ciris_engine.services.core_tool_service import CoreToolService
-from ciris_engine.telemetry import TelemetryService, SecurityFilter
+from ciris_engine.telemetry import BasicTelemetryCollector, SecurityFilter
 from ciris_engine.secrets.service import SecretsService
 from ciris_engine.persistence.maintenance import DatabaseMaintenanceService
 from ciris_engine.registries.base import ServiceRegistry, Priority
@@ -75,10 +75,19 @@ class ServiceInitializer:
             
             # Test memorize and recall
             await self.memory_service.memorize(test_node)
-            result = await self.memory_service.recall(test_node)
             
-            if result.status.value != "ok":
-                logger.error(f"Memory service verification failed: status={result.status.value}")
+            from ciris_engine.schemas.memory_schemas_v1 import MemoryQuery
+            query = MemoryQuery(
+                node_id=test_node.id,
+                scope=test_node.scope,
+                type=test_node.type,
+                include_edges=False,
+                depth=1
+            )
+            nodes = await self.memory_service.recall(query)
+            
+            if not nodes:
+                logger.error("Memory service verification failed: no nodes recalled")
                 return False
             
             # Clean up
@@ -137,11 +146,14 @@ class ServiceInitializer:
         self.bus_manager = BusManager(self.service_registry)
         
         # Initialize telemetry service first so other services can use it
-        self.telemetry_service = TelemetryService(
+        # Note: BasicTelemetryCollector doesn't implement TelemetryService protocol yet
+        telemetry_collector = BasicTelemetryCollector(
             buffer_size=1000,
             security_filter=SecurityFilter()
         )
-        await self.telemetry_service.start()
+        await telemetry_collector.start()
+        # For now, we'll use BasicTelemetryCollector but it needs to implement TelemetryService protocol
+        self.telemetry_service = telemetry_collector  # type: ignore
         
         # Initialize LLM service(s) based on configuration
         await self._initialize_llm_services(config)
@@ -169,7 +181,7 @@ class ServiceInitializer:
         # Initialize transaction orchestrator
         self.transaction_orchestrator = MultiServiceTransactionOrchestrator(
             service_registry=self.service_registry,
-            action_sink=self.bus_manager,
+            _action_sink=self.bus_manager,
             app_config=app_config
         )
         await self.transaction_orchestrator.start()

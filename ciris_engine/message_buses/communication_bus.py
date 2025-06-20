@@ -30,7 +30,7 @@ class FetchMessagesRequest(BusMessage):
     limit: int = 100
 
 
-class CommunicationBus(BaseBus):
+class CommunicationBus(BaseBus[CommunicationService]):
     """
     Message bus for all communication operations.
     

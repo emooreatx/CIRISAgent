@@ -7,6 +7,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
 from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
+from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext, DeferralContext
 
 
 class TestDiscordWiseAuthorityService:
@@ -34,10 +35,15 @@ class TestDiscordWiseAuthorityService:
         
         # Mock send_deferral method
         with patch.object(adapter, 'send_deferral', return_value=True) as mock_send:
-            result = await adapter.send_deferral("thought_123", "Need human guidance", {"task_id": "task_456"})
+            context = DeferralContext(
+                thought_id="thought_123",
+                task_id="task_456",
+                reason="Need human guidance"
+            )
+            result = await adapter.send_deferral(context)
             
             assert result == True
-            mock_send.assert_called_once_with("thought_123", "Need human guidance", {"task_id": "task_456"})
+            mock_send.assert_called_once_with(context)
     
     @pytest.mark.asyncio
     async def test_send_deferral_failure(self, adapter_with_deferral):
@@ -46,10 +52,15 @@ class TestDiscordWiseAuthorityService:
         
         # Mock send_deferral to return False (failure)
         with patch.object(adapter, 'send_deferral', return_value=False) as mock_send:
-            result = await adapter.send_deferral("thought_123", "Need guidance", {"task_id": "task_456"})
+            context = DeferralContext(
+                thought_id="thought_123",
+                task_id="task_456",
+                reason="Need guidance"
+            )
+            result = await adapter.send_deferral(context)
             
             assert result == False
-            mock_send.assert_called_once_with("thought_123", "Need guidance", {"task_id": "task_456"})
+            mock_send.assert_called_once_with(context)
     
     @pytest.mark.asyncio
     async def test_fetch_guidance_success(self, adapter_with_deferral):
@@ -57,7 +68,12 @@ class TestDiscordWiseAuthorityService:
         adapter = adapter_with_deferral
         
         # Mock fetch_guidance method to return guidance
-        test_context = {"summary": "Need guidance on ethical dilemma"}
+        test_context = GuidanceContext(
+            thought_id="thought_123",
+            task_id="task_456",
+            question="Need guidance on ethical dilemma",
+            ethical_considerations=["Consider the covenant principles"]
+        )
         expected_result = "Follow the covenant principles"
         
         with patch.object(adapter, 'fetch_guidance', return_value=expected_result) as mock_fetch:
@@ -72,7 +88,11 @@ class TestDiscordWiseAuthorityService:
         adapter = adapter_with_deferral
         
         # Mock fetch_guidance to raise exception
-        test_context = {"summary": "Need guidance on ethical dilemma"}
+        test_context = GuidanceContext(
+            thought_id="thought_123",
+            task_id="task_456",
+            question="Need guidance on ethical dilemma"
+        )
         
         with patch.object(adapter, 'fetch_guidance', side_effect=Exception("Fetch failed")) as mock_fetch:
             with pytest.raises(Exception, match="Fetch failed"):
@@ -92,7 +112,13 @@ class TestDiscordWiseAuthorityService:
             
             with patch.object(adapter, 'retry_with_backoff', new_callable=AsyncMock) as mock_retry:
                 with patch('ciris_engine.adapters.discord.discord_adapter.persistence'):
-                    result = await adapter.send_deferral("thought_123", "Need human guidance", {"context": "data"})
+                    context = DeferralContext(
+                        thought_id="thought_123",
+                        task_id="task_456",
+                        reason="Need human guidance",
+                        metadata={"context": "data"}
+                    )
+                    result = await adapter.send_deferral(context)
                     
                     assert result is True
                     mock_retry.assert_called_once()
@@ -107,7 +133,12 @@ class TestDiscordWiseAuthorityService:
             mock_config.discord_deferral_channel_id = None
             mock_get_config.return_value = mock_config
             
-            result = await adapter.send_deferral("thought_123", "Need guidance")
+            context = DeferralContext(
+                thought_id="thought_123",
+                task_id="task_456",
+                reason="Need guidance"
+            )
+            result = await adapter.send_deferral(context)
             
             # Should return False when no channel is configured
             assert result is False
@@ -122,7 +153,11 @@ class TestDiscordWiseAuthorityService:
             mock_config.discord_deferral_channel_id = "567890"
             mock_get_config.return_value = mock_config
             
-            test_context = {"summary": "Ethical dilemma", "task_id": "task_123"}
+            test_context = GuidanceContext(
+                thought_id="thought_123",
+                task_id="task_123",
+                question="Ethical dilemma"
+            )
             expected_guidance = {"guidance": "Follow the covenant"}
             
             with patch.object(adapter, 'retry_with_backoff', return_value=expected_guidance):
@@ -142,7 +177,11 @@ class TestDiscordWiseAuthorityService:
             mock_config.discord_deferral_channel_id = None
             mock_get_config.return_value = mock_config
             
-            test_context = {"summary": "Need guidance"}
+            test_context = GuidanceContext(
+                thought_id="thought_123",
+                task_id="task_456",
+                question="Need guidance"
+            )
             
             with pytest.raises(RuntimeError, match="Guidance channel not configured"):
                 await adapter.fetch_guidance(test_context)
@@ -167,11 +206,14 @@ class TestDiscordWiseAuthorityService:
             
             with patch.object(adapter, 'retry_with_backoff', side_effect=capture_message):
                 with patch('ciris_engine.adapters.discord.discord_adapter.persistence'):
-                    await adapter.send_deferral(
-                        "thought_123", 
-                        "Complex ethical decision needed",
-                        {"task_id": "task_456", "urgency": "high"}
+                    context = DeferralContext(
+                        thought_id="thought_123",
+                        task_id="task_456",
+                        reason="Complex ethical decision needed",
+                        priority="high",
+                        metadata={"urgency": "high"}
                     )
+                    await adapter.send_deferral(context)
                     
                     # Verify the message contains the key information
                     assert sent_message is not None
@@ -197,12 +239,15 @@ class TestDiscordWiseAuthorityService:
             
             with patch.object(adapter, 'retry_with_backoff', side_effect=capture_guidance_request):
                 with patch('ciris_engine.adapters.discord.discord_adapter.persistence'):
-                    test_context = {
-                        "summary": "Should I help with this request?",
-                        "task_id": "task_789",
-                        "urgency": "medium",
-                        "user_info": "New user"
-                    }
+                    test_context = GuidanceContext(
+                        thought_id="thought_456",
+                        task_id="task_789",
+                        question="Should I help with this request?",
+                        domain_context={
+                            "urgency": "medium",
+                            "user_info": "New user"
+                        }
+                    )
                     
                     result = await adapter.fetch_guidance(test_context)
                     
@@ -224,9 +269,8 @@ class TestDiscordWiseAuthorityService:
         import inspect
         
         send_deferral_sig = inspect.signature(adapter.send_deferral)
-        expected_params = ['thought_id', 'reason', 'context']
-        for param in expected_params:
-            assert param in send_deferral_sig.parameters
+        # Updated method now takes a single context parameter
+        assert 'context' in send_deferral_sig.parameters
         
         fetch_guidance_sig = inspect.signature(adapter.fetch_guidance)
         assert 'context' in fetch_guidance_sig.parameters

@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import sys
+import select
 from typing import Callable, Awaitable, Dict, Any, Optional
 
 from ciris_engine.schemas.foundational_schemas_v1 import IncomingMessage
@@ -44,12 +46,94 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         self.config = config
         self._input_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
+        self._buffered_input: list[str] = []
+        self._input_ready = asyncio.Event()
+        self._check_for_piped_input()
+
+    def _check_for_piped_input(self) -> None:
+        """Check if there's piped input available and buffer it."""
+        try:
+            # Check if stdin has data available (non-blocking)
+            if sys.stdin.isatty():
+                # Interactive terminal - no piped input
+                logger.debug("CLI running in interactive mode")
+                return
+                
+            # Non-interactive - check for piped input
+            logger.info("Detected piped input, buffering...")
+            
+            # Read all available lines from stdin
+            while True:
+                # Use select to check if data is available with a short timeout
+                ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+                if ready:
+                    line = sys.stdin.readline()
+                    if line:
+                        line = line.rstrip('\n')
+                        if line:  # Ignore empty lines
+                            self._buffered_input.append(line)
+                            logger.debug(f"Buffered input: {line}")
+                    else:
+                        # EOF reached
+                        break
+                else:
+                    # No more data available
+                    break
+                    
+            if self._buffered_input:
+                logger.info(f"Buffered {len(self._buffered_input)} input lines")
+                # If we have buffered input, we're not interactive
+                self.interactive = False
+                
+        except Exception as e:
+            logger.warning(f"Error checking for piped input: {e}")
 
     async def start(self) -> None:
         """Start the observer and optional input loop."""
         logger.info("CLIObserver started")
+        
+        # Process any buffered input first
+        if self._buffered_input:
+            logger.info(f"Processing {len(self._buffered_input)} buffered input lines")
+            asyncio.create_task(self._process_buffered_input())
+        
+        # Start interactive input loop if needed
         if self.interactive and self._input_task is None:
             self._input_task = asyncio.create_task(self._input_loop())
+
+    async def _process_buffered_input(self) -> None:
+        """Process buffered input lines with a delay to ensure system is ready."""
+        # Wait longer to ensure the system completes wakeup and is in WORK state
+        logger.info("Waiting for system to be ready...")
+        await asyncio.sleep(5.0)
+        
+        for line in self._buffered_input:
+            logger.info(f"Processing buffered input: {line}")
+            
+            # Get channel ID from config or default to "cli"
+            channel_id = "cli"
+            if self.config and hasattr(self.config, 'get_home_channel_id'):
+                channel_id = self.config.get_home_channel_id()
+                
+            msg = IncomingMessage(
+                message_id=f"cli_buffered_{asyncio.get_event_loop().time()}",
+                content=line,
+                author_id="local_user",
+                author_name="User",
+                channel_id=channel_id,
+            )
+            
+            await self.handle_incoming_message(msg)
+            
+            # Small delay between messages to avoid overwhelming the system
+            await asyncio.sleep(0.5)
+        
+        logger.info("Finished processing buffered input")
+        
+        # If not interactive, signal stop after processing
+        if not self.interactive:
+            logger.info("Non-interactive mode, signaling stop")
+            self._stop_event.set()
 
     async def stop(self) -> None:
         """Stop the observer and background input loop."""
@@ -111,6 +195,10 @@ class CLIObserver(BaseObserver[IncomingMessage]):
             return False
             
         if channel_id == "cli":
+            return True
+        
+        # Check if it starts with "cli_" (buffered input format)
+        if channel_id.startswith("cli_"):
             return True
         
         if self.config and hasattr(self.config, 'get_home_channel_id'):
@@ -176,8 +264,6 @@ class CLIObserver(BaseObserver[IncomingMessage]):
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
         """Handle passive observation routing based on channel ID and author filtering"""
-        
-        logger.debug(f"CLI Message channel_id: {msg.channel_id}")
         
         if self._is_cli_channel(msg.channel_id) and not self._is_agent_message(msg):
             await self._create_passive_observation_result(msg)

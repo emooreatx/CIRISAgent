@@ -7,19 +7,21 @@ enabling time-series queries and unified telemetry storage.
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 from uuid import uuid4
 
 from ciris_engine.adapters.base import Service
+from ciris_engine.protocols.services import AuditService
 from ciris_engine.schemas.correlation_schemas_v1 import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
 from ciris_engine.persistence.models.correlations import add_correlation
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry
+from ciris_engine.schemas.protocol_schemas_v1 import ActionContext, AuditEntry, GuardrailCheckResult
 
 logger = logging.getLogger(__name__)
 
 
-class TSDBSignedAuditService(Service):
+class TSDBSignedAuditService(AuditService):
     """
     Audit service that stores events in TSDB as correlations.
     
@@ -127,7 +129,7 @@ class TSDBSignedAuditService(Service):
     async def log_action(
         self,
         handler_action: HandlerActionType,
-        context: Dict[str, Any],
+        context: ActionContext,
         outcome: Optional[str] = None,
     ) -> bool:
         """
@@ -146,14 +148,14 @@ class TSDBSignedAuditService(Service):
                 event_id=str(uuid4()),
                 event_timestamp=datetime.now(timezone.utc).isoformat(),
                 event_type=handler_action.value,
-                originator_id=context.get("thought_id", "unknown"),
-                target_id=context.get("target_id"),
+                originator_id=context.thought_id,
+                target_id=context.task_id,
                 event_summary=self._generate_summary(handler_action, context, outcome),
-                event_payload=context,
-                agent_template=context.get("agent_template"),
-                round_number=context.get("round_number"),
-                thought_id=context.get("thought_id"),
-                task_id=context.get("task_id") or context.get("source_task_id"),
+                event_payload={"thought_id": context.thought_id, "task_id": context.task_id, "handler_name": context.handler_name, "parameters": context.parameters},
+                agent_template="default",
+                round_number=0,
+                thought_id=context.thought_id,
+                task_id=context.task_id,
             )
             
             audit_correlation = ServiceCorrelation(
@@ -202,15 +204,15 @@ class TSDBSignedAuditService(Service):
         except Exception as e:
             logger.error(f"Failed to store audit correlation in TSDB: {e}")
     
-    def _generate_summary(self, action: HandlerActionType, context: Dict[str, Any], outcome: Optional[str]) -> str:
+    def _generate_summary(self, action: HandlerActionType, context: ActionContext, outcome: Optional[str]) -> str:
         """Generate a human-readable summary of the action."""
         summary_parts = [f"Action: {action.value}"]
         
-        if "task_description" in context:
-            summary_parts.append(f"Task: {context['task_description']}")
+        if context.task_id:
+            summary_parts.append(f"Task: {context.task_id}")
         
-        if "target_id" in context:
-            summary_parts.append(f"Target: {context['target_id']}")
+        if context.handler_name:
+            summary_parts.append(f"Handler: {context.handler_name}")
             
         if outcome:
             summary_parts.append(f"Outcome: {outcome}")
@@ -238,7 +240,7 @@ class TSDBSignedAuditService(Service):
         thought_id: Optional[str] = None,
         task_id: Optional[str] = None,
         limit: int = 100
-    ) -> list[Dict[str, Any]]:
+    ) -> List[AuditEntry]:
         """
         Query audit trail from TSDB.
         
@@ -282,16 +284,21 @@ class TSDBSignedAuditService(Service):
                     continue
                 
                 # Format result
-                result = {
-                    "event_id": corr.correlation_id,
-                    "timestamp": corr.timestamp.isoformat() if corr.timestamp else corr.created_at,
-                    "action": corr.action_type,
-                    "summary": corr.request_data.get("event_summary", "") if corr.request_data else "",
-                    "thought_id": corr.request_data.get("thought_id") if corr.request_data else None,
-                    "task_id": corr.request_data.get("task_id") if corr.request_data else None,
-                    "outcome": corr.response_data.get("outcome") if corr.response_data else None,
-                    "tags": corr.tags
-                }
+                result = AuditEntry(
+                    entry_id=corr.correlation_id,
+                    timestamp=corr.timestamp if corr.timestamp else datetime.fromisoformat(corr.created_at) if corr.created_at else datetime.now(timezone.utc),
+                    entity_id=corr.request_data.get("thought_id", "") if corr.request_data else "",
+                    event_type=corr.action_type,
+                    actor=corr.handler_name,
+                    details={
+                        "action": corr.action_type,
+                        "summary": corr.request_data.get("event_summary", "") if corr.request_data else "",
+                        "thought_id": corr.request_data.get("thought_id") if corr.request_data else None,
+                        "task_id": corr.request_data.get("task_id") if corr.request_data else None,
+                        "tags": corr.tags
+                    },
+                    outcome=corr.response_data.get("outcome") if corr.response_data else None
+                )
                 results.append(result)
                 
             return results
@@ -299,3 +306,44 @@ class TSDBSignedAuditService(Service):
         except Exception as e:
             logger.error(f"Failed to query audit trail: {e}")
             return []
+    
+    async def log_guardrail_event(self, guardrail_name: str, action_type: str, result: GuardrailCheckResult) -> None:
+        """
+        Log guardrail check events.
+        
+        Args:
+            guardrail_name: Name of the guardrail
+            action_type: Type of action being checked
+            result: Guardrail check result
+        """
+        # Create audit event with guardrail context
+        event_data = {
+            "event_type": "guardrail_check",
+            "guardrail_name": guardrail_name,
+            "action_type": action_type,
+            "result": {"allowed": result.allowed, "reason": result.reason, "risk_level": result.risk_level},
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await self.log_event("guardrail_check", event_data)
+    
+    async def get_audit_trail(self, entity_id: str, limit: int = 100) -> List[AuditEntry]:
+        """
+        Get audit trail for an entity.
+        
+        Args:
+            entity_id: Entity identifier (task_id or thought_id)
+            limit: Maximum number of results
+            
+        Returns:
+            List of audit entries
+        """
+        # Delegate to query_audit_trail with appropriate filters
+        return await self.query_audit_trail(
+            start_time=None,
+            end_time=None,
+            action_types=None,
+            thought_id=entity_id if entity_id.startswith("thought_") else None,
+            task_id=entity_id if entity_id.startswith("task_") else None,
+            limit=limit
+        )

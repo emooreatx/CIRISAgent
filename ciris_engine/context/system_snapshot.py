@@ -7,6 +7,7 @@ from ciris_engine.secrets.service import SecretsService
 from ciris_engine.schemas.agent_core_schemas_v1 import Task
 from ciris_engine.schemas.context_schemas_v1 import SystemSnapshot
 from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
+from ciris_engine.schemas.memory_schemas_v1 import MemoryQuery
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus
 from ciris_engine import persistence
 from .secrets_snapshot import build_secrets_snapshot
@@ -95,7 +96,14 @@ async def build_system_snapshot(
             type=NodeType.CHANNEL,
             scope=GraphScope.LOCAL,
         )
-        await memory_service.recall(channel_node)
+        query = MemoryQuery(
+            node_id=f"channel/{channel_id}",
+            scope=GraphScope.LOCAL,
+            type=NodeType.CHANNEL,
+            include_edges=False,
+            depth=1
+        )
+        await memory_service.recall(query)
     
     # Retrieve agent identity from graph - SINGLE CALL at snapshot generation
     identity_data: Dict[str, Any] = {}
@@ -111,11 +119,19 @@ async def build_system_snapshot(
                 type=NodeType.AGENT,
                 scope=GraphScope.IDENTITY
             )
-            identity_result = await memory_service.recall(identity_node)
+            identity_query = MemoryQuery(
+                node_id="agent/identity",
+                scope=GraphScope.IDENTITY,
+                type=NodeType.AGENT,
+                include_edges=False,
+                depth=1
+            )
+            identity_nodes = await memory_service.recall(identity_query)
+            identity_result = identity_nodes[0] if identity_nodes else None
             
-            if identity_result and identity_result.data:
-                # MemoryOpResult returns data, not nodes
-                identity_data = identity_result.data.get("identity", {}) if isinstance(identity_result.data, dict) else {}
+            if identity_result and identity_result.attributes:
+                # Nodes have attributes
+                identity_data = identity_result.attributes.get("identity", {}) if isinstance(identity_result.attributes, dict) else {}
                 identity_purpose = identity_data.get("purpose_statement", "")
                 identity_capabilities = identity_data.get("allowed_capabilities", [])
                 identity_restrictions = identity_data.get("restricted_capabilities", [])

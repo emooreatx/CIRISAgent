@@ -11,6 +11,7 @@ from ciris_engine.schemas.correlation_schemas_v1 import (
     ServiceCorrelationStatus,
 )
 from ciris_engine.schemas.persistence_schemas_v1 import CorrelationUpdateRequest
+from ciris_engine.schemas.protocol_schemas_v1 import ToolInfo, ToolParameterSchema, ToolExecutionResult
 from ciris_engine import persistence
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class DiscordToolHandler:
         """
         self.tool_registry = tool_registry
         self.client = client
-        self._tool_results: Dict[str, Dict[str, Any]] = {}
+        self._tool_results: Dict[str, ToolExecutionResult] = {}
     
     def set_client(self, client: discord.Client) -> None:
         """Set the Discord client after initialization.
@@ -46,7 +47,7 @@ class DiscordToolHandler:
         """
         self.tool_registry = tool_registry
     
-    async def execute_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> ToolExecutionResult:
         """Execute a registered Discord tool via the tool registry.
         
         Args:
@@ -60,11 +61,27 @@ class DiscordToolHandler:
             RuntimeError: If tool registry is not configured or tool not found
         """
         if not self.tool_registry:
-            raise RuntimeError("Tool registry not configured")
+            return ToolExecutionResult(
+                success=False,
+                error="Tool registry not configured",
+                result=None,
+                execution_time=0,
+                adapter_id="discord",
+                output=None,
+                metadata=None
+            )
         
         handler = self.tool_registry.get_handler(tool_name)
         if not handler:
-            raise RuntimeError(f"Tool handler for '{tool_name}' not found")
+            return ToolExecutionResult(
+                success=False,
+                error=f"Tool handler for '{tool_name}' not found",
+                result=None,
+                execution_time=0,
+                adapter_id="discord",
+                output=None,
+                metadata=None
+            )
         
         correlation_id = tool_args.get("correlation_id", str(uuid.uuid4()))
         
@@ -82,13 +99,27 @@ class DiscordToolHandler:
         )
         
         try:
+            import time
+            start_time = time.time()
             tool_args_with_bot = {**tool_args, "bot": self.client}
             result = await handler(tool_args_with_bot)
+            execution_time = (time.time() - start_time) * 1000
             
             result_dict = result if isinstance(result, dict) else result.__dict__
             
+            # Create ToolExecutionResult
+            execution_result = ToolExecutionResult(
+                success=result_dict.get("success", True),
+                result=result_dict,
+                error=result_dict.get("error"),
+                execution_time=execution_time / 1000,  # Convert to seconds
+                adapter_id="discord",
+                output=None,
+                metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+            )
+            
             if correlation_id:
-                self._tool_results[correlation_id] = result_dict
+                self._tool_results[correlation_id] = execution_result
                 persistence.update_correlation(
                     CorrelationUpdateRequest(
                         correlation_id=correlation_id,
@@ -99,7 +130,7 @@ class DiscordToolHandler:
                     )
                 )
             
-            return result_dict
+            return execution_result
             
         except Exception as e:
             logger.exception(f"Tool execution failed for {tool_name}: {e}")
@@ -116,9 +147,17 @@ class DiscordToolHandler:
                     )
                 )
             
-            raise
+            return ToolExecutionResult(
+                success=False,
+                error=str(e),
+                result=None,
+                execution_time=0,
+                adapter_id="discord",
+                output=None,
+                metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+            )
     
-    async def get_tool_result(self, correlation_id: str, timeout: int = 10) -> Dict[str, Any]:
+    async def get_tool_result(self, correlation_id: str, timeout: int = 10) -> Optional[ToolExecutionResult]:
         """Fetch a tool result by correlation ID from the internal cache.
         
         Args:
@@ -134,7 +173,7 @@ class DiscordToolHandler:
             await asyncio.sleep(0.1)
         
         logger.warning(f"Tool result for correlation_id {correlation_id} not found after {timeout}s")
-        return {"correlation_id": correlation_id, "status": "not_found"}
+        return None
     
     async def get_available_tools(self) -> List[str]:
         """Return names of registered Discord tools.
@@ -152,6 +191,78 @@ class DiscordToolHandler:
         else:
             logger.warning("Tool registry interface not recognized")
             return []
+    
+    async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
+        """Get detailed information about a specific tool."""
+        if not self.tool_registry:
+            return None
+        
+        # Check if the tool registry has a method to get tool description
+        if hasattr(self.tool_registry, 'get_tool_description'):
+            tool_desc = self.tool_registry.get_tool_description(tool_name)
+            if tool_desc:
+                # Convert tool description to ToolInfo
+                parameters = []
+                if hasattr(tool_desc, 'parameters'):
+                    for param in tool_desc.parameters:
+                        parameters.append(ToolParameterSchema(
+                            name=param.name,
+                            type=getattr(param.type, 'value', str(param.type)),
+                            description=param.description,
+                            required=getattr(param, 'required', True),
+                            default=getattr(param, 'default', None),
+                            enum=getattr(param, 'enum', None),
+                            pattern=None
+                        ))
+                
+                return ToolInfo(
+                    tool_name=tool_desc.name,
+                    display_name=tool_desc.name.replace("_", " ").title(),
+                    description=tool_desc.description,
+                    category=getattr(tool_desc, 'category', 'discord'),
+                    adapter_id="discord",
+                    adapter_type="discord",
+                    adapter_instance_name="Discord Adapter",
+                    parameters=parameters,
+                    returns_schema={"type": "object", "description": getattr(tool_desc, 'returns', 'Tool result')},
+                    examples=getattr(tool_desc, 'examples', None),
+                    requires_auth=getattr(tool_desc, 'requires_auth', False),
+                    rate_limit=getattr(tool_desc, 'rate_limit', None),
+                    timeout_seconds=getattr(tool_desc, 'timeout_seconds', 30.0),
+                    enabled=True,
+                    health_status="healthy"
+                )
+        
+        # Fallback to basic info if tool exists
+        if tool_name in await self.get_available_tools():
+            return ToolInfo(
+                tool_name=tool_name,
+                display_name=tool_name.replace("_", " ").title(),
+                description=f"Discord tool: {tool_name}",
+                category="discord",
+                adapter_id="discord",
+                adapter_type="discord",
+                adapter_instance_name="Discord Adapter",
+                parameters=[],
+                returns_schema=None,
+                examples=None,
+                requires_auth=False,
+                rate_limit=None,
+                timeout_seconds=30.0,
+                enabled=True,
+                health_status="healthy"
+            )
+        
+        return None
+    
+    async def get_all_tool_info(self) -> List[ToolInfo]:
+        """Get detailed information about all available tools."""
+        tools = []
+        for tool_name in await self.get_available_tools():
+            tool_info = await self.get_tool_info(tool_name)
+            if tool_info:
+                tools.append(tool_info)
+        return tools
     
     async def validate_tool_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
         """Basic parameter validation using tool registry schemas.

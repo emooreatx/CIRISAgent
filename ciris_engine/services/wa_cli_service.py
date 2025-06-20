@@ -98,7 +98,7 @@ class WACLIService(WACLIInterface):
         return await self.bootstrap_service.approve_mint_request(
             code=request_code,
             approver_wa_id=signer_wa_id,
-            approver_key_file=signer_key_file
+            _approver_key_file=signer_key_file
         )
     
     async def oauth_setup(
@@ -123,6 +123,7 @@ class WACLIService(WACLIInterface):
         """Perform OAuth login flow."""
         # The oauth service doesn't take callback_port parameter,
         # but we can still conform to the protocol interface
+        _ = callback_port  # Unused but required by protocol
         return await self.oauth_service.oauth_login(provider)
     
     async def list_was(self, tree_view: bool = False) -> None:

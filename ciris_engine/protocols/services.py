@@ -3,7 +3,7 @@ Service protocols for the CIRIS Agent registry system.
 These protocols define clear contracts for different types of services.
 All service implementations must inherit from the Service base class for lifecycle management.
 """
-from typing import Optional, Dict, Any, List, Type, Tuple
+from typing import Optional, Dict, Any, List, Type, Tuple, Union
 from abc import abstractmethod
 from datetime import datetime
 from pydantic import BaseModel
@@ -14,9 +14,20 @@ from ciris_engine.schemas.foundational_schemas_v1 import (
     FetchedMessage,
 )
 from ciris_engine.schemas.graph_schemas_v1 import GraphNode
-from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult, MemoryOpStatus
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult, MemoryOpStatus, MemoryQuery
 from ciris_engine.schemas.network_schemas_v1 import AgentIdentity, NetworkPresence
 from ciris_engine.schemas.community_schemas_v1 import MinimalCommunityContext
+from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext, DeferralContext
+from ciris_engine.schemas.secrets_schemas_v1 import SecretReference
+from ciris_engine.schemas.runtime_control_schemas import ProcessorControlResponse
+from ciris_engine.schemas.protocol_schemas_v1 import (
+    MemorySearchResult, TimeSeriesDataPoint, IdentityUpdateRequest,
+    EnvironmentUpdateRequest, ToolExecutionRequest, ToolExecutionResult,
+    ToolInfo, ActionContext, GuardrailCheckResult, AuditEntry,
+    LLMStatus, NetworkQueryRequest, MetricDataPoint, ServiceStatus,
+    ResourceLimits, ProcessorQueueStatus, AdapterConfig, AdapterInfo,
+    ConfigValue, SecretInfo, SecretsServiceStats
+)
 
 
 class CommunicationService(Service):
@@ -68,12 +79,12 @@ class WiseAuthorityService(Service):
     """Abstract base class for Wise Authority services"""
     
     @abstractmethod
-    async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]:
+    async def fetch_guidance(self, context: GuidanceContext) -> Optional[str]:
         """
         Fetch guidance from the wise authority.
         
         Args:
-            context: Context information for the guidance request
+            context: Typed context for the guidance request
             
         Returns:
             Guidance text if available, None otherwise
@@ -81,14 +92,12 @@ class WiseAuthorityService(Service):
         ...
     
     @abstractmethod
-    async def send_deferral(self, thought_id: str, reason: str, context: Optional[Dict[str, Any]] = None) -> bool:
+    async def send_deferral(self, context: DeferralContext) -> bool:
         """
         Send a thought for deferral to wise authority.
         
         Args:
-            thought_id: The ID of the thought to defer
-            reason: Reason for deferral
-            context: Additional context about the thought and task
+            context: Typed context containing deferral information
             
         Returns:
             True if deferral was submitted successfully
@@ -113,8 +122,8 @@ class MemoryService(Service):
         ...
     
     @abstractmethod
-    async def recall(self, node: GraphNode) -> MemoryOpResult:
-        """Retrieve a node from memory."""
+    async def recall(self, recall_query: MemoryQuery) -> List[GraphNode]:
+        """Retrieve nodes from memory based on query."""
         ...
     
     @abstractmethod
@@ -122,7 +131,7 @@ class MemoryService(Service):
         """Delete a node from memory."""
         ...
     
-    async def search_memories(self, query: str, scope: str = "default", limit: int = 10) -> List[Dict[str, Any]]:
+    async def search_memories(self, query: str, scope: str = "default", limit: int = 10) -> List[MemorySearchResult]:
         """
         Search memories by query.
         
@@ -132,11 +141,11 @@ class MemoryService(Service):
             limit: Maximum number of results
             
         Returns:
-            List of matching memories
+            List of matching memories with relevance scores
         """
         return []
     
-    async def recall_timeseries(self, scope: str = "default", hours: int = 24, correlation_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    async def recall_timeseries(self, scope: str = "default", hours: int = 24, correlation_types: Optional[List[str]] = None) -> List[TimeSeriesDataPoint]:
         """
         Recall time-series data from TSDB correlations.
         
@@ -180,20 +189,32 @@ class MemoryService(Service):
         """
         return MemoryOpResult(status=MemoryOpStatus.DENIED, error="Not implemented")
     
+    async def export_identity_context(self) -> str:
+        """Export identity nodes as string representation."""
+        return ""
+    
+    async def update_identity_graph(self, update_request: IdentityUpdateRequest) -> MemoryOpResult:
+        """Update identity graph nodes based on WA feedback."""
+        return MemoryOpResult(status=MemoryOpStatus.DENIED, error="Not implemented")
+    
+    async def update_environment_graph(self, update_request: EnvironmentUpdateRequest) -> MemoryOpResult:
+        """Update environment graph based on adapter feedback."""
+        return MemoryOpResult(status=MemoryOpStatus.DENIED, error="Not implemented")
+    
     async def is_healthy(self) -> bool:
         """Health check for circuit breaker"""
         return True
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["memorize", "recall", "forget"]
+        return ["memorize", "recall", "forget", "export_identity_context", "update_identity_graph", "update_environment_graph"]
 
 
 class ToolService(Service):
     """Abstract base class for tool services (LLM tools, external APIs, etc.)"""
     
     @abstractmethod
-    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> ToolExecutionResult:
         """
         Execute a tool with given parameters.
         
@@ -217,7 +238,30 @@ class ToolService(Service):
         ...
     
     @abstractmethod
-    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
+    async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
+        """
+        Get detailed information about a specific tool.
+        
+        Args:
+            tool_name: Name of the tool
+            
+        Returns:
+            Complete tool information including schema, or None if not found
+        """
+        ...
+    
+    @abstractmethod
+    async def get_all_tool_info(self) -> List[ToolInfo]:
+        """
+        Get detailed information about all available tools.
+        
+        Returns:
+            List of tool information for all tools provided by this service
+        """
+        ...
+    
+    @abstractmethod
+    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
         """
         Get the result of a previously executed tool by correlation ID.
         
@@ -243,19 +287,29 @@ class ToolService(Service):
         """
         return True
     
+    async def get_adapter_id(self) -> str:
+        """
+        Get the unique identifier of the adapter providing these tools.
+        
+        Returns:
+            Adapter instance ID
+        """
+        return "default"
+    
     async def is_healthy(self) -> bool:
         """Health check for circuit breaker"""
         return True
     
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["execute_tool", "get_available_tools", "get_tool_result"]
+        return ["execute_tool", "get_available_tools", "get_tool_info", 
+                "get_all_tool_info", "get_tool_result", "get_adapter_id"]
 
 
 class AuditService(Service):
     """Abstract base class for audit and logging services"""
     
-    async def log_action(self, action_type: HandlerActionType, context: Dict[str, Any], outcome: Optional[str] = None) -> bool:
+    async def log_action(self, action_type: HandlerActionType, context: ActionContext, outcome: Optional[str] = None) -> bool:
         """
         Log an action for audit purposes.
         
@@ -280,7 +334,7 @@ class AuditService(Service):
         """
         ...
     
-    async def log_guardrail_event(self, guardrail_name: str, action_type: str, result: Dict[str, Any]) -> None:
+    async def log_guardrail_event(self, guardrail_name: str, action_type: str, result: GuardrailCheckResult) -> None:
         """
         Log guardrail check events.
         
@@ -292,7 +346,7 @@ class AuditService(Service):
         pass
     
     @abstractmethod
-    async def get_audit_trail(self, entity_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    async def get_audit_trail(self, entity_id: str, limit: int = 100) -> List[AuditEntry]:
         """
         Get audit trail for an entity.
         
@@ -313,7 +367,7 @@ class AuditService(Service):
         thought_id: Optional[str] = None,
         task_id: Optional[str] = None,
         limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> List[AuditEntry]:
         """
         Query audit trail with time-series filtering (TSDB-enabled services).
         
@@ -374,9 +428,19 @@ class LLMService(Service):
         """Health check for circuit breaker"""
         return True
     
+    async def get_status(self) -> LLMStatus:
+        """Get LLM service status including model info and usage metrics."""
+        return LLMStatus(
+            available=True,
+            model="unknown",
+            usage={},
+            rate_limit_remaining=None,
+            response_time_avg=None
+        )
+    
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
-        return ["call_llm_structured"]
+        return ["call_llm_structured", "get_available_models", "get_status"]
 
 
 class NetworkService(Service):
@@ -398,7 +462,7 @@ class NetworkService(Service):
         ...
     
     @abstractmethod
-    async def query_network(self, query_type: str, params: Dict[str, Any]) -> Any:
+    async def query_network(self, request: NetworkQueryRequest) -> Any:
         """Query network for information"""
         ...
 
@@ -450,7 +514,7 @@ class TelemetryService(Service):
         ...
     
     @abstractmethod
-    async def query_metrics(self, metric_names: Optional[List[str]] = None, service_names: Optional[List[str]] = None, time_range: Optional[Tuple[datetime, datetime]] = None, tags: Optional[Dict[str, str]] = None, aggregation: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def query_metrics(self, _metric_names: Optional[List[str]] = None, _service_names: Optional[List[str]] = None, _time_range: Optional[Tuple[datetime, datetime]] = None, _tags: Optional[Dict[str, str]] = None, _aggregation: Optional[str] = None) -> List[MetricDataPoint]:
         """
         Query metrics with filtering and aggregation options.
         
@@ -467,7 +531,7 @@ class TelemetryService(Service):
         ...
     
     @abstractmethod
-    async def get_service_status(self, service_name: Optional[str] = None) -> Dict[str, Any]:
+    async def get_service_status(self, service_name: Optional[str] = None) -> Union[ServiceStatus, Dict[str, ServiceStatus]]:
         """
         Get service status information.
         
@@ -480,7 +544,7 @@ class TelemetryService(Service):
         ...
     
     @abstractmethod
-    async def get_resource_limits(self) -> Dict[str, Any]:
+    async def get_resource_limits(self) -> ResourceLimits:
         """
         Get resource limits and quotas.
         
@@ -496,3 +560,248 @@ class TelemetryService(Service):
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities this service supports."""
         return ["record_metric", "record_resource_usage", "query_metrics", "get_service_status", "get_resource_limits"]
+
+
+class RuntimeControlService(Service):
+    """Abstract base class for runtime control services"""
+    
+    @abstractmethod
+    async def single_step(self) -> ProcessorControlResponse:
+        """Execute a single processing step."""
+        ...
+    
+    @abstractmethod
+    async def pause_processing(self) -> ProcessorControlResponse:
+        """Pause the processor."""
+        ...
+    
+    @abstractmethod
+    async def resume_processing(self) -> ProcessorControlResponse:
+        """Resume the processor."""
+        ...
+    
+    @abstractmethod
+    async def get_processor_queue_status(self) -> ProcessorQueueStatus:
+        """Get processor queue status."""
+        ...
+    
+    @abstractmethod
+    async def shutdown_runtime(self, reason: str) -> ProcessorControlResponse:
+        """Shutdown the runtime."""
+        ...
+    
+    @abstractmethod
+    async def load_adapter(
+        self,
+        adapter_type: str,
+        adapter_id: str,
+        config: Dict[str, Any],  # Keep as dict for flexibility
+        auto_start: bool = True
+    ) -> AdapterInfo:
+        """Load a new adapter instance."""
+        ...
+    
+    @abstractmethod
+    async def unload_adapter(
+        self,
+        adapter_id: str,
+        force: bool = False
+    ) -> AdapterInfo:
+        """Unload an adapter instance."""
+        ...
+    
+    @abstractmethod
+    async def list_adapters(self) -> List[AdapterInfo]:
+        """List all loaded adapters."""
+        ...
+    
+    @abstractmethod
+    async def get_adapter_info(self, adapter_id: str) -> AdapterInfo:
+        """Get detailed information about a specific adapter."""
+        ...
+    
+    @abstractmethod
+    async def get_config(
+        self,
+        path: Optional[str] = None,
+        include_sensitive: bool = False
+    ) -> Union[ConfigValue, Dict[str, ConfigValue]]:
+        """Get configuration value(s)."""
+        ...
+    
+    @abstractmethod
+    async def get_runtime_status(self) -> Dict[str, Any]:  # Complex status, keep as dict
+        """
+        Get current runtime status.
+        
+        Returns:
+            Dictionary containing runtime status information
+        """
+        ...
+    
+    async def is_healthy(self) -> bool:
+        """Health check for circuit breaker"""
+        return True
+    
+    async def get_capabilities(self) -> List[str]:
+        """Return list of capabilities this service supports."""
+        return [
+            "single_step", "pause_processing", "resume_processing",
+            "get_processor_queue_status", "shutdown_runtime",
+            "load_adapter", "unload_adapter", "list_adapters", "get_adapter_info",
+            "get_config", "get_runtime_status"
+        ]
+
+
+class SecretsService(Service):
+    """Abstract base class for secrets management services"""
+    
+    @abstractmethod
+    async def process_incoming_text(
+        self, 
+        text: str, 
+        context_hint: str = "",
+        source_message_id: Optional[str] = None
+    ) -> Tuple[str, List[SecretReference]]:
+        """
+        Process incoming text for secrets detection and replacement.
+        
+        Args:
+            text: Original text to process
+            context_hint: Safe context description
+            source_message_id: ID of source message for tracking
+            
+        Returns:
+            Tuple of (filtered_text, secret_references)
+        """
+        ...
+    
+    @abstractmethod
+    async def decapsulate_secrets_in_parameters(
+        self,
+        parameters: Any,
+        action_type: str,
+        context: Dict[str, Any]
+    ) -> Any:
+        """
+        Replace secret UUIDs with actual values in action parameters.
+        
+        Args:
+            parameters: Action parameters that may contain secret UUID references
+            action_type: Type of action being performed (for access control)
+            context: Context information for the decapsulation
+            
+        Returns:
+            Parameters with secrets decapsulated
+        """
+        ...
+    
+    @abstractmethod
+    async def list_stored_secrets(
+        self,
+        limit: int = 10
+    ) -> List[SecretReference]:
+        """
+        Get references to stored secrets for SystemSnapshot.
+        
+        Args:
+            limit: Maximum number of secrets to return
+            
+        Returns:
+            List of SecretReference objects for agent introspection
+        """
+        ...
+    
+    @abstractmethod
+    async def recall_secret(
+        self,
+        secret_uuid: str,
+        purpose: str,
+        accessor: str = "agent",
+        decrypt: bool = False
+    ) -> Optional[SecretInfo]:
+        """
+        Recall a stored secret for agent use.
+        
+        Args:
+            secret_uuid: UUID of secret to recall
+            purpose: Purpose for accessing secret (for audit)
+            accessor: Who is accessing the secret
+            decrypt: Whether to return decrypted value
+            
+        Returns:
+            Secret information dict or None if not found/denied
+        """
+        ...
+    
+    @abstractmethod
+    async def update_filter_config(
+        self,
+        updates: Dict[str, Any],
+        accessor: str = "agent"
+    ) -> Dict[str, Any]:  # Keep as dict for flexibility
+        """
+        Update filter configuration settings.
+        
+        Args:
+            updates: Dictionary of configuration updates
+            accessor: Who is making the update
+            
+        Returns:
+            Dictionary with operation result
+        """
+        ...
+    
+    @abstractmethod
+    async def forget_secret(
+        self,
+        secret_uuid: str,
+        accessor: str = "agent"
+    ) -> bool:
+        """
+        Delete/forget a stored secret.
+        
+        Args:
+            secret_uuid: UUID of secret to forget
+            accessor: Who is forgetting the secret
+            
+        Returns:
+            True if successfully forgotten
+        """
+        ...
+    
+    async def auto_forget_task_secrets(self) -> List[str]:
+        """
+        Automatically forget secrets from current task.
+        
+        Returns:
+            List of forgotten secret UUIDs
+        """
+        return []
+    
+    async def get_service_stats(self) -> SecretsServiceStats:
+        """
+        Get service statistics for monitoring.
+        
+        Returns:
+            Dictionary with service statistics
+        """
+        return SecretsServiceStats(
+            secrets_stored=0,
+            filter_active=True,
+            patterns_enabled=[],
+            recent_detections=0,
+            storage_size_bytes=0
+        )
+    
+    async def is_healthy(self) -> bool:
+        """Health check for circuit breaker"""
+        return True
+    
+    async def get_capabilities(self) -> List[str]:
+        """Return list of capabilities this service supports."""
+        return [
+            "process_incoming_text", "decapsulate_secrets_in_parameters",
+            "list_stored_secrets", "recall_secret", "update_filter_config",
+            "forget_secret", "auto_forget_task_secrets", "get_service_stats"
+        ]

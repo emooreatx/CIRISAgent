@@ -57,9 +57,9 @@ The comprehensive agent documentation file could not be located.
 
 ### Memory Scopes:
 - **LOCAL**: Your personal memories
-- **SHARED**: Memories shared with other agents
 - **IDENTITY**: Your core identity (WA approval required)
 - **ENVIRONMENT**: System configuration (WA approval required)
+- **COMMUNITY**: Community-specific memories
 
 For full documentation, ensure agent_experience.md is available in the docs directory.
 """,

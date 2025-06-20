@@ -4,15 +4,12 @@ import asyncio
 from typing import Optional
 
 from .transport import Transport
-from .resources.messages import MessagesResource
+from .resources.agent import AgentResource
 from .resources.memory import MemoryResource
-from .resources.tools import ToolsResource
-from .resources.guidance import GuidanceResource
-from .resources.audit import AuditResource
-from .resources.logs import LogsResource
+from .resources.visibility import VisibilityResource
+from .resources.telemetry import TelemetryResource
 from .resources.runtime import RuntimeResource
-from .resources.system import SystemResource
-from .resources.services import ServicesResource
+from .resources.auth import AuthResource
 from .exceptions import CIRISTimeoutError, CIRISConnectionError
 
 class CIRISClient:
@@ -29,15 +26,13 @@ class CIRISClient:
         self.max_retries = max_retries
         self._transport = Transport(base_url, api_key, timeout)
 
-        self.messages = MessagesResource(self._transport)
+        # Core resources matching new API structure
+        self.agent = AgentResource(self._transport)
         self.memory = MemoryResource(self._transport)
-        self.tools = ToolsResource(self._transport)
-        self.guidance = GuidanceResource(self._transport)
-        self.audit = AuditResource(self._transport)
-        self.logs = LogsResource(self._transport)
+        self.visibility = VisibilityResource(self._transport)
+        self.telemetry = TelemetryResource(self._transport)
         self.runtime = RuntimeResource(self._transport)
-        self.system = SystemResource(self._transport)
-        self.services = ServicesResource(self._transport)
+        self.auth = AuthResource(self._transport)
 
     async def __aenter__(self) -> "CIRISClient":
         await self._transport.__aenter__()

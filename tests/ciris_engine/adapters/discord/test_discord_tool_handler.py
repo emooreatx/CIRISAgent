@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
 
 from ciris_engine.adapters.discord.discord_tool_handler import DiscordToolHandler
+from ciris_engine.schemas.protocol_schemas_v1 import ToolExecutionResult
 
 
 class TestDiscordToolHandler:
@@ -61,18 +62,22 @@ class TestDiscordToolHandler:
 
     @pytest.mark.asyncio
     async def test_execute_tool_no_registry(self, handler):
-        """Test executing tool without registry raises error."""
-        with pytest.raises(RuntimeError, match="Tool registry not configured"):
-            await handler.execute_tool("test_tool", {"input": "test"})
+        """Test executing tool without registry returns error result."""
+        result = await handler.execute_tool("test_tool", {"input": "test"})
+        assert result.success is False
+        assert result.error == "Tool registry not configured"
+        assert result.result is None
 
     @pytest.mark.asyncio
     async def test_execute_tool_no_handler(self, handler, mock_tool_registry):
-        """Test executing non-existent tool raises error."""
+        """Test executing non-existent tool returns error result."""
         handler.set_tool_registry(mock_tool_registry)
         mock_tool_registry.get_handler.return_value = None
         
-        with pytest.raises(RuntimeError, match="Tool handler for 'missing_tool' not found"):
-            await handler.execute_tool("missing_tool", {"input": "test"})
+        result = await handler.execute_tool("missing_tool", {"input": "test"})
+        assert result.success is False
+        assert "Tool handler for 'missing_tool' not found" in result.error
+        assert result.result is None
 
     @pytest.mark.asyncio
     async def test_execute_tool_success(self, handler, mock_tool_registry, mock_client, mock_tool_handler):
@@ -84,8 +89,9 @@ class TestDiscordToolHandler:
         with patch('ciris_engine.adapters.discord.discord_tool_handler.persistence') as mock_persistence:
             result = await handler.execute_tool("test_tool", {"input": "test_data"})
             
-            assert result["result"] == "success"
-            assert result["data"] == "test_data"
+            assert result.success is True
+            assert result.result["result"] == "success"
+            assert result.result["data"] == "test_data"
             
             # Check that correlations were recorded
             mock_persistence.add_correlation.assert_called_once()
@@ -127,9 +133,10 @@ class TestDiscordToolHandler:
         with patch('ciris_engine.adapters.discord.discord_tool_handler.persistence'):
             result = await handler.execute_tool("test_tool", {"input": "test"})
             
-            assert isinstance(result, dict)
-            assert "status" in result
-            assert "value" in result
+            assert isinstance(result, ToolExecutionResult)
+            assert result.success is True
+            assert result.result["status"] == "success"
+            assert result.result["value"] == 42
 
     @pytest.mark.asyncio
     async def test_execute_tool_failure(self, handler, mock_tool_registry, mock_client):
@@ -143,8 +150,11 @@ class TestDiscordToolHandler:
         mock_tool_registry.get_handler.return_value = failing_tool_handler
         
         with patch('ciris_engine.adapters.discord.discord_tool_handler.persistence') as mock_persistence:
-            with pytest.raises(ValueError, match="Tool execution failed"):
-                await handler.execute_tool("test_tool", {"input": "test"})
+            result = await handler.execute_tool("test_tool", {"input": "test"})
+            
+            assert result.success is False
+            assert "Tool execution failed" in result.error
+            assert result.result is None
             
             # Should still record failure in correlation
             mock_persistence.update_correlation.assert_called_once()
@@ -153,14 +163,23 @@ class TestDiscordToolHandler:
     async def test_get_tool_result_success(self, handler):
         """Test successful tool result retrieval."""
         correlation_id = "test_correlation_123"
-        expected_result = {"status": "success", "data": "test"}
+        expected_result = ToolExecutionResult(
+            success=True,
+            result={"status": "success", "data": "test"},
+            error=None,
+            execution_time=0.5,
+            adapter_id="discord",
+            output=None,
+            metadata=None
+        )
         
         # Manually add result to cache
         handler._tool_results[correlation_id] = expected_result
         
         result = await handler.get_tool_result(correlation_id, timeout=1)
         
-        assert result == expected_result
+        assert result.success is True
+        assert result.result == {"status": "success", "data": "test"}
         # Result should be removed from cache after retrieval
         assert correlation_id not in handler._tool_results
 
@@ -171,7 +190,7 @@ class TestDiscordToolHandler:
         
         result = await handler.get_tool_result(correlation_id, timeout=1)
         
-        assert result == {"correlation_id": correlation_id, "status": "not_found"}
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_get_available_tools_no_registry(self, handler):

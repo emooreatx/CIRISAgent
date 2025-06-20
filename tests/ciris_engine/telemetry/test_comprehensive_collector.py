@@ -14,7 +14,7 @@ from collections import deque
 from ciris_engine.telemetry.comprehensive_collector import ComprehensiveTelemetryCollector
 from ciris_engine.protocols.telemetry_interface import TelemetrySnapshot, AdapterInfo, ServiceInfo, ProcessorState
 from ciris_engine.schemas.telemetry_schemas_v1 import CompactTelemetry
-from ciris_engine.telemetry.core import TelemetryService
+from ciris_engine.protocols.services import TelemetryService
 
 
 class TestComprehensiveTelemetryCollector:
@@ -26,7 +26,7 @@ class TestComprehensiveTelemetryCollector:
         runtime = Mock()
         
         # Mock telemetry service with enhanced history
-        telemetry_service = Mock(spec=TelemetryService)
+        telemetry_service = Mock()
         telemetry_service._enhanced_history = {
             'cpu_usage': deque([
                 {

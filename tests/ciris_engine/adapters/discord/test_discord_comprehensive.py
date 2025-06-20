@@ -21,6 +21,7 @@ from ciris_engine.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.adapters.discord.config import DiscordAdapterConfig
 from ciris_engine.schemas.foundational_schemas_v1 import DiscordMessage, FetchedMessage, ServiceType, IncomingMessage
+from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext, DeferralContext
 from ciris_engine.registries.base import Priority
 from ciris_engine.protocols.adapter_interface import ServiceRegistration
 
@@ -215,7 +216,7 @@ class TestDiscordAdapter:
         adapter = DiscordAdapter("test_token")
         
         assert adapter.token == "test_token"
-        assert adapter.client is None
+        # Discord adapter doesn't expose client directly - uses internal handlers
         # Components should be initialized
         assert adapter._channel_manager is not None
         assert adapter._message_handler is not None
@@ -496,6 +497,7 @@ class TestDiscordPlatform:
         # Mock stop methods and client
         platform.discord_observer.stop = AsyncMock()
         platform.discord_adapter.stop = AsyncMock()
+        # Platform's client is a Discord client instance
         platform.client.is_closed.return_value = False
         platform.client.close = AsyncMock()
         
@@ -503,6 +505,7 @@ class TestDiscordPlatform:
         
         platform.discord_observer.stop.assert_called_once()
         platform.discord_adapter.stop.assert_called_once()
+        # Verify Discord client was closed
         platform.client.close.assert_called_once()
     
     @pytest.mark.asyncio
@@ -593,10 +596,12 @@ class TestDiscordPlatform:
         platform = DiscordPlatform(mock_runtime, discord_bot_token="test_token")
         
         # Mock successful client start and ready
+        # Platform's client is the actual Discord client instance
         platform.client.start = AsyncMock()
         platform.client.wait_until_ready = AsyncMock()
         platform.client.user = MagicMock()
         platform.client.user.__str__ = MagicMock(return_value="TestBot#1234")
+        # Platform's client is a Discord client instance
         platform.client.is_closed.return_value = False
         platform.client.close = AsyncMock()
         
@@ -614,6 +619,7 @@ class TestDiscordPlatform:
         with patch('asyncio.wait', side_effect=mock_wait):
             await platform.run_lifecycle(agent_task)
         
+        # Verify Discord client was closed
         platform.client.close.assert_called_once()
 
 
@@ -987,10 +993,15 @@ class TestDiscordWiseAuthorityService:
         
         # Mock send_deferral method
         with patch.object(adapter, 'send_deferral', return_value=True) as mock_send:
-            result = await adapter.send_deferral("thought_123", "Need human guidance", {"task_id": "task_456"})
+            context = DeferralContext(
+                thought_id="thought_123",
+                task_id="task_456",
+                reason="Need human guidance"
+            )
+            result = await adapter.send_deferral(context)
             
             assert result == True
-            mock_send.assert_called_once_with("thought_123", "Need human guidance", {"task_id": "task_456"})
+            mock_send.assert_called_once_with(context)
     
     @pytest.mark.asyncio
     async def test_send_deferral_failure(self, adapter_with_deferral):
@@ -999,10 +1010,15 @@ class TestDiscordWiseAuthorityService:
         
         # Mock send_deferral to return False (failure)
         with patch.object(adapter, 'send_deferral', return_value=False) as mock_send:
-            result = await adapter.send_deferral("thought_123", "Need guidance", {"task_id": "task_456"})
+            context = DeferralContext(
+                thought_id="thought_123",
+                task_id="task_456",
+                reason="Need guidance"
+            )
+            result = await adapter.send_deferral(context)
             
             assert result == False
-            mock_send.assert_called_once_with("thought_123", "Need guidance", {"task_id": "task_456"})
+            mock_send.assert_called_once_with(context)
     
     @pytest.mark.asyncio
     async def test_fetch_guidance_success(self, adapter_with_deferral):
@@ -1010,7 +1026,12 @@ class TestDiscordWiseAuthorityService:
         adapter = adapter_with_deferral
         
         # Mock fetch_guidance method to return guidance
-        test_context = {"summary": "Need guidance on ethical dilemma"}
+        test_context = GuidanceContext(
+            thought_id="thought_123",
+            task_id="task_456",
+            question="Need guidance on ethical dilemma",
+            ethical_considerations=["Consider the covenant principles"]
+        )
         expected_result = "Follow the covenant principles"
         
         with patch.object(adapter, 'fetch_guidance', return_value=expected_result) as mock_fetch:
@@ -1025,7 +1046,11 @@ class TestDiscordWiseAuthorityService:
         adapter = adapter_with_deferral
         
         # Mock fetch_guidance to raise exception
-        test_context = {"summary": "Need guidance on ethical dilemma"}
+        test_context = GuidanceContext(
+            thought_id="thought_123",
+            task_id="task_456",
+            question="Need guidance on ethical dilemma"
+        )
         
         with patch.object(adapter, 'fetch_guidance', side_effect=Exception("Fetch failed")) as mock_fetch:
             with pytest.raises(Exception, match="Fetch failed"):

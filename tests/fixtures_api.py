@@ -20,13 +20,10 @@ def randomize_api_port(monkeypatch) -> Generator[int, None, None]:
     Automatically randomize API port for all tests to prevent conflicts.
     This fixture is autouse=True, so it applies to all tests automatically.
     """
-    # Only randomize if we're in a test environment with Discord token
-    if os.getenv("DISCORD_BOT_TOKEN"):
-        port = get_free_port()
-        monkeypatch.setenv("CIRIS_API_PORT", str(port))
-        yield port
-    else:
-        yield 8080  # Default port when no Discord token
+    # Always randomize port for test isolation
+    port = get_free_port()
+    monkeypatch.setenv("CIRIS_API_PORT", str(port))
+    yield port
 
 
 @pytest.fixture

@@ -161,9 +161,10 @@ async def test_cirisnode_client_audit_logging(service_registry):
     audit_service.log_action.assert_called()
     call_args = audit_service.log_action.call_args
     assert call_args[0][0] == HandlerActionType.TOOL  # action_type should be enum
-    assert "event_summary" in call_args[0][1]  # context dict
+    context = call_args[0][1]  # ActionContext object
+    assert context.task_id == "he300"
+    assert context.handler_name == "cirisnode_client"
     assert result == {"topic": "test", "score": 90}
-    assert call_args[0][1]["event_summary"] == "he300"
 
 
 @pytest.mark.asyncio
@@ -181,6 +182,10 @@ async def test_dream_processor_start_dreaming_with_service_registry(mock_app_con
         return client
 
     monkeypatch.setattr("ciris_engine.processor.dream_processor.CIRISNodeClient", mock_cirisnode_client_constructor)
+    
+    # Add cirisnode config to enable CIRISNode client creation
+    mock_app_config.cirisnode = MagicMock()
+    mock_app_config.cirisnode.base_url = "https://test-cirisnode:8001"
     
     dream_processor = DreamProcessor(
         app_config=mock_app_config,

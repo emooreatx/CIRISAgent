@@ -16,8 +16,9 @@ from ciris_engine.schemas.graph_schemas_v1 import (
     GraphEdge,
     TSDBGraphNode,
 )
-from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus, MemoryOpResult
+from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus, MemoryOpResult, MemoryQuery
 from ciris_engine.protocols.services import MemoryService
+from ciris_engine.schemas.protocol_schemas_v1 import IdentityUpdateRequest, EnvironmentUpdateRequest, TimeSeriesDataPoint
 from ciris_engine.secrets.service import SecretsService
 
 logger = logging.getLogger(__name__)
@@ -59,17 +60,35 @@ class LocalGraphMemoryService(MemoryService):
             logger.exception("Error storing node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
-    async def recall(self, node: GraphNode) -> MemoryOpResult:
-        """Recall a node with automatic secrets decryption if needed."""
+    async def recall(self, recall_query: MemoryQuery) -> List[GraphNode]:
+        """Recall nodes from memory based on query."""
         try:
-            stored = persistence.get_graph_node(node.id, node.scope, db_path=self.db_path)
-            if stored:
-                processed_data = await self._process_secrets_for_recall(stored.attributes, "recall")
-                return MemoryOpResult(status=MemoryOpStatus.OK, data=processed_data)
-            return MemoryOpResult(status=MemoryOpStatus.OK, data=None)
+            # Get the primary node
+            stored = persistence.get_graph_node(recall_query.node_id, recall_query.scope, db_path=self.db_path)
+            if not stored:
+                return []
+            
+            # Process secrets in the node's attributes
+            if stored.attributes:
+                processed_attrs = await self._process_secrets_for_recall(stored.attributes, "recall")
+                stored = GraphNode(
+                    id=stored.id,
+                    type=stored.type,
+                    scope=stored.scope,
+                    attributes=processed_attrs
+                )
+            
+            nodes = [stored]
+            
+            # If include_edges is True, fetch connected nodes up to specified depth
+            if recall_query.include_edges and recall_query.depth > 0:
+                # TODO: Implement graph traversal for connected nodes
+                pass
+            
+            return nodes
         except Exception as e:
-            logger.exception("Error recalling node %s: %s", node.id, e)
-            return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
+            logger.exception("Error recalling nodes for query %s: %s", recall_query.node_id, e)
+            return []
 
     async def forget(self, node: GraphNode) -> MemoryOpResult:
         """Forget a node and clean up any associated secrets."""
@@ -85,7 +104,7 @@ class LocalGraphMemoryService(MemoryService):
             logger.exception("Error forgetting node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
-    def export_identity_context(self) -> str:
+    async def export_identity_context(self) -> str:
         lines: List[Any] = []
         with get_db_connection(db_path=self.db_path) as conn:
             cursor = conn.cursor()
@@ -98,113 +117,144 @@ class LocalGraphMemoryService(MemoryService):
                 lines.append(f"{row['node_id']}: {attrs}")
         return "\n".join(lines)
 
-    async def update_identity_graph(self, update_data: Dict[str, Any]) -> MemoryOpResult:
+    async def update_identity_graph(self, update_data: IdentityUpdateRequest) -> MemoryOpResult:
         """Update identity graph nodes based on WA feedback."""
         from datetime import datetime, timezone
-        if not self._validate_identity_update(update_data):
+        
+        # Validate the update request
+        if update_data.source != "wa" or not update_data.node_id:
             return MemoryOpResult(
                 status=MemoryOpStatus.DENIED,
-                reason="Invalid identity update format"
+                reason="Identity updates require WA source and node_id"
             )
-        if not update_data.get("wa_authorized"):
-            return MemoryOpResult(
-                status=MemoryOpStatus.DENIED,
-                reason="Identity updates require WA authorization"
+        
+        try:
+            # Apply the updates to the specified node
+            existing_node = persistence.get_graph_node(
+                update_data.node_id, 
+                GraphScope.IDENTITY, 
+                db_path=self.db_path
             )
-        for node_update in update_data.get("nodes", []):
-            node_id = node_update["id"]
-            if node_update.get("action") == "delete":
-                persistence.delete_graph_node(node_id, GraphScope.IDENTITY, db_path=self.db_path)
-            else:
-                attrs = node_update.get("attributes", {})
-                attrs["updated_by"] = update_data.get("wa_user_id", "unknown")
+            
+            if existing_node:
+                # Update existing node attributes
+                attrs = existing_node.attributes or {}
+                attrs.update(update_data.updates)
+                attrs["updated_by"] = update_data.source
                 attrs["updated_at"] = datetime.now(timezone.utc).isoformat()
-                node = GraphNode(
-                    id=node_id,
+                attrs["update_reason"] = update_data.reason
+                
+                updated_node = GraphNode(
+                    id=update_data.node_id,
+                    type=existing_node.type,
+                    scope=GraphScope.IDENTITY,
+                    attributes=attrs,
+                )
+                persistence.add_graph_node(updated_node, db_path=self.db_path)
+                
+                return MemoryOpResult(
+                    status=MemoryOpStatus.OK,
+                    data={
+                        "node_updated": update_data.node_id,
+                        "updates_applied": len(update_data.updates)
+                    }
+                )
+            else:
+                # Create new node if it doesn't exist
+                attrs = update_data.updates.copy()
+                attrs["created_by"] = update_data.source
+                attrs["created_at"] = datetime.now(timezone.utc).isoformat()
+                if update_data.reason:
+                    attrs["creation_reason"] = update_data.reason
+                
+                new_node = GraphNode(
+                    id=update_data.node_id,
                     type=NodeType.CONCEPT,
                     scope=GraphScope.IDENTITY,
                     attributes=attrs,
                 )
-                persistence.add_graph_node(node, db_path=self.db_path)
-
-        for edge_update in update_data.get("edges", []):
-            source = edge_update["source"]
-            target = edge_update["target"]
-            edge_id = f"{source}->{target}->{edge_update.get('relationship','related')}"
-            if edge_update.get("action") == "delete":
-                persistence.delete_graph_edge(edge_id, db_path=self.db_path)
-            else:
-                attrs = edge_update.get("attributes", {})
-                edge = GraphEdge(
-                    source=source,
-                    target=target,
-                    relationship=edge_update.get("relationship", "related"),
-                    scope=GraphScope.IDENTITY,
-                    weight=edge_update.get("weight", 1.0),
-                    attributes=attrs,
+                persistence.add_graph_node(new_node, db_path=self.db_path)
+                
+                return MemoryOpResult(
+                    status=MemoryOpStatus.OK,
+                    data={
+                        "node_created": update_data.node_id,
+                        "attributes_set": len(update_data.updates)
+                    }
                 )
-                persistence.add_graph_edge(edge, db_path=self.db_path)
+                
+        except Exception as e:
+            logger.error(f"Error updating identity graph: {e}")
+            return MemoryOpResult(
+                status=MemoryOpStatus.DENIED,
+                error=str(e)
+            )
 
-        return MemoryOpResult(
-            status=MemoryOpStatus.OK,
-            data={
-                "nodes_updated": len(update_data.get("nodes", [])),
-                "edges_updated": len(update_data.get("edges", []))
-            }
-        )
-
-    async def update_environment_graph(self, update_data: Dict[str, Any]) -> MemoryOpResult:
-        """Update environment graph based on WA feedback."""
+    async def update_environment_graph(self, update_data: EnvironmentUpdateRequest) -> MemoryOpResult:
+        """Update environment graph based on adapter data."""
         from datetime import datetime, timezone
-        for node_update in update_data.get("nodes", []):
-            node_id = node_update["id"]
-            if node_update.get("action") == "delete":
-                persistence.delete_graph_node(node_id, GraphScope.ENVIRONMENT, db_path=self.db_path)
-            else:
-                attrs = node_update.get("attributes", {})
-                attrs["updated_at"] = datetime.now(timezone.utc).isoformat()
-                node = GraphNode(
-                    id=node_id,
-                    type=NodeType.CONCEPT,
+        
+        try:
+            # Create node ID from adapter type and timestamp
+            node_id = f"env_{update_data.adapter_type}_{int(update_data.timestamp.timestamp())}"
+            
+            # Merge environment data with metadata
+            attrs = update_data.environment_data.copy()
+            attrs.update({
+                "adapter_type": update_data.adapter_type,
+                "timestamp": update_data.timestamp.isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            })
+            
+            env_node = GraphNode(
+                id=node_id,
+                type=NodeType.CONCEPT,
+                scope=GraphScope.ENVIRONMENT,
+                attributes=attrs,
+            )
+            persistence.add_graph_node(env_node, db_path=self.db_path)
+            
+            # Create edges based on environment data
+            edges_created = 0
+            
+            # If location is provided in environment_data, create location edge
+            if "location" in update_data.environment_data:
+                location = update_data.environment_data["location"]
+                location_edge = GraphEdge(
+                    source=node_id,
+                    target=f"location_{location}",
+                    relationship="measured_at",
                     scope=GraphScope.ENVIRONMENT,
-                    attributes=attrs,
+                    weight=1.0,
+                    attributes={"adapter_type": update_data.adapter_type}
                 )
-                persistence.add_graph_node(node, db_path=self.db_path)
-        for edge_update in update_data.get("edges", []):
-            source = edge_update["source"]
-            target = edge_update["target"]
-            edge_id = f"{source}->{target}->{edge_update.get('relationship','related')}"
-            if edge_update.get("action") == "delete":
-                persistence.delete_graph_edge(edge_id, db_path=self.db_path)
-            else:
-                attrs = edge_update.get("attributes", {})
-                edge = GraphEdge(
-                    source=source,
-                    target=target,
-                    relationship=edge_update.get("relationship", "related"),
-                    scope=GraphScope.ENVIRONMENT,
-                    weight=edge_update.get("weight", 1.0),
-                    attributes=attrs,
-                )
-                persistence.add_graph_edge(edge, db_path=self.db_path)
-        return MemoryOpResult(
-            status=MemoryOpStatus.OK,
-            data={
-                "nodes_updated": len(update_data.get("nodes", [])),
-                "edges_updated": len(update_data.get("edges", []))
-            }
-        )
+                persistence.add_graph_edge(location_edge, db_path=self.db_path)
+                edges_created += 1
+            
+            return MemoryOpResult(
+                status=MemoryOpStatus.OK,
+                data={
+                    "node_updated": node_id,
+                    "edges_created": edges_created,
+                    "environment_data_keys": list(update_data.environment_data.keys())
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Error updating environment graph: {e}")
+            return MemoryOpResult(
+                status=MemoryOpStatus.DENIED,
+                error=str(e)
+            )
 
-    def _validate_identity_update(self, update_data: Dict[str, Any]) -> bool:
+    def _validate_identity_update(self, update_data: IdentityUpdateRequest) -> bool:
         """Validate identity update structure."""
-        required_fields = ["wa_user_id", "wa_authorized", "update_timestamp"]
-        if not all(field in update_data for field in required_fields):
+        # With typed schema, basic validation is handled by Pydantic
+        # Additional business logic validation can go here
+        if update_data.source != "wa":
             return False
-        for node in update_data.get("nodes", []):
-            if "id" not in node or "type" not in node:
-                return False
-            if node["type"] != NodeType.CONCEPT:
-                return False
+        if not update_data.node_id:
+            return False
         return True
 
     async def _process_secrets_for_memorize(self, node: GraphNode) -> GraphNode:
@@ -281,7 +331,7 @@ class LocalGraphMemoryService(MemoryService):
             
             # Could implement reference counting here in the future if needed
     
-    async def recall_timeseries(self, scope: str = "default", hours: int = 24, correlation_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    async def recall_timeseries(self, scope: str = "default", hours: int = 24, correlation_types: Optional[List[str]] = None) -> List[TimeSeriesDataPoint]:
         """
         Recall time-series data from TSDB correlations.
         
@@ -356,16 +406,47 @@ class LocalGraphMemoryService(MemoryService):
                             'data_type': corr_type.value if hasattr(corr_type, 'value') else str(corr_type)
                         })
             
-            # Sort by timestamp - ensure we have a datetime object for comparison
-            def get_timestamp_for_sort(item: Dict[str, Any]) -> datetime:
-                ts = item.get('timestamp')
-                if isinstance(ts, datetime):
-                    return ts
-                return datetime.min.replace(tzinfo=timezone.utc)
+            # Convert to TimeSeriesDataPoint objects
+            data_points: List[TimeSeriesDataPoint] = []
+            for corr in all_correlations:
+                # Ensure we have the required fields
+                timestamp = corr.get('timestamp')
+                if not isinstance(timestamp, datetime):
+                    continue  # Skip invalid entries
+                    
+                metric_name = corr.get('metric_name')
+                if not metric_name or not isinstance(metric_name, str):
+                    continue  # Skip entries without valid metric name
+                    
+                metric_value = corr.get('metric_value')
+                if metric_value is None or not isinstance(metric_value, (int, float)):
+                    continue  # Skip entries without valid value
+                
+                tags_raw = corr.get('tags')
+                point_tags: Optional[Dict[str, str]] = None
+                if isinstance(tags_raw, dict):
+                    # Ensure all tag values are strings
+                    point_tags = {str(k): str(v) for k, v in tags_raw.items()}
+                
+                # Get correlation type and source as strings
+                correlation_type = str(corr.get('data_type', 'METRIC_DATAPOINT'))
+                source_raw = corr.get('source')
+                source: Optional[str] = str(source_raw) if source_raw is not None else None
+                
+                data_point = TimeSeriesDataPoint(
+                    timestamp=timestamp,
+                    metric_name=metric_name,
+                    value=float(metric_value),
+                    correlation_type=correlation_type,
+                    tags=point_tags,
+                    source=source
+                )
+                data_points.append(data_point)
             
-            all_correlations.sort(key=get_timestamp_for_sort)
+            # Sort by timestamp
+            data_points.sort(key=lambda x: x.timestamp)
             
-            return all_correlations
+            return data_points
             
         except Exception as e:
             logger.exception(f"Error recalling timeseries data: {e}")

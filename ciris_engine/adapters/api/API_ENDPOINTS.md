@@ -1,119 +1,162 @@
 # CIRIS API Endpoints Quick Reference
 
-## System Telemetry & Control
+## Agent Interaction
 
-### Complete System State
+### Messages - Primary Interface
 ```bash
-GET /v1/system/telemetry          # Full telemetry snapshot
-GET /v1/system/health             # System health status
+POST /v1/agent/messages           # Send message to agent
+GET  /v1/agent/messages/{channel} # Get messages from channel
+GET  /v1/agent/channels           # List active channels
+GET  /v1/agent/channels/{id}      # Get channel info
+GET  /v1/agent/status             # Agent status & identity
 ```
 
-### Component Information
+## Memory Observability (Read-Only)
+
+### Graph Memory
 ```bash
-GET /v1/system/adapters           # All registered adapters
-GET /v1/system/services           # All registered services
-GET /v1/system/configuration      # Complete system config
+GET /v1/memory/graph/nodes        # Browse nodes (?type=, ?scope=)
+GET /v1/memory/graph/nodes/{id}   # Node details
+GET /v1/memory/graph/relationships # Memory connections
+GET /v1/memory/graph/search?q=    # Search graph
+GET /v1/memory/identity           # Agent identity
 ```
 
-### Processor Control & Debugging
+### Memory Organization
 ```bash
-GET  /v1/system/processor         # Processor state
-POST /v1/system/processor/step    # Single-step execution
-POST /v1/system/processor/pause   # Pause processor
-POST /v1/system/processor/resume  # Resume processor
-GET  /v1/system/processor/queue   # Processing queue status
+GET /v1/memory/scopes             # Available scopes
+GET /v1/memory/scopes/{scope}/nodes # Nodes in scope
+GET /v1/memory/timeseries         # Time-series data
+GET /v1/memory/timeline?hours=24  # Memory timeline
 ```
 
-### Custom Metrics
+## Visibility - Agent Reasoning
+
+### Current State
 ```bash
-POST /v1/system/metrics           # Record metric
-GET  /v1/system/metrics/{name}    # Get metric history
+GET /v1/visibility/thoughts       # Current thoughts
+GET /v1/visibility/tasks          # Active tasks
+GET /v1/visibility/system-snapshot # System awareness
 ```
 
-## Core Services
-
-### Communication
+### Decision Tracking
 ```bash
-POST /v1/messages                 # Send message to agent
-GET  /v1/messages                 # Get recent messages
-GET  /v1/status                   # Communication status
+GET /v1/visibility/decisions      # Recent DMA decisions
+GET /v1/visibility/correlations   # Service interactions
+GET /v1/visibility/tasks/{id}     # Task with thoughts
+GET /v1/visibility/thoughts/{id}  # Thought details
 ```
 
-### Memory Management
+## Telemetry - Monitoring
+
+### System Metrics
 ```bash
-GET  /v1/memory/scopes            # Available memory scopes
-GET  /v1/memory/{scope}/entries   # Entries in scope
-POST /v1/memory/{scope}/store     # Store memory entry
+GET  /v1/telemetry/overview       # Full telemetry
+GET  /v1/telemetry/metrics        # Current metrics
+GET  /v1/telemetry/metrics/{name} # Metric history
+POST /v1/telemetry/metrics        # Record custom metric
 ```
 
-### Tool Management
+### Resources & Health
 ```bash
-GET  /v1/tools                    # List available tools
-POST /v1/tools/{tool_name}        # Execute tool
+GET /v1/telemetry/resources       # Resource usage
+GET /v1/telemetry/resources/history # Resource history
+GET /v1/telemetry/services        # All services health
+GET /v1/telemetry/services/{type} # Service type details
 ```
 
-### Audit & Logging
+### Audit
 ```bash
-GET /v1/audit                     # Get audit entries
-GET /v1/logs/{filename}           # Stream log file
+GET /v1/telemetry/audit           # Audit entries
+GET /v1/telemetry/audit/stats     # Audit statistics
 ```
 
-### Wise Authority
+## Runtime Control
+
+### Processor
 ```bash
-POST /v1/guidance                 # Request guidance
-POST /v1/defer                    # Submit deferral
-GET  /v1/wa/deferrals             # Get deferrals
-GET  /v1/wa/deferrals/{id}        # Get specific deferral
-POST /v1/wa/feedback              # Submit feedback
+POST /v1/runtime/processor/step   # Single-step
+POST /v1/runtime/processor/pause  # Pause
+POST /v1/runtime/processor/resume # Resume
+GET  /v1/runtime/processor/queue  # Queue status
+```
+
+### System Management
+```bash
+GET  /v1/runtime/config           # Get config
+PUT  /v1/runtime/config           # Update config
+POST /v1/runtime/adapters         # Load adapter
+GET  /v1/runtime/services         # Service registry
+```
+
+## Authentication
+
+```bash
+GET  /v1/auth/wa/status           # WA auth status
+POST /v1/auth/wa/defer            # Submit deferral
+GET  /v1/auth/oauth/providers     # OAuth providers
+GET  /v1/auth/oauth/{provider}/login # Start OAuth
 ```
 
 ## Quick Testing Commands
 
-### System Health Check
+### Send Message & Get Response
 ```bash
-curl http://localhost:8080/v1/system/health
+# Send message
+curl -X POST http://localhost:8080/v1/agent/messages \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Hello CIRIS!"}'
+
+# Get messages from channel
+curl http://localhost:8080/v1/agent/messages/api_default
 ```
 
-### Get All Registered Services
+### Explore Memory
 ```bash
-curl http://localhost:8080/v1/system/services | jq '.[] | {name, service_type, status}'
+# Search graph
+curl "http://localhost:8080/v1/memory/graph/search?q=purpose"
+
+# Get agent identity
+curl http://localhost:8080/v1/memory/identity
+
+# Browse nodes by type
+curl "http://localhost:8080/v1/memory/graph/nodes?type=IDENTITY"
 ```
 
-### Single Step Debug Session
+### View Agent Thinking
+```bash
+# Current thoughts
+curl http://localhost:8080/v1/visibility/thoughts
+
+# Active tasks
+curl http://localhost:8080/v1/visibility/tasks
+
+# Recent decisions
+curl http://localhost:8080/v1/visibility/decisions?limit=10
+```
+
+### Monitor System
+```bash
+# Resource usage
+curl http://localhost:8080/v1/telemetry/resources
+
+# Service health
+curl http://localhost:8080/v1/telemetry/services
+
+# System overview
+curl http://localhost:8080/v1/telemetry/overview
+```
+
+### Debug Session
 ```bash
 # Pause processor
-curl -X POST http://localhost:8080/v1/system/processor/pause
+curl -X POST http://localhost:8080/v1/runtime/processor/pause
 
-# Check current state
-curl http://localhost:8080/v1/system/processor
+# Step through processing
+curl -X POST http://localhost:8080/v1/runtime/processor/step
 
-# Execute one step
-curl -X POST http://localhost:8080/v1/system/processor/step
-
-# Resume normal operation
-curl -X POST http://localhost:8080/v1/system/processor/resume
-```
-
-### Send Message to Agent
-```bash
-curl -X POST http://localhost:8080/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Hello CIRIS", "channel_id": "api"}'
-```
-
-### Monitor System Resources
-```bash
-curl http://localhost:8080/v1/system/telemetry | jq '{
-  uptime: .runtime_uptime_seconds,
-  memory_mb: .memory_usage_mb,
-  cpu_percent: .cpu_usage_percent,
-  health: .overall_health
-}'
-```
-
-### Check Failed Services
-```bash
-curl http://localhost:8080/v1/system/services | jq '.[] | select(.status != "healthy")'
+# Resume
+curl -X POST http://localhost:8080/v1/runtime/processor/resume
 ```
 
 ## Error Responses

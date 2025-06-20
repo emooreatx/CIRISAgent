@@ -4,6 +4,7 @@ Audit message bus - handles all audit service operations
 
 import logging
 from typing import Dict, Any, Optional, List
+from ciris_engine.schemas.protocol_schemas_v1 import AuditEntry
 from datetime import datetime
 
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
@@ -14,7 +15,7 @@ from .base_bus import BaseBus, BusMessage
 logger = logging.getLogger(__name__)
 
 
-class AuditBus(BaseBus):
+class AuditBus(BaseBus[AuditService]):
     """
     Message bus for all audit operations.
     
@@ -58,7 +59,7 @@ class AuditBus(BaseBus):
         entity_id: str,
         handler_name: str,
         limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> List[AuditEntry]:
         """Get audit trail for an entity"""
         service = await self.get_service(
             handler_name=handler_name,

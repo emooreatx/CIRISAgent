@@ -102,22 +102,31 @@ class GraphQLContextProvider:
         # Get missing users from memory service
         missing = [name for name in authors if name not in user_profiles and name is not None]
         if self.memory_service and missing:
+            from ciris_engine.schemas.memory_schemas_v1 import MemoryQuery
             memory_results = await asyncio.gather(
-                *(self.memory_service.recall(GraphNode(id=n, type=NodeType.USER, scope=GraphScope.LOCAL)) for n in missing if n),
+                *(self.memory_service.recall(
+                    MemoryQuery(
+                        node_id=n,
+                        scope=GraphScope.LOCAL,
+                        type=NodeType.USER,
+                        include_edges=False,
+                        depth=1
+                    )
+                ) for n in missing if n),
                 return_exceptions=True
             )
             for name, mem_result in zip(missing, memory_results):
-                if mem_result and not isinstance(mem_result, Exception):
-                    if hasattr(mem_result, 'data') and mem_result.data:
+                if mem_result and not isinstance(mem_result, Exception) and isinstance(mem_result, list):
+                    if mem_result and mem_result[0].attributes:
                         user_profiles[name] = UserProfile(
-                            attributes=mem_result.data if isinstance(mem_result.data, dict) else {"data": mem_result.data}
+                            attributes=mem_result[0].attributes if isinstance(mem_result[0].attributes, dict) else {"data": mem_result[0].attributes}
                         )
 
         # Get identity context
         identity_block = ""
         if self.memory_service:
             try:
-                identity_block = self.memory_service.export_identity_context()
+                identity_block = await self.memory_service.export_identity_context()
             except Exception as exc:
                 logger.warning("Failed to export identity context: %s", exc)
 

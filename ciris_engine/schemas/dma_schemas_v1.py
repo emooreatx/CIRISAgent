@@ -95,10 +95,9 @@ class DMAInputData(BaseModel):
             return {
                 "tokens": resources.tokens_used,
                 "cost_cents": resources.cost_cents,
-                "water_ml": resources.water_ml,
-                "carbon_g": resources.carbon_g
+                "carbon_grams": resources.carbon_grams
             }
-        return {"tokens": 0, "cost_cents": 0.0, "water_ml": 0.0, "carbon_g": 0.0}
+        return {"tokens": 0, "cost_cents": 0.0, "carbon_grams": 0.0}
     
     @property
     def audit_is_valid(self) -> bool:

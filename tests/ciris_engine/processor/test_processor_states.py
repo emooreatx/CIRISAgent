@@ -253,7 +253,12 @@ async def test_dream_processor_pulse(monkeypatch):
     dp.cirisnode_client = DummyClient()
 
 
-    await dp._dream_pulse()
-    assert dp.dream_metrics['total_pulses'] == 1
-    assert dp.snore_history
-    # Note: DreamProcessor doesn't have a close method, cleanup happens in stop_dreaming()
+    # Dream processor no longer has _dream_pulse method
+    # Test basic dream functionality instead
+    assert dp.should_enter_dream_state(600) is True  # 10 minutes idle
+    assert dp.should_enter_dream_state(100) is False  # Less than 5 minutes
+    
+    # Test dream summary
+    summary = dp.get_dream_summary()
+    assert 'state' in summary
+    assert 'metrics' in summary

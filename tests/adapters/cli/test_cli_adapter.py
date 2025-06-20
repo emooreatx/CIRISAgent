@@ -152,10 +152,14 @@ class TestCLIAdapter:
              patch('builtins.print'), \
              patch('ciris_engine.persistence.add_correlation') as mock_persist:
             
-            guidance = await cli_adapter_interactive.fetch_guidance({
-                "reason": "Need guidance",
-                "thought_summary": "Test thought"
-            })
+            from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext
+            guidance = await cli_adapter_interactive.fetch_guidance(
+                GuidanceContext(
+                    question="Need guidance",
+                    thought_id="test_thought_123",
+                    task_id="test_task_456"
+                )
+            )
             
             assert guidance == test_guidance
             mock_persist.assert_called_once()
@@ -165,7 +169,14 @@ class TestCLIAdapter:
         with patch.object(cli_adapter_interactive, '_get_user_input', return_value="   "), \
              patch('builtins.print'):
             
-            guidance = await cli_adapter_interactive.fetch_guidance({"reason": "test"})
+            from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext
+            guidance = await cli_adapter_interactive.fetch_guidance(
+                GuidanceContext(
+                    question="test",
+                    thought_id="test_thought",
+                    task_id="test_task"
+                )
+            )
             
             assert guidance is None
 
@@ -174,7 +185,14 @@ class TestCLIAdapter:
         with patch.object(cli_adapter_interactive, '_get_user_input', side_effect=asyncio.TimeoutError), \
              patch('builtins.print'):
             
-            guidance = await cli_adapter_interactive.fetch_guidance({"reason": "test"})
+            from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext
+            guidance = await cli_adapter_interactive.fetch_guidance(
+                GuidanceContext(
+                    question="test",
+                    thought_id="test_thought",
+                    task_id="test_task"
+                )
+            )
             
             assert guidance is None
 
@@ -183,10 +201,14 @@ class TestCLIAdapter:
         with patch('builtins.print') as mock_print, \
              patch('ciris_engine.persistence.add_correlation') as mock_persist:
             
+            from ciris_engine.schemas.wa_context_schemas_v1 import DeferralContext
             result = await cli_adapter_non_interactive.send_deferral(
-                "thought_123", 
-                "Too complex", 
-                {"additional": "context"}
+                DeferralContext(
+                    thought_id="thought_123",
+                    task_id="task_456",
+                    reason="Too complex",
+                    metadata={"additional": "context"}
+                )
             )
             
             assert result is True
@@ -197,7 +219,14 @@ class TestCLIAdapter:
     async def test_send_deferral_failure(self, cli_adapter_non_interactive):
         """Test deferral sending failure."""
         with patch('builtins.print', side_effect=Exception("Print error")):
-            result = await cli_adapter_non_interactive.send_deferral("thought_123", "reason")
+            from ciris_engine.schemas.wa_context_schemas_v1 import DeferralContext
+            result = await cli_adapter_non_interactive.send_deferral(
+                DeferralContext(
+                    thought_id="thought_123",
+                    task_id="task_456",
+                    reason="reason"
+                )
+            )
             assert result is False
 
     async def test_execute_tool_list_files(self, cli_adapter_non_interactive):
@@ -210,9 +239,9 @@ class TestCLIAdapter:
                 {"path": "/test/path"}
             )
             
-            assert result["success"] is True
-            assert "files" in result
-            assert len(result["files"]) == 2
+            assert result.success is True
+            assert "files" in result.result
+            assert len(result.result["files"]) == 2
 
     async def test_execute_tool_read_file(self, cli_adapter_non_interactive):
         """Test executing read_file tool."""
@@ -226,8 +255,8 @@ class TestCLIAdapter:
                 {"path": "/test/file.txt"}
             )
             
-            assert result["success"] is True
-            assert result["content"] == test_content
+            assert result.success is True
+            assert result.result["content"] == test_content
 
     async def test_execute_tool_write_file(self, cli_adapter_non_interactive):
         """Test executing write_file tool."""
@@ -241,8 +270,8 @@ class TestCLIAdapter:
                 {"path": "/test/output.txt", "content": test_content}
             )
             
-            assert result["success"] is True
-            assert result["bytes_written"] == len(test_content)
+            assert result.success is True
+            assert result.result["bytes_written"] == len(test_content)
             mock_file.assert_called_once_with("/test/output.txt", 'w')
 
     async def test_execute_tool_system_info(self, cli_adapter_non_interactive):
@@ -256,17 +285,17 @@ class TestCLIAdapter:
             
             result = await cli_adapter_non_interactive.execute_tool("system_info", {})
             
-            assert result["success"] is True
-            assert result["system"] == "Linux"
-            assert result["python_version"] == "3.9.0"
+            assert result.success is True
+            assert result.result["system"] == "Linux"
+            assert result.result["python_version"] == "3.9.0"
 
     async def test_execute_tool_unknown(self, cli_adapter_non_interactive):
         """Test executing unknown tool."""
         result = await cli_adapter_non_interactive.execute_tool("unknown_tool", {})
         
-        assert result["success"] is False
-        assert "Unknown tool" in result["error"]
-        assert "available_tools" in result
+        assert result.success is False
+        assert "Unknown tool" in result.error
+        assert "available_tools" in result.result
 
     async def test_execute_tool_exception(self, cli_adapter_non_interactive):
         """Test tool execution with exception."""
@@ -274,8 +303,8 @@ class TestCLIAdapter:
              patch('ciris_engine.persistence.add_correlation'):
             result = await cli_adapter_non_interactive.execute_tool("list_files", {"path": "/test"})
             
-            assert result["success"] is False
-            assert "Permission denied" in result["error"]
+            assert result.success is False
+            assert "Permission denied" in result.error
 
     async def test_get_available_tools(self, cli_adapter_non_interactive):
         """Test getting available tools."""
@@ -467,11 +496,14 @@ class TestCLIAdapterIntegration:
 
     async def test_guidance_flow_integration(self, cli_adapter_interactive):
         """Test complete guidance request flow."""
-        context = {
-            "reason": "Complex ethical decision",
-            "thought_summary": "Should I help with this request?",
-            "thought_id": "thought_123"
-        }
+        from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext
+        
+        context = GuidanceContext(
+            thought_id="thought_123",
+            task_id="task_456",
+            question="Should I help with this request?",
+            ethical_considerations=["Complex ethical decision"]
+        )
         
         guidance_response = "Yes, proceed with caution"
         
@@ -487,8 +519,8 @@ class TestCLIAdapterIntegration:
             print_calls = [str(call) for call in mock_print.call_args_list]
             context_output = ' '.join(print_calls)
             assert "GUIDANCE REQUEST" in context_output
-            assert context["reason"] in context_output
-            assert context["thought_summary"] in context_output
+            assert context.question in context_output
+            assert context.task_id in context_output
             
             # Verify persistence
             mock_persist.assert_called_once()
@@ -503,15 +535,15 @@ class TestCLIAdapterIntegration:
             list_result = await cli_adapter_non_interactive.execute_tool(
                 "list_files", {"path": "/test"}
             )
-            assert list_result["success"]
-            assert "test.txt" in list_result["files"]
+            assert list_result.success
+            assert "test.txt" in list_result.result["files"]
             
             # Then, read a file
             read_result = await cli_adapter_non_interactive.execute_tool(
                 "read_file", {"path": "/test/test.txt"}
             )
-            assert read_result["success"]
-            assert read_result["content"] == "file content"
+            assert read_result.success
+            assert read_result.result["content"] == "file content"
 
     async def test_concurrent_operations(self, cli_adapter_non_interactive):
         """Test concurrent adapter operations."""
@@ -545,7 +577,7 @@ class TestCLIAdapterIntegration:
             
             # All should succeed
             assert all(send_results)
-            assert all(result["success"] for result in tool_results)
+            assert all(result.success for result in tool_results)
 
 
 # Helper function for mocking file operations

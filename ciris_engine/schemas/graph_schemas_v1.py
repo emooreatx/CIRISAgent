@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, Field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 from datetime import datetime, timezone
 
 
@@ -9,7 +9,6 @@ class GraphScope(str, Enum):
     IDENTITY = "identity"
     ENVIRONMENT = "environment"
     COMMUNITY = "community"
-    NETWORK = "network"
 
 
 class NodeType(str, Enum):
@@ -72,6 +71,56 @@ class GraphEdge(BaseModel):
     scope: GraphScope
     weight: float = 1.0
     attributes: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AdaptationProposalNode(GraphNode):
+    """
+    Specialized node for configuration adaptation proposals.
+    
+    Represents an agent's proposal to adapt its configuration based on
+    observed patterns and experiences.
+    """
+    
+    # Override type to be CONFIG by default
+    type: NodeType = Field(default=NodeType.CONFIG)
+    
+    # Adaptation-specific fields
+    trigger: str = Field(..., description="What triggered this adaptation proposal")
+    current_pattern: Optional[str] = Field(None, description="Current behavioral pattern")
+    proposed_changes: Dict[str, Any] = Field(..., description="Proposed configuration changes")
+    evidence: List[str] = Field(default_factory=list, description="Node IDs supporting this proposal")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in this adaptation")
+    auto_applicable: bool = Field(default=False, description="Can be auto-applied if confidence high enough")
+    applied: bool = Field(default=False, description="Whether this proposal was applied")
+    applied_at: Optional[datetime] = Field(None, description="When the proposal was applied")
+    
+    def __init__(self, **data: Any) -> None:
+        """Initialize AdaptationProposalNode with proper defaults"""
+        if 'id' not in data:
+            timestamp_str = int(datetime.now(timezone.utc).timestamp())
+            trigger = data.get('trigger', 'unknown').replace(' ', '_')
+            data['id'] = f"adaptation_{trigger}_{timestamp_str}"
+        
+        # Ensure it's stored in appropriate scope based on impact
+        if 'scope' not in data:
+            # Check if changes affect identity-level configs
+            proposed_changes = data.get('proposed_changes', {})
+            affects_identity = any(
+                key in proposed_changes for key in 
+                ['ethical_boundaries', 'capability_limits', 'trust_parameters', 'behavior_config']
+            )
+            data['scope'] = GraphScope.IDENTITY if affects_identity else GraphScope.LOCAL
+        
+        super().__init__(**data)
+    
+    def can_auto_apply(self, threshold: float = 0.8) -> bool:
+        """Check if this proposal can be automatically applied."""
+        return (
+            self.auto_applicable and 
+            self.confidence >= threshold and 
+            self.scope == GraphScope.LOCAL and
+            not self.applied
+        )
 
 
 class TSDBGraphNode(GraphNode):

@@ -6,13 +6,14 @@ import logging
 from typing import Dict, Any, Optional
 
 from ciris_engine.schemas.foundational_schemas_v1 import ServiceType
+from ciris_engine.schemas.wa_context_schemas_v1 import GuidanceContext, DeferralContext
 from ciris_engine.protocols.services import WiseAuthorityService
 from .base_bus import BaseBus, BusMessage
 
 logger = logging.getLogger(__name__)
 
 
-class WiseBus(BaseBus):
+class WiseBus(BaseBus[WiseAuthorityService]):
     """
     Message bus for all wise authority operations.
     
@@ -29,10 +30,8 @@ class WiseBus(BaseBus):
     
     async def send_deferral(
         self,
-        thought_id: str,
-        reason: str,
-        handler_name: str,
-        context: Optional[Dict[str, Any]] = None
+        context: DeferralContext,
+        handler_name: str
     ) -> bool:
         """Send a deferral to wise authority"""
         service = await self.get_service(
@@ -45,7 +44,7 @@ class WiseBus(BaseBus):
             return False
             
         try:
-            result = await service.send_deferral(thought_id, reason, context)
+            result = await service.send_deferral(context)
             return bool(result)
         except Exception as e:
             logger.error(f"Failed to send deferral: {e}", exc_info=True)
@@ -53,7 +52,7 @@ class WiseBus(BaseBus):
     
     async def fetch_guidance(
         self,
-        context: Dict[str, Any],
+        context: GuidanceContext,
         handler_name: str
     ) -> Optional[str]:
         """Fetch guidance from wise authority"""
@@ -72,6 +71,25 @@ class WiseBus(BaseBus):
         except Exception as e:
             logger.error(f"Failed to fetch guidance: {e}", exc_info=True)
             return None
+    
+    async def request_review(
+        self,
+        review_type: str,
+        review_data: Dict[str, Any],
+        handler_name: str
+    ) -> bool:
+        """Request a review from wise authority (e.g., for identity variance)"""
+        # Create a deferral context for the review
+        context = DeferralContext(
+            thought_id=f"review_{review_type}_{handler_name}",
+            task_id=f"review_task_{review_type}",
+            reason=f"Review requested: {review_type}",
+            defer_until=None,
+            priority=None,
+            metadata={"review_data": str(review_data), "handler_name": handler_name}
+        )
+        
+        return await self.send_deferral(context, handler_name)
     
     async def _process_message(self, message: BusMessage) -> None:
         """Process a wise authority message - currently all WA operations are synchronous"""

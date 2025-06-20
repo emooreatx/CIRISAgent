@@ -29,6 +29,7 @@ class ServiceType(CaseInsensitiveEnum):
     TELEMETRY = "telemetry"
     ORCHESTRATOR = "orchestrator"
     SECRETS = "secrets"
+    RUNTIME_CONTROL = "runtime_control"
     FILTER = "filter"
     CONFIG = "config"
     MAINTENANCE = "maintenance"
@@ -132,23 +133,15 @@ class ResourceUsage(BaseModel):
     cost_cents: float = Field(default=0.0, ge=0.0, description="Cost in cents USD")
     
     # Environmental impact
-    water_ml: float = Field(default=0.0, ge=0.0, description="Water usage in milliliters")
-    carbon_g: float = Field(default=0.0, ge=0.0, description="Carbon emissions in grams CO2")
+    carbon_grams: float = Field(default=0.0, ge=0.0, description="Carbon emissions in grams CO2")
     energy_kwh: float = Field(default=0.0, ge=0.0, description="Energy consumption in kilowatt-hours")
+    
+    # Compute resources
+    compute_ms: Optional[int] = Field(default=None, ge=0, description="Compute time in milliseconds")
+    memory_mb: Optional[int] = Field(default=None, ge=0, description="Memory usage in megabytes")
     
     # Model information
     model_used: Optional[str] = Field(default=None, description="Model that incurred these costs")
-    
-    # Legacy compatibility
-    @property
-    def tokens(self) -> int:
-        """Backward compatibility for tokens field."""
-        return self.tokens_used
-    
-    @property
-    def estimated_cost(self) -> Optional[float]:
-        """Backward compatibility for estimated_cost in dollars."""
-        return self.cost_cents / 100.0 if self.cost_cents > 0 else None
 
     model_config = ConfigDict(extra="allow")
 

@@ -11,7 +11,7 @@ from ciris_engine.schemas.foundational_schemas_v1 import ThoughtType, ThoughtSta
 class DummyMemoryService:
     def __init__(self):
         self._identity = "Agent identity string"
-    def export_identity_context(self):
+    async def export_identity_context(self):
         return self._identity
     # Note: Removed delegation methods that were inappropriately mixed into memory service
     # The ContextBuilder now uses persistence functions directly for task/thought data

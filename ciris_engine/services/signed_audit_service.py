@@ -18,6 +18,7 @@ from .audit_service import AuditService
 from ciris_engine.audit.hash_chain import AuditHashChain
 from ciris_engine.audit.signature_manager import AuditSignatureManager
 from ciris_engine.audit.verifier import AuditVerifier
+from ciris_engine.schemas.protocol_schemas_v1 import ActionContext
 from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
 from ciris_engine.schemas.audit_schemas_v1 import AuditLogEntry
 
@@ -94,7 +95,7 @@ class SignedAuditService(AuditService):
     async def log_action(
         self,
         handler_action: HandlerActionType,
-        context: Dict[str, Any],
+        context: ActionContext,
         outcome: Optional[str] = None,
     ) -> bool:
         """
@@ -108,14 +109,14 @@ class SignedAuditService(AuditService):
                 event_id=str(uuid.uuid4()),
                 event_timestamp=datetime.now(timezone.utc).isoformat(),
                 event_type=handler_action.value,
-                originator_id=context.get("thought_id", "unknown"),
-                target_id=context.get("target_id"),
+                originator_id=context.thought_id,
+                target_id=context.task_id,
                 event_summary=self._generate_summary(handler_action, context, outcome),
-                event_payload=context,
-                agent_template=context.get("agent_template"),
-                round_number=context.get("round_number"),
-                thought_id=context.get("thought_id"),
-                task_id=context.get("task_id") or context.get("source_task_id"),
+                event_payload={"thought_id": context.thought_id, "task_id": context.task_id, "handler_name": context.handler_name, "parameters": context.parameters},
+                agent_template="default",
+                round_number=0,
+                thought_id=context.thought_id,
+                task_id=context.task_id,
             )
             
             if self.enable_jsonl:

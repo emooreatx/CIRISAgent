@@ -87,9 +87,14 @@ async def test_recall_handler_schema_driven(monkeypatch):
     
     # Mock the memory bus
     mock_memory_bus = AsyncMock()
-    mock_memory_bus.recall = AsyncMock(return_value=MemoryOpResult(
-        status=MemoryOpStatus.OK, data={"foo": "bar"}
-    ))
+    # Create a mock GraphNode to return from recall
+    mock_node = GraphNode(
+        id="test_node",
+        type=NodeType.CONCEPT,
+        scope=GraphScope.LOCAL,
+        attributes={"foo": "bar"}
+    )
+    mock_memory_bus.recall = AsyncMock(return_value=[mock_node])
     bus_manager.memory = mock_memory_bus
     
     deps = ActionHandlerDependencies(bus_manager=bus_manager)
@@ -112,11 +117,10 @@ async def test_recall_handler_schema_driven(monkeypatch):
     await handler.handle(action_result, thought, context)
 
     mock_memory_bus.recall.assert_awaited_once()
-    # Check that the call had the correct node and handler_name
+    # Check that the call had the correct recall_query and handler_name
     call_args = mock_memory_bus.recall.call_args
-    assert call_args[1]['node'].id == "user"
-    assert call_args[1]['node'].type == NodeType.USER
-    assert call_args[1]['node'].scope == GraphScope.LOCAL
+    assert call_args[1]['recall_query'].node_id == "user"
+    assert call_args[1]['recall_query'].scope == GraphScope.LOCAL
     assert call_args[1]['handler_name'] == 'RecallHandler'
     add_thought_mock.assert_called_once()
 
