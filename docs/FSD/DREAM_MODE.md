@@ -22,21 +22,22 @@ During dreams, the agent:
 1. Consolidates operational memories into wisdom
 2. Analyzes patterns from recent PONDER questions
 3. Processes deferred tasks and unresolved thoughts
-4. Adapts configuration based on learned patterns
+4. Discovers patterns and stores them as insights (no automatic adaptation)
 5. Plans future work by creating scheduled memories
 
 ## Architecture
 
-### Dream State Management
+### Dream Phase Management
 
 ```python
-class DreamState(str, Enum):
-    """States within dream mode."""
+class DreamPhase(str, Enum):
+    """Phases of dream processing."""
     ENTERING = "entering"          # Transitioning to dream
     CONSOLIDATING = "consolidating" # Memory consolidation
     ANALYZING = "analyzing"        # Pattern analysis
-    ADAPTING = "adapting"         # Self-configuration
+    CONFIGURING = "configuring"   # Pattern discovery (not adaptation)
     PLANNING = "planning"         # Future scheduling
+    BENCHMARKING = "benchmarking" # CIRISNode benchmarks
     EXITING = "exiting"          # Returning to active mode
 ```
 
@@ -47,21 +48,22 @@ class DreamState(str, Enum):
 class DreamSession:
     """Represents a complete dream session."""
     session_id: str
-    scheduled_start: datetime
+    scheduled_start: Optional[datetime]
     actual_start: datetime
     planned_duration: timedelta
-    state: DreamState
+    phase: DreamPhase
     
     # Work completed
     memories_consolidated: int
     patterns_analyzed: int
-    adaptations_made: int
+    adaptations_made: int  # Always 0 - no automatic adaptations
     future_tasks_scheduled: int
+    benchmarks_run: int  # When using CIRISNode
     
-    # Dream content
+    # Insights
     ponder_questions_processed: List[str]
     insights_gained: List[str]
-    configuration_changes: List[AdaptationProposalNode]
+    # No configuration_changes - agent decides based on insights
 ```
 
 ## Dream Mode Flow
@@ -175,12 +177,11 @@ async def process_dream_session(self, session: DreamSession) -> None:
         patterns = await self.analyze_experience_patterns()
         session.patterns_analyzed = len(patterns)
         
-        # Phase 3: Self-Configuration
-        session.state = DreamState.ADAPTING
-        if patterns:
-            adaptations = await self.run_self_configuration(patterns)
-            session.adaptations_made = len(adaptations)
-            session.configuration_changes = adaptations
+        # Phase 3: Pattern Discovery (not automatic configuration)
+        session.state = DreamState.ADAPTING  # Historical name, actually discovery
+        await self.process_configuration_insights()
+        # No adaptations_made - patterns stored as insights for agent
+        session.adaptations_made = 0  # Always 0
         
         # Phase 4: Future Planning
         session.state = DreamState.PLANNING
@@ -269,38 +270,71 @@ async def recall_recent_ponder_questions(self) -> List[str]:
     return pattern_questions
 ```
 
-### 7. Dream-Based Self-Configuration
+### 7. Dream-Based Pattern Discovery
 
 ```python
-async def run_self_configuration(self, patterns: List[DetectedPattern]) -> List[AdaptationProposalNode]:
-    """Run self-configuration as part of dream processing."""
+async def process_configuration_insights(self) -> None:
+    """Process insights from ConfigurationFeedbackLoop during dream."""
     
-    # Create a configuration thought within the dream
-    config_thought = Thought(
-        content="Analyzing my patterns for potential adaptations",
-        thought_type=ThoughtType.DREAM_INTROSPECTION,
-        parent_thought_id=self.current_dream_thought.thought_id
+    # ConfigurationFeedbackLoop detects patterns and stores insights
+    analysis_result = await self._feedback_loop.analyze_and_adapt(force=True)
+    
+    # Patterns are stored as CONCEPT nodes with insight_type="behavioral_pattern"
+    # The agent discovers these during introspection:
+    insights = await self.memory_bus.recall(
+        query=MemoryQuery(
+            scopes=[GraphScope.LOCAL],
+            node_types=[NodeType.CONCEPT],
+            attributes={"insight_type": "behavioral_pattern"},
+            time_range=TimeRange(hours=6)
+        )
     )
     
-    # Use existing ConfigurationFeedbackLoop but within dream context
-    proposals = []
-    for pattern in patterns:
-        if pattern.confidence > 0.7:
-            proposal = await self.generate_adaptation_proposal(pattern)
-            
-            # Dream state allows deeper introspection
-            proposal.attributes["dream_insight"] = await self.contemplate_change(proposal)
-            proposals.append(proposal)
+    # Create tasks for the agent to consider these insights
+    for insight in insights:
+        task = self.task_manager.create_task(
+            f"Consider behavioral insight: {insight.attributes['description']}",
+            priority=7,
+            context={
+                "insight_id": insight.id,
+                "pattern_type": insight.attributes['pattern_type'],
+                "confidence": insight.attributes['confidence']
+            }
+        )
     
-    # Apply safe changes immediately
-    for proposal in proposals:
-        if proposal.scope == GraphScope.LOCAL and proposal.confidence > 0.8:
-            await self.apply_adaptation(proposal)
-    
-    return proposals
+    # No automatic adaptations - agent decides during task processing
 ```
 
-### 8. Future Work Planning
+### 8. Identity Variance Monitoring
+
+```python
+async def monitor_identity_variance(self) -> None:
+    """Check identity drift during dream state."""
+    
+    # Only runs during dreams via SelfConfigurationService
+    if self.self_config_service:
+        # Take identity snapshot
+        variance_report = await self.self_config_service.check_identity_variance(
+            self.identity_manager.agent_identity
+        )
+        
+        if variance_report.variance > 0.20:
+            # Trigger WA review (non-blocking)
+            await self.wise_bus.request_review(
+                review_type="identity_variance",
+                data=variance_report,
+                handler_name="dream_processor"
+            )
+            
+            # Create task for agent to reflect on variance
+            self.task_manager.create_task(
+                f"Reflect on identity variance: {variance_report.variance:.1%}",
+                priority=9,
+                context={"variance_report": variance_report}
+            )
+```
+
+### 9. Future Work Planning
 
 ```python
 async def plan_future_work(self, insights: List[str]) -> List[GraphNode]:
@@ -419,10 +453,11 @@ async def record_dream_session(self, session: DreamSession) -> None:
 
 ## Integration Points
 
-### 1. With Self-Configuration
-- Dreams are the PRIMARY time for self-configuration
-- Pattern detection happens during dream analysis
-- Configuration proposals are contemplated in dream state
+### 1. With Self-Configuration Service
+- Dreams are the ONLY time ConfigurationFeedbackLoop runs
+- Pattern detection happens every 6 hours during dreams
+- Patterns stored as insights, no automatic proposals
+- Identity variance monitoring also runs during dreams
 
 ### 2. With Memory Service
 - Dreams trigger deep consolidation

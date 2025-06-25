@@ -898,20 +898,18 @@ class DreamProcessor(BaseProcessor):
                 # Extract key information
                 pattern_type = attrs.get("pattern_type", "unknown")
                 description = attrs.get("description", "")
-                confidence = attrs.get("confidence", 0.0)
                 
-                # Only process high-confidence insights
-                if confidence >= 0.7:
-                    insight_str = f"Pattern ({pattern_type}): {description}"
-                    insights.append(insight_str)
-                    
-                    # Log for debugging
-                    logger.debug(f"Processing insight: {pattern_type} - {description} (confidence: {confidence})")
-                    
-                    # Check if this is an actionable insight
-                    if attrs.get("actionable", False):
-                        # The agent can decide to act on this during future work planning
-                        insights.append(f"Action Opportunity: {description}")
+                # Process all insights (no confidence filtering)
+                insight_str = f"Pattern ({pattern_type}): {description}"
+                insights.append(insight_str)
+                
+                # Log for debugging
+                logger.debug(f"Processing insight: {pattern_type} - {description}")
+                
+                # Check if this is an actionable insight
+                if attrs.get("actionable", False):
+                    # The agent can decide to act on this during future work planning
+                    insights.append(f"Action Opportunity: {description}")
                         
             # Summarize findings
             if insights:

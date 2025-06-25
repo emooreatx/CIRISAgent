@@ -15,11 +15,10 @@ from ciris_engine.protocols.services import Service
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.infrastructure.feedback_loop import (
-    PatternType, PatternMetrics, DetectedPattern, ConfigurationUpdate,
-    AnalysisResult
+    PatternType, PatternMetrics, DetectedPattern, AnalysisResult
 )
 from ciris_engine.schemas.infrastructure.behavioral_patterns import ActionFrequency
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType, ConfigNodeType, CONFIG_SCOPE_MAP
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpStatus
 from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
 from ciris_engine.logic.buses.memory_bus import MemoryBus
@@ -46,15 +45,11 @@ class ConfigurationFeedbackLoop(Service):
         self,
         time_service: TimeServiceProtocol,
         memory_bus: Optional[MemoryBus] = None,
-        pattern_threshold: float = 0.7,
-        adaptation_threshold: float = 0.8,
         analysis_interval_hours: int = 6
     ) -> None:
         super().__init__()
         self._time_service = time_service
         self._memory_bus = memory_bus
-        self._pattern_threshold = pattern_threshold
-        self._adaptation_threshold = adaptation_threshold
         self._analysis_interval_hours = analysis_interval_hours
         
         # Pattern detection state
@@ -63,8 +58,6 @@ class ConfigurationFeedbackLoop(Service):
         
         # Learning state
         self._pattern_history: List[DetectedPattern] = []
-        self._successful_adaptations: List[str] = []
-        self._failed_adaptations: List[str] = []
     
     def set_service_registry(self, registry: Any) -> None:
         """Set the service registry for accessing memory bus."""
@@ -78,13 +71,13 @@ class ConfigurationFeedbackLoop(Service):
     
     async def analyze_and_adapt(self, force: bool = False) -> AnalysisResult:
         """
-        Main entry point: Analyze metrics and create adaptation proposals.
+        Main entry point: Analyze metrics and store insights for agent introspection.
         
         Args:
             force: Force analysis even if not due
             
         Returns:
-            Summary of analysis and adaptations
+            Summary of analysis and insights stored
         """
         try:
             # Check if analysis is due
@@ -93,8 +86,7 @@ class ConfigurationFeedbackLoop(Service):
                 return AnalysisResult(
                     status="not_due",
                     patterns_detected=0,
-                    proposals_generated=0,
-                    adaptations_applied=0,
+                    insights_stored=0,
                     timestamp=self._time_service.now(),
                     next_analysis_in=self._analysis_interval_hours * 3600 - time_since_last.total_seconds()
                 )
@@ -102,22 +94,18 @@ class ConfigurationFeedbackLoop(Service):
             # 1. Detect patterns from recent metrics
             patterns = await self._detect_patterns()
             
-            # 2. Generate adaptation proposals
-            proposals = await self._generate_proposals(patterns)
+            # 2. Store pattern insights for agent introspection
+            insights_stored = await self._store_pattern_insights(patterns)
             
-            # 3. Apply eligible adaptations
-            applied = await self._apply_adaptations(proposals)
-            
-            # 4. Update learning state
-            await self._update_learning_state(patterns, proposals, applied)
+            # 3. Update learning state
+            await self._update_learning_state(patterns)
             
             self._last_analysis = self._time_service.now()
             
             return AnalysisResult(
                 status="completed",
                 patterns_detected=len(patterns),
-                proposals_generated=len(proposals),
-                adaptations_applied=len(applied),
+                insights_stored=insights_stored,
                 timestamp=self._time_service.now()
             )
             
@@ -126,8 +114,7 @@ class ConfigurationFeedbackLoop(Service):
             return AnalysisResult(
                 status="error",
                 patterns_detected=0,
-                proposals_generated=0,
-                adaptations_applied=0,
+                insights_stored=0,
                 timestamp=self._time_service.now(),
                 error=str(e)
             )
@@ -208,7 +195,6 @@ class ConfigurationFeedbackLoop(Service):
                     pattern_id=f"freq_dominant_{action}",
                     description=f"Action '{action}' is used {percentage:.1%} of the time",
                     evidence_nodes=freq_data.evidence[:10],  # Limit evidence
-                    confidence=min(freq_data.count / 10.0, 1.0),  # Higher count = higher confidence
                     detected_at=self._time_service.now(),
                     metrics=PatternMetrics(
                         occurrence_count=freq_data.count,
@@ -235,7 +221,6 @@ class ConfigurationFeedbackLoop(Service):
                     pattern_id=f"freq_underused_{capability}",
                     description=f"Capability '{capability}' is rarely used ({count} times)",
                     evidence_nodes=[],
-                    confidence=0.9,  # High confidence in counting
                     detected_at=self._time_service.now(),
                     metrics=PatternMetrics(
                         occurrence_count=count,
@@ -288,7 +273,6 @@ class ConfigurationFeedbackLoop(Service):
                         pattern_id="perf_degradation_response_time",
                         description=f"Response times degraded by {(avg_recent/avg_previous - 1)*100:.1f}%",
                         evidence_nodes=[str(d.timestamp) for d in response_times[-10:]],
-                        confidence=0.8,
                         detected_at=self._time_service.now(),
                         metrics=PatternMetrics(
                             average_value=avg_recent,
@@ -344,7 +328,6 @@ class ConfigurationFeedbackLoop(Service):
                         pattern_id=f"error_recurring_{error_type}",
                         description=f"Recurring error: {error_type} ({len(instances)} times)",
                         evidence_nodes=[str(e.timestamp) for e in instances[:5]],
-                        confidence=min(0.9, len(instances) / 10),  # Higher count = higher confidence
                         detected_at=self._time_service.now(),
                         metrics=PatternMetrics(
                             occurrence_count=len(instances),
@@ -371,9 +354,6 @@ class ConfigurationFeedbackLoop(Service):
         
         stored = 0
         for pattern in patterns:
-            if pattern.confidence < self._pattern_threshold:
-                continue
-                
             try:
                 insight_node = GraphNode(
                     id=f"insight_{pattern.pattern_id}_{int(self._time_service.now().timestamp())}",
@@ -383,7 +363,6 @@ class ConfigurationFeedbackLoop(Service):
                         "insight_type": "behavioral_pattern",
                         "pattern_type": pattern.pattern_type.value,
                         "description": pattern.description,
-                        "confidence": pattern.confidence,
                         "evidence": pattern.evidence_nodes[:10],  # Limit evidence
                         "metrics": pattern.metrics.model_dump() if pattern.metrics else {},
                         "detected_at": pattern.detected_at.isoformat(),
@@ -421,10 +400,8 @@ class ConfigurationFeedbackLoop(Service):
             attributes={
                 "timestamp": self._time_service.now().isoformat(),
                 "patterns_detected": len(patterns),
-                "proposals_generated": 0,  # No longer generating proposals
-                "adaptations_applied": 0,  # No longer applying adaptations,
-                "total_successful_adaptations": len(self._successful_adaptations),
-                "pattern_types_seen": list(set(p.pattern_type.value for p in patterns))
+                "pattern_types_seen": list(set(p.pattern_type.value for p in patterns)),
+                "total_patterns_learned": len(self._pattern_history)
             }
         )
         
@@ -502,7 +479,6 @@ class ConfigurationFeedbackLoop(Service):
                     pattern_id="tool_usage_by_hour",
                     description="Different tools preferred at different times of day",
                     evidence_nodes=[],
-                    confidence=0.8,
                     detected_at=self._time_service.now(),
                     metrics=PatternMetrics(
                         metadata={
@@ -638,7 +614,6 @@ class ConfigurationFeedbackLoop(Service):
                 "pattern_type": pattern.pattern_type.value,
                 "pattern_id": pattern.pattern_id,
                 "description": pattern.description,
-                "confidence": pattern.confidence,
                 "detected_at": pattern.detected_at.isoformat(),
                 "metrics": pattern.metrics,
                 "evidence_count": len(pattern.evidence_nodes)
@@ -687,9 +662,7 @@ class ConfigurationFeedbackLoop(Service):
             version="1.0.0",
             dependencies=["TimeService", "MemoryBus"],
             metadata={
-                "pattern_threshold": self.pattern_threshold,
-                "adaptation_threshold": self.adaptation_threshold,
-                "analysis_interval_hours": self.analysis_interval_hours
+                "analysis_interval_hours": self._analysis_interval_hours
             }
         )
     
@@ -702,9 +675,7 @@ class ConfigurationFeedbackLoop(Service):
             is_healthy=self._memory_bus is not None,
             uptime_seconds=0.0,  # Not tracking uptime for sub-services
             metrics={
-                "pattern_threshold": self.pattern_threshold,
-                "adaptation_threshold": self.adaptation_threshold,
-                "patterns_detected": float(len(self.detected_patterns))
+                "patterns_detected": float(len(self._detected_patterns))
             },
             last_error=None,
             last_health_check=self._time_service.now() if self._time_service else None

@@ -27,7 +27,7 @@ class ExampleService(Service):
 The services module contains three primary service implementations:
 
 1. **Adaptive Filter Service** - Intelligent message filtering with ML-based priority detection
-2. **Agent Configuration Service** - Self-configuration management through graph memory
+2. **Agent Configuration Service** - Configuration management through graph memory (agent-initiated)
 3. **Multi-Service Transaction Orchestrator** - Coordinated multi-service operations
 
 ## Service Implementations
@@ -41,7 +41,7 @@ Provides sophisticated message filtering capabilities with machine learning-base
 - **Intelligent Priority Detection**: Automatically classifies messages by urgency and importance
 - **User Trust Tracking**: Maintains trust profiles for users based on interaction history  
 - **Graph Memory Integration**: Persists filter configuration and learning data
-- **Self-Configuration**: Adapts filtering rules based on feedback and patterns
+- **Pattern-Based Updates**: Agent can update filtering rules based on discovered patterns
 - **Multi-Adapter Support**: Works with CLI, Discord, and API adapters
 
 #### Configuration Structure
@@ -196,12 +196,13 @@ class AgentConfigService(Service):
             return False
 ```
 
-#### Self-Configuration Examples
+#### Configuration Examples
 
 ```python
-# Update filter sensitivity based on recent spam patterns
+# Agent decides to update filter based on discovered insights
+# (Not automatic - agent reads insights from DREAM state pattern detection)
 filter_config = await config_service.get_config(ConfigNodeType.FILTER_CONFIG)
-filter_config["spam_threshold"] = 0.85  # Increase sensitivity
+filter_config["spam_threshold"] = 0.85  # Agent chooses to increase sensitivity
 
 await config_service.update_config(
     ConfigNodeType.FILTER_CONFIG,

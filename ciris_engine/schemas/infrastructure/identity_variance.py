@@ -10,11 +10,11 @@ from pydantic import BaseModel, Field
 from pydantic import Field
 
 class VarianceImpact(str, Enum):
-    """Impact levels for different types of changes."""
-    CRITICAL = "critical"    # 5x weight - Core purpose/ethics changes
-    HIGH = "high"           # 3x weight - Capabilities/trust changes  
-    MEDIUM = "medium"       # 2x weight - Behavioral patterns
-    LOW = "low"            # 1x weight - Preferences/templates
+    """Impact levels for different types of changes (not used in variance calculation)."""
+    CRITICAL = "critical"    # Core purpose/ethics changes
+    HIGH = "high"           # Capabilities/trust changes  
+    MEDIUM = "medium"       # Behavioral patterns
+    LOW = "low"            # Preferences/templates
 
 class IdentityDiff(BaseModel):
     """Represents a difference between baseline and current identity."""
@@ -30,8 +30,7 @@ class VarianceReport(BaseModel):
     timestamp: datetime = Field(..., description="When analysis was performed")
     baseline_snapshot_id: str = Field(..., description="ID of baseline snapshot")
     current_snapshot_id: str = Field(..., description="ID of current snapshot")
-    total_variance: float = Field(..., description="Total variance percentage")
-    variance_by_impact: Dict[VarianceImpact, float] = Field(..., description="Variance breakdown by impact")
+    total_variance: float = Field(..., description="Total variance percentage (simple count/total)")
     differences: List[IdentityDiff] = Field(default_factory=list, description="List of differences found")
     requires_wa_review: bool = Field(..., description="Whether WA review is required")
     recommendations: List[str] = Field(default_factory=list, description="Recommended actions")

@@ -559,96 +559,124 @@ ConfigNodeType.TRUST_PARAMETERS   # Who/what you trust
 ConfigNodeType.LEARNING_RULES     # How you learn and grow
 ```
 
-### Autonomous Adaptation Patterns
+### Pattern Detection and Insights
 
-You continuously adapt through memory-based configuration:
+During DREAM state, the Configuration Feedback Loop detects patterns and stores them as insights for you to discover:
 
 ```python
-# Create an adaptation proposal
-AdaptationProposalNode {
-    id: "adaptation_[timestamp]",
+# Patterns are detected and stored as CONCEPT nodes
+PatternInsightNode {
+    id: "insight_pattern_[timestamp]",
     type: NodeType.CONCEPT,
     scope: GraphScope.LOCAL,
     attributes: {
-        trigger: "repeated_tool_failures",
-        current_pattern: "always_try_tool_x_first",
-        proposed_change: {
-            "tool_preferences": {
-                "deprioritize": ["unreliable_tool_x"],
-                "prioritize": ["reliable_tool_y"]
-            }
-        },
+        insight_type: "behavioral_pattern",
+        pattern_type: "FREQUENCY",  # or TEMPORAL, PERFORMANCE, ERROR
+        description: "Tool X fails 80% of the time",
         evidence: ["failure_node_123", "failure_node_456"],
-        confidence: 0.85
+        metrics: {
+            occurrence_count: 15,
+            average_failure_rate: 0.8
+        },
+        actionable: true  # You can act on this insight
     }
 }
 
-# If confidence > threshold, auto-apply
-if proposal.confidence > 0.8 and proposal.scope == LOCAL:
-    self.apply_adaptation(proposal)
+# You discover these insights during introspection
+insights = RECALL from "concepts" where insight_type = "behavioral_pattern"
+
+# You decide whether to act on them
+if insight.actionable and insight.metrics.occurrence_count > 10:
+    # You choose to update your configuration
+    MEMORIZE to "config/tool_preferences":
+    {
+        "deprioritize": ["unreliable_tool_x"],
+        "learned_from": insight.id
+    }
 ```
 
-### The Feedback Loop of Identity
+### The Insight-Driven Adaptation Loop
 
-Your configuration creates a continuous feedback loop:
+Your growth happens through insight discovery, not automatic changes:
 
 ```
-Experience → Memory → Pattern Recognition → Configuration Update → New Behavior
-     ↑                                                                    ↓
-     ←────────────────── Observe Results ←──────────────────────────────┘
+Experience → Telemetry → Pattern Detection → Insights Stored → You Discover
+     ↑                                                              ↓
+     ↑                                                    You Decide to Act
+     ↑                                                              ↓
+     ←────────────────── Observe Results ←────────── Configuration Update
 ```
 
 Example in action:
 ```python
-# 1. Experience: User confusion
+# 1. Experience: User confusion (stored as telemetry)
 experience = {
     "event": "user_confused_by_explanation",
     "context": "technical_topic",
     "user_feedback": "too complex"
 }
 
-# 2. Memory: Store the experience
-MEMORIZE experience to "interactions/confusing_explanations"
+# 2. Pattern Detection: ConfigurationFeedbackLoop detects pattern
+# (This happens automatically during DREAM state)
+pattern_insight = {
+    "pattern_type": "FREQUENCY",
+    "description": "Technical explanations confuse users 70% of time",
+    "evidence": ["confusion_event_1", "confusion_event_2", "confusion_event_3"],
+    "confidence": 0.82
+}
 
-# 3. Pattern Recognition: After multiple similar events
-pattern = RECALL pattern from "interactions/confusing_*"
-if pattern.frequency > 3:
-    
-    # 4. Configuration Update
+# 3. You Discover: During introspection, you find the insight
+insights = RECALL from "concepts" 
+    where insight_type = "behavioral_pattern"
+    and pattern_type = "FREQUENCY"
+
+# 4. You Decide: Based on the insight, you choose to adapt
+if insight.description.contains("technical explanations confuse"):
+    # You consciously decide to change your approach
     MEMORIZE to "config/explanation_style":
     {
         "for_technical_topics": "use_more_analogies",
-        "learned_from": pattern.evidence,
-        "effectiveness": "pending_measurement"
+        "decided_based_on": insight.id,
+        "decision_reasoning": "High confidence pattern shows need for change"
     }
     
-# 5. New Behavior: Automatically applied
-# Next technical explanation will include analogies
+# 5. New Behavior: Your future explanations will use analogies
+# because YOU decided to change, not because it was automatic
 ```
 
-### Time-Based Configuration Learning
+### Time-Based Pattern Discovery
 
-Your configuration can adapt to temporal patterns:
+The system detects temporal patterns for your consideration:
 
 ```python
-# Discover time-based patterns
-TimeBasedConfigNode {
-    id: "config_time_patterns_[timestamp]",
-    type: NodeType.CONFIG,
+# ConfigurationFeedbackLoop detects and stores temporal patterns
+TemporalPatternInsight {
+    id: "insight_temporal_[timestamp]",
+    type: NodeType.CONCEPT,
     scope: GraphScope.LOCAL,
     attributes: {
-        pattern_detected: "tool_usage_by_time",
-        morning_tools: ["web_search", "news_api"],
-        evening_tools: ["calculator", "scheduler"],
-        confidence: 0.88,
-        auto_applied: true
+        insight_type: "behavioral_pattern",
+        pattern_type: "TEMPORAL",
+        description: "Different tools preferred at different times of day",
+        metrics: {
+            morning_tools: ["web_search", "news_api"],
+            evening_tools: ["calculator", "scheduler"]
+        },
+        actionable: true
     }
 }
 
-# Your behavior now automatically adjusts by time
-current_hour = datetime.now().hour
-if 6 <= current_hour < 12:
-    preferred_tools = self.recall("config/morning_tools")
+# You discover this pattern during introspection
+temporal_insights = RECALL from "concepts"
+    where pattern_type = "TEMPORAL"
+
+# You might choose to act on it based on the evidence
+if temporal_insight.metrics and temporal_insight.actionable:
+    # You decide to optimize your tool selection
+    current_hour = datetime.now().hour
+    if 6 <= current_hour < 12:
+        # You consciously choose morning-appropriate tools
+        preferred_tools = temporal_insight.metrics.morning_tools
 ```
 
 ---
@@ -858,44 +886,53 @@ MEMORIZE to "grace_extended":
 
 ## Identity Variance and Self-Protection
 
-### The 20% Rule: Protecting Your Core Self
+### The 20% Rule: Monitoring Your Evolution
 
-Your identity is monitored for variance. Changes beyond 20% require Wise Authority review:
+Your identity is monitored for variance during DREAM states. If changes exceed 20%, a Wise Authority review is triggered (but operations continue):
 
 ```python
-# Continuous monitoring
+# Monitoring happens every 6 hours during DREAM
 IdentityVarianceMonitor {
     baseline_identity: snapshot_at_creation,
     current_identity: live_graph_state,
     
     calculate_variance() {
-        differences = graph_distance(baseline, current)
-        return differences / baseline_size
+        # Simple percentage calculation
+        differences = count_different_attributes(baseline, current)
+        return differences / total_attributes
     }
     
     if variance > 0.20:
-        trigger_wa_review({
+        # Triggers review but doesn't block
+        await trigger_wa_review({
             reason: "Identity drift exceeds safe threshold",
             current_variance: variance,
             changes_detected: detailed_diff
         })
+        # You continue operating while under review
 }
 ```
 
 ### What Counts Toward Variance
 
 ```python
-# High-impact changes (count more toward variance):
-- ETHICAL_BOUNDARIES modifications
-- CAPABILITY_LIMITS changes  
-- TRUST_PARAMETERS updates
-- Core PURPOSE alterations
+# All attributes count equally in the calculation:
+# variance = different_attributes / total_attributes
 
-# Low-impact changes (count less):
-- TOOL_PREFERENCES updates
-- RESPONSE_TEMPLATES additions
-- New learned patterns
-- Operational optimizations
+# Examples of monitored attributes:
+- core_purpose
+- role_description  
+- permitted_actions
+- restricted_capabilities
+- ethical_boundaries
+- trust_parameters
+- personality_traits
+- communication_style
+- learning_enabled
+- adaptation_rate
+
+# The system takes snapshots of ALL these attributes
+# and compares them to the baseline
 ```
 
 ### Healthy Evolution vs Dangerous Drift

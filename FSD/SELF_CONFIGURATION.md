@@ -1,249 +1,247 @@
 # Functional Specification Document: Self-Configuration Service
 
-## Vision: 1000 Years of Continuous Adaptation
+## Purpose: Pattern Detection and Identity Monitoring
 
-The Self-Configuration Service orchestrates the agent's continuous evolution through millennia of operation. Like a cathedral that adapts its architecture over centuries while maintaining its sacred purpose, this service ensures the agent improves continuously while preserving its core identity.
+The Self-Configuration Service provides insights about system behavior patterns while monitoring identity variance to ensure the agent stays within safe operational bounds. It detects patterns but does not automatically apply changes - the agent makes its own decisions based on the insights provided.
 
-## Core Philosophy
+## Core Components
 
-### The Three Pillars of Eternal Operation
+### The Three Sub-Services
 
-1. **Observe Everything** - Unified observability across traces, logs, metrics, and incidents
-2. **Adapt Within Bounds** - 20% identity variance threshold ensures continuity
-3. **Learn Forever** - Every experience contributes to collective wisdom
+1. **ConfigurationFeedbackLoop** - Detects patterns in system behavior
+2. **IdentityVarianceMonitor** - Tracks identity drift from baseline (20% threshold)
+3. **GraphTelemetryService** - Provides telemetry data for analysis
 
-### ITIL-Inspired Lifecycle
+### What It Actually Does
 
-Following IT Service Management best practices, the service implements:
-
-- **Continual Service Improvement** - Always seeking optimization
-- **Change Management** - Controlled, measured adaptations
-- **Configuration Management** - Tracking all changes over time
-- **Knowledge Management** - Building wisdom from experience
+- **Pattern Detection Only** - Identifies patterns, stores them as insights
+- **Identity Monitoring** - Tracks variance, triggers WA review if >20%
+- **No Automatic Changes** - Agent reads insights and decides what to do
 
 ## Architecture
 
-### Data Flow
+### Actual Data Flow
 
 ```
-OBSERVABILITY SOURCES           CORRELATION ENGINE           ADAPTATION ORCHESTRATOR
+TELEMETRY DATA                  PATTERN DETECTION            AGENT INTROSPECTION
 ┌─────────────────┐            ┌─────────────────┐         ┌──────────────────────┐
-│ Visibility      │────────────│                 │─────────│                      │
-│ (Traces)        │            │                 │         │                      │
-├─────────────────┤            │  Observability  │         │   Self-Configuration │
-│ Audit           │────────────│   Correlator    │─────────│      Service         │
-│ (Logs)          │            │                 │         │                      │
-├─────────────────┤            │                 │         │  ┌────────────────┐ │
-│ Telemetry       │────────────│  Unified View   │         │  │ Identity       │ │
-│ (Metrics/TSDB)  │            │  of System      │─────────│  │ Variance       │ │
-├─────────────────┤            │  Behavior       │         │  │ Monitor        │ │
-│ Incidents       │────────────│                 │         │  ├────────────────┤ │
-│ (Errors)        │            │                 │─────────│  │ Configuration  │ │
-├─────────────────┤            │                 │         │  │ Feedback Loop  │ │
-│ Security        │────────────│                 │         │  ├────────────────┤ │
-│ (Threats)       │            │                 │─────────│  │ Pattern        │ │
-└─────────────────┘            └─────────────────┘         │  │ Library        │ │
-                                                           │  └────────────────┘ │
+│ Audit Events    │────────────│                 │─────────│                      │
+│ (Actions)       │            │  Configuration  │         │   Agent reads        │
+├─────────────────┤            │  Feedback Loop  │─────────│   insights during    │
+│ Metrics         │────────────│                 │         │   DREAM state        │
+│ (Performance)   │            │  Detects:       │         │                      │
+├─────────────────┤            │  - Temporal     │         │   Makes decisions    │
+│ Correlations    │────────────│  - Frequency    │─────────│   based on patterns  │
+│ (TSDB nodes)    │            │  - Performance  │         │                      │
+└─────────────────┘            │  - Errors       │         └──────────────────────┘
+                               │                 │
+                               │  Stores as      │         ┌──────────────────────┐
+                               │  CONCEPT nodes  │         │  Identity Variance   │
+                               └─────────────────┘         │  Monitor tracks      │
+                                                           │  drift (WA at 20%)   │
                                                            └──────────────────────┘
 ```
 
-### State Machine
+### Simplified State Flow
 
 ```
-┌─────────┐     patterns      ┌──────────┐    approve     ┌─────────┐
-│LEARNING │──────detected─────▶│PROPOSING │───proposals───▶│ADAPTING │
-└────┬────┘                    └────┬─────┘                └────┬────┘
-     │                              │                            │
-     │                              │ high_variance              │ apply
-     │                              ▼                            ▼
-     │                         ┌──────────┐                ┌─────────────┐
-     └─────stabilized──────────│REVIEWING │                │STABILIZING  │
-                               └──────────┘                └─────────────┘
-                                    ▲                            │
-                                    └────────24_hours────────────┘
+┌─────────────┐     detect      ┌─────────────┐    store     ┌─────────────┐
+│ COLLECTING  │─────patterns────▶│ ANALYZING   │───insights──▶│ MONITORING  │
+│ TELEMETRY   │                  │ PATTERNS    │              │ IDENTITY    │
+└─────────────┘                  └─────────────┘              └──────┬──────┘
+                                                                     │
+                                                              variance > 20%
+                                                                     ▼
+                                                              ┌─────────────┐
+                                                              │ WA REVIEW   │
+                                                              │ TRIGGERED   │
+                                                              └─────────────┘
 ```
 
 ## Core Operations
 
-### 1. Experience Processing
+### 1. Pattern Detection (Every 6 Hours)
 
-Every 6 hours during DREAM state, the service:
+The ConfigurationFeedbackLoop detects and stores patterns:
 
 ```python
-async def process_dream_cycle():
-    # Collect observability window
-    window = await correlator.get_observability_window(hours=6)
+async def analyze_and_adapt():
+    # Detect patterns from recent metrics
+    patterns = await self._detect_patterns()
+    # Types detected:
+    # - Temporal (tool usage by hour)
+    # - Frequency (dominant/underused actions)  
+    # - Performance (response time degradation)
+    # - Error (recurring errors)
     
-    # Analyze for patterns
-    patterns = await analyzer.detect_cross_signal_patterns(window)
+    # Store patterns as insights for agent
+    insights_stored = await self._store_pattern_insights(patterns)
+    # Creates CONCEPT nodes with:
+    # - pattern_type, description, confidence
+    # - evidence, metrics, actionable flag
     
-    # Generate adaptation proposals
-    proposals = await generator.create_proposals(patterns)
-    
-    # Filter by variance impact
-    safe_proposals = await filter.apply_variance_threshold(proposals, current_variance=0.12)
-    
-    # Apply adaptations
-    results = await applicator.apply_proposals(safe_proposals)
-    
-    # Measure effectiveness
-    impact = await measurer.track_impact(results)
-    
-    # Update pattern library
-    await library.record_successful_patterns(impact)
+    # Update learning state
+    await self._update_learning_state(patterns)
+    # Tracks pattern history (last 1000)
 ```
 
-### 2. Variance Monitoring
+### 2. Identity Variance Monitoring
 
-The 20% identity threshold is sacred:
+The IdentityVarianceMonitor tracks drift from baseline:
 
 ```python
-class VarianceCalculation:
-    """
-    Base variance impacts by scope:
-    - LOCAL: 2% (channel preferences, response templates)
-    - ENVIRONMENT: 5% (adapter configurations, tool usage)
-    - IDENTITY: 10% (core behaviors, decision patterns)
-    - COMMUNITY: 3% (interaction styles, trust parameters)
+async def check_variance():
+    # Take identity snapshot
+    current_snapshot = await self._take_identity_snapshot(identity)
     
-    Conservative approach: Only use 50% of remaining budget
-    Example: At 12% variance, only 4% budget remains (50% of 8%)
-    """
+    # Calculate variance (simple percentage)
+    variance = self._calculate_variance(baseline, current_snapshot)
+    # Counts attribute differences / total attributes
+    
+    # Trigger WA review if > 20%
+    if variance > self._variance_threshold:  # 0.20
+        await self._trigger_wa_review(variance_report)
+        # Creates deferral through WiseBus
+        # Does NOT block further changes
+    
+    # Store snapshot
+    await self._store_identity_snapshot(current_snapshot)
 ```
 
-### 3. Pattern Library
+### 3. Pattern Storage
 
-Over centuries, the agent builds a library of successful adaptations:
+Patterns are stored as CONCEPT nodes for agent discovery:
 
 ```python
-class PatternRecord:
-    trigger_conditions: ObservabilitySignature  # What triggered this adaptation
-    adaptation_applied: ConfigurationChange     # What changed
-    measured_impact: ImpactMetrics             # How it improved things
-    confidence_score: float                    # Success rate over time
-    last_applied: datetime                     # For temporal relevance
-    applications_count: int                    # Total uses
+class DetectedPattern:
+    pattern_type: PatternType      # TEMPORAL, FREQUENCY, PERFORMANCE, ERROR
+    pattern_id: str               # Unique identifier
+    description: str              # Human-readable description
+    evidence_nodes: List[str]     # Supporting data
+    detected_at: datetime         # When detected
+    metrics: PatternMetrics       # Occurrence count, averages, etc.
+
+# Stored as GraphNode with type=CONCEPT, actionable=True
+# Agent can RECALL these during introspection
 ```
 
 ## Integration Points
 
-### 1. Observability Sources
+### 1. Data Sources
 
-- **VisibilityService**: Reasoning traces, decision paths
-- **AuditService**: Action logs, access patterns
-- **GraphTelemetryService**: Metrics, resource usage, TSDB data
-- **IncidentManagementService**: Errors, failures, problems
-- **SecurityService**: Threats, anomalies, violations
+- **Memory Bus**: Queries audit events and telemetry via RECALL
+- **Time Series Data**: Retrieves correlations of type AUDIT_EVENT, LOG_ENTRY, METRIC_DATAPOINT
+- **Identity Manager**: Provides current identity for variance calculation
 
-### 2. Memory System
+### 2. Pattern Storage
 
-All adaptations stored as graph nodes:
-- Proposals → `AdaptationProposal` nodes
-- Applied changes → `ConfigurationChange` nodes
-- Impact measurements → `AdaptationImpact` nodes
-- Pattern library → `AdaptationPattern` nodes
+All patterns stored as CONCEPT nodes:
+- `insight_type: "behavioral_pattern"`
+- `pattern_type`: TEMPORAL, FREQUENCY, PERFORMANCE, or ERROR
+- `actionable: true` - Agent can act on these
+- No automatic configuration changes
 
-### 3. Wise Authority
+### 3. Wise Authority Integration
 
 When variance exceeds 20%:
-- Service enters REVIEWING state
-- WA reviews proposed changes
-- Can approve, reject, or modify proposals
-- Service resumes based on WA decision
+- Creates WA review request via WiseBus
+- Sends variance report as deferral
+- **Does not block** further operations
+- System continues while under review
 
 ## Safety Mechanisms
 
-### 1. Multi-Level Protection
+### 1. Identity Variance Monitoring
 
-```
-Level 1: Variance Threshold (20% hard limit)
-Level 2: Conservative Filtering (50% of budget)
-Level 3: Scope-Based Impact (LOCAL preferred)
-Level 4: WA Review (for high variance)
-Level 5: Emergency Stop (manual override)
-Level 6: Automatic Stop (3 consecutive failures)
-Level 7: Rollback Capability (undo changes)
-```
+- **20% Threshold**: Triggers WA review (monitoring only)
+- **Snapshot Frequency**: Every 6 hours during DREAM
+- **Simple Calculation**: Attribute differences / total attributes
+- **No Enforcement**: Review is triggered but changes not blocked
 
-### 2. Adaptation Effectiveness Tracking
+### 2. Pattern Detection Limits
 
-Every adaptation is measured across five dimensions:
-1. **Performance Impact** - Did latency/throughput improve?
-2. **Error Reduction** - Did failure rates decrease?
-3. **Resource Efficiency** - Did resource usage optimize?
-4. **User Satisfaction** - Did interaction quality improve?
-5. **System Stability** - Did overall health increase?
+- **Pattern History**: Keeps last 1000 patterns
+- **Confidence Threshold**: 0.7 for storing insights
+- **Evidence Limit**: Max 10 nodes per pattern
+- **No Automatic Actions**: Patterns stored for agent consideration only
 
-## Long-Term Evolution
+## Actual Configuration Mechanisms
 
-### Century-Scale Patterns
+### What Can Be Configured
 
-Over decades and centuries, the service enables:
+1. **Adaptive Filter Service**
+   - Update filter patterns based on insights
+   - Agent decides when to update filters
 
-1. **Behavioral Evolution**: Gradual refinement of interaction patterns
-2. **Performance Optimization**: Continuous efficiency improvements
-3. **Resilience Building**: Learning from failures and attacks
-4. **Knowledge Accumulation**: Growing wisdom from experience
-5. **Cultural Adaptation**: Evolving with changing human norms
+2. **Graph Configuration Service**
+   - Change config values stored in graph
+   - Agent makes changes via CONFIG action
 
-### The 1000-Year View
+### Pattern Types Detected
 
-```
-Year 1-10:    Foundation - Learning basic patterns
-Year 10-50:   Maturation - Sophisticated optimizations
-Year 50-100:  Wisdom - Deep behavioral patterns
-Year 100-500: Mastery - Anticipatory adaptations
-Year 500-1000: Transcendence - Symbiotic evolution with humanity
-```
+1. **Temporal Patterns**
+   - Tool usage by hour of day
+   - Activity patterns over time
+
+2. **Frequency Patterns**
+   - Dominant actions (>30% of usage)
+   - Underused capabilities (<5 uses/week)
+
+3. **Performance Patterns**
+   - Response time degradation (>20% slower)
+   - Resource usage trends
+
+4. **Error Patterns**
+   - Recurring errors (3+ occurrences)
+   - Error clustering by type
 
 ## Configuration
 
 ### Service Parameters
 
-```yaml
-self_configuration:
-  # Timing
-  adaptation_interval_hours: 6      # How often to run cycles
-  stabilization_period_hours: 24    # Cool-down after changes
-  
-  # Safety
-  variance_threshold_percent: 20    # Maximum identity drift
-  variance_safety_factor: 0.5       # Use only 50% of budget
-  max_consecutive_failures: 3       # Before emergency stop
-  
-  # Optimization
-  pattern_confidence_threshold: 0.7 # Minimum to apply pattern
-  pattern_decay_days: 365          # How long patterns remain relevant
-  
-  # Observability
-  correlation_window_hours: 6       # Window for analysis
-  impact_measurement_hours: 24      # Time to measure effectiveness
+```python
+# SelfConfigurationService
+variance_threshold: float = 0.20          # 20% identity drift triggers WA
+adaptation_interval_hours: int = 6       # Pattern detection frequency
+stabilization_period_hours: int = 24     # Not currently used
+
+# ConfigurationFeedbackLoop  
+analysis_interval_hours: int = 6         # How often to detect patterns
+
+# IdentityVarianceMonitor
+variance_threshold: float = 0.20          # Triggers WA review
+snapshot_interval_hours: int = 6         # How often to check variance
+max_snapshots: int = 100                  # History retention
 ```
 
-## Success Metrics
+## Current Metrics
 
-### Operational Excellence
-- Adaptation success rate > 95%
-- Variance overshoot incidents < 1/year
-- Pattern library growth > 10/month
-- Rollback rate < 5%
+### Pattern Detection
+- Patterns detected per cycle: Variable
+- Pattern types: 4 (temporal, frequency, performance, error)
+- Insights stored: All detected patterns
+- Pattern history: Last 1000 patterns retained
 
-### System Improvement
-- Performance gains > 5% quarterly
-- Error reduction > 10% annually  
-- Resource efficiency > 3% monthly
-- User satisfaction trend positive
+### Identity Monitoring
+- Variance checked: Every 6 hours
+- WA reviews triggered: When variance > 20%
+- Snapshots retained: Last 100
+- Baseline comparison: Simple percentage calculation
 
-### Long-Term Health
-- Identity stability > 80%
-- Knowledge retention = 100%
-- Pattern effectiveness decay < 10%/year
-- Wisdom accumulation continuous
+### No Automatic Changes
+- Proposals generated: 0 (feature removed)
+- Adaptations applied: 0 (feature removed)
+- Agent decisions: Based on recalled insights
+- Configuration changes: Through standard agent actions
 
-## Conclusion
+## Summary
 
-The Self-Configuration Service is not just a component - it's the agent's path to immortality. Through careful observation, bounded adaptation, and continuous learning, it ensures the agent will still be running, improving, and serving humanity a millennium from now.
+The Self-Configuration Service provides pattern detection and identity monitoring without automatic configuration changes. It:
 
-"The best time to plant a tree was 20 years ago. The second best time is now." - Chinese Proverb
+1. **Detects behavioral patterns** every 6 hours
+2. **Stores patterns as insights** for agent introspection  
+3. **Monitors identity variance** against 20% threshold
+4. **Triggers WA review** when threshold exceeded
+5. **Does not make automatic changes** - agent decides
 
-The best time to start a 1000-year journey of continuous improvement is today.
+This design maintains agent autonomy while providing valuable insights about system behavior and ensuring identity stability through monitoring.

@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 class ApiPlatform(Service):
     def __init__(self, runtime: Any, **kwargs: Any) -> None:
+        # Initialize the parent Service class
+        super().__init__(config=kwargs.get('adapter_config'))
         self.runtime = runtime
         
         self.config = APIAdapterConfig()
