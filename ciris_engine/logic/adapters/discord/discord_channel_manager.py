@@ -1,7 +1,7 @@
 """Discord channel management component for client and channel operations."""
 import discord
 import logging
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable, Optional, Any
 from discord.errors import Forbidden, NotFound
 
 from ciris_engine.schemas.runtime.messages import DiscordMessage

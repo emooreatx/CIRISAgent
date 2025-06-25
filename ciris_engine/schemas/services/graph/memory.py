@@ -3,7 +3,7 @@ Graph memory service schemas.
 
 Replaces Dict[str, Any] in memory service operations.
 """
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pydantic import Field

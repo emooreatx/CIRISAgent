@@ -3,7 +3,7 @@ Schemas for audit hash chain operations.
 
 These replace all Dict[str, Any] usage in logic/audit/hash_chain.py.
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic import BaseModel, Field
 from pydantic import Field
 

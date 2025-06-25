@@ -3,7 +3,7 @@ Tool service schemas for CIRIS.
 
 Defines tool information, parameters, and execution results.
 """
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime, timezone
 from enum import Enum
 from pydantic import BaseModel, Field

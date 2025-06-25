@@ -3,7 +3,7 @@ Schemas for audit verification operations.
 
 These replace all Dict[str, Any] usage in verifier.py.
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pydantic import Field

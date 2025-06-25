@@ -10,8 +10,6 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.runtime.enums import ServiceType
-from datetime import timezone
-from pydantic import Field
 
 class MessageRequest(BaseModel):
     """Request schema for sending messages"""

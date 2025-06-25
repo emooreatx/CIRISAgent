@@ -3,7 +3,7 @@ Telemetry operations schemas for graph telemetry service.
 
 Replaces Dict[str, Any] in telemetry service operations.
 """
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 

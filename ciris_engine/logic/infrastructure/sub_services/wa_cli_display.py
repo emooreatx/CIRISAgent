@@ -1,6 +1,6 @@
 """WA CLI Display Service - Handles WA listing and visualization."""
 
-from typing import List
+from typing import List, Any
 
 from rich.console import Console
 from rich.table import Table

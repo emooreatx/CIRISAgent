@@ -3,7 +3,7 @@ Context schemas for CIRIS Trinity Architecture.
 
 Type-safe contexts for action dispatch and processing.
 """
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Any
 from pydantic import BaseModel, Field
 
 from .enums import HandlerActionType

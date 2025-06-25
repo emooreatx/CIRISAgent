@@ -8,7 +8,7 @@ including adapters, services, configuration, and processor information.
 import logging
 import psutil
 from datetime import timedelta
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Any
 
 from ciris_engine.protocols.telemetry import (
     TelemetryInterface,

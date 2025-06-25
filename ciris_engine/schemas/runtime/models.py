@@ -4,7 +4,7 @@ Core models for CIRIS Trinity Architecture.
 Task and Thought are the fundamental units of agent processing.
 NO Dict[str, Any] - everything is typed.
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic import BaseModel, Field
 
 from .enums import TaskStatus, ThoughtStatus, ThoughtType

@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 import asyncio
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from ciris_engine.logic.persistence import (
     get_all_tasks,

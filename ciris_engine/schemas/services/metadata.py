@@ -4,7 +4,7 @@ Service metadata schemas for contract-driven architecture.
 Replaces all Dict[str, Any] metadata in service method calls.
 """
 
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime, timezone
 from uuid import UUID
 from pydantic import BaseModel, Field

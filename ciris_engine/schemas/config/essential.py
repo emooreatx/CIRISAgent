@@ -152,27 +152,27 @@ class EssentialConfig(BaseModel):
     After bootstrap, all config is migrated to GraphConfigService.
     """
     database: DatabaseConfig = Field(
-        default_factory=DatabaseConfig,
+        default_factory=lambda: DatabaseConfig(),
         description="Database configuration"
     )
     services: ServiceEndpointsConfig = Field(
-        default_factory=ServiceEndpointsConfig,
+        default_factory=lambda: ServiceEndpointsConfig(),
         description="External service endpoints"
     )
     security: SecurityConfig = Field(
-        default_factory=SecurityConfig,
+        default_factory=lambda: SecurityConfig(),
         description="Security and audit settings"
     )
     limits: OperationalLimitsConfig = Field(
-        default_factory=OperationalLimitsConfig,
+        default_factory=lambda: OperationalLimitsConfig(),
         description="Operational limits and thresholds"
     )
     telemetry: TelemetryConfig = Field(
-        default_factory=TelemetryConfig,
+        default_factory=lambda: TelemetryConfig(),
         description="Telemetry configuration"
     )
     workflow: WorkflowConfig = Field(
-        default_factory=WorkflowConfig,
+        default_factory=lambda: WorkflowConfig(),
         description="Workflow processing configuration"
     )
     

@@ -137,19 +137,22 @@ class SecretsDetectionConfig(BaseModel):
                 name="api_key",
                 pattern=r"(?i)(api[_\-]?key|apikey)\s*[:=]\s*['\"]?([A-Za-z0-9\-_]{20,})['\"]?",
                 description="API Key",
-                sensitivity=SensitivityLevel.HIGH
+                sensitivity=SensitivityLevel.HIGH,
+                enabled=True
             ),
             SecretPattern(
                 name="bearer_token",
                 pattern=r"(?i)bearer\s+([A-Za-z0-9\-_.~+/]+={0,2})",
                 description="Bearer Token",
-                sensitivity=SensitivityLevel.HIGH
+                sensitivity=SensitivityLevel.HIGH,
+                enabled=True
             ),
             SecretPattern(
                 name="private_key",
                 pattern=r"-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----",
                 description="Private Key",
-                sensitivity=SensitivityLevel.CRITICAL
+                sensitivity=SensitivityLevel.CRITICAL,
+                enabled=True
             ),
         ],
         description="Detection patterns"

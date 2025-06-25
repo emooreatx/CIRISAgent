@@ -4,7 +4,7 @@ import logging
 import asyncio
 import uuid
 from datetime import datetime
-from typing import Awaitable, Callable, List, Optional, TYPE_CHECKING
+from typing import Awaitable, Callable, List, Optional, TYPE_CHECKING, Any
 
 from ciris_engine.schemas.runtime.messages import FetchedMessage, IncomingMessage
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService

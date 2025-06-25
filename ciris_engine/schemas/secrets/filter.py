@@ -3,7 +3,7 @@ Schemas for secrets filter operations.
 
 These replace all Dict[str, Any] usage in logic/secrets/filter.py.
 """
-from typing import List
+from typing import List, Any
 from pydantic import BaseModel, Field
 from pydantic import Field
 

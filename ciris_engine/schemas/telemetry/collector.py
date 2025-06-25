@@ -3,7 +3,7 @@ Schemas for comprehensive telemetry collector operations.
 
 These replace all Dict[str, Any] usage in logic/telemetry/comprehensive_collector.py.
 """
-from typing import Optional
+from typing import Optional, Any
 from pydantic import Field
 from pydantic import BaseModel
 

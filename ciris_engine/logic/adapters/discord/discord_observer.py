@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from ciris_engine.schemas.runtime.models import ThoughtType
 from ciris_engine.schemas.runtime.messages import DiscordMessage

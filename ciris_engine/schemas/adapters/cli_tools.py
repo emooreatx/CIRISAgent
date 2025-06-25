@@ -3,7 +3,7 @@ Schemas for CLI tool operations.
 
 These replace all Dict[str, Any] usage in logic/adapters/cli/cli_tools.py.
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic import BaseModel, Field
 from pydantic import Field
 

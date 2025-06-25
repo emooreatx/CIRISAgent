@@ -4,7 +4,7 @@ Adapter protocols for the CIRIS Trinity Architecture.
 These protocols define contracts for platform adapters.
 Adapters are the interfaces between CIRIS and external platforms.
 """
-from typing import Callable, Optional
+from typing import Callable, Optional, Any
 from abc import abstractmethod
 
 from ciris_engine.protocols.runtime.base import BaseAdapterProtocol

@@ -2,7 +2,7 @@
 import logging
 import json
 from aiohttp import web
-from typing import Optional
+from typing import Optional, Any
 from urllib.parse import urlencode
 # Time service accessed via runtime
 
