@@ -3,10 +3,9 @@ Schemas for runtime adapter management.
 
 These replace all Dict[str, Any] usage in adapter_manager.py.
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 class AdapterConfig(BaseModel):
     """Configuration for an adapter."""

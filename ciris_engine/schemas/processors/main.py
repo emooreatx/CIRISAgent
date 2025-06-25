@@ -3,7 +3,7 @@ Schemas for main processor operations.
 
 These replace all Dict[str, Any] usage in logic/processors/core/main_processor.py.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 

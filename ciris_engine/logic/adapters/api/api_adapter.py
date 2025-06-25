@@ -529,7 +529,7 @@ class APIAdapter(CommunicationService):
     
     def get_status(self) -> "AdapterStatus":
         """Get adapter status."""
-        from ciris_engine.schemas.adapters.core import AdapterStatus
+        from ciris_engine.schemas.runtime.adapter_management import AdapterStatus
         
         return AdapterStatus(
             adapter_type="api",
@@ -545,7 +545,7 @@ class APIAdapter(CommunicationService):
     
     def get_config(self) -> "AdapterConfig":
         """Get adapter configuration."""
-        from ciris_engine.schemas.adapters.core import AdapterConfig
+        from ciris_engine.schemas.runtime.adapter_management import AdapterConfig
         
         return AdapterConfig(
             adapter_type="api",

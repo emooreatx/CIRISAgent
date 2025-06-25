@@ -3,7 +3,7 @@ Schemas for infrastructure base operations.
 
 These replace all Dict[str, Any] usage in protocols/infrastructure/base.py.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pydantic import Field

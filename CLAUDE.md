@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Context
+
+CIRIS is a moral reasoning platform designed for progressive deployment:
+- **Current Production**: Discord community moderation (handling spam, fostering positive community)
+- **Architecture Goals**: Resource-constrained environments (4GB RAM, offline-capable)
+- **Target Deployments**: Rural clinics, educational settings, community centers
+- **Design Philosophy**: Start simple (Discord bot), scale to critical (healthcare triage)
+
+The over-engineered architecture (19 services, 6 buses) is intentional - it's a platform that starts as a Discord bot but is designed to scale to mission-critical applications in resource-constrained environments.
+
 ## Core Philosophy: No Dicts, No Strings, No Kings
 
 The CIRIS codebase follows strict typing principles:
@@ -64,11 +74,13 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - All nodes have required created_at, updated_at, created_by fields
    - Memory service stores generic GraphNode, services use typed nodes
    - Full type safety with Pydantic validation
-   - **8 Active TypedGraphNode Classes**:
+   - **11 Active TypedGraphNode Classes**:
+     - IdentityNode (agent identity at "agent/identity")
      - ConfigNode, AuditEntry (core)
      - IncidentNode, ProblemNode, IncidentInsightNode (incident management)
      - TSDBSummary (telemetry consolidation)
-     - AdaptationProposal, IdentitySnapshot (self-configuration)
+     - IdentitySnapshot (identity variance monitoring)
+     - DiscordDeferralNode, DiscordApprovalNode, DiscordWANode (Discord-specific)
 
 9. **Graph-Based Telemetry**: COMPLETE & SIMPLIFIED!
    - Telemetry stored via memorize_metric() → correlations → TSDBSummary
@@ -453,6 +465,16 @@ _ = SpeakHandler.handle
 - **Schemas**: Mirror structure in `schemas/`
 - **Protocols**: Mirror structure in `protocols/`
 - **Shared Types**: Use `schemas/actions/` for parameters used across modules
+
+### Why This Architecture?
+
+The seemingly complex architecture serves specific deployment needs:
+- **SQLite + Threading**: Offline-first for clinics without reliable internet
+- **19 Services**: Modular so deployments can pick what they need
+- **Graph Memory**: Builds local knowledge that can sync when connected
+- **Ubuntu Philosophy**: Culturally appropriate for African deployments
+- **Mock LLM Mode**: Critical for offline operation in remote areas
+- **Llama/4o-mini**: Chosen for speed and cost in resource-constrained settings
 
 ### Message Bus Architecture (6 Buses)
 

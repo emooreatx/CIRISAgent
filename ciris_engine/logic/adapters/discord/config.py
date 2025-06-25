@@ -1,9 +1,11 @@
 """Configuration schema for Discord adapter."""
 
 from pydantic import BaseModel, Field
-from typing import List, Optional
-import discord
+from typing import List, Optional, TYPE_CHECKING, Any
 from pydantic import Field
+
+if TYPE_CHECKING:
+    import discord
 
 class DiscordAdapterConfig(BaseModel):
     """Configuration for the Discord adapter."""
@@ -36,19 +38,21 @@ class DiscordAdapterConfig(BaseModel):
     enable_guild_messages: bool = Field(default=True, description="Enable guild messages intent")
     enable_dm_messages: bool = Field(default=True, description="Enable DM messages intent")
     
-    def get_intents(self) -> discord.Intents:
+    def get_intents(self) -> Any:
         """Get Discord intents based on configuration."""
+        import discord
         intents = discord.Intents.default()
         intents.message_content = self.enable_message_content
         intents.guild_messages = self.enable_guild_messages
         intents.dm_messages = self.enable_dm_messages
         return intents
     
-    def get_activity(self) -> Optional[discord.Activity]:
+    def get_activity(self) -> Optional[Any]:
         """Get Discord activity based on configuration."""
         if not self.activity_name:
             return None
-            
+        
+        import discord
         activity_type_map = {
             "playing": discord.ActivityType.playing,
             "watching": discord.ActivityType.watching,
@@ -59,8 +63,9 @@ class DiscordAdapterConfig(BaseModel):
         activity_type = activity_type_map.get(self.activity_type.lower(), discord.ActivityType.watching)
         return discord.Activity(type=activity_type, name=self.activity_name)
     
-    def get_status(self) -> discord.Status:
+    def get_status(self) -> Any:
         """Get Discord status based on configuration."""
+        import discord
         status_map = {
             "online": discord.Status.online,
             "idle": discord.Status.idle,

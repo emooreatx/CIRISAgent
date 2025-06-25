@@ -221,7 +221,7 @@ class TSDBConsolidationService(BaseGraphService):
             depth=1
         )
         
-        summaries = await self._memory_bus.recall(query, handler_name="tsdb_consolidation")
+        summaries = await self._memory_bus.recall(query)
         return len(summaries) > 0
     
     async def _consolidate_period(
@@ -363,8 +363,7 @@ class TSDBConsolidationService(BaseGraphService):
         datapoints = await self._memory_bus.recall_timeseries(
             scope="local",
             hours=int(hours),
-            correlation_types=["METRIC_DATAPOINT"],
-            handler_name="tsdb_consolidation"
+            correlation_types=["METRIC_DATAPOINT"]
         )
         
         # Convert TimeSeriesDataPoint to GraphNode format for processing

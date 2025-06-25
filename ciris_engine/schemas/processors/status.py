@@ -3,7 +3,7 @@ Schemas for processor status operations.
 
 These replace all Dict[str, Any] usage in processor status methods.
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.processors.base import ProcessorMetrics

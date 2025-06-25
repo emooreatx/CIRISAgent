@@ -4,7 +4,7 @@ Deferral schemas for CIRIS.
 Provides type-safe structures for deferral handling.
 """
 from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 from enum import Enum
 from datetime import timezone

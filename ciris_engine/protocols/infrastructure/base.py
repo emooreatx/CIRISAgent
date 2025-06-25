@@ -4,7 +4,7 @@ Infrastructure protocols for the CIRIS Trinity Architecture.
 These protocols define contracts for core runtime and infrastructure components.
 These are the foundational systems that enable everything else to work.
 """
-from typing import AsyncIterator, List
+from typing import AsyncIterator, List, Any
 from abc import abstractmethod
 
 from ciris_engine.protocols.runtime.base import ServiceProtocol

@@ -3,7 +3,7 @@ Schemas for identity variance monitoring operations.
 
 These replace all Dict[str, Any] usage in logic/infrastructure/sub_services/identity_variance_monitor.py.
 """
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field

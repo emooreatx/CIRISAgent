@@ -30,30 +30,48 @@ class ResourceLimit(BaseModel):
     class Config:
         extra = "forbid"
 
+def _memory_mb_limit() -> ResourceLimit:
+    return ResourceLimit(limit=256, warning=200, critical=240)
+
+def _cpu_percent_limit() -> ResourceLimit:
+    return ResourceLimit(limit=80, warning=60, critical=75, action=ResourceAction.THROTTLE)
+
+def _tokens_hour_limit() -> ResourceLimit:
+    return ResourceLimit(limit=10000, warning=8000, critical=9500)
+
+def _tokens_day_limit() -> ResourceLimit:
+    return ResourceLimit(limit=100000, warning=80000, critical=95000, action=ResourceAction.REJECT)
+
+def _disk_mb_limit() -> ResourceLimit:
+    return ResourceLimit(limit=100, warning=80, critical=95, action=ResourceAction.WARN)
+
+def _thoughts_active_limit() -> ResourceLimit:
+    return ResourceLimit(limit=50, warning=40, critical=48)
+
 class ResourceBudget(BaseModel):
     """Limits for all monitored resources"""
     memory_mb: ResourceLimit = Field(
-        default_factory=lambda: ResourceLimit(limit=256, warning=200, critical=240),
+        default_factory=_memory_mb_limit,
         description="Memory usage limits in MB"
     )
     cpu_percent: ResourceLimit = Field(
-        default_factory=lambda: ResourceLimit(limit=80, warning=60, critical=75, action=ResourceAction.THROTTLE),
+        default_factory=_cpu_percent_limit,
         description="CPU usage limits in percent"
     )
     tokens_hour: ResourceLimit = Field(
-        default_factory=lambda: ResourceLimit(limit=10000, warning=8000, critical=9500),
+        default_factory=_tokens_hour_limit,
         description="Token usage per hour"
     )
     tokens_day: ResourceLimit = Field(
-        default_factory=lambda: ResourceLimit(limit=100000, warning=80000, critical=95000, action=ResourceAction.REJECT),
+        default_factory=_tokens_day_limit,
         description="Token usage per day"
     )
     disk_mb: ResourceLimit = Field(
-        default_factory=lambda: ResourceLimit(limit=100, warning=80, critical=95, action=ResourceAction.WARN),
+        default_factory=_disk_mb_limit,
         description="Disk usage limits in MB"
     )
     thoughts_active: ResourceLimit = Field(
-        default_factory=lambda: ResourceLimit(limit=50, warning=40, critical=48),
+        default_factory=_thoughts_active_limit,
         description="Active thoughts limit"
     )
 

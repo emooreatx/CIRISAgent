@@ -3,7 +3,7 @@ Self-configuration service schemas.
 
 Replaces Dict[str, Any] in self-configuration operations.
 """
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from enum import Enum

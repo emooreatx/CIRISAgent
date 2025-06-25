@@ -18,7 +18,6 @@ from ciris_engine.schemas.infrastructure.feedback_loop import (
     PatternType, PatternMetrics, DetectedPattern, ConfigurationUpdate,
     AnalysisResult
 )
-from ciris_engine.schemas.services.nodes import ConfigChange, ConfigChangeType, ConfigValue
 from ciris_engine.schemas.infrastructure.behavioral_patterns import ActionFrequency
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType, ConfigNodeType, CONFIG_SCOPE_MAP
 from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpStatus

@@ -26,7 +26,6 @@ class NodeType(str, Enum):
     TSDB_DATA = "tsdb_data"
     TSDB_SUMMARY = "tsdb_summary"
     AUDIT_ENTRY = "audit_entry"
-    ADAPTATION_PROPOSAL = "adaptation_proposal"
     IDENTITY_SNAPSHOT = "identity_snapshot"
     BEHAVIORAL = "behavioral"
     SOCIAL = "social"
@@ -100,7 +99,7 @@ class GraphEdge(BaseModel):
     relationship: str = Field(..., description="Type of relationship")
     scope: GraphScope = Field(..., description="Scope of the edge")
     weight: float = Field(default=1.0, ge=0.0, le=1.0, description="Relationship weight")
-    attributes: GraphEdgeAttributes = Field(default_factory=GraphEdgeAttributes)
+    attributes: GraphEdgeAttributes = Field(default_factory=lambda: GraphEdgeAttributes())
     
     class Config:
         extra = "forbid"

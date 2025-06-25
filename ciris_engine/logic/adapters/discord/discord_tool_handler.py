@@ -3,7 +3,7 @@ import discord
 import logging
 import asyncio
 import uuid
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING, Any
 from datetime import datetime
 
 from ciris_engine.schemas.telemetry.core import (

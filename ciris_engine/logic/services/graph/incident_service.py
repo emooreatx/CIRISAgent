@@ -80,7 +80,7 @@ class IncidentManagementService(BaseGraphService):
             
             # Analyze incidents
             patterns = self._detect_patterns(incidents)
-            problems = await self._identify_problems(patterns, incidents)
+            problems = await self._identify_problems(patterns)
             recommendations = self._generate_recommendations(patterns, problems)
             
             # Create insight node
@@ -195,8 +195,7 @@ class IncidentManagementService(BaseGraphService):
         
         return dict(patterns)
     
-    async def _identify_problems(self, patterns: Dict[str, List[IncidentNode]], 
-                               all_incidents: List[IncidentNode]) -> List[ProblemNode]:
+    async def _identify_problems(self, patterns: Dict[str, List[IncidentNode]]) -> List[ProblemNode]:
         """Identify root cause problems from patterns."""
         problems = []
         

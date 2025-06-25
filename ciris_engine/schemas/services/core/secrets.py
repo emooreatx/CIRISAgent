@@ -3,7 +3,7 @@ Secrets service schemas.
 
 Replaces Dict[str, Any] in secrets service operations.
 """
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -25,16 +25,6 @@ class ConfigUpdate(BaseModel):
     patterns: Optional[List[str]] = Field(None, description="Patterns to add/update")
     enabled: Optional[bool] = Field(None, description="Enable/disable filter")
     metadata: Dict[str, str] = Field(default_factory=dict, description="Additional settings")
-
-class SecretOperationResult(BaseModel):
-    """Result of a secret operation."""
-    operation: str = Field(..., description="Operation performed")
-    success: bool = Field(..., description="Whether operation succeeded")
-    secret_id: Optional[str] = Field(None, description="Secret UUID if applicable")
-    message: Optional[str] = Field(None, description="Result message")
-    data: Optional[Dict[str, Union[str, int, bool]]] = Field(None, description="Operation data")
-    error: Optional[str] = Field(None, description="Error message if failed")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Operation time")
 
 class SecretAccessLog(BaseModel):
     """Log entry for secret access."""

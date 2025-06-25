@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from ciris_engine.logic.persistence import get_db_connection
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
@@ -32,11 +32,11 @@ def add_correlation(corr: ServiceCorrelation, time_service: TimeServiceProtocol,
         corr.service_type,
         corr.handler_name,
         corr.action_type,
-        json.dumps(corr.request_data) if corr.request_data is not None else None,
-        json.dumps(corr.response_data) if corr.response_data is not None else None,
+        corr.request_data.model_dump_json() if hasattr(corr.request_data, 'model_dump_json') else json.dumps(corr.request_data) if corr.request_data is not None else None,
+        corr.response_data.model_dump_json() if hasattr(corr.response_data, 'model_dump_json') else json.dumps(corr.response_data) if corr.response_data is not None else None,
         corr.status.value,
-        corr.created_at or time_service.get_current_time().isoformat(),
-        corr.updated_at or time_service.get_current_time().isoformat(),
+        corr.created_at.isoformat() if isinstance(corr.created_at, datetime) else corr.created_at or time_service.now().isoformat(),
+        corr.updated_at.isoformat() if isinstance(corr.updated_at, datetime) else corr.updated_at or time_service.now().isoformat(),
         corr.correlation_type.value,
         timestamp_str,
         corr.metric_data.metric_name if corr.metric_data else None,
@@ -74,7 +74,7 @@ def update_correlation(update_request: CorrelationUpdateRequest, time_service: T
         updates.append("tags = ?")
         params.append(json.dumps(update_request.tags))
     updates.append("updated_at = ?")
-    params.append(time_service.get_current_time().isoformat())
+    params.append(time_service.now().isoformat())
     params.append(update_request.correlation_id)
 
     sql = f"UPDATE service_correlations SET {', '.join(updates)} WHERE correlation_id = ?"

@@ -3,7 +3,7 @@ Schemas for audit verification operations.
 
 These replace all Dict[str, Any] usage in verifier.py.
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pydantic import Field
@@ -68,15 +68,6 @@ class ChainSummary(BaseModel):
     root_hash: Optional[str] = Field(None, description="Root hash if available")
     chain_intact: bool = Field(True, description="Whether chain appears intact")
     error: Optional[str] = Field(None, description="Error message if summary failed")
-
-class TamperDetectionResult(BaseModel):
-    """Result of tamper detection analysis."""
-    tampering_detected: bool = Field(..., description="Whether tampering was detected")
-    tampered_entries: List[int] = Field(default_factory=list, description="List of tampered entry IDs")
-    tamper_type: Optional[str] = Field(None, description="Type of tampering detected")
-    first_tampered_entry: Optional[int] = Field(None, description="First tampered entry ID")
-    last_valid_entry: Optional[int] = Field(None, description="Last valid entry before tampering")
-    recommendation: str = Field(..., description="Recommended action")
 
 class VerificationReport(BaseModel):
     """Comprehensive verification report."""

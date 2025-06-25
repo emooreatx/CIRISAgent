@@ -16,7 +16,7 @@ async def test_full_thought_cycle():
         mock_get_init.return_value = mock_init_manager
         
         # Create and initialize runtime
-        runtime = CIRISRuntime(adapter_types=["cli"], profile_name="test")
+        runtime = CIRISRuntime(adapter_types=["cli"])
         
         with patch.object(runtime, '_perform_startup_maintenance'):
             await runtime.initialize()

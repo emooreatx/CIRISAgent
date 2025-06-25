@@ -4,7 +4,7 @@ Action context schemas for contract-driven architecture.
 Replaces context: Dict[str, Any] for each action type.
 """
 
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Any
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, Field

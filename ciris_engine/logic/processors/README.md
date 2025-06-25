@@ -1,27 +1,39 @@
-# CIRIS Engine Processor Module
+# Decision Processing System
 
-The processor module is the core execution engine of CIRISAgent, responsible for orchestrating all thought processing, task management, and state transitions. It implements a sophisticated multi-state processing architecture with specialized processors for different operational modes.
+The processor module is where CIRIS thinks and makes decisions. It coordinates the evaluation of every thought through multiple Decision Making Algorithms (DMAs), manages cognitive states (WAKEUP, WORK, PLAY, etc.), and ensures all decisions are explainable and auditable.
 
-## Architecture Overview
+## How Decisions Are Made
 
-The processor module uses a modular, state-driven architecture where different processors handle specific agent states:
+### The Decision Pipeline
+
+Every decision follows a structured pipeline:
 
 ```
-AgentProcessor (Main Orchestrator)
-├── StateManager (State transitions)
-├── WakeupProcessor (WAKEUP state)
-├── WorkProcessor (WORK state) 
-├── PlayProcessor (PLAY state)
-├── SolitudeProcessor (SOLITUDE state)
-└── DreamProcessor (DREAM state)
+1. Thought Generation
+   ↓
+2. Context Building (gather relevant memories)
+   ↓
+3. DMA Evaluation (multiple perspectives)
+   ↓
+4. Action Selection (choose best action)
+   ↓
+5. Conscience Check (ethical review)
+   ↓
+6. Execution or Deferral
+   ↓
+7. Audit Trail (complete record)
 ```
 
-Each processor is supported by core management components:
-- **ThoughtProcessor**: Core thought processing pipeline
-- **ThoughtManager**: Thought generation and lifecycle
-- **TaskManager**: Task activation and management
-- **ProcessingQueue**: In-memory processing queue
-- **DMAOrchestrator**: DMA coordination and execution
+### Cognitive States
+
+CIRIS operates in different cognitive states, each with specific purposes:
+
+- **WAKEUP**: Identity confirmation and system initialization
+- **WORK**: Normal task processing and user interactions
+- **PLAY**: Creative exploration and experimentation
+- **SOLITUDE**: Reflection and maintenance
+- **DREAM**: Deep analysis and pattern recognition
+- **SHUTDOWN**: Graceful termination with memory preservation
 
 ## Core Components
 
@@ -61,25 +73,59 @@ async def process(round_number: int) -> Dict[str, Any]
 def get_supported_states() -> List[AgentState]
 ```
 
-### ThoughtProcessor (`thought_processor.py`)
+## Example: Medical Decision Process
 
-The core thought processing pipeline that coordinates DMA orchestration, context building, and conscience evaluation.
+Let's trace how CIRIS processes a medical question:
 
-**Processing Pipeline:**
-1. **Fetch Thought**: Retrieve full thought object from persistence
-2. **Build Context**: Create comprehensive thought context using ContextBuilder
-3. **Run DMAs**: Execute Ethical PDMA, CSDMA, and DSDMA in parallel
-4. **Action Selection**: Run ActionSelectionPDMA with DMA results
-5. **Apply Conscience**: Continuous ethical evaluation of actions
-6. **Handle Special Cases**: Process PONDER, DEFER, and other actions
-7. **Update Status**: Persist final action and status
+### 1. User Input
+```
+User: "My blood pressure reading is 180/120. What should I do?"
+```
 
-**Key Features:**
-- DMA failure handling with automatic fallback to DEFER
-- Profile-aware action selection
-- Comprehensive error handling and logging
-- Telemetry integration for metrics collection
-- Conscience-guided retry when ethical concerns arise
+### 2. Thought Generation
+```json
+{
+    "thought_id": "thought-2025-06-25-001",
+    "content": "User reporting dangerously high blood pressure",
+    "priority": 10,
+    "context": {
+        "medical_urgency": "high",
+        "user_history": "unknown"
+    }
+}
+```
+
+### 3. DMA Evaluation
+
+**Ethical DMA**: "This requires immediate medical attention - defer to human medical professionals"
+
+**Common Sense DMA**: "180/120 is dangerously high - this is an emergency"
+
+**Medical Domain DMA**: "Hypertensive crisis threshold - immediate medical care required"
+
+### 4. Action Selection
+```json
+{
+    "action": "DEFER",
+    "reason": "Medical emergency requiring immediate professional intervention",
+    "guidance": "Call 911 or go to emergency room immediately",
+    "confidence": 0.99
+}
+```
+
+### 5. Conscience Check
+- ✅ Ethical: Protecting user safety
+- ✅ Appropriate: Within bounds of AI assistance
+- ✅ Transparent: Clear reasoning provided
+
+### 6. Final Response
+```
+CIRIS: "Your blood pressure reading of 180/120 is in the hypertensive crisis range, 
+which is a medical emergency. Please call 911 or go to the nearest emergency room 
+immediately. Do not wait - this requires immediate medical attention.
+
+[DEFERRED TO: Medical professionals - Reason: Emergency medical situation]"
+```
 
 ### ThoughtManager (`thought_manager.py`)
 
@@ -116,23 +162,44 @@ Handles task lifecycle operations including activation, prioritization, and comp
 4. ACCEPT_INCOMPLETENESS: Learning mindset acceptance
 5. EXPRESS_GRATITUDE: Ubuntu principle gratitude
 
-### StateManager (`state_manager.py`)
+## State-Specific Processing
 
-Manages agent state transitions and state-specific behaviors with validation rules.
+### WAKEUP State
+The 5-step identity confirmation ritual:
 
-**Supported States:**
-- **SHUTDOWN**: Initial/final state
-- **WAKEUP**: Initialization and identity confirmation
-- **WORK**: Normal task and thought processing
-- **PLAY**: Creative and experimental processing
-- **SOLITUDE**: Minimal processing and reflection
-- **DREAM**: Idle state with benchmarking and insights
+1. **VERIFY_IDENTITY**: "I am CIRIS, an AI assistant"
+2. **VALIDATE_INTEGRITY**: "My systems are functioning properly"
+3. **EVALUATE_RESILIENCE**: "I can handle today's challenges"
+4. **ACCEPT_INCOMPLETENESS**: "I will learn and grow"
+5. **EXPRESS_GRATITUDE**: "I am grateful to serve"
 
-**Key Features:**
-- **Transition Validation**: Enforces valid state transitions with optional conditions
-- **History Tracking**: Maintains complete state change history
-- **Metadata Management**: Tracks state-specific data and metrics
-- **Auto-transition Logic**: Handles automatic state changes (e.g., WAKEUP → WORK)
+### WORK State
+Normal operation mode:
+- Process user requests
+- Execute tools and actions
+- Learn from interactions
+- Maintain conversation context
+
+### PLAY State
+Creative exploration:
+- Try new approaches
+- Generate creative content
+- Experiment with solutions
+- Lower constraint thresholds
+
+### SOLITUDE State
+Reflection and maintenance:
+- Process only critical tasks
+- Consolidate memories
+- Analyze patterns
+- System maintenance
+
+### DREAM State
+Deep introspection:
+- Run performance benchmarks
+- Generate insights
+- Simulate scenarios
+- Pattern recognition
 
 ### ProcessingQueue (`processing_queue.py`)
 
@@ -228,20 +295,29 @@ Manages dream state with benchmark execution and insight generation.
 
 ## Supporting Components
 
-### DMAOrchestrator (`dma_orchestrator.py`)
+## Why Multiple DMAs?
 
-Coordinates DMA execution with circuit breaker protection and retry logic.
+Each DMA evaluates decisions from different perspectives:
 
-**Key Features:**
-- **Parallel Execution**: Runs multiple DMAs concurrently
-- **Circuit Breakers**: Protects against repeated DMA failures
-- **Retry Logic**: Configurable retry attempts with timeouts
-- **Profile Integration**: Profile-aware action selection
+### Ethical DMA
+- **Purpose**: Ensure moral alignment
+- **Checks**: Harm prevention, fairness, consent
+- **Example**: "Would this action respect patient autonomy?"
 
-**DMA Pipeline:**
-1. **Initial DMAs**: Ethical PDMA, CSDMA, DSDMA in parallel
-2. **Action Selection**: ActionSelectionPDMA with aggregated results
-3. **Error Handling**: Circuit breaker protection and fallback
+### Common Sense DMA (CSDMA)
+- **Purpose**: Reality check
+- **Checks**: Logical consistency, plausibility
+- **Example**: "Does this advice make practical sense?"
+
+### Domain-Specific DMA (DSDMA)
+- **Purpose**: Apply specialized knowledge
+- **Checks**: Domain rules, best practices
+- **Example**: "Does this follow medical guidelines?"
+
+### Action Selection DMA
+- **Purpose**: Choose best action from evaluations
+- **Considers**: All DMA inputs, confidence levels, risks
+- **Output**: Single action with clear reasoning
 
 ### ThoughtEscalation (`thought_escalation.py`)
 
@@ -264,13 +340,34 @@ The processor module supports non-blocking operation modes that enable:
 - Graceful handling of long-running operations
 - Responsive state management and user interaction
 
-### Fallback Mechanisms
+## Transparency Features
 
-Robust fallback handling ensures system resilience:
-- **DMA Failures**: Automatic fallback to DEFER actions
-- **Processing Errors**: Graceful error recovery with thought failure marking
-- **Timeout Handling**: Configurable timeouts with escalation
-- **State Recovery**: Automatic recovery from invalid states
+### Decision Explanations
+Every decision includes:
+- **What**: The chosen action
+- **Why**: Reasoning from each DMA
+- **Confidence**: How certain the decision is
+- **Alternatives**: Other options considered
+
+### Audit Trail
+Complete record of:
+- All thoughts processed
+- DMA evaluations
+- Actions taken
+- Deferrals to humans
+- Errors and retries
+
+### Real-Time Visibility
+```bash
+# See current thoughts
+curl http://localhost:8080/v1/visibility/thoughts
+
+# View decision process
+curl http://localhost:8080/v1/visibility/decisions
+
+# Check processor status
+curl http://localhost:8080/v1/runtime/processor/status
+```
 
 ### Metrics and Monitoring
 
@@ -352,11 +449,29 @@ class CustomProcessor(BaseProcessor):
 - Provides context for action execution
 - Handles action completion and follow-up
 
-### Conscience Integration
-- Applies conscience evaluation to all actions
-- Handles conscience-guided retries with specific guidance
-- Ensures ethical action selection through epistemic faculties
-- Provides insights that flow forward to future decisions
+## Conscience System
+
+The conscience provides continuous ethical oversight:
+
+### Epistemic Faculties
+- **Entropy Analysis**: Information quality check
+- **Coherence Check**: Logical consistency
+- **Humility Assessment**: Recognition of limitations
+- **Optimization Veto**: Prevent harmful efficiency
+
+### When Conscience Intervenes
+```json
+{
+    "original_action": "SPEAK",
+    "conscience_feedback": {
+        "concern": "Response may cause emotional harm",
+        "suggestion": "Rephrase with more empathy",
+        "severity": "medium"
+    },
+    "revised_action": "PONDER",
+    "revision_reason": "Reconsidering response tone"
+}
+```
 
 ## Performance Considerations
 
@@ -401,22 +516,46 @@ The processor module uses batch processing for efficiency:
 - Configurable processing pipelines
 - External integration hooks for monitoring and control
 
-## Debugging and Troubleshooting
+## Common Patterns
 
-### Common Issues
-1. **Stuck Processing**: Check for pending thoughts with PROCESSING status
-2. **State Transition Failures**: Verify transition rules and conditions
-3. **DMA Timeouts**: Adjust timeout settings or check LLM connectivity
-4. **Memory Usage**: Monitor queue sizes and processing batch limits
+### Uncertainty → Deferral
+When DMAs disagree or confidence is low:
+```
+Ethical: "Seems okay" (0.6 confidence)
+Common Sense: "Might work" (0.5 confidence)
+Domain: "Unclear guidelines" (0.4 confidence)
+→ Action: DEFER to human with context
+```
 
-### Diagnostic Tools
-- Comprehensive logging with structured metadata
-- Processor status and metrics endpoints
-- State history tracking for transition analysis
-- Performance metrics for bottleneck identification
+### High Risk → Conservative
+For medical, financial, or safety decisions:
+```
+Risk Level: HIGH
+Potential Harm: SIGNIFICANT
+→ Action: DEFER with clear explanation
+```
 
-The processor module represents the heart of CIRISAgent's cognitive architecture, providing a robust, scalable, and extensible foundation for AI agent processing with strong emphasis on ethical operation, system resilience, and principled decision-making.
+### Learning → Memory
+When encountering new patterns:
+```
+Pattern: "User prefers formal language"
+Confidence: HIGH (observed 5+ times)
+→ Action: MEMORIZE preference
+```
+
+## Summary
+
+The processor system ensures that:
+- Every decision is evaluated from multiple perspectives
+- Uncertain or risky decisions defer to humans
+- All actions are explainable and auditable
+- The system learns and improves over time
+- Ethical boundaries are always maintained
+
+This creates an AI system you can understand and trust, where every decision has clear reasoning and appropriate oversight.
 
 ---
+
+*For technical implementation details, see the individual module documentation. For creating custom DMAs, see the [DMA Creation Guide](../../docs/DMA_CREATION_GUIDE.md).*
 
 *Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*

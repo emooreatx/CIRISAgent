@@ -3,7 +3,7 @@ Schemas for base processor operations.
 
 These replace all Dict[str, Any] usage in base_processor.py.
 """
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pydantic import Field

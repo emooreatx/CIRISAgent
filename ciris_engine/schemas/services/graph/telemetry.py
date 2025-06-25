@@ -3,7 +3,7 @@ Telemetry operations schemas for graph telemetry service.
 
 Replaces Dict[str, Any] in telemetry service operations.
 """
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -11,8 +11,8 @@ from ciris_engine.schemas.services.graph_core import GraphNode
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from pydantic import Field
 
-class ProcessSnapshotResult(BaseModel):
-    """Result of processing a system snapshot."""
+class TelemetrySnapshotResult(BaseModel):
+    """Result of processing a system snapshot for telemetry."""
     memories_created: int = Field(0, description="Number of memory nodes created")
     errors: List[str] = Field(default_factory=list, description="Any errors encountered")
     consolidation_triggered: bool = Field(False, description="Whether consolidation was triggered")

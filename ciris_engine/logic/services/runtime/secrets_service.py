@@ -16,7 +16,7 @@ from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.schemas.secrets.core import SecretPattern
 from ciris_engine.schemas.services.tools_core import ToolResult, ToolExecutionStatus
 from ciris_engine.schemas.runtime.enums import HandlerActionType
-from ciris_engine.schemas.services.core.secrets import SecretContext, SecretOperationResult
+from ciris_engine.schemas.services.core.secrets import SecretContext
 from pydantic import Field
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ Schemas for configuration feedback loop operations.
 
 These replace all Dict[str, Any] usage in logic/infrastructure/sub_services/configuration_feedback_loop.py.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field

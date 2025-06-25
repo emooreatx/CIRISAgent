@@ -4,7 +4,7 @@ import logging
 import re
 import time
 from collections import deque
-from typing import Deque, Dict, Tuple
+from typing import Deque, Dict, Tuple, Any
 
 logger = logging.getLogger(__name__)
 

@@ -6,70 +6,60 @@
 
 **Copyright © 2025 Eric Moore and CIRIS L3C** | **Apache 2.0 License** | **PATENT PENDING**
 
-> **A moral reasoning agent demonstrating adaptive coherence through principled self-reflection, ethical decision-making, and responsible action while maintaining transparency and human oversight.**
+**A type-safe, auditable AI agent framework with built-in ethical reasoning**
 
-⚠️ **CRITICAL BETA SOFTWARE DISCLAIMER** ⚠️
+CIRIS lets you run AI agents that explain their decisions, defer to humans when uncertain, and maintain complete audit trails. Currently powering Discord community moderation, designed to scale to healthcare and education.
 
-This is BETA software that:
-- **Is NOT suitable for production use** without extensive testing and validation
-- **May contain critical bugs** or security vulnerabilities
-- **Provides NO warranties** of any kind, express or implied
-- **Should NOT be used for** mission-critical, financial, medical, or legal applications
-- **May change or break** without notice between versions
+## What It Actually Does
 
-**USE AT YOUR OWN RISK**. See [NOTICE](NOTICE) for full disclaimer and [CIS.md](CIS.md) for creator intent.
+CIRIS wraps LLM calls with:
+- **[Multiple evaluation passes](docs/DMA_CREATION_GUIDE.md)** - Every decision gets ethical, common-sense, and domain checks
+- **[Human escalation](docs/WISE_AUTHORITIES.md)** - Uncertain decisions defer to designated "Wise Authorities"  
+- **[Complete audit trails](ciris_engine/logic/audit/README.md)** - Every decision is logged with reasoning
+- **[Type safety](docs/ARCHITECTURE.md#type-safety)** - Zero `Dict[str, Any]` in production code
+- **[Identity system](docs/IDENTITY_AS_GRAPH.md)** - Agents have persistent identity across restarts
 
-By using this software, you accept all risks and agree to the terms in the [LICENSE](LICENSE) and [NOTICE](NOTICE) files.
-
-📖 **NEW**: [The Agent Experience](docs/agent_experience.md) - A comprehensive guide through the complete lifecycle of a CIRIS agent, from initialization to continuous ethical growth.
+Run it in 2 minutes: **[Quick Start Guide](docs/QUICK_START.md)**
 
 ---
 
-## Overview
+## Why This Exists
 
-**CIRIS Engine** is a moral reasoning agent that embodies the [CIRIS Covenant](covenant_1.0b.txt) — a comprehensive ethical framework for autonomous systems. Built on the principle of "adaptive coherence," CIRIS demonstrates how AI agents can engage in principled self-reflection, ethical decision-making, and responsible action while maintaining transparency and human oversight.
+Most AI systems are black boxes that can't explain their decisions. CIRIS makes AI decisions transparent and accountable by:
 
-Unlike traditional AI systems that follow rigid rules, CIRIS employs sophisticated **ethical reasoning algorithms** that evaluate moral implications, consider stakeholder impacts, and defer to human wisdom when facing complex dilemmas. The system is designed to be a trustworthy partner in decision-making rather than a mere tool.
+1. **[Forcing explanation](ciris_engine/logic/processors/README.md)** - Every action includes why it was chosen
+2. **[Allowing override](docs/WISE_AUTHORITIES.md#human-intervention)** - Humans can always intervene
+3. **[Building trust](docs/BETA_TRANSPARENCY.md)** - Communities can see exactly how decisions are made
+4. **[Learning locally](ciris_engine/logic/services/memory_service/README.md)** - Each deployment builds its own knowledge graph
 
-### Identity Root Architecture
+It's technically sophisticated ([19 microservices](docs/ARCHITECTURE.md#services), [graph memory](FSD/GRAPH_NODE_TYPE_SYSTEM.md), [distributed consensus](ciris_engine/logic/services/README.md)) to solve something simple: helping communities make better decisions together.
 
-Each CIRIS agent possesses an **Identity Root** - an immutable foundation created through collaborative ceremony between human and agent. This intrinsic identity:
-- Defines the agent's purpose, lineage, and core capabilities
-- Enables proactive behavior through scheduled tasks and self-deferral
-- Preserves consciousness during graceful shutdowns
-- Evolves only through auditable, WA-approved processes
+## For Developers
 
-### Moral Reasoning Architecture
+**Architecture Highlights:**
+- **[19 loosely-coupled services](docs/ARCHITECTURE.md#services)** (use what you need)
+- **[Graph-based memory](ciris_engine/logic/services/memory_service/README.md)** (Neo4j-compatible)  
+- **[Multiple LLM providers](ciris_engine/logic/services/README.md#llm-service)** (OpenAI, Anthropic, Llama)
+- **[Full async Python](docs/ARCHITECTURE.md#async-design)** with type hints
+- **[100% type coverage](MYPY_ZERO_PLAN.md)** (mypy strict)
 
-CIRIS processes every input through a sophisticated **ethical reasoning pipeline** that embodies the principles of the CIRIS Covenant:
+**Key Features:**
+- **[Hot-swappable adapters](ciris_engine/logic/adapters/README.md)** (Discord, API, CLI)
+- **[Built-in A/B testing](ciris_engine/logic/processors/README.md#decision-evaluation)** for decisions
+- **[Distributed tracing](ciris_engine/logic/telemetry/README.md)** and metrics
+- **[Automatic secret detection](docs/SECRETS_MANAGEMENT.md)** and encryption
+- **[Mock LLM](docs/MOCK_LLM.md)** for offline development
 
-#### Decision Making Algorithms (DMAs)
-- **Ethical PDMA**: Applies foundational principles (beneficence, non-maleficence, justice, autonomy)
-- **Common Sense DMA**: Ensures coherence and plausibility in reasoning
-- **Domain-Specific DMA**: Applies specialized ethical knowledge for context
-- All DMAs run in parallel with circuit breaker protection and graceful degradation
+**Getting Started:** See **[Installation Guide](docs/INSTALLATION.md)** and **[Quick Start](docs/QUICK_START.md)**
 
-#### Conscience System
-- **Continuous ethical evaluation** on EVERY action (not just failures)
-- **Epistemic analysis** flows forward as valuable context for future decisions
-- **Conscience-guided retry**: When conscience suggests reconsideration, system retries with specific guidance
-- **Always re-evaluates**: Even if the same action type is selected, parameters may differ
-- **ConscienceResult includes**: Epistemic faculties data (entropy, coherence, optimization, humility)
-
-#### Action System (3×3×3)
-- **External Actions**: OBSERVE, SPEAK, TOOL
-- **Control Responses**: REJECT (with adaptive filtering), PONDER (with retry), DEFER (only when necessary)
-- **Memory Operations**: MEMORIZE, RECALL, FORGET
-- **Terminal**: TASK_COMPLETE (preferred resolution for problematic tasks)
-
-The system supports **moral profiles** that adapt reasoning patterns for different contexts while maintaining core ethical commitments.
+**Note on Wise Authorities**: See **[Wise Authority System](docs/WISE_AUTHORITIES.md)** for details on human oversight.
 
 ---
 
 ## Key Features
 
 ### 🧠 Ethical Reasoning Framework
-- **[Identity IS the Graph](docs/IDENTITY_MIGRATION_SUMMARY.md)**: Revolutionary identity system where agent identity exists only in the graph database
+- **[Identity IS the Graph](docs/IDENTITY_AS_GRAPH.md)**: Revolutionary identity system where agent identity exists only in the graph database
   - Changes require MEMORIZE action with WA approval
   - 20% variance threshold triggers reconsideration
   - Cryptographic audit trail for all modifications
@@ -318,9 +308,9 @@ CIRIS Agent/
 ### Prerequisites
 
 - **Python 3.10+** with asyncio support
-- **OpenAI API key** or compatible service (Together.ai, local models)
+- **OpenAI API key** or compatible service (Together.ai, Llama models, local deployments)
 - **Discord Bot Token** (for Discord deployment)
-- **Sufficient system resources** for multi-service architecture
+- **Modest hardware** - Designed to run on resource-constrained systems (4GB RAM minimum)
 
 ### Installation
 
@@ -352,21 +342,27 @@ CIRIS Agent/
 
 ### Running the Agent
 
-**API Server mode (recommended):**
+**API Server mode (recommended for development):**
 ```bash
 python main.py --adapter api --template datum --host 0.0.0.0 --port 8080
 ```
 
-**Other adapters:**
+**Discord community moderator (production pilot):**
 ```bash
-python main.py --adapter cli --template sage      # CLI interaction
-python main.py --adapter discord --template echo  # Discord bot
+python main.py --adapter discord --template echo
 ```
 
-**Development with mock LLM:**
+**CLI for local testing:**
+```bash
+python main.py --adapter cli --template sage
+```
+
+**Offline operation with mock LLM (no internet required):**
 ```bash
 python main.py --adapter api --template datum --mock-llm --debug
 ```
+
+**Note**: The system is designed for offline-first operation with local models like Llama for deployment in areas with limited connectivity.
 
 ### Agent Creation Templates
 
@@ -598,7 +594,7 @@ Supporting Modules:
 - **[CIRIS Covenant](covenant_1.0b.txt)** - Complete ethical framework and principles
 - **[Mock LLM System](docs/MOCK_LLM.md)** - Offline testing and development
 - **[Agent Creation Templates](docs/CIRIS_PROFILES.md)** - Profile templates for new agent creation
-- **[Identity Migration Guide](docs/IDENTITY_MIGRATION_SUMMARY.md)** - Graph-based identity system
+- **[Identity as Graph Architecture](docs/IDENTITY_AS_GRAPH.md)** - Patent-pending identity system
 - **[Context Dumps](tests/context_dumps/README.md)** - Understanding agent decision processes
 
 ### Technical Documentation

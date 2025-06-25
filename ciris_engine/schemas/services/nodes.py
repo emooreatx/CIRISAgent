@@ -4,7 +4,7 @@ Graph node type schemas for CIRIS.
 These define all the specialized node types that can be stored in the graph.
 Everything in the graph is a memory - these are the different types of memories.
 """
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List, Union, Any
 from datetime import datetime, timezone
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -48,41 +48,36 @@ class AuditEntry(TypedGraphNode):
         node_id = all_attrs.get("id", f"audit_{self.timestamp.strftime('%Y%m%d_%H%M%S')}_{self.actor}")
         node_type = self.type
         node_scope = all_attrs.get("scope", GraphScope.LOCAL)
-        node_version = all_attrs.get("version", 1)
         
-        # Remove base fields from attrs to avoid duplication
-        extra_attrs = {k: v for k, v in all_attrs.items() 
-                      if k not in ["id", "type", "scope", "version", "created_at", "updated_at", "created_by", "updated_by", "attributes"]}
-        
-        # Convert datetime fields
-        extra_attrs["timestamp"] = self.timestamp.isoformat()
-        
-        # Convert context to dict
-        extra_attrs["context"] = self.context.model_dump()
-        
-        # Mark for deserialization
-        extra_attrs["_node_class"] = "AuditEntry"
-        
-        # Build attributes dict with required fields and extra data
-        attributes_dict = {
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
+        # Build attributes dict with only extra fields
+        extra_fields = {
+            # Required GraphNodeAttributes fields
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
             "created_by": self.created_by,
-            "updated_by": self.updated_by,
-            "tags": [f"action:{self.action}", f"actor:{self.actor}"],
-            **extra_attrs
+            "tags": [f"actor:{self.actor}", f"action:{self.action}"],
+            # AuditEntry specific fields
+            "action": self.action,
+            "actor": self.actor,
+            "timestamp": self.timestamp.isoformat(),
+            "context": self.context.model_dump(),
+            "signature": self.signature,
+            "hash_chain": self.hash_chain,
+            "_node_class": "AuditEntry"
         }
         
         return GraphNode(
             id=node_id,
             type=node_type,
             scope=node_scope,
-            attributes=attributes_dict,  # Pass as dict, not GraphNodeAttributes
-            version=node_version
+            attributes=extra_fields,
+            version=all_attrs.get("version", 1),
+            updated_by=self.updated_by,
+            updated_at=self.updated_at
         )
     
     @classmethod
-    def from_graph_node(cls, node: GraphNode) -> "AuditEntry":
+    def from_graph_node(cls, node: GraphNode) -> 'AuditEntry':
         """Reconstruct from GraphNode."""
         # Handle both dict and GraphNodeAttributes
         if isinstance(node.attributes, dict):
@@ -170,9 +165,9 @@ class ConfigNode(TypedGraphNode):
         }
         
         return GraphNode(
-            id=self.id,
+            id=f"config:{self.key}",
             type=self.type,
-            scope=self.scope,
+            scope=GraphScope.LOCAL,  # Config default to LOCAL scope 
             attributes=extra_fields,
             version=self.version,
             updated_by=self.updated_by,
@@ -190,13 +185,16 @@ class ConfigNode(TypedGraphNode):
         else:
             raise ValueError(f"Invalid attributes type: {type(node.attributes)}")
         
-        # ConfigNode requires updated_by and updated_at, but GraphNode has them as Optional
-        # Fall back to values from attributes if the GraphNode fields are None
-        updated_by = node.updated_by or attrs.get("created_by", "unknown")
-        updated_at = node.updated_at or cls._deserialize_datetime(attrs.get("updated_at", attrs.get("created_at")))
+        # Parse dates with multiple fallbacks
+        updated_at = cls._deserialize_datetime(attrs.get("updated_at"))
+        if not updated_at:
+            # Try created_at as fallback
+            updated_at = cls._deserialize_datetime(attrs.get("created_at"))
+        
+        # Get updated_by with fallback
+        updated_by = attrs.get("updated_by") or attrs.get("created_by", "system")
         
         return cls(
-            # Base fields from GraphNode
             id=node.id,
             type=node.type,
             scope=node.scope,
@@ -210,268 +208,151 @@ class ConfigNode(TypedGraphNode):
             previous_version=attrs.get("previous_version")
         )
 
-class ConfigChangeType(str, Enum):
-    """Types of configuration changes."""
-    ADD = "add"
-    UPDATE = "update"
-    DELETE = "delete"
-    REPLACE = "replace"
 
-class ConfigChange(BaseModel):
-    """A single configuration change in an adaptation proposal."""
-    change_type: ConfigChangeType
-    config_key: str
-    old_value: Optional[ConfigValue] = None
-    new_value: Optional[ConfigValue] = None
-    reason: str
 
-@register_node_type("ADAPTATION_PROPOSAL")
-class AdaptationProposal(TypedGraphNode):
-    """A proposed adaptation stored as a graph memory."""
-    proposal_id: str = Field(..., description="Unique proposal identifier")
-    proposed_by: str = Field(..., description="Component that proposed this")
-    trigger: str = Field(..., description="What triggered this proposal")
-    changes: List[ConfigChange] = Field(..., description="Typed proposed changes")
-    reasoning: str = Field(..., description="Reasoning for the proposal")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in proposal")
-    risk_level: str = Field(..., description="Risk assessment: low, medium, high")
-    status: str = Field(default="proposed", description="proposed, evaluating, approved, applied, rejected")
-    
-    # Required TypedGraphNode fields
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    created_by: str = Field(default="self_configuration")
-    updated_by: str = Field(default="self_configuration")
-    
-    # Graph node type
-    type: NodeType = Field(default=NodeType.ADAPTATION_PROPOSAL)
-    
-    def to_graph_node(self) -> GraphNode:
-        """Convert to GraphNode for storage."""
-        attrs = self.model_dump()
-        
-        # Convert datetime fields
-        attrs["created_at"] = self.created_at.isoformat()
-        attrs["updated_at"] = self.updated_at.isoformat()
-        
-        # Convert changes list to dicts
-        attrs["changes"] = [change.model_dump() for change in self.changes]
-        
-        # Mark for deserialization
-        attrs["_node_class"] = "AdaptationProposal"
-        
-        return GraphNode(
-            id=attrs.get("id", f"proposal_{self.proposal_id}"),
-            type=self.type,
-            scope=attrs.get("scope", GraphScope.LOCAL),
-            attributes=GraphNodeAttributes(
-                created_at=self.created_at,
-                updated_at=self.updated_at,
-                created_by=self.created_by,
-                updated_by=self.updated_by,
-                tags=attrs.get("tags", [f"status:{self.status}", f"risk:{self.risk_level}"]),
-                **attrs
-            ),
-            version=attrs.get("version", 1)
-        )
-    
-    @classmethod
-    def from_graph_node(cls, node: GraphNode) -> "AdaptationProposal":
-        """Reconstruct from GraphNode."""
-        attrs = node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else dict(node.attributes)
-        
-        # Deserialize datetimes
-        created_at = cls._deserialize_datetime(attrs.get("created_at"))
-        updated_at = cls._deserialize_datetime(attrs.get("updated_at", attrs.get("created_at")))
-        
-        # Deserialize changes
-        changes_data = attrs.get("changes", [])
-        changes = [ConfigChange(**change) if isinstance(change, dict) else change for change in changes_data]
-        
-        return cls(
-            id=node.id,
-            type=node.type,
-            scope=node.scope,
-            proposal_id=attrs.get("proposal_id", "unknown"),
-            proposed_by=attrs.get("proposed_by", "unknown"),
-            trigger=attrs.get("trigger", "unknown"),
-            changes=changes,
-            reasoning=attrs.get("reasoning", ""),
-            confidence=attrs.get("confidence", 0.5),
-            risk_level=attrs.get("risk_level", "medium"),
-            status=attrs.get("status", "proposed"),
-            created_at=created_at,
-            updated_at=updated_at,
-            created_by=attrs.get("created_by", "self_configuration"),
-            updated_by=attrs.get("updated_by", "self_configuration"),
-            version=node.version
-        )
 
 @register_node_type("IDENTITY_SNAPSHOT")
 class IdentitySnapshot(TypedGraphNode):
-    """An identity snapshot stored as a graph memory."""
-    baseline_hash: str = Field(..., description="Hash of baseline identity")
-    current_hash: str = Field(..., description="Hash of current identity")
-    drift_percentage: float = Field(..., ge=0.0, le=100.0, description="Drift from baseline")
-    changed_components: List[str] = Field(default_factory=list, description="What changed")
-    measurement_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    """Snapshot of identity state for variance monitoring."""
+    snapshot_id: str = Field(..., description="Unique snapshot ID")
+    timestamp: datetime = Field(..., description="When snapshot was taken")
+    agent_id: str = Field(..., description="Agent ID")
+    identity_hash: str = Field(..., description="Identity hash at time of snapshot")
+    core_purpose: str = Field(..., description="Core purpose")
+    role: str = Field(..., description="Role description")
+    permitted_actions: List[str] = Field(default_factory=list, description="Permitted actions")
+    restricted_capabilities: List[str] = Field(default_factory=list, description="Restricted capabilities")
+    ethical_boundaries: List[str] = Field(default_factory=list, description="Ethical boundaries")
+    trust_parameters: Dict[str, str] = Field(default_factory=dict, description="Trust parameters")
+    personality_traits: List[str] = Field(default_factory=list, description="Personality traits")
+    communication_style: str = Field(..., description="Communication style")
+    learning_enabled: bool = Field(..., description="Whether learning is enabled")
+    adaptation_rate: float = Field(..., description="Rate of adaptation")
+    is_baseline: bool = Field(default=False, description="Whether this is a baseline snapshot")
     
     # Required TypedGraphNode fields
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    created_by: str = Field(default="identity_monitor")
-    updated_by: str = Field(default="identity_monitor")
+    created_by: str = Field(default="identity_variance_monitor")
+    updated_by: str = Field(default="identity_variance_monitor")
     
     # Graph node type
     type: NodeType = Field(default=NodeType.IDENTITY_SNAPSHOT)
     
     def to_graph_node(self) -> GraphNode:
         """Convert to GraphNode for storage."""
-        attrs = self.model_dump()
-        
-        # Convert datetime fields
-        attrs["measurement_time"] = self.measurement_time.isoformat()
-        attrs["created_at"] = self.created_at.isoformat()
-        attrs["updated_at"] = self.updated_at.isoformat()
-        
-        # Mark for deserialization
-        attrs["_node_class"] = "IdentitySnapshot"
+        extra_fields = {
+            # Required GraphNodeAttributes fields
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "created_by": self.created_by,
+            "tags": ["identity_snapshot", f"agent:{self.agent_id}"],
+            # IdentitySnapshot specific fields
+            "snapshot_id": self.snapshot_id,
+            "timestamp": self.timestamp.isoformat(),
+            "agent_id": self.agent_id,
+            "identity_hash": self.identity_hash,
+            "core_purpose": self.core_purpose,
+            "role": self.role,
+            "permitted_actions": self.permitted_actions,
+            "restricted_capabilities": self.restricted_capabilities,
+            "ethical_boundaries": self.ethical_boundaries,
+            "trust_parameters": self.trust_parameters,
+            "personality_traits": self.personality_traits,
+            "communication_style": self.communication_style,
+            "learning_enabled": self.learning_enabled,
+            "adaptation_rate": self.adaptation_rate,
+            "is_baseline": self.is_baseline,
+            "_node_class": "IdentitySnapshot"
+        }
         
         return GraphNode(
-            id=attrs.get("id", f"identity_{self.measurement_time.strftime('%Y%m%d_%H%M%S')}"),
+            id=f"identity_snapshot:{self.snapshot_id}",
             type=self.type,
-            scope=attrs.get("scope", GraphScope.LOCAL),
-            attributes=GraphNodeAttributes(
-                created_at=self.created_at,
-                updated_at=self.updated_at,
-                created_by=self.created_by,
-                updated_by=self.updated_by,
-                tags=attrs.get("tags", [f"drift:{self.drift_percentage:.1f}%"]),
-                **attrs
-            ),
-            version=attrs.get("version", 1)
+            scope=GraphScope.IDENTITY,  # Identity snapshots are IDENTITY scope
+            attributes=extra_fields,
+            version=1,
+            updated_by=self.updated_by,
+            updated_at=self.updated_at
         )
     
     @classmethod
-    def from_graph_node(cls, node: GraphNode) -> "IdentitySnapshot":
+    def from_graph_node(cls, node: GraphNode) -> 'IdentitySnapshot':
         """Reconstruct from GraphNode."""
-        attrs = node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else dict(node.attributes)
-        
-        # Deserialize datetimes
-        measurement_time = cls._deserialize_datetime(attrs.get("measurement_time", attrs.get("created_at")))
-        created_at = cls._deserialize_datetime(attrs.get("created_at", attrs.get("measurement_time")))
-        updated_at = cls._deserialize_datetime(attrs.get("updated_at", attrs.get("created_at")))
+        attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
         
         return cls(
+            # Base fields from GraphNode
             id=node.id,
             type=node.type,
             scope=node.scope,
-            baseline_hash=attrs.get("baseline_hash", ""),
-            current_hash=attrs.get("current_hash", ""),
-            drift_percentage=attrs.get("drift_percentage", 0.0),
-            changed_components=attrs.get("changed_components", []),
-            measurement_time=measurement_time,
-            created_at=created_at,
-            updated_at=updated_at,
-            created_by=attrs.get("created_by", "identity_monitor"),
-            updated_by=attrs.get("updated_by", "identity_monitor"),
-            version=node.version
+            attributes=node.attributes,
+            version=node.version,
+            updated_by=node.updated_by,
+            updated_at=node.updated_at,
+            # Extra fields from attributes
+            snapshot_id=attrs["snapshot_id"],
+            timestamp=cls._deserialize_datetime(attrs["timestamp"]),
+            agent_id=attrs["agent_id"],
+            identity_hash=attrs["identity_hash"],
+            core_purpose=attrs["core_purpose"],
+            role=attrs["role"],
+            permitted_actions=attrs.get("permitted_actions", []),
+            restricted_capabilities=attrs.get("restricted_capabilities", []),
+            ethical_boundaries=attrs.get("ethical_boundaries", []),
+            trust_parameters=attrs.get("trust_parameters", {}),
+            personality_traits=attrs.get("personality_traits", []),
+            communication_style=attrs["communication_style"],
+            learning_enabled=attrs["learning_enabled"],
+            adaptation_rate=attrs["adaptation_rate"],
+            is_baseline=attrs.get("is_baseline", False),
+            created_at=cls._deserialize_datetime(attrs.get("created_at")),
+            created_by=attrs.get("created_by", "identity_variance_monitor")
         )
-
-class ErrorContext(BaseModel):
-    """Typed context for errors."""
-    service_name: Optional[str] = None
-    method_name: Optional[str] = None
-    task_id: Optional[str] = None
-    thought_id: Optional[str] = None
-    correlation_id: Optional[str] = None
-    additional_info: Optional[Dict[str, Union[str, int, float, bool]]] = None
-
-class ErrorMemory(GraphNode):
-    """An error stored as a learning opportunity in the graph."""
-    error_type: str = Field(..., description="Type of error")
-    error_message: str = Field(..., description="Error message")
-    stack_trace: Optional[str] = Field(None, description="Stack trace if available")
-    context: ErrorContext = Field(..., description="Typed error context")
-    occurred_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    grace_extended: bool = Field(True, description="Grace extended for this error")
-    lessons_learned: List[str] = Field(default_factory=list, description="What we learned")
-    
-    # Graph node type
-    type: str = Field(default="ERROR_MEMORY")
-
-class DMAScore(BaseModel):
-    """Score from a single DMA."""
-    dma_name: str
-    score: float
-    confidence: float
-    reasoning: Optional[str] = None
-
-class DecisionMemory(GraphNode):
-    """A decision made by DMAs stored as a graph memory."""
-    decision_id: str = Field(..., description="Unique decision identifier")
-    action_chosen: str = Field(..., description="Action that was chosen")
-    alternatives: List[str] = Field(..., description="Other options considered")
-    dma_scores: List[DMAScore] = Field(..., description="Typed scores from each DMA")
-    reasoning: str = Field(..., description="Decision reasoning")
-    ethical_principles: List[str] = Field(default_factory=list, description="Principles considered")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    
-    # Graph node type
-    type: str = Field(default="DECISION")
 
 @register_node_type("TSDB_SUMMARY")
 class TSDBSummary(TypedGraphNode):
-    """
-    6-hour summary of TSDB metrics for permanent memory.
-    
-    These summaries are the agent's diary - permanent records of activity
-    that enable queries like "what did I do on June 3rd, 2025?"
-    """
+    """Consolidated time-series telemetry summary stored as a graph memory."""
     # Period information
-    period_start: datetime = Field(..., description="Start of 6-hour period (UTC)")
-    period_end: datetime = Field(..., description="End of 6-hour period (UTC)")
-    period_label: str = Field(..., description="Human-readable period (e.g., '2024-12-22-morning')")
+    period_start: datetime = Field(..., description="Start of the consolidation period")
+    period_end: datetime = Field(..., description="End of the consolidation period")
+    period_label: str = Field(..., description="Human-readable period label")
     
-    # Aggregated metrics - simple stats for each metric
-    metrics: Dict[str, Dict[str, float]] = Field(
-        default_factory=dict,
-        description="metric_name -> {count, sum, min, max, avg}"
-    )
+    # Aggregated metrics by category
+    metrics: Dict[str, Dict[str, float]] = Field(default_factory=dict, description="Aggregated metrics by category")
     
-    # Resource totals for accountability
-    total_tokens: int = Field(default=0, description="Total tokens used in period")
-    total_cost_cents: float = Field(default=0.0, description="Total cost in cents")
-    total_carbon_grams: float = Field(default=0.0, description="Total CO2 emissions in grams")
-    total_energy_kwh: float = Field(default=0.0, description="Total energy in kilowatt-hours")
+    # Resource totals
+    total_tokens: int = Field(0, description="Total tokens used in period")
+    total_cost_cents: float = Field(0.0, description="Total cost in cents")
+    total_carbon_grams: float = Field(0.0, description="Total carbon emissions in grams")
+    total_energy_kwh: float = Field(0.0, description="Total energy used in kWh")
     
-    # Action summary - what the agent did
-    action_counts: Dict[str, int] = Field(
-        default_factory=dict,
-        description="Count of each action type (SPEAK, TOOL, PONDER, etc.)"
-    )
-    error_count: int = Field(default=0, description="Total errors in period")
-    success_rate: float = Field(default=1.0, description="Percentage of successful operations")
+    # Action summary
+    action_counts: Dict[str, int] = Field(default_factory=dict, description="Count of each action type")
+    error_count: int = Field(0, description="Total errors in period")
+    success_rate: float = Field(1.0, description="Success rate (0-1)")
     
-    # Consolidation metadata
-    source_node_count: int = Field(..., description="Number of TSDB nodes consolidated")
+    # Metadata
+    source_node_count: int = Field(..., description="Number of source nodes consolidated")
     consolidation_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    raw_data_expired: bool = Field(
-        default=False, 
-        description="True if raw TSDB nodes have been deleted (>24hr old)"
-    )
+    raw_data_expired: bool = Field(False, description="Whether raw data has been deleted")
+    
+    # Required TypedGraphNode fields
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_by: str = Field(default="TSDBConsolidationService")
+    updated_by: str = Field(default="TSDBConsolidationService")
     
     # Graph node type
     type: NodeType = Field(default=NodeType.TSDB_SUMMARY)
     
     def to_graph_node(self) -> GraphNode:
         """Convert to GraphNode for storage."""
-        # Include both GraphNodeAttributes required fields AND TSDBSummary extra fields
         extra_fields = {
             # Required GraphNodeAttributes fields
-            "created_at": self.consolidation_timestamp.isoformat(),
-            "updated_at": self.consolidation_timestamp.isoformat(),
-            "created_by": "TSDBConsolidationService",
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "created_by": self.created_by,
             "tags": [f"period:{self.period_label}", "tsdb_summary"],
             # TSDBSummary specific fields
             "period_start": self.period_start.isoformat(),
@@ -530,4 +411,223 @@ class TSDBSummary(TypedGraphNode):
             source_node_count=attrs["source_node_count"],
             consolidation_timestamp=cls._deserialize_datetime(attrs.get("consolidation_timestamp")),
             raw_data_expired=attrs.get("raw_data_expired", False)
+        )
+
+
+@register_node_type("IDENTITY")
+class IdentityNode(TypedGraphNode):
+    """Agent identity stored as a graph memory - the core of the system."""
+    # Identity fields from AgentIdentityRoot
+    agent_id: str = Field(..., description="Unique agent identifier")
+    identity_hash: str = Field(..., description="Hash of identity for integrity")
+    
+    # Core profile fields from CoreProfile
+    description: str = Field(..., description="Agent's self-description")
+    role_description: str = Field(..., description="Agent's role and purpose")
+    domain_specific_knowledge: Dict[str, str] = Field(default_factory=dict, description="Domain expertise mappings")
+    areas_of_expertise: List[str] = Field(default_factory=list, description="Areas where agent has expertise")
+    startup_instructions: Optional[str] = Field(None, description="Instructions for startup")
+    
+    # Capabilities and permissions from AgentIdentityRoot
+    permitted_actions: List[str] = Field(default_factory=list, description="Actions this agent can perform")
+    restricted_capabilities: List[str] = Field(default_factory=list, description="Explicitly restricted capabilities")
+    
+    # Trust and authorization from AgentIdentityRoot
+    trust_level: float = Field(0.5, ge=0.0, le=1.0, description="Agent trust level")
+    authorization_scope: str = Field("standard", description="Authorization scope")
+    parent_agent_id: Optional[str] = Field(None, description="Parent agent if spawned")
+    
+    # Identity metadata
+    identity_created_at: datetime = Field(..., description="When identity was created")
+    identity_modified_at: datetime = Field(..., description="When identity was last modified")
+    modification_count: int = Field(default=0, description="Number of modifications")
+    creator_agent_id: str = Field(..., description="Who created this identity")
+    lineage_trace: List[str] = Field(default_factory=list, description="Lineage of creators")
+    approval_required: bool = Field(default=True, description="Whether changes need approval")
+    approved_by: Optional[str] = Field(None, description="Who approved this identity")
+    approval_timestamp: Optional[datetime] = Field(None, description="When approved")
+    
+    # Required TypedGraphNode fields
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_by: str = Field(default="system")
+    updated_by: str = Field(default="system")
+    
+    # Graph node type
+    type: NodeType = Field(default=NodeType.AGENT)
+    scope: GraphScope = Field(default=GraphScope.IDENTITY)
+    
+    # Base GraphNode fields (required by TypedGraphNode)
+    id: str = Field(default="agent/identity", description="Node ID")
+    attributes: Optional[Union[GraphNodeAttributes, Dict[str, Any]]] = Field(default=None, description="Raw attributes")
+    version: int = Field(default=1, description="Version number")
+    
+    def to_graph_node(self) -> GraphNode:
+        """Convert to GraphNode for storage."""
+        # Pack all identity data into attributes
+        extra_fields = {
+            # Required GraphNodeAttributes fields
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "created_by": self.created_by,
+            "tags": ["identity:root", f"agent:{self.agent_id}"],
+            # Identity fields
+            "agent_id": self.agent_id,
+            "identity_hash": self.identity_hash,
+            "trust_level": self.trust_level,
+            "authorization_scope": self.authorization_scope,
+            "parent_agent_id": self.parent_agent_id,
+            # Core profile fields
+            "description": self.description,
+            "role_description": self.role_description,
+            "domain_specific_knowledge": self.domain_specific_knowledge,
+            "areas_of_expertise": self.areas_of_expertise,
+            "startup_instructions": self.startup_instructions,
+            # Capabilities and permissions
+            "permitted_actions": self.permitted_actions,
+            "restricted_capabilities": self.restricted_capabilities,
+            # Identity metadata
+            "identity_created_at": self.identity_created_at.isoformat(),
+            "identity_modified_at": self.identity_modified_at.isoformat(),
+            "modification_count": self.modification_count,
+            "creator_agent_id": self.creator_agent_id,
+            "lineage_trace": self.lineage_trace,
+            "approval_required": self.approval_required,
+            "approved_by": self.approved_by,
+            "approval_timestamp": self.approval_timestamp.isoformat() if self.approval_timestamp else None,
+            "_node_class": "IdentityNode"
+        }
+        
+        return GraphNode(
+            id="agent/identity",  # Always the same ID - there's only one identity
+            type=self.type,
+            scope=self.scope,
+            attributes=extra_fields,
+            version=self.modification_count + 1,  # Version tracks modifications
+            updated_by=self.updated_by,
+            updated_at=self.updated_at
+        )
+    
+    @classmethod
+    def from_graph_node(cls, node: GraphNode) -> 'IdentityNode':
+        """Reconstruct from GraphNode."""
+        # Handle both dict and GraphNodeAttributes
+        if isinstance(node.attributes, dict):
+            attrs = node.attributes
+        elif hasattr(node.attributes, 'model_dump'):
+            attrs = node.attributes.model_dump()
+        else:
+            raise ValueError(f"Invalid attributes type: {type(node.attributes)}")
+        
+        return cls(
+            # Base fields from GraphNode
+            id=node.id,
+            type=node.type,
+            scope=node.scope,
+            attributes=node.attributes,
+            version=node.version,
+            updated_by=node.updated_by or attrs.get("updated_by", "system"),
+            updated_at=cls._deserialize_datetime(node.updated_at or attrs.get("updated_at")),
+            # Required fields
+            created_at=cls._deserialize_datetime(attrs.get("created_at")),
+            created_by=attrs.get("created_by", "system"),
+            # Identity fields
+            agent_id=attrs["agent_id"],
+            identity_hash=attrs["identity_hash"],
+            trust_level=attrs.get("trust_level", 0.5),
+            authorization_scope=attrs.get("authorization_scope", "standard"),
+            parent_agent_id=attrs.get("parent_agent_id"),
+            # Core profile fields
+            description=attrs["description"],
+            role_description=attrs["role_description"],
+            domain_specific_knowledge=attrs.get("domain_specific_knowledge", {}),
+            areas_of_expertise=attrs.get("areas_of_expertise", []),
+            startup_instructions=attrs.get("startup_instructions"),
+            # Capabilities and permissions
+            permitted_actions=attrs.get("permitted_actions", []),
+            restricted_capabilities=attrs.get("restricted_capabilities", []),
+            # Identity metadata
+            identity_created_at=cls._deserialize_datetime(attrs["identity_created_at"]),
+            identity_modified_at=cls._deserialize_datetime(attrs["identity_modified_at"]),
+            modification_count=attrs.get("modification_count", 0),
+            creator_agent_id=attrs["creator_agent_id"],
+            lineage_trace=attrs.get("lineage_trace", []),
+            approval_required=attrs.get("approval_required", True),
+            approved_by=attrs.get("approved_by"),
+            approval_timestamp=cls._deserialize_datetime(attrs.get("approval_timestamp")) if attrs.get("approval_timestamp") else None
+        )
+    
+    @classmethod
+    def from_agent_identity_root(cls, identity: 'AgentIdentityRoot', time_service) -> 'IdentityNode':
+        """Create from AgentIdentityRoot object."""
+        from ciris_engine.schemas.runtime.core import AgentIdentityRoot
+        
+        now = time_service.now()
+        return cls(
+            agent_id=identity.agent_id,
+            identity_hash=identity.identity_hash,
+            trust_level=identity.trust_level,
+            authorization_scope=identity.authorization_scope,
+            parent_agent_id=identity.parent_agent_id,
+            # Core profile
+            description=identity.core_profile.description,
+            role_description=identity.core_profile.role_description,
+            domain_specific_knowledge=identity.core_profile.domain_specific_knowledge,
+            areas_of_expertise=identity.core_profile.areas_of_expertise,
+            startup_instructions=identity.core_profile.startup_instructions,
+            # Capabilities and permissions
+            permitted_actions=identity.permitted_actions,
+            restricted_capabilities=identity.restricted_capabilities,
+            # Metadata
+            identity_created_at=identity.identity_metadata.created_at if identity.identity_metadata else now,
+            identity_modified_at=identity.identity_metadata.last_modified if identity.identity_metadata else now,
+            modification_count=identity.identity_metadata.modification_count if identity.identity_metadata else 0,
+            creator_agent_id=identity.identity_metadata.creator_agent_id if identity.identity_metadata else "system",
+            lineage_trace=identity.identity_metadata.lineage_trace if identity.identity_metadata else ["system"],
+            approval_required=identity.identity_metadata.approval_required if identity.identity_metadata else True,
+            approved_by=identity.identity_metadata.approved_by if identity.identity_metadata else None,
+            approval_timestamp=identity.identity_metadata.approval_timestamp if identity.identity_metadata else None,
+            created_at=now,
+            updated_at=now,
+            created_by="system",
+            updated_by="system"
+        )
+    
+    def to_agent_identity_root(self) -> 'AgentIdentityRoot':
+        """Convert back to AgentIdentityRoot."""
+        from ciris_engine.schemas.runtime.core import AgentIdentityRoot, CoreProfile, IdentityMetadata
+        
+        return AgentIdentityRoot(
+            agent_id=self.agent_id,
+            identity_hash=self.identity_hash,
+            core_profile=CoreProfile(
+                description=self.description,
+                role_description=self.role_description,
+                domain_specific_knowledge=self.domain_specific_knowledge,
+                areas_of_expertise=self.areas_of_expertise,
+                startup_instructions=self.startup_instructions,
+                dsdma_prompt_template=None,
+                csdma_overrides={},
+                action_selection_pdma_overrides={},
+                last_shutdown_memory=None
+            ),
+            identity_metadata=IdentityMetadata(
+                created_at=self.identity_created_at,
+                last_modified=self.identity_modified_at,
+                modification_count=self.modification_count,
+                creator_agent_id=self.creator_agent_id,
+                lineage_trace=self.lineage_trace,
+                approval_required=self.approval_required,
+                approved_by=self.approved_by,
+                approval_timestamp=self.approval_timestamp,
+                version="1.0.0",
+                previous_versions=[]
+            ),
+            permitted_actions=self.permitted_actions,
+            restricted_capabilities=self.restricted_capabilities,
+            capability_definitions={},
+            trust_level=self.trust_level,
+            authorization_scope=self.authorization_scope,
+            parent_agent_id=self.parent_agent_id,
+            child_agent_ids=[]
         )

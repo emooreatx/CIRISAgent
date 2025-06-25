@@ -3,7 +3,7 @@ Schemas for identity variance and behavioral pattern tracking.
 
 Replaces Dict[str, Any] in identity_variance_monitor.py and configuration_feedback_loop.py.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pydantic import Field

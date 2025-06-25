@@ -5,8 +5,8 @@ Replaces Dict[str, Any] in service method calls.
 """
 
 from typing import (
-    Dict,
     Any,
+    Dict,
     List,
     Optional,
     Type

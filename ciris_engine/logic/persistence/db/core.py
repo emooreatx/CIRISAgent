@@ -22,7 +22,7 @@ def get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     """Establishes a connection to the SQLite database with foreign key support."""
     if db_path is None:
         db_path = get_sqlite_db_full_path()
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn

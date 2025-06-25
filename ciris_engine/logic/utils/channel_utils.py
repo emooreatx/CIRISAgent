@@ -6,9 +6,6 @@ def create_channel_context(
     channel_id: Union[str, ChannelContext, None],
     channel_name: Optional[str] = None,
     channel_type: Optional[str] = None,
-    is_monitored: bool = True,
-    is_deferral: bool = False,
-    is_home: bool = False,
 ) -> Optional[ChannelContext]:
     """
     Create a ChannelContext from various inputs.
