@@ -1,0 +1,66 @@
+name: Update Version Info
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Mondays at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-version:
+    name: Update BUILD_INFO.txt
+    runs-on: ubuntu-latest
+    if: github.repository == 'CIRISai/CIRISAgent'
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Generate version info
+        env:
+          CIRIS_BUILD_SIGN_KEY: ${{ secrets.CIRIS_BUILD_SIGN_KEY }}
+        run: |
+          python version.py
+          echo "Generated BUILD_INFO.txt:"
+          cat BUILD_INFO.txt
+      
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet BUILD_INFO.txt 2>/dev/null; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes to BUILD_INFO.txt"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "BUILD_INFO.txt has changes"
+          fi
+      
+      - name: Create Pull Request
+        if: steps.check_changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: Update BUILD_INFO.txt"
+          title: "chore: Update BUILD_INFO.txt"
+          body: |
+            This PR updates the BUILD_INFO.txt file with the latest version information.
+            
+            - Code Hash: Generated from SHA-256 of all Python source files
+            - Build Time: Current timestamp
+            - Git Commit: Latest commit hash
+            - Git Branch: Current branch
+            
+            This is an automated update.
+          branch: update-build-info
+          delete-branch: true
+          base: main
