@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from ciris_engine.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
 
 
 @pytest.mark.live

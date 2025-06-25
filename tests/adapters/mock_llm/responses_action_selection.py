@@ -1,15 +1,15 @@
-# Protocol-facing mock responses for ActionSelectionResult and related types
-from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.action_params_v1 import (
+# Protocol-facing mock responses for ActionSelectionDMAResult and related types
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.actions.parameters import (
     SpeakParams, MemorizeParams, RecallParams, PonderParams,
     ObserveParams, ToolParams, RejectParams, DeferParams,
     ForgetParams
 )
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
 
 def action_selection(context=None, messages=None):
-    """Mock ActionSelectionResult with passing values and protocol-compliant types."""
+    """Mock ActionSelectionDMAResult with passing values and protocol-compliant types."""
     context = context or []
     messages = messages or []
     
@@ -20,7 +20,7 @@ def action_selection(context=None, messages=None):
         params = {}
         rationale = "Completing follow-up thought (detected via is_followup_thought)"
         
-        result = ActionSelectionResult(
+        result = ActionSelectionDMAResult(
             selected_action=action,
             action_parameters=params,
             rationale=rationale,
@@ -362,7 +362,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
     # Use custom rationale if provided, otherwise use the generated rationale
     final_rationale = custom_rationale if custom_rationale else rationale
     
-    result = ActionSelectionResult(
+    result = ActionSelectionDMAResult(
         selected_action=action,
         action_parameters=params,
         rationale=final_rationale,

@@ -2,9 +2,11 @@ import asyncio
 import pytest
 import tempfile
 import os
-from ciris_engine.services.memory_service import LocalGraphMemoryService
-from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
-from ciris_engine.schemas.memory_schemas_v1 import MemoryQuery
+from unittest.mock import Mock, AsyncMock
+from datetime import datetime, timezone
+from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
+from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.services.operations import MemoryQuery
 
 @pytest.mark.asyncio
 async def test_memory_operations():
@@ -14,7 +16,16 @@ async def test_memory_operations():
         db_path = tmp_file.name
     
     try:
-        memory = LocalGraphMemoryService(db_path)
+        # Create mock dependencies
+        mock_secrets_service = Mock()
+        # Return the JSON string and empty secret refs
+        mock_secrets_service.process_incoming_text = AsyncMock(return_value=('{"value": "test_data"}', []))
+        mock_secrets_service.process_outgoing_data = AsyncMock(return_value={"value": "test_data"})
+        
+        mock_time_service = Mock()
+        mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
+        
+        memory = LocalGraphMemoryService(db_path, secrets_service=mock_secrets_service, time_service=mock_time_service)
         await memory.start()
         
         # Test memorize
@@ -41,7 +52,7 @@ async def test_memory_operations():
         assert results[0].attributes["value"] == "test_data"
         
         # Test forget - forget takes a GraphNode
-        forget_node = GraphNode(id="test_key", type=NodeType.CONCEPT, scope=GraphScope.LOCAL)
+        forget_node = GraphNode(id="test_key", type=NodeType.CONCEPT, scope=GraphScope.LOCAL, attributes={})
         result = await memory.forget(forget_node)
         assert result.status.value == "ok"
         

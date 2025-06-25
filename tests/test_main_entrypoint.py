@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 import main as main_module
-from ciris_engine.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
 
 
 def test_main_function_existence():
@@ -21,9 +21,9 @@ def test_helper_functions_exist():
 def test_ciris_runtime_initialization(monkeypatch):
     """Test that CIRISRuntime can be initialized with different adapter types."""
     mock_runtime = MagicMock()
-    monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime", MagicMock(return_value=mock_runtime))
+    monkeypatch.setattr("ciris_engine.logic.runtime.ciris_runtime.CIRISRuntime", MagicMock(return_value=mock_runtime))
     
-    from ciris_engine.runtime.ciris_runtime import CIRISRuntime
+    from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
     
     # Test Discord adapter type
     CIRISRuntime(adapter_types=["discord"], profile_name="test")

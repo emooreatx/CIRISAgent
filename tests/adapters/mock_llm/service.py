@@ -4,7 +4,7 @@ import instructor
 import logging
 
 from ciris_engine.protocols.services import LLMService
-from ciris_engine.schemas.foundational_schemas_v1 import ResourceUsage
+from ciris_engine.schemas.runtime.resources import ResourceUsage
 from pydantic import BaseModel
 
 from .responses import create_response

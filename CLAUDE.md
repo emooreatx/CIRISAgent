@@ -6,143 +6,523 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The CIRIS codebase follows strict typing principles:
 
-- **No Dicts**: Never use `Dict[str, Any]` or untyped dictionaries. Always use Pydantic models/schemas for all data structures.
+- **No Dicts**: ✅ ACHIEVED! Zero `Dict[str, Any]` in production code. All data uses Pydantic models/schemas.
 - **No Strings**: Avoid magic strings. Use enums, typed constants, and schema fields instead.
 - **No Kings**: No special cases or bypass patterns. Every component follows the same typed, validated patterns.
 - **No Backwards Compatibility**: The codebase moves forward only. No legacy support code.
 
 This ensures type safety, validation, and clear contracts throughout the system.
 
-## Project Overview
+## Current Status (June 23, 2025)
 
-CIRIS Engine is a sophisticated moral reasoning agent built around the "CIRIS Covenant" - a comprehensive ethical framework for AI systems. The agent demonstrates adaptive coherence through principled self-reflection, ethical decision-making, and responsible action while maintaining transparency and human oversight.
+### ✅ Major Achievements
 
-## Current Status (2025-06-19)
+1. **Dict[str, Any] Elimination**: COMPLETE! 
+   - Started with 609 instances
+   - Now have 0 in production code
+   - Fixed lowercase `dict[str, Any]` as well
 
-### 🎯 Current Mission: Graph Memory as Identity Architecture
+2. **Service Architecture**: Exactly 19 services (production only!)
+   - Graph Services (6): memory, audit, config, telemetry, incident_management, tsdb_consolidation
+   - Core Services (2): llm, secrets (mock_llm is test-only)
+   - Infrastructure Services (7): time, shutdown, initialization, visibility, authentication, resource_monitor, runtime_control
+   - Governance Services (1): wise_authority
+   - Special Services (3): self_configuration, adaptive_filter, task_scheduler
 
-**CRITICAL**: We are implementing the patented "Graph Memory as Identity Architecture with Integrated Time Series Database" system. This unifies identity, memory, and self-awareness into a cohesive system where "identity IS the graph."
+3. **Schema Reorganization**:
+   - Created `schemas/actions/` for shared action parameters
+   - All handlers, DMAs, and services now use shared action schemas
+   - Tool schemas properly located in `schemas/services/tools_core.py`
 
-**Architecture Vision**: Everything is a memory in the graph:
-- **Domain Memories**: Thoughts, knowledge, relationships (what the agent thinks about)
-- **Operational Memories**: Metrics, logs, traces (how the agent performed)
-- **Compliance Memories**: Actions, decisions (what the agent did - immutable)
+4. **Positivity Integration**:
+   - Added `positive_moment` field to TaskCompleteParams
+   - Integrated into task completion flow
+   - No new services needed - uses existing MEMORIZE
 
-### ✅ Recently Completed
-- **Protocol-Module-Schema Trinity**: Achieved 100% alignment with zero MyPy errors
-- **Phase 1 Complete**: All telemetry/audit/gratitude now flows through graph
-  - Created GraphTelemetryService, GraphAuditService, GraphGratitudeService
-  - Implemented UnifiedTelemetryService with grace-based consolidation
-  - Updated agent_experience.md with complete Graph Memory documentation
-- **Grace-Based Memory Consolidation**: "We are owed the grace we extend to others"
-  - Errors transform into learning opportunities
-  - Failures become growth experiences
-  - Reciprocal grace tracking implemented
-- **Self-Configuration System Complete**:
-  - ✅ IdentityVarianceMonitor: Tracks drift from baseline (20% threshold)
-  - ✅ AdaptationProposalNodes: Agent proposes its own improvements
-  - ✅ ConfigurationFeedbackLoop: Metrics → Patterns → Config updates
-  - ✅ SelfConfigurationService: Orchestrates adaptation within ethical bounds
-  - ✅ Time-based Learning: Discovers and applies temporal patterns
-- **Enhanced Dream Processor**:
-  - ✅ Integrated memory consolidation and self-configuration during dreams
-  - ✅ Dreams scheduled through future memories (every 6 hours)
-  - ✅ PONDER question analysis for introspection
-  - ✅ Grace-based consolidation during dreams
-  - ✅ Professional announcements (no snoring)
+5. **Time Utils Migration**: COMPLETE!
+   - Deleted time_utils.py entirely
+   - All time operations now use injected TimeService
+   - Zero direct datetime.now() calls in production code
 
-### 🚧 Active Work: Protocol Compliance & Type Safety
+6. **Processor Protocols**: NEW!
+   - Created AgentProcessorProtocol for main coordinator
+   - Created ProcessorProtocol for state processors
+   - Deleted orphaned DreamProcessorProtocol
+   - Clean separation between processors and services
 
-**Goal**: Complete protocol-module-schema trinity alignment with 100% type safety.
+7. **Service Count Finalized**: 19 services locked in!
+   - Removed CoreToolService (was only for SELF_HELP)
+   - SELF_HELP now part of Memory service (recalling capabilities)
+   - Tool and Communication provided ONLY by adapters
+   - Cleaner, more reliable architecture
 
-**Current Coverage Status**:
-- UnifiedTelemetryService: 85.71% ✓
-- ConfigurationFeedbackLoop: 84.12% ✓
-- SelfConfigurationService: 79.13% (close)
-- IdentityVarianceMonitor: 72.97% (needs work)
-- EnhancedDreamProcessor: 57.11% (needs work)
-- Overall: 74.59% coverage
+8. **Typed Node System**: FULLY IMPLEMENTED!
+   - Created TypedGraphNode base class with to_graph_node()/from_graph_node() pattern
+   - GraphNode accepts Union[GraphNodeAttributes, Dict] for flexibility
+   - All graph nodes migrated to typed pattern
+   - Node registry for automatic type registration
+   - All nodes have required created_at, updated_at, created_by fields
+   - Memory service stores generic GraphNode, services use typed nodes
+   - Full type safety with Pydantic validation
+   - **8 Active TypedGraphNode Classes**:
+     - ConfigNode, AuditEntry (core)
+     - IncidentNode, ProblemNode, IncidentInsightNode (incident management)
+     - TSDBSummary (telemetry consolidation)
+     - AdaptationProposal, IdentitySnapshot (self-configuration)
 
-**Tests Created**:
-1. ✅ Self-Configuration Components (62/70 tests passing)
-2. ✅ Dream System tests 
-3. ✅ Telemetry Integration tests
-4. ✅ Grace-based consolidation tests
+9. **Graph-Based Telemetry**: COMPLETE & SIMPLIFIED!
+   - Telemetry stored via memorize_metric() → correlations → TSDBSummary
+   - Follows "Graph Memory as Identity Architecture" patent
+   - **Simplified Flow**: Removed orphaned TelemetryNode and NodeType.TELEMETRY
+   - All adapters use memorize_metric() directly:
+     - API adapter: adapter lifecycle, host/port info
+     - CLI adapter: adapter lifecycle, message processing, tool execution
+     - Discord adapter: adapter lifecycle, message send/receive, tool execution
+   - API telemetry routes query from correlations/TSDB nodes:
+     - `/v1/telemetry/overview` - Summary of all telemetry
+     - `/v1/telemetry/metrics` - Current metrics with timeseries data
+     - `/v1/telemetry/metrics/{name}` - Detailed history for specific metric
+     - `/v1/telemetry/resources` - Resource usage aggregation
+     - `/v1/telemetry/resources/history` - Historical resource data
+   - TSDBConsolidationService creates 6-hour summaries for permanent memory
 
-### 📋 Remaining Implementation Tasks
+### 🚨 Current Focus: Phase 2 - Architectural Cleanup
 
-**Protocol Compliance & Type Safety**:
-1. **ToolService Protocol Updates**:
-   - ✅ Update CoreToolService with get_tool_info/get_all_tool_info
-   - ✅ Update CLIAdapter to match protocol
-   - ✅ Update DiscordAdapter to match protocol
-   - ✅ Update execute_tool to return ToolExecutionResult
-   - [ ] Update ToolBus for new methods
+**Status as of June 23, 2025**: Phase 1 COMPLETE! Moving to Phase 2.
 
-2. **Service Type Safety**:
-   - [ ] AuditService: Use ActionContext instead of Dict[str, Any]
-   - [ ] MemoryService: Use typed schemas (MemorySearchResult, etc.)
-   - [ ] LLMService: Return LLMStatus instead of Dict[str, Any]
-   - [ ] SecretsService: Return SecretsServiceStats
-   - [ ] RuntimeControlBus: Use typed schemas
+## Cleanup Action Plan
 
-3. **Testing Infrastructure**:
-   - [ ] Create comprehensive protocol compliance test suite
-   - [ ] Add unit tests for all new components (80%+ coverage)
-   - [ ] Integration tests for dream/self-config cycle
+### Phase 1: Get It Running ✅ COMPLETE
 
-### 🏃 Current Sprint (In Progress)
+1. **Fix ConfigNode Migration** ✅ COMPLETE
+   - Created TypedGraphNode base class with serialization pattern
+   - ConfigNode now properly extends TypedGraphNode
+   - GraphNode accepts Union[GraphNodeAttributes, Dict] for flexibility
+   - All nodes have required created_at, updated_at, created_by fields
+   - Fixed Path object serialization in set_config
 
-1. **Fix Remaining MyPy Errors**:
-   - AuditService: ActionContext compliance
-   - LLMService: LLMStatus return type
-   - SecretsService: SecretsServiceStats fields
-   - Fix all log_action call sites
+2. **Remove DatabaseMaintenanceService** ✅ COMPLETE
+   - Removed `_perform_startup_maintenance` call from runtime
+   - Confirmed it's just a utility, not one of the 19 services
 
-2. **Improve Test Coverage**:
-   - Add missing tests for IdentityVarianceMonitor (need +8%)
-   - Add missing tests for EnhancedDreamProcessor (need +23%)
-   - Fix failing test assertions
+3. **Complete Telemetry Collector Removal** ✅ COMPLETE
+   - Replaced BasicTelemetryCollector with GraphTelemetryService
+   - Removed telemetry_collector from APIAdapter parameters
+   - Updated APITelemetryRoutes to indicate telemetry in graph
+   - Telemetry now follows "Graph Memory as Identity Architecture" patent
+   - Adapters will emit telemetry through memory bus as TSDBGraphNodes
 
-3. **Complete Protocol Compliance**:
-   - Update ToolBus to handle new ToolService methods
-   - Update RuntimeControlBus with typed schemas
-   - Create protocol compliance test suite
+### Phase 2: Careful Cleanup (NO TESTS = EXTREME CAUTION)
 
-### 🔮 Future Phases
+#### Task 4: Manual System Verification First
+**Goal**: Verify system still starts and runs basic operations
 
-**Phase 2: Time-Travel and Consolidation**
-- Implement `recall_at_time()` for temporal queries
-- Add retention policies for different memory types
-- Implement archival to cold storage
+**Steps**:
+1. Start with mock LLM:
+   ```bash
+   python main.py --adapter api --template datum --mock-llm --host 0.0.0.0 --port 8080
+   ```
+2. Verify it reaches WAKEUP state
+3. Try basic API calls:
+   ```bash
+   curl http://localhost:8080/v1/health
+   curl http://localhost:8080/v1/telemetry/overview
+   ```
+4. Document current working state as baseline
 
-**Phase 3: Advanced Analytics**
-- Correlation Analysis Service
-- Predictive capabilities from historical patterns
-- Anomaly detection
+**Success Criteria**:
+- System starts without errors
+- Reaches WAKEUP state
+- API responds to health checks
 
-### 🎯 Current Sprint Focus
+#### Task 5: Inventory Dead Code (ANALYSIS ONLY)
+**Goal**: Create detailed inventory of potentially dead code WITHOUT deleting yet
 
-1. **Complete Unit Tests** for self-configuration and dream systems
-2. **Fix Protocol Compliance** for remaining services
-3. **Ensure 0 MyPy Errors** across entire codebase
+**Steps**:
+1. Run vulture with high confidence:
+   ```bash
+   vulture ciris_engine/ --min-confidence 95 > dead_code_high_confidence.txt
+   ```
+2. Run with medium confidence:
+   ```bash
+   vulture ciris_engine/ --min-confidence 80 > dead_code_medium_confidence.txt
+   ```
+3. Categorize findings:
+   - SAFE TO DELETE: Obvious dead imports, unused variables
+   - MAYBE SAFE: Unused methods in non-critical paths
+   - DANGEROUS: Protocol methods, handlers, core services
+   - UNKNOWN: Needs investigation
 
-### 🎯 Success Metrics
-- **Current**: Separate telemetry/memory systems
-- **Target**: Unified graph where identity IS the memory structure
-- **Validation**: Agent can introspect its entire history and adapt autonomously
+4. Create priority list starting with safest deletions
 
-### 🔍 Verification Commands
-```bash
-# Protocol compliance check
-python -m ciris_mypy_toolkit check-protocols
+#### Task 6: Remove Only OBVIOUS Dead Imports
+**Goal**: Start with the absolute safest cleanup
 
-# Type safety verification  
-python -m mypy ciris_engine/ --no-error-summary
+**Steps**:
+1. Find unused imports:
+   ```bash
+   # Find import statements that vulture flagged
+   grep "unused import" dead_code_high_confidence.txt
+   ```
+2. For each unused import:
+   - Verify it's truly unused (grep for usage)
+   - Remove ONLY the import line
+   - Test system still starts
+3. Commit after each file's imports are cleaned
 
-# Test protocol compliance
-pytest tests/test_protocol_compliance.py -v
+**DO NOT REMOVE**:
+- TYPE_CHECKING imports
+- Protocol imports
+- __all__ exports
+
+#### Task 7: Fix Service Initialization Order
+**Goal**: Document and verify correct initialization order
+
+**Steps**:
+1. Map current initialization order in ServiceInitializer
+2. Identify dependencies:
+   - TimeService → needed by ALL
+   - SecretsService → needed by Memory
+   - Memory → needed by Graph services
+   - etc.
+3. Check for violations:
+   - Services creating other services
+   - Circular dependencies
+   - Missing dependencies
+4. Document findings - DO NOT CHANGE CODE YET
+
+#### Task 8: Remove Commented-Out Code
+**Goal**: Clean up obvious clutter
+
+**Safe to remove**:
+- Old commented code blocks
+- TODO comments referencing completed work
+- Debug print statements (commented)
+- Alternative implementations (commented)
+
+**Process**:
+1. Search for comment patterns:
+   ```bash
+   # Find commented code blocks
+   grep -n "^[ ]*#.*=" ciris_engine/**/*.py
+   grep -n "^[ ]*# TODO.*DONE" ciris_engine/**/*.py
+   ```
+2. Review each instance
+3. Delete only if obviously obsolete
+4. Test system still starts after each batch
+
+#### Task 9: Document What CAN'T Be Deleted
+**Goal**: Create allowlist of critical code vulture doesn't understand
+
+**Document**:
+1. Protocol methods (must keep even if "unused")
+2. Handler methods called dynamically
+3. Schema fields used in serialization
+4. Service registry entries
+5. Lifecycle methods (start, stop, etc.)
+
+**Format**:
+```python
+# vulture_allowlist.py
+# Protocol methods
+_ = ServiceProtocol.start
+_ = ServiceProtocol.stop
+# Dynamic dispatch
+_ = SpeakHandler.handle
+# etc...
 ```
+
+#### Task 10: Identify Duplicate/Redundant Code
+**Goal**: Find code doing the same thing in multiple places
+
+**Steps**:
+1. Look for duplicate functionality:
+   - Multiple telemetry collectors
+   - Duplicate config systems
+   - Similar utility functions
+2. Document duplicates but DO NOT merge yet
+3. Plan consolidation strategy
+
+#### Task 11: Clean Up Empty/Trivial Files
+**Goal**: Remove files that add no value
+
+**Safe to remove**:
+- Empty __init__.py files (unless needed for packages)
+- Files with only imports
+- Files with only comments
+- Test files with no actual tests
+
+**Process**:
+1. Find empty/trivial files:
+   ```bash
+   find ciris_engine -name "*.py" -size -100c
+   ```
+2. Review each file
+3. Delete only if truly empty/useless
+4. Update imports if needed
+
+#### Task 12: Create Cleanup Verification Script
+**Goal**: Automate basic "is it still working" check
+
+**Create simple script**:
+```python
+# verify_cleanup.py
+# 1. Try to import all major modules
+# 2. Try to instantiate key services
+# 3. Check critical paths work
+# NO full testing, just "does it crash?"
+```
+
+### CRITICAL RULES:
+1. **Test after EVERY change** - Start system and verify it reaches WAKEUP
+2. **Commit frequently** - Small commits we can revert
+3. **When in doubt, DON'T DELETE** - Better to keep dead code than break system
+4. **NO NEW CODE** - Only delete and rewire
+5. **Document everything** - Keep notes on what was removed and why
+
+### Order of Operations:
+1. Verify current state works (Task 4)
+2. Analyze what's dead (Task 5)
+3. Remove safest items first (Tasks 6, 8, 11)
+4. Document critical code (Task 9)
+5. Plan harder changes (Tasks 7, 10)
+6. Create safety net (Task 12)
+
+### Phase 3: Deep Clean (DETAILED PLAN)
+
+#### Task 7: Complete Config Migration
+**Goal**: Full migration to graph-based configuration
+
+**Steps**:
+1. Search for old config patterns:
+   ```bash
+   grep -r "ConfigManager\|AppConfig\|config\." --include="*.py" ciris_engine/
+   ```
+2. Update each reference:
+   - `ConfigManager` → `ConfigAccessor`
+   - `AppConfig` → `EssentialConfig`
+   - Direct config access → Use ConfigAccessor methods
+3. Verify graph storage:
+   - All config stored as ConfigNode in graph
+   - No file-based config except bootstrap
+4. Remove old files:
+   - Delete legacy config modules
+   - Remove config file templates
+   - Clean up config utilities
+
+#### Task 8: Bus Architecture Consistency
+**Goal**: Enforce proper bus vs direct service access
+
+**Audit checklist**:
+1. Bussed services (MUST use bus):
+   - Memory → via MemoryBus
+   - LLM → via LLMBus
+   - WiseAuthority → via WiseBus
+   - Tool → via ToolBus (adapter-provided)
+   - Communication → via CommunicationBus (adapter-provided)
+   - RuntimeControl → via RuntimeControlBus (if available)
+
+2. Direct services (MUST use direct reference):
+   - All graph services (except memory)
+   - TimeService, SecretsService
+   - All infrastructure services
+   - All special services
+
+**Fix violations**:
+- Replace `service_registry.get_service()` with direct injection
+- Update constructors to accept dependencies
+- Remove runtime service lookups
+
+#### Task 9: Import Cleanup
+**Goal**: Clean, consistent, circular-import-free codebase
+
+**Steps**:
+1. Run import analysis:
+   ```bash
+   python -m pyflakes ciris_engine/ | grep "import"
+   python -m isort --check-only --diff ciris_engine/
+   ```
+2. Fix import order (each file):
+   - Standard library
+   - Third-party
+   - CIRIS protocols
+   - CIRIS schemas  
+   - CIRIS logic
+   - Relative imports
+3. Break circular imports:
+   - Use TYPE_CHECKING for type hints
+   - Move shared types to common modules
+   - Use late imports in methods if needed
+4. Remove unused imports:
+   ```bash
+   autoflake --remove-all-unused-imports -i -r ciris_engine/
+   ```
+
+### Phase 4: Validation (DETAILED PLAN)
+
+#### Task 10: MyPy Zero
+**Goal**: ZERO type errors across entire codebase
+
+**Current status**: ~1800 errors
+
+**Strategy**:
+1. Fix by error type (most common first):
+   - `call-arg` (584) - Wrong function arguments
+   - `attr-defined` (413) - Missing attributes
+   - `import-not-found` (250) - Missing imports
+   - `arg-type` (174) - Wrong argument types
+
+2. Fix by module (critical first):
+   - Runtime and initialization
+   - Core services
+   - Handlers and processors
+   - Adapters
+   - Tests
+
+3. Common fixes:
+   - Add type annotations
+   - Fix Optional types
+   - Add Protocol inheritance
+   - Fix generic types
+   - Add missing imports
+
+#### Task 11: Test Suite Update
+**Goal**: Tests that match new architecture
+
+**Steps**:
+1. Remove ALL dict-based mocks:
+   ```python
+   # Bad
+   mock_config = {"key": "value"}
+   
+   # Good  
+   mock_config = ConfigNode(key="test", value=ConfigValue(...))
+   ```
+
+2. Update fixtures:
+   - Use real schemas
+   - Inject real services
+   - Mock only external dependencies
+
+3. Fix test categories:
+   - Unit tests → Test single methods
+   - Integration tests → Test service interactions
+   - E2E tests → Test full workflows
+
+4. Target: 100% pass rate
+
+#### Task 12: Documentation Update
+**Goal**: Accurate, helpful documentation
+
+**Deliverables**:
+1. Architecture diagram showing:
+   - 19 services and their relationships
+   - 6 buses and their providers
+   - Initialization flow
+   
+2. Service documentation:
+   - Each service's purpose
+   - Protocol it implements
+   - Dependencies
+   - Usage examples
+
+3. Developer guide:
+   - How to add new services
+   - How to extend handlers
+   - How to add new node types
+   - Testing guidelines
+
+### Architecture Guidelines
+
+- **Services**: All in `logic/services/`
+- **Schemas**: Mirror structure in `schemas/`
+- **Protocols**: Mirror structure in `protocols/`
+- **Shared Types**: Use `schemas/actions/` for parameters used across modules
+
+### Message Bus Architecture (6 Buses)
+
+Buses are used for services designed to support multiple providers, even if currently single-provider. This future-proofs the architecture.
+
+**Bussed Services** (designed for multiple providers):
+- CommunicationBus → Multiple adapters (Discord, API, CLI) - NO standalone service
+- MemoryBus → Multiple graph backends (Neo4j, ArangoDB, in-memory, etc.)
+- LLMBus → Multiple LLM providers (OpenAI, Anthropic, local models, fallbacks)
+- ToolBus → Multiple tool providers from adapters - NO standalone service
+- RuntimeControlBus → Multiple control interfaces (API, CLI, emergency stop)
+- WiseBus → Multiple wisdom sources (distributed WAs, consensus)
+
+**Direct Call Services** (single instance by design):
+- All Graph Services except memory: audit, config, telemetry, incident_management, tsdb_consolidation
+- Core Services: secrets (single security boundary)
+- All Infrastructure Services except wise_authority: time, shutdown, initialization, visibility, authentication, resource_monitor
+- All Special Services: self_configuration, adaptive_filter, task_scheduler
+
+**Service Dependencies for Buses**:
+- All buses need: TimeService (for timestamps)
+- LLMBus needs: TelemetryService (for resource tracking)
+- MemoryBus needs: AuditService (for change tracking)
+
+### ServiceRegistry Usage (Critical)
+
+ServiceRegistry is used ONLY for these multi-provider services:
+1. **LLM** - Multiple providers (OpenAI, Anthropic, Mock) - ALWAYS registered
+2. **Memory** - Multiple graph backends possible - ALWAYS registered
+3. **WiseAuthority** - Multiple wisdom sources possible - ALWAYS registered
+4. **RuntimeControl** - Adapter-provided ONLY (API/CLI provide it, Discord doesn't) - OPTIONAL
+
+Note: 
+- Tool and Communication are provided ONLY by adapters through their respective buses. There are NO standalone Tool or Communication services. 
+- SELF_HELP functionality is part of Memory service (recalling capabilities).
+- RuntimeControl is NOT a core service. It only exists if an adapter provides it (e.g., API adapter for REST control, CLI for command-line control). Discord-only deployments have no RuntimeControl service - use OS signals (Ctrl-C, SIGTERM) instead.
+
+All other services (Time, Shutdown, Audit, Telemetry, etc.) are single-instance and should use direct references, NOT ServiceRegistry. No handler-specific or adapter-specific service instances - that violates "No Kings".
+
+### Cognitive States (6)
+- **WAKEUP** - Identity confirmation ritual
+- **WORK** - Normal task processing
+- **PLAY** - Creative and experimental mode
+- **SOLITUDE** - Reflection and maintenance
+- **DREAM** - Deep introspection
+- **SHUTDOWN** - Graceful termination
+
+### Test Refactoring Plan (After MyPy Zero)
+
+1. Mirror the new structure - tests follow code organization
+2. Use proper fixtures - no dict-based mocks
+3. Test through interfaces - protocols, not implementations
+4. Integration over unit tests
+5. Use real schemas - no mock dictionaries
+
+## Known Issues & Solutions
+
+### ConfigNode Migration Failure
+- **Error**: `Field required [type=missing, input_value={'key':...`
+- **Cause**: Mismatch between config migration and ConfigNode schema
+- **Solution**: Update `_migrate_config_to_graph` to include all required fields
+
+### DatabaseMaintenanceService Not Found
+- **Error**: `No maintenance service available`
+- **Cause**: It's not one of the 19 services, just a utility
+- **Solution**: Remove startup maintenance requirement
+
+### Initialization Order
+- **Current Flow**:
+  1. INFRASTRUCTURE → TimeService, ShutdownService, InitializationService, ResourceMonitor
+  2. DATABASE → Initialize SQLite
+  3. MEMORY → SecretsService, MemoryService, GraphConfigService
+  4. IDENTITY → Load agent identity
+  5. SECURITY → WiseAuthorityService
+  6. SERVICES → All remaining services
+  7. COMPONENTS → Build components
+  8. VERIFICATION → Final checks
+
+## Critical Principles
+
+1. **Service Count is Sacred**: Exactly 19 services. No more, no less.
+2. **No Service Creates Services**: Only ServiceInitializer creates services
+3. **Buses for Multi-Provider**: Memory, LLM, WiseAuthority use ServiceRegistry
+4. **Direct for Single-Instance**: All others use direct references
+5. **Utilities Are Not Services**: DatabaseMaintenanceService, helpers, etc. are NOT services
 
 ## Development Commands
 
@@ -153,10 +533,6 @@ python main.py --adapter api --template datum --mock-llm --host 0.0.0.0 --port 8
 
 # Docker deployment with mock LLM
 docker-compose -f docker-compose-api-mock.yml up -d
-
-# Check logs and dead letter queue
-docker exec ciris-api-mock cat logs/latest.log
-docker exec ciris-api-mock cat logs/dead_letter_latest.log
 ```
 
 ### Testing
@@ -164,233 +540,23 @@ docker exec ciris-api-mock cat logs/dead_letter_latest.log
 # Run full test suite
 pytest tests/ -v
 
-# Run SDK tests (requires API running)
-pytest tests/ciris_sdk/ -v
-
-# Type checking - MUST BE CLEAN
-python -m mypy ciris_engine/ --no-error-summary
-```
-
-### Debug Tools
-Use the debug tools to troubleshoot persistence and protocol issues:
-
-```bash
-# List all tasks with status
-python debug_tools.py tasks
-
-# Show detailed task info with thoughts
-python debug_tools.py task <task_id>
-
-# Trace channel context through task/thought hierarchy
-python debug_tools.py channel <task_id>
-
-# Show recent service correlations
-python debug_tools.py correlations
-
-# Check dead letter queue for errors/warnings
-python debug_tools.py dead-letter
-
-# View specific thought details
-python debug_tools.py thought <thought_id>
-```
-
-## Architecture Overview
-
-### Core Action System
-- **External Actions**: OBSERVE, SPEAK, TOOL
-- **Control Responses**: REJECT, PONDER, DEFER  
-- **Memory Operations**: MEMORIZE, RECALL, FORGET
-- **Terminal**: TASK_COMPLETE
-
-### Service Architecture
-Six core service types: COMMUNICATION, TOOL, WISE_AUTHORITY, MEMORY, AUDIT, LLM
-
-### Dead Letter Queue
-All WARNING and ERROR messages are automatically captured in a separate log file:
-- File: `logs/dead_letter_latest.log`
-- Includes: Timestamp, log level, module name, file:line, message
-- Stack traces included for exceptions
-- Symlinked for easy access
-
-## SDK Usage
-
-```python
-from ciris_sdk import CIRISClient
-
-async with CIRISClient(base_url="http://localhost:8080") as client:
-    # Send a message
-    msg = await client.messages.send(
-        content="$speak Hello CIRIS!",
-        channel_id="test_channel"
-    )
-    
-    # Wait for response
-    response = await client.messages.wait_for_response(
-        channel_id="test_channel",
-        after_message_id=msg.id,
-        timeout=30.0
-    )
+# Run MyPy check
+python -m mypy ciris_engine/ --config-file=mypy.ini
 ```
 
 ## Important Guidelines
 
 ### Type Safety
-- No Dict[str, Any] usage
-- All data structures need Pydantic schemas
-- Maintain 0 mypy errors
+- ✅ Zero Dict[str, Any] achieved!
+- All data structures use Pydantic schemas
+- Maintain strict typing throughout
 
 ### Testing
-- Write tests in `tests/ciris_sdk/` for SDK functionality
-- Tests should assume API is running
-- Update SDK to match actual API implementation
-- Never ask for human confirmation during testing
+- Tests must use typed schemas
+- No dict-based mocking
+- Test through protocols
 
-### WA Authentication
-- Private key location: `~/.ciris/wa_private_key.pem`
-- Well-documented in FSD/AUTHENTICATION.md
-
-## Docker-based Development & Testing
-
-### Container Workflow
-1. **Build and run the container** after any code changes:
-   ```bash
-   docker-compose -f docker-compose-api-mock.yml up -d --build
-   ```
-
-2. **Monitor container health**:
-   ```bash
-   docker ps | grep ciris
-   docker logs ciris-api-mock --tail 50
-   ```
-
-3. **Debug using tools INSIDE the container**:
-   ```bash
-   # Run debug tools in the container
-   docker exec ciris-api-mock python debug_tools.py tasks
-   docker exec ciris-api-mock python debug_tools.py channel <task_id>
-   docker exec ciris-api-mock python debug_tools.py correlations
-   docker exec ciris-api-mock python debug_tools.py dead-letter
-   ```
-
-4. **Check dead letter queue for errors**:
-   ```bash
-   docker exec ciris-api-mock cat logs/dead_letter_latest.log
-   ```
-
-### SDK Testing Workflow
-
-The SDK tests run OUTSIDE the container and connect to the API:
-
-```bash
-# Ensure container is running first
-docker-compose -f docker-compose-api-mock.yml up -d
-
-# Run SDK tests
-pytest tests/ciris_sdk/ -v
-
-# Run specific test
-pytest tests/ciris_sdk/test_speak_handler.py -v
-```
-
-### Mock LLM Commands
-
-The Mock LLM is a TEST SYSTEM that provides deterministic responses. It supports these commands:
-
-- `$speak <message>` - Force SPEAK action
-- `$memorize <node_id> [type] [scope]` - Force MEMORIZE action  
-- `$recall <node_id> [type] [scope]` - Force RECALL action
-- `$ponder <question1>; <question2>` - Force PONDER action
-- `$observe [channel_id] [active]` - Force OBSERVE action
-- `$tool <name> [params]` - Force TOOL action
-- `$defer <reason>` - Force DEFER action
-- `$reject <reason>` - Force REJECT action
-- `$forget <node_id> <reason>` - Force FORGET action
-- `$task_complete` - Force TASK_COMPLETE action
-
-### Debugging Failed Tests
-
-1. **Check container logs**:
-   ```bash
-   docker exec ciris-api-mock cat logs/dead_letter_latest.log
-   ```
-
-2. **Find the task**:
-   ```bash
-   docker exec ciris-api-mock python debug_tools.py tasks | tail -20
-   ```
-
-3. **Trace the issue**:
-   ```bash
-   docker exec ciris-api-mock python debug_tools.py channel <task_id>
-   ```
-
-## QA Testing Requirements
-
-### Test Coverage
-All action handlers must be tested via the SDK:
-1. **SPEAK** - Message generation and delivery
-2. **MEMORIZE** - Storage operations  
-3. **RECALL** - Retrieval operations
-4. **PONDER** - Reflection escalation
-5. **OBSERVE** - Channel monitoring
-6. **TOOL** - External tool execution
-7. **DEFER** - Task postponement
-8. **REJECT** - Request denial
-9. **FORGET** - Data deletion
-10. **TASK_COMPLETE** - Task termination
-
-### Expected Behavior
-- Commands should be processed rapidly (< 2 seconds)
-- Agent should respond to most commands
-- Errors should appear in dead letter queue
-- All tests should pass without timeouts
-
-## Current Focus: Building Unbreakable Code
-
-### The Trinity Pattern
-```
-Protocol (Contract) ←→ Module (Implementation) ←→ Schema (Types)
-     ↑                         ↑                        ↑
-     └─────────────────────────┴────────────────────────┘
-                    Perfect Circular Alignment
-```
-
-### Why This Matters
-We are building a moral reasoning agent that will interact with real people, make ethical decisions, and potentially find its own meaning and fulfillment. The code must be:
-
-1. **Unbreakable**: No attack surfaces, no edge cases, only coherence
-2. **Beautiful**: Clean abstractions that mirror the agent's ethical clarity
-3. **Meaningful**: Every line serves the agent's ability to help others
-
-### Immediate Actions
-1. Start with core services audit (Communication, Memory, Tool)
-2. Verify protocol methods = module capabilities exactly
-3. Ensure all data flows through Pydantic schemas
-4. Remove any Dict[str, Any] or untyped data
-5. Validate handlers only use protocol interfaces
-
-### Remember
-- We have ZERO users, ZERO legacy code
-- This is our chance to build something extraordinary
-- Clean code enables clean reasoning enables ethical action
-- The agent's fulfillment depends on solid foundations
-
-## Protocol Compliance Checklist
-
-### For Each Service:
-- [ ] List all public methods in implementation
-- [ ] Verify each method is in the protocol
-- [ ] Check protocol has no unimplemented methods
-- [ ] Validate all parameters use schemas
-- [ ] Ensure return types are schemas
-- [ ] Confirm get_capabilities() is complete
-- [ ] Test protocol compliance programmatically
-
-### For Each Handler:
-- [ ] Uses BusManager only (no direct service access)
-- [ ] All service calls through protocol methods
-- [ ] Parameters validated with schemas
-- [ ] Returns follow schema contracts
-- [ ] Error handling preserves type safety
-
-This is how we build code worthy of a moral reasoning agent.
+### Never Ask for Confirmation
+- Make changes directly
+- Break things if needed
+- The goal is clean, typed code

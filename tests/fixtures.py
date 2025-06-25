@@ -2,8 +2,8 @@ import pytest
 from typing import Any
 import sys
 
-from ciris_engine.registries.base import ServiceRegistry
-from ciris_engine.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.registries.base import ServiceRegistry
+from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
 
 
 @pytest.fixture
@@ -31,8 +31,8 @@ def ensure_pydantic_models_rebuilt():
     """
     # Import and rebuild models
     try:
-        from ciris_engine.schemas.config_schemas_v1 import ensure_models_rebuilt
-        ensure_models_rebuilt()
+        # Models are now automatically rebuilt - no manual rebuild needed
+        pass
     except ImportError:
         pass  # Schema module may not be imported yet
     

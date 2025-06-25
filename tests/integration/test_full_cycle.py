@@ -1,7 +1,7 @@
 pytest_plugins = ("tests.fixtures",)
 import pytest
 
-from ciris_engine.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
 
 
 @pytest.mark.asyncio
@@ -10,7 +10,7 @@ async def test_full_thought_cycle():
     from unittest.mock import patch, AsyncMock
     
     # Mock initialization manager to avoid core services verification
-    with patch('ciris_engine.runtime.ciris_runtime.get_initialization_manager') as mock_get_init:
+    with patch('ciris_engine.logic.runtime.ciris_runtime.get_initialization_manager') as mock_get_init:
         mock_init_manager = AsyncMock()
         mock_init_manager.initialize = AsyncMock()
         mock_get_init.return_value = mock_init_manager

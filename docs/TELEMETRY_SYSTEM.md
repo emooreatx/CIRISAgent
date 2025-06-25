@@ -6,31 +6,61 @@ The CIRIS Agent includes a comprehensive telemetry system that provides real-tim
 
 ## Architecture
 
-The telemetry system consists of four main components:
+The telemetry system implements the "Graph Memory as Identity Architecture" patent, where telemetry IS memory stored in the agent's identity graph.
 
-### 1. Core Telemetry Service (`ciris_engine/telemetry/core.py`)
-- **Metric Collection**: Centralized metric gathering and aggregation
-- **Security Filtering**: PII detection and sanitization before storage
-- **Buffer Management**: In-memory buffers with size limits and overflow protection
-- **Thread Safety**: Concurrent-safe operations for multi-threaded environments
+### 1. GraphTelemetryService (`ciris_engine/logic/services/graph/telemetry_service.py`)
+- **Graph-Based Storage**: All metrics stored as TSDBGraphNodes in memory graph
+- **Time-Travel Queries**: Agent can query its historical performance
+- **Self-Introspection**: Metrics accessible through RECALL operations
+- **Identity Integration**: Telemetry is part of the agent's identity, not separate
 
-### 2. Security Filter (`ciris_engine/telemetry/security.py`)
-- **PII Detection**: Automatic detection and removal of personally identifiable information
-- **Metric Sanitization**: Cleaning of error messages and stack traces
-- **Bounds Validation**: Ensuring metrics stay within acceptable ranges
-- **Rate Limiting**: Per-metric-type rate limiting to prevent spam
+### 2. Adapter Telemetry Pattern
+- **No Direct Collection**: Adapters don't have telemetry collectors
+- **Memory Bus Emission**: Adapters emit telemetry as memory operations
+- **Dynamic Adapter Support**: Works with adapters added/removed at runtime
+- **Multi-Adapter Awareness**: Tracks metrics per adapter instance
 
-### 3. Tiered Collectors (`ciris_engine/telemetry/collectors.py`)
-- **Multi-Tier Collection**: Different collection intervals for different metric types
-- **Priority-Based**: Critical metrics collected more frequently
-- **Resource Optimization**: Balanced performance vs. observability
-- **Configurable Intervals**: Adjustable collection frequencies
+### 3. SystemSnapshot Integration
+- **Real-Time View**: Current metrics available in agent context
+- **No External Dependencies**: Agent accesses its own metrics through memory
+- **Continuous Feedback**: Enables self-configuration and adaptation
+- **Resource Awareness**: Agent understands its own resource usage
 
-### 4. Resource Monitor (`ciris_engine/telemetry/resource_monitor.py`)
-- **System Resources**: Memory, CPU, disk monitoring
-- **Budget Enforcement**: Automatic throttling when limits exceeded
-- **Adaptive Actions**: Dynamic response to resource pressure
-- **Integration**: Works with ThoughtProcessor and LLM services
+### 4. Memory Bus Flow
+```python
+# Adapters emit telemetry as memories
+await bus_manager.memory.memorize(
+    node=GraphNode(
+        id=f"telemetry_{timestamp}_{metric_name}",
+        type=NodeType.TELEMETRY,
+        scope=GraphScope.LOCAL,
+        attributes={
+            "metric_name": "messages_processed",
+            "value": 1,
+            "adapter_id": self.adapter_id,
+            "timestamp": now
+        }
+    ),
+    handler_name="adapter.discord",
+    metadata={"source": "telemetry"}
+)
+```
+
+## Why This Architecture?
+
+### Telemetry as Memory, Not Metrics
+Traditional telemetry systems treat metrics as separate from the application. In CIRIS:
+- **Telemetry IS Memory**: Metrics are TSDBGraphNodes in the agent's identity graph
+- **Self-Introspection**: Agent can RECALL its own performance history
+- **Unified Identity**: Performance data is part of "who the agent is"
+- **Autonomous Adaptation**: Agent uses its history to self-configure
+
+### Benefits Over Traditional Telemetry
+1. **No External Dependencies**: Agent doesn't need external metric servers
+2. **Natural Time-Travel**: Graph queries provide historical analysis
+3. **Identity Coherence**: Performance patterns are part of identity
+4. **Dynamic Adapter Support**: New adapters automatically integrate
+5. **Self-Configuration**: Agent learns from its own metrics
 
 ## Key Features
 
@@ -92,38 +122,65 @@ class CompactTelemetry(BaseModel):
 ## Integration Points
 
 ### SystemSnapshot Integration
-Telemetry data is automatically included in the agent's context:
+The agent accesses its telemetry through memory recall and SystemSnapshot:
 
 ```python
-# In ContextBuilder
-if self.telemetry_service:
-    await self.telemetry_service.update_system_snapshot(snapshot)
+# Agent recalls its own metrics
+metrics_query = MemoryQuery(
+    scope=GraphScope.LOCAL,
+    filters={"type": "TELEMETRY", "time_range": "1h"}
+)
+recent_metrics = await memory_service.recall(metrics_query)
+
+# SystemSnapshot provides real-time view
+snapshot.telemetry.active_thoughts = active_count
+snapshot.telemetry.tokens_consumed_total = total_tokens
 ```
 
 ### Component Instrumentation
 
-#### ThoughtProcessor
+#### Adapters
 ```python
-# Thought lifecycle metrics
-await telemetry.record_metric("thought_started", 1, {"thought_type": thought.thought_type})
-await telemetry.record_metric("thought_completed", 1, {"duration_ms": duration})
-await telemetry.record_metric("dma_failure", 1, {"error_type": "timeout"})
+# Adapter lifecycle and message metrics
+await self.bus_manager.memory.memorize(
+    node=create_telemetry_node("adapter_started", {"adapter_id": self.adapter_id}),
+    handler_name=f"adapter.{self.adapter_type}"
+)
+
+# Message processing
+await self.bus_manager.memory.memorize(
+    node=create_telemetry_node("message_received", {
+        "channel": channel_id,
+        "latency_ms": processing_time
+    }),
+    handler_name=f"adapter.{self.adapter_type}"
+)
 ```
 
-#### Action Handlers
+#### ThoughtProcessor
 ```python
-# Handler performance metrics
-await telemetry.record_metric("handler_invocation", 1, {"action": action_type})
-await telemetry.record_metric("handler_completion", 1, {"success": True})
-await telemetry.record_metric("handler_error", 1, {"error_type": "validation"})
+# Thought lifecycle stored as memories
+await self.bus_manager.memory.memorize(
+    node=create_telemetry_node("thought_started", {
+        "thought_type": thought.thought_type,
+        "thought_id": thought.id
+    }),
+    handler_name="thought_processor"
+)
 ```
 
 #### LLM Service
 ```python
-# API usage tracking
-await telemetry.record_metric("llm_tokens", token_count, {"model": model_name})
-await telemetry.record_metric("llm_latency", latency_ms, {"provider": provider})
-await telemetry.record_metric("llm_error", 1, {"error": "rate_limit"})
+# Resource usage as memories for self-awareness
+await self.bus_manager.memory.memorize(
+    node=create_telemetry_node("llm_usage", {
+        "tokens": token_count,
+        "cost_usd": estimated_cost,
+        "co2_grams": estimated_co2,
+        "model": model_name
+    }),
+    handler_name="llm_service"
+)
 ```
 
 ### Resource Management

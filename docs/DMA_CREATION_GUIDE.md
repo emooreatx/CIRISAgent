@@ -115,28 +115,28 @@ class MyAdvancedDMA(ActionSelectionDMAInterface):
         return ActionSelectionResult(...)
 ```
 
-### Recursive Evaluation on Guardrail Failure
+### Recursive Evaluation on Conscience Override
 
-For Action Selection DMAs, implement recursive evaluation:
+For Action Selection DMAs, implement recursive evaluation when conscience suggests reconsideration:
 
 ```python
 class MyActionSelectionDMA(ActionSelectionDMAInterface):
     async def recursive_evaluate_with_faculties(
         self,
         triaged_inputs: Dict[str, Any],
-        guardrail_failure_context: Dict[str, Any]
+        conscience_failure_context: Dict[str, Any]
     ) -> ActionSelectionResult:
         # Apply faculties for deeper analysis
         faculty_results = await self.apply_faculties(
             content=str(triaged_inputs["original_thought"].content),
-            context=guardrail_failure_context
+            context=conscience_failure_context
         )
         
         # Add faculty insights and re-evaluate
         enhanced_inputs = {
             **triaged_inputs,
             "faculty_evaluations": faculty_results,
-            "guardrail_context": guardrail_failure_context
+            "conscience_context": conscience_failure_context
         }
         
         return await self.evaluate(enhanced_inputs, enable_recursive_evaluation=False)

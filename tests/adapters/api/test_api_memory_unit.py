@@ -5,10 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 from aiohttp import web
 from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
 
-from ciris_engine.adapters.api.api_memory import APIMemoryRoutes
-from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
-from ciris_engine.schemas.memory_schemas_v1 import MemoryOpStatus
-
+from ciris_engine.logic.adapters.api.api_memory import APIMemoryRoutes
+from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
 
 class TestAPIMemoryRoutes(AioHTTPTestCase):
     """Test suite for API memory routes."""
@@ -24,16 +22,17 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         self.mock_memory_service.recall = AsyncMock()
         self.mock_memory_service.forget = AsyncMock()
         self.mock_memory_service.get_timeseries = AsyncMock()
+        self.mock_memory_service.get_node = AsyncMock()  # Add for node details endpoint
+        self.mock_memory_service.get_node_relationships = AsyncMock(return_value=[])  # Add for relationships
         
-        # Add hasattr checks that the API does
-        self.mock_memory_service.list_scopes = AsyncMock()
-        setattr(self.mock_memory_service, 'list_scopes', self.mock_memory_service.list_scopes)
-        setattr(self.mock_memory_service, 'list_entries', self.mock_memory_service.list_entries)
+        # No need for extra setattr calls - already set above
         
-        self.mock_sink = MagicMock()
-        self.mock_sink.memory_service = self.mock_memory_service
+        self.mock_bus_manager = MagicMock()
+        self.mock_bus_manager.memory_service = self.mock_memory_service
+        # Add recall method for agent identity endpoint
+        self.mock_bus_manager.recall = AsyncMock()
         
-        self.routes = APIMemoryRoutes(self.mock_sink)
+        self.routes = APIMemoryRoutes(self.mock_bus_manager)
         
         app = web.Application()
         self.routes.register(app)
@@ -46,12 +45,12 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         # This is a simpler approach than inspecting the router
         expected_endpoints = [
             ("GET", "/v1/memory/scopes"),
-            ("GET", "/v1/memory/test/entries"),
-            ("POST", "/v1/memory/test/store"),
-            ("POST", "/v1/memory/search"),
-            ("POST", "/v1/memory/recall"),
-            ("DELETE", "/v1/memory/test/node123"),
-            ("GET", "/v1/memory/timeseries")
+            ("GET", "/v1/memory/graph/nodes"),
+            ("GET", "/v1/memory/graph/search?q=test"),  # search requires query param
+            ("GET", "/v1/memory/graph/relationships"),
+            ("GET", "/v1/memory/timeseries"),
+            ("GET", "/v1/memory/timeline"),
+            ("GET", "/v1/memory/identity")
         ]
         
         # Verify routes exist by checking they don't return 404
@@ -77,7 +76,7 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
     async def test_memory_scopes_fallback(self):
         """Test memory scopes fallback when service unavailable."""
         # Remove memory service to test fallback
-        self.mock_sink.memory_service = None
+        self.mock_bus_manager.memory_service = None
         
         resp = await self.client.request("GET", "/v1/memory/scopes")
         assert resp.status == 200
@@ -101,136 +100,216 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert "Database error" in data["error"]
 
     @unittest_run_loop
-    async def test_memory_entries_success(self):
-        """Test successful memory entries retrieval."""
-        mock_entries = [
-            {"id": "node1", "type": NodeType.CONCEPT.value, "content": "Test concept"},
-            {"id": "node2", "type": NodeType.CONCEPT.value, "content": "Test memory"}
+    async def test_memory_scope_nodes_success(self):
+        """Test successful scope nodes retrieval."""
+        mock_nodes = [
+            GraphNode(
+                id="node1",
+                type=NodeType.CONCEPT,
+                scope=GraphScope.LOCAL,
+                attributes={"content": "Test concept"}
+            ),
+            GraphNode(
+                id="node2",
+                type=NodeType.CONCEPT,
+                scope=GraphScope.LOCAL,
+                attributes={"content": "Test memory"}
+            )
         ]
-        self.mock_memory_service.list_entries = AsyncMock(return_value=mock_entries)
+        # API uses list_nodes with filters, not get_nodes_by_scope
+        mock_list_nodes = AsyncMock(return_value=mock_nodes)
+        self.mock_memory_service.list_nodes = mock_list_nodes
+        # Add the local_node_count attribute that the API tries to access
+        self.mock_memory_service.local_node_count = 2
         
-        resp = await self.client.request("GET", "/v1/memory/session/entries")
+        resp = await self.client.request("GET", "/v1/memory/scopes/local/nodes")
+        if resp.status != 200:
+            error_text = await resp.text()
+            print(f"Error response: {error_text}")
         assert resp.status == 200
         
         data = await resp.json()
-        assert "entries" in data
-        assert len(data["entries"]) == 2
-        assert data["entries"][0]["id"] == "node1"
-        self.mock_memory_service.list_entries.assert_called_once_with("session")
+        assert "nodes" in data
+        assert len(data["nodes"]) == 2
+        assert data["nodes"][0]["id"] == "node1"
 
     @unittest_run_loop
     async def test_memory_entries_missing_scope(self):
         """Test memory entries with missing scope parameter."""
-        resp = await self.client.request("GET", "/v1/memory//entries")
+        resp = await self.client.request("GET", "/v1/memory/scopes//nodes")
         assert resp.status == 404  # Should not match route
 
     @unittest_run_loop
-    async def test_memory_store_success(self):
-        """Test successful memory storage."""
-        payload = {
-            "key": "test_key",
-            "value": "Test memory content"
-        }
+    async def test_graph_nodes_list(self):
+        """Test listing graph nodes."""
+        # Create mock nodes
+        mock_nodes = [
+            GraphNode(
+                id="node1",
+                type=NodeType.AGENT,
+                scope=GraphScope.IDENTITY,
+                attributes={"name": "test_agent", "content": "Agent identity"}
+            ),
+            GraphNode(
+                id="node2", 
+                type=NodeType.CONCEPT,
+                scope=GraphScope.LOCAL,
+                attributes={"content": "Some knowledge"}
+            )
+        ]
         
-        from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult
-        mock_result = MemoryOpResult(status=MemoryOpStatus.OK, reason=None)
-        self.mock_sink.memorize = AsyncMock(return_value=mock_result)
+        # Mock the memory service to return nodes - API checks for list_nodes method
+        mock_list_nodes = AsyncMock(return_value=mock_nodes)
+        self.mock_memory_service.list_nodes = mock_list_nodes
         
-        resp = await self.client.request("POST", "/v1/memory/session/store",
-                                       data=json.dumps(payload),
-                                       headers={"Content-Type": "application/json"})
+        resp = await self.client.request("GET", "/v1/memory/graph/nodes")
         assert resp.status == 200
         
         data = await resp.json()
-        assert data["result"] == "ok"
-        self.mock_sink.memorize.assert_called_once()
+        assert "nodes" in data
+        assert len(data["nodes"]) == 2
+        assert data["nodes"][0]["id"] == "node1"
 
     @unittest_run_loop
-    async def test_memory_store_invalid_json(self):
-        """Test memory store with invalid JSON."""
-        resp = await self.client.request("POST", "/v1/memory/session/store",
-                                       data="invalid json",
-                                       headers={"Content-Type": "application/json"})
-        assert resp.status == 400
-
-    @unittest_run_loop
-    async def test_memory_search_success(self):
-        """Test successful memory search."""
-        payload = {
-            "query": "test concept",
-            "scope": GraphScope.LOCAL.value,
-            "limit": 10
-        }
-        
+    async def test_graph_search_success(self):
+        """Test successful graph search."""
+        # Mock search results as dictionaries (as API expects)
         mock_results = [
-            {"id": "node1", "content": "Test concept", "relevance": 0.9},
-            {"id": "node2", "content": "Another concept", "relevance": 0.7}
+            {
+                "id": "result1",
+                "type": "CONCEPT",
+                "scope": "local",
+                "relevance": 0.95,
+                "snippet": "Test content with search term highlighted",
+                "attributes": {"content": "Test content with search term"}
+            }
         ]
-        self.mock_memory_service.search = AsyncMock(return_value=mock_results)
         
-        resp = await self.client.request("POST", "/v1/memory/search",
-                                       data=json.dumps(payload),
-                                       headers={"Content-Type": "application/json"})
+        mock_search = AsyncMock(return_value=mock_results)
+        self.mock_memory_service.search_graph = mock_search
+        
+        resp = await self.client.request("GET", "/v1/memory/graph/search?q=search+term")
         assert resp.status == 200
         
         data = await resp.json()
         assert "results" in data
-        assert len(data["results"]) == 2
-        assert data["results"][0]["relevance"] == 0.9
-        self.mock_memory_service.search.assert_called_once()
+        assert len(data["results"]) == 1
+        assert data["results"][0]["id"] == "result1"
 
     @unittest_run_loop
-    async def test_memory_recall_success(self):
-        """Test successful memory recall."""
-        payload = {
-            "context": "discussing AI concepts",
-            "scope": GraphScope.IDENTITY.value,
-            "max_results": 5
-        }
-        
-        mock_memories = [
-            {"id": "memory1", "content": "Previous AI discussion", "timestamp": "2024-01-01"},
-            {"id": "memory2", "content": "Related concept", "timestamp": "2024-01-02"}
+    async def test_memory_timeline(self):
+        """Test memory timeline endpoint."""
+        # Mock timeline entries
+        mock_timeline = [
+            {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "node_id": "node1",
+                "type": "KNOWLEDGE",
+                "content": "Memory from yesterday"
+            },
+            {
+                "timestamp": "2024-01-02T00:00:00Z", 
+                "node_id": "node2",
+                "type": "ACTION",
+                "content": "Action taken today"
+            }
         ]
-        self.mock_memory_service.recall = AsyncMock(return_value=mock_memories)
         
-        resp = await self.client.request("POST", "/v1/memory/recall",
-                                       data=json.dumps(payload),
-                                       headers={"Content-Type": "application/json"})
+        mock_get_timeline = AsyncMock(return_value=mock_timeline)
+        self.mock_memory_service.get_timeline = mock_get_timeline
+        
+        resp = await self.client.request("GET", "/v1/memory/timeline?hours=24")
         assert resp.status == 200
         
         data = await resp.json()
-        assert "memories" in data
-        assert len(data["memories"]) == 2
-        assert data["memories"][0]["id"] == "memory1"
-        self.mock_memory_service.recall.assert_called_once()
+        assert "timeline" in data
+        assert len(data["timeline"]) == 2
+        assert data["timeline"][0]["node_id"] == "node1"  # Fixed: should be node_id not id
 
     @unittest_run_loop
-    async def test_memory_forget_success(self):
-        """Test successful memory deletion."""
-        mock_result = {"status": MemoryOpStatus.OK.value, "deleted": True}
-        self.mock_memory_service.forget = AsyncMock(return_value=mock_result)
+    async def test_node_details(self):
+        """Test getting node details."""
+        # Mock a specific node
+        mock_node = GraphNode(
+            id="test123",
+            type=NodeType.AGENT,
+            scope=GraphScope.IDENTITY,
+            attributes={"purpose": "help users", "created": "2024-01-01", "content": "Agent purpose and values"}
+        )
         
-        resp = await self.client.request("DELETE", "/v1/memory/session/node123")
+        # The issue is that get_node is already set to AsyncMock in get_application, 
+        # just configure its return value
+        self.mock_memory_service.get_node.return_value = mock_node
+        
+        resp = await self.client.request("GET", "/v1/memory/graph/nodes/test123")
         assert resp.status == 200
         
         data = await resp.json()
-        assert data["status"] == MemoryOpStatus.OK.value
-        assert data["deleted"] is True
-        self.mock_memory_service.forget.assert_called_once_with("session", "node123")
+        assert "node" in data
+        assert data["node"]["id"] == "test123"
+        assert data["node"]["type"] == "agent"  # Enum value is lowercase
+        assert data["node"]["attributes"]["purpose"] == "help users"
 
     @unittest_run_loop
-    async def test_memory_forget_not_found(self):
-        """Test memory deletion when node not found."""
-        mock_result = {"status": MemoryOpStatus.ERROR.value, "deleted": False}
-        self.mock_memory_service.forget = AsyncMock(return_value=mock_result)
+    async def test_memory_relationships(self):
+        """Test getting memory relationships."""
+        # Mock relationships/edges
+        mock_relationships = [
+            {
+                "source_id": "node1",
+                "target_id": "node2",
+                "relationship_type": "RELATES_TO",
+                "attributes": {"strength": 0.8}
+            },
+            {
+                "source_id": "node1",
+                "target_id": "node3",
+                "relationship_type": "DERIVED_FROM",
+                "attributes": {"confidence": 0.9}
+            }
+        ]
         
-        resp = await self.client.request("DELETE", "/v1/memory/session/nonexistent")
+        mock_list_relationships = AsyncMock(return_value=mock_relationships)
+        self.mock_memory_service.list_relationships = mock_list_relationships
+        
+        resp = await self.client.request("GET", "/v1/memory/graph/relationships")
         assert resp.status == 200
         
         data = await resp.json()
-        assert data["status"] == MemoryOpStatus.ERROR.value
-        assert data["deleted"] is False
+        assert "relationships" in data
+        assert len(data["relationships"]) == 2
+        assert data["relationships"][0]["source_id"] == "node1"  # Fixed: should be source_id not source
+
+    @unittest_run_loop
+    async def test_agent_identity(self):
+        """Test getting agent identity."""
+        # Mock identity node
+        mock_identity = GraphNode(
+            id="AGENT_IDENTITY",
+            type=NodeType.AGENT,
+            scope=GraphScope.IDENTITY,
+            attributes={
+                "agent_id": "test-agent-123",
+                "name": "CIRIS", 
+                "purpose": "help users ethically", 
+                "created_at": "2025-01-01T00:00:00Z",
+                "capabilities": ["speak", "memorize", "recall"],
+                "variance_threshold": 0.2
+            }
+        )
+        
+        # Mock the recall result that the API expects
+        mock_result = MagicMock()
+        mock_result.nodes = [mock_identity]
+        self.mock_bus_manager.recall.return_value = mock_result
+        
+        resp = await self.client.request("GET", "/v1/memory/identity")
+        assert resp.status == 200
+        
+        data = await resp.json()
+        assert "identity" in data
+        assert data["identity"]["name"] == "CIRIS"
+        assert data["identity"]["agent_id"] == "test-agent-123"
 
     @unittest_run_loop
     async def test_memory_timeseries_success(self):
@@ -258,40 +337,36 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
     async def test_memory_service_unavailable(self):
         """Test behavior when memory service is completely unavailable."""
         # Remove memory service
-        delattr(self.mock_sink, 'memory_service')
+        delattr(self.mock_bus_manager, 'memory_service')
         
-        resp = await self.client.request("GET", "/v1/memory/session/entries")
-        assert resp.status == 500
+        resp = await self.client.request("GET", "/v1/memory/graph/nodes")
+        assert resp.status == 503  # Should return service unavailable
         
         data = await resp.json()
         assert "error" in data
+        assert "Memory service not available" in data["error"]
 
     @unittest_run_loop
     async def test_concurrent_memory_operations(self):
         """Test handling of concurrent memory operations."""
-        # Setup concurrent calls - use the existing memorize method
-        from ciris_engine.schemas.memory_schemas_v1 import MemoryOpResult
-        mock_result = MemoryOpResult(status=MemoryOpStatus.OK, reason=None)
-        self.mock_sink.memorize = AsyncMock(return_value=mock_result)
-        self.mock_memory_service.search = AsyncMock(return_value=[{"id": "node1", "relevance": 0.9}])
+        # Mock all the methods that might be called
+        self.mock_memory_service.list_nodes = AsyncMock(return_value=[])
+        self.mock_memory_service.search_graph = AsyncMock(return_value=[])
+        self.mock_memory_service.list_scopes = AsyncMock(return_value=["local", "identity"])
         
-        # Make concurrent requests
-        store_payload = {"key": "test_key", "value": "Test"}
-        search_payload = {"query": "test", "scope": GraphScope.LOCAL.value}
-        
+        # Test concurrent read operations
         import asyncio
-        store_task = self.client.request("POST", "/v1/memory/session/store",
-                                       data=json.dumps(store_payload),
-                                       headers={"Content-Type": "application/json"})
-        search_task = self.client.request("POST", "/v1/memory/search",
-                                        data=json.dumps(search_payload),
-                                        headers={"Content-Type": "application/json"})
         
-        store_resp, search_resp = await asyncio.gather(store_task, search_task)
+        # Make concurrent GET requests to different endpoints
+        nodes_task = self.client.request("GET", "/v1/memory/graph/nodes")
+        search_task = self.client.request("GET", "/v1/memory/graph/search?q=test")
+        scopes_task = self.client.request("GET", "/v1/memory/scopes")
         
-        assert store_resp.status == 200
-        assert search_resp.status == 200
+        nodes_resp, search_resp, scopes_resp = await asyncio.gather(
+            nodes_task, search_task, scopes_task
+        )
         
-        # Verify both service methods were called
-        self.mock_sink.memorize.assert_called_once()
-        self.mock_memory_service.search.assert_called_once()
+        # All should succeed
+        assert nodes_resp.status == 200
+        assert search_resp.status == 200  
+        assert scopes_resp.status == 200

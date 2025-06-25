@@ -269,9 +269,9 @@ Middleware verifies JWT, pulls scopes, denies on mismatch.
 - `ciris_engine/schemas/wa_audit_schemas_v1.py` - Audit event schemas
 
 ### Protocol Definitions
-- `ciris_engine/protocols/wa_auth_interface.py` - Core auth protocols (WAStore, JWTService, WACrypto, OAuthService, WAAuthMiddleware)
-- `ciris_engine/protocols/wa_cli_interface.py` - CLI command protocols
-- `ciris_engine/protocols/endpoint_security.py` - Endpoint security mappings
+- `ciris_engine/protocols/services/governance/wa_auth.py` - Core auth protocols (WAStore, JWTService, WACrypto, OAuthService, WAAuthMiddleware)
+- `ciris_engine/protocols/services/governance/wa_cli.py` - CLI command protocols
+- `ciris_engine/protocols/services/governance/endpoint_security.py` - Endpoint security mappings
 
 ### Database
 - `ciris_engine/schemas/db_tables_v1.py` - wa_cert table definition (integrated into base schema)

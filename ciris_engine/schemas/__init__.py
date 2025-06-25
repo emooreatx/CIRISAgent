@@ -1,36 +1,137 @@
-from .agent_core_schemas_v1 import Task, Thought
-from .action_params_v1 import *
-from .dma_results_v1 import *
-from .foundational_schemas_v1 import *
-from .service_actions_v1 import *
-from .memory_schemas_v1 import *
-from .correlation_schemas_v1 import *
-from .network_schemas_v1 import NetworkType, AgentIdentity, NetworkPresence
-from .community_schemas_v1 import CommunityHealth, MinimalCommunityContext
-from .wisdom_schemas_v1 import WisdomSource, WisdomRequest, UniversalGuidanceProtocol
-from .telemetry_schemas_v1 import ResourceMetrics, CompactTelemetry
-from .graph_schemas_v1 import ConfigNodeType, CONFIG_SCOPE_MAP
+"""
+Contract-driven architecture schemas.
+
+This module provides typed replacements for all Dict[str, Any] usage
+in the CIRIS codebase, ensuring type safety and validation throughout.
+"""
+
+# Re-export all schemas for convenience
+
+from .services.metadata import ServiceMetadata
+from .services.requests import (
+    ServiceRequest,
+    ServiceResponse,
+    MemorizeRequest,
+    MemorizeResponse,
+    RecallRequest,
+    RecallResponse,
+    ToolExecutionRequest,
+    ToolExecutionResponse,
+    LLMRequest,
+    LLMResponse,
+    AuditRequest,
+    AuditResponse,
+)
+
+from .handlers.contexts import (
+    BaseActionContext,
+    SpeakContext,
+    ToolContext,
+    ObserveContext,
+    MemorizeContext,
+    RecallContext,
+    ForgetContext,
+    RejectContext,
+    PonderContext,
+    DeferContext,
+    TaskCompleteContext,
+)
+
+from .actions import (
+    SpeakParams as SpeakParameters,
+    ToolParams as ToolParameters,
+    ObserveParams as ObserveParameters,
+    MemorizeParams as MemorizeParameters,
+    RecallParams as RecallParameters,
+    ForgetParams as ForgetParameters,
+    RejectParams as RejectParameters,
+    PonderParams as PonderParameters,
+    DeferParams as DeferParameters,
+    TaskCompleteParams as TaskCompleteParameters,
+)
+
+from .processors.cognitive import (
+    WakeupState,
+    WorkState,
+    PlayState,
+    SolitudeState,
+    DreamState,
+    ShutdownState,
+)
+
+from .dma.decisions import (
+    PDMADecision,
+    CSDMADecision,
+    DSDMADecision,
+    ActionSelectionDecision,
+)
+
+from .handlers.schemas import (
+    HandlerContext,
+    HandlerResult,
+    ActionContext,
+    ActionParameters,
+)
+
+# Faculty assessments removed - merged into consciences
+
+# ConscienceResult import removed - module doesn't exist
 
 __all__ = [
-    'Task', 'Thought',
-    'ActionSelectionResult', 'EthicalDMAResult', 'CSDMAResult', 'DSDMAResult',
-    'HandlerActionType', 'TaskStatus', 'ThoughtStatus', 'ObservationSourceType', 'IncomingMessage', 'DiscordMessage',
-    'FetchedMessage', 'ResourceUsage',
-    'ObserveParams', 'SpeakParams', 'ToolParams', 'PonderParams', 'RejectParams',
-    'DeferParams', 'MemorizeParams', 'RecallParams', 'ForgetParams',
-    'ActionType', 'ActionMessage', 'SendMessageAction', 'FetchMessagesAction',
-    'FetchGuidanceAction', 'SendDeferralAction', 'MemorizeAction', 'RecallAction',
-    'ForgetAction', 'SendToolAction', 'FetchToolAction',
-    'MemoryOpStatus', 'MemoryOpAction', 'MemoryOpResult',
-    'ServiceCorrelationStatus', 'ServiceCorrelation',
-    
-    'NetworkType', 'AgentIdentity', 'NetworkPresence',
-    
-    'CommunityHealth', 'MinimalCommunityContext',
-    
-    'WisdomSource', 'WisdomRequest', 'UniversalGuidanceProtocol',
-    
-    'ResourceMetrics', 'CompactTelemetry',
-    'ConfigNodeType', 'CONFIG_SCOPE_MAP',
+    # Service schemas
+    "ServiceMetadata",
+    "ServiceRequest",
+    "ServiceResponse",
+    "MemorizeRequest",
+    "MemorizeResponse",
+    "RecallRequest",
+    "RecallResponse",
+    "ToolExecutionRequest",
+    "ToolExecutionResponse",
+    "LLMRequest",
+    "LLMResponse",
+    "AuditRequest",
+    "AuditResponse",
+    # Action contexts
+    "BaseActionContext",
+    "SpeakContext",
+    "ToolContext", 
+    "ObserveContext",
+    "MemorizeContext",
+    "RecallContext",
+    "ForgetContext",
+    "RejectContext",
+    "PonderContext",
+    "DeferContext",
+    "TaskCompleteContext",
+    # Action parameters
+    "SpeakParameters",
+    "ToolParameters",
+    "ObserveParameters",
+    "MemorizeParameters",
+    "RecallParameters",
+    "ForgetParameters",
+    "RejectParameters",
+    "PonderParameters",
+    "DeferParameters",
+    "TaskCompleteParameters",
+    # Cognitive states
+    "WakeupState",
+    "WorkState",
+    "PlayState",
+    "SolitudeState",
+    "DreamState",
+    "ShutdownState",
+    # DMA decisions
+    "PDMADecision",
+    "CSDMADecision",
+    "DSDMADecision",
+    "ActionSelectionDecision",
+    # Handler schemas
+    "HandlerContext",
+    "HandlerResult",
+    "ActionContext",
+    "ActionParameters",
+    # conscience results
+    "ConscienceResult",
 ]
-

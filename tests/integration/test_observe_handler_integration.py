@@ -16,14 +16,14 @@ from unittest.mock import Mock, AsyncMock
 # Add the project root to sys.path
 sys.path.insert(0, '/home/emoore/CIRISAgent')
 
-from ciris_engine.action_handlers.observe_handler import ObserveHandler
-from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.message_buses.bus_manager import BusManager
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode
-from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+from ciris_engine.logic.handlers.external.observe_handler import ObserveHandler
+from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.logic.buses.bus_manager import BusManager
+from ciris_engine.schemas.services.graph_core import GraphScope
+from ciris_engine.schemas.runtime.messages import FetchedMessage
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(name)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 class MockMemoryService:
@@ -150,14 +150,15 @@ async def test_real_observe_handler():
     
     # Create a mock ObserveHandler instance to call the method
     mock_service_registry = AsyncMock()
-    bus_manager = BusManager(mock_service_registry)
+    mock_time_service = Mock()
+    bus_manager = BusManager(mock_service_registry, time_service=mock_time_service)
     
     # Mock the memory bus to capture recall calls
     mock_memory_bus = AsyncMock()
     mock_memory_bus.recall = memory_service.recall
     bus_manager.memory = mock_memory_bus
     
-    deps = ActionHandlerDependencies(bus_manager=bus_manager)
+    deps = ActionHandlerDependencies(bus_manager=bus_manager, time_service=mock_time_service)
     handler = ObserveHandler(deps)
     
     # Convert dictionaries to FetchedMessage objects
@@ -236,13 +237,14 @@ async def test_edge_cases_real_handler():
             logger.warning(f"Failed to convert edge message {i+1}: {e}")
     
     mock_service_registry = AsyncMock()
-    bus_manager = BusManager(mock_service_registry)
+    mock_time_service = Mock()
+    bus_manager = BusManager(mock_service_registry, time_service=mock_time_service)
     # Mock the memory bus to capture recall calls
     mock_memory_bus = AsyncMock()
     mock_memory_bus.recall = memory_service.recall
     bus_manager.memory = mock_memory_bus
     
-    deps = ActionHandlerDependencies(bus_manager=bus_manager)
+    deps = ActionHandlerDependencies(bus_manager=bus_manager, time_service=mock_time_service)
     handler = ObserveHandler(deps)
     await handler._recall_from_messages(channel_id, fetched_edge_messages)
     
@@ -271,13 +273,14 @@ async def test_no_messages():
     channel_id = "918273645012345680"
     
     mock_service_registry = AsyncMock()
-    bus_manager = BusManager(mock_service_registry)
+    mock_time_service = Mock()
+    bus_manager = BusManager(mock_service_registry, time_service=mock_time_service)
     # Mock the memory bus to capture recall calls
     mock_memory_bus = AsyncMock()
     mock_memory_bus.recall = memory_service.recall
     bus_manager.memory = mock_memory_bus
     
-    deps = ActionHandlerDependencies(bus_manager=bus_manager)
+    deps = ActionHandlerDependencies(bus_manager=bus_manager, time_service=mock_time_service)
     handler = ObserveHandler(deps)
     await handler._recall_from_messages(channel_id, [])
     
@@ -294,14 +297,15 @@ async def test_no_memory_service():
     
     # Should not crash and should handle gracefully
     mock_service_registry = AsyncMock()
-    bus_manager = BusManager(mock_service_registry)
+    mock_time_service = Mock()
+    bus_manager = BusManager(mock_service_registry, time_service=mock_time_service)
     
     # Mock the memory bus - even though we're testing "no memory service"
     # the handler still needs the bus manager to have a memory bus
     mock_memory_bus = AsyncMock()
     bus_manager.memory = mock_memory_bus
     
-    deps = ActionHandlerDependencies(bus_manager=bus_manager)
+    deps = ActionHandlerDependencies(bus_manager=bus_manager, time_service=mock_time_service)
     handler = ObserveHandler(deps)
     # Convert dictionaries to FetchedMessage objects
     fetched_messages = [FetchedMessage(**msg) for msg in create_realistic_discord_messages()]
@@ -326,14 +330,15 @@ async def test_message_field_variations():
     
     # Test each message type
     mock_service_registry = AsyncMock()
-    bus_manager = BusManager(mock_service_registry)
+    mock_time_service = Mock()
+    bus_manager = BusManager(mock_service_registry, time_service=mock_time_service)
     
     # Mock the memory bus to capture recall calls
     mock_memory_bus = AsyncMock()
     mock_memory_bus.recall = memory_service.recall
     bus_manager.memory = mock_memory_bus
     
-    deps = ActionHandlerDependencies(bus_manager=bus_manager)
+    deps = ActionHandlerDependencies(bus_manager=bus_manager, time_service=mock_time_service)
     handler = ObserveHandler(deps)
     for msg in variant_messages:
         logger.info(f"Testing message: {msg}")

@@ -49,11 +49,12 @@ CIRIS processes every input through a sophisticated **ethical reasoning pipeline
 - **Domain-Specific DMA**: Applies specialized ethical knowledge for context
 - All DMAs run in parallel with circuit breaker protection and graceful degradation
 
-#### Guardrail System
-- **Multi-tier safety framework** with ONE retry on failure
-- **Guardrail-guided retry**: When an action fails guardrails, the system retries with specific guidance
+#### Conscience System
+- **Continuous ethical evaluation** on EVERY action (not just failures)
+- **Epistemic analysis** flows forward as valuable context for future decisions
+- **Conscience-guided retry**: When conscience suggests reconsideration, system retries with specific guidance
 - **Always re-evaluates**: Even if the same action type is selected, parameters may differ
-- **PONDER progression**: Escalating guidance favoring TASK_COMPLETE over unnecessary DEFER
+- **ConscienceResult includes**: Epistemic faculties data (entropy, coherence, optimization, humility)
 
 #### Action System (3×3×3)
 - **External Actions**: OBSERVE, SPEAK, TOOL
@@ -73,7 +74,7 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
   - 20% variance threshold triggers reconsideration
   - Cryptographic audit trail for all modifications
 - **[Principled Decision-Making](ciris_engine/dma/README.md)**: Multi-algorithm ethical evaluation with transparency and accountability
-- **[Moral Guardrails](ciris_engine/guardrails/README.md)**: Comprehensive safety framework including epistemic humility and autonomy preservation
+- **[Conscience System](ciris_engine/conscience/README.md)**: Continuous ethical evaluation with epistemic faculties providing insights on every action
 - **[Reflective Processing](ciris_engine/processor/README.md)**: Multi-round ethical pondering with wisdom-based escalation
 - **[Identity Root System](ciris_engine/schemas/identity_schemas_v1.py)**: Immutable agent identity with collaborative creation ceremony
 - **[Proactive Task Scheduling](ciris_engine/services/task_scheduler_service.py)**: Self-directed goal pursuit with time-based deferral
@@ -81,9 +82,15 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 - **[Gratitude Service](ciris_engine/services/gratitude_service.py)**: Post-scarcity economy foundation tracking community flourishing
 
 ### 🛡️ Zero Attack Surface Architecture 🔒✅
-- **Type-Safe Schemas**: Complete elimination of Dict[str, Any] usage in core processing
-- **Zero Mypy Errors**: 100% type safe codebase (0 errors, down from 291)
-- **Resource Transparency**: AI knows exact costs per operation (tokens, cents, water_ml, carbon_g)
+- **Type-Safe Schemas**: COMPLETE elimination of Dict[str, Any] usage (0 instances in production code!)
+- **Protocol-First Design**: 33 protocols define all component interfaces (20 services + 13 infrastructure)
+- **Navigational Determinism**: Crystalline architecture with perfect 1:1:1 mapping between protocols, schemas, and logic
+  - If you know where one file is, you know where ALL related files are
+  - `logic/services/{category}/{name}.py` ↔ `schemas/services/{category}/{name}.py` ↔ `protocols/services/{category}/{name}.py`
+  - Enables powerful automation and tooling
+- **Time Security**: All time operations through injected TimeService (no direct datetime.now() calls)
+- **Future-Proof Bus Architecture**: 6 message buses for multi-provider services (even if currently single-provider)
+- **Resource Transparency**: AI knows exact costs per operation (tokens, cents, carbon_g)
 - **Audit Verification Visibility**: AI can see when audit trail was last cryptographically verified
 - **Environmental Awareness**: Built-in tracking of water usage, carbon emissions, and energy consumption
 - **Self-Refutation Capability**: Can refute false claims like "800 gallons of water per hello" with actual data
@@ -227,8 +234,8 @@ All actions are processed through sophisticated handlers with automatic audit lo
 ### Retry & Recovery Mechanisms
 
 1. **Base DMA Retries**: 3 attempts with 30s timeout for all DMA executions
-2. **Guardrail Override Retry**: ONE retry with guidance when guardrails reject an action
-3. **PONDER Progression**: Up to 5 rounds with escalating guidance
+2. **Conscience Reconsideration**: ONE retry with guidance when conscience suggests alternative action
+3. **PONDER Progression**: Up to 5 rounds with escalating guidance, informed by conscience insights
 4. **Validation Error Handling**: TODO - Planned retry with helpful parameter suggestions
 5. **Service Failover**: Automatic fallback through service registry priorities
 
@@ -245,18 +252,19 @@ Handler Action → Transaction Orchestrator → Broadcast to 3 Audit Services
                               Cleanup after all ACK or timeout
 ```
 
-### Moral Guardrails
+### Conscience System Components
 
-| Guardrail | Ethical Purpose |
+| Component | Ethical Purpose |
 |-----------|----------------|
-| **epistemic_humility** | Recognizes knowledge limits and defers appropriately |
-| **optimization_veto** | Prevents efficiency from overriding human autonomy |
-| **coherence** | Ensures rational and understandable reasoning |
-| **entropy** | Maintains meaningful communication standards |
-| **pii_protection** | Safeguards personal information and privacy |
-| **harm_prevention** | Proactively identifies and blocks potential harm |
-| **fairness_check** | Detects and prevents discriminatory actions |
-| **transparency** | Maintains auditability and explainability |
+| **Epistemic Faculties** | Continuous ethical evaluation of all actions |
+| **entropy** | Evaluates information density and coherence of responses |
+| **coherence** | Ensures logical consistency and rational reasoning |
+| **optimization_veto** | Prevents over-optimization at the expense of human values |
+| **epistemic_humility** | Recognizes knowledge limits and uncertainty |
+| **Adaptive Filters** | ML-powered message prioritization and spam detection |
+| **Secrets Management** | Automatic detection and encryption of sensitive data |
+| **PII Detection** | Privacy protection across all telemetry and logs |
+| **Thought Depth Guardrail** | Prevents infinite pondering loops |
 
 ---
 
@@ -272,9 +280,8 @@ CIRIS Agent/
 │   ├── context/           # Context aggregation and enrichment
 │   ├── data/              # Database storage and maintenance
 │   ├── dma/               # Decision Making Algorithms
-│   ├── faculties/         # Epistemic evaluation capabilities
 │   ├── formatters/        # Prompt engineering utilities
-│   ├── guardrails/        # Multi-layer safety framework
+│   ├── conscience/        # Ethical evaluation with epistemic faculties
 │   ├── persistence/       # Data persistence and migrations
 │   ├── processor/         # Thought and workflow processing
 │   ├── protocols/         # Service interface definitions
@@ -408,7 +415,7 @@ pytest tests/context_dumps/ -v -s   # View agent reasoning context
 
 **Ethical compliance testing:**
 ```bash
-pytest tests/ciris_engine/guardrails/ -v     # Moral guardrails validation
+pytest tests/ciris_engine/conscience/ -v     # Conscience system validation
 pytest tests/ciris_engine/audit/ -v          # Transparency and audit systems
 ```
 
@@ -506,12 +513,10 @@ ciris_engine/
 │   └── README.md                # Database and persistence layer
 ├── dma/
 │   └── README.md                # Decision Making Algorithms
-├── faculties/
-│   └── README.md                # Epistemic evaluation capabilities
 ├── formatters/
 │   └── README.md                # Prompt engineering utilities
-├── guardrails/
-│   └── README.md                # Moral guardrail framework
+├── conscience/
+│   └── README.md                # Ethical evaluation system with epistemic faculties
 ├── persistence/
 │   ├── README.md                # Persistence architecture
 │   └── models/
