@@ -16,11 +16,11 @@ from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.schemas.services.special.self_configuration import (
-    ProcessSnapshotResult as SelfConfigProcessResult, AdaptationCycleResult, CycleEventData,
+    ProcessSnapshotResult, AdaptationCycleResult, CycleEventData,
     AdaptationStatus, ReviewOutcome,
     ObservabilityAnalysis, AdaptationOpportunity,
-    ObservabilitySignal, AdaptationEffectiveness, PatternLibrarySummary, PatternRecord,
-    ServiceImprovementReport, AdaptationImpact
+    AdaptationEffectiveness, PatternLibrarySummary,
+    ServiceImprovementReport
 )
 from datetime import datetime, timedelta
 from dataclasses import dataclass

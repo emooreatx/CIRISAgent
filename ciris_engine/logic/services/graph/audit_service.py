@@ -34,9 +34,8 @@ from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, Node
 from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode, AuditEntryContext
 from ciris_engine.schemas.services.operations import MemoryOpStatus
 from ciris_engine.schemas.services.graph.audit import (
-    AuditEventData, VerificationReport, AuditQueryResult, AuditQuery
+    AuditEventData, VerificationReport, AuditQuery
 )
-from ciris_engine.schemas.audit.core import AuditLogEntry
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.audit.hash_chain import AuditHashChain

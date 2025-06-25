@@ -14,7 +14,7 @@ from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.audit.verification import (
     ChainVerificationResult, SignatureVerificationResult,
     CompleteVerificationResult, EntryVerificationResult,
-    RangeVerificationResult, ChainSummary, TamperDetectionResult,
+    RangeVerificationResult, ChainSummary,
     VerificationReport, RootAnchorVerificationResult
 )
 

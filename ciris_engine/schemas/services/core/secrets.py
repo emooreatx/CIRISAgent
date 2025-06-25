@@ -26,16 +26,6 @@ class ConfigUpdate(BaseModel):
     enabled: Optional[bool] = Field(None, description="Enable/disable filter")
     metadata: Dict[str, str] = Field(default_factory=dict, description="Additional settings")
 
-class SecretOperationResult(BaseModel):
-    """Result of a secret operation."""
-    operation: str = Field(..., description="Operation performed")
-    success: bool = Field(..., description="Whether operation succeeded")
-    secret_id: Optional[str] = Field(None, description="Secret UUID if applicable")
-    message: Optional[str] = Field(None, description="Result message")
-    data: Optional[Dict[str, Union[str, int, bool]]] = Field(None, description="Operation data")
-    error: Optional[str] = Field(None, description="Error message if failed")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Operation time")
-
 class SecretAccessLog(BaseModel):
     """Log entry for secret access."""
     secret_id: str = Field(..., description="Secret UUID")

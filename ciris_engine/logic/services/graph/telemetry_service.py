@@ -23,8 +23,8 @@ from ciris_engine.schemas.services.operations import MemoryOpStatus
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.services.graph.telemetry import (
-    ProcessSnapshotResult, TelemetryData, ResourceData, BehavioralData,
-    UserProfile, ChannelContext, ConsolidationResult, TelemetryServiceStatus,
+    TelemetrySnapshotResult, TelemetryData, ResourceData, BehavioralData,
+    UserProfile, ChannelContext, TelemetryServiceStatus,
     GraphQuery, ServiceCapabilities as TelemetryCapabilities
 )
 from ciris_engine.logic.buses.memory_bus import MemoryBus
@@ -417,7 +417,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         snapshot: SystemSnapshot,
         thought_id: str,
         task_id: Optional[str] = None
-    ) -> ProcessSnapshotResult:
+    ) -> TelemetrySnapshotResult:
         """
         Process a SystemSnapshot and convert it to graph memories (internal method).
         
@@ -426,9 +426,9 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         try:
             if not self._memory_bus:
                 logger.error("Memory bus not available for telemetry storage")
-                return ProcessSnapshotResult(error="Memory bus not available")
+                return TelemetrySnapshotResult(error="Memory bus not available")
             
-            results = ProcessSnapshotResult()
+            results = TelemetrySnapshotResult()
             
             # 1. Store operational metrics
             if snapshot.telemetry:
@@ -465,7 +465,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             
         except Exception as e:
             logger.error(f"Failed to process system snapshot: {e}")
-            return ProcessSnapshotResult(error=str(e))
+            return TelemetrySnapshotResult(error=str(e))
     
     async def _store_telemetry_metrics(
         self,
