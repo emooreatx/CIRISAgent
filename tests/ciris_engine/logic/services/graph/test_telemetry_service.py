@@ -14,7 +14,7 @@ from unittest.mock import Mock, AsyncMock, MagicMock
 from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.services.graph.telemetry import (
-    TelemetryServiceStatus, ProcessSnapshotResult, TelemetryData,
+    TelemetryServiceStatus, TelemetrySnapshotResult, TelemetryData,
     ResourceData, BehavioralData, UserProfile, ChannelContext,
     ServiceCapabilities as TelemetryCapabilities
 )
