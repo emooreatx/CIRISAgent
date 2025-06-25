@@ -83,6 +83,9 @@ class ServiceInitializer:
         await self.time_service.start()
         logger.info("TimeService initialized")
         
+        # Note: TimeService will be registered in ServiceRegistry later
+        # when the registry is created in initialize_all_services()
+        
         # Initialize ShutdownService
         self.shutdown_service = ShutdownService()
         await self.shutdown_service.start()
@@ -240,6 +243,17 @@ class ServiceInitializer:
     async def initialize_all_services(self, config: Any, app_config: Any, agent_id: str, startup_channel_id: Optional[str] = None, modules_to_load: Optional[List[str]] = None) -> None:
         """Initialize all remaining core services."""
         self.service_registry = ServiceRegistry()
+        
+        # Register TimeService now that we have a registry
+        if self.time_service:
+            self.service_registry.register_global(
+                service_type=ServiceType.TIME,
+                provider=self.time_service,
+                priority=Priority.CRITICAL,
+                capabilities=["now", "format_timestamp", "parse_timestamp"],
+                metadata={"timezone": "UTC"}
+            )
+            logger.info("TimeService registered in ServiceRegistry")
         
         # Pre-load module loader to check for MOCK modules BEFORE initializing services
         if modules_to_load:

@@ -714,7 +714,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
     async def _init_database(self) -> None:
         """Initialize the audit database."""
         def _create_tables() -> None:
-            conn = sqlite3.connect(str(self.db_path))
+            conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             cursor = conn.cursor()
             
             # Audit log table
@@ -765,7 +765,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
             conn.close()
         
         await asyncio.to_thread(_create_tables)
-        self._db_connection = sqlite3.connect(str(self.db_path))
+        self._db_connection = sqlite3.connect(str(self.db_path), check_same_thread=False)
     
     async def _add_to_hash_chain(self, entry: AuditEntry) -> None:
         """Add an entry to the hash chain."""
@@ -895,7 +895,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
     async def _export_sqlite(self, entries: List[AuditEntry], path: Path) -> None:
         """Export entries to SQLite format."""
         def _write_sqlite() -> None:
-            conn = sqlite3.connect(str(path))
+            conn = sqlite3.connect(str(path), check_same_thread=False)
             cursor = conn.cursor()
             
             # Create table if needed

@@ -35,7 +35,8 @@ def get_global_shutdown_reason() -> Optional[str]:
 def request_global_shutdown(reason: str = "Shutdown requested") -> None:
     """Request a global shutdown."""
     service = _get_shutdown_service()
-    service.request_shutdown(reason)
+    # Use the sync version to avoid async/await issues
+    service._request_shutdown_sync(reason)
 
 def register_global_shutdown_handler(handler: Callable[[], None]) -> None:
     """Register a shutdown handler."""

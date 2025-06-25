@@ -9,6 +9,7 @@ from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.services.runtime.secrets_service import SecretsService
 from ciris_engine.logic.adapters.base_observer import BaseObserver
+from ciris_engine.logic.adapters.discord.discord_vision_helper import DiscordVisionHelper
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,13 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         self.wa_user_ids = wa_user_ids or []
 
         self.monitored_channel_ids = monitored_channel_ids or []
+        
+        # Initialize vision helper
+        self._vision_helper = DiscordVisionHelper()
+        if self._vision_helper.is_available():
+            logger.info("Discord Vision Helper initialized - image processing enabled")
+        else:
+            logger.warning("Discord Vision Helper not available - set CIRIS_OPENAI_VISION_KEY to enable")
 
     async def _send_deferral_message(self, content: str) -> None:
         """Send a message to the deferral channel."""
@@ -94,6 +102,44 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         
         # Process message for secrets detection and replacement (for all messages)
         processed_msg = await self._process_message_secrets(msg)
+        
+        # Process any images in the message if vision is available
+        if self._vision_helper.is_available() and hasattr(msg, 'raw_message') and msg.raw_message:
+            try:
+                # Process attachments
+                image_descriptions = await self._vision_helper.process_message_images(msg.raw_message)
+                
+                # Process embeds if any
+                embed_descriptions = None
+                if hasattr(msg.raw_message, 'embeds') and msg.raw_message.embeds:
+                    embed_descriptions = await self._vision_helper.process_embeds(msg.raw_message.embeds)
+                
+                # Append descriptions to the message content
+                if image_descriptions or embed_descriptions:
+                    additional_content = "\n\n[Image Analysis]\n"
+                    if image_descriptions:
+                        additional_content += image_descriptions
+                    if embed_descriptions:
+                        if image_descriptions:
+                            additional_content += "\n\n"
+                        additional_content += embed_descriptions
+                    
+                    # Create a new message with the augmented content
+                    processed_msg = DiscordMessage(
+                        message_id=processed_msg.message_id,
+                        content=processed_msg.content + additional_content,
+                        author_id=processed_msg.author_id,
+                        author_name=processed_msg.author_name,
+                        channel_id=processed_msg.channel_id,
+                        is_bot=processed_msg.is_bot,
+                        is_dm=processed_msg.is_dm,
+                        raw_message=processed_msg.raw_message
+                    )
+                    
+                    logger.info(f"Processed images in message {msg.message_id} from {msg.author_name}")
+                    
+            except Exception as e:
+                logger.error(f"Failed to process images in message {msg.message_id}: {e}")
         
         # Add ALL messages to history (including agent's own)
         self._history.append(processed_msg)

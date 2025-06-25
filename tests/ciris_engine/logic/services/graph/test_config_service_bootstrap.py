@@ -195,7 +195,7 @@ async def test_config_node_serialization_fix(time_service):
     graph_node = config_node.to_graph_node()
     
     # Verify GraphNode has proper structure
-    assert graph_node.id == "config_test_123"
+    assert graph_node.id == "config:test.key"  # ConfigNode uses "config:{key}" format
     assert graph_node.type == NodeType.CONFIG
     
     # Check attributes - this is where the bug is

@@ -29,7 +29,7 @@ from ciris_engine.logic.infrastructure.handlers.handler_registry import build_ac
 from ciris_engine.logic.utils.shutdown_manager import (
     get_shutdown_manager, 
     register_global_shutdown_handler,
-    wait_for_global_shutdown,
+    wait_for_global_shutdown_async,
     is_global_shutdown_requested
 )
 from ciris_engine.logic.utils.initialization_manager import (
@@ -218,7 +218,9 @@ class CIRISRuntime:
         if self._shutdown_event:
             self._shutdown_event.set()
         
-        self._shutdown_manager.request_shutdown(f"Runtime: {reason}")
+        # Use the sync version from shutdown_manager utils to avoid async/await issues
+        from ciris_engine.logic.utils.shutdown_manager import request_global_shutdown
+        request_global_shutdown(f"Runtime: {reason}")
 
     async def _request_shutdown(self, reason: str = "Shutdown requested") -> None:
         """Async wrapper used during initialization failures."""
@@ -660,7 +662,7 @@ class CIRISRuntime:
             if self._shutdown_event:
                 shutdown_event_task = asyncio.create_task(self._shutdown_event.wait(), name="ShutdownEventWait")
             
-            global_shutdown_task = asyncio.create_task(wait_for_global_shutdown(), name="GlobalShutdownWait")
+            global_shutdown_task = asyncio.create_task(wait_for_global_shutdown_async(), name="GlobalShutdownWait")
             all_tasks: List[asyncio.Task[Any]] = [agent_task, *adapter_tasks, global_shutdown_task]
             if shutdown_event_task:
                 all_tasks.append(shutdown_event_task)
@@ -825,17 +827,57 @@ class CIRISRuntime:
         logger.debug("Adapters stopped.")
             
         logger.debug("Stopping core services...")
-        services_to_stop = [
-            self.llm_service, # OpenAICompatibleClient
-            self.memory_service,
-            self.audit_service,
-            self.telemetry_service,
-            self.secrets_service,
-            self.adaptive_filter_service,
-            self.agent_config_service,
-            self.transaction_orchestrator,
-            self.maintenance_service,
-        ]
+        # Stop services in reverse dependency order
+        # Services that depend on others should be stopped first
+        services_to_stop = []
+        
+        # First stop services that depend on memory/telemetry
+        if hasattr(self.service_initializer, 'tsdb_consolidation_service') and self.service_initializer.tsdb_consolidation_service:
+            services_to_stop.append(self.service_initializer.tsdb_consolidation_service)
+        if hasattr(self.service_initializer, 'task_scheduler_service') and self.service_initializer.task_scheduler_service:
+            services_to_stop.append(self.service_initializer.task_scheduler_service)
+        if hasattr(self.service_initializer, 'incident_management_service') and self.service_initializer.incident_management_service:
+            services_to_stop.append(self.service_initializer.incident_management_service)
+        if hasattr(self.service_initializer, 'resource_monitor_service') and self.service_initializer.resource_monitor_service:
+            services_to_stop.append(self.service_initializer.resource_monitor_service)
+        if hasattr(self.service_initializer, 'config_service') and self.service_initializer.config_service:
+            services_to_stop.append(self.service_initializer.config_service)
+            
+        # Then stop higher-level services
+        if self.maintenance_service:
+            services_to_stop.append(self.maintenance_service)
+        if self.transaction_orchestrator:
+            services_to_stop.append(self.transaction_orchestrator)
+        if self.agent_config_service:
+            services_to_stop.append(self.agent_config_service)
+        if self.adaptive_filter_service:
+            services_to_stop.append(self.adaptive_filter_service)
+            
+        # Stop services that use memory service
+        if self.telemetry_service:
+            services_to_stop.append(self.telemetry_service)  # Depends on memory service
+        if self.audit_service:
+            services_to_stop.append(self.audit_service)      # May depend on memory service
+            
+        # Stop other core services
+        if self.llm_service:
+            services_to_stop.append(self.llm_service)        # OpenAICompatibleClient
+        if hasattr(self.service_initializer, 'wa_auth_system') and self.service_initializer.wa_auth_system:
+            services_to_stop.append(self.service_initializer.wa_auth_system)
+            
+        # Stop fundamental services last
+        if self.secrets_service:
+            services_to_stop.append(self.secrets_service)
+        if self.memory_service:
+            services_to_stop.append(self.memory_service)     # Core dependency, stop last
+            
+        # Finally stop infrastructure services
+        if hasattr(self.service_initializer, 'initialization_service') and self.service_initializer.initialization_service:
+            services_to_stop.append(self.service_initializer.initialization_service)
+        if hasattr(self.service_initializer, 'shutdown_service') and self.service_initializer.shutdown_service:
+            services_to_stop.append(self.service_initializer.shutdown_service)
+        if hasattr(self.service_initializer, 'time_service') and self.service_initializer.time_service:
+            services_to_stop.append(self.service_initializer.time_service)
         
         # Stop services that have a stop method
         stop_tasks = []

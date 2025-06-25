@@ -38,32 +38,18 @@ async def store_agent_identity(
         True if successful, False otherwise
     """
     try:
-        # Create identity node
-        # Create proper GraphNodeAttributes
-        from ciris_engine.schemas.services.graph_core import GraphNodeAttributes
+        # Import IdentityNode
+        from ciris_engine.schemas.services.nodes import IdentityNode
         
-        # Store identity data in tags as a workaround
-        # FIXME: This should use a proper identity node type with custom attributes
-        attributes = GraphNodeAttributes(
-            created_at=time_service.now(),
-            updated_at=time_service.now(),
-            created_by="system",
-            tags=[f"identity:{identity.agent_id}", "version:1.0"]
-        )
+        # Convert AgentIdentityRoot to IdentityNode
+        identity_node = IdentityNode.from_agent_identity_root(identity, time_service)
         
-        identity_node = GraphNode(
-            id="agent/identity",
-            type=NodeType.AGENT,
-            scope=GraphScope.IDENTITY,
-            attributes=attributes,
-            version=1,
-            updated_by="system",
-            updated_at=time_service.now()
-        )
+        # Convert to GraphNode for storage
+        graph_node = identity_node.to_graph_node()
         
         # Store in graph
-        add_graph_node(identity_node, time_service, db_path=db_path)
-        logger.info(f"Stored identity for agent {identity.agent_id}")
+        add_graph_node(graph_node, time_service, db_path=db_path)
+        logger.info(f"Stored identity for agent {identity.agent_id or identity.name}")
         return True
         
     except Exception as e:
@@ -83,31 +69,28 @@ async def retrieve_agent_identity(
         AgentIdentityRoot if found, None otherwise
     """
     try:
+        # Import IdentityNode
+        from ciris_engine.schemas.services.nodes import IdentityNode
+        
         # Get identity node
-        identity_node = get_graph_node(
+        graph_node = get_graph_node(
             node_id="agent/identity",
             scope=GraphScope.IDENTITY,
             db_path=db_path
         )
         
-        if not identity_node:
+        if not graph_node:
             logger.debug("No identity node found in graph")
             return None
             
-        # Extract identity data - attributes is a GraphNodeAttributes object, not a dict
-        # For now, we'll need to handle this differently since GraphNodeAttributes 
-        # doesn't have an identity field. This suggests a schema mismatch.
-        # TODO: Fix the schema to properly handle identity data
-        identity_data = None
-        if hasattr(identity_node.attributes, 'identity'):
-            identity_data = getattr(identity_node.attributes, 'identity', None)
+        # Convert GraphNode back to IdentityNode
+        identity_node = IdentityNode.from_graph_node(graph_node)
         
-        if not identity_data:
-            logger.warning("Identity node exists but has no identity data")
-            return None
-            
-        # Validate and return
-        return AgentIdentityRoot.model_validate(identity_data)
+        # Convert to AgentIdentityRoot
+        agent_identity = identity_node.to_agent_identity_root()
+        
+        logger.info(f"Retrieved identity for agent {agent_identity.agent_id}")
+        return agent_identity
         
     except Exception as e:
         logger.error(f"Failed to retrieve agent identity: {e}", exc_info=True)
@@ -247,32 +230,42 @@ def get_identity_for_context(db_path: Optional[str] = None) -> IdentityContext:
         IdentityContext with typed fields
     """
     try:
-        identity_node = get_graph_node(
+        # Import IdentityNode
+        from ciris_engine.schemas.services.nodes import IdentityNode
+        
+        graph_node = get_graph_node(
             node_id="agent/identity",
             scope=GraphScope.IDENTITY,
             db_path=db_path
         )
         
-        if not identity_node:
+        if not graph_node:
             raise RuntimeError("CRITICAL: No agent identity found in graph database. System cannot start without identity.")
             
-        # Extract and validate identity data using the model
-        # Extract identity data - same issue as above
-        identity_data = None
-        if hasattr(identity_node.attributes, 'identity'):
-            identity_data = getattr(identity_node.attributes, 'identity', None)
-        if not identity_data:
-            raise RuntimeError("CRITICAL: Identity node exists but contains no identity data. Database corruption detected.")
+        # Convert GraphNode back to IdentityNode
+        identity_node = IdentityNode.from_graph_node(graph_node)
         
-        # Use model_validate to properly deserialize enums
-        identity = AgentIdentityRoot.model_validate(identity_data)
+        # Convert to AgentIdentityRoot
+        identity = identity_node.to_agent_identity_root()
+        
+        # Convert permitted_actions strings to HandlerActionType enums
+        from ciris_engine.schemas.runtime.enums import HandlerActionType
+        permitted_action_enums = []
+        for action_str in identity.permitted_actions:
+            try:
+                # Try to convert action string to HandlerActionType
+                action = HandlerActionType(action_str.upper())
+                permitted_action_enums.append(action)
+            except ValueError:
+                # Skip actions that don't map to HandlerActionType
+                logger.debug(f"Action '{action_str}' does not map to a HandlerActionType")
         
         return IdentityContext(
             agent_name=identity.agent_id,
             agent_role=identity.core_profile.role_description,
             description=identity.core_profile.description,
             domain_specific_knowledge=identity.core_profile.domain_specific_knowledge,
-            permitted_actions=identity.permitted_actions,  # Already proper enums from model_validate
+            permitted_actions=permitted_action_enums,
             restricted_capabilities=identity.restricted_capabilities,
             # Include overrides for DMAs
             dsdma_prompt_template=identity.core_profile.dsdma_prompt_template,

@@ -2,25 +2,31 @@
 import discord
 from discord import ui
 import logging
-from typing import List, Optional, TYPE_CHECKING, Any
+from typing import List, Optional, TYPE_CHECKING, Any, Dict
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+    from ciris_engine.protocols.services.graph.memory import MemoryServiceProtocol
 
 logger = logging.getLogger(__name__)
 
 class DiscordGuidanceHandler:
     """Handles Discord wise authority guidance and deferral operations."""
     
-    def __init__(self, client: Optional[discord.Client] = None, time_service: Optional["TimeServiceProtocol"] = None) -> None:
+    def __init__(self, client: Optional[discord.Client] = None, 
+                 time_service: Optional["TimeServiceProtocol"] = None,
+                 memory_service: Optional["MemoryServiceProtocol"] = None) -> None:
         """Initialize the guidance handler.
         
         Args:
             client: Discord client instance
             time_service: Time service for consistent time operations
+            memory_service: Memory service for WA lookups
         """
         self.client = client
         self._time_service = time_service
+        self._memory_service = memory_service
+        self._wa_cache: Dict[str, bool] = {}  # Cache WA status
         
         # Ensure we have a time service
         if self._time_service is None:
@@ -34,6 +40,80 @@ class DiscordGuidanceHandler:
             client: Discord client instance
         """
         self.client = client
+    
+    def set_memory_service(self, memory_service: "MemoryServiceProtocol") -> None:
+        """Set the memory service after initialization.
+        
+        Args:
+            memory_service: Memory service instance
+        """
+        self._memory_service = memory_service
+    
+    async def _is_registered_wa(self, discord_id: str) -> bool:
+        """Check if a Discord user is a registered WA.
+        
+        Args:
+            discord_id: Discord user ID
+            
+        Returns:
+            True if user is a registered WA
+        """
+        # Check cache first
+        if discord_id in self._wa_cache:
+            return self._wa_cache[discord_id]
+        
+        # For bot's own ID, always return True
+        if self.client and self.client.user and str(self.client.user.id) == discord_id:
+            self._wa_cache[discord_id] = True
+            return True
+        
+        # If no memory service, check Discord roles
+        if not self._memory_service:
+            return await self._check_discord_roles(discord_id)
+        
+        try:
+            # Query memory for Discord WA node
+            query = {
+                "node_type": "DISCORD_WA",
+                "discord_id": discord_id
+            }
+            
+            nodes = await self._memory_service.search(query)
+            is_wa = len(nodes) > 0
+            
+            # Cache result
+            self._wa_cache[discord_id] = is_wa
+            return is_wa
+            
+        except Exception as e:
+            logger.error(f"Failed to check WA status for {discord_id}: {e}")
+            # Fall back to Discord role check
+            return await self._check_discord_roles(discord_id)
+    
+    async def _check_discord_roles(self, discord_id: str) -> bool:
+        """Check if user has AUTHORITY or OBSERVER role in Discord.
+        
+        Args:
+            discord_id: Discord user ID
+            
+        Returns:
+            True if user has appropriate role
+        """
+        if not self.client:
+            return False
+        
+        try:
+            # Check all guilds
+            for guild in self.client.guilds:
+                member = guild.get_member(int(discord_id))
+                if member:
+                    role_names = [role.name.upper() for role in member.roles]
+                    if "AUTHORITY" in role_names or "OBSERVER" in role_names:
+                        return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to check Discord roles for {discord_id}: {e}")
+            return False
     
     async def fetch_guidance_from_channel(self, deferral_channel_id: str, context: dict) -> dict:
         """Send a guidance request to a Discord channel and check for responses.
@@ -76,7 +156,11 @@ class DiscordGuidanceHandler:
                 if message.author.bot or (request_message and message.id == request_message.id):
                     continue
                 
-                # TODO: Check if author is a registered WA
+                # Check if author is a registered WA
+                if not await self._is_registered_wa(str(message.author.id)):
+                    logger.debug(f"Skipping guidance from non-WA user {message.author.name}")
+                    continue
+                
                 guidance_content = message.content.strip()
                 
                 is_reply = bool(hasattr(message, 'reference') and 

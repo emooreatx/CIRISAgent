@@ -26,7 +26,6 @@ class NodeType(str, Enum):
     TSDB_DATA = "tsdb_data"
     TSDB_SUMMARY = "tsdb_summary"
     AUDIT_ENTRY = "audit_entry"
-    ADAPTATION_PROPOSAL = "adaptation_proposal"
     IDENTITY_SNAPSHOT = "identity_snapshot"
     BEHAVIORAL = "behavioral"
     SOCIAL = "social"

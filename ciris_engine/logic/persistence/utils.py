@@ -1,6 +1,6 @@
 import json
 from typing import Any
-from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext, TaskContext
+from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext, TaskContext, TaskOutcome, FinalAction
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
 import logging
@@ -41,15 +41,23 @@ def map_row_to_task(row: Any) -> Task:
         )
     if row_dict.get("outcome_json"):
         try:
-            row_dict["outcome"] = json.loads(row_dict["outcome_json"])
+            outcome_data = json.loads(row_dict["outcome_json"])
+            # Only set outcome if it's a non-empty dict with required fields
+            if isinstance(outcome_data, dict) and outcome_data:
+                row_dict["outcome"] = TaskOutcome.model_validate(outcome_data)
+            else:
+                row_dict["outcome"] = None
         except Exception:
             logger.warning(f"Failed to decode outcome_json for task {row_dict.get('task_id')}")
-            row_dict["outcome"] = {}
+            row_dict["outcome"] = None
     else:
-        row_dict["outcome"] = {}
-    for k in ["context_json", "outcome_json"]:
+        row_dict["outcome"] = None
+    
+    # Remove database-specific columns that aren't in the Task schema
+    for k in ["context_json", "outcome_json", "retry_count"]:
         if k in row_dict:
             del row_dict[k]
+    
     try:
         row_dict["status"] = TaskStatus(row_dict["status"])
     except Exception:
@@ -101,12 +109,17 @@ def map_row_to_thought(row: Any) -> Thought:
         row_dict["ponder_notes"] = None
     if row_dict.get("final_action_json"):
         try:
-            row_dict["final_action"] = json.loads(row_dict["final_action_json"])
+            action_data = json.loads(row_dict["final_action_json"])
+            # Only set final_action if it's a non-empty dict with required fields
+            if isinstance(action_data, dict) and action_data:
+                row_dict["final_action"] = FinalAction.model_validate(action_data)
+            else:
+                row_dict["final_action"] = None
         except Exception:
             logger.warning(f"Failed to decode final_action_json for thought {row_dict.get('thought_id')}")
-            row_dict["final_action"] = {}
+            row_dict["final_action"] = None
     else:
-        row_dict["final_action"] = {}
+        row_dict["final_action"] = None
     for k in ["context_json", "ponder_notes_json", "final_action_json"]:
         if k in row_dict:
             del row_dict[k]

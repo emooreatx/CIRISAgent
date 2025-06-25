@@ -1,8 +1,16 @@
-# Graph Node Type System - Functional Specification Document
+# Typed Graph Node System - Functional Specification Document
 
 ## Overview
 
-The CIRIS Graph Memory system provides a flexible, type-safe way to store and query heterogeneous node types while maintaining a generic storage layer. This design enables new node types to be added without modifying the core memory service, while preserving full type safety and validation.
+The CIRIS Typed Graph Node system is a patent-pending innovation that solves a critical challenge in resource-constrained AI systems: how to maintain complete type safety while storing heterogeneous data in a graph database. This system enables:
+
+1. **100% Type Safety**: Zero `Dict[str, Any]` usage - every piece of data has a strongly-typed schema
+2. **Resource Efficiency**: Minimal memory overhead through shared base types and efficient serialization
+3. **Extensibility**: New node types can be added without modifying core infrastructure
+4. **Graph-Native**: Designed specifically for graph databases, not retrofitted from relational models
+5. **Self-Describing**: Each node carries its type information for automatic deserialization
+
+This unique approach enables CIRIS to run reliably in resource-constrained environments (4GB RAM) while maintaining the type safety typically associated with much larger systems.
 
 ## Core Design Principles
 
@@ -104,11 +112,11 @@ class TypedNode(GraphNode):
         )
 ```
 
-## Node Types
+## Node Types (11 Active)
 
-### Configuration & Self-Adaptation (3)
+### Identity & Configuration (3)
+- **IdentityNode**: Core agent identity at "agent/identity" ✅ (NEW)
 - **ConfigNode**: Key-value configuration with versioning ✅
-- **AdaptationProposal**: Proposed configuration changes ✅
 - **IdentitySnapshot**: Identity drift measurements ✅
 
 ### Audit & Telemetry (2)
@@ -120,7 +128,13 @@ class TypedNode(GraphNode):
 - **ProblemNode**: Recurring issues (ITIL-aligned) ✅ 
 - **IncidentInsightNode**: AI-generated insights ✅
 
+### Discord-Specific (3)
+- **DiscordDeferralNode**: Deferral requests in Discord ✅
+- **DiscordApprovalNode**: WA approval tracking ✅
+- **DiscordWANode**: Wise Authority assignments ✅
+
 ### Removed (Dead Code)
+- ~~AdaptationProposal~~ - Not actively used
 - ~~TelemetryNode~~ - Telemetry uses memorize_metric() instead
 - ~~DecisionMemory~~ - Not implemented
 - ~~ErrorMemory~~ - Not implemented
@@ -299,7 +313,7 @@ class ConfigService:
 
 ## Success Criteria
 
-1. All 8 active node types migrated to TypedGraphNode pattern ✅
+1. All 11 active node types migrated to TypedGraphNode pattern ✅
 2. Memory service remains generic (no type-specific code) ✅
 3. Services work with fully typed objects ✅
 4. Time correlation queries < 100ms for 1M nodes

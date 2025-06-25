@@ -153,7 +153,7 @@ class WakeupProcessor(BaseProcessor):
                         "step": i + 1,
                         "task_id": step_task.task_id,
                         "status": status,
-                        "type": step_task.context.get("step_type", "unknown") if step_task.context else "unknown"
+                        "type": step_task.task_id.split("_")[0] if "_" in step_task.task_id else "unknown"
                     })
                 
                 all_complete = all(
@@ -263,7 +263,7 @@ class WakeupProcessor(BaseProcessor):
         """Always create new wakeup sequence tasks for each run, regardless of previous completions."""
         from ciris_engine.logic.persistence.models.tasks import add_system_task
         
-        now_iso = self.time_service.get_current_time().isoformat()
+        now_iso = self.time_service.now().isoformat()
         root_task = Task(
             task_id="WAKEUP_ROOT",
             description="Wakeup ritual",
@@ -271,11 +271,7 @@ class WakeupProcessor(BaseProcessor):
             priority=1,
             created_at=now_iso,
             updated_at=now_iso,
-            context=ThoughtContext(
-                system_snapshot=SystemSnapshot(channel_context=create_channel_context(self.startup_channel_id)),
-                user_profiles={},
-                task_history=[]
-            ) if self.startup_channel_id else None,
+            context=None  # Will be set by ContextBuilder when creating thoughts
         )
         if not persistence.task_exists(root_task.task_id):
             await add_system_task(root_task, auth_service=self.auth_service)
@@ -285,23 +281,17 @@ class WakeupProcessor(BaseProcessor):
         channel_id = self.startup_channel_id  # Use the startup_channel_id directly, it's already set
         wakeup_sequence = self._get_wakeup_sequence()
         for step_type, content in wakeup_sequence:
-            # Create ThoughtContext
-            context = ThoughtContext(
-                system_snapshot=SystemSnapshot(channel_context=create_channel_context(channel_id)),
-                user_profiles={},
-                task_history=[]
-            )
-            # Add extra field after creation
-            setattr(context, 'step_type', step_type)
+            # Create basic task without complex context
+            # Store step_type in the task_id for later retrieval
             step_task = Task(
-                task_id=str(uuid.uuid4()),
+                task_id=f"{step_type}_{uuid.uuid4()}",
                 description=content,
                 status=TaskStatus.ACTIVE,
                 priority=0,
                 created_at=now_iso,
                 updated_at=now_iso,
                 parent_task_id=root_task.task_id,
-                context=context,
+                context=None  # Will be set by ContextBuilder when creating thoughts
             )
             await add_system_task(step_task, auth_service=self.auth_service)
             self.wakeup_tasks.append(step_task)
@@ -312,7 +302,7 @@ class WakeupProcessor(BaseProcessor):
         root_task = self.wakeup_tasks[0]
         step_tasks = self.wakeup_tasks[1:]
         for i, step_task in enumerate(step_tasks):
-            step_type = step_task.context.get("step_type", "UNKNOWN") if step_task.context else "UNKNOWN"
+            step_type = step_task.task_id.split("_")[0] if "_" in step_task.task_id else "UNKNOWN"
             logger.debug(f"Processing wakeup step {i+1}/{len(step_tasks)}: {step_type}")
             current_task = persistence.get_task_by_id(step_task.task_id)
             if not current_task or current_task.status != TaskStatus.ACTIVE:
@@ -369,7 +359,7 @@ class WakeupProcessor(BaseProcessor):
             app_config=getattr(self, 'app_config', None),
         )
         # Create a new Thought object for this step
-        now_iso = self.time_service.get_current_time().isoformat()
+        now_iso = self.time_service.now().isoformat()
         thought = Thought(
             thought_id=str(uuid.uuid4()),
             source_task_id=step_task.task_id,
@@ -404,7 +394,7 @@ class WakeupProcessor(BaseProcessor):
     
     async def _dispatch_step_action(self, result: Any, thought: Thought, step_task: Task) -> bool:
         """Dispatch the action for a wakeup step."""
-        step_type = step_task.context.get("step_type", "UNKNOWN") if step_task.context else "UNKNOWN"
+        step_type = step_task.task_id.split("_")[0] if "_" in step_task.task_id else "UNKNOWN"
         
         # Use build_dispatch_context to create proper DispatchContext object
         from ciris_engine.logic.utils.context_utils import build_dispatch_context
