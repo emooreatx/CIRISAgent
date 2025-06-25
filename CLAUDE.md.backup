@@ -2,6 +2,82 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+<<<<<<< HEAD
+## 🚨 CURRENT PRIORITY TASK: API & SDK Update
+
+**Maximum Effort Required**: This is the PRIMARY and ONLY focus. ALL effort should be directed to completing the API and SDK updates according to the plans. Previous cleanup tasks are COMPLETE.
+
+### Task Overview
+
+1. **API Update** (See API_UPDATE_PLAN.md)
+   - Re-architect API to align with protocol-based design
+   - Expose all 19 service protocols appropriately
+   - Respect "API is for interaction, not control" principle
+   - Remove old telemetry patterns, use graph memory
+   - Add missing endpoints for incident management, self-configuration, etc.
+
+2. **SDK Update** (See SDK_UPDATE_PLAN.md)
+   - Complete rewrite following "No Dicts" principle
+   - Graph-native memory operations
+   - Capability-based resource design
+   - Full type safety with Pydantic models
+   - Migration support for v1 users
+
+### Implementation Priority
+
+1. **Phase 1**: Core API refactoring (Week 1-2)
+   - Telemetry refactor to use graph memory
+   - Separate config API from runtime control
+   - Fix design principle violations
+
+2. **Phase 2**: New protocol endpoints (Week 2-3)
+   - Incident management API
+   - Self-configuration API
+   - Task scheduler API
+   - Adaptive filter API
+
+3. **Phase 3**: SDK implementation (Week 2-3)
+   - Core architecture with zero dicts
+   - Resource implementations
+   - Type-safe models
+   - Testing and documentation
+
+### Success Criteria
+
+- All 19 protocols exposed via appropriate endpoints
+- Zero `Dict[str, Any]` in API contracts and SDK
+- Graph memory as single source of truth
+- Clear separation of interaction vs control
+- Comprehensive test coverage
+- Migration guides for existing users
+
+### Design Principles to Maintain
+
+1. **API is for Interaction**: Most endpoints read-only, agent maintains autonomy
+2. **RuntimeControl Exception**: Only RuntimeControl allows direct control with AUTHORITY role
+3. **Graph Memory**: All data queries from graph, no direct service access
+4. **Type Safety**: Pydantic models everywhere, no untyped data
+5. **Security**: Authentication required, role-based access, audit trails
+
+### Current Protocol-API Gaps
+
+**Missing Endpoints**:
+- IncidentManagementProtocol - No `/v1/incidents/*` endpoints
+- SelfConfigurationProtocol - No `/v1/adaptation/*` endpoints  
+- TaskSchedulerProtocol - No `/v1/scheduler/*` endpoints
+- AdaptiveFilterProtocol - No `/v1/filters/*` endpoints
+- TSDBConsolidationProtocol - Not properly exposed
+- ResourceMonitorProtocol - No `/v1/resources/*` endpoints
+
+**Misaligned Implementations**:
+- Telemetry using old collector instead of graph memory
+- Config mixed with runtime control
+- Agent creation in auth endpoints
+
+Refer to API_UPDATE_PLAN.md and SDK_UPDATE_PLAN.md for detailed implementation steps.
+
+---
+=======
 ## Project Context
 
 CIRIS is a moral reasoning platform designed for progressive deployment:
@@ -11,6 +87,7 @@ CIRIS is a moral reasoning platform designed for progressive deployment:
 - **Design Philosophy**: Start simple (Discord bot), scale to critical (healthcare triage)
 
 The over-engineered architecture (19 services, 6 buses) is intentional - it's a platform that starts as a Discord bot but is designed to scale to mission-critical applications in resource-constrained environments.
+>>>>>>> upstream/main
 
 ## Core Philosophy: No Dicts, No Strings, No Kings
 
@@ -23,22 +100,26 @@ The CIRIS codebase follows strict typing principles:
 
 This ensures type safety, validation, and clear contracts throughout the system.
 
-## Current Status (June 24, 2025)
+## Project Context
 
-### ✅ Major Achievements
+CIRIS is a moral reasoning platform designed for progressive deployment:
+- **Current Production**: Discord community moderation (handling spam, fostering positive community)
+- **Architecture Goals**: Resource-constrained environments (4GB RAM, offline-capable)
+- **Target Deployments**: Rural clinics, educational settings, community centers
+- **Design Philosophy**: Start simple (Discord bot), scale to critical (healthcare triage)
 
-1. **Dict[str, Any] Elimination**: COMPLETE! 
-   - Started with 609 instances
-   - Now have 0 in production code
-   - Fixed lowercase `dict[str, Any]` as well
+The over-engineered architecture (19 services, 6 buses) is intentional - it's a platform that starts as a Discord bot but is designed to scale to mission-critical applications in resource-constrained environments.
 
-2. **Service Architecture**: Exactly 19 services (production only!)
-   - Graph Services (6): memory, audit, config, telemetry, incident_management, tsdb_consolidation
-   - Core Services (2): llm, secrets (mock_llm is test-only)
-   - Infrastructure Services (7): time, shutdown, initialization, visibility, authentication, resource_monitor, runtime_control
-   - Governance Services (1): wise_authority
-   - Special Services (3): self_configuration, adaptive_filter, task_scheduler
+## Current Architecture Status
 
+<<<<<<< HEAD
+### Service Architecture: Exactly 19 services
+- Graph Services (6): memory, audit, config, telemetry, incident_management, tsdb_consolidation
+- Core Services (2): llm, secrets
+- Infrastructure Services (7): time, shutdown, initialization, visibility, authentication, resource_monitor, runtime_control
+- Governance Services (1): wise_authority
+- Special Services (3): self_configuration, adaptive_filter, task_scheduler
+=======
 3. **Schema Reorganization**:
    - Created `schemas/actions/` for shared action parameters
    - All handlers, DMAs, and services now use shared action schemas
@@ -465,6 +546,7 @@ _ = SpeakHandler.handle
 - **Schemas**: Mirror structure in `schemas/`
 - **Protocols**: Mirror structure in `protocols/`
 - **Shared Types**: Use `schemas/actions/` for parameters used across modules
+>>>>>>> upstream/main
 
 ### Why This Architecture?
 
@@ -478,88 +560,23 @@ The seemingly complex architecture serves specific deployment needs:
 
 ### Message Bus Architecture (6 Buses)
 
-Buses are used for services designed to support multiple providers, even if currently single-provider. This future-proofs the architecture.
-
 **Bussed Services** (designed for multiple providers):
-- CommunicationBus → Multiple adapters (Discord, API, CLI) - NO standalone service
-- MemoryBus → Multiple graph backends (Neo4j, ArangoDB, in-memory, etc.)
-- LLMBus → Multiple LLM providers (OpenAI, Anthropic, local models, fallbacks)
-- ToolBus → Multiple tool providers from adapters - NO standalone service
-- RuntimeControlBus → Multiple control interfaces (API, CLI, emergency stop)
-- WiseBus → Multiple wisdom sources (distributed WAs, consensus)
+- CommunicationBus → Multiple adapters (Discord, API, CLI)
+- MemoryBus → Multiple graph backends
+- LLMBus → Multiple LLM providers
+- ToolBus → Multiple tool providers from adapters
+- RuntimeControlBus → Multiple control interfaces
+- WiseBus → Multiple wisdom sources
 
 **Direct Call Services** (single instance by design):
-- All Graph Services except memory: audit, config, telemetry, incident_management, tsdb_consolidation
-- Core Services: secrets (single security boundary)
-- All Infrastructure Services except wise_authority: time, shutdown, initialization, visibility, authentication, resource_monitor
-- All Special Services: self_configuration, adaptive_filter, task_scheduler
+- All Graph Services except memory
+- All Infrastructure Services except wise_authority
+- All Special Services
 
-**Service Dependencies for Buses**:
-- All buses need: TimeService (for timestamps)
-- LLMBus needs: TelemetryService (for resource tracking)
-- MemoryBus needs: AuditService (for change tracking)
-
-### ServiceRegistry Usage (Critical)
-
-ServiceRegistry is used ONLY for these multi-provider services:
-1. **LLM** - Multiple providers (OpenAI, Anthropic, Mock) - ALWAYS registered
-2. **Memory** - Multiple graph backends possible - ALWAYS registered
-3. **WiseAuthority** - Multiple wisdom sources possible - ALWAYS registered
-4. **RuntimeControl** - Adapter-provided ONLY (API/CLI provide it, Discord doesn't) - OPTIONAL
-
-Note: 
-- Tool and Communication are provided ONLY by adapters through their respective buses. There are NO standalone Tool or Communication services. 
-- SELF_HELP functionality is part of Memory service (recalling capabilities).
-- RuntimeControl is NOT a core service. It only exists if an adapter provides it (e.g., API adapter for REST control, CLI for command-line control). Discord-only deployments have no RuntimeControl service - use OS signals (Ctrl-C, SIGTERM) instead.
-
-All other services (Time, Shutdown, Audit, Telemetry, etc.) are single-instance and should use direct references, NOT ServiceRegistry. No handler-specific or adapter-specific service instances - that violates "No Kings".
-
-### Cognitive States (6)
-- **WAKEUP** - Identity confirmation ritual
-- **WORK** - Normal task processing
-- **PLAY** - Creative and experimental mode
-- **SOLITUDE** - Reflection and maintenance
-- **DREAM** - Deep introspection
-- **SHUTDOWN** - Graceful termination
-
-### Test Refactoring Plan (After MyPy Zero)
-
-1. Mirror the new structure - tests follow code organization
-2. Use proper fixtures - no dict-based mocks
-3. Test through interfaces - protocols, not implementations
-4. Integration over unit tests
-5. Use real schemas - no mock dictionaries
-
-## Known Issues & Solutions
-
-### ConfigNode Migration Failure
-- **Error**: `Field required [type=missing, input_value={'key':...`
-- **Cause**: Mismatch between config migration and ConfigNode schema
-- **Solution**: Update `_migrate_config_to_graph` to include all required fields
-
-### DatabaseMaintenanceService Not Found
-- **Error**: `No maintenance service available`
-- **Cause**: It's not one of the 19 services, just a utility
-- **Solution**: Remove startup maintenance requirement
-
-### Initialization Order
-- **Current Flow**:
-  1. INFRASTRUCTURE → TimeService, ShutdownService, InitializationService, ResourceMonitor
-  2. DATABASE → Initialize SQLite
-  3. MEMORY → SecretsService, MemoryService, GraphConfigService
-  4. IDENTITY → Load agent identity
-  5. SECURITY → WiseAuthorityService
-  6. SERVICES → All remaining services
-  7. COMPONENTS → Build components
-  8. VERIFICATION → Final checks
-
-## Critical Principles
-
-1. **Service Count is Sacred**: Exactly 19 services. No more, no less.
-2. **No Service Creates Services**: Only ServiceInitializer creates services
-3. **Buses for Multi-Provider**: Memory, LLM, WiseAuthority use ServiceRegistry
-4. **Direct for Single-Instance**: All others use direct references
-5. **Utilities Are Not Services**: DatabaseMaintenanceService, helpers, etc. are NOT services
+### Testing Status
+- All tests passing (355 passed, 61 skipped)
+- Discord adapter fully implemented with vision support
+- Zero MyPy errors in critical paths
 
 ## Development Commands
 
@@ -583,17 +600,14 @@ python -m mypy ciris_engine/ --config-file=mypy.ini
 
 ## Important Guidelines
 
-### Type Safety
-- ✅ Zero Dict[str, Any] achieved!
-- All data structures use Pydantic schemas
-- Maintain strict typing throughout
-
-### Testing
-- Tests must use typed schemas
-- No dict-based mocking
-- Test through protocols
+### When Implementing API/SDK Updates
+1. **Start with API telemetry refactor** - Critical path
+2. **Test each endpoint thoroughly** - No assumptions
+3. **Maintain type safety** - Zero dicts policy
+4. **Document all changes** - Migration guides essential
+5. **Respect agent autonomy** - Interaction over control
 
 ### Never Ask for Confirmation
 - Make changes directly
-- Break things if needed
-- The goal is clean, typed code
+- Implement decisively
+- The goal is a clean, typed API and SDK
