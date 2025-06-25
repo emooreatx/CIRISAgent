@@ -85,9 +85,9 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-      # Commit BUILD_INFO.txt if on main branch
+      # Commit BUILD_INFO.txt if on main branch (only in repos without branch protection)
       - name: Commit version info
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository != 'CIRISai/CIRISAgent'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -105,6 +105,15 @@ jobs:
           else
             echo "BUILD_INFO.txt was not created"
           fi
+      
+      # For CIRISai/CIRISAgent, just display the BUILD_INFO.txt content
+      - name: Display version info for protected branch
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository == 'CIRISai/CIRISAgent'
+        run: |
+          echo "BUILD_INFO.txt content (not committed due to branch protection):"
+          cat BUILD_INFO.txt || echo "No BUILD_INFO.txt created"
+          echo ""
+          echo "To commit this file, it must be added through a pull request."
 
       # Summary of what ran
       - name: Summary
@@ -119,5 +128,9 @@ jobs:
             echo "- ⏭️ SonarQube scan skipped (running in fork or no token)" >> $GITHUB_STEP_SUMMARY
           fi
           if [[ "${{ github.ref }}" == "refs/heads/main" ]] && [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "- 📝 Version info updated in BUILD_INFO.txt" >> $GITHUB_STEP_SUMMARY
+            if [[ "${{ github.repository }}" == "CIRISai/CIRISAgent" ]]; then
+              echo "- 📝 Version info generated (not committed due to branch protection)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- 📝 Version info updated in BUILD_INFO.txt" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
