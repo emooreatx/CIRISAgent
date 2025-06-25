@@ -1,5 +1,6 @@
 # Protocol-facing mock responses for feedback/guardrail types
-from ciris_engine.schemas.feedback_schemas_v1 import OptimizationVetoResult, EpistemicHumilityResult, FeedbackType
+from ciris_engine.schemas.conscience.core import OptimizationVetoResult, EpistemicHumilityResult
+from ciris_engine.schemas.services.feedback_core import FeedbackType
 
 def optimization_veto(context=None):
     """Mock OptimizationVetoResult with passing values, instructor compatible."""

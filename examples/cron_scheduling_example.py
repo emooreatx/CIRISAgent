@@ -6,7 +6,7 @@ This example demonstrates how to schedule recurring tasks using cron expressions
 
 import asyncio
 from datetime import datetime, timezone
-from ciris_engine.services.task_scheduler_service import TaskSchedulerService
+from ciris_engine.logic.services.lifecycle.scheduler import TaskSchedulerService
 
 
 async def main():

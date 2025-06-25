@@ -38,7 +38,7 @@ class SchemaComplianceChecker:
             'Task': schemas.Task,
             'Thought': schemas.Thought,
             'IncomingMessage': schemas.IncomingMessage,
-            'ActionSelectionResult': schemas.ActionSelectionResult,
+            'ActionSelectionDMAResult': schemas.ActionSelectionDMAResult,
             'HandlerActionType': schemas.HandlerActionType,
         })
         

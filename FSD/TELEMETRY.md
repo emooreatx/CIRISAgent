@@ -9,6 +9,8 @@
 
 This document specifies the telemetry system for the CIRIS Agent, designed to provide comprehensive observability while maintaining the agent's ability to introspect its own operational state. The system prioritizes **security and safety over performance**, implementing defense-in-depth principles and assuming a hostile operational environment.
 
+**Update (June 2025)**: The telemetry system has been simplified to use a single, unified flow through the memory bus's `memorize_metric()` method, eliminating orphaned node types and ensuring all telemetry data flows through the correlation-based TSDB system.
+
 ### Critical Design Principles
 
 1. **Safety First**: All telemetry data is considered potentially sensitive. No PII or conversation content in metrics.
@@ -22,32 +24,31 @@ This document specifies the telemetry system for the CIRIS Agent, designed to pr
 ```mermaid
 graph TB
     subgraph "CIRIS Agent Core"
-        A[ThoughtProcessor] --> T[TelemetryService]
+        A[ThoughtProcessor] --> T[GraphTelemetryService]
         B[Handlers] --> T
         C[DMAs] --> T
         D[Guardrails] --> T
         E[CircuitBreakers] --> T
+        ADP[Adapters] --> MM[memorize_metric]
         
         T --> SS[SystemSnapshot]
         SS --> CTX[ThoughtContext]
         
-        T --> MB[MetricBuffers]
-        MB --> SEC[SecurityFilter]
+        T --> MB[MemoryBus]
+        MM --> MB
+        MB --> CORR[Correlations/TSDB]
+    end
+    
+    subgraph "Consolidation"
+        CORR --> TSC[TSDBConsolidationService]
+        TSC --> SUMM[TSDBSummary Nodes]
+        SUMM --> |Permanent Memory| GRAPH[(Graph)]
     end
     
     subgraph "Export Layer"
-        SEC --> OTLP[OTLP Exporter]
-        SEC --> WS[WebSocket Server]
+        CORR --> SEC[SecurityFilter]
         SEC --> API[REST API]
-        
-        OTLP --> |TLS+mTLS| EXT[External Collectors]
-        WS --> |WSS+Auth| UI[UI Clients]
         API --> |HTTPS+Auth| MON[Monitoring]
-    end
-    
-    subgraph "Storage"
-        T --> TSH[Time Series History]
-        TSH --> |Encrypted| DISK[(Disk)]
     end
 ```
 
@@ -172,19 +173,13 @@ All data export MUST be secure:
 
 ## Implementation Tasks
 
-### Phase 1: Core Telemetry Service (Security Hardened)
+### Phase 1: Core Telemetry Service (Security Hardened) ✅ COMPLETED
 
-**Task 1.1: Create Base Telemetry Service**
-```python
-# ciris_engine/telemetry/core.py
-# TODO: Implement TelemetryService with:
-# - Secure metric collection
-# - In-memory buffers with size limits
-# - Security filter pipeline
-# - Integration with SystemSnapshot
-# Priority: CRITICAL
-# Security: Implement input validation, bounds checking
-```
+**Task 1.1: GraphTelemetryService Implementation** ✅
+- Implemented as one of the 19 core services
+- Uses memorize_metric() for unified telemetry flow
+- Integrates with SystemSnapshot for agent introspection
+- Security filtering built into the correlation layer
 
 **Task 1.2: Implement Security Filter**
 ```python

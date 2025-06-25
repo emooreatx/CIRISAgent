@@ -21,8 +21,8 @@ from pathlib import Path
 # Add the project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from ciris_engine import persistence
-from ciris_engine.persistence.db.core import get_db_connection
+from ciris_engine.logic import persistence
+from ciris_engine.logic.persistence.db.core import get_db_connection
 from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
 
 
@@ -177,7 +177,7 @@ def show_dead_letter():
 def show_api_messages(channel_id=None):
     """Show API message queue."""
     try:
-        from ciris_engine.adapters.api.api_adapter import APIAdapter
+        from ciris_engine.logic.adapters.api.api_adapter import APIAdapter
         # This is a debug tool, so we'll query the database directly
         conn = get_db_connection()
         

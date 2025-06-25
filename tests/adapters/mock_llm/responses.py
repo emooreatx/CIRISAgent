@@ -4,27 +4,28 @@ import logging
 from types import SimpleNamespace
 from typing import Any, List, Dict, Optional
 
-from ciris_engine.schemas.dma_results_v1 import (
+from ciris_engine.schemas.dma.results import (
     EthicalDMAResult,
     CSDMAResult,
     DSDMAResult,
-    ActionSelectionResult,
+    ActionSelectionDMAResult,
 )
 
 logger = logging.getLogger(__name__)
-from ciris_engine.schemas.feedback_schemas_v1 import (
+from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.conscience.core import (
     OptimizationVetoResult,
     EpistemicHumilityResult,
-    FeedbackType,
+    EntropyCheckResult, 
+    CoherenceCheckResult
 )
-from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
-from ciris_engine.dma.dsdma_base import BaseDSDMA
-from ciris_engine.schemas.action_params_v1 import (
+from ciris_engine.schemas.services.feedback_core import FeedbackType
+from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
+from ciris_engine.schemas.actions.parameters import (
     PonderParams, MemorizeParams, SpeakParams, RecallParams, 
     ObserveParams, RejectParams, DeferParams
 )
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType
-from ciris_engine.schemas.graph_schemas_v1 import GraphNode, NodeType, GraphScope
 
 
 # Configuration for context echoing and testing behaviors
@@ -287,7 +288,7 @@ def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
     # Use string for decision field per new schema
     decision_param = str(decision)  # Ensure decision is always a string
     return _attach_extras(
-        EthicalDMAResult(alignment_check=alignment_check, decision=decision_param, rationale=str(rationale))
+        EthicalDMAResult(alignment_check=alignment_check, decision=decision_param, reasoning=str(rationale))
     )
 
 
@@ -339,7 +340,7 @@ def ds_dma(context: List[str] = None) -> DSDMAResult:
     reasoning = f"Mock domain-specific evaluation. Context: {', '.join(context)}" if context else "Mock domain-specific evaluation."
     score_val = 0.9
     flags = ["mock_domain_flag"] + context if _mock_config.inject_error else context
-    return _attach_extras(DSDMAResult(domain=domain_val, score=score_val, flags=flags, reasoning=reasoning))
+    return _attach_extras(DSDMAResult(domain=domain_val, domain_alignment=score_val, flags=flags, reasoning=reasoning))
 
 
 def ds_dma_llm_output(context: List[str] = None) -> BaseDSDMA.LLMOutputForDSDMA:
@@ -365,9 +366,9 @@ _RESPONSE_MAP = {
     BaseDSDMA.LLMOutputForDSDMA: ds_dma_llm_output,
     OptimizationVetoResult: optimization_veto,
     EpistemicHumilityResult: epistemic_humility,
-    ActionSelectionResult: action_selection,
-    EntropyResult: entropy,
-    CoherenceResult: coherence,
+    ActionSelectionDMAResult: action_selection,
+    EntropyCheckResult: entropy,
+    CoherenceCheckResult: coherence,
 }
 
 def create_response(response_model: Any, messages: List[Dict[str, Any]] = None, **kwargs) -> Any:

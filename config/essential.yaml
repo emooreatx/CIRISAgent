@@ -1,0 +1,49 @@
+# Essential Configuration for CIRIS Bootstrap
+# This replaces the complex base.yaml with only mission-critical settings
+
+# Core database paths
+database:
+  main_db: "data/ciris_engine.db"
+  secrets_db: "data/secrets.db" 
+  audit_db: "data/ciris_audit.db"
+
+# External service endpoints
+services:
+  llm_endpoint: "https://api.openai.com/v1"
+  llm_model: "gpt-4o-mini"
+  llm_timeout: 30
+  llm_max_retries: 3
+
+# Security and audit settings
+security:
+  audit_retention_days: 90
+  secrets_encryption_key_env: "CIRIS_MASTER_KEY"
+  audit_key_path: "audit_keys"
+  enable_signed_audit: true
+  max_thought_depth: 7
+
+# Operational limits
+limits:
+  max_active_tasks: 10
+  max_active_thoughts: 50
+  round_delay_seconds: 5.0
+  mock_llm_round_delay: 0.1
+  dma_retry_limit: 3
+  dma_timeout_seconds: 30.0
+  conscience_retry_limit: 2
+
+# Telemetry (disabled by default)
+telemetry:
+  enabled: false
+  export_interval_seconds: 60
+  retention_hours: 24
+
+# Workflow processing
+workflow:
+  max_rounds: 10
+  round_timeout_seconds: 300.0
+  enable_auto_defer: true
+
+# Runtime settings
+log_level: "INFO"
+debug_mode: false

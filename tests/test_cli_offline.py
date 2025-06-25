@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 from typing import List
 
 import main
-from ciris_engine.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
 
 
 def test_cli_offline_non_interactive(monkeypatch):
@@ -20,8 +20,8 @@ def test_cli_offline_non_interactive(monkeypatch):
     def mock_runtime_init(modes: List[str], **kwargs):
         return runtime_mock
     
-    monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime.__new__", lambda cls, *args, **kwargs: runtime_mock)
-    monkeypatch.setattr("ciris_engine.runtime.ciris_runtime.CIRISRuntime.__init__", lambda self, *args, **kwargs: None)
+    monkeypatch.setattr("ciris_engine.logic.runtime.ciris_runtime.CIRISRuntime.__new__", lambda cls, *args, **kwargs: runtime_mock)
+    monkeypatch.setattr("ciris_engine.logic.runtime.ciris_runtime.CIRISRuntime.__init__", lambda self, *args, **kwargs: None)
     
     monkeypatch.setattr(main, "_run_runtime", AsyncMock())
 

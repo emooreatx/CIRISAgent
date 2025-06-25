@@ -18,13 +18,13 @@ from typing import Optional, List
 
 import click
 
-from ciris_engine.utils.runtime_utils import load_config, run_with_shutdown_handler
-from ciris_engine.runtime.ciris_runtime import CIRISRuntime
-from ciris_engine.utils.logging_config import setup_basic_logging
-from ciris_engine.processor.task_manager import TaskManager
-from ciris_engine.schemas.agent_core_schemas_v1 import Thought
-from ciris_engine.schemas.dma_results_v1 import ActionSelectionResult
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, ThoughtStatus
+from ciris_engine.logic.utils.runtime_utils import load_config, run_with_shutdown_handler
+from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.utils.logging_config import setup_basic_logging
+from ciris_engine.logic.processors.support.task_manager import TaskManager
+from ciris_engine.schemas.runtime.models import Thought
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ async def _execute_handler(runtime: CIRISRuntime, handler: str, params: Optional
     if not handler_instance:
         raise ValueError(f"Handler {handler} not registered")
     payload = json.loads(params) if params else {}
-    result = ActionSelectionResult(
+    result = ActionSelectionDMAResult(
         selected_action=handler_type,
         action_parameters=payload,
         rationale="manual trigger",
@@ -179,11 +179,18 @@ def main(
     num_rounds: Optional[int],
 ) -> None:
     """Unified CIRIS agent entry point."""
-    setup_basic_logging(level=logging.DEBUG if debug else logging.INFO)
+    # Setup basic console logging first (without file logging)
+    # File logging will be set up later once TimeService is available
+    setup_basic_logging(
+        level=logging.DEBUG if debug else logging.INFO,
+        log_to_file=False,
+        console_output=True,
+        enable_incident_capture=False  # Will be enabled later with TimeService
+    )
 
     async def _async_main() -> None:
         nonlocal mock_llm, handler, params, task, num_rounds
-        from ciris_engine.config.env_utils import get_env_var
+        from ciris_engine.logic.config.env_utils import get_env_var
 
         # Check for API key and auto-enable mock LLM if none is set
         api_key = get_env_var("OPENAI_API_KEY")
@@ -259,30 +266,22 @@ def main(
             else:
                 sys.exit(1)
 
+        # Handle mock LLM as a module to load
+        modules_to_load = []
         if mock_llm:
-            from ciris_engine.services.mock_llm import MockLLMService  # type: ignore
-            import ciris_engine.runtime.ciris_runtime as runtime_module
-            import ciris_engine.services.llm_service as llm_service_module
-            import ciris_engine.runtime.service_initializer as service_initializer_module
-            import ciris_engine.adapters as adapters_module
-            runtime_module.OpenAICompatibleClient = MockLLMService  # patch
-            llm_service_module.OpenAICompatibleClient = MockLLMService  # patch
-            service_initializer_module.OpenAICompatibleClient = MockLLMService  # patch
-            if hasattr(adapters_module, 'OpenAICompatibleClient'):
-                adapters_module.OpenAICompatibleClient = MockLLMService  # patch
-            app_config.mock_llm = True  # Set the flag in config for other components
+            modules_to_load.append("mock_llm")
+            logger.info("Mock LLM module will be loaded")
 
         
         # Create adapter configurations for each adapter type and determine startup channel
         adapter_configs = {}
         startup_channel_id = getattr(app_config, 'startup_channel_id', None)
-        if hasattr(app_config, 'discord_channel_id'):
-            startup_channel_id = app_config.discord_channel_id
+        # No discord_channel_id in EssentialConfig
         
         for adapter_type in selected_adapter_types:
             if adapter_type.startswith("api"):
                 base_adapter_type, instance_id = (adapter_type.split(":", 1) + [None])[:2]
-                from ciris_engine.adapters.api.config import APIAdapterConfig
+                from ciris_engine.logic.adapters.api.config import APIAdapterConfig
                 
                 api_config = APIAdapterConfig()
                 if api_host:
@@ -303,7 +302,7 @@ def main(
                     
             elif adapter_type.startswith("discord"):
                 base_adapter_type, instance_id = (adapter_type.split(":", 1) + [None])[:2]
-                from ciris_engine.adapters.discord.config import DiscordAdapterConfig
+                from ciris_engine.logic.adapters.discord.config import DiscordAdapterConfig
                 
                 discord_config = DiscordAdapterConfig()
                 if discord_bot_token:
@@ -322,7 +321,7 @@ def main(
                     
             elif adapter_type.startswith("cli"):
                 base_adapter_type, instance_id = (adapter_type.split(":", 1) + [None])[:2]
-                from ciris_engine.adapters.cli.config import CLIAdapterConfig
+                from ciris_engine.logic.adapters.cli.config import CLIAdapterConfig
                 
                 cli_config = CLIAdapterConfig()
                 
@@ -344,20 +343,19 @@ def main(
         # Setup global exception handling
         setup_global_exception_handler()
         
-        # Update config with the template if provided
-        if template != "default":
-            app_config.default_template = template
+        # Template handling would be done through agent profiles, not config
             
         # Create runtime using new CIRISRuntime directly with adapter configs
         runtime = CIRISRuntime(
             adapter_types=selected_adapter_types,
-            app_config=app_config,
+            essential_config=app_config,  # app_config is actually EssentialConfig
             startup_channel_id=startup_channel_id,
             adapter_configs=adapter_configs,
             interactive=cli_interactive,
             host=api_host,
             port=api_port,
             discord_bot_token=discord_bot_token,
+            modules=modules_to_load,  # Pass modules to load
         )
         await runtime.initialize()
         
@@ -375,8 +373,10 @@ def main(
 
         # Use CLI num_rounds if provided, otherwise fall back to config
         effective_num_rounds = num_rounds
-        if effective_num_rounds is None and hasattr(app_config, 'workflow') and hasattr(app_config.workflow, 'num_rounds'):
-            effective_num_rounds = app_config.workflow.num_rounds
+        # Use default num_rounds if not specified
+        if effective_num_rounds is None:
+            from ciris_engine.logic.utils.constants import DEFAULT_NUM_ROUNDS
+            effective_num_rounds = DEFAULT_NUM_ROUNDS
 
         await _run_runtime(runtime, timeout, effective_num_rounds)
 

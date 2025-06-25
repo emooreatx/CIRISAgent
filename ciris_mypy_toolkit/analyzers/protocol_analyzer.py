@@ -1,337 +1,455 @@
 """
-Protocol Analyzer - Ensures code uses protocol interfaces instead of internal methods
+Protocol Analyzer - Validates Protocol-Module-Schema alignment
+
+The Protocol-Module-Schema architecture ensures:
+1. Every service module implements its protocol exactly
+2. All data flows through typed schemas (no Dict[str, Any])
+3. Complete type safety with no runtime surprises
 """
 
 import ast
-import re
+import os
+from typing import Dict, List, Any, Optional, Set
 from pathlib import Path
-from typing import Dict, List, Any, Set
-import logging
-
-logger = logging.getLogger(__name__)
-
+import importlib.util
 
 class ProtocolAnalyzer:
-    """
-    Analyzes CIRIS code to ensure it uses protocol interfaces instead of internal methods.
+    """Analyzes protocol-module-schema alignment in the codebase."""
     
-    Key analysis:
-    - Direct internal method calls vs protocol interface usage
-    - Proper service registry usage
-    - Protocol interface implementations
-    - Adapter compliance with protocols
-    """
-    
-    def __init__(self, target_dir: Path):
-        self.target_dir = Path(target_dir)
-        self.protocol_interfaces = self._discover_protocols()
-        self.service_patterns = self._load_service_patterns()
+    def __init__(self, project_root: str):
+        self.project_root = Path(project_root)
+        # CIRIS-specific paths - updated to match new structure
+        self.protocols_path = self.project_root / "protocols"
+        self.services_path = self.project_root / "logic" / "services"
+        self.modules_path = self.project_root / "logic"
+        self.schemas_path = self.project_root / "schemas"
+        # Additional paths where services might be
+        self.memory_path = self.project_root / "logic" / "services" / "memory_service"
+        self.telemetry_path = self.project_root / "logic" / "telemetry"
+        self.audit_path = self.project_root / "logic" / "audit"
+        self.secrets_path = self.project_root / "logic" / "secrets"
+        self.runtime_path = self.project_root / "logic" / "runtime"
+        # New lifecycle services path
+        self.lifecycle_path = self.project_root / "logic" / "services" / "lifecycle"
+        # New infrastructure services path
+        self.infrastructure_path = self.project_root / "logic" / "services" / "infrastructure"
+        # New graph services path
+        self.graph_path = self.project_root / "logic" / "services" / "graph"
+        # New core services path
+        self.core_path = self.project_root / "logic" / "services" / "core"
+        # New special services path
+        self.special_path = self.project_root / "logic" / "services" / "special"
         
-    def _discover_protocols(self) -> Dict[str, Set[str]]:
-        """Discover all protocol interfaces defined in the protocols directory."""
+        # The actual 19 CIRIS production services (MockLLMService is test-only, not counted)
+        # Tool and Communication are provided ONLY by adapters, not standalone services
+        self.known_services = {
+            # Graph Services (6)
+            "MemoryService", "AuditService", "GraphConfigService", "TelemetryService", 
+            "IncidentManagementService", "TSDBConsolidationService",
+            # Core Services (3) - MockLLMService excluded as it's test-only
+            "LLMService", "SecretsService", "RuntimeControlService",
+            # Infrastructure Services (7)
+            "TimeService", "ShutdownService", "InitializationService", "VisibilityService", 
+            "AuthenticationService", "WiseAuthorityService", "ResourceMonitorService",
+            # Special Services (3)
+            "SelfConfigurationService", "AdaptiveFilterService", "TaskSchedulerService"
+        }
+        
+    def check_all_services(self) -> Dict[str, Any]:
+        """Check all services for protocol alignment."""
+        results = {
+            "total_services": 0,
+            "aligned_services": 0,
+            "misaligned_services": 0,
+            "no_untyped_dicts": True,
+            "issues": [],
+            "services": {}
+        }
+        
+        # Check each known service
+        results["total_services"] = len(self.known_services)
+        
+        for service_name in self.known_services:
+            service_results = self.check_service_alignment(service_name)
+            results["services"][service_name] = service_results
+            
+            if service_results["is_aligned"]:
+                results["aligned_services"] += 1
+            else:
+                results["misaligned_services"] += 1
+                results["issues"].extend(service_results["issues"])
+            
+            if not service_results["no_untyped_dicts"]:
+                results["no_untyped_dicts"] = False
+        
+        return results
+    
+    def check_service_alignment(self, service_name: str) -> Dict[str, Any]:
+        """Check if a specific service follows the protocol-first pattern."""
+        results = {
+            "service": service_name,
+            "is_aligned": True,
+            "no_untyped_dicts": True,
+            "issues": [],
+            "protocol_methods": [],
+            "module_methods": [],
+            "missing_methods": [],
+            "extra_methods": [],
+            "untyped_parameters": [],
+            "untyped_returns": []
+        }
+        
+        # Find all protocol definitions (including base protocols like ServiceProtocol)
+        all_protocol_methods = set()
+        protocol_infos = []
+        
+        # Primary protocol
+        protocol_info = self._find_protocol(service_name)
+        if not protocol_info:
+            results["is_aligned"] = False
+            results["issues"].append({
+                "service": service_name,
+                "type": "missing_protocol",
+                "message": f"No protocol found for {service_name}"
+            })
+            return results
+        
+        protocol_infos.append(protocol_info)
+        all_protocol_methods.update(protocol_info["methods"])
+        
+        # Find module implementation
+        module_info = self._find_module(service_name)
+        if not module_info:
+            results["is_aligned"] = False
+            results["issues"].append({
+                "service": service_name,
+                "type": "missing_module",
+                "message": f"No module implementation found for {service_name}"
+            })
+            return results
+        
+        # Check all base classes for additional protocols
+        if "base_classes" in module_info:
+            all_protocols = self._find_protocols()
+            for base_class in module_info["base_classes"]:
+                if base_class in all_protocols and base_class not in [p.get("name") for p in protocol_infos]:
+                    base_protocol_info = all_protocols[base_class]
+                    protocol_infos.append(base_protocol_info)
+                    all_protocol_methods.update(base_protocol_info["methods"])
+        
+        # Compare protocol methods with module methods
+        protocol_methods = all_protocol_methods  # Use all collected protocol methods
+        module_methods = set(module_info["methods"])
+        
+        results["protocol_methods"] = list(protocol_methods)
+        results["module_methods"] = list(module_methods)
+        
+        # Find missing methods (in protocol but not in module)
+        missing = protocol_methods - module_methods
+        if missing:
+            results["is_aligned"] = False
+            results["missing_methods"] = list(missing)
+            for method in missing:
+                results["issues"].append({
+                    "service": service_name,
+                    "type": "missing_method",
+                    "message": f"Module missing protocol method: {method}"
+                })
+        
+        # Find extra methods (in module but not in protocol)
+        # Note: Private methods (_method) and special methods (__method__) are allowed
+        extra = {m for m in module_methods if not m.startswith('_')} - protocol_methods
+        if extra:
+            results["is_aligned"] = False
+            results["extra_methods"] = list(extra)
+            for method in extra:
+                results["issues"].append({
+                    "service": service_name,
+                    "type": "extra_method",
+                    "message": f"Module has method not in protocol: {method}"
+                })
+        
+        # Check for Dict[str, Any] usage
+        untyped_usages = self._find_untyped_dicts(module_info["file_path"])
+        if untyped_usages:
+            results["no_untyped_dicts"] = False
+            results["is_aligned"] = False
+            for usage in untyped_usages:
+                results["issues"].append({
+                    "service": service_name,
+                    "type": "untyped_dict",
+                    "message": f"Uses Dict[str, Any] at line {usage['line']}: {usage['context']}"
+                })
+        
+        return results
+    
+    def _find_protocols(self) -> Dict[str, Dict[str, Any]]:
+        """Find all protocol definitions."""
         protocols = {}
-        protocols_dir = self.target_dir / "protocols"
         
-        if not protocols_dir.exists():
-            return protocols
-        
-        for protocol_file in protocols_dir.glob("*.py"):
-            try:
-                with open(protocol_file, 'r') as f:
-                    content = f.read()
-                
-                tree = ast.parse(content)
-                protocol_methods = set()
-                
+        # Look in protocols directory
+        if self.protocols_path.exists():
+            for file_path in self.protocols_path.rglob("*.py"):
+                if file_path.name.startswith("_"):
+                    continue
+                    
+                tree = ast.parse(file_path.read_text())
                 for node in ast.walk(tree):
                     if isinstance(node, ast.ClassDef):
-                        # Check if it's a protocol (has @protocol decorator or inherits from Protocol)
-                        is_protocol = any(
-                            (isinstance(decorator, ast.Name) and decorator.id == 'protocol') or
-                            (isinstance(base, ast.Name) and 'Protocol' in base.id)
-                            for decorator in node.decorator_list
-                            for base in node.bases
-                        )
+                        # Check if the class inherits from Protocol (typing.Protocol) or ends with Protocol
+                        is_protocol = False
+                        for base in node.bases:
+                            if isinstance(base, ast.Name):
+                                if base.id == 'Protocol' or base.id.endswith('Protocol'):
+                                    is_protocol = True
+                                    break
+                            elif isinstance(base, ast.Attribute) and base.attr == 'Protocol':
+                                is_protocol = True
+                                break
                         
                         if is_protocol:
-                            for class_node in node.body:
-                                if isinstance(class_node, ast.FunctionDef):
-                                    protocol_methods.add(class_node.name)
-                
-                if protocol_methods:
-                    protocols[protocol_file.stem] = protocol_methods
-                    
-            except Exception as e:
-                logger.warning(f"Could not parse protocol {protocol_file}: {e}")
+                            protocol_name = node.name
+                            # Include service protocols - must inherit from ServiceProtocol or GraphServiceProtocol
+                            # and either end with Service, ServiceProtocol, or be a known service protocol
+                            is_service_protocol = False
+                            
+                            # Include ServiceProtocol itself as it's the root protocol
+                            if protocol_name == 'ServiceProtocol':
+                                is_service_protocol = True
+                            
+                            # Check if it inherits from ServiceProtocol or GraphServiceProtocol
+                            for base in node.bases:
+                                if isinstance(base, ast.Name) and base.id in ['ServiceProtocol', 'GraphServiceProtocol', 'CoreServiceProtocol']:
+                                    is_service_protocol = True
+                                    break
+                            
+                            # Also include known service protocols (excluding test-only MockLLMService)
+                            known_service_protocols = [
+                                'LLMServiceProtocol', 'ToolServiceProtocol', 'WiseAuthorityServiceProtocol', 'RuntimeControlServiceProtocol',
+                                'TimeServiceProtocol', 'MemoryServiceProtocol', 'GraphMemoryServiceProtocol',
+                                'AuditServiceProtocol', 'TelemetryServiceProtocol', 'ConfigServiceProtocol', 'SecretsServiceProtocol',
+                                'InitializationServiceProtocol', 'ShutdownServiceProtocol', 'ResourceMonitorServiceProtocol',
+                                'VisibilityServiceProtocol', 'AuthenticationServiceProtocol', 'IncidentManagementServiceProtocol',
+                                'TSDBConsolidationServiceProtocol', 'SelfConfigurationServiceProtocol', 'AdaptiveFilterServiceProtocol',
+                                'TaskSchedulerServiceProtocol', 'CommunicationService', 'ToolService', 'WiseAuthorityService',
+                                'ShutdownService', 'InitializationService', 'VisibilityService',
+                                'AuthenticationService', 'SelfConfigurationService',
+                                'AdaptiveFilterService', 'TaskSchedulerService', 'IncidentManagementService',
+                                'TSDBConsolidationService', 'TSDBConsolidationServiceProtocol',
+                                'ResourceMonitorService', 'ResourceMonitorServiceProtocol'
+                            ]
+                            
+                            if is_service_protocol or protocol_name in known_service_protocols:
+                                methods = [n.name for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+                                
+                                # Get base protocol methods
+                                base_methods = set()
+                                for base in node.bases:
+                                    if isinstance(base, ast.Name):
+                                        if base.id == 'ServiceProtocol':
+                                            # Add standard ServiceProtocol methods
+                                            base_methods.update(['start', 'stop', 'get_capabilities', 'get_status', 'is_healthy'])
+                                        elif base.id == 'GraphServiceProtocol':
+                                            # GraphServiceProtocol inherits from ServiceProtocol
+                                            base_methods.update(['start', 'stop', 'get_capabilities', 'get_status', 'is_healthy'])
+                                            # Plus its own methods
+                                            base_methods.update(['store_in_graph', 'query_graph', 'get_node_type'])
+                                
+                                # Combine direct methods with inherited methods
+                                all_methods = list(set(methods) | base_methods)
+                                
+                                protocols[protocol_name] = {
+                                    "name": protocol_name,
+                                    "file_path": file_path,
+                                    "methods": all_methods,
+                                    "line": node.lineno
+                                }
         
         return protocols
     
-    def _load_service_patterns(self) -> List[Dict[str, str]]:
-        """Load patterns that indicate improper service usage."""
-        return [
-            {
-                "pattern": r"\.get_db_connection\(",
-                "issue": "Direct database connection access",
-                "protocol": "PersistenceInterface",
-                "fix": "Use persistence service methods"
-            },
-            {
-                "pattern": r"sqlite3\.",
-                "issue": "Direct SQLite usage",
-                "protocol": "PersistenceInterface", 
-                "fix": "Use persistence interface methods"
-            },
-            {
-                "pattern": r"\._\w+\(",
-                "issue": "Private method access",
-                "protocol": "ServiceInterface",
-                "fix": "Use public service interface methods"
-            },
-            {
-                "pattern": r"\.execute\(",
-                "issue": "Direct SQL execution",
-                "protocol": "PersistenceInterface",
-                "fix": "Use persistence service query methods"
-            },
-            {
-                "pattern": r"openai\.Client\(",
-                "issue": "Direct OpenAI client instantiation",
-                "protocol": "LLMInterface",
-                "fix": "Use LLM service from registry"
-            },
-            {
-                "pattern": r"discord\.Client\(",
-                "issue": "Direct Discord client instantiation", 
-                "protocol": "CommunicationInterface",
-                "fix": "Use communication service from registry"
-            }
-        ]
+    def _find_protocol(self, service_name: str) -> Optional[Dict[str, Any]]:
+        """Find a specific protocol definition."""
+        protocols = self._find_protocols()
+        
+        # Try exact match
+        if service_name in protocols:
+            return protocols[service_name]
+        
+        # Try with Protocol suffix
+        protocol_name = f"{service_name}Protocol"
+        if protocol_name in protocols:
+            return protocols[protocol_name]
+        
+        # Try removing Service suffix and adding Protocol
+        if service_name.endswith("Service"):
+            base_name = service_name[:-7]  # Remove "Service"
+            protocol_name = f"{base_name}ServiceProtocol"
+            if protocol_name in protocols:
+                return protocols[protocol_name]
+        
+        return None
     
-    def analyze_protocol_usage(self) -> List[Dict[str, Any]]:
-        """Analyze protocol usage across the entire codebase."""
-        all_issues = []
+    def _get_inherited_methods(self, base_class_name: str, search_paths: List[Path]) -> Set[str]:
+        """Get all methods from a base class."""
+        methods = set()
         
-        for py_file in self.target_dir.rglob("*.py"):
-            if "__pycache__" in str(py_file):
-                continue
-                
-            file_issues = self.analyze_file_protocols(py_file)
-            all_issues.extend(file_issues)
+        # Known base class methods
+        if base_class_name == "BaseGraphService":
+            methods.update(['store_in_graph', 'query_graph', 'get_node_type',
+                          'start', 'stop', 'get_capabilities', 'get_status', 'is_healthy',
+                          'set_memory_bus', 'set_time_service'])
+        elif base_class_name == "BaseService":
+            methods.update(['start', 'stop', 'get_capabilities', 'get_status', 'is_healthy'])
         
-        return all_issues
+        # Try to find the base class definition
+        for path in search_paths:
+            if path.exists():
+                for file_path in path.rglob("*.py"):
+                    if file_path.name.startswith("_"):
+                        continue
+                    try:
+                        tree = ast.parse(file_path.read_text())
+                        for node in ast.walk(tree):
+                            if isinstance(node, ast.ClassDef) and node.name == base_class_name:
+                                for n in node.body:
+                                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                                        methods.add(n.name)
+                                # Recursively get methods from this class's bases
+                                for base in node.bases:
+                                    if isinstance(base, ast.Name):
+                                        methods.update(self._get_inherited_methods(base.id, search_paths))
+                                return methods
+                    except:
+                        continue
+        
+        return methods
     
-    def analyze_file_protocols(self, file_path: Path) -> List[Dict[str, Any]]:
-        """Analyze protocol usage in a specific file."""
-        if not file_path.exists():
-            return []
-        
-        try:
-            with open(file_path, 'r') as f:
-                content = f.read()
-            
-            issues = []
-            
-            # Check for service pattern violations
-            for pattern_info in self.service_patterns:
-                matches = re.finditer(pattern_info["pattern"], content)
-                for match in matches:
-                    line_num = content[:match.start()].count('\n') + 1
-                    issues.append({
-                        "file": str(file_path),
-                        "line": line_num,
-                        "issue": pattern_info["issue"],
-                        "pattern": match.group(),
-                        "recommended_protocol": pattern_info["protocol"],
-                        "fix_suggestion": pattern_info["fix"]
-                    })
-            
-            # Check for proper service registry usage
-            registry_issues = self._check_service_registry_usage(content, file_path)
-            issues.extend(registry_issues)
-            
-            # Check for protocol implementation compliance
-            impl_issues = self._check_protocol_implementations(content, file_path)
-            issues.extend(impl_issues)
-            
-            return issues
-            
-        except Exception as e:
-            logger.warning(f"Could not analyze {file_path}: {e}")
-            return []
-    
-    def _check_service_registry_usage(self, content: str, file_path: Path) -> List[Dict[str, Any]]:
-        """Check if file properly uses service registry for service access."""
-        issues = []
-        
-        # If file imports services but doesn't use registry
-        has_service_imports = bool(re.search(r"from.*adapters.*import", content))
-        has_registry_usage = bool(re.search(r"service_registry\.|ServiceRegistry", content))
-        
-        if has_service_imports and not has_registry_usage and "registry" not in str(file_path):
-            issues.append({
-                "file": str(file_path),
-                "line": 1,
-                "issue": "Imports services but doesn't use service registry",
-                "pattern": "Direct service imports",
-                "recommended_protocol": "ServiceRegistry",
-                "fix_suggestion": "Access services through service registry"
-            })
-        
-        # Check for hardcoded service instantiation
-        instantiation_patterns = [
-            r"LocalGraphMemoryService\(",
-            r"LocalAuditLog\(",
-            r"OpenAICompatibleClient\(",
-            r"DiscordAdapter\("
+    def _find_module(self, service_name: str) -> Optional[Dict[str, Any]]:
+        """Find a module implementation."""
+        # Look in all service directories
+        search_paths = [
+            self.services_path, 
+            self.modules_path,
+            self.memory_path,
+            self.telemetry_path,
+            self.audit_path,
+            self.secrets_path,
+            self.runtime_path,
+            self.lifecycle_path,
+            self.infrastructure_path,
+            self.graph_path,
+            self.core_path,
+            self.special_path
         ]
         
-        for pattern in instantiation_patterns:
-            matches = re.finditer(pattern, content)
-            for match in matches:
-                line_num = content[:match.start()].count('\n') + 1
-                issues.append({
-                    "file": str(file_path),
-                    "line": line_num,
-                    "issue": "Hardcoded service instantiation",
-                    "pattern": match.group(),
-                    "recommended_protocol": "ServiceRegistry",
-                    "fix_suggestion": "Get service from registry instead"
-                })
-        
-        return issues
-    
-    def _check_protocol_implementations(self, content: str, file_path: Path) -> List[Dict[str, Any]]:
-        """Check if classes properly implement required protocols."""
-        issues = []
-        
-        try:
-            tree = ast.parse(content)
-            
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef):
-                    # Check if class should implement protocol based on naming
-                    class_name = node.name
+        for path in search_paths:
+            if path.exists():
+                for file_path in path.rglob("*.py"):
+                    if file_path.name.startswith("_"):
+                        continue
                     
-                    if any(suffix in class_name for suffix in ["Adapter", "Service", "Handler"]):
-                        # Check if it inherits from appropriate base class
-                        base_names = [base.id for base in node.bases if isinstance(base, ast.Name)]
-                        
-                        expected_base = None
-                        if "Adapter" in class_name:
-                            expected_base = "BaseAdapter"
-                        elif "Service" in class_name:
-                            expected_base = "Service" 
-                        elif "Handler" in class_name:
-                            expected_base = "BaseHandler"
-                        
-                        if expected_base and expected_base not in base_names:
-                            issues.append({
-                                "file": str(file_path),
-                                "line": node.lineno,
-                                "issue": f"Class '{class_name}' should inherit from {expected_base}",
-                                "pattern": f"class {class_name}",
-                                "recommended_protocol": expected_base,
-                                "fix_suggestion": f"Inherit from {expected_base} to ensure protocol compliance"
-                            })
+                    try:
+                        tree = ast.parse(file_path.read_text())
+                        for node in ast.walk(tree):
+                            if isinstance(node, ast.ClassDef):
+                                # Check if class name matches or inherits from protocol
+                                if node.name == service_name or \
+                                   any(self._is_protocol_base(base, service_name) for base in node.bases):
+                                    # Get direct methods
+                                    methods = set(n.name for n in node.body 
+                                             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)))
+                                    
+                                    # Also get the base classes this service inherits from
+                                    base_classes = []
+                                    for base in node.bases:
+                                        if isinstance(base, ast.Name):
+                                            base_classes.append(base.id)
+                                            # Get inherited methods
+                                            methods.update(self._get_inherited_methods(base.id, search_paths))
+                                        elif isinstance(base, ast.Attribute):
+                                            base_classes.append(base.attr)
+                                            # Get inherited methods
+                                            methods.update(self._get_inherited_methods(base.attr, search_paths))
+                                    
+                                    return {
+                                        "file_path": file_path,
+                                        "methods": list(methods),
+                                        "line": node.lineno,
+                                        "class_name": node.name,
+                                        "base_classes": base_classes
+                                    }
+                    except Exception as e:
+                        # Skip files that can't be parsed
+                        continue
         
-        except SyntaxError:
-            # Skip files with syntax errors
-            pass
-        
-        return issues
+        return None
     
-    def validate_adapter(self, adapter_path: Path) -> Dict[str, Any]:
-        """Validate a specific adapter for protocol compliance."""
-        if not adapter_path.exists():
-            return {"error": f"Adapter {adapter_path} does not exist"}
-        
-        issues = self.analyze_file_protocols(adapter_path)
-        
-        # Additional adapter-specific checks
-        adapter_issues = self._check_adapter_specific_patterns(adapter_path)
-        issues.extend(adapter_issues)
-        
-        return {
-            "adapter": str(adapter_path),
-            "total_issues": len(issues),
-            "issues": issues,
-            "protocol_compliant": len(issues) == 0,
-            "recommendations": self._generate_adapter_recommendations(issues)
-        }
+    def _is_protocol_base(self, base: ast.AST, service_name: str) -> bool:
+        """Check if a base class is the protocol for this service."""
+        if isinstance(base, ast.Name):
+            return base.id in [service_name + "Protocol", service_name]
+        elif isinstance(base, ast.Attribute):
+            return base.attr in [service_name + "Protocol", service_name]
+        return False
     
-    def _check_adapter_specific_patterns(self, adapter_path: Path) -> List[Dict[str, Any]]:
-        """Check adapter-specific protocol compliance patterns."""
-        issues = []
+    def _find_untyped_dicts(self, file_path: Path) -> List[Dict[str, Any]]:
+        """Find all uses of Dict[str, Any] in a file."""
+        untyped_usages = []
         
         try:
-            with open(adapter_path, 'r') as f:
-                content = f.read()
+            content = file_path.read_text()
+            lines = content.split('\n')
             
-            # Adapters should not directly access internal implementation details
-            problematic_patterns = [
-                (r"from ciris_engine\.persistence\.db", "Adapter accessing internal persistence implementation"),
-                (r"from ciris_engine\.adapters\..*\._", "Adapter accessing private internal methods"),
-                (r"\.db_path", "Adapter directly accessing database path"),
-                (r"conn\.execute", "Adapter executing raw SQL")
+            # Look for Dict[str, Any] patterns
+            patterns = [
+                "Dict[str, Any]",
+                "dict[str, Any]",
+                "Dict[str,Any]",
+                "dict[str,Any]",
+                ": Any",
+                "-> Any"
             ]
             
-            for pattern, issue_desc in problematic_patterns:
-                matches = re.finditer(pattern, content)
-                for match in matches:
-                    line_num = content[:match.start()].count('\n') + 1
-                    issues.append({
-                        "file": str(adapter_path),
-                        "line": line_num,
-                        "issue": issue_desc,
-                        "pattern": match.group(),
-                        "fix_suggestion": "Use protocol interface instead of internal implementation"
-                    })
-        
+            for i, line in enumerate(lines, 1):
+                for pattern in patterns:
+                    if pattern in line and not line.strip().startswith('#'):
+                        untyped_usages.append({
+                            "line": i,
+                            "context": line.strip(),
+                            "pattern": pattern
+                        })
         except Exception as e:
-            logger.warning(f"Could not check adapter patterns for {adapter_path}: {e}")
+            # Ignore files that can't be read
+            pass
         
-        return issues
+        return untyped_usages
     
-    def _generate_adapter_recommendations(self, issues: List[Dict[str, Any]]) -> List[str]:
-        """Generate specific recommendations for adapter compliance."""
-        recommendations = []
+    def list_all_protocols(self) -> Dict[str, List[str]]:
+        """List all protocols found in the codebase, categorized."""
+        all_protocols = self._find_protocols()
         
-        issue_types = set(issue["issue"] for issue in issues)
-        
-        if any("Direct database" in issue_type for issue_type in issue_types):
-            recommendations.append("Use PersistenceInterface instead of direct database access")
-        
-        if any("Private method" in issue_type for issue_type in issue_types):
-            recommendations.append("Access services through public protocol interfaces only")
-        
-        if any("service registry" in issue_type for issue_type in issue_types):
-            recommendations.append("Obtain services from ServiceRegistry rather than direct instantiation")
-        
-        if any("protocol compliance" in issue_type for issue_type in issue_types):
-            recommendations.append("Ensure adapter inherits from BaseAdapter and implements required methods")
-        
-        return recommendations
-    
-    def generate_protocol_report(self) -> Dict[str, Any]:
-        """Generate comprehensive protocol usage report."""
-        all_issues = self.analyze_protocol_usage()
-        
-        issue_categories = {}
-        for issue in all_issues:
-            category = issue.get("recommended_protocol", "Unknown")
-            if category not in issue_categories:
-                issue_categories[category] = []
-            issue_categories[category].append(issue)
-        
-        return {
-            "total_protocol_violations": len(all_issues),
-            "violations_by_protocol": {
-                category: len(issues) for category, issues in issue_categories.items()
-            },
-            "most_violated_protocols": sorted(
-                issue_categories.items(), 
-                key=lambda x: len(x[1]), 
-                reverse=True
-            )[:5],
-            "detailed_issues": all_issues
+        # Categorize protocols
+        categorized = {
+            "service_protocols": [],
+            "handler_protocols": [],
+            "adapter_protocols": [],
+            "dma_protocols": [],
+            "processor_protocols": [],
+            "other_protocols": []
         }
+        
+        for protocol_name in sorted(all_protocols.keys()):
+            if protocol_name.endswith('ServiceProtocol') or protocol_name == 'ServiceProtocol':
+                categorized["service_protocols"].append(protocol_name)
+            elif protocol_name.endswith('HandlerProtocol'):
+                categorized["handler_protocols"].append(protocol_name)
+            elif protocol_name.endswith('AdapterProtocol'):
+                categorized["adapter_protocols"].append(protocol_name)
+            elif 'DMA' in protocol_name and protocol_name.endswith('Protocol'):
+                categorized["dma_protocols"].append(protocol_name)
+            elif protocol_name.endswith('ProcessorProtocol'):
+                categorized["processor_protocols"].append(protocol_name)
+            else:
+                categorized["other_protocols"].append(protocol_name)
+        
+        return categorized

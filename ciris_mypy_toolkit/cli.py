@@ -127,5 +127,85 @@ def simplify_engine(output):
     generate_engine_simplification_proposals(engine_root, hot_cold_map_path, output)
     print(f"Engine simplification proposals written to {output}")
 
+@main.command()
+def list_protocols():
+    """List all protocols found in the codebase."""
+    print("📋 CIRIS Protocol Inventory")
+    print("=" * 50)
+    
+    from ciris_mypy_toolkit.analyzers.protocol_analyzer import ProtocolAnalyzer
+    
+    analyzer = ProtocolAnalyzer("ciris_engine")
+    categorized = analyzer.list_all_protocols()
+    
+    total_protocols = sum(len(protocols) for protocols in categorized.values())
+    
+    print(f"\n📊 Protocol Summary:")
+    print(f"   Total Protocols: {total_protocols}")
+    print(f"   Service Protocols: {len(categorized['service_protocols'])}")
+    print(f"   Handler Protocols: {len(categorized['handler_protocols'])}")
+    print(f"   Adapter Protocols: {len(categorized['adapter_protocols'])}")
+    print(f"   DMA Protocols: {len(categorized['dma_protocols'])}")
+    print(f"   Processor Protocols: {len(categorized['processor_protocols'])}")
+    print(f"   Other Protocols: {len(categorized['other_protocols'])}")
+    
+    for category, protocols in categorized.items():
+        if protocols:
+            print(f"\n🔸 {category.replace('_', ' ').title()}:")
+            for protocol in protocols:
+                print(f"   • {protocol}")
+
+@main.command()
+@click.option('--service', help="Specific service to check (e.g., 'AuditService')")
+@click.option('--output', help="Output file for detailed report")
+def check_protocols(service, output):
+    """Check protocol-module-schema alignment (Protocol-First Pattern)."""
+    print("🔺 Protocol-Module-Schema Alignment Check")
+    print("=" * 50)
+    
+    from ciris_mypy_toolkit.analyzers.protocol_analyzer import ProtocolAnalyzer
+    
+    analyzer = ProtocolAnalyzer("ciris_engine")
+    
+    if service:
+        # Check specific service
+        service_results = analyzer.check_service_alignment(service)
+        # Wrap single service results in the expected format
+        results = {
+            'total_services': 1,
+            'aligned_services': 1 if service_results['is_aligned'] else 0,
+            'misaligned_services': 0 if service_results['is_aligned'] else 1,
+            'no_untyped_dicts': service_results['no_untyped_dicts'],
+            'issues': service_results['issues'],
+            'services': {service: service_results}
+        }
+    else:
+        # Check all services
+        results = analyzer.check_all_services()
+    
+    # Display summary
+    print(f"\n📊 Protocol Alignment Summary:")
+    print(f"   Total Services: {results['total_services']}")
+    print(f"   ✅ Fully Aligned: {results['aligned_services']}")
+    print(f"   ⚠️  Misaligned: {results['misaligned_services']}")
+    print(f"   🚫 No Dict[str, Any]: {'✅' if results['no_untyped_dicts'] else '❌'}")
+    
+    if results['issues']:
+        print(f"\n⚠️  Issues Found:")
+        for issue in results['issues'][:10]:  # Show first 10 issues
+            print(f"   • {issue['service']}: {issue['message']}")
+        if len(results['issues']) > 10:
+            print(f"   ... and {len(results['issues']) - 10} more issues")
+    
+    if output:
+        import json
+        with open(output, 'w') as f:
+            json.dump(results, f, indent=2)
+        print(f"\n📄 Detailed report written to: {output}")
+    
+    # Exit with error if misaligned
+    if results['misaligned_services'] > 0:
+        sys.exit(1)
+
 if __name__ == "__main__":
     main()

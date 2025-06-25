@@ -42,7 +42,7 @@ def cleanup_after_test():
 
 # Import WA test harness fixtures (when available)
 try:
-    from ciris_engine.services.test_wa_auth_harness import (
+    from ciris_engine.logic.services.test_wa_auth_harness import (
         wa_test_harness, wa_test_env, wa_test_keys
     )
 except ImportError:
@@ -51,25 +51,7 @@ except ImportError:
     wa_test_env = None
     wa_test_keys = None
 
-# Import SDK client fixture
-try:
-    from ciris_sdk import CIRISClient
-    from ciris_sdk.exceptions import CIRISConnectionError
-    
-    @pytest.fixture
-    async def client():
-        """Provide CIRIS SDK client for tests that need API access."""
-        try:
-            async with CIRISClient(base_url="http://localhost:8080") as c:
-                # Test connection
-                await c._transport.request("GET", "/api/v1/health")
-                yield c
-        except (CIRISConnectionError, Exception):
-            pytest.skip("API not running - skipping SDK tests")
-            
-except ImportError:
-    # SDK not available
-    client = None
+# SDK client fixture removed - ciris_sdk no longer exists
 
 
 # Remove the event_loop fixture - let pytest-asyncio handle it

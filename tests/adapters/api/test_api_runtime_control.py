@@ -6,10 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aiohttp import web
 from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
 
-from ciris_engine.adapters.api.api_runtime_control import APIRuntimeControlRoutes
-from ciris_engine.schemas.runtime_control_schemas import (
-    ProcessorStatus, AdapterStatus, ProcessorControlRequest
-)
+from ciris_engine.logic.adapters.api.api_runtime_control import APIRuntimeControlRoutes
+from ciris_engine.schemas.services.core.runtime import ProcessorStatus, AdapterStatus
 
 
 class TestAPIRuntimeControlRoutes(AioHTTPTestCase):

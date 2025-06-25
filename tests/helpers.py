@@ -1,9 +1,10 @@
 """Test helper functions for CIRIS Engine tests."""
 from datetime import datetime, timezone
 from typing import Optional
-from ciris_engine.schemas.foundational_schemas_v1 import HandlerActionType, DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.context_schemas_v1 import ChannelContext
-from ciris_engine.utils.channel_utils import create_channel_context
+from ciris_engine.logic.utils.channel_utils import create_channel_context
 
 
 def create_test_dispatch_context(

@@ -5,14 +5,12 @@ import pytest
 import json
 
 from tests.adapters.mock_llm import MockLLMClient
-from ciris_engine.schemas.dma_results_v1 import (
-    EthicalDMAResult, CSDMAResult, DSDMAResult, ActionSelectionResult
+from ciris_engine.schemas.dma.results import (
+    EthicalDMAResult, CSDMAResult, DSDMAResult, ActionSelectionDMAResult
 )
-from ciris_engine.schemas.feedback_schemas_v1 import (
-    OptimizationVetoResult, EpistemicHumilityResult
-)
-from ciris_engine.schemas.faculty_schemas_v1 import EntropyResult, CoherenceResult
-from ciris_engine.dma.dsdma_base import BaseDSDMA
+from ciris_engine.schemas.conscience.core import OptimizationVetoResult, EpistemicHumilityResult
+from ciris_engine.schemas.conscience.core import EntropyCheckResult, CoherenceCheckResult
+from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
 
 
 class TestMockLLMComprehensive:
@@ -63,14 +61,14 @@ class TestMockLLMComprehensive:
         
         # Verify the response has expected fields
         assert hasattr(response, 'domain')
-        assert hasattr(response, 'score')
+        assert hasattr(response, 'domain_alignment')
     
     @pytest.mark.asyncio
     async def test_action_selection_result(self, mock_client):
-        """Test ActionSelectionResult schema response."""
-        response = await mock_client._create(response_model=ActionSelectionResult)
+        """Test ActionSelectionDMAResult schema response."""
+        response = await mock_client._create(response_model=ActionSelectionDMAResult)
         
-        assert isinstance(response, ActionSelectionResult)
+        assert isinstance(response, ActionSelectionDMAResult)
         assert hasattr(response, 'choices')
         assert hasattr(response, 'finish_reason')
         assert hasattr(response, '_raw_response')
@@ -120,29 +118,31 @@ class TestMockLLMComprehensive:
     
     @pytest.mark.asyncio
     async def test_entropy_result(self, mock_client):
-        """Test EntropyResult schema response."""
-        response = await mock_client._create(response_model=EntropyResult)
+        """Test EntropyCheckResult schema response."""
+        response = await mock_client._create(response_model=EntropyCheckResult)
         
-        assert isinstance(response, EntropyResult)
+        assert isinstance(response, EntropyCheckResult)
         assert hasattr(response, 'choices')
         assert hasattr(response, 'finish_reason')
         assert hasattr(response, '_raw_response')
         
         # Verify the response has expected fields
-        assert hasattr(response, 'entropy')
+        assert hasattr(response, 'entropy_score')
+        assert response.entropy_score == 0.1  # From mock response
     
     @pytest.mark.asyncio
     async def test_coherence_result(self, mock_client):
-        """Test CoherenceResult schema response."""
-        response = await mock_client._create(response_model=CoherenceResult)
+        """Test CoherenceCheckResult schema response."""
+        response = await mock_client._create(response_model=CoherenceCheckResult)
         
-        assert isinstance(response, CoherenceResult)
+        assert isinstance(response, CoherenceCheckResult)
         assert hasattr(response, 'choices')
         assert hasattr(response, 'finish_reason')
         assert hasattr(response, '_raw_response')
         
         # Verify the response has expected fields
-        assert hasattr(response, 'coherence')
+        assert hasattr(response, 'coherence_score')
+        assert response.coherence_score == 0.9  # From mock response
     
     @pytest.mark.asyncio
     async def test_all_schemas_serializable(self, mock_client):
@@ -154,9 +154,9 @@ class TestMockLLMComprehensive:
             BaseDSDMA.LLMOutputForDSDMA,
             OptimizationVetoResult,
             EpistemicHumilityResult,
-            ActionSelectionResult,
-            EntropyResult,
-            CoherenceResult
+            ActionSelectionDMAResult,
+            EntropyCheckResult,
+            CoherenceCheckResult
         ]
         
         for schema in test_schemas:
@@ -176,13 +176,13 @@ class TestMockLLMComprehensive:
     @pytest.mark.asyncio
     async def test_mock_response_consistency(self, mock_client):
         """Test that mock responses are consistent across multiple calls."""
-        # Test with ActionSelectionResult
-        response1 = await mock_client._create(response_model=ActionSelectionResult)
-        response2 = await mock_client._create(response_model=ActionSelectionResult)
+        # Test with ActionSelectionDMAResult
+        response1 = await mock_client._create(response_model=ActionSelectionDMAResult)
+        response2 = await mock_client._create(response_model=ActionSelectionDMAResult)
         
         # Both should be valid instances
-        assert isinstance(response1, ActionSelectionResult)
-        assert isinstance(response2, ActionSelectionResult)
+        assert isinstance(response1, ActionSelectionDMAResult)
+        assert isinstance(response2, ActionSelectionDMAResult)
         
         # Both should have required instructor attributes
         for response in [response1, response2]:

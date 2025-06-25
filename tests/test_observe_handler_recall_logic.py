@@ -15,10 +15,10 @@ import os
 # Add the project root to sys.path to import modules
 sys.path.insert(0, '/home/emoore/CIRISAgent')
 
-from ciris_engine.schemas.graph_schemas_v1 import GraphScope, GraphNode, NodeType
-from ciris_engine.action_handlers.observe_handler import ObserveHandler
-from ciris_engine.action_handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.message_buses.bus_manager import BusManager
+from ciris_engine.schemas.services.graph_core import GraphScope, GraphNode, NodeType
+from ciris_engine.logic.handlers.external.observe_handler import ObserveHandler
+from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
+from ciris_engine.logic.buses.bus_manager import BusManager
 
 # Configure logging for tests
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -84,7 +84,8 @@ def observe_handler(mock_memory_service):
     mock_secrets_service.update_secrets_filter = AsyncMock(return_value={})
     mock_secrets_service.rotate_encryption_keys = AsyncMock(return_value=True)
     
-    bus_manager = BusManager(service_registry)
+    mock_time_service = Mock()
+    bus_manager = BusManager(service_registry, time_service=mock_time_service)
     
     # Mock the memory bus to use our mock_memory_service
     mock_memory_bus = AsyncMock()
@@ -93,7 +94,8 @@ def observe_handler(mock_memory_service):
     
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,
-        secrets_service=mock_secrets_service
+        secrets_service=mock_secrets_service,
+        time_service=mock_time_service
     )
     return ObserveHandler(deps)
 
@@ -101,7 +103,7 @@ def observe_handler(mock_memory_service):
 @pytest.fixture
 def sample_messages():
     """Fixture providing sample messages that match Discord adapter structure"""
-    from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+    from ciris_engine.schemas.runtime.messages import FetchedMessage
 
     return [
         FetchedMessage(
@@ -141,7 +143,7 @@ def sample_messages():
 @pytest.fixture
 def malformed_messages():
     """Fixture providing malformed messages to test edge cases"""
-    from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+    from ciris_engine.schemas.runtime.messages import FetchedMessage
 
     return [
         FetchedMessage(),  # Empty message
@@ -154,7 +156,7 @@ def malformed_messages():
 @pytest.fixture
 def duplicate_author_messages():
     """Fixture providing messages with duplicate author IDs"""
-    from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+    from ciris_engine.schemas.runtime.messages import FetchedMessage
 
     return [
         FetchedMessage(
@@ -332,7 +334,7 @@ class TestObserveHandlerRecallLogic:
     async def test_recall_error_handling(self, observe_handler, mock_memory_service):
         """Test handling of recall errors"""
         channel_id = "test_channel"
-        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+        from ciris_engine.schemas.runtime.messages import FetchedMessage
         messages = [
             FetchedMessage(
                 id="test_msg",
@@ -375,7 +377,7 @@ class TestObserveHandlerRecallLogic:
     async def test_id_format_consistency(self, observe_handler, mock_memory_service):
         """Test that recall IDs follow consistent format"""
         channel_id = "123456789"
-        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+        from ciris_engine.schemas.runtime.messages import FetchedMessage
         messages = [
             FetchedMessage(
                 id="msg1",
@@ -402,7 +404,7 @@ class TestObserveHandlerRecallLogic:
     async def test_scope_coverage(self, observe_handler, mock_memory_service):
         """Test that all GraphScope values are used in recalls"""
         channel_id = "test_channel"
-        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+        from ciris_engine.schemas.runtime.messages import FetchedMessage
         messages = [
             FetchedMessage(
                 id="msg1",
@@ -433,7 +435,7 @@ class TestObserveHandlerRecallLogic:
     @pytest.mark.asyncio
     async def test_channel_id_variations(self, observe_handler, mock_memory_service, channel_id, expected_channel_recalls):
         """Test various channel_id values"""
-        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+        from ciris_engine.schemas.runtime.messages import FetchedMessage
         messages = [
             FetchedMessage(
                 id="msg1",
@@ -461,7 +463,7 @@ class TestObserveHandlerRecallLogic:
     @pytest.mark.asyncio
     async def test_author_id_variations(self, observe_handler, mock_memory_service, author_id, should_recall):
         """Test various author_id values"""
-        from ciris_engine.schemas.foundational_schemas_v1 import FetchedMessage
+        from ciris_engine.schemas.runtime.messages import FetchedMessage
         message = FetchedMessage(
             id="msg1",
             content="Test",
