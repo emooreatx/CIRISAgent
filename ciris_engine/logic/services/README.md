@@ -170,7 +170,7 @@ class AgentConfigService(Service):
         config_data: Dict[str, Any],
         scope: GraphScope = GraphScope.LOCAL
     ) -> bool:
-        """Update configuration with automatic scope detection"""
+        """Update configuration based on scope (identity changes require WA approval)"""
         
         if scope == GraphScope.IDENTITY:
             # Identity changes require WA approval

@@ -279,19 +279,39 @@ Handles minimal processing and reflection during low-activity periods.
 
 ### DreamProcessor (`dream_processor.py`)
 
-Manages dream state with benchmark execution and insight generation.
+Manages dream state with task-based introspection and pattern analysis.
 
 **Key Features:**
-- **Benchmark Integration**: Runs HE-300 and simplebench via CIRISNode
-- **Pulse System**: Regular "snore" pulses with dream activity
-- **Insight Generation**: Periodic analysis of dream patterns
-- **Metrics Tracking**: Comprehensive dream session metrics
+- **Parallel Task Processing**: Creates all dream tasks upfront for maximum concurrency
+- **Pattern Analysis**: Processes insights from multiple sources (incidents, feedback loop, PONDER questions)
+- **Identity Monitoring**: Checks variance every 6 hours (20% threshold triggers WA review)
+- **Future Planning**: Schedules next dream and creates improvement tasks
 
-**Dream Activities:**
-- HE-300 topic generation and scoring
-- SimpleBench performance evaluation
-- Dream insight analysis and reporting
-- Snore history maintenance with configurable limits
+**Dream Tasks by Phase:**
+
+**CONSOLIDATING Phase:**
+- "Consolidate telemetry data from last 6 hours" (priority: 10)
+- "Analyze memory access patterns" (priority: 9)
+- "Compress redundant memories" (priority: 8)
+
+**ANALYZING Phase:**
+- "Analyze PONDER question themes" (priority: 10)
+- "Process recent incidents for patterns" (priority: 10)
+- "Detect behavioral patterns in actions" (priority: 9)
+- "Process behavioral pattern insights from feedback loop" (priority: 9)
+- "Reflect on positive moments and community vibes" (priority: 7)
+
+**CONFIGURING Phase:**
+- "Evaluate current parameter effectiveness" (priority: 9)
+- "Test parameter variations within safety bounds" (priority: 8)
+
+**PLANNING Phase:**
+- "Schedule next dream session" (priority: 6)
+- "Create improvement tasks from insights" (priority: 6)
+
+**Future Tasks (based on insights):**
+- "Reflect on core identity and values" (12 hours ahead)
+- "Address recurring questions through focused analysis" (3 hours ahead)
 
 ## Supporting Components
 
