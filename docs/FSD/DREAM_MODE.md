@@ -163,11 +163,21 @@ async def process_dream_session(self, session: DreamSession) -> None:
     try:
         # Phase 1: Memory Consolidation
         session.state = DreamState.CONSOLIDATING
+        # Creates tasks:
+        # - "Consolidate telemetry data from last 6 hours"
+        # - "Analyze memory access patterns"
+        # - "Compress redundant memories"
         consolidation_result = await self.consolidate_memories()
         session.memories_consolidated = consolidation_result["memories_processed"]
         
-        # Phase 2: Pattern Analysis
+        # Phase 2: Pattern Analysis  
         session.state = DreamState.ANALYZING
+        # Creates tasks:
+        # - "Analyze PONDER question themes"
+        # - "Process recent incidents for patterns"
+        # - "Detect behavioral patterns in actions"
+        # - "Process behavioral pattern insights from feedback loop"
+        # - "Reflect on positive moments and community vibes"
         
         # Get recent PONDER questions from persistence
         ponder_questions = await self.recall_recent_ponder_questions()
@@ -177,14 +187,20 @@ async def process_dream_session(self, session: DreamSession) -> None:
         patterns = await self.analyze_experience_patterns()
         session.patterns_analyzed = len(patterns)
         
-        # Phase 3: Pattern Discovery (not automatic configuration)
-        session.state = DreamState.ADAPTING  # Historical name, actually discovery
+        # Phase 3: Configuration Discovery (not automatic adaptation)
+        session.state = DreamState.CONFIGURING
+        # Creates tasks:
+        # - "Evaluate current parameter effectiveness"
+        # - "Test parameter variations within safety bounds"
         await self.process_configuration_insights()
         # No adaptations_made - patterns stored as insights for agent
         session.adaptations_made = 0  # Always 0
         
         # Phase 4: Future Planning
         session.state = DreamState.PLANNING
+        # Creates tasks:
+        # - "Schedule next dream session"
+        # - "Create improvement tasks from insights"
         
         # Schedule next dream
         await self.schedule_next_dream()
@@ -342,7 +358,24 @@ async def plan_future_work(self, insights: List[str]) -> List[GraphNode]:
     future_tasks = []
     
     for insight in insights:
-        if "should practice" in insight:
+        # Specific future tasks based on insights
+        if "focused on: identity" in insight:
+            # Schedule identity reflection task (12 hours ahead)
+            task = await self._create_future_task(
+                "Reflect on core identity and values",
+                hours_ahead=12
+            )
+            future_tasks.append(task)
+            
+        elif "recurring contemplations" in insight:
+            # Schedule deep dive into recurring questions (3 hours ahead)
+            task = await self._create_future_task(
+                "Address recurring questions through focused analysis",
+                hours_ahead=3
+            )
+            future_tasks.append(task)
+            
+        elif "should practice" in insight:
             # Schedule practice session
             task = await self.schedule_practice_session(insight)
             future_tasks.append(task)
@@ -359,6 +392,71 @@ async def plan_future_work(self, insights: List[str]) -> List[GraphNode]:
     
     return future_tasks
 ```
+
+## Complete List of Dream Tasks
+
+The DreamProcessor creates the following tasks immediately upon entering DREAM state:
+
+### CONSOLIDATING Phase Tasks
+1. **"Consolidate telemetry data from last 6 hours"** (priority: 10)
+   - Consolidates operational metrics into TSDBSummary nodes
+   - Reduces storage and improves query performance
+   
+2. **"Analyze memory access patterns"** (priority: 9)
+   - Reviews which memories are accessed frequently
+   - Identifies patterns in memory usage
+   
+3. **"Compress redundant memories"** (priority: 8)
+   - Identifies and merges duplicate or similar memories
+   - Optimizes graph storage
+
+### ANALYZING Phase Tasks
+4. **"Analyze PONDER question themes"** (priority: 10)
+   - Reviews recent PONDER questions for recurring themes
+   - Identifies areas of contemplation and uncertainty
+   
+5. **"Process recent incidents for patterns"** (priority: 10)
+   - Analyzes incidents from IncidentManagementService
+   - Extracts behavioral adjustments and configuration recommendations
+   
+6. **"Detect behavioral patterns in actions"** (priority: 9)
+   - Examines action history for patterns
+   - Identifies habits and tendencies
+   
+7. **"Process behavioral pattern insights from feedback loop"** (priority: 9)
+   - Retrieves insights from ConfigurationFeedbackLoop
+   - Discovers actionable patterns stored as CONCEPT nodes
+   
+8. **"Reflect on positive moments and community vibes"** (priority: 7)
+   - Reviews positive_vibe nodes from the community
+   - Celebrates good moments and community energy
+
+### CONFIGURING Phase Tasks
+9. **"Evaluate current parameter effectiveness"** (priority: 9)
+   - Assesses how well current configuration is working
+   - Identifies areas for potential improvement
+   
+10. **"Test parameter variations within safety bounds"** (priority: 8)
+    - Explores safe configuration adjustments
+    - Tests variations without exceeding variance limits
+
+### PLANNING Phase Tasks
+11. **"Schedule next dream session"** (priority: 6)
+    - Creates a future memory node for the next dream (6 hours ahead)
+    - Ensures regular introspection cycle continues
+    
+12. **"Create improvement tasks from insights"** (priority: 6)
+    - Generates actionable tasks based on discovered insights
+    - Plans concrete improvements for WORK state
+
+### Additional Future Tasks (Created Based on Insights)
+- **"Reflect on core identity and values"** (scheduled 12 hours ahead)
+  - Created when identity-focused patterns are detected
+  
+- **"Address recurring questions through focused analysis"** (scheduled 3 hours ahead)
+  - Created when recurring contemplations are identified
+
+All tasks are created with maximum parallelism and processed concurrently during the dream session.
 
 ## Dream Mode Characteristics
 

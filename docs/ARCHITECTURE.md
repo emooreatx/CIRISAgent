@@ -139,10 +139,10 @@ await memory_bus.memorize(
 **Why**: Learn from failures. Every incident becomes institutional memory.
 
 #### 6. TSDB Consolidation Service
-**Purpose**: Time-series data aggregation for long-term storage  
-**Protocol**: `TSDBServiceProtocol`  
+**Purpose**: Consolidates telemetry into 6-hour summaries for permanent memory  
+**Protocol**: `TSDBConsolidationServiceProtocol`  
 **Access**: Direct injection  
-**Why**: Efficient storage of temporal patterns. Compress history while preserving insights.
+**Why**: Long-term memory (1000+ years). Raw data kept 24h, summaries forever.
 
 ### Core Services (2)
 

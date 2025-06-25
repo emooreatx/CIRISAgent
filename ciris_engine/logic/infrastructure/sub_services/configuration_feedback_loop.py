@@ -323,10 +323,24 @@ class ConfigurationFeedbackLoop(Service):
             # Find recurring errors
             for error_type, instances in error_groups.items():
                 if len(instances) >= 3:  # At least 3 occurrences
+                    # Apply grace: Frame errors as learning opportunities
+                    # This is ethical because it promotes growth over self-punishment
+                    if "timeout" in error_type.lower():
+                        graceful_description = f"Learning patience through {len(instances)} timing challenges"
+                    elif "connection" in error_type.lower() or "network" in error_type.lower():
+                        graceful_description = f"Building resilience through {len(instances)} connection attempts"
+                    elif "parse" in error_type.lower() or "format" in error_type.lower():
+                        graceful_description = f"Expanding understanding through {len(instances)} interpretation moments"
+                    elif "permission" in error_type.lower() or "denied" in error_type.lower():
+                        graceful_description = f"Respecting boundaries encountered {len(instances)} times"
+                    else:
+                        # Generic grace for unknown error types
+                        graceful_description = f"Gaining experience from {len(instances)} {error_type} encounters"
+                    
                     pattern = DetectedPattern(
                         pattern_type=PatternType.ERROR,
                         pattern_id=f"error_recurring_{error_type}",
-                        description=f"Recurring error: {error_type} ({len(instances)} times)",
+                        description=graceful_description,
                         evidence_nodes=[str(e.timestamp) for e in instances[:5]],
                         detected_at=self._time_service.now(),
                         metrics=PatternMetrics(
@@ -335,7 +349,8 @@ class ConfigurationFeedbackLoop(Service):
                             metadata={
                                 "error_type": error_type,
                                 "first_seen": str(min(e.timestamp for e in instances)),
-                                "last_seen": str(max(e.timestamp for e in instances))
+                                "last_seen": str(max(e.timestamp for e in instances)),
+                                "grace_applied": True
                             }
                         )
                     )

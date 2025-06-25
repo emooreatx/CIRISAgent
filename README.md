@@ -29,7 +29,7 @@ Most AI systems are black boxes that can't explain their decisions. CIRIS makes 
 
 1. **[Forcing explanation](ciris_engine/logic/processors/README.md)** - Every action includes why it was chosen
 2. **[Allowing override](docs/WISE_AUTHORITIES.md#human-intervention)** - Humans can always intervene
-3. **[Building trust](docs/BETA_TRANSPARENCY.md)** - Communities can see exactly how decisions are made
+3. **[Building trust](BETA_TRANSPARENCY.md)** - Communities can see exactly how decisions are made
 4. **[Learning locally](ciris_engine/logic/services/memory_service/README.md)** - Each deployment builds its own knowledge graph
 
 It's technically sophisticated ([19 microservices](docs/ARCHITECTURE.md#services), [graph memory](FSD/GRAPH_NODE_TYPE_SYSTEM.md), [distributed consensus](ciris_engine/logic/services/README.md)) to solve something simple: helping communities make better decisions together.
