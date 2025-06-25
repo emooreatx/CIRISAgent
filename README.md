@@ -83,18 +83,25 @@ The system supports **moral profiles** that adapt reasoning patterns for differe
 
 ### 🛡️ Zero Attack Surface Architecture 🔒✅
 - **Type-Safe Schemas**: COMPLETE elimination of Dict[str, Any] usage (0 instances in production code!)
-- **Protocol-First Design**: 33 protocols define all component interfaces (20 services + 13 infrastructure)
-- **Navigational Determinism**: Crystalline architecture with perfect 1:1:1 mapping between protocols, schemas, and logic
-  - If you know where one file is, you know where ALL related files are
-  - `logic/services/{category}/{name}.py` ↔ `schemas/services/{category}/{name}.py` ↔ `protocols/services/{category}/{name}.py`
-  - Enables powerful automation and tooling
-- **Time Security**: All time operations through injected TimeService (no direct datetime.now() calls)
-- **Future-Proof Bus Architecture**: 6 message buses for multi-provider services (even if currently single-provider)
-- **Resource Transparency**: AI knows exact costs per operation (tokens, cents, carbon_g)
-- **Audit Verification Visibility**: AI can see when audit trail was last cryptographically verified
+- **API-First Design**: No handlers! All agent capabilities exposed through RESTful API endpoints
+- **Protocol-Module-Schema Architecture**: Clean separation of interfaces, logic, and data models
+  - Protocols define interfaces in `protocols/`
+  - Logic implementation in `logic/`
+  - Schemas for data models in `schemas/`
+  - Perfect navigational determinism across the codebase
+- **Exactly 19 Services**: Locked service count with clear responsibilities
+  - 6 Graph Services: memory, audit, config, telemetry, incident_management, tsdb_consolidation
+  - 2 Core Services: llm, secrets
+  - 7 Infrastructure Services: time, shutdown, initialization, visibility, authentication, resource_monitor, runtime_control
+  - 1 Governance Service: wise_authority
+  - 3 Special Services: self_configuration, adaptive_filter, task_scheduler
+- **6 Message Buses**: Future-proof architecture for multi-provider services
+  - MemoryBus, LLMBus, WiseBus, ToolBus, CommunicationBus, RuntimeControlBus
+- **8 Typed Node Classes**: All graph nodes use typed patterns with full validation
+- **Graph-Based Telemetry**: All telemetry stored as correlations in the graph
+- **Time Security**: All time operations through injected TimeService
+- **Resource Transparency**: AI knows exact costs per operation
 - **Environmental Awareness**: Built-in tracking of water usage, carbon emissions, and energy consumption
-- **Self-Refutation Capability**: Can refute false claims like "800 gallons of water per hello" with actual data
-- **Critical Error Handling**: Missing system snapshots or identity contexts raise immediate errors
 
 ### 🔒 Trustworthy Operations
 - **[WA Authentication System](FSD/AUTHENTICATION.md)**: Comprehensive human authentication with OAuth integration:

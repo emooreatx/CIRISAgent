@@ -171,7 +171,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         logger.info(f"Created deferral {deferral_id} for action {action}")
         return False
     
-    async def grant_permission(self, wa_id: str, _permission: str, resource: Optional[str] = None) -> bool:
+    async def grant_permission(self, wa_id: str, permission: str, resource: Optional[str] = None) -> bool:
         """Grant a permission to a WA.
         
         In our simplified model, permissions are role-based.
@@ -179,11 +179,13 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         """
         # For beta, we don't support dynamic permission grants
         # Permissions are determined by role
+        _ = permission  # Unused in current implementation
+        _ = resource    # Unused in current implementation
         logger.warning(f"grant_permission called but permissions are role-based. "
                       f"Use update_wa to change roles instead.")
         return False
     
-    async def revoke_permission(self, wa_id: str, _permission: str, resource: Optional[str] = None) -> bool:
+    async def revoke_permission(self, wa_id: str, permission: str, resource: Optional[str] = None) -> bool:
         """Revoke a permission from a WA.
         
         In our simplified model, permissions are role-based.
@@ -191,6 +193,8 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         """
         # For beta, we don't support dynamic permission revocation
         # Permissions are determined by role
+        _ = permission  # Unused in current implementation
+        _ = resource    # Unused in current implementation
         logger.warning(f"revoke_permission called but permissions are role-based. "
                       f"Use update_wa to change roles or revoke_wa to deactivate.")
         return False
