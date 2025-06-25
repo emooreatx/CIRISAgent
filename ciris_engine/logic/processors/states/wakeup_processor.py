@@ -446,16 +446,16 @@ class WakeupProcessor(BaseProcessor):
     
     def _mark_task_failed(self, task_id: str, reason: str) -> None:
         """Mark a task as failed."""
-        persistence.update_task_status(task_id, TaskStatus.FAILED)
+        persistence.update_task_status(task_id, TaskStatus.FAILED, self.time_service)
         logger.error(f"Task {task_id} marked as FAILED: {reason}")
     
     def _mark_root_task_complete(self) -> None:
         """Mark the root wakeup task as complete."""
-        persistence.update_task_status("WAKEUP_ROOT", TaskStatus.COMPLETED)
+        persistence.update_task_status("WAKEUP_ROOT", TaskStatus.COMPLETED, self.time_service)
     
     def _mark_root_task_failed(self) -> None:
         """Mark the root wakeup task as failed."""
-        persistence.update_task_status("WAKEUP_ROOT", TaskStatus.FAILED)
+        persistence.update_task_status("WAKEUP_ROOT", TaskStatus.FAILED, self.time_service)
     
     def is_wakeup_complete(self) -> bool:
         """Check if wakeup sequence is complete."""
