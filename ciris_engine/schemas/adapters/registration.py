@@ -29,13 +29,10 @@ class AdapterServiceRegistration:
     handlers: Optional[List[str]] = None # Specific handlers or None for global
     capabilities: List[str] = field(default_factory=list)  # What the service can do
     
-    def __post_init__(self):
-        # Ensure capabilities is never None
-        if self.capabilities is None:
-            self.capabilities = []
+    def __post_init__(self) -> None:
         # Ensure handlers is either None or a list
         if self.handlers is not None and not isinstance(self.handlers, list):
-            self.handlers = [self.handlers] if self.handlers else None
+            self.handlers = [self.handlers]
 
 
 __all__ = ["AdapterServiceRegistration"]

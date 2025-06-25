@@ -128,33 +128,37 @@ class SecretPattern(BaseModel):
     class Config:
         extra = "forbid"
 
+def _default_secret_patterns() -> List[SecretPattern]:
+    """Default secret detection patterns."""
+    return [
+        SecretPattern(
+            name="api_key",
+            pattern=r"(?i)(api[_\-]?key|apikey)\s*[:=]\s*['\"]?([A-Za-z0-9\-_]{20,})['\"]?",
+            description="API Key",
+            sensitivity=SensitivityLevel.HIGH,
+            enabled=True
+        ),
+        SecretPattern(
+            name="bearer_token",
+            pattern=r"(?i)bearer\s+([A-Za-z0-9\-_.~+/]+={0,2})",
+            description="Bearer Token",
+            sensitivity=SensitivityLevel.HIGH,
+            enabled=True
+        ),
+        SecretPattern(
+            name="private_key",
+            pattern=r"-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----",
+            description="Private Key",
+            sensitivity=SensitivityLevel.CRITICAL,
+            enabled=True
+        ),
+    ]
+
 class SecretsDetectionConfig(BaseModel):
     """Configuration for secrets detection"""
     enabled: bool = Field(True, description="Whether detection is enabled")
     patterns: List[SecretPattern] = Field(
-        default_factory=lambda: [
-            SecretPattern(
-                name="api_key",
-                pattern=r"(?i)(api[_\-]?key|apikey)\s*[:=]\s*['\"]?([A-Za-z0-9\-_]{20,})['\"]?",
-                description="API Key",
-                sensitivity=SensitivityLevel.HIGH,
-                enabled=True
-            ),
-            SecretPattern(
-                name="bearer_token",
-                pattern=r"(?i)bearer\s+([A-Za-z0-9\-_.~+/]+={0,2})",
-                description="Bearer Token",
-                sensitivity=SensitivityLevel.HIGH,
-                enabled=True
-            ),
-            SecretPattern(
-                name="private_key",
-                pattern=r"-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----",
-                description="Private Key",
-                sensitivity=SensitivityLevel.CRITICAL,
-                enabled=True
-            ),
-        ],
+        default_factory=_default_secret_patterns,
         description="Detection patterns"
     )
     
