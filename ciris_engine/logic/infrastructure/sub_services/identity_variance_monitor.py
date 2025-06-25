@@ -254,7 +254,6 @@ class IdentityVarianceMonitor(Service):
                 baseline_snapshot_id=self._baseline_snapshot_id,
                 current_snapshot_id=current_snapshot.id,
                 total_variance=total_variance,
-                variance_by_impact={},  # No longer using impact weights
                 differences=[],  # Simplified - just track variance percentage
                 requires_wa_review=total_variance > self._variance_threshold,
                 recommendations=self._generate_simple_recommendations(total_variance)
@@ -731,7 +730,6 @@ class IdentityVarianceMonitor(Service):
                 "report_type": "identity_variance",
                 "timestamp": report.timestamp.isoformat(),
                 "total_variance": report.total_variance,
-                "variance_by_impact": {k.value: v for k, v in report.variance_by_impact.items()},
                 "requires_wa_review": report.requires_wa_review,
                 "difference_count": len(report.differences),
                 "recommendations": report.recommendations

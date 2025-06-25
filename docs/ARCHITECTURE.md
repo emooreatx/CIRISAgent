@@ -228,10 +228,10 @@ Foundation services that enable the system:
 Advanced capabilities:
 
 #### 17. Self Configuration Service
-**Purpose**: Autonomous system optimization  
+**Purpose**: Pattern detection and identity monitoring (no automatic changes)  
 **Protocol**: `SelfConfigProtocol`  
 **Access**: Direct injection  
-**Why**: Adapt to local conditions. Rural clinic needs differ from urban hospital.
+**Why**: Learn from experience. Agent discovers insights and decides how to adapt.
 
 #### 18. Adaptive Filter Service
 **Purpose**: Content filtering based on context  

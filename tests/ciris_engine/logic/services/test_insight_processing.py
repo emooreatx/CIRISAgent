@@ -64,8 +64,7 @@ async def test_feedback_loop_stores_insights_as_concept_nodes():
     
     feedback_loop = ConfigurationFeedbackLoop(
         time_service=time_service,
-        memory_bus=memory_bus,
-        pattern_threshold=0.7
+        memory_bus=memory_bus
     )
     
     # Create a test pattern
@@ -74,7 +73,6 @@ async def test_feedback_loop_stores_insights_as_concept_nodes():
         pattern_id="test_pattern",
         description="Test action is used frequently",
         evidence_nodes=["node1", "node2", "node3"],
-        confidence=0.8,
         detected_at=time_service.now(),
         metrics=PatternMetrics(
             occurrence_count=10,
@@ -98,7 +96,6 @@ async def test_feedback_loop_stores_insights_as_concept_nodes():
     assert stored_node.attributes['insight_type'] == 'behavioral_pattern'
     assert stored_node.attributes['pattern_type'] == PatternType.FREQUENCY.value
     assert stored_node.attributes['description'] == pattern.description
-    assert stored_node.attributes['confidence'] == pattern.confidence
     assert stored_node.attributes['actionable'] is True
 
 
@@ -119,7 +116,6 @@ async def test_dream_processor_queries_behavioral_insights():
                 "insight_type": "behavioral_pattern",
                 "pattern_type": "frequency",
                 "description": "Action SPEAK is used 80% of the time",
-                "confidence": 0.85,
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
             }
@@ -132,7 +128,6 @@ async def test_dream_processor_queries_behavioral_insights():
                 "insight_type": "behavioral_pattern",
                 "pattern_type": "temporal",
                 "description": "Different tools preferred at different times of day",
-                "confidence": 0.75,
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=2)).isoformat()
             }
@@ -174,8 +169,8 @@ async def test_dream_processor_queries_behavioral_insights():
 
 
 @pytest.mark.asyncio
-async def test_low_confidence_insights_filtered():
-    """Test that low confidence insights are filtered out."""
+async def test_all_insights_processed_without_filtering():
+    """Test that all behavioral pattern insights are processed without confidence filtering."""
     # Setup
     time_service = MockTimeService()
     memory_bus = MagicMock(spec=MemoryBus)
@@ -190,7 +185,6 @@ async def test_low_confidence_insights_filtered():
                 "insight_type": "behavioral_pattern",
                 "pattern_type": "frequency",
                 "description": "High confidence pattern",
-                "confidence": 0.9,
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
             }
@@ -203,7 +197,6 @@ async def test_low_confidence_insights_filtered():
                 "insight_type": "behavioral_pattern",
                 "pattern_type": "frequency",
                 "description": "Low confidence pattern",
-                "confidence": 0.5,  # Below 0.7 threshold
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
             }
@@ -229,15 +222,15 @@ async def test_low_confidence_insights_filtered():
     # Process insights
     insights = await dream_processor._process_behavioral_insights()
     
-    # Verify only high confidence insights are processed
-    assert len(insights) == 2  # 1 pattern + 1 action opportunity
+    # Verify all insights are processed (no confidence filtering)
+    assert len(insights) == 4  # 2 patterns + 2 action opportunities
     assert "High confidence pattern" in str(insights)
-    assert "Low confidence pattern" not in str(insights)
+    assert "Low confidence pattern" in str(insights)
 
 
 @pytest.mark.asyncio
-async def test_feedback_loop_only_stores_high_confidence_patterns():
-    """Test that feedback loop only stores patterns above threshold as insights."""
+async def test_feedback_loop_stores_all_detected_patterns():
+    """Test that feedback loop stores all detected patterns as insights."""
     # Setup
     time_service = MockTimeService()
     memory_bus = MagicMock(spec=MemoryBus)
@@ -248,8 +241,7 @@ async def test_feedback_loop_only_stores_high_confidence_patterns():
     
     feedback_loop = ConfigurationFeedbackLoop(
         time_service=time_service,
-        memory_bus=memory_bus,
-        pattern_threshold=0.7
+        memory_bus=memory_bus
     )
     
     # Create patterns with varying confidence
@@ -259,8 +251,7 @@ async def test_feedback_loop_only_stores_high_confidence_patterns():
             pattern_id="high_conf",
             description="High confidence pattern",
             evidence_nodes=["node1"],
-            confidence=0.8,
-            detected_at=time_service.now(),
+                detected_at=time_service.now(),
             metrics=PatternMetrics(
                 occurrence_count=10,
                 average_value=0.8
@@ -271,7 +262,6 @@ async def test_feedback_loop_only_stores_high_confidence_patterns():
             pattern_id="low_conf",
             description="Low confidence pattern",
             evidence_nodes=["node2"],
-            confidence=0.5,  # Below threshold
             detected_at=time_service.now(),
             metrics=PatternMetrics(
                 occurrence_count=5,
@@ -283,14 +273,9 @@ async def test_feedback_loop_only_stores_high_confidence_patterns():
     # Store pattern insights
     stored_count = await feedback_loop._store_pattern_insights(patterns)
     
-    # Verify only high confidence pattern stored
-    assert stored_count == 1
-    memory_bus.memorize.assert_called_once()
-    
-    # Check it's the high confidence pattern
-    call_args = memory_bus.memorize.call_args
-    stored_node = call_args.kwargs['node']
-    assert stored_node.attributes['description'] == "High confidence pattern"
+    # Verify all patterns stored
+    assert stored_count == 2
+    assert memory_bus.memorize.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -320,8 +305,7 @@ async def test_integration_feedback_loop_to_dream_processor():
     # Create feedback loop and store insights
     feedback_loop = ConfigurationFeedbackLoop(
         time_service=time_service,
-        memory_bus=memory_bus,
-        pattern_threshold=0.7
+        memory_bus=memory_bus
     )
     
     pattern = DetectedPattern(
@@ -329,7 +313,6 @@ async def test_integration_feedback_loop_to_dream_processor():
         pattern_id="perf_degradation",
         description="Response times degraded by 25%",
         evidence_nodes=["metric1", "metric2"],
-        confidence=0.85,
         detected_at=time_service.now(),
         metrics=PatternMetrics(
             average_value=250.0,
@@ -398,7 +381,6 @@ async def test_dream_processor_handles_missing_attributes():
                 "insight_type": "behavioral_pattern",
                 "pattern_type": "frequency",
                 "description": "Complete pattern",
-                "confidence": 0.8,
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
             }
@@ -424,6 +406,7 @@ async def test_dream_processor_handles_missing_attributes():
     # Process insights - should not crash
     insights = await dream_processor._process_behavioral_insights()
     
-    # Verify only complete pattern processed
-    assert len(insights) == 2  # Pattern + action opportunity from complete node
+    # Verify all patterns processed, including ones with missing attributes
+    assert len(insights) == 3  # 2 patterns (one empty) + 1 action opportunity
     assert "Complete pattern" in str(insights)
+    assert "Pattern (unknown): " in str(insights)  # Node with missing attributes

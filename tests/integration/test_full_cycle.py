@@ -7,12 +7,13 @@ from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
 @pytest.mark.asyncio
 async def test_full_thought_cycle():
     """Test complete thought processing cycle."""
-    from unittest.mock import patch, AsyncMock
+    from unittest.mock import patch, AsyncMock, MagicMock
     
     # Mock initialization manager to avoid core services verification
     with patch('ciris_engine.logic.runtime.ciris_runtime.get_initialization_manager') as mock_get_init:
-        mock_init_manager = AsyncMock()
+        mock_init_manager = MagicMock()
         mock_init_manager.initialize = AsyncMock()
+        mock_init_manager.register_step = MagicMock()
         mock_get_init.return_value = mock_init_manager
         
         # Create and initialize runtime

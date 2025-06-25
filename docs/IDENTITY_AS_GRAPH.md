@@ -149,28 +149,24 @@ current_metrics = await memory_bus.recall(
 
 ### Variance Monitoring
 
-The system continuously monitors for identity drift:
+The system monitors identity drift every 6 hours during DREAM state:
 
 ```python
-# 20% variance threshold calculation
+# Simple percentage calculation (no weighted attributes)
 variance = calculate_identity_variance(
     current_identity,
-    previous_identity,
-    weights={
-        "agent_id": 5.0,  # Name changes are significant
-        "domain_knowledge": 4.0,
-        "description": 3.0,
-        "capabilities": 2.0
-    }
+    baseline_identity
 )
+# variance = count_different_attributes / total_attributes
 
 if variance > 0.20:
-    # Trigger WA review
+    # Trigger WA review (non-blocking)
     await defer_to_wise_authority(
-        reason="Significant identity change detected",
+        reason="Identity variance exceeds 20% threshold",
         variance=variance,
         changes=diff
     )
+    # Agent continues operating while under review
 ```
 
 ## Benefits of This Architecture
