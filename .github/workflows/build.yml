@@ -7,9 +7,13 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: write
+  pull-requests: read
+
 jobs:
-  sonarqube:
-    name: SonarQube
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,17 +51,73 @@ jobs:
         run: |
           pytest --cov=./ --cov-report=xml:coverage.xml
 
-      - name: Display version
+      - name: Display and write version
+        env:
+          CIRIS_BUILD_SIGN_KEY: ${{ secrets.CIRIS_BUILD_SIGN_KEY }}
         run: |
           python version.py
+          cat BUILD_INFO.txt || echo "No BUILD_INFO.txt created"
 
       # Verify coverage file (for debugging)
       - name: Debug Coverage File
         run: |
           ls -l coverage.xml
 
+      # Check if we should run SonarQube
+      # Only run on the main CIRISai/CIRISAgent repository when SONAR_TOKEN is available
+      - name: Check SonarQube conditions
+        id: check_sonar
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Event: ${{ github.event_name }}"
+          if [[ "${{ github.repository }}" == "CIRISai/CIRISAgent" ]] && [[ -n "${{ secrets.SONAR_TOKEN }}" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "SonarQube scan will run"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "SonarQube scan will be skipped (not in main repo or no token)"
+          fi
+
       # SonarQube scan using the generated coverage.xml
       - name: SonarQube Scan
+        if: steps.check_sonar.outputs.should_run == 'true'
         uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      # Commit BUILD_INFO.txt if on main branch
+      - name: Commit version info
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Check if BUILD_INFO.txt exists and has changed
+          if [ -f BUILD_INFO.txt ]; then
+            git add BUILD_INFO.txt
+            if git diff --staged --quiet; then
+              echo "BUILD_INFO.txt has not changed, skipping commit"
+            else
+              git commit -m "chore: Update BUILD_INFO.txt [skip ci]"
+              git push
+              echo "BUILD_INFO.txt has been committed"
+            fi
+          else
+            echo "BUILD_INFO.txt was not created"
+          fi
+
+      # Summary of what ran
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Tests completed" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.check_sonar.outputs.should_run }}" == "true" ]]; then
+            echo "- ✅ SonarQube scan completed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⏭️ SonarQube scan skipped (running in fork or no token)" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]] && [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "- 📝 Version info updated in BUILD_INFO.txt" >> $GITHUB_STEP_SUMMARY
+          fi
