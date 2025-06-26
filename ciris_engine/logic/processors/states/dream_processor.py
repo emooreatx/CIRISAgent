@@ -280,7 +280,7 @@ class DreamProcessor(BaseProcessor):
         # Activate all tasks immediately
         from ciris_engine.logic import persistence
         for task in self._dream_tasks:
-            persistence.update_task_status(task.task_id, TaskStatus.ACTIVE)
+            persistence.update_task_status(task.task_id, TaskStatus.ACTIVE, self._time_service)
             
         logger.info(f"Created and activated {len(self._dream_tasks)} dream tasks")
     
@@ -293,7 +293,12 @@ class DreamProcessor(BaseProcessor):
         try:
             # Initialize buses
             from ciris_engine.logic.buses import MemoryBus, CommunicationBus
-            self.memory_bus = MemoryBus(self.service_registry)
+            # Get time service for MemoryBus
+            time_service = self.services.get('time_service') if self.services else None
+            if not time_service:
+                logger.error("TimeService not available for MemoryBus initialization")
+                return False
+            self.memory_bus = MemoryBus(self.service_registry, time_service)
             self.communication_bus = CommunicationBus(self.service_registry)
             
             # Initialize self-configuration service

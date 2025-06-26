@@ -70,35 +70,19 @@ def map_row_to_thought(row: Any) -> Thought:
     if row_dict.get("context_json"):
         try:
             ctx_data = json.loads(row_dict["context_json"])
-            if isinstance(ctx_data, dict):
+            if isinstance(ctx_data, dict) and ctx_data:  # Check if dict is not empty
                 # Don't set default system_snapshot - let the model validation handle the data as-is
                 row_dict["context"] = ThoughtContext.model_validate(ctx_data)
             else:
-                # Provide required fields for ThoughtContext
-                row_dict["context"] = ThoughtContext(
-                    task_id=row_dict.get('source_task_id', 'unknown'),
-                    round_number=0,
-                    depth=0,
-                    parent_thought_id=None,
-                    correlation_id=str(uuid.uuid4())
-                )
+                # For empty or invalid context, set to None instead of trying to create invalid ThoughtContext
+                row_dict["context"] = None
         except Exception as e:
             logger.warning(f"Failed to decode context_json for thought {row_dict.get('thought_id')}: {e}")
-            row_dict["context"] = ThoughtContext(
-                task_id=row_dict.get('source_task_id', 'unknown'),
-                round_number=0,
-                depth=0,
-                parent_thought_id=None,
-                correlation_id=str(uuid.uuid4())
-            )
+            # For failed decoding, set to None instead of trying to create invalid ThoughtContext
+            row_dict["context"] = None
     else:
-        row_dict["context"] = ThoughtContext(
-            task_id=row_dict.get('source_task_id', 'unknown'),
-            round_number=0,
-            depth=0,
-            parent_thought_id=None,
-            correlation_id=str(uuid.uuid4())
-        )
+        # No context provided, set to None
+        row_dict["context"] = None
     if row_dict.get("ponder_notes_json"):
         try:
             row_dict["ponder_notes"] = json.loads(row_dict["ponder_notes_json"])

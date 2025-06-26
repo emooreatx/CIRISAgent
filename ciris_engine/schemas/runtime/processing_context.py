@@ -1,0 +1,44 @@
+"""
+Processing context schemas for CIRIS.
+
+Provides context objects for thought and task processing that carry
+system state and metadata through the processing pipeline.
+"""
+from typing import Dict, List, Optional, Any
+from pydantic import BaseModel, Field
+
+from .system_context import SystemSnapshot
+from .models import TaskContext
+
+
+class ProcessingThoughtContext(BaseModel):
+    """Context passed through thought processing pipeline.
+    
+    This is different from ThoughtContext which represents a thought entity.
+    This context carries processing metadata and system state.
+    """
+    # System state snapshot
+    system_snapshot: SystemSnapshot = Field(..., description="Current system state")
+    
+    # User and profile data
+    user_profiles: Dict[str, Any] = Field(default_factory=dict, description="User profile data")
+    
+    # Task history
+    task_history: List[Any] = Field(default_factory=list, description="Recent task history")
+    
+    # Identity context
+    identity_context: Optional[str] = Field(None, description="Agent identity context")
+    
+    # Initial task context
+    initial_task_context: Optional[TaskContext] = Field(None, description="Original task context")
+    
+    class Config:
+        extra = "allow"  # Allow additional fields for flexibility
+
+
+# For backward compatibility, alias to ThoughtContext
+# This allows existing code to work while we migrate
+ThoughtContext = ProcessingThoughtContext
+
+
+__all__ = ["ProcessingThoughtContext", "ThoughtContext"]

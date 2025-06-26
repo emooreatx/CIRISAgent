@@ -161,6 +161,7 @@ class VisibilityService(VisibilityServiceProtocol, ServiceProtocol):
             return ReasoningTrace(
                 task=Task(
                     task_id=task_id,
+                    channel_id="system",
                     description="Task not found",
                     created_at=self._time_service.now().isoformat(),
                     updated_at=self._time_service.now().isoformat(),

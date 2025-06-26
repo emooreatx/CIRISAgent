@@ -129,7 +129,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         if not self._memory_bus and registry:
             try:
                 from ciris_engine.logic.buses import MemoryBus
-                self._memory_bus = MemoryBus(registry)
+                self._memory_bus = MemoryBus(registry, self._time_service)
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
     
@@ -165,11 +165,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
             except asyncio.CancelledError:
                 pass
         
-        # Close database connection
-        if self._db_connection:
-            self._db_connection.close()
-        
-        # Log final shutdown event
+        # Log final shutdown event BEFORE closing database
         from ciris_engine.schemas.services.graph.audit import AuditEventData
         shutdown_event = AuditEventData(
             entity_id="audit_service",
@@ -182,7 +178,14 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                 "pending_exports": len(self._export_buffer)
             }
         )
-        await self.log_event("audit_service_shutdown", shutdown_event)
+        try:
+            await self.log_event("audit_service_shutdown", shutdown_event)
+        except Exception as e:
+            logger.warning(f"Failed to log shutdown event: {e}")
+        
+        # Close database connection AFTER logging
+        if self._db_connection:
+            self._db_connection.close()
         
         logger.info("GraphAuditService stopped")
     

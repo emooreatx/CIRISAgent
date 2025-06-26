@@ -8,6 +8,7 @@ Provides SQL DDL for all database tables used by the agent.
 TASKS_TABLE_V1 = '''
 CREATE TABLE IF NOT EXISTS tasks (
     task_id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL,
     description TEXT NOT NULL,
     status TEXT NOT NULL,
     priority INTEGER DEFAULT 0,
@@ -16,7 +17,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     parent_task_id TEXT,
     context_json TEXT,
     outcome_json TEXT,
-    retry_count INTEGER DEFAULT 0
+    retry_count INTEGER DEFAULT 0,
+    -- Task signing fields (from migration 003)
+    signed_by TEXT,
+    signature TEXT,
+    signed_at TEXT
 );
 '''
 
@@ -25,6 +30,7 @@ THOUGHTS_TABLE_V1 = '''
 CREATE TABLE IF NOT EXISTS thoughts (
     thought_id TEXT PRIMARY KEY,
     source_task_id TEXT NOT NULL,
+    channel_id TEXT,
     thought_type TEXT DEFAULT 'standard',
     status TEXT NOT NULL,
     created_at TEXT NOT NULL,

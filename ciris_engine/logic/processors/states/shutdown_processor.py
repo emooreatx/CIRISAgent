@@ -12,8 +12,10 @@ from ciris_engine.logic.processors.core.base_processor import BaseProcessor
 from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtType, ThoughtStatus
 from ciris_engine.schemas.runtime.models import Task, Thought
-from ciris_engine.schemas.runtime.system_context import ThoughtContext, SystemSnapshot
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot
+from ciris_engine.schemas.runtime.processing_context import ThoughtContext
 from ciris_engine.schemas.runtime.extended import ShutdownContext
+from ciris_engine.schemas.runtime.models import TaskContext
 from ciris_engine.logic import persistence
 from ciris_engine.logic.utils.shutdown_manager import get_shutdown_manager
 from ciris_engine.logic.utils.channel_utils import create_channel_context
@@ -94,7 +96,7 @@ class ShutdownProcessor(BaseProcessor):
             
             # If task is pending, activate it
             if current_task.status == TaskStatus.PENDING:
-                persistence.update_task_status(self.shutdown_task.task_id, TaskStatus.ACTIVE)
+                persistence.update_task_status(self.shutdown_task.task_id, TaskStatus.ACTIVE, self.time_service)
                 logger.info("Activated shutdown task")
             
             # Generate seed thought if needed
@@ -192,13 +194,13 @@ class ShutdownProcessor(BaseProcessor):
             channel_id = "system"
             logger.warning("No channel ID available for shutdown task, using 'system'")
         
-        # Create proper context with channel information
-        context = ThoughtContext(
-            system_snapshot=SystemSnapshot(
-                channel_context=create_channel_context(channel_id)
-            )
+        # Create proper TaskContext for the shutdown task
+        context = TaskContext(
+            channel_id=channel_id,
+            user_id="system",
+            correlation_id=f"shutdown_{uuid.uuid4().hex[:8]}",
+            parent_task_id=None
         )
-        context.identity_context = f"System shutdown requested: {reason}"
         
         # Store shutdown context in runtime for system snapshot
         if self.runtime:
@@ -213,8 +215,9 @@ class ShutdownProcessor(BaseProcessor):
         
         self.shutdown_task = Task(
             task_id=f"shutdown_{uuid.uuid4().hex[:8]}",
+            channel_id=channel_id,
             description=f"{'EMERGENCY' if is_emergency else 'System'} shutdown requested: {reason}",
-            priority=100,  # CRITICAL priority
+            priority=10,  # Maximum priority (was 100, but max is 10)
             status=TaskStatus.ACTIVE,  # Set as ACTIVE to prevent orphan deletion
             created_at=now_iso,
             updated_at=now_iso,
@@ -291,6 +294,7 @@ class ShutdownProcessor(BaseProcessor):
                     
                     dispatch_context = build_dispatch_context(
                         thought=thought,
+                        time_service=self.time_service,
                         task=task,
                         app_config=self.config,  # Use config accessor
                         round_number=0,

@@ -11,6 +11,9 @@ DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
 # Simple conscience config
 class ConscienceConfig(BaseModel):
     enabled: bool = Field(default=True)
+    optimization_veto_ratio: float = Field(default=10.0, description="Entropy reduction must be < this ratio")
+    coherence_threshold: float = Field(default=0.60, description="Minimum coherence score")
+    entropy_threshold: float = Field(default=0.40, description="Maximum entropy allowed")
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.enums import HandlerActionType, ServiceType
 from ciris_engine.schemas.conscience.core import (

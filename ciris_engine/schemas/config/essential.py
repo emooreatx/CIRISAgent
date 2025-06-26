@@ -186,7 +186,7 @@ class EssentialConfig(BaseModel):
         description="Enable debug mode"
     )
     template_directory: Path = Field(
-        Path("identity_templates"),
+        Path("ciris_templates"),
         description="Directory containing identity templates"
     )
     

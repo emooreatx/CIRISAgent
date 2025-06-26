@@ -1,6 +1,8 @@
 from typing import Optional, Any
 from ciris_engine.schemas.runtime.models import Thought, Task
-from ciris_engine.schemas.runtime.system_context import ThoughtContext, TaskContext, SystemSnapshot
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot
+from ciris_engine.schemas.runtime.models import TaskContext
+from ciris_engine.schemas.runtime.processing_context import ThoughtContext
 from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.utils import GraphQLContextProvider
 from ciris_engine.logic.config.env_utils import get_env_var
@@ -21,6 +23,7 @@ class ContextBuilder:
         secrets_service: Optional[SecretsService] = None,
         runtime: Optional[Any] = None,
         service_registry: Optional[Any] = None,
+        resource_monitor: Optional[Any] = None,  # Will be REQUIRED
     ) -> None:
         self.memory_service = memory_service
         self.graphql_provider = graphql_provider
@@ -29,6 +32,7 @@ class ContextBuilder:
         self.secrets_service = secrets_service  # Must be provided, no fallback creation
         self.runtime = runtime
         self.service_registry = service_registry
+        self.resource_monitor = resource_monitor
 
     async def build_thought_context(
         self,
@@ -92,11 +96,29 @@ class ContextBuilder:
             
             return None
         
-        # PRIORITY: Check thought context FIRST (most specific)
-        if thought and thought.context:
-            channel_id = safe_extract_channel_id(thought.context, "thought.context")
-            if channel_id:
-                resolution_source = "thought.context"
+        # PRIORITY: Check thought's simple context FIRST (most direct)
+        if thought and hasattr(thought, 'context') and thought.context:
+            # Check if it's a simple ThoughtContext with direct channel_id field
+            if hasattr(thought.context, 'channel_id') and thought.context.channel_id:
+                channel_id = str(thought.context.channel_id)
+                resolution_source = "thought.context.channel_id"
+                logger.debug(f"Resolved channel_id '{channel_id}' from thought.context.channel_id")
+            else:
+                # Try the complex extraction for ProcessingThoughtContext
+                channel_id = safe_extract_channel_id(thought.context, "thought.context")
+                if channel_id:
+                    resolution_source = "thought.context (complex)"
+                    logger.debug(f"Resolved channel_id '{channel_id}' from thought.context (complex extraction)")
+                else:
+                    logger.warning(f"Thought {getattr(thought, 'thought_id', 'unknown')} has context but no channel_id found in it")
+        elif thought:
+            logger.warning(f"Thought {getattr(thought, 'thought_id', 'unknown')} has no context at all")
+        
+        # If thought doesn't have channel_id, check task's direct channel_id field (it's required on Task model)
+        if not channel_id and task and hasattr(task, 'channel_id') and task.channel_id:
+            channel_id = str(task.channel_id)
+            resolution_source = "task.channel_id"
+            logger.warning(f"Thought missing channel_id, falling back to task.channel_id '{channel_id}' from task {task.task_id}")
         
         # Then check task context if thought didn't have it
         if not channel_id and task and task.context:
@@ -187,6 +209,7 @@ class ContextBuilder:
         return await _build_snapshot(
             task,
             thought,
+            self.resource_monitor,  # REQUIRED parameter must be positional
             memory_service=self.memory_service,
             graphql_provider=self.graphql_provider,
             telemetry_service=self.telemetry_service,

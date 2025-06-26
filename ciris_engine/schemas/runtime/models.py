@@ -34,6 +34,7 @@ class TaskOutcome(BaseModel):
 class ThoughtContext(BaseModel):
     """Typed context for thoughts."""
     task_id: str = Field(..., description="Parent task ID")
+    channel_id: Optional[str] = Field(None, description="Channel where thought operates")
     round_number: int = Field(0, description="Processing round")
     depth: int = Field(0, description="Ponder depth (max 7)")
     parent_thought_id: Optional[str] = Field(None, description="Parent thought if pondering")
@@ -55,6 +56,7 @@ class FinalAction(BaseModel):
 class Task(BaseModel):
     """Core task object - the unit of work."""
     task_id: str = Field(..., description="Unique task identifier")
+    channel_id: str = Field(..., description="Channel where task originated/reports to")
     description: str = Field(..., description="What needs to be done")
     status: TaskStatus = Field(default=TaskStatus.PENDING)
     priority: int = Field(default=0, ge=0, le=10, description="Priority 0-10")
@@ -75,6 +77,7 @@ class Thought(BaseModel):
     """Core thought object - a single reasoning step."""
     thought_id: str = Field(..., description="Unique thought identifier")
     source_task_id: str = Field(..., description="Task that generated this thought")
+    channel_id: Optional[str] = Field(None, description="Channel where thought operates")
     thought_type: ThoughtType = Field(default=ThoughtType.STANDARD)
     status: ThoughtStatus = Field(default=ThoughtStatus.PENDING)
     created_at: str = Field(..., description="ISO8601 timestamp")

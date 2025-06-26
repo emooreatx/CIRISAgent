@@ -3,49 +3,132 @@ System and runtime context schemas.
 
 Provides type-safe contexts for system state and runtime operations.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 class SystemSnapshot(BaseModel):
-    """Complete system state snapshot for decision-making context."""
+    """System state snapshot for processing context.
     
-    # Core system state
-    timestamp: datetime = Field(..., description="When snapshot was taken")
-    runtime_phase: str = Field(..., description="Current runtime phase")
-    active_services: Dict[str, bool] = Field(..., description="Service health status")
+    This snapshot captures the system state needed for decision-making during
+    task and thought processing. The most critical field is channel_context,
+    which provides the communication context. All other fields provide
+    supplementary information about current processing state and system health.
     
-    # Resource tracking
-    memory_usage_mb: float = Field(..., description="Current memory usage")
-    cpu_usage_percent: float = Field(..., description="Current CPU usage")
-    active_thoughts: int = Field(..., description="Number of active thoughts")
-    active_tasks: int = Field(..., description="Number of active tasks")
+    Usage patterns:
+    1. Minimal: SystemSnapshot(channel_context=create_channel_context(channel_id))
+       - Used by: task_manager, shutdown_processor, speak_handler, discord_observer
+       
+    2. Full: Built by build_system_snapshot() with all available context
+       - Used during: thought context building in processors
     
-    # Performance metrics
-    avg_response_time_ms: float = Field(..., description="Average response time")
-    error_rate: float = Field(..., description="Current error rate")
-    queue_depth: int = Field(..., description="Message queue depth")
+    Field usage:
+    - ALWAYS SET: channel_context, channel_id
+    - COMMONLY SET: current_task_details, current_thought_summary, system_counts
+    - IDENTITY FIELDS: agent_identity and related fields loaded from graph
+    - RUNTIME FIELDS: service_health, circuit_breaker_status from service registry
+    - SECURITY FIELDS: detected_secrets and related from secrets service
+    """
     
-    # Audit trail
-    last_audit_hash: Optional[str] = Field(None, description="Last audit chain hash")
-    audit_entries_count: int = Field(0, description="Total audit entries")
+    # Channel context (PRIMARY FIELDS - almost always set)
+    channel_id: Optional[str] = Field(
+        None, 
+        description="ID of the communication channel (e.g., Discord channel ID, 'cli', 'api')"
+    )
+    channel_context: Optional['ChannelContext'] = Field(
+        None, 
+        description="Full channel context with metadata - the most important field"
+    )
     
-    # Resource accounting
-    current_round_resources: Optional['ResourceUsage'] = Field(None, description="Resources used this round")
-    total_resources: Optional['ResourceUsage'] = Field(None, description="Total resources used")
+    # Current processing state (set when processing tasks/thoughts)
+    current_task_details: Optional['TaskSummary'] = Field(
+        None, 
+        description="Summary of the task currently being processed"
+    )
+    current_thought_summary: Optional['ThoughtSummary'] = Field(
+        None, 
+        description="Summary of the thought currently being processed"
+    )
     
-    # Verification status
-    last_audit_verification: Optional['AuditVerification'] = Field(None, description="Last audit verification")
+    # System overview (computed during snapshot building)
+    system_counts: Dict[str, int] = Field(
+        default_factory=dict, 
+        description="Counts: total_tasks, total_thoughts, pending_tasks, pending_thoughts"
+    )
+    top_pending_tasks_summary: List['TaskSummary'] = Field(
+        default_factory=list, 
+        description="Top 10 pending tasks by priority"
+    )
+    recently_completed_tasks_summary: List['TaskSummary'] = Field(
+        default_factory=list, 
+        description="10 most recently completed tasks"
+    )
     
-    # Telemetry summary
-    telemetry: Optional['TelemetrySummary'] = Field(None, description="Recent telemetry metrics")
+    # Agent identity (loaded once from graph memory)
+    agent_identity: Dict[str, Any] = Field(
+        default_factory=dict, 
+        description="Raw agent identity data from graph node"
+    )
+    identity_purpose: Optional[str] = Field(
+        None, 
+        description="Agent's purpose statement extracted from identity"
+    )
+    identity_capabilities: List[str] = Field(
+        default_factory=list, 
+        description="List of agent capabilities from identity"
+    )
+    identity_restrictions: List[str] = Field(
+        default_factory=list, 
+        description="List of agent restrictions from identity"
+    )
+    
+    # Security context (from secrets service)
+    detected_secrets: List[Any] = Field(
+        default_factory=list, 
+        description="Patterns of secrets detected in current context"
+    )
+    secrets_filter_version: int = Field(
+        0, 
+        description="Version of the secrets filter being used"
+    )
+    total_secrets_stored: int = Field(
+        0, 
+        description="Total number of secrets in secure storage"
+    )
+    
+    # Service health (from service registry)
+    service_health: Dict[str, Any] = Field(
+        default_factory=dict, 
+        description="Health status of each service (service_name -> is_healthy)"
+    )
+    circuit_breaker_status: Dict[str, Any] = Field(
+        default_factory=dict, 
+        description="Circuit breaker status for each service"
+    )
+    
+    # Runtime context
+    shutdown_context: Optional[Any] = Field(
+        None, 
+        description="Shutdown context if system is shutting down"
+    )
+    
+    # Resource alerts - CRITICAL for mission-critical systems
+    resource_alerts: List[str] = Field(
+        default_factory=list,
+        description="CRITICAL resource alerts that require immediate attention"
+    )
+    
+    # User profiles (used by context builder)
+    user_profiles: List[Dict[str, Any]] = Field(
+        default_factory=list, 
+        description="User profile information"
+    )
     
     class Config:
-        extra = "forbid"
+        extra = "forbid"  # Be strict about fields to catch misuse
 
-class TaskContext(BaseModel):
-    """Context for a specific task."""
+class TaskSummary(BaseModel):
+    """Summary of a task for system snapshot."""
     task_id: str = Field(..., description="Unique task identifier")
     channel_id: str = Field(..., description="Channel where task originated")
     created_at: datetime = Field(..., description="Task creation time")
@@ -191,16 +274,6 @@ class ConscienceResult(BaseModel):
     class Config:
         extra = "forbid"
 
-class TaskSummary(BaseModel):
-    """Summary of a task for context."""
-    task_id: str = Field(..., description="Task ID")
-    description: Optional[str] = Field(None, description="Task description")
-    priority: Optional[int] = Field(None, description="Task priority")
-    status: Optional[str] = Field(None, description="Task status")
-    created_at: Optional[str] = Field(None, description="Creation timestamp")
-    
-    class Config:
-        extra = "allow"
 
 class ThoughtSummary(BaseModel):
     """Summary of a thought for context."""
@@ -253,7 +326,7 @@ class TelemetrySummary(BaseModel):
 
 __all__ = [
     "SystemSnapshot",
-    "TaskContext", 
+    "TaskSummary",
     "ThoughtContext",
     "UserProfile",
     "ChannelContext",
@@ -261,6 +334,5 @@ __all__ = [
     "AuditVerification",
     "TelemetrySummary",
     "ConscienceResult",
-    "TaskSummary",
     "ThoughtSummary"
 ]

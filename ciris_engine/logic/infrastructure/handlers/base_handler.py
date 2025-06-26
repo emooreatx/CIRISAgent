@@ -100,12 +100,18 @@ class BaseActionHandler(ABC):
         dispatch_context: DispatchContext,
         outcome: str = "success"
     ) -> None:
-        """Log an audit event through the audit bus."""
+        """Log an audit event through the audit service."""
         try:
+            # Check if audit service is available
+            if not hasattr(self.bus_manager, 'audit_service') or not self.bus_manager.audit_service:
+                self.logger.debug("Audit service not available, skipping audit log")
+                return
+                
             # Convert to proper audit event type
             audit_event_type = AuditEventType(f"handler_action_{action_type.value}")
             
-            await self.bus_manager.audit.log_event(
+            # Use the audit service directly (it's not a bussed service)
+            await self.bus_manager.audit_service.log_event(
                 event_type=str(audit_event_type),
                 event_data={
                     "handler_name": self.__class__.__name__,
@@ -114,8 +120,7 @@ class BaseActionHandler(ABC):
                     "action": action_type.value,
                     "outcome": outcome,
                     "wa_authorized": dispatch_context.wa_authorized
-                },
-                handler_name=self.__class__.__name__
+                }
             )
         except Exception as e:
             self.logger.error(f"Failed to log audit event: {e}")
@@ -179,26 +184,27 @@ class BaseActionHandler(ABC):
         try:
             # Decapsulate secrets in action parameters
             if result.action_parameters:
+                # Convert parameters to dict if needed
+                params_dict = result.action_parameters
+                if hasattr(params_dict, 'model_dump'):
+                    params_dict = params_dict.model_dump()
+                
                 decapsulated_params = await self.dependencies.secrets_service.decapsulate_secrets_in_parameters(
-                    parameters=result.action_parameters,
                     action_type=action_name,
+                    action_params=params_dict,
                     context={"source": "action_handler", "handler": self.__class__.__name__}
                 )
                 # Create a new result with decapsulated parameters
                 return ActionSelectionDMAResult(
                     selected_action=result.selected_action,
                     action_parameters=decapsulated_params,
-                    selection_reasoning=result.selection_reasoning,
-                    selection_confidence=result.selection_confidence,
-                    # Copy over required fields
-                    pdma_weight=result.pdma_weight,
-                    csdma_weight=result.csdma_weight,
-                    dsdma_weight=result.dsdma_weight,
-                    actions_considered=result.actions_considered,
-                    selection_ethical_score=result.selection_ethical_score,
-                    selection_fairness=result.selection_fairness,
-                    selection_principles=result.selection_principles,
-                    total_evaluation_time_ms=result.total_evaluation_time_ms
+                    rationale=result.rationale,
+                    confidence=result.confidence,
+                    # Optional fields
+                    raw_llm_response=result.raw_llm_response,
+                    reasoning=result.reasoning,
+                    evaluation_time_ms=result.evaluation_time_ms,
+                    resource_usage=result.resource_usage
                 )
             return result
         except Exception as e:

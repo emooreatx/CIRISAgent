@@ -31,10 +31,10 @@ def get_thoughts_by_status(status: ThoughtStatus, db_path: Optional[str] = None)
 def add_thought(thought: Thought, db_path: Optional[str] = None) -> str:
     thought_dict = thought.model_dump(mode='json')
     sql = """
-        INSERT INTO thoughts (thought_id, source_task_id, thought_type, status, created_at, updated_at,
+        INSERT INTO thoughts (thought_id, source_task_id, channel_id, thought_type, status, created_at, updated_at,
                               round_number, content, context_json, thought_depth, ponder_notes_json,
                               parent_thought_id, final_action_json)
-        VALUES (:thought_id, :source_task_id, :thought_type, :status, :created_at, :updated_at,
+        VALUES (:thought_id, :source_task_id, :channel_id, :thought_type, :status, :created_at, :updated_at,
                 :round_number, :content, :context, :thought_depth, :ponder_notes, :parent_thought_id, :final_action)
     """
     params = {

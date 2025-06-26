@@ -115,16 +115,21 @@ class ActionDispatcher:
                 await self.telemetry_service.record_metric(
                     f"handler_invoked_{action_type.value}",
                     value=1.0,
-                    tags={"handler": handler_instance.__class__.__name__, "action": action_type.value},
-                    path_type="hot",
-                    source_module="action_dispatcher"
+                    tags={
+                        "handler": handler_instance.__class__.__name__,
+                        "action": action_type.value,
+                        "path_type": "hot",
+                        "source_module": "action_dispatcher"
+                    }
                 )
                 await self.telemetry_service.record_metric(
                     "handler_invoked_total",
                     value=1.0,
-                    tags={"handler": handler_instance.__class__.__name__},
-                    path_type="hot",
-                    source_module="action_dispatcher"
+                    tags={
+                        "handler": handler_instance.__class__.__name__,
+                        "path_type": "hot",
+                        "source_module": "action_dispatcher"
+                    }
                 )
             
             # The handler's `handle` method will take care of everything.

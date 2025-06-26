@@ -296,7 +296,7 @@ class ServiceInitializer:
                 service_type=ServiceType.MEMORY,
                 provider=self.memory_service,
                 priority=Priority.HIGH,
-                capabilities=["memorize", "recall", "forget", "graph_operations"],
+                capabilities=["memorize", "recall", "forget", "graph_operations", "memorize_metric"],
                 metadata={"backend": "sqlite", "graph_type": "local"}
             )
             logger.info("Memory service registered in ServiceRegistry")
@@ -432,11 +432,14 @@ class ServiceInitializer:
             
             # Register with CRITICAL priority as the ONLY LLM service
             if self.service_registry:
+                # TEMPORARY: Hardcode lowercase to debug issue
+                cap_value = "call_llm_structured"  # LLMCapabilities.CALL_LLM_STRUCTURED.value
+                logger.debug(f"Registering MockLLMService with capability value: '{cap_value}' (type: {type(cap_value)})")
                 self.service_registry.register_global(
                     service_type=ServiceType.LLM,
                     provider=mock_service,
                     priority=Priority.CRITICAL,
-                    capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
+                    capabilities=[cap_value],
                     metadata={"provider": "mock", "warning": "MOCK LLM - NOT FOR PRODUCTION"}
                 )
             

@@ -76,30 +76,16 @@ def build_dispatch_context(
             logger = logging.getLogger(__name__)
             logger.info(f"Processing task {task_id} context type: {type(task.context)}, attributes: {dir(task.context) if task.context else 'None'}")
             
-            # Handle both dict and ThoughtContext objects
-            if isinstance(task.context, dict):
-                # Legacy dict format - create ChannelContext
-                channel_id = task.context.get("channel_id")
+            # Handle TaskContext (the correct type for task.context)
+            if hasattr(task.context, "channel_id"):
+                # TaskContext object from models.py
+                channel_id = task.context.channel_id
                 if channel_id:
                     channel_context = create_channel_context(channel_id)
-                author_id = task.context.get("author_id")
-                author_name = task.context.get("author_name")
-            elif hasattr(task.context, "system_snapshot"):
-                # ThoughtContext object with system_snapshot
-                if task.context.system_snapshot:
-                    channel_context = task.context.system_snapshot.channel_context
-                    # SystemSnapshot doesn't have user_id/user_name - these come from user_profiles
-                    # For wakeup tasks, we don't have a specific user
-                    author_id = None
-                    author_name = None
-            elif hasattr(task.context, "initial_task_context"):
-                # ThoughtContext object with initial_task_context (from observers)
-                if task.context.initial_task_context:
-                    channel_context = task.context.initial_task_context.channel_context
-                    author_id = task.context.initial_task_context.author_id
-                    author_name = task.context.initial_task_context.author_name
-                else:
-                    logger.warning(f"Task {task_id} has initial_task_context attribute but it's None/empty")
+                    author_id = task.context.user_id
+                    author_name = None  # TaskContext doesn't have author_name
+            else:
+                logger.error(f"Task {task_id} has invalid context type: {type(task.context)}. Expected TaskContext with channel_id.")
     
     # Check extra_context for channel_id as fallback
     if channel_context is None and extra_context:
@@ -150,10 +136,9 @@ def build_dispatch_context(
         wa_id=wa_id,
         wa_authorized=wa_authorized,
         correlation_id=correlation_id or f"ctx_{time_service.timestamp()}",
-        round_number=round_number or 0,
         
         # conscience results (None for terminal actions)
-        conscience_result=conscience_result
+        conscience_failure_context=conscience_result
     )
     
     return dispatch_context

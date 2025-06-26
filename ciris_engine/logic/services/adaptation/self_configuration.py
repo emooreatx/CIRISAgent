@@ -117,7 +117,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         if not self._memory_bus and registry:
             try:
                 from ciris_engine.logic.buses import MemoryBus
-                self._memory_bus = MemoryBus(registry)
+                self._memory_bus = MemoryBus(registry, self._time_service)
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
         

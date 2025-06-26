@@ -53,9 +53,11 @@ class ThoughtProcessor:
             await self.telemetry_service.record_metric(
                 "thought_processing_started",
                 value=1.0,
-                tags={"thought_id": thought_item.thought_id},
-                path_type="hot",
-                source_module="thought_processor"
+                tags={
+                    "thought_id": thought_item.thought_id,
+                    "path_type": "hot",
+                    "source_module": "thought_processor"
+                }
             )
         
         # 1. Fetch the full Thought object
@@ -66,9 +68,11 @@ class ThoughtProcessor:
                 await self.telemetry_service.record_metric(
                     "thought_not_found",
                     value=1.0,
-                    tags={"thought_id": thought_item.thought_id},
-                    path_type="critical",  # Critical error path
-                    source_module="thought_processor"
+                    tags={
+                        "thought_id": thought_item.thought_id,
+                        "path_type": "critical",  # Critical error path
+                        "source_module": "thought_processor"
+                    }
                 )
             return None
         
@@ -81,9 +85,11 @@ class ThoughtProcessor:
                     await self.telemetry_service.record_metric(
                         "thought_unauthorized",
                         value=1.0,
-                        tags={"thought_id": thought_item.thought_id},
-                        path_type="critical",
-                        source_module="thought_processor"
+                        tags={
+                            "thought_id": thought_item.thought_id,
+                            "path_type": "critical",
+                            "source_module": "thought_processor"
+                        }
                     )
                 return None
 
@@ -115,9 +121,12 @@ class ThoughtProcessor:
                 await self.telemetry_service.record_metric(
                     "dma_failure",
                     value=1.0,
-                    tags={"thought_id": thought_item.thought_id, "error": str(dma_err)[:100]},
-                    path_type="critical",  # Critical failure
-                    source_module="thought_processor"
+                    tags={
+                        "thought_id": thought_item.thought_id,
+                        "error": str(dma_err)[:100],
+                        "path_type": "critical",  # Critical failure
+                        "source_module": "thought_processor"
+                    }
                 )
             defer_params = DeferParams(
                 reason="DMA timeout",
@@ -296,18 +305,23 @@ class ThoughtProcessor:
             await self.telemetry_service.record_metric(
                 "thought_processing_completed",
                 value=1.0,
-                tags={"thought_id": thought.thought_id},
-                path_type="hot",
-                source_module="thought_processor"
+                tags={
+                    "thought_id": thought.thought_id,
+                    "path_type": "hot",
+                    "source_module": "thought_processor"
+                }
             )
             if final_result:
                 action_metric = f"action_selected_{final_result.selected_action.value}"
                 await self.telemetry_service.record_metric(
                     action_metric,
                     value=1.0,
-                    tags={"thought_id": thought.thought_id, "action": final_result.selected_action.value},
-                    path_type="hot",  # Action selection is HOT PATH
-                    source_module="thought_processor"
+                    tags={
+                        "thought_id": thought.thought_id,
+                        "action": final_result.selected_action.value,
+                        "path_type": "hot",  # Action selection is HOT PATH
+                        "source_module": "thought_processor"
+                    }
                 )
 
         return final_result
@@ -391,29 +405,22 @@ class ThoughtProcessor:
                     
                     # Create PONDER action with required fields
                     final_action = ActionSelectionDMAResult(
-                        selected_action=HandlerActionType.PONDER.value,
-                        action_parameters=None,  # No parameters needed
-                        selection_reasoning=f"Overridden by {entry.name}: Need to reconsider {attempted_action_desc}",
-                        selection_confidence=0.3,
-                        # Add required fields for ActionSelectionDMAResult
-                        pdma_weight=0.5,
-                        csdma_weight=0.3,
-                        dsdma_weight=0.2,
-                        actions_considered=[HandlerActionType.PONDER.value],
-                        selection_ethical_score=1.0,
-                        selection_fairness=1.0,
-                        selection_principles=["Safety", "Prudence"],
-                        total_evaluation_time_ms=0.0
+                        selected_action=HandlerActionType.PONDER,
+                        action_parameters=ponder_params,
+                        rationale=f"Overridden by {entry.name}: Need to reconsider {attempted_action_desc}",
+                        confidence=0.3
                     )
                 break
 
-        return ConscienceResult(
+        result = ConscienceResult(
             original_action=action_result,
             final_action=final_action,
             overridden=overridden,
-            override_reason=override_reason,
-            epistemic_data=epistemic_data or None,
+            override_reason=override_reason
         )
+        if epistemic_data:
+            result.epistemic_data = epistemic_data
+        return result
 
     async def _fetch_thought(self, thought_id: str) -> Optional[Thought]:
         # Import here to avoid circular import
@@ -466,7 +473,7 @@ class ThoughtProcessor:
     def _describe_action(self, action_result: ActionSelectionDMAResult) -> str:
         """Generate a human-readable description of an action."""
         action_type = action_result.selected_action
-        params = action_result.typed_parameters
+        params = action_result.action_parameters
         
         descriptions = {
             HandlerActionType.SPEAK: lambda p: f"speak: '{p.content[:50]}...'" if hasattr(p, 'content') and len(str(p.content)) > 50 else f"speak: '{p.content}'" if hasattr(p, 'content') else "speak",

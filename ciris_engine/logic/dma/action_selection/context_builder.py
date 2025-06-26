@@ -194,8 +194,7 @@ Adhere strictly to the schema for your JSON output.
             return "DSDMA did not apply or did not run for this thought."
         
         return (
-            f"DSDMA ({dsdma_result.domain}) Output: Score {dsdma_result.score:.2f}, "
-            f"Recommended Domain Action: {dsdma_result.recommended_action or 'None'}, "
+            f"DSDMA ({dsdma_result.domain}) Output: Domain Alignment {dsdma_result.domain_alignment:.2f}, "
             f"Flags: {', '.join(dsdma_result.flags) if dsdma_result.flags else 'None'}. "
             f"Reasoning: {dsdma_result.reasoning}"
         )

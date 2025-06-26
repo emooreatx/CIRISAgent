@@ -31,7 +31,7 @@ class ResourceLimit(BaseModel):
         extra = "forbid"
 
 def _memory_mb_limit() -> ResourceLimit:
-    return ResourceLimit(limit=256, warning=200, critical=240)
+    return ResourceLimit(limit=4096, warning=3072, critical=3840)
 
 def _cpu_percent_limit() -> ResourceLimit:
     return ResourceLimit(limit=80, warning=60, critical=75, action=ResourceAction.THROTTLE)

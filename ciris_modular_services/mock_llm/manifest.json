@@ -12,7 +12,7 @@
     "class": "mock_llm.service.MockLLMService"
   }],
   "capabilities": [
-    "CALL_LLM_STRUCTURED"
+    "call_llm_structured"
   ],
   "dependencies": {
     "protocols": [

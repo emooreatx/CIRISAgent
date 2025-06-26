@@ -1060,7 +1060,7 @@ class AgentConfigService(Service):
         thought_id: str,
         force_scope: Optional[GraphScope] = None
     ) -> MemoryOpResult:
-        """Update configuration with automatic scope handling"""
+        """Update configuration based on scope (identity changes require WA approval)"""
         
         # Determine appropriate scope
         scope = force_scope or CONFIG_SCOPE_MAP.get(config_type, GraphScope.LOCAL)

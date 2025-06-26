@@ -153,6 +153,6 @@ class DeferHandler(BaseActionHandler):
 
         parent_task_id = thought.source_task_id
         if parent_task_id not in ["WAKEUP_ROOT", "SYSTEM_TASK", "DREAM_TASK"]:
-            persistence.update_task_status(parent_task_id, TaskStatus.DEFERRED)
+            persistence.update_task_status(parent_task_id, TaskStatus.DEFERRED, self.time_service)
             self.logger.info(f"Marked parent task {parent_task_id} as DEFERRED due to child thought deferral.")
 

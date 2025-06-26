@@ -47,9 +47,9 @@ def get_all_tasks(db_path: Optional[str] = None) -> List[Task]:
 def add_task(task: Task, db_path: Optional[str] = None) -> str:
     task_dict = task.model_dump(mode='json')
     sql = """
-        INSERT INTO tasks (task_id, description, status, priority, created_at, updated_at,
+        INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at,
                            parent_task_id, context_json, outcome_json, signed_by, signature, signed_at)
-        VALUES (:task_id, :description, :status, :priority, :created_at, :updated_at,
+        VALUES (:task_id, :channel_id, :description, :status, :priority, :created_at, :updated_at,
                 :parent_task_id, :context, :outcome, :signed_by, :signature, :signed_at)
     """
     params = {

@@ -86,12 +86,16 @@ class DatabaseMaintenanceService:
         Performs database cleanup at startup:
         1. Removes orphaned active tasks and thoughts.
         2. Archives tasks and thoughts older than the configured threshold.
+        3. Cleans up thoughts with invalid context.
         Logs actions taken.
         """
         # Use provided time_service or fallback to instance time_service
         ts = time_service or self.time_service
         logger.info("--- Starting Startup Database Cleanup ---")
         self.archive_dir.mkdir(parents=True, exist_ok=True)
+        
+        # --- Clean up thoughts with invalid/malformed context ---
+        await self._cleanup_invalid_thoughts()
 
         # --- 0. Cleanup Incomplete Wakeup Steps from Previous Runs ---
         WAKEUP_ROOT_TASK_ID = "WAKEUP_ROOT" # Define if not already available class-wide
@@ -104,7 +108,7 @@ class DatabaseMaintenanceService:
         for step_task in wakeup_step_tasks:
             if step_task.status not in [TaskStatus.COMPLETED, TaskStatus.FAILED]: # Removed TaskStatus.ARCHIVED
                 logger.info(f"Found stale, non-terminal wakeup step task: {step_task.task_id} ('{step_task.description}') with status {step_task.status}. Marking as FAILED.")
-                update_task_status(step_task.task_id, TaskStatus.FAILED)
+                update_task_status(step_task.task_id, TaskStatus.FAILED, self.time_service)
                 stale_wakeup_steps_failed_count += 1
                 
                 step_thoughts = get_thoughts_by_task_id(step_task.task_id)
@@ -178,7 +182,7 @@ class DatabaseMaintenanceService:
         archived_thoughts_count = 0
         
         now = ts.now()
-        archive_timestamp_str = ts.format_time(now, "%Y%m%d_%H%M%S")
+        archive_timestamp_str = now.strftime("%Y%m%d_%H%M%S")
         older_than_timestamp = (now - timedelta(hours=self.archive_older_than_hours)).isoformat()
 
         tasks_to_archive = get_tasks_older_than(older_than_timestamp)
@@ -223,4 +227,45 @@ class DatabaseMaintenanceService:
         
         logger.info(f"Archival: {archived_tasks_count} tasks, {archived_thoughts_count} thoughts archived and removed.")
         logger.info("--- Finished Startup Database Cleanup ---")
+        
+    async def _cleanup_invalid_thoughts(self) -> None:
+        """Clean up thoughts with invalid or malformed context."""
+        from ciris_engine.logic.persistence import get_db_connection
+        
+        logger.info("Cleaning up thoughts with invalid context...")
+        
+        # Get all thoughts with empty or invalid context
+        sql = """
+            SELECT thought_id, context_json 
+            FROM thoughts 
+            WHERE context_json = '{}' 
+               OR context_json IS NULL
+               OR context_json NOT LIKE '%task_id%'
+               OR context_json NOT LIKE '%correlation_id%'
+        """
+        
+        invalid_thought_ids = []
+        
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(sql)
+                rows = cursor.fetchall()
+                
+                for row in rows:
+                    invalid_thought_ids.append(row["thought_id"])
+                    
+                if invalid_thought_ids:
+                    # Delete these invalid thoughts
+                    placeholders = ",".join("?" * len(invalid_thought_ids))
+                    delete_sql = f"DELETE FROM thoughts WHERE thought_id IN ({placeholders})"
+                    cursor.execute(delete_sql, invalid_thought_ids)
+                    conn.commit()
+                    
+                    logger.info(f"Deleted {len(invalid_thought_ids)} thoughts with invalid context")
+                else:
+                    logger.info("No thoughts with invalid context found")
+                    
+        except Exception as e:
+            logger.error(f"Failed to clean up invalid thoughts: {e}", exc_info=True)
 

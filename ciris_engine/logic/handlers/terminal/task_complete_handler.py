@@ -91,7 +91,7 @@ class TaskCompleteHandler(BaseActionHandler):
             if parent_task_id in PERSISTENT_TASK_IDS:
                 self.logger.info(f"Task {parent_task_id} is a persistent task. Not marking as COMPLETED by TaskCompleteHandler. It should be re-activated or remain PENDING/ACTIVE.")
             else:
-                task_updated = persistence.update_task_status(parent_task_id, TaskStatus.COMPLETED)
+                task_updated = persistence.update_task_status(parent_task_id, TaskStatus.COMPLETED, self.time_service)
                 if task_updated:
                     self.logger.info(f"Marked parent task {parent_task_id} as COMPLETED due to TASK_COMPLETE action on thought {thought_id}.")
                     print(f"[TASK_COMPLETE_HANDLER] ✓ Task {parent_task_id} marked as COMPLETED")

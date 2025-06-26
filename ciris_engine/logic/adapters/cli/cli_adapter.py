@@ -132,23 +132,38 @@ class CLIAdapter(CommunicationService, ToolService):
             else:
                 print(f"\n[CIRIS] {content}")
             
+            from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
+            now = self._get_time_service().now()
+            
+            request_data = ServiceRequestData(
+                service_type="communication",
+                method_name="send_message",
+                channel_id=channel_id,
+                parameters={"content": content},
+                request_timestamp=now
+            )
+            
+            response_data = ServiceResponseData(
+                success=True,
+                result_summary=f"Message sent to {channel_id}",
+                execution_time_ms=10.0,
+                response_timestamp=now
+            )
+            
             persistence.add_correlation(
                 ServiceCorrelation(
                     correlation_id=correlation_id,
                     service_type="cli",
                     handler_name="CLIAdapter",
                     action_type="send_message",
-                    request_data=CLIMessage(
-                        channel_id=channel_id,
-                        content=content,
-                        timestamp=self._get_time_service().now_iso(),
-                        message_type="system" if channel_id == "system" else "error" if channel_id == "error" else "user"
-                    ).model_dump(),
-                    response_data={"sent": True},
+                    request_data=request_data,
+                    response_data=response_data,
                     status=ServiceCorrelationStatus.COMPLETED,
-                    created_at=self._get_time_service().now_iso(),
-                    updated_at=self._get_time_service().now_iso(),
-                )
+                    created_at=now,
+                    updated_at=now,
+                    timestamp=now
+                ),
+                self._get_time_service()
             )
             return True
         except Exception as e:

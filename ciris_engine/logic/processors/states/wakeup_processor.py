@@ -7,9 +7,9 @@ import uuid
 from typing import Any, List, Optional, Tuple
 
 from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.schemas.runtime.models import Task, Thought
+from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus, HandlerActionType, ThoughtType
-from ciris_engine.schemas.runtime.system_context import ThoughtContext, SystemSnapshot
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.schemas.persistence.core import IdentityContext
 from ciris_engine.logic import persistence
@@ -132,12 +132,12 @@ class WakeupProcessor(BaseProcessor):
                     
                     if existing_thoughts and current_task.status == TaskStatus.ACTIVE:
                         logger.debug(f"Step {i+1} has {len(existing_thoughts)} existing thoughts but task is ACTIVE - creating new thought")
-                        thought = await self._create_step_thought(step_task, round_number)
+                        thought, processing_context = await self._create_step_thought(step_task, round_number)
                         logger.debug(f"Created new thought {thought.thought_id} for active step {i+1}")
                         processed_any = True
                     elif not existing_thoughts:
                         logger.debug(f"Creating thought for step {i+1} (no existing thoughts)")
-                        thought = await self._create_step_thought(step_task, round_number)
+                        thought, processing_context = await self._create_step_thought(step_task, round_number)
                         logger.debug(f"Created thought {thought.thought_id} for wakeup step {i+1}")
                         processed_any = True
                     else:
@@ -221,10 +221,10 @@ class WakeupProcessor(BaseProcessor):
                     logger.debug(f"Step {i+1} already has active thoughts, skipping")
                     continue
                 
-                thought = await self._create_step_thought(step_task, round_number)
+                thought, processing_context = await self._create_step_thought(step_task, round_number)
                 logger.debug(f"Created thought {thought.thought_id} for step {i+1}/{len(self.wakeup_tasks)-1}")
                 
-                item = ProcessingQueueItem.from_thought(thought)
+                item = ProcessingQueueItem.from_thought(thought, initial_ctx=processing_context)
                 
                 logger.debug(f"Queued step {i+1} for async processing")
         
@@ -264,14 +264,29 @@ class WakeupProcessor(BaseProcessor):
         from ciris_engine.logic.persistence.models.tasks import add_system_task
         
         now_iso = self.time_service.now().isoformat()
+        
+        # Create proper TaskContext with channel_id
+        from ciris_engine.schemas.runtime.models import TaskContext as ModelTaskContext
+        
+        if not self.startup_channel_id:
+            raise ValueError("Cannot create wakeup tasks without startup_channel_id")
+            
+        task_context = ModelTaskContext(
+            channel_id=self.startup_channel_id,
+            user_id="system",
+            correlation_id=f"wakeup_{uuid.uuid4().hex[:8]}",
+            parent_task_id=None
+        )
+        
         root_task = Task(
             task_id="WAKEUP_ROOT",
+            channel_id=self.startup_channel_id,
             description="Wakeup ritual",
             status=TaskStatus.ACTIVE,
             priority=1,
             created_at=now_iso,
             updated_at=now_iso,
-            context=None  # Will be set by ContextBuilder when creating thoughts
+            context=task_context
         )
         if not persistence.task_exists(root_task.task_id):
             await add_system_task(root_task, auth_service=self.auth_service)
@@ -281,17 +296,24 @@ class WakeupProcessor(BaseProcessor):
         channel_id = self.startup_channel_id  # Use the startup_channel_id directly, it's already set
         wakeup_sequence = self._get_wakeup_sequence()
         for step_type, content in wakeup_sequence:
-            # Create basic task without complex context
-            # Store step_type in the task_id for later retrieval
+            # Create task with proper context including channel_id
+            step_context = ModelTaskContext(
+                channel_id=self.startup_channel_id,
+                user_id="system",
+                correlation_id=f"wakeup_{step_type}_{uuid.uuid4().hex[:8]}",
+                parent_task_id=root_task.task_id
+            )
+            
             step_task = Task(
                 task_id=f"{step_type}_{uuid.uuid4()}",
+                channel_id=self.startup_channel_id,
                 description=content,
                 status=TaskStatus.ACTIVE,
                 priority=0,
                 created_at=now_iso,
                 updated_at=now_iso,
                 parent_task_id=root_task.task_id,
-                context=None  # Will be set by ContextBuilder when creating thoughts
+                context=step_context
             )
             await add_system_task(step_task, auth_service=self.auth_service)
             self.wakeup_tasks.append(step_task)
@@ -311,10 +333,10 @@ class WakeupProcessor(BaseProcessor):
             if any(t.status in [ThoughtStatus.PROCESSING, ThoughtStatus.PENDING] for t in existing_thoughts):
                 logger.debug(f"Skipping creation of new thought for step {step_type} (task_id={step_task.task_id}) because an active thought already exists.")
                 continue
-            thought = await self._create_step_thought(step_task, round_number)
+            thought, processing_context = await self._create_step_thought(step_task, round_number)
             if non_blocking:
                 continue
-            result = await self._process_step_thought(thought)
+            result = await self._process_step_thought(thought, processing_context)
             if not result:
                 logger.error(f"Wakeup step {step_type} failed: no result")
                 self._mark_task_failed(step_task.task_id, "No result from processing")
@@ -343,23 +365,44 @@ class WakeupProcessor(BaseProcessor):
                     logger.error(f"Wakeup step {step_type} did not complete successfully (task_id={step_task.task_id})")
                     return False
                 logger.debug(f"Wakeup step {step_type} completed successfully")
-                self.metrics["items_processed"] += 1
+                self.metrics.items_processed += 1
             else:
                 logger.error(f"Wakeup step {step_type} failed: expected SPEAK or PONDER, got {selected_action}")
                 self._mark_task_failed(step_task.task_id, f"Expected SPEAK or PONDER action, got {selected_action}")
                 return False
         return True
     
-    async def _create_step_thought(self, step_task: Task, round_number: int) -> Thought:
-        """Create a thought for a wakeup step, ensuring context is formatted with the standard formatter."""
+    async def _create_step_thought(self, step_task: Task, round_number: int) -> Tuple[Thought, Any]:
+        """Create a thought for a wakeup step, ensuring context is formatted with the standard formatter.
+        
+        Returns:
+            Tuple of (Thought, ProcessingThoughtContext) - the thought has simple context,
+            processing context is returned separately for use in processing pipeline.
+        """
         # Use the new ContextBuilder to build the context for the thought
         context_builder = ContextBuilder(
             memory_service=getattr(self, 'memory_service', None),
             graphql_provider=getattr(self, 'graphql_provider', None),
             app_config=getattr(self, 'app_config', None),
+            resource_monitor=getattr(self, 'resource_monitor', None),
+            runtime=getattr(self, 'runtime', None),
+            service_registry=getattr(self, 'service_registry', None),
+            secrets_service=getattr(self, 'secrets_service', None),
+            telemetry_service=getattr(self, 'telemetry_service', None),
         )
         # Create a new Thought object for this step
         now_iso = self.time_service.now().isoformat()
+        
+        # Create the simple ThoughtContext for the Thought model with channel_id
+        simple_context = ThoughtContext(
+            task_id=step_task.task_id,
+            channel_id=self.startup_channel_id,  # Set channel_id directly
+            round_number=round_number,
+            depth=0,
+            parent_thought_id=None,
+            correlation_id=step_task.context.correlation_id if step_task.context else str(uuid.uuid4())
+        )
+        
         thought = Thought(
             thought_id=str(uuid.uuid4()),
             source_task_id=step_task.task_id,
@@ -368,28 +411,30 @@ class WakeupProcessor(BaseProcessor):
             status=ThoughtStatus.PENDING,
             created_at=now_iso,
             updated_at=now_iso,
-            context=None,  # Will be filled by ContextBuilder
+            context=simple_context,  # Use simple context
             thought_type=ThoughtType.STANDARD
         )
-        # Build the context for this thought and step task, passing the Thought object
-        thought_context = await context_builder.build_thought_context(
+        
+        # Build the processing context for this thought and step task
+        processing_context = await context_builder.build_thought_context(
             thought=thought,
             task=step_task
         )
-        # Add channel_id to context if available
-        if self.startup_channel_id and thought_context and hasattr(thought_context, 'system_snapshot'):
-            thought_context.system_snapshot.channel_context = create_channel_context(self.startup_channel_id)
+        
+        # Add channel_id to processing context if available
+        if self.startup_channel_id and processing_context and hasattr(processing_context, 'system_snapshot'):
+            processing_context.system_snapshot.channel_context = create_channel_context(self.startup_channel_id)
             logger.debug(f"Added startup_channel_id '{self.startup_channel_id}' to thought {thought.thought_id}")
         else:
-            logger.warning(f"Could not add channel context to thought {thought.thought_id}: startup_channel_id={self.startup_channel_id}, has_context={thought_context is not None}, has_snapshot={hasattr(thought_context, 'system_snapshot') if thought_context else False}")
-        thought.context = thought_context
-        # Persist the new thought
+            logger.warning(f"Could not add channel context to thought {thought.thought_id}: startup_channel_id={self.startup_channel_id}, has_context={processing_context is not None}, has_snapshot={hasattr(processing_context, 'system_snapshot') if processing_context else False}")
+        
+        # Persist the new thought (with simple context)
         persistence.add_thought(thought)
-        return thought
+        return thought, processing_context
     
-    async def _process_step_thought(self, thought: Thought):
+    async def _process_step_thought(self, thought: Thought, processing_context: Any = None):
         """Process a wakeup step thought."""
-        item = ProcessingQueueItem.from_thought(thought)
+        item = ProcessingQueueItem.from_thought(thought, initial_ctx=processing_context)
         return await self.process_thought_item(item)
     
     async def _dispatch_step_action(self, result: Any, thought: Thought, step_task: Task) -> bool:
@@ -400,6 +445,7 @@ class WakeupProcessor(BaseProcessor):
         from ciris_engine.logic.utils.context_utils import build_dispatch_context
         dispatch_context = build_dispatch_context(
             thought=thought,
+            time_service=self.time_service,
             task=step_task,
             app_config=getattr(self, 'app_config', None),
             round_number=getattr(self, 'round_number', 0),
@@ -446,16 +492,16 @@ class WakeupProcessor(BaseProcessor):
     
     def _mark_task_failed(self, task_id: str, reason: str) -> None:
         """Mark a task as failed."""
-        persistence.update_task_status(task_id, TaskStatus.FAILED)
+        persistence.update_task_status(task_id, TaskStatus.FAILED, self.time_service)
         logger.error(f"Task {task_id} marked as FAILED: {reason}")
     
     def _mark_root_task_complete(self) -> None:
         """Mark the root wakeup task as complete."""
-        persistence.update_task_status("WAKEUP_ROOT", TaskStatus.COMPLETED)
+        persistence.update_task_status("WAKEUP_ROOT", TaskStatus.COMPLETED, self.time_service)
     
     def _mark_root_task_failed(self) -> None:
         """Mark the root wakeup task as failed."""
-        persistence.update_task_status("WAKEUP_ROOT", TaskStatus.FAILED)
+        persistence.update_task_status("WAKEUP_ROOT", TaskStatus.FAILED, self.time_service)
     
     def is_wakeup_complete(self) -> bool:
         """Check if wakeup sequence is complete."""

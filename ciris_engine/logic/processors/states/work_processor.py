@@ -115,12 +115,12 @@ class WorkProcessor(BaseProcessor):
                 logger.debug(f"Round {round_number}: No thoughts to process (idle mode disabled)")
             
             # Update metrics
-            self.metrics["rounds_completed"] += 1
+            self.metrics.rounds_completed += 1
             
         except Exception as e:
             logger.error(f"Error in work round {round_number}: {e}", exc_info=True)
             round_metrics["errors"] += 1
-            self.metrics["errors"] += 1
+            self.metrics.errors += 1
         
         # Calculate round duration
         end_time = self.time_service.now()
