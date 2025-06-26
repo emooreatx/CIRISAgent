@@ -370,17 +370,19 @@ class TSDBConsolidationService(BaseGraphService):
         nodes = []
         for dp in datapoints:
             # Check if within our exact period
-            dp_time = datetime.fromisoformat(dp.timestamp)
-            if period_start <= dp_time < period_end:
+            # dp.timestamp is already a datetime object, no need to parse
+            if period_start <= dp.timestamp < period_end:
                 # Create a pseudo-GraphNode for processing
+                # Generate a unique ID based on metric name and timestamp
+                node_id = f"tsdb_{dp.metric_name}_{dp.timestamp.timestamp()}"
                 node = GraphNode(
-                    id=f"tsdb_{dp.correlation_id}",
+                    id=node_id,
                     type=NodeType.TSDB_DATA,
                     scope=GraphScope.LOCAL,
                     attributes={
                         "metric_name": dp.metric_name,
                         "value": dp.value,
-                        "timestamp": dp.timestamp,
+                        "timestamp": dp.timestamp.isoformat(),  # Convert datetime to string for storage
                         "tags": dp.tags or {},
                         "consolidated": False
                     }

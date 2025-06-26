@@ -50,8 +50,8 @@ class AuditSignatureManager:
     
     def _load_or_generate_keys(self) -> None:
         """Load existing keys or generate new ones"""
-        private_key_path = self.key_path / "audit_private.pem"
-        public_key_path = self.key_path / "audit_public.pem"
+        private_key_path = self.key_path / "audit_signing_private.pem"
+        public_key_path = self.key_path / "audit_signing_public.pem"
         
         try:
             # Try to load existing keys
@@ -95,8 +95,8 @@ class AuditSignatureManager:
         if not self._private_key or not self._public_key:
             raise RuntimeError("Keys not initialized")
             
-        private_key_path = self.key_path / "audit_private.pem"
-        public_key_path = self.key_path / "audit_public.pem"
+        private_key_path = self.key_path / "audit_signing_private.pem"
+        public_key_path = self.key_path / "audit_signing_public.pem"
         
         # Save private key
         private_pem = self._private_key.private_bytes(

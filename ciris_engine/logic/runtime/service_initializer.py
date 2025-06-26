@@ -115,11 +115,83 @@ class ServiceInitializer:
         """Initialize the memory service."""
         # Initialize secrets service first (memory service depends on it)
         from ciris_engine.logic.persistence import get_sqlite_db_full_path
+        import os
+        from pathlib import Path
+        import base64
+        
+        # Ensure .ciris_keys directory exists
+        keys_dir = Path(".ciris_keys")
+        keys_dir.mkdir(exist_ok=True)
+        
+        # Load or generate master key
+        master_key_path = keys_dir / "secrets_master.key"
+        master_key = None
+        
+        if master_key_path.exists():
+            # Load existing master key
+            with open(master_key_path, 'rb') as f:
+                master_key = f.read()
+            logger.info("Loaded existing secrets master key")
+        else:
+            # Generate new master key and save it
+            import secrets
+            master_key = secrets.token_bytes(32)
+            with open(master_key_path, 'wb') as f:
+                f.write(master_key)
+            # Set restrictive permissions (owner read/write only)
+            os.chmod(master_key_path, 0o600)
+            logger.info("Generated and saved new secrets master key")
+        
+        # Create README if it doesn't exist
+        readme_path = keys_dir / "README.md"
+        if not readme_path.exists():
+            readme_content = """# CIRIS Keys Directory
+
+This directory contains critical cryptographic keys for the CIRIS system.
+
+## Files
+
+### secrets_master.key
+- **Purpose**: Master encryption key for the SecretsService
+- **Type**: 256-bit symmetric key
+- **Usage**: Used to derive per-secret encryption keys via PBKDF2
+- **Algorithm**: AES-256-GCM encryption
+- **Critical**: Loss of this key means all encrypted secrets become unrecoverable
+
+### audit_signing_private.pem
+- **Purpose**: Private key for signing audit log entries
+- **Type**: RSA 2048-bit private key
+- **Usage**: Creates digital signatures for non-repudiation
+- **Critical**: Keep this key secure - compromise allows forging audit entries
+
+### audit_signing_public.pem
+- **Purpose**: Public key for verifying audit signatures
+- **Type**: RSA 2048-bit public key
+- **Usage**: Verifies signatures on audit entries
+- **Note**: Can be shared publicly for verification purposes
+
+## Security Notes
+
+1. **Permissions**: All key files should have restrictive permissions (600)
+2. **Backup**: Regularly backup these keys to secure offline storage
+3. **Rotation**: Consider key rotation policies for long-running deployments
+4. **Access**: Only the CIRIS process should access these keys
+
+## DO NOT
+- Commit these files to version control
+- Share the private keys or master key
+- Store copies in insecure locations
+"""
+            with open(readme_path, 'w') as f:
+                f.write(readme_content)
+            logger.info("Created .ciris_keys/README.md")
+        
         db_path = get_sqlite_db_full_path()
         secrets_db_path = db_path.replace('.db', '_secrets.db')
         self.secrets_service = SecretsService(
             db_path=secrets_db_path,
-            time_service=self.time_service
+            time_service=self.time_service,
+            master_key=master_key
         )
         await self.secrets_service.start()
         logger.info("SecretsService initialized")
@@ -514,7 +586,7 @@ class ServiceInitializer:
         # - Time-series capabilities built-in
         # Use config accessor for audit configuration
         audit_db_path = await self.config_accessor.get_path("database.audit_db", Path("data/ciris_audit.db"))
-        audit_key_path = await self.config_accessor.get_path("security.audit_key_path", Path("audit_keys"))
+        audit_key_path = await self.config_accessor.get_path("security.audit_key_path", Path(".ciris_keys"))
         retention_days = await self.config_accessor.get_int("security.audit_retention_days", 90)
         
         from ciris_engine.logic.services.graph.audit_service import GraphAuditService

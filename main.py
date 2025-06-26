@@ -396,20 +396,9 @@ def main(
     sys.stdout.flush()
     sys.stderr.flush()
     
-    # Close any remaining event loops
-    try:
-        loop = asyncio.get_event_loop()
-        if loop and not loop.is_closed():
-            # Cancel all remaining tasks to ensure clean shutdown
-            pending = asyncio.all_tasks(loop)
-            for task in pending:
-                task.cancel()
-            # Give tasks a chance to handle cancellation
-            if pending:
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            loop.close()
-    except RuntimeError:
-        pass
+    # asyncio.run() already closes the event loop, so we don't need to do it again
+    # Just exit cleanly
+    logger.info("CIRIS agent exiting cleanly")
     
     # For API mode subprocess tests, ensure immediate exit
     if "--adapter" in sys.argv and "api" in sys.argv and "--timeout" in sys.argv:
