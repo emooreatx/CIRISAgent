@@ -140,7 +140,11 @@ async def test_dream_processor_queries_behavioral_insights():
     config_accessor = MagicMock()
     thought_processor = MagicMock()
     action_dispatcher = MagicMock()
-    services = {'time_service': time_service}
+    resource_monitor = MagicMock()
+    services = {
+        'time_service': time_service,
+        'resource_monitor': resource_monitor
+    }
     
     dream_processor = DreamProcessor(
         config_accessor=config_accessor,
@@ -209,7 +213,11 @@ async def test_all_insights_processed_without_filtering():
     config_accessor = MagicMock()
     thought_processor = MagicMock()
     action_dispatcher = MagicMock()
-    services = {'time_service': time_service}
+    resource_monitor = MagicMock()
+    services = {
+        'time_service': time_service,
+        'resource_monitor': resource_monitor
+    }
     
     dream_processor = DreamProcessor(
         config_accessor=config_accessor,
@@ -327,7 +335,11 @@ async def test_integration_feedback_loop_to_dream_processor():
     config_accessor = MagicMock()
     thought_processor = MagicMock()
     action_dispatcher = MagicMock()
-    services = {'time_service': time_service}
+    resource_monitor = MagicMock()
+    services = {
+        'time_service': time_service,
+        'resource_monitor': resource_monitor
+    }
     
     dream_processor = DreamProcessor(
         config_accessor=config_accessor,
@@ -393,7 +405,11 @@ async def test_dream_processor_handles_missing_attributes():
     config_accessor = MagicMock()
     thought_processor = MagicMock()
     action_dispatcher = MagicMock()
-    services = {'time_service': time_service}
+    resource_monitor = MagicMock()
+    services = {
+        'time_service': time_service,
+        'resource_monitor': resource_monitor
+    }
     
     dream_processor = DreamProcessor(
         config_accessor=config_accessor,

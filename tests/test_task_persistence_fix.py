@@ -40,6 +40,7 @@ def test_task_persistence_with_retry_count():
     # Test case 1: Row with retry_count and empty outcome
     row_data = {
         "task_id": "TEST_TASK_1",
+        "channel_id": "test_channel",  # Required field
         "description": "Test task",
         "status": "active",
         "priority": 1,

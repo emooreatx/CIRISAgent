@@ -55,6 +55,7 @@ def create_test_task(task_id: str, status: TaskStatus = TaskStatus.ACTIVE) -> Ta
     now = datetime.now(timezone.utc)
     return Task(
         task_id=task_id,
+        channel_id="test_channel",
         description=f"Test task {task_id}",
         status=status,
         created_at=now.isoformat(),

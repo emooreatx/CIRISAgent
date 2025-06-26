@@ -37,6 +37,7 @@ class TestThoughtDepthPropagation:
         """Create a sample task for testing."""
         return Task(
             task_id=str(uuid.uuid4()),
+            channel_id="test_channel",
             description="Test task for ponder count verification",
             status=TaskStatus.ACTIVE,
             created_at=datetime.now(timezone.utc).isoformat(),
