@@ -64,12 +64,13 @@ async def test_tsdb_service_consolidate_period(tsdb_service, mock_memory_bus):
     # Create mock datapoints that match what the implementation expects
     class MockDataPoint:
         def __init__(self, timestamp, metric_name, value, correlation_type, tags, correlation_id):
-            self.timestamp = timestamp if isinstance(timestamp, str) else timestamp.isoformat()
+            # Keep timestamp as datetime object - the service expects datetime, not string
+            self.timestamp = timestamp
             self.metric_name = metric_name
             self.value = value
             self.correlation_type = correlation_type
             self.tags = tags
-            self.correlation_id = correlation_id
+            # Remove correlation_id as TimeSeriesDataPoint doesn't have this field
     
     mock_datapoints = [
         MockDataPoint(
@@ -169,12 +170,13 @@ async def test_tsdb_service_resource_aggregation(tsdb_service, mock_memory_bus):
     # Mock timeseries data with resource metrics
     class MockDataPoint:
         def __init__(self, timestamp, metric_name, value, correlation_type, tags, correlation_id):
-            self.timestamp = timestamp if isinstance(timestamp, str) else timestamp.isoformat()
+            # Keep timestamp as datetime object - the service expects datetime, not string
+            self.timestamp = timestamp
             self.metric_name = metric_name
             self.value = value
             self.correlation_type = correlation_type
             self.tags = tags
-            self.correlation_id = correlation_id
+            # Remove correlation_id as TimeSeriesDataPoint doesn't have this field
     
     resource_datapoints = [
         MockDataPoint(
@@ -281,12 +283,13 @@ async def test_tsdb_service_action_summary(tsdb_service, mock_memory_bus):
     # Mock timeseries data with action metrics
     class MockDataPoint:
         def __init__(self, timestamp, metric_name, value, correlation_type, tags, correlation_id):
-            self.timestamp = timestamp if isinstance(timestamp, str) else timestamp.isoformat()
+            # Keep timestamp as datetime object - the service expects datetime, not string
+            self.timestamp = timestamp
             self.metric_name = metric_name
             self.value = value
             self.correlation_type = correlation_type
             self.tags = tags
-            self.correlation_id = correlation_id
+            # Remove correlation_id as TimeSeriesDataPoint doesn't have this field
     
     action_datapoints = [
         MockDataPoint(

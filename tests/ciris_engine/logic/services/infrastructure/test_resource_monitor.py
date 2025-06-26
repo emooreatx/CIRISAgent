@@ -188,9 +188,9 @@ async def test_resource_monitor_check_available(resource_monitor):
     assert await resource_monitor.check_available("thoughts_active", 5) is True
     
     # Check with amounts that would exceed warning threshold
-    assert await resource_monitor.check_available("memory_mb", 200) is False
-    assert await resource_monitor.check_available("tokens_hour", 8000) is False
-    assert await resource_monitor.check_available("thoughts_active", 35) is False
+    assert await resource_monitor.check_available("memory_mb", 200) is True  # 40 + 200 = 240 < 3072 warning
+    assert await resource_monitor.check_available("tokens_hour", 8000) is False  # 1000 + 8000 = 9000 > 8000 warning
+    assert await resource_monitor.check_available("thoughts_active", 35) is False  # 10 + 35 = 45 > 40 warning
 
 
 @pytest.mark.asyncio
@@ -214,7 +214,7 @@ async def test_resource_monitor_signal_bus(resource_monitor, signal_bus):
     
     # Trigger critical limits
     resource_monitor.snapshot.cpu_average_1m = 76  # Exceeds critical (75)
-    resource_monitor.snapshot.memory_mb = 241  # Exceeds critical (240)
+    resource_monitor.snapshot.memory_mb = 3841  # Exceeds critical (3840)
     resource_monitor.snapshot.tokens_used_hour = 9501  # Exceeds critical (9500)
     
     # Check limits
@@ -272,11 +272,12 @@ async def test_resource_monitor_cooldown(resource_monitor, signal_bus):
     resource_monitor.budget.memory_mb.action = ResourceAction.DEFER
     
     # Exceed critical threshold multiple times quickly
-    resource_monitor.snapshot.memory_mb = 241
+    resource_monitor.snapshot.memory_mb = 3841  # Exceeds critical (3840)
     
     # First check should emit signal
     await resource_monitor._check_limits()
     initial_count = len(emitted_signals)
+    assert initial_count == 1  # Should have one signal
     
     # Immediate second check should not emit due to cooldown
     await resource_monitor._check_limits()
