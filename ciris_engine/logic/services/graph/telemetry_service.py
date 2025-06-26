@@ -99,7 +99,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             # Try to get memory bus from registry
             try:
                 from ciris_engine.logic.buses import MemoryBus
-                self._memory_bus = MemoryBus(registry)
+                self._memory_bus = MemoryBus(registry, self._time_service)
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
         
@@ -120,7 +120,9 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         self, 
         metric_name: str, 
         value: float = 1.0, 
-        tags: Optional[Dict[str, str]] = None
+        tags: Optional[Dict[str, str]] = None,
+        handler_name: Optional[str] = None,  # Accept extra parameter
+        **kwargs: Any  # Accept any other extra parameters
     ) -> None:
         """
         Record a metric by storing it as a memory in the graph.
@@ -140,6 +142,10 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 "metric_type": "operational",
                 "timestamp": self._now().isoformat()
             })
+            
+            # Add handler_name to tags if provided
+            if handler_name:
+                metric_tags["handler"] = handler_name
             
             # Store as memory via the bus
             result = await self._memory_bus.memorize_metric(

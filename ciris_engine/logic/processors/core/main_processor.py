@@ -409,7 +409,8 @@ class AgentProcessor:
                     conscience_result = getattr(result, '_conscience_result', None)
                     
                     dispatch_context = build_dispatch_context(
-                        thought=thought, 
+                        thought=thought,
+                        time_service=self._time_service,
                         task=task, 
                         app_config=self.app_config, 
                         round_number=self.current_round_number,
@@ -752,7 +753,7 @@ class AgentProcessor:
                 logger.warning("Cannot schedule initial dream - no service registry")
                 return
             
-            memory_bus = MemoryBus(self.services["service_registry"])
+            memory_bus = MemoryBus(self.services["service_registry"], self._time_service)
             
             # Schedule 6 hours from now
             dream_time = self._time_service.now() + timedelta(hours=6)
@@ -795,7 +796,7 @@ class AgentProcessor:
             if not self.services.get("service_registry"):
                 return False
             
-            memory_bus = MemoryBus(self.services["service_registry"])
+            memory_bus = MemoryBus(self.services["service_registry"], self._time_service)
             
             # Query for scheduled dream tasks
             query = MemoryQuery(

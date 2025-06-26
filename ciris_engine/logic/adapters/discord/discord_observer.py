@@ -4,7 +4,9 @@ from typing import List, Optional, Any
 
 from ciris_engine.schemas.runtime.models import ThoughtType
 from ciris_engine.schemas.runtime.messages import DiscordMessage
-from ciris_engine.schemas.runtime.system_context import ThoughtContext, TaskContext, SystemSnapshot, ChannelContext
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext
+from ciris_engine.schemas.runtime.models import TaskContext
+from ciris_engine.schemas.runtime.processing_context import ThoughtContext
 from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.services.runtime.secrets_service import SecretsService
@@ -208,10 +210,10 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             user_profiles={},
             task_history=[],
             initial_task_context=TaskContext(
-                channel_context=channel_context,
-                author_id=msg.author_id,
-                author_name=msg.author_name,
-                origin_service="discord"
+                channel_id=msg.channel_id,
+                user_id=msg.author_id,
+                correlation_id=msg.message_id,
+                parent_task_id=None
             )
         )
         # Add extra fields
@@ -308,7 +310,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                     # Reactivate the original task  
                     original_task = persistence.get_task_by_id(original_thought.source_task_id)
                     if original_task:
-                        persistence.update_task_status(original_task.task_id, TaskStatus.ACTIVE)
+                        persistence.update_task_status(original_task.task_id, TaskStatus.ACTIVE, self.time_service)
                         logger.info(f"Reactivated task {original_task.task_id} due to guidance")
                         
                         # Extract deferral reason from the original thought's final_action
@@ -387,6 +389,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             # If we get here, it's unsolicited guidance - create a new task
             task = Task(
                 task_id=str(uuid.uuid4()),
+                channel_id=msg.channel_id,
                 description=f"Guidance received from authorized WA {msg.author_name} (ID: {msg.author_id}) please act accordingly",
                 status=TaskStatus.PENDING,
                 priority=8,  # High priority for guidance

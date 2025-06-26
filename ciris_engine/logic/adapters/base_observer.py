@@ -5,7 +5,8 @@ from typing import Awaitable, Callable, Generic, List, Optional, Set, TypeVar, c
 from pydantic import BaseModel
 
 from ciris_engine.schemas.runtime.enums import ThoughtType
-from ciris_engine.schemas.runtime.system_context import ThoughtContext, TaskContext
+from ciris_engine.schemas.runtime.processing_context import ThoughtContext
+from ciris_engine.schemas.runtime.models import TaskContext
 from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.schemas.services.filters_core import FilterResult, FilterPriority
 
@@ -199,6 +200,7 @@ class BaseObserver(Generic[MessageT], ABC):
 
             task = Task(
                 task_id=str(uuid.uuid4()),
+                channel_id=getattr(msg, "channel_id", "system"),
                 description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content}'",  # type: ignore[attr-defined]
                 status=TaskStatus.PENDING,
                 priority=0,
@@ -206,10 +208,10 @@ class BaseObserver(Generic[MessageT], ABC):
                 updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 context=ThoughtContext(
                     initial_task_context=TaskContext(
-                        channel_context=create_channel_context(getattr(msg, "channel_id", None)),
-                        author_id=msg.author_id,  # type: ignore[attr-defined]
-                        author_name=msg.author_name,  # type: ignore[attr-defined]
-                        origin_service=self.origin_service
+                        channel_id=getattr(msg, "channel_id", None),
+                        user_id=msg.author_id,  # type: ignore[attr-defined]
+                        correlation_id=msg.message_id,  # type: ignore[attr-defined]
+                        parent_task_id=None
                     ),
                     **{
                         "message_id": msg.message_id,  # type: ignore[attr-defined]
@@ -261,6 +263,7 @@ class BaseObserver(Generic[MessageT], ABC):
 
             task = Task(
                 task_id=str(uuid.uuid4()),
+                channel_id=getattr(msg, "channel_id", "system"),
                 description=f"PRIORITY: Respond to {filter_result.priority.value} message from @{msg.author_name}: '{msg.content}'",  # type: ignore[attr-defined]
                 status=TaskStatus.PENDING,
                 priority=task_priority,
@@ -268,10 +271,10 @@ class BaseObserver(Generic[MessageT], ABC):
                 updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 context=ThoughtContext(
                     initial_task_context=TaskContext(
-                        channel_context=create_channel_context(getattr(msg, "channel_id", None)),
-                        author_id=msg.author_id,  # type: ignore[attr-defined]
-                        author_name=msg.author_name,  # type: ignore[attr-defined]
-                        origin_service=self.origin_service
+                        channel_id=getattr(msg, "channel_id", None),
+                        user_id=msg.author_id,  # type: ignore[attr-defined]
+                        correlation_id=msg.message_id,  # type: ignore[attr-defined]
+                        parent_task_id=None
                     ),
                     **{
                         "message_id": msg.message_id,  # type: ignore[attr-defined]

@@ -79,7 +79,7 @@ This ensures type safety, validation, and clear contracts throughout the system.
      - ConfigNode, AuditEntry (core)
      - IncidentNode, ProblemNode, IncidentInsightNode (incident management)
      - TSDBSummary (telemetry consolidation)
-     - IdentitySnapshot (identity variance monitoring)
+     - SystemSnapshot (replaces IdentitySnapshot - monitors system state changes)
      - DiscordDeferralNode, DiscordApprovalNode, DiscordWANode (Discord-specific)
 
 9. **Graph-Based Telemetry**: COMPLETE & SIMPLIFIED!
@@ -112,6 +112,21 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - Fixed all insight processing tests
    - Removed process_experience method
    - All tests passing (295 passed, 58 skipped)
+
+12. **SystemSnapshot and Identity Monitoring**: REFACTORED!
+   - Renamed IdentitySnapshot to SystemSnapshot for clarity
+   - SystemSnapshot now monitors all system state changes, not just identity
+   - Improved field names for better understanding:
+     - `variant_identity` → `identity_state` (current identity information)
+     - `invariant_identity` → `identity_reference` (reference identity for comparison)
+     - `deviation_context` → `change_context` (reason for snapshot)
+   - Used throughout the system for tracking important state changes:
+     - Cognitive state transitions (WORK → PLAY, etc.)
+     - Configuration changes
+     - Service modifications
+     - Critical system events
+   - Stored as typed graph nodes with full validation
+   - Enables temporal analysis of system evolution
 
 ### 🚨 Current Focus: Documentation and Polish
 

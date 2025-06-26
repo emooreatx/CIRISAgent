@@ -46,7 +46,6 @@ class ActionSelectionSpecialCases:
                 action_parameters=ponder_params,
                 rationale="Forced PONDER for testing ponder loop.",
                 confidence=None,
-                raw_llm_response=None,
             )
         
         return None
@@ -83,7 +82,6 @@ class ActionSelectionSpecialCases:
                     action_parameters=ponder_params,
                     rationale="Wakeup task requires SPEAK action before TASK_COMPLETE",
                     confidence=0.95,
-                    raw_llm_response="Converted TASK_COMPLETE to PONDER due to missing SPEAK requirement",
                 )
         
         return None

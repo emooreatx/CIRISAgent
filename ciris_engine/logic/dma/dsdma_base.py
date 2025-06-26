@@ -206,14 +206,13 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
 
             result = DSDMAResult(
                 domain=self.domain_name,
-                score=min(max(llm_eval_data.score, 0.0), 1.0),
-                recommended_action=llm_eval_data.recommended_action,
+                domain_alignment=min(max(llm_eval_data.score, 0.0), 1.0),
                 flags=llm_eval_data.flags,
                 reasoning=llm_eval_data.reasoning
             )
             logger.info(
                 f"DSDMA '{self.domain_name}' (instructor) evaluation successful for thought ID {thought_item.thought_id}: "
-                f"Score {result.score}, Recommended Action: {result.recommended_action}"
+                f"Domain Alignment: {result.domain_alignment}"
             )
             if hasattr(llm_eval_data, "_raw_response"):
                 result.raw_llm_response = str(llm_eval_data._raw_response)
@@ -225,11 +224,9 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
             )
             return DSDMAResult(
                 domain=self.domain_name,
-                score=0.0,
-                recommended_action=None,
+                domain_alignment=0.0,
                 flags=["LLM_Error_Instructor"],
-                reasoning=f"Failed DSDMA evaluation via instructor: {str(e)}",
-                raw_llm_response=f"Exception: {str(e)}",
+                reasoning=f"Failed DSDMA evaluation via instructor: {str(e)}"
             )
 
     async def evaluate_alias(

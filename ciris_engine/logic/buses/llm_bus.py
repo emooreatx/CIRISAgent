@@ -311,7 +311,7 @@ class LLMBus(BaseBus[LLMService]):
         service = await self.service_registry.get_service(
             handler=handler_name,
             service_type=ServiceType.LLM,
-            required_capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED],
+            required_capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
             fallback_to_global=True
         )
         

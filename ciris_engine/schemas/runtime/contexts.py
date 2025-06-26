@@ -56,3 +56,7 @@ class DispatchContext(BaseModel):
         extra = "forbid"  # Strict - no extra fields allowed
 
 __all__ = ["DispatchContext"]
+
+# Rebuild model to resolve forward references
+from ciris_engine.schemas.processors.core import ConscienceResult
+DispatchContext.model_rebuild()

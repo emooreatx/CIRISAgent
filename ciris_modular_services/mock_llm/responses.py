@@ -170,8 +170,23 @@ def _attach_extras(obj: Any):
     
     # For non-structured responses, add OpenAI-style attributes
     import json
+    from types import SimpleNamespace
+    
     try:
-        content_json = json.dumps(obj.__dict__ if hasattr(obj, '__dict__') else str(obj))
+        if isinstance(obj, SimpleNamespace):
+            # Convert SimpleNamespace to dict recursively
+            def namespace_to_dict(ns):
+                if isinstance(ns, SimpleNamespace):
+                    return {k: namespace_to_dict(v) for k, v in ns.__dict__.items()}
+                elif isinstance(ns, list):
+                    return [namespace_to_dict(item) for item in ns]
+                else:
+                    return ns
+            content_json = json.dumps(namespace_to_dict(obj))
+        elif hasattr(obj, '__dict__'):
+            content_json = json.dumps(obj.__dict__)
+        else:
+            content_json = json.dumps(str(obj))
     except Exception as e:
         logger.error(f"Failed to serialize object {type(obj)}: {e}")
         logger.error(f"Object content: {obj}")

@@ -122,24 +122,28 @@ class ComponentBuilder:
         
         # Build consciences
         conscience_registry = conscienceRegistry()
+        # Create conscience config
+        from ciris_engine.logic.conscience.core import ConscienceConfig
+        conscience_config = ConscienceConfig()
+        
         conscience_registry.register_conscience(
             "entropy",
-            Entropyconscience(self.runtime.service_registry, None, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
+            Entropyconscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
             priority=0,
         )
         conscience_registry.register_conscience(
             "coherence",
-            Coherenceconscience(self.runtime.service_registry, None, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
+            Coherenceconscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
             priority=1,
         )
         conscience_registry.register_conscience(
             "optimization_veto",
-            OptimizationVetoconscience(self.runtime.service_registry, None, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
+            OptimizationVetoconscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
             priority=2,
         )
         conscience_registry.register_conscience(
             "epistemic_humility",
-            EpistemicHumilityconscience(self.runtime.service_registry, None, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
+            EpistemicHumilityconscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
             priority=3,
         )
         
@@ -175,7 +179,8 @@ class ComponentBuilder:
             telemetry_service=self.runtime.telemetry_service,
             runtime=self.runtime,
             service_registry=self.runtime.service_registry,
-            secrets_service=self.runtime.secrets_service
+            secrets_service=self.runtime.secrets_service,
+            resource_monitor=self.runtime.resource_monitor
         )
         
         
@@ -234,6 +239,11 @@ class ComponentBuilder:
                 "audit_service": self.runtime.audit_service,
                 "service_registry": self.runtime.service_registry,
                 "time_service": self.runtime.time_service,
+                "resource_monitor": self.runtime.resource_monitor,
+                "secrets_service": self.runtime.secrets_service,
+                "telemetry_service": self.runtime.telemetry_service,
+                "app_config": self.runtime.essential_config,
+                "graphql_provider": graphql_provider,
             },
             startup_channel_id=self.runtime.startup_channel_id,
             time_service=self.runtime.time_service,  # Add missing parameter

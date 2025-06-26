@@ -112,8 +112,8 @@ class EthicalPDMAEvaluator(BaseDMA, PDMAProtocol):
             logger.error(f"Evaluation failed for thought ID {input_data.thought_id}: {e}", exc_info=True)
             fallback_data = {
                 "alignment_check": {"error": str(e)},
-                "decision": f"Error: {e}",
-                "rationale": "Evaluation failed due to an exception."
+                "decision": "defer",
+                "reasoning": "Evaluation failed due to an exception."
             }
             return EthicalDMAResult.model_validate(fallback_data)
 

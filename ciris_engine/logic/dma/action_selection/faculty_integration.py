@@ -166,6 +166,5 @@ class FacultyIntegration:
             action_parameters=result.action_parameters,
             rationale=updated_rationale,
             confidence=result.confidence,
-            raw_llm_response=result.raw_llm_response,
             resource_usage=result.resource_usage
         )

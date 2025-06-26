@@ -158,6 +158,8 @@ class ServiceRegistry:
         
         provider_name = f"global_{provider.__class__.__name__}_{id(provider)}"
         
+        logger.debug(f"register_global called with capabilities: {capabilities} (type: {type(capabilities)})")
+        
         cb_config = circuit_breaker_config or CircuitBreakerConfig()
         circuit_breaker = CircuitBreaker(f"global_{service_type}_{provider_name}", cb_config)
         self._circuit_breakers[provider_name] = circuit_breaker
@@ -204,6 +206,8 @@ class ServiceRegistry:
                     f"({service_type.value if hasattr(service_type, 'value') else service_type}), "
                     f"capabilities={required_capabilities}")
         
+        # TODO: Remove handler-specific providers entirely - violates "No Kings" principle
+        # All services should be global. Handler-specific services create special cases.
         handler_providers = self._providers.get(handler, {}).get(service_type, [])
         logger.debug(f"ServiceRegistry: Found {len(handler_providers)} handler-specific providers for {handler}.{service_type.value if hasattr(service_type, 'value') else service_type}")
         
@@ -219,6 +223,10 @@ class ServiceRegistry:
         if fallback_to_global:
             global_providers = self._global_services.get(service_type, [])
             logger.debug(f"ServiceRegistry: Found {len(global_providers)} global providers for {service_type}")
+            logger.debug(f"ServiceRegistry: Global services available: {list(self._global_services.keys())}")
+            if service_type in self._global_services:
+                for provider in self._global_services[service_type]:
+                    logger.debug(f"  - Provider: {provider.name}, capabilities: {provider.capabilities}")
             
             service = await self._get_service_from_providers(
                 global_providers,
@@ -276,6 +284,7 @@ class ServiceRegistry:
     ) -> Optional[Any]:
         """Validate provider availability and return instance if usable."""
         if required_capabilities:
+            logger.debug(f"Checking provider '{provider.name}' - has capabilities: {provider.capabilities}, needs: {required_capabilities}")
             if not all(cap in provider.capabilities for cap in required_capabilities):
                 logger.debug(
                     f"Provider '{provider.name}' missing capabilities: "

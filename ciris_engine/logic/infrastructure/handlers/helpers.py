@@ -23,9 +23,17 @@ def create_follow_up_thought(
     parent_round = parent.round_number if hasattr(parent, 'round_number') else 0
     
     # Just copy the context directly - channel_id flows through the schemas
+    # Extract channel_id from parent
+    channel_id = None
+    if hasattr(parent, 'channel_id') and parent.channel_id:
+        channel_id = parent.channel_id
+    elif parent.context and hasattr(parent.context, 'channel_id') and parent.context.channel_id:
+        channel_id = parent.context.channel_id
+    
     follow_up = Thought(
         thought_id=str(uuid.uuid4()),
         source_task_id=parent.source_task_id,
+        channel_id=channel_id,
         thought_type=thought_type,
         status=ThoughtStatus.PENDING,
         created_at=now,

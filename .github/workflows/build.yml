@@ -70,7 +70,9 @@ jobs:
         run: |
           echo "Repository: ${{ github.repository }}"
           echo "Event: ${{ github.event_name }}"
-          if [[ "${{ github.repository }}" == "CIRISai/CIRISAgent" ]] && [[ -n "${{ secrets.SONAR_TOKEN }}" ]]; then
+          # Convert to lowercase for case-insensitive comparison
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          if [[ "$REPO_LOWER" == "cirisai/cirisagent" ]] && [[ -n "${{ secrets.SONAR_TOKEN }}" ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
             echo "SonarQube scan will run"
           else

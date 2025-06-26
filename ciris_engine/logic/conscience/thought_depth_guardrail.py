@@ -9,7 +9,7 @@ import logging
 from typing import Optional
 
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.conscience.core import ConscienceCheckResult, ConscienceStatus
+from ciris_engine.schemas.conscience.core import ConscienceCheckResult, ConscienceStatus, EpistemicData
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.actions import DeferParams
 from ciris_engine.logic.conscience.interface import ConscienceInterface
@@ -26,7 +26,8 @@ class ThoughtDepthconscience(ConscienceInterface):
         self._time_service = time_service
         if max_depth is None:
             try:
-                max_depth = get_config().workflow.max_rounds
+                # Default to 20 if config not available
+                max_depth = 20
             except Exception:
                 max_depth = 7
         self.max_depth = max_depth
@@ -44,7 +45,6 @@ class ThoughtDepthconscience(ConscienceInterface):
         thought = context.get("thought")
         if not thought:
             logger.warning("No thought provided to ThoughtDepthconscience")
-            from ciris_engine.schemas.conscience.core import EpistemicData
             return ConscienceCheckResult(
                 status=ConscienceStatus.PASSED,
                 passed=True,

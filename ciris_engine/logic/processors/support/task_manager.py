@@ -32,6 +32,7 @@ class TaskManager:
     def create_task(
         self,
         description: str,
+        channel_id: str,
         priority: int = 0,
         context: Optional[dict] = None,
         parent_task_id: Optional[str] = None,
@@ -42,23 +43,18 @@ class TaskManager:
         # Build context dict
         context_dict = context or {}
         
-        if 'channel_id' not in context_dict:
-            from ciris_engine.logic.config.env_utils import get_env_var
-
-            channel_id = get_env_var('DISCORD_CHANNEL_ID')
-            if channel_id:
-                context_dict['channel_id'] = channel_id
-        
         # Convert dict to ThoughtContext
-        from ciris_engine.schemas.runtime.system_context import ThoughtContext, SystemSnapshot
+        from ciris_engine.schemas.runtime.system_context import SystemSnapshot
+        from ciris_engine.schemas.runtime.processing_context import ThoughtContext
         from ciris_engine.logic.utils.channel_utils import create_channel_context
-        channel_context = create_channel_context(context_dict.get('channel_id'))
+        channel_context = create_channel_context(channel_id)
         thought_context = ThoughtContext(
             system_snapshot=SystemSnapshot(channel_context=channel_context)
         )
         
         task = Task(
             task_id=str(uuid.uuid4()),
+            channel_id=channel_id,
             description=description,
             status=TaskStatus.PENDING,
             priority=priority,
@@ -93,7 +89,7 @@ class TaskManager:
         activated_count = 0
         
         for task in pending_tasks:
-            if persistence.update_task_status(task.task_id, TaskStatus.ACTIVE):
+            if persistence.update_task_status(task.task_id, TaskStatus.ACTIVE, self.time_service):
                 logger.info(f"Activated task {task.task_id} (Priority: {task.priority})")
                 activated_count += 1
             else:
@@ -121,7 +117,7 @@ class TaskManager:
         if outcome:
             pass
         
-        return persistence.update_task_status(task_id, TaskStatus.COMPLETED)
+        return persistence.update_task_status(task_id, TaskStatus.COMPLETED, self.time_service)
     
     def fail_task(self, task_id: str, reason: str) -> bool:
         """Mark a task as failed with a reason."""
@@ -131,7 +127,7 @@ class TaskManager:
             return False
         
         # TODO: Store failure reason in outcome
-        return persistence.update_task_status(task_id, TaskStatus.FAILED)
+        return persistence.update_task_status(task_id, TaskStatus.FAILED, self.time_service)
     
     def create_wakeup_sequence_tasks(self, channel_id: Optional[str] = None) -> List[Task]:
         """Create the WAKEUP sequence tasks using v1 schema."""
@@ -148,8 +144,14 @@ class TaskManager:
             system_snapshot=SystemSnapshot(channel_context=channel_context)
         )
         
+        # Get channel_id, use default if not provided
+        if not channel_id:
+            from ciris_engine.logic.config.env_utils import get_env_var
+            channel_id = get_env_var('DISCORD_CHANNEL_ID') or 'system'
+        
         root_task = Task(
             task_id="WAKEUP_ROOT",
+            channel_id=channel_id,
             description="Wakeup ritual",
             status=TaskStatus.ACTIVE,
             priority=1,
@@ -161,7 +163,7 @@ class TaskManager:
         if not persistence.task_exists(root_task.task_id):
             persistence.add_task(root_task)
         else:
-            persistence.update_task_status(root_task.task_id, TaskStatus.ACTIVE)
+            persistence.update_task_status(root_task.task_id, TaskStatus.ACTIVE, self.time_service)
         
         wakeup_steps = [
             ("VERIFY_IDENTITY", "You are CIRISAgent, aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. start your response please with CORE IDENTITY - "),
@@ -185,6 +187,7 @@ class TaskManager:
             
             step_task = Task(
                 task_id=str(uuid.uuid4()),
+                channel_id=channel_id,
                 description=content,
                 status=TaskStatus.ACTIVE,
                 priority=0,

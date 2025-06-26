@@ -282,14 +282,13 @@ class SecretsFilter:
             version=1,
             builtin_patterns_enabled=self.detection_config.enabled,
             custom_patterns=[
-                ConfigSecretPattern(
-                    name=p.name,
-                    regex=p.pattern,  # Note: it's 'pattern' not 'regex' in ConfigSecretPattern
-                    description=p.description if hasattr(p, 'description') else "",
-                    sensitivity=p.sensitivity if hasattr(p, 'sensitivity') else "medium",
-                    context_hint=p.context_hint if hasattr(p, 'context_hint') else "",
-                    enabled=True  # All patterns in the list are considered enabled
-                ) for p in self.detection_config.patterns
+                {
+                    "name": p.name,
+                    "pattern": p.pattern,
+                    "description": p.description if hasattr(p, 'description') else "",
+                    "sensitivity": p.sensitivity.value if hasattr(p, 'sensitivity') else "medium",
+                    "enabled": True  # All patterns in the list are considered enabled
+                } for p in self.detection_config.patterns
             ],
             disabled_patterns=[],  # Not tracked separately in SecretsDetectionConfig
             sensitivity_overrides={},  # Not used in new system

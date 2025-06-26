@@ -51,9 +51,20 @@ async def run_dma_with_retries(
         except Exception as e:  # noqa: BLE001
             last_error = e
             attempt += 1
-            logger.warning(
-                "DMA %s attempt %s failed: %s", run_fn.__name__, attempt, e
-            )
+            # Only log full details on first failure
+            if attempt == 1:
+                logger.warning(
+                    "DMA %s attempt %s failed: %s", run_fn.__name__, attempt, str(e).replace('\n', ' ')[:200]
+                )
+            elif attempt == retry_limit:
+                logger.warning(
+                    "DMA %s final attempt %s failed (same error repeated %s times)", 
+                    run_fn.__name__, attempt, attempt - 1
+                )
+            
+            # Add small delay between retries to reduce log spam
+            if attempt < retry_limit:
+                await asyncio.sleep(0.1)  # 100ms delay
 
     thought_arg = next(
         (

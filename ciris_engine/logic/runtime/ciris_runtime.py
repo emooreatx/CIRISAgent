@@ -116,6 +116,11 @@ class CIRISRuntime:
         return self.service_initializer.memory_service if self.service_initializer else None
     
     @property
+    def resource_monitor(self) -> Optional[Any]:
+        """Access to resource monitor service - CRITICAL for mission-critical systems."""
+        return self.service_initializer.resource_monitor_service if self.service_initializer else None
+    
+    @property
     def secrets_service(self) -> Optional[Any]:
         return self.service_initializer.secrets_service if self.service_initializer else None
     
@@ -252,8 +257,8 @@ class CIRISRuntime:
             # Run the initialization sequence
             await init_manager.initialize()
             
-            # Skip startup maintenance - DatabaseMaintenanceService is not one of the 19 core services
-            # It's just a utility that can be run later if needed
+            # Run startup maintenance to clean up invalid data from previous runs
+            await self._perform_startup_maintenance()
             
             self._initialized = True
             agent_name = self.agent_identity.agent_id if self.agent_identity else "NO_IDENTITY"

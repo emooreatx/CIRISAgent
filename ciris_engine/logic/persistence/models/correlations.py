@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
 from ciris_engine.logic.persistence import get_db_connection
@@ -35,8 +35,8 @@ def add_correlation(corr: ServiceCorrelation, time_service: TimeServiceProtocol,
         corr.request_data.model_dump_json() if hasattr(corr.request_data, 'model_dump_json') else json.dumps(corr.request_data) if corr.request_data is not None else None,
         corr.response_data.model_dump_json() if hasattr(corr.response_data, 'model_dump_json') else json.dumps(corr.response_data) if corr.response_data is not None else None,
         corr.status.value,
-        corr.created_at.isoformat() if isinstance(corr.created_at, datetime) else corr.created_at or time_service.now().isoformat(),
-        corr.updated_at.isoformat() if isinstance(corr.updated_at, datetime) else corr.updated_at or time_service.now().isoformat(),
+        corr.created_at.isoformat() if isinstance(corr.created_at, datetime) else str(corr.created_at) if corr.created_at else time_service.now().isoformat(),
+        corr.updated_at.isoformat() if isinstance(corr.updated_at, datetime) else str(corr.updated_at) if corr.updated_at else time_service.now().isoformat(),
         corr.correlation_type.value,
         timestamp_str,
         corr.metric_data.metric_name if corr.metric_data else None,
@@ -103,28 +103,57 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                     except (ValueError, AttributeError):
                         timestamp = None
                 
-                return ServiceCorrelation(
-                    correlation_id=row["correlation_id"],
-                    service_type=row["service_type"],
-                    handler_name=row["handler_name"],
-                    action_type=row["action_type"],
-                    request_data=json.loads(row["request_data"]) if row["request_data"] else None,
-                    response_data=json.loads(row["response_data"]) if row["response_data"] else None,
-                    status=ServiceCorrelationStatus(row["status"]),
-                    created_at=row["created_at"],
-                    updated_at=row["updated_at"],
-                    # New TSDB fields
-                    correlation_type=CorrelationType(row["correlation_type"] or "service_interaction"),
-                    timestamp=timestamp,
-                    metric_name=row["metric_name"],
-                    metric_value=row["metric_value"],
-                    log_level=row["log_level"],
-                    trace_id=row["trace_id"],
-                    span_id=row["span_id"],
-                    parent_span_id=row["parent_span_id"],
-                    tags=json.loads(row["tags"]) if row["tags"] else {},
-                    retention_policy=row["retention_policy"] or "raw",
-                )
+                # Build the correlation without None values for optional fields
+                correlation_data = {
+                    "correlation_id": row["correlation_id"],
+                    "service_type": row["service_type"],
+                    "handler_name": row["handler_name"],
+                    "action_type": row["action_type"],
+                    "request_data": json.loads(row["request_data"]) if row["request_data"] else None,
+                    "response_data": json.loads(row["response_data"]) if row["response_data"] else None,
+                    "status": ServiceCorrelationStatus(row["status"]),
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "correlation_type": CorrelationType(row["correlation_type"] or "service_interaction"),
+                    "timestamp": timestamp or datetime.now(timezone.utc),
+                    "tags": json.loads(row["tags"]) if row["tags"] else {},
+                    "retention_policy": row["retention_policy"] or "raw",
+                }
+                
+                # Only add optional TSDB fields if they have values
+                if row["metric_name"] and row["metric_value"] is not None:
+                    from ciris_engine.schemas.telemetry.core import MetricData
+                    correlation_data["metric_data"] = MetricData(
+                        metric_name=row["metric_name"],
+                        metric_value=row["metric_value"],
+                        metric_unit="count",
+                        metric_type="gauge",
+                        labels={}
+                    )
+                
+                if row["log_level"]:
+                    from ciris_engine.schemas.telemetry.core import LogData
+                    correlation_data["log_data"] = LogData(
+                        log_level=row["log_level"],
+                        log_message="",
+                        logger_name="",
+                        module_name="",
+                        function_name="",
+                        line_number=0
+                    )
+                
+                if row["trace_id"]:
+                    from ciris_engine.schemas.telemetry.core import TraceContext
+                    trace_context = TraceContext(
+                        trace_id=row["trace_id"],
+                        span_id=row["span_id"] or "",
+                        span_name=""
+                    )
+                    if row["parent_span_id"]:
+                        trace_context.parent_span_id = row["parent_span_id"]
+                    correlation_data["trace_context"] = trace_context
+                
+                return ServiceCorrelation(**correlation_data)
             return None
     except Exception as e:
         logger.exception("Failed to fetch correlation %s: %s", correlation_id, e)
@@ -161,28 +190,57 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                     except (ValueError, AttributeError):
                         timestamp = None
                 
-                correlations.append(ServiceCorrelation(
-                    correlation_id=row["correlation_id"],
-                    service_type=row["service_type"],
-                    handler_name=row["handler_name"],
-                    action_type=row["action_type"],
-                    request_data=json.loads(row["request_data"]) if row["request_data"] else None,
-                    response_data=json.loads(row["response_data"]) if row["response_data"] else None,
-                    status=ServiceCorrelationStatus(row["status"]),
-                    created_at=row["created_at"],
-                    updated_at=row["updated_at"],
-                    # New TSDB fields
-                    correlation_type=CorrelationType(row["correlation_type"] or "service_interaction"),
-                    timestamp=timestamp,
-                    metric_name=row["metric_name"],
-                    metric_value=row["metric_value"],
-                    log_level=row["log_level"],
-                    trace_id=row["trace_id"],
-                    span_id=row["span_id"],
-                    parent_span_id=row["parent_span_id"],
-                    tags=json.loads(row["tags"]) if row["tags"] else {},
-                    retention_policy=row["retention_policy"] or "raw",
-                ))
+                # Build the correlation without None values for optional fields
+                correlation_data = {
+                    "correlation_id": row["correlation_id"],
+                    "service_type": row["service_type"],
+                    "handler_name": row["handler_name"],
+                    "action_type": row["action_type"],
+                    "request_data": json.loads(row["request_data"]) if row["request_data"] else None,
+                    "response_data": json.loads(row["response_data"]) if row["response_data"] else None,
+                    "status": ServiceCorrelationStatus(row["status"]),
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "correlation_type": CorrelationType(row["correlation_type"] or "service_interaction"),
+                    "timestamp": timestamp or datetime.now(timezone.utc),
+                    "tags": json.loads(row["tags"]) if row["tags"] else {},
+                    "retention_policy": row["retention_policy"] or "raw",
+                }
+                
+                # Only add optional TSDB fields if they have values
+                if row["metric_name"] and row["metric_value"] is not None:
+                    from ciris_engine.schemas.telemetry.core import MetricData
+                    correlation_data["metric_data"] = MetricData(
+                        metric_name=row["metric_name"],
+                        metric_value=row["metric_value"],
+                        metric_unit="count",
+                        metric_type="gauge",
+                        labels={}
+                    )
+                
+                if row["log_level"]:
+                    from ciris_engine.schemas.telemetry.core import LogData
+                    correlation_data["log_data"] = LogData(
+                        log_level=row["log_level"],
+                        log_message="",
+                        logger_name="",
+                        module_name="",
+                        function_name="",
+                        line_number=0
+                    )
+                
+                if row["trace_id"]:
+                    from ciris_engine.schemas.telemetry.core import TraceContext
+                    trace_context = TraceContext(
+                        trace_id=row["trace_id"],
+                        span_id=row["span_id"] or "",
+                        span_name=""
+                    )
+                    if row["parent_span_id"]:
+                        trace_context.parent_span_id = row["parent_span_id"]
+                    correlation_data["trace_context"] = trace_context
+                
+                correlations.append(ServiceCorrelation(**correlation_data))
             return correlations
     except Exception as e:
         logger.exception("Failed to fetch correlations for task %s and action %s: %s", task_id, action_type, e)

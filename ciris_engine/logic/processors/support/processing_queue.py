@@ -2,7 +2,9 @@ import collections
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Union, Any
 
-from ciris_engine.schemas.runtime.system_context import ThoughtContext
+# Import both types of ThoughtContext
+from ciris_engine.schemas.runtime.processing_context import ThoughtContext as ProcessingThoughtContext
+from ciris_engine.schemas.runtime.models import ThoughtContext as SimpleThoughtContext
 import logging
 
 logger = logging.getLogger(__name__)
@@ -26,7 +28,7 @@ class ProcessingQueueItem(BaseModel):
     thought_type: ThoughtType # Corresponds to Thought.thought_type
     content: ThoughtContent
     raw_input_string: Optional[str] = Field(default=None, description="The original input string that generated this thought, if applicable.")
-    initial_context: Optional[Union[dict, ThoughtContext]] = Field(default=None, description="Initial context when the thought was first received/generated for processing.")
+    initial_context: Optional[Union[dict, ProcessingThoughtContext, SimpleThoughtContext]] = Field(default=None, description="Initial context when the thought was first received/generated for processing.")
     ponder_notes: Optional[List[str]] = Field(default=None, description="Key questions from a previous Ponder action if this item is being re-queued.")
     conscience_feedback: Optional[Any] = Field(default=None, description="conscience evaluation feedback if applicable.")
 
@@ -47,7 +49,8 @@ class ProcessingQueueItem(BaseModel):
         Creates a ProcessingQueueItem from a Thought instance.
         """
         raw_initial_ctx = initial_ctx if initial_ctx is not None else thought_instance.context
-        if hasattr(raw_initial_ctx, 'model_dump') or isinstance(raw_initial_ctx, dict):
+        # Accept ProcessingThoughtContext, SimpleThoughtContext, dict, or any Pydantic model
+        if hasattr(raw_initial_ctx, 'model_dump') or isinstance(raw_initial_ctx, (dict, ProcessingThoughtContext, SimpleThoughtContext)):
             final_initial_ctx = raw_initial_ctx
         else:
             final_initial_ctx = None

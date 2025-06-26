@@ -7,8 +7,7 @@ import uuid
 import collections
 from typing import Any, Deque, List, Optional
 
-from ciris_engine.schemas.runtime.models import Task, Thought
-from ciris_engine.schemas.runtime.system_context import ThoughtContext
+from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext, TaskContext
 from ciris_engine.schemas.runtime.enums import ThoughtStatus, ThoughtType, TaskStatus
 from ciris_engine.logic import persistence
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
@@ -33,27 +32,38 @@ class ThoughtManager:
         """Generate a seed thought for a task - elegantly copy the context."""
         now_iso = self.time_service.now().isoformat()
         
-        # Simply copy the task's context to the thought
-        # The schemas handle the nested structure elegantly
-        context = task.context.model_copy() if task.context else None
+        # Convert TaskContext to ThoughtContext for the thought
+        # TaskContext and ThoughtContext are different types
+        thought_context = None
+        if task.context and isinstance(task.context, TaskContext):
+            # Create ThoughtContext from TaskContext
+            thought_context = ThoughtContext(
+                task_id=task.task_id,
+                round_number=round_number,
+                depth=0,
+                parent_thought_id=None,
+                correlation_id=task.context.correlation_id if hasattr(task.context, 'correlation_id') else str(uuid.uuid4())
+            )
+        elif task.context:
+            # If it's already some other type of context, try to copy it
+            thought_context = task.context.model_copy()
         
         # Log for debugging but don't modify the context
-        if context:
+        if thought_context:
             logger.info(f"SEED_THOUGHT: Copying context for task {task.task_id}")
             # Check if we have channel context in the proper location
-            if context.initial_task_context and context.initial_task_context.channel_context:
-                channel_id = context.initial_task_context.channel_context.channel_id
-                logger.info(f"SEED_THOUGHT: Found channel_id='{channel_id}' in initial_task_context.channel_context")
-            elif context.system_snapshot and context.system_snapshot.channel_context:
-                channel_id = context.system_snapshot.channel_context.channel_id
-                logger.info(f"SEED_THOUGHT: Found channel_id='{channel_id}' in system_snapshot.channel_context")
+            # For logging purposes, check the original task context
+            if task.context and hasattr(task.context, 'channel_id') and task.context.channel_id:
+                # TaskContext has channel_id directly
+                channel_id = task.context.channel_id
+                logger.info(f"SEED_THOUGHT: Found channel_id='{channel_id}' in task's TaskContext")
             else:
                 logger.warning(f"SEED_THOUGHT: No channel context found for task {task.task_id}")
         else:
             logger.critical(f"SEED_THOUGHT: Task {task.task_id} has NO context - POTENTIAL SECURITY BREACH")
             # Delete the malicious task immediately
             try:
-                persistence.update_task_status(task.task_id, TaskStatus.FAILED)
+                persistence.update_task_status(task.task_id, TaskStatus.FAILED, self.time_service)
                 logger.critical(f"SEED_THOUGHT: Marked malicious task {task.task_id} as FAILED")
             except Exception as e:
                 logger.critical(f"SEED_THOUGHT: Failed to mark malicious task {task.task_id} as FAILED: {e}")
@@ -68,7 +78,7 @@ class ThoughtManager:
             updated_at=now_iso,
             round_number=round_number,
             content=f"Initial seed thought for task: {task.description}",
-            context=context,
+            context=thought_context,
             thought_depth=0,
         )
         

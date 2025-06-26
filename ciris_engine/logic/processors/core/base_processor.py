@@ -4,6 +4,7 @@ Base processor abstract class defining the interface for all processor types.
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, Optional, List, TYPE_CHECKING
+from pydantic import ValidationError
 
 from ciris_engine.logic.processors.core.thought_processor import ThoughtProcessor
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
@@ -42,6 +43,20 @@ class BaseProcessor(ABC):
         self.time_service: TimeServiceProtocol = services.get('time_service')
         if not self.time_service:
             raise ValueError("time_service is required for processors")
+            
+        # Get ResourceMonitor from services - REQUIRED for system snapshots
+        self.resource_monitor = services.get('resource_monitor')
+        if not self.resource_monitor:
+            raise ValueError("resource_monitor is required for processors")
+            
+        # Extract other commonly used services
+        self.memory_service = services.get('memory_service')
+        self.graphql_provider = services.get('graphql_provider')
+        self.app_config = services.get('app_config')
+        self.runtime = services.get('runtime')
+        self.service_registry = services.get('service_registry')
+        self.secrets_service = services.get('secrets_service')
+        self.telemetry_service = services.get('telemetry_service')
             
         self.metrics = ProcessorMetrics()
     
@@ -132,7 +147,12 @@ class BaseProcessor(ABC):
             self.metrics.items_processed += 1
             return result
         except Exception as e:
-            logger.error(f"Error processing thought {item.thought_id}: {e}", exc_info=True)
+            # Log concise error without full stack trace
+            error_msg = str(e).replace('\n', ' ')[:200]
+            logger.error(f"Error processing thought {item.thought_id}: {error_msg}")
+            # Only log full trace for non-validation errors
+            if not isinstance(e, ValidationError):
+                logger.debug("Full exception details:", exc_info=True)
             self.metrics.errors += 1
             if hasattr(e, "is_dma_failure") and getattr(e, "is_dma_failure", False):
                 if hasattr(self, "force_ponder"):

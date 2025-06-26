@@ -245,8 +245,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
         return ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
             action_parameters=fallback_params,
-            rationale=f"Fallback due to error: {error_message}",
-            raw_llm_response=f"Error: {error_message}",
+            rationale=f"Fallback due to error: {error_message}"
         )
 
     def __repr__(self) -> str:

@@ -48,6 +48,7 @@ class CliPlatform(Service):
             self.config.load_env_vars()
         
         self.cli_adapter = CLIAdapter(
+            runtime=runtime,
             interactive=self.config.interactive,
             on_message=self._handle_incoming_message,
             bus_manager=getattr(runtime, 'bus_manager', None),

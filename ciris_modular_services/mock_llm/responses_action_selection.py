@@ -552,16 +552,8 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
     result = ActionSelectionDMAResult(
         selected_action=action,
         action_parameters=action_params_dict,  # Store parameters directly
-        selection_reasoning=final_rationale,
-        selection_confidence=0.9,
-        pdma_weight=0.33,
-        csdma_weight=0.33,
-        dsdma_weight=0.34,
-        actions_considered=[action],
-        selection_ethical_score=0.9,
-        selection_fairness=0.9,
-        selection_principles=["mock_principle"],
-        total_evaluation_time_ms=100.0
+        rationale=final_rationale,
+        confidence=0.9
     )
     
     # Return structured result directly - instructor will handle it

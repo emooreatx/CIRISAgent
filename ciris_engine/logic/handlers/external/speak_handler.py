@@ -62,15 +62,9 @@ class SpeakHandler(BaseActionHandler):
             follow_up_text = f"SPEAK action failed for thought {thought_id}. Reason: {e}"
             try:
                 fu = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_text)
-                # Update context using Pydantic model_copy with additional fields
-                context_data = fu.context.model_dump() if fu.context else {}
-                context_data.update({
-                    "action_performed": HandlerActionType.SPEAK.value,
-                    "error_details": str(e),
-                    "action_params": result.action_parameters,
-                })
-                from ciris_engine.schemas.runtime.system_context import ThoughtContext
-                fu.context = ThoughtContext.model_validate(context_data)
+                # Simple: ensure channel_id is in the thought context
+                if fu.context and not fu.context.channel_id:
+                    fu.context.channel_id = channel_id
                 persistence.add_thought(fu)
                 return fu.thought_id
             except Exception as fe:
@@ -114,27 +108,47 @@ class SpeakHandler(BaseActionHandler):
         )
 
         # Create correlation for tracking action completion
-        from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
+        from ciris_engine.schemas.telemetry.core import (
+            ServiceCorrelation, ServiceCorrelationStatus,
+            ServiceRequestData, ServiceResponseData
+        )
         import uuid
         from datetime import datetime, timezone
+        
+        now = self.time_service.now()
+        
+        # Create proper request data
+        request_data = ServiceRequestData(
+            service_type="communication",
+            method_name="send_message",
+            thought_id=thought_id,
+            task_id=thought.source_task_id,
+            channel_id=channel_id,
+            parameters={"content": str(params.content)},
+            request_timestamp=now
+        )
+        
+        # Create proper response data
+        response_data = ServiceResponseData(
+            success=success,
+            result_summary=f"Message {'sent' if success else 'failed'} to channel {channel_id}",
+            execution_time_ms=100.0,  # TODO: Track actual execution time
+            response_timestamp=now
+        )
         
         correlation = ServiceCorrelation(
             correlation_id=str(uuid.uuid4()),
             service_type="communication",
             handler_name="SpeakHandler",
             action_type="speak",
-            request_data={
-                "task_id": thought.source_task_id,
-                "thought_id": thought_id,
-                "channel_id": channel_id,
-                "content": str(params.content)
-            },
-            response_data={"success": success, "final_status": final_thought_status.value},
+            request_data=request_data,
+            response_data=response_data,
             status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED,
-            created_at=self.time_service.now().isoformat(),
-            updated_at=self.time_service.now().isoformat(),
+            created_at=now,
+            updated_at=now,
+            timestamp=now  # Required for TSDB indexing
         )
-        persistence.add_correlation(correlation)
+        persistence.add_correlation(correlation, self.time_service)
 
         follow_up_text = (
             f"""
@@ -151,16 +165,9 @@ class SpeakHandler(BaseActionHandler):
 
         try:
             new_follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_text)
-            context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
-            ctx = {
-                "action_performed": HandlerActionType.SPEAK.value,
-                "action_params": params,
-            }
-            if not success:
-                ctx["error_details"] = follow_up_error_context
-            context_data.update(ctx)
-            from ciris_engine.schemas.runtime.system_context import ThoughtContext
-            new_follow_up.context = ThoughtContext.model_validate(context_data)
+            # Simple: ensure channel_id is in the thought context
+            if new_follow_up.context and not new_follow_up.context.channel_id:
+                new_follow_up.context.channel_id = channel_id
             persistence.add_thought(new_follow_up)
             await self._audit_log(
                 HandlerActionType.SPEAK,
@@ -172,12 +179,6 @@ class SpeakHandler(BaseActionHandler):
             await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, e)
             raise FollowUpCreationError from e
 
-        if hasattr(thought, "context"):
-            if not thought.context:
-                from ciris_engine.schemas.runtime.system_context import ThoughtContext, SystemSnapshot
-                thought.context = ThoughtContext(system_snapshot=SystemSnapshot(channel_context=params.channel_context))
-            if not getattr(thought.context.system_snapshot, "channel_id", None):
-                thought.context.system_snapshot.channel_context = params.channel_context
         
         return follow_up_thought_id
 

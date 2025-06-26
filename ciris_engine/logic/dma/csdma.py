@@ -189,9 +189,8 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
             logger.error(f"CSDMA evaluation failed for thought ID {thought_item.thought_id}: {e}", exc_info=True)
             return CSDMAResult(
                 plausibility_score=0.0,
-                flags=["LLM_Error"],
-                reasoning=f"Failed CSDMA evaluation: {str(e)}",
-                raw_llm_response=f"Exception: {str(e)}"
+                flags=["LLM_Error", "defer_for_retry"],
+                reasoning=f"Failed CSDMA evaluation: {str(e)}"
             )
 
     async def evaluate(self, input_data: ProcessingQueueItem, **kwargs: Any) -> CSDMAResult:

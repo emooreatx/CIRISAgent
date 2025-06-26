@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 async def build_system_snapshot(
     task: Optional[Task],
     thought: Any,
+    resource_monitor: Any,  # REQUIRED - mission critical system
     memory_service: Optional[LocalGraphMemoryService] = None,
     graphql_provider: Optional[GraphQLContextProvider] = None,
     telemetry_service: Optional[Any] = None,
@@ -96,6 +97,7 @@ async def build_system_snapshot(
             id=f"channel/{channel_id}",
             type=NodeType.CHANNEL,
             scope=GraphScope.LOCAL,
+            attributes={}  # Required field
         )
         query = MemoryQuery(
             node_id=f"channel/{channel_id}",
@@ -114,12 +116,7 @@ async def build_system_snapshot(
     
     if memory_service:
         try:
-            # Get the agent's identity node from the graph
-            identity_node = GraphNode(
-                id="agent/identity",
-                type=NodeType.AGENT,
-                scope=GraphScope.IDENTITY
-            )
+            # Query for the agent's identity node from the graph
             identity_query = MemoryQuery(
                 node_id="agent/identity",
                 scope=GraphScope.IDENTITY,
@@ -131,11 +128,32 @@ async def build_system_snapshot(
             identity_result = identity_nodes[0] if identity_nodes else None
             
             if identity_result and identity_result.attributes:
-                # Nodes have attributes
-                identity_data = identity_result.attributes.get("identity", {}) if isinstance(identity_result.attributes, dict) else {}
-                identity_purpose = identity_data.get("purpose_statement", "")
-                identity_capabilities = identity_data.get("allowed_capabilities", [])
-                identity_restrictions = identity_data.get("restricted_capabilities", [])
+                # The identity is stored as a TypedGraphNode (IdentityNode)
+                # Extract the identity fields from attributes
+                attrs = identity_result.attributes
+                if isinstance(attrs, dict):
+                    # Direct access to identity fields
+                    identity_data = {
+                        "agent_id": attrs.get("agent_id", ""),
+                        "description": attrs.get("description", ""),
+                        "role": attrs.get("role_description", ""),
+                        "trust_level": attrs.get("trust_level", 0.5)
+                    }
+                    identity_purpose = attrs.get("role_description", "")
+                    identity_capabilities = attrs.get("permitted_actions", [])
+                    identity_restrictions = attrs.get("restricted_capabilities", [])
+                else:
+                    # Handle GraphNodeAttributes or other types
+                    attrs_dict = attrs.model_dump() if hasattr(attrs, 'model_dump') else {}
+                    identity_data = {
+                        "agent_id": attrs_dict.get("agent_id", ""),
+                        "description": attrs_dict.get("description", ""),
+                        "role": attrs_dict.get("role_description", ""),
+                        "trust_level": attrs_dict.get("trust_level", 0.5)
+                    }
+                    identity_purpose = attrs_dict.get("role_description", "")
+                    identity_capabilities = attrs_dict.get("permitted_actions", [])
+                    identity_restrictions = attrs_dict.get("restricted_capabilities", [])
         except Exception as e:
             logger.warning(f"Failed to retrieve agent identity from graph: {e}")
 
@@ -144,20 +162,44 @@ async def build_system_snapshot(
     for t_obj in db_recent_tasks:
         # db_recent_tasks returns List[Task], convert to TaskSummary
         if isinstance(t_obj, BaseModel):
-            recent_tasks_list.append(TaskSummary(**t_obj.model_dump()))
+            recent_tasks_list.append(TaskSummary(
+                task_id=t_obj.task_id,
+                channel_id=getattr(t_obj, 'channel_id', 'system'),
+                created_at=t_obj.created_at,
+                status=t_obj.status.value if hasattr(t_obj.status, 'value') else str(t_obj.status),
+                priority=getattr(t_obj, 'priority', 0),
+                retry_count=getattr(t_obj, 'retry_count', 0),
+                parent_task_id=getattr(t_obj, 'parent_task_id', None)
+            ))
 
     top_tasks_list: List[Any] = []
     db_top_tasks = persistence.get_top_tasks(10)
     for t_obj in db_top_tasks:
         # db_top_tasks returns List[Task], convert to TaskSummary
         if isinstance(t_obj, BaseModel):
-            top_tasks_list.append(TaskSummary(**t_obj.model_dump()))
+            top_tasks_list.append(TaskSummary(
+                task_id=t_obj.task_id,
+                channel_id=getattr(t_obj, 'channel_id', 'system'),
+                created_at=t_obj.created_at,
+                status=t_obj.status.value if hasattr(t_obj.status, 'value') else str(t_obj.status),
+                priority=getattr(t_obj, 'priority', 0),
+                retry_count=getattr(t_obj, 'retry_count', 0),
+                parent_task_id=getattr(t_obj, 'parent_task_id', None)
+            ))
 
     current_task_summary = None
     if task:
         # Convert Task to TaskSummary
         if isinstance(task, BaseModel):
-            current_task_summary = TaskSummary(**task.model_dump())
+            current_task_summary = TaskSummary(
+                task_id=task.task_id,
+                channel_id=getattr(task, 'channel_id', 'system'),
+                created_at=task.created_at,
+                status=task.status.value if hasattr(task.status, 'value') else str(task.status),
+                priority=getattr(task, 'priority', 0),
+                retry_count=getattr(task, 'retry_count', 0),
+                parent_task_id=getattr(task, 'parent_task_id', None)
+            )
 
     secrets_data: dict = {}
     if secrets_service:
@@ -167,6 +209,24 @@ async def build_system_snapshot(
     shutdown_context = None
     if runtime and hasattr(runtime, 'current_shutdown_context'):
         shutdown_context = runtime.current_shutdown_context
+    
+    # Get resource alerts - CRITICAL for mission-critical systems
+    resource_alerts: List[str] = []
+    try:
+        if resource_monitor is not None:
+            snapshot = resource_monitor.snapshot
+            # Check for critical resource conditions
+            if snapshot.critical:
+                for alert in snapshot.critical:
+                    resource_alerts.append(f"🚨 CRITICAL! RESOURCE LIMIT BREACHED! {alert} - REJECT OR DEFER ALL TASKS!")
+            # Also check if healthy flag is False
+            if not snapshot.healthy:
+                resource_alerts.append("🚨 CRITICAL! SYSTEM UNHEALTHY! RESOURCE LIMITS EXCEEDED - IMMEDIATE ACTION REQUIRED!")
+        else:
+            logger.warning("Resource monitor not available - cannot check resource constraints")
+    except Exception as e:
+        logger.error(f"Failed to get resource alerts: {e}")
+        resource_alerts.append(f"🚨 CRITICAL! FAILED TO CHECK RESOURCES: {str(e)}")
 
     # Get service health status
     service_health: Dict[str, dict] = {}
@@ -222,6 +282,7 @@ async def build_system_snapshot(
         "shutdown_context": shutdown_context,
         "service_health": service_health,
         "circuit_breaker_status": circuit_breaker_status,
+        "resource_alerts": resource_alerts,  # CRITICAL mission-critical alerts
         **secrets_data,
     }
 
@@ -234,7 +295,7 @@ async def build_system_snapshot(
 
     snapshot = SystemSnapshot(**context_data)
 
-    if telemetry_service:
-        await telemetry_service.update_system_snapshot(snapshot)
+    # Note: GraphTelemetryService doesn't need update_system_snapshot
+    # as it stores telemetry data directly in the graph
 
     return snapshot
