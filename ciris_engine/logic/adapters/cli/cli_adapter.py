@@ -454,13 +454,20 @@ Tools available:
                 logger.debug("CLI input task cancelled")
                 pass
         
-        # Print message and newline to ensure prompt returns properly
-        print("\n[CIRIS CLI] Shutting down... Press Enter to return to prompt.")
+        # Print message for user awareness
+        print("\n[CIRIS CLI] Shutdown complete.")
         
         # Emit telemetry for successful stop
         await self._emit_telemetry("adapter_stopped", {
             "adapter_type": "cli"
         })
+        
+        # Force exit for CLI adapter to ensure clean shutdown
+        # The input() thread can block process exit
+        if self.interactive:
+            logger.info("Forcing process exit for clean CLI shutdown")
+            import os
+            os._exit(0)
 
     async def is_healthy(self) -> bool:
         """Check if the CLI adapter is healthy."""

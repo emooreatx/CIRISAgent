@@ -385,11 +385,22 @@ class CIRISRuntime:
         # Now setup proper file logging with TimeService
         from ciris_engine.logic.utils.logging_config import setup_basic_logging
         if self.service_initializer.time_service:
+            # Check if we're in CLI interactive mode
+            is_cli_interactive = False
+            for adapter in self.adapters:
+                adapter_class_name = adapter.__class__.__name__
+                if adapter_class_name == "CliPlatform" and hasattr(adapter, 'adapter') and hasattr(adapter.adapter, 'interactive'):
+                    is_cli_interactive = adapter.adapter.interactive
+                    break
+            
+            # Disable console output for CLI interactive mode to avoid cluttering the interface
+            console_output = not is_cli_interactive
+            
             logger.info("Setting up file logging with TimeService")
             setup_basic_logging(
                 level=logging.DEBUG if logger.isEnabledFor(logging.DEBUG) else logging.INFO,
                 log_to_file=True,
-                console_output=True,
+                console_output=console_output,
                 time_service=self.service_initializer.time_service
             )
         

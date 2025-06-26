@@ -18,6 +18,8 @@ audit_logs.jsonl
 data_archive/
 :memory:
 .env
+# Critical security keys - NEVER commit these!
+.ciris_keys/
 
 # Coverage and CI reports
 coverage.xml

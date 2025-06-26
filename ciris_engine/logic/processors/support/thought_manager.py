@@ -39,6 +39,7 @@ class ThoughtManager:
             # Create ThoughtContext from TaskContext
             thought_context = ThoughtContext(
                 task_id=task.task_id,
+                channel_id=task.context.channel_id if hasattr(task.context, 'channel_id') else None,
                 round_number=round_number,
                 depth=0,
                 parent_thought_id=None,
@@ -69,9 +70,17 @@ class ThoughtManager:
                 logger.critical(f"SEED_THOUGHT: Failed to mark malicious task {task.task_id} as FAILED: {e}")
             return None
         
+        # Extract channel_id from task for the thought
+        channel_id = None
+        if task.context and hasattr(task.context, 'channel_id'):
+            channel_id = task.context.channel_id
+        elif task.channel_id:
+            channel_id = task.channel_id
+            
         thought = Thought(
             thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",
             source_task_id=task.task_id,
+            channel_id=channel_id,  # Set channel_id on the thought
             thought_type=ThoughtType.STANDARD,
             status=ThoughtStatus.PENDING,
             created_at=now_iso,
