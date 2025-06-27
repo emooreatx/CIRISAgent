@@ -242,7 +242,13 @@ def main(
             if config_file_path and not Path(config_file_path).exists():
                 logger.error(f"Configuration file not found: {config_file_path}")
                 raise SystemExit(1)
-            app_config = await load_config(config_file_path)
+            
+            # Create CLI overrides including the template parameter
+            cli_overrides = {}
+            if template and template != "default":
+                cli_overrides["default_template"] = template
+                
+            app_config = await load_config(config_file_path, cli_overrides)
         except SystemExit:
             raise  # Re-raise SystemExit to exit cleanly
         except Exception as e:
@@ -343,7 +349,7 @@ def main(
         # Setup global exception handling
         setup_global_exception_handler()
         
-        # Template handling would be done through agent profiles, not config
+        # Template parameter is now passed via cli_overrides to the essential config
             
         # Create runtime using new CIRISRuntime directly with adapter configs
         runtime = CIRISRuntime(

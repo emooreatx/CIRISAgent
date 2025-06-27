@@ -183,6 +183,10 @@ class EssentialConfig(BaseModel):
         Path("ciris_templates"),
         description="Directory containing identity templates"
     )
+    default_template: str = Field(
+        "default",
+        description="Default template name for agent identity creation"
+    )
     
     model_config = ConfigDict(extra = "forbid")  # No ambiguity allowed in mission-critical config
 
