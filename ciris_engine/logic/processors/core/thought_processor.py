@@ -188,7 +188,7 @@ class ThoughtProcessor:
         # 6. Apply consciences
         logger.info(f"ThoughtProcessor: Applying consciences for {thought.thought_id} with action {getattr(action_result, 'selected_action', 'UNKNOWN')}")
         conscience_result = await self._apply_conscience_simple(
-            action_result, thought, dma_results
+            action_result, thought, dma_results, thought_context
         )
         
         # 6a. If consciences overrode to PONDER, try action selection once more with guidance
@@ -205,6 +205,9 @@ class ThoughtProcessor:
             retry_context = thought_context
             if hasattr(thought_context, 'model_copy'):
                 retry_context = thought_context.model_copy()
+            
+            # Set flag indicating this is a conscience retry
+            retry_context.is_conscience_retry = True
             
             # Add conscience guidance to the thought item
             setattr(thought_item, 'conscience_feedback', {
@@ -226,15 +229,14 @@ class ThoughtProcessor:
                     actual_thought=thought,
                     processing_context=retry_context,
                     dma_results=dma_results,
-                    profile_name=profile_name,
-                    triaged_inputs={"retry_with_guidance": True}  # Signal this is a retry
+                    profile_name=profile_name
                 )
                 
                 if retry_result:
                     # Always re-apply consciences, even if same action type (parameters may differ)
                     logger.info(f"ThoughtProcessor: Re-running consciences on retry action {retry_result.selected_action}")
                     retry_conscience_result = await self._apply_conscience_simple(
-                        retry_result, thought, dma_results
+                        retry_result, thought, dma_results, retry_context
                     )
                     
                     # If the retry passes consciences, use it
@@ -331,10 +333,22 @@ class ThoughtProcessor:
         action_result: ActionSelectionDMAResult,
         thought: Thought,
         dma_results_dict: dict,
+        processing_context: Optional[Any] = None,
     ):
         """Simple conscience application without orchestrator."""
         # Import ConscienceResult here to avoid circular imports
         from ciris_engine.schemas.processors.core import ConscienceResult
+        
+        # Check if this is a conscience retry
+        is_conscience_retry = (
+            processing_context and 
+            hasattr(processing_context, 'is_conscience_retry') and 
+            processing_context.is_conscience_retry
+        )
+        
+        # If this is a conscience retry, unset the flag to prevent loops
+        if is_conscience_retry:
+            processing_context.is_conscience_retry = False
         
         # Exempt actions that shouldn't be overridden
         exempt_actions = {
@@ -407,11 +421,29 @@ class ThoughtProcessor:
                     final_action = ActionSelectionDMAResult(
                         selected_action=HandlerActionType.PONDER,
                         action_parameters=ponder_params,
-                        rationale=f"Overridden by {entry.name}: Need to reconsider {attempted_action_desc}",
-                        confidence=0.3
+                        rationale=f"Overridden by {entry.name}: Need to reconsider {attempted_action_desc}"
                     )
                 break
 
+        # If this was a conscience retry and we didn't override, force PONDER
+        # unless the override was from thought depth guardrail
+        if is_conscience_retry and not overridden:
+            # Check if any conscience that ran was the depth guardrail
+            has_depth_guardrail = any(
+                "ThoughtDepthGuardrail" in entry.conscience.__class__.__name__ 
+                for entry in self.conscience_registry.get_consciences()
+            )
+            
+            if not has_depth_guardrail:
+                logger.info(f"ThoughtProcessor: Conscience retry without override - forcing PONDER")
+                final_action = ActionSelectionDMAResult(
+                    selected_action=HandlerActionType.PONDER,
+                    action_parameters={},
+                    rationale="Forced PONDER after conscience retry to prevent loops"
+                )
+                overridden = True
+                override_reason = "Conscience retry - forcing PONDER to prevent loops"
+        
         result = ConscienceResult(
             original_action=action_result,
             final_action=final_action,

@@ -51,6 +51,19 @@ except ImportError:
     wa_test_env = None
     wa_test_keys = None
 
+# Skip Discord tests if no token is set
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "requires_discord_token: mark test as requiring Discord token"
+    )
+
+@pytest.fixture(autouse=True)
+def skip_without_discord_token(request):
+    """Skip tests that require Discord token if not available."""
+    if request.node.get_closest_marker("requires_discord_token"):
+        if not os.environ.get("DISCORD_BOT_TOKEN"):
+            pytest.skip("Test requires DISCORD_BOT_TOKEN environment variable")
+
 # SDK client fixture removed - ciris_sdk no longer exists
 
 

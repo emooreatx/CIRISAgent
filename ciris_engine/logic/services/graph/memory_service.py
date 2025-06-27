@@ -19,7 +19,7 @@ from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatu
 from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryOpResult, MemoryQuery
 from ciris_engine.protocols.services import MemoryService, GraphMemoryServiceProtocol
 from ciris_engine.schemas.runtime.memory import IdentityUpdateRequest, EnvironmentUpdateRequest, TimeSeriesDataPoint
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.services.graph.memory import (

@@ -14,7 +14,7 @@ from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.audit.core import AuditEventType
 from ciris_engine.logic.utils.channel_utils import extract_channel_id
 
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.utils.shutdown_manager import (
     request_global_shutdown, 
@@ -199,7 +199,6 @@ class BaseActionHandler(ABC):
                     selected_action=result.selected_action,
                     action_parameters=decapsulated_params,
                     rationale=result.rationale,
-                    confidence=result.confidence,
                     # Optional fields
                     raw_llm_response=result.raw_llm_response,
                     reasoning=result.reasoning,

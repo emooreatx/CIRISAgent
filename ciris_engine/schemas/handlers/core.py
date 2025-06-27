@@ -3,12 +3,12 @@ Deferral schemas for CIRIS.
 
 Provides type-safe structures for deferral handling.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 from enum import Enum
 from datetime import timezone
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 class DeferralReason(str, Enum):
     """Standard deferral reason codes."""
@@ -30,8 +30,7 @@ class EthicalAssessment(BaseModel):
     principles_upheld: List[str] = Field(default_factory=list)
     principles_violated: List[str] = Field(default_factory=list)
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CSDMAAssessment(BaseModel):
     """Common sense evaluation results."""
@@ -40,8 +39,7 @@ class CSDMAAssessment(BaseModel):
     flags: List[str] = Field(default_factory=list, description="Common sense flags")
     reasoning: str = Field(..., description="Explanation")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DSDMAAssessment(BaseModel):
     """Domain-specific evaluation results."""
@@ -50,8 +48,7 @@ class DSDMAAssessment(BaseModel):
     recommendations: List[str] = Field(default_factory=list)
     reasoning: str = Field(..., description="Explanation")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ActionHistoryItem(BaseModel):
     """A single action in history."""
@@ -60,8 +57,7 @@ class ActionHistoryItem(BaseModel):
     parameters: Dict[str, str] = Field(default_factory=dict, description="Action parameters")
     result: Optional[str] = Field(None, description="Action result")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DeferralPackage(BaseModel):
     """Complete context package for deferred decisions."""
@@ -105,8 +101,7 @@ class DeferralPackage(BaseModel):
         description="When package was created"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class TransportData(BaseModel):
     """Transport-specific metadata."""
@@ -119,8 +114,7 @@ class TransportData(BaseModel):
         description="Additional transport context"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DeferralReport(BaseModel):
     """Deferral report for transmission to WA."""
@@ -143,8 +137,7 @@ class DeferralReport(BaseModel):
     response_received: bool = Field(default=False, description="Whether response received")
     response_at: Optional[datetime] = Field(None, description="Response timestamp")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DeferralResolution(BaseModel):
     """WA resolution of a deferral."""
@@ -164,8 +157,7 @@ class DeferralResolution(BaseModel):
     resolved_at: datetime = Field(..., description="When resolved")
     signature: str = Field(..., description="Digital signature")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "DeferralReason",

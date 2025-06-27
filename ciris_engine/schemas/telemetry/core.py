@@ -12,7 +12,7 @@ from typing import (
 )
 from enum import Enum
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class ServiceCorrelationStatus(str, Enum):
     """Status values for service correlations."""
@@ -53,8 +53,7 @@ class ServiceRequestData(BaseModel):
     request_timestamp: datetime = Field(..., description="When request was made")
     timeout_seconds: Optional[float] = Field(None, description="Request timeout")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ServiceResponseData(BaseModel):
     """Structured response data for service correlations."""
@@ -78,8 +77,7 @@ class ServiceResponseData(BaseModel):
     tokens_used: Optional[int] = Field(None, description="LLM tokens used")
     memory_bytes: Optional[int] = Field(None, description="Memory consumed")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class TraceContext(BaseModel):
     """Distributed tracing context."""
@@ -97,8 +95,7 @@ class TraceContext(BaseModel):
         description="Propagated context values"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class MetricData(BaseModel):
     """Metric data for correlations."""
@@ -124,8 +121,7 @@ class MetricData(BaseModel):
         description="Percentile values (e.g., p50, p95, p99)"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class LogData(BaseModel):
     """Log data for correlations."""
@@ -144,8 +140,7 @@ class LogData(BaseModel):
         description="Additional structured log fields"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ServiceCorrelation(BaseModel):
     """Record correlating service requests and responses with TSDB capabilities."""
@@ -198,8 +193,7 @@ class ServiceCorrelation(BaseModel):
         description="Child correlations"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CorrelationQuery(BaseModel):
     """Query for finding correlations."""
@@ -233,8 +227,7 @@ class CorrelationQuery(BaseModel):
     order_by: str = Field("timestamp", description="Field to order by")
     order_desc: bool = Field(True, description="Descending order")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CorrelationSummary(BaseModel):
     """Summary of correlations for a time period."""
@@ -259,8 +252,7 @@ class CorrelationSummary(BaseModel):
     total_tokens_used: int = Field(0, description="Total LLM tokens")
     total_memory_bytes: int = Field(0, description="Total memory used")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "ServiceCorrelationStatus",

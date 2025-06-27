@@ -248,20 +248,20 @@ class DMAOrchestrator:
         actual_thought: Thought,
         processing_context: ThoughtContext,
         dma_results: InitialDMAResults,
-        profile_name: str,
-        triaged_inputs: Optional[ActionSelectionContext] = None
+        profile_name: str
     ) -> ActionSelectionDMAResult:
         """Run ActionSelectionPDMAEvaluator sequentially after DMAs."""
-        if triaged_inputs:
-            triaged = triaged_inputs.model_dump()
-        else:
-            triaged = {}
+        triaged = {}
         
         triaged["original_thought"] = actual_thought
         triaged["processing_context"] = processing_context
         triaged["ethical_pdma_result"] = dma_results.ethical_pdma
         triaged["csdma_result"] = dma_results.csdma
         triaged["dsdma_result"] = dma_results.dsdma
+        
+        # Check if this is a conscience retry from the context
+        if hasattr(processing_context, 'is_conscience_retry') and processing_context.is_conscience_retry:
+            triaged["retry_with_guidance"] = True
         
         channel_id = None
         
@@ -297,6 +297,10 @@ class DMAOrchestrator:
         
         # Identity MUST have permitted actions - no defaults in a mission critical system
         triaged["permitted_actions"] = permitted_actions
+        
+        # Pass through conscience feedback if available
+        if hasattr(thought_item, 'conscience_feedback') and thought_item.conscience_feedback:
+            triaged["conscience_feedback"] = thought_item.conscience_feedback
 
         try:
             result = await run_dma_with_retries(

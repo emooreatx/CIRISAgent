@@ -13,6 +13,7 @@ from datetime import datetime
 
 from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.schemas.runtime.enums import ThoughtStatus
+from ciris_engine.schemas.processors.results import WorkResult
 from ciris_engine.logic import persistence
 from ciris_engine.logic.processors.core.base_processor import BaseProcessor
 from ciris_engine.logic.processors.support.task_manager import TaskManager
@@ -66,7 +67,7 @@ class WorkProcessor(BaseProcessor):
         """Check if we can process the given state."""
         return state in self.get_supported_states()
     
-    async def process(self, round_number: int) -> dict:
+    async def process(self, round_number: int) -> WorkResult:
         """Execute one round of work processing."""
         start_time = self.time_service.now()
         logger.info(f"--- Starting Work Round {round_number} ---")
@@ -132,7 +133,12 @@ class WorkProcessor(BaseProcessor):
             f"(Duration: {duration:.2f}s, Processed: {round_metrics['thoughts_processed']}) ---"
         )
         
-        return round_metrics
+        return WorkResult(
+            tasks_processed=round_metrics.get("tasks_activated", 0),
+            thoughts_processed=round_metrics.get("thoughts_processed", 0),
+            errors=round_metrics.get("errors", 0),
+            duration_seconds=duration
+        )
     
     async def _process_batch(self, batch: List[Any], round_number: int) -> int:
         """Process a batch of thoughts."""
@@ -185,6 +191,7 @@ class WorkProcessor(BaseProcessor):
         task = persistence.get_task_by_id(item.source_task_id)
         dispatch_context = build_dispatch_context(
             thought=thought_obj, 
+            time_service=self.time_service,
             task=task, 
             app_config=self.config, 
             round_number=getattr(item, 'round_number', 0),

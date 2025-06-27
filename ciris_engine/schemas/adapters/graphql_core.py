@@ -6,13 +6,12 @@ Provides schemas for GraphQL queries, responses, and user data operations.
 
 from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class GraphQLVariable(BaseModel):
     """Base model for GraphQL variables"""
     
-    class Config:
-        extra = "allow"  # Allow additional fields for flexibility
+    model_config = ConfigDict(extra = "allow")  # Allow additional fields for flexibility
 
 class GraphQLQuery(BaseModel):
     """GraphQL query request"""
@@ -20,8 +19,7 @@ class GraphQLQuery(BaseModel):
     variables: GraphQLVariable = Field(default_factory=GraphQLVariable, description="Query variables")
     operation_name: Optional[str] = Field(default=None, description="Operation name for multi-operation documents")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class GraphQLUser(BaseModel):
     """User data from GraphQL response"""
@@ -29,22 +27,19 @@ class GraphQLUser(BaseModel):
     nick: Optional[str] = Field(default=None, description="User nickname")
     channel: Optional[str] = Field(default=None, description="User's primary channel")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class UserQueryVariables(GraphQLVariable):
     """Variables for user query"""
     names: List[str] = Field(description="List of user names to query")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class UserQueryResponse(BaseModel):
     """Response from user query"""
     users: List[GraphQLUser] = Field(default_factory=list, description="List of user data")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class GraphQLError(BaseModel):
     """GraphQL error details"""
@@ -52,8 +47,7 @@ class GraphQLError(BaseModel):
     path: Optional[List[str]] = Field(default=None, description="Path to error in query")
     extensions: Optional[dict] = Field(default=None, description="Additional error details")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class GraphQLResponse(BaseModel):
     """Generic GraphQL response wrapper"""
@@ -61,8 +55,7 @@ class GraphQLResponse(BaseModel):
     errors: Optional[List[GraphQLError]] = Field(default=None, description="GraphQL errors")
     extensions: Optional[dict] = Field(default=None, description="Response extensions")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class UserAttribute(BaseModel):
     """User attribute key-value pair"""
@@ -70,8 +63,7 @@ class UserAttribute(BaseModel):
     value: str = Field(description="Attribute value")
     source: Optional[str] = Field(default=None, description="Source of attribute")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class UserProfile(BaseModel):
     """Enriched user profile data"""
@@ -82,8 +74,7 @@ class UserProfile(BaseModel):
     trust_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="User trust score")
     last_seen: Optional[str] = Field(default=None, description="ISO timestamp of last activity")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class EnrichedContext(BaseModel):
     """Enriched context data"""
@@ -91,8 +82,7 @@ class EnrichedContext(BaseModel):
     identity_context: Optional[str] = Field(default=None, description="Identity context block")
     community_context: Optional[str] = Field(default=None, description="Community context information")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class GraphQLMutation(BaseModel):
     """GraphQL mutation request"""
@@ -100,8 +90,7 @@ class GraphQLMutation(BaseModel):
     variables: GraphQLVariable = Field(default_factory=GraphQLVariable, description="Mutation variables")
     operation_name: Optional[str] = Field(default=None, description="Operation name")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class GraphQLSubscription(BaseModel):
     """GraphQL subscription request"""
@@ -109,8 +98,7 @@ class GraphQLSubscription(BaseModel):
     variables: GraphQLVariable = Field(default_factory=GraphQLVariable, description="Subscription variables")
     operation_name: Optional[str] = Field(default=None, description="Operation name")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "GraphQLVariable",

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class AuditEventType(str, Enum):
     """Types of audit events"""
@@ -50,8 +50,7 @@ class EventPayload(BaseModel):
     channel_id: Optional[str] = Field(default=None, description="Channel involved")
     service_name: Optional[str] = Field(default=None, description="Service involved")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class AuditEvent(BaseModel):
     """Schema for audit events"""
@@ -63,8 +62,7 @@ class AuditEvent(BaseModel):
     event_data: EventPayload = Field(description="Structured event data")
     outcome: EventOutcome = Field(default=EventOutcome.SUCCESS, description="Event outcome")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class AuditLogEntry(BaseModel):
     """Schema for audit log entries"""
@@ -86,8 +84,7 @@ class AuditLogEntry(BaseModel):
     previous_hash: Optional[str] = Field(default=None, description="Hash of previous entry for tamper detection")
     entry_hash: Optional[str] = Field(default=None, description="Hash of this entry")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class AuditSummary(BaseModel):
     """Summary statistics for audit entries"""
@@ -101,8 +98,7 @@ class AuditSummary(BaseModel):
     earliest_event: Optional[datetime] = Field(default=None, description="Timestamp of earliest event")
     latest_event: Optional[datetime] = Field(default=None, description="Timestamp of latest event")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class AuditQuery(BaseModel):
     """Query parameters for audit log search"""
@@ -115,8 +111,7 @@ class AuditQuery(BaseModel):
     outcome: Optional[EventOutcome] = Field(default=None, description="Filter by outcome")
     limit: int = Field(default=100, ge=1, le=1000, description="Maximum results to return")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "AuditEventType",

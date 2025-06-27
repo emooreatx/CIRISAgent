@@ -5,6 +5,7 @@ import logging
 from typing import List, Any
 
 from ciris_engine.schemas.processors.states import AgentState
+from ciris_engine.schemas.processors.results import PlayResult
 
 from .work_processor import WorkProcessor
 # ServiceProtocol import removed - processors aren't services
@@ -35,27 +36,30 @@ class PlayProcessor(WorkProcessor):
         """Play processor only handles PLAY state."""
         return [AgentState.PLAY]
     
-    async def process(self, round_number: int) -> dict:
+    async def process(self, round_number: int) -> PlayResult:
         """
         Execute one round of play processing.
         Currently delegates to work processing but logs differently.
         """
         logger.info(f"--- Starting Play Round {round_number} (Creative Mode) ---")
         
-        result = await super().process(round_number)
+        # Get WorkResult from parent
+        work_result = await super().process(round_number)
         
-        result["mode"] = "play"
-        result["creativity_enabled"] = True
-        
-        
-        self.play_metrics["creative_tasks_processed"] += result.get("thoughts_processed", 0)
+        # Track creative metrics
+        self.play_metrics["creative_tasks_processed"] += work_result.thoughts_processed
         
         logger.info(
             f"--- Finished Play Round {round_number} "
-            f"(Processed: {result.get('thoughts_processed', 0)} creative thoughts) ---"
+            f"(Processed: {work_result.thoughts_processed} creative thoughts) ---"
         )
         
-        return result
+        # Convert to PlayResult
+        return PlayResult(
+            thoughts_processed=work_result.thoughts_processed,
+            errors=work_result.errors,
+            duration_seconds=work_result.duration_seconds
+        )
     
     def get_play_stats(self) -> dict:
         """Get play-specific statistics."""

@@ -6,7 +6,7 @@ import logging
 from typing import List, Optional, Tuple, Type, cast
 
 from pydantic import BaseModel, Field
-from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusError
+from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusError, InternalServerError
 import instructor
 
 from ciris_engine.protocols.services import LLMService as LLMServiceProtocol
@@ -50,8 +50,8 @@ class OpenAICompatibleClient(LLMServiceProtocol):
         self.non_retryable_exceptions = (APIStatusError, instructor.exceptions.InstructorRetryException)  # type: ignore[attr-defined]
 
         circuit_config = CircuitBreakerConfig(
-            failure_threshold=3,        # Open after 3 consecutive failures
-            recovery_timeout=300.0,     # Wait 5 minutes before testing recovery
+            failure_threshold=5,        # Open after 5 consecutive failures
+            recovery_timeout=10.0,      # Wait 10 seconds before testing recovery
             success_threshold=2,        # Close after 2 successful calls
             timeout_duration=30.0       # 30 second API timeout
         )
@@ -81,7 +81,7 @@ class OpenAICompatibleClient(LLMServiceProtocol):
             instructor_mode = getattr(self.openai_config, 'instructor_mode', 'json')
             self.instruct_client = instructor.from_openai(
                 self.client,
-                mode=instructor.Mode.JSON if instructor_mode == 'json' else instructor.Mode.TOOLS
+                mode=instructor.Mode.JSON if instructor_mode.lower() == 'json' else instructor.Mode.TOOLS
             )
         except Exception as e:
             raise RuntimeError(f"Failed to initialize OpenAI client: {e}")
@@ -219,8 +219,66 @@ class OpenAICompatibleClient(LLMServiceProtocol):
                 self.circuit_breaker.record_success()
                 
                 usage = getattr(response, "usage", None)
+                
+                # Extract token counts
+                total_tokens = getattr(usage, "total_tokens", 0)
+                prompt_tokens = getattr(usage, "prompt_tokens", 0)
+                completion_tokens = getattr(usage, "completion_tokens", 0)
+                
+                # Calculate costs based on model
+                input_cost_cents = 0.0
+                output_cost_cents = 0.0
+                
+                if self.model_name.startswith("gpt-4o-mini"):
+                    input_cost_cents = (prompt_tokens / 1_000_000) * 15.0  # $0.15 per 1M
+                    output_cost_cents = (completion_tokens / 1_000_000) * 60.0  # $0.60 per 1M
+                elif self.model_name.startswith("gpt-4o"):
+                    input_cost_cents = (prompt_tokens / 1_000_000) * 250.0  # $2.50 per 1M
+                    output_cost_cents = (completion_tokens / 1_000_000) * 1000.0  # $10.00 per 1M
+                elif self.model_name.startswith("gpt-4-turbo"):
+                    input_cost_cents = (prompt_tokens / 1_000_000) * 1000.0  # $10.00 per 1M
+                    output_cost_cents = (completion_tokens / 1_000_000) * 3000.0  # $30.00 per 1M
+                elif self.model_name.startswith("gpt-3.5-turbo"):
+                    input_cost_cents = (prompt_tokens / 1_000_000) * 50.0  # $0.50 per 1M
+                    output_cost_cents = (completion_tokens / 1_000_000) * 150.0  # $1.50 per 1M
+                elif "llama" in self.model_name.lower() or "Llama" in self.model_name:
+                    # Llama models - typically much cheaper or free if self-hosted
+                    # Using conservative estimates for cloud-hosted Llama
+                    input_cost_cents = (prompt_tokens / 1_000_000) * 10.0  # $0.10 per 1M
+                    output_cost_cents = (completion_tokens / 1_000_000) * 10.0  # $0.10 per 1M
+                elif "claude" in self.model_name.lower():
+                    # Claude models
+                    input_cost_cents = (prompt_tokens / 1_000_000) * 300.0  # $3.00 per 1M
+                    output_cost_cents = (completion_tokens / 1_000_000) * 1500.0  # $15.00 per 1M
+                else:
+                    # Default/unknown model - use conservative estimate
+                    input_cost_cents = (prompt_tokens / 1_000_000) * 20.0
+                    output_cost_cents = (completion_tokens / 1_000_000) * 20.0
+                
+                total_cost_cents = input_cost_cents + output_cost_cents
+                
+                # Estimate carbon footprint
+                # Energy usage varies by model size and hosting
+                if "llama" in self.model_name.lower() and "17B" in self.model_name:
+                    # Llama 17B model - more efficient than larger models
+                    energy_kwh = (total_tokens / 1000) * 0.0002  # Lower energy use
+                elif "gpt-4" in self.model_name:
+                    # GPT-4 models use more compute
+                    energy_kwh = (total_tokens / 1000) * 0.0005
+                else:
+                    # Default estimate
+                    energy_kwh = (total_tokens / 1000) * 0.0003
+                
+                carbon_grams = energy_kwh * 500.0  # 500g CO2 per kWh global average
+                
                 usage_obj = ResourceUsage(
-                    tokens_used=getattr(usage, "total_tokens", 0)
+                    tokens_used=total_tokens,
+                    tokens_input=prompt_tokens,
+                    tokens_output=completion_tokens,
+                    cost_cents=total_cost_cents,
+                    carbon_grams=carbon_grams,
+                    energy_kwh=energy_kwh,
+                    model_used=self.model_name
                 )
                 
                 # Record token usage in telemetry
@@ -230,7 +288,7 @@ class OpenAICompatibleClient(LLMServiceProtocol):
                 
                 return response, usage_obj
                 
-            except (APIConnectionError, RateLimitError, instructor.exceptions.InstructorRetryException) as e:  # type: ignore[attr-defined]
+            except (APIConnectionError, RateLimitError, InternalServerError, instructor.exceptions.InstructorRetryException) as e:  # type: ignore[attr-defined]
                 # Record failure with circuit breaker
                 self.circuit_breaker.record_failure()
                 

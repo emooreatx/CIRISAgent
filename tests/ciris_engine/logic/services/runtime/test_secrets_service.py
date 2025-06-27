@@ -5,7 +5,7 @@ import tempfile
 import os
 from unittest.mock import MagicMock, patch
 
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.secrets.core import SecretReference, SecretRecord

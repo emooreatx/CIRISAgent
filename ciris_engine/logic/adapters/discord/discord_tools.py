@@ -4,7 +4,7 @@ Implements async tool handlers and registration for CIRIS ToolRegistry.
 """
 import discord
 from typing import Optional, Any
-from ciris_engine.schemas.services.tools_core import ToolResult, ToolExecutionStatus
+from ciris_engine.schemas.adapters.tools import ToolResult, ToolExecutionStatus
 from datetime import datetime
 
 async def discord_delete_message(bot: discord.Client, channel_id: int, message_id: int) -> ToolResult:
@@ -16,19 +16,15 @@ async def discord_delete_message(bot: discord.Client, channel_id: int, message_i
         else:
             raise ValueError(f"Channel {channel_id} does not support message fetching")
         return ToolResult(
-            tool_name="discord_delete_message",
-            execution_status=ToolExecutionStatus.SUCCESS,
-            result_data={"message_id": str(message_id), "channel_id": str(channel_id)},
-            error_message=None,
-            execution_time_ms=None
+            success=True,
+            data={"message_id": str(message_id), "channel_id": str(channel_id)},
+            error=None
         )
     except Exception as e:
         return ToolResult(
-            tool_name="discord_delete_message",
-            execution_status=ToolExecutionStatus.FAILED,
-            result_data=None,
-            error_message=str(e),
-            execution_time_ms=None
+            success=False,
+            data=None,
+            error=str(e)
         )
 
 async def discord_timeout_user(bot: discord.Client, guild_id: int, user_id: int, duration_seconds: int, reason: Optional[str] = None) -> ToolResult:
@@ -39,19 +35,15 @@ async def discord_timeout_user(bot: discord.Client, guild_id: int, user_id: int,
         until = discord.utils.utcnow() + timedelta(seconds=duration_seconds)
         await member.timeout(until, reason=reason)
         return ToolResult(
-            tool_name="discord_timeout_user",
-            execution_status=ToolExecutionStatus.SUCCESS,
-            result_data={"user_id": str(user_id), "guild_id": str(guild_id), "until": until.isoformat()},
-            error_message=None,
-            execution_time_ms=None
+            success=True,
+            data={"user_id": str(user_id), "guild_id": str(guild_id), "until": until.isoformat()},
+            error=None
         )
     except Exception as e:
         return ToolResult(
-            tool_name="discord_timeout_user",
-            execution_status=ToolExecutionStatus.FAILED,
-            result_data=None,
-            error_message=str(e),
-            execution_time_ms=None
+            success=False,
+            data=None,
+            error=str(e)
         )
 
 async def discord_ban_user(bot: discord.Client, guild_id: int, user_id: int, reason: Optional[str] = None, delete_message_days: int = 0) -> ToolResult:
@@ -60,19 +52,15 @@ async def discord_ban_user(bot: discord.Client, guild_id: int, user_id: int, rea
         user = await guild.fetch_member(user_id)
         await guild.ban(user, reason=reason, delete_message_days=delete_message_days)
         return ToolResult(
-            tool_name="discord_ban_user",
-            execution_status=ToolExecutionStatus.SUCCESS,
-            result_data={"user_id": str(user_id), "guild_id": str(guild_id)},
-            error_message=None,
-            execution_time_ms=None
+            success=True,
+            data={"user_id": str(user_id), "guild_id": str(guild_id)},
+            error=None
         )
     except Exception as e:
         return ToolResult(
-            tool_name="discord_ban_user",
-            execution_status=ToolExecutionStatus.FAILED,
-            result_data=None,
-            error_message=str(e),
-            execution_time_ms=None
+            success=False,
+            data=None,
+            error=str(e)
         )
 
 async def discord_kick_user(bot: discord.Client, guild_id: int, user_id: int, reason: Optional[str] = None) -> ToolResult:
@@ -81,19 +69,15 @@ async def discord_kick_user(bot: discord.Client, guild_id: int, user_id: int, re
         user = await guild.fetch_member(user_id)
         await guild.kick(user, reason=reason)
         return ToolResult(
-            tool_name="discord_kick_user",
-            execution_status=ToolExecutionStatus.SUCCESS,
-            result_data={"user_id": str(user_id), "guild_id": str(guild_id)},
-            error_message=None,
-            execution_time_ms=None
+            success=True,
+            data={"user_id": str(user_id), "guild_id": str(guild_id)},
+            error=None
         )
     except Exception as e:
         return ToolResult(
-            tool_name="discord_kick_user",
-            execution_status=ToolExecutionStatus.FAILED,
-            result_data=None,
-            error_message=str(e),
-            execution_time_ms=None
+            success=False,
+            data=None,
+            error=str(e)
         )
 
 def register_discord_tools(registry: Any, bot: Any) -> None:

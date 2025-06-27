@@ -10,7 +10,7 @@ from typing import (
     Type
 )
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.telemetry.core import ServiceCorrelationStatus
@@ -21,8 +21,7 @@ class DeferralPackage(BaseModel):
     reason: Optional[str] = Field(None, description="Reason for deferral")
     context: Dict[str, str] = Field(default_factory=dict, description="Additional context as strings")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DeferralReportContext(BaseModel):
     """Type-safe response for deferral report queries."""
@@ -30,8 +29,7 @@ class DeferralReportContext(BaseModel):
     thought_id: str = Field(..., description="Associated thought ID")
     package: Optional[DeferralPackage] = Field(None, description="Deferral package data")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CorrelationUpdateRequest(BaseModel):
     """Type-safe request for updating correlations."""
@@ -41,8 +39,7 @@ class CorrelationUpdateRequest(BaseModel):
     metric_value: Optional[float] = Field(None, description="Metric value if applicable")
     tags: Optional[Dict[str, str]] = Field(None, description="Tags to update")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class MetricsQuery(BaseModel):
     """Type-safe query parameters for metrics timeseries."""
@@ -53,8 +50,7 @@ class MetricsQuery(BaseModel):
     aggregation: str = Field("avg", description="Aggregation method: avg, sum, max, min")
     interval: str = Field("1h", description="Time bucket interval")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class IdentityContext(BaseModel):
     """Type-safe identity context for processing."""
@@ -74,8 +70,7 @@ class IdentityContext(BaseModel):
         description="Action selection overrides"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ThoughtSummary(BaseModel):
     """Type-safe thought summary for recent thoughts queries."""
@@ -86,8 +81,7 @@ class ThoughtSummary(BaseModel):
     content: str = Field(..., description="Thought content")
     source_task_id: str = Field(..., description="Source task ID")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class TaskSummaryInfo(BaseModel):
     """Type-safe task summary for queries returning task info."""
@@ -98,16 +92,14 @@ class TaskSummaryInfo(BaseModel):
     priority: Optional[int] = Field(None, description="Task priority")
     channel_id: Optional[str] = Field(None, description="Associated channel")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class QueryTimeRange(BaseModel):
     """Time range for queries."""
     start_time: datetime = Field(..., description="Start of range")
     end_time: datetime = Field(..., description="End of range")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class PersistenceHealth(BaseModel):
     """Health status of persistence layer."""
@@ -119,8 +111,7 @@ class PersistenceHealth(BaseModel):
     last_query_time: Optional[datetime] = Field(None, description="Last successful query")
     error_message: Optional[str] = Field(None, description="Error if unhealthy")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "DeferralPackage",

@@ -3,11 +3,11 @@ Tool message bus - handles all tool service operations
 """
 
 import logging
+import uuid
 from typing import TYPE_CHECKING, List, Optional
 
 from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.services.tools_core import ToolResult, ToolExecutionStatus
-from ciris_engine.schemas.runtime.tools import ToolInfo, ToolExecutionResult
+from ciris_engine.schemas.adapters.tools import ToolResult, ToolExecutionStatus, ToolInfo, ToolExecutionResult
 from ciris_engine.protocols.services import ToolService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from .base_bus import BaseBus, BusMessage
@@ -52,13 +52,12 @@ class ToolBus(BaseBus[ToolService]):
         if not service:
             logger.error(f"No tool service available for {handler_name}")
             return ToolExecutionResult(
+                tool_name=tool_name,
+                status=ToolExecutionStatus.NOT_FOUND,
                 success=False,
+                data=None,
                 error="No tool service available",
-                result=None,
-                execution_time=0,
-                adapter_id="unknown",
-                output=None,
-                metadata=None
+                correlation_id=str(uuid.uuid4())
             )
             
         try:
@@ -68,13 +67,12 @@ class ToolBus(BaseBus[ToolService]):
         except Exception as e:
             logger.error(f"Failed to execute tool {tool_name}: {e}", exc_info=True)
             return ToolExecutionResult(
+                tool_name=tool_name,
+                status=ToolExecutionStatus.FAILED,
                 success=False,
+                data=None,
                 error=str(e),
-                result=None,
-                execution_time=0,
-                adapter_id=handler_name,
-                output=None,
-                metadata=None
+                correlation_id=str(uuid.uuid4())
             )
     
     async def get_available_tools(

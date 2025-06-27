@@ -1,8 +1,8 @@
 """
-Protocol for Self-Configuration Service - Orchestrating continuous adaptation.
+Protocol for Self-Configuration Service - Pattern detection and learning.
 
-This service enables autonomous improvement within identity bounds through
-observability correlation, pattern learning, and controlled adaptation.
+This service observes system behavior, detects patterns, and stores insights
+for the agent's autonomous adaptation within its identity bounds.
 """
 
 from typing import List, Optional, Protocol, TYPE_CHECKING
@@ -13,213 +13,159 @@ from ...runtime.base import ServiceProtocol
 
 # Import forward references for schemas
 if TYPE_CHECKING:
-    from ciris_engine.schemas.services.special.self_configuration import (
-        AgentIdentityRoot,
-        AdaptationStatus,
-        AdaptationCycleResult,
-        ReviewOutcome,
-        ServiceImprovementReport,
-        ObservabilityAnalysis,
-        AdaptationEffectiveness,
-        PatternLibrarySummary,
-        SystemSnapshot
+    from ciris_engine.schemas.infrastructure.feedback_loop import (
+        DetectedPattern, AnalysisResult, PatternType
+    )
+    from ciris_engine.schemas.infrastructure.behavioral_patterns import (
+        ActionFrequency, TemporalPattern
     )
 
 class SelfConfigurationServiceProtocol(ServiceProtocol, Protocol):
     """
     Protocol for self-configuration service.
     
-    Orchestrates continuous adaptation through:
-    - Unified observability analysis
-    - Pattern-based learning
-    - Variance-bounded changes
-    - Impact measurement
-    - Knowledge accumulation
+    Implements continuous observation and pattern detection to enable
+    autonomous adaptation through stored insights.
     """
     
-    # ========== Initialization ==========
+    # ========== Pattern Detection ==========
     
     @abstractmethod
-    async def initialize_baseline(
-        self, 
-        identity: "AgentIdentityRoot"
-    ) -> str:
-        """
-        Establish identity baseline for variance monitoring.
-        
-        Must be called once during agent initialization to set the
-        reference point for all future variance calculations.
-        
-        Args:
-            identity: The agent's root identity configuration
-            
-        Returns:
-            Baseline ID for future reference
-        """
-        ...
-    
-    
-    # ========== Observability Analysis ==========
-    
-    @abstractmethod
-    async def analyze_observability_window(
+    async def analyze_patterns(
         self,
-        window: timedelta = timedelta(hours=6)
-    ) -> "ObservabilityAnalysis":
+        force: bool = False
+    ) -> "AnalysisResult":
         """
-        Analyze all observability signals for adaptation opportunities.
+        Analyze recent system behavior and detect patterns.
         
-        Correlates data from:
-        - Visibility (traces)
-        - Audit (logs)
-        - Telemetry (metrics/TSDB)
-        - Incidents (errors)
-        - Security (threats)
+        This is the main entry point that:
+        1. Detects patterns from metrics and telemetry
+        2. Stores pattern insights for agent introspection
+        3. Updates learning state
         
         Args:
-            window: Time window to analyze
+            force: Force analysis even if not due
             
         Returns:
-            Comprehensive analysis with adaptation opportunities
-        """
-        ...
-    
-    # ========== Adaptation Lifecycle ==========
-    
-    @abstractmethod
-    async def get_adaptation_status(self) -> "AdaptationStatus":
-        """
-        Get current adaptation cycle status and metrics.
-        
-        Returns:
-            Complete status including state, variance, history
+            AnalysisResult with patterns detected and insights stored
         """
         ...
     
     @abstractmethod
-    async def trigger_adaptation_cycle(self) -> "AdaptationCycleResult":
-        """
-        Manually trigger an adaptation assessment cycle.
-        
-        Useful for testing or urgent adaptation needs.
-        Subject to all safety constraints.
-        
-        Returns:
-            Results of the adaptation cycle
-        """
-        ...
-    
-    # ========== Change Management ==========
-    
-    @abstractmethod
-    async def get_pending_changes(self) -> List["ConfigurationChange"]:
-        """
-        Get proposed configuration changes awaiting application.
-        
-        Returns:
-            List of changes with estimated variance impact
-        """
-        ...
-    
-    @abstractmethod
-    async def approve_changes(
-        self, 
-        change_ids: List[str],
-        approver: str = "system"
-    ) -> "ChangeApprovalResult":
-        """
-        Approve specific configuration changes for application.
-        
-        Args:
-            change_ids: IDs of changes to approve
-            approver: Who approved (system or WA ID)
-            
-        Returns:
-            Result of approval including applied changes
-        """
-        ...
-    
-    # ========== Pattern Learning ==========
-    
-    @abstractmethod
-    async def get_pattern_library(self) -> "PatternLibrarySummary":
-        """
-        Get summary of learned adaptation patterns.
-        
-        Returns:
-            Library summary with successful patterns
-        """
-        ...
-    
-    @abstractmethod
-    async def measure_adaptation_effectiveness(
+    async def get_detected_patterns(
         self,
-        adaptation_id: str
-    ) -> "AdaptationEffectiveness":
+        pattern_type: Optional["PatternType"] = None,
+        hours: int = 24
+    ) -> List["DetectedPattern"]:
         """
-        Measure if an adaptation actually improved the system.
-        
-        Analyzes impact across all observability dimensions.
+        Get recently detected patterns.
         
         Args:
-            adaptation_id: ID of adaptation to measure
+            pattern_type: Filter by pattern type (temporal, frequency, etc.)
+            hours: Look back period
             
         Returns:
-            Effectiveness metrics across all signals
+            List of detected patterns
         """
         ...
     
-    # ========== Control Operations ==========
-    
     @abstractmethod
-    async def resume_after_review(
+    async def get_action_frequency(
         self,
-        review_outcome: "ReviewOutcome"
-    ) -> None:
+        hours: int = 24
+    ) -> dict[str, "ActionFrequency"]:
         """
-        Resume adaptation after WA review completion.
-        
-        Called when variance exceeded threshold and WA
-        has completed review of proposed changes.
+        Get frequency analysis of agent actions.
         
         Args:
-            review_outcome: WA's decision and feedback
-        """
-        ...
-    
-    @abstractmethod
-    async def emergency_stop(
-        self, 
-        reason: str
-    ) -> None:
-        """
-        Emergency stop all adaptation activities.
-        
-        Prevents any further adaptations until manually reset.
-        Use only in critical situations.
-        
-        Args:
-            reason: Why emergency stop was triggered
-        """
-        ...
-    
-    # ========== Reporting ==========
-    
-    @abstractmethod
-    async def get_improvement_report(
-        self,
-        period: timedelta = timedelta(days=30)
-    ) -> "ServiceImprovementReport":
-        """
-        Generate service improvement report for period.
-        
-        Summarizes all adaptations, their impacts, and
-        overall system improvement metrics.
-        
-        Args:
-            period: Time period to report on
+            hours: Analysis window
             
         Returns:
-            Comprehensive improvement report
+            Map of action -> frequency data
+        """
+        ...
+    
+    # ========== Pattern Insights ==========
+    
+    @abstractmethod
+    async def get_pattern_insights(
+        self,
+        limit: int = 50
+    ) -> List[dict]:
+        """
+        Get stored pattern insights.
+        
+        These are the insights stored in graph memory for the agent
+        to use during its reasoning process.
+        
+        Args:
+            limit: Maximum insights to return
+            
+        Returns:
+            List of insight nodes from graph memory
+        """
+        ...
+    
+    @abstractmethod
+    async def get_learning_summary(
+        self
+    ) -> dict:
+        """
+        Get summary of what the system has learned.
+        
+        Returns:
+            Summary of patterns, frequencies, and adaptations
+        """
+        ...
+    
+    # ========== Temporal Analysis ==========
+    
+    @abstractmethod
+    async def get_temporal_patterns(
+        self,
+        hours: int = 168  # 1 week
+    ) -> List["TemporalPattern"]:
+        """
+        Get temporal patterns (daily, weekly cycles).
+        
+        Args:
+            hours: Analysis window
+            
+        Returns:
+            List of temporal patterns detected
+        """
+        ...
+    
+    # ========== Effectiveness Tracking ==========
+    
+    @abstractmethod
+    async def get_pattern_effectiveness(
+        self,
+        pattern_id: str
+    ) -> Optional[dict]:
+        """
+        Get effectiveness metrics for a specific pattern.
+        
+        Tracks whether acting on this pattern improved outcomes.
+        
+        Args:
+            pattern_id: ID of pattern to check
+            
+        Returns:
+            Effectiveness metrics if available
+        """
+        ...
+    
+    # ========== Service Status ==========
+    
+    @abstractmethod
+    async def get_analysis_status(
+        self
+    ) -> dict:
+        """
+        Get current analysis status.
+        
+        Returns:
+            Status including last analysis time, patterns detected, etc.
         """
         ...

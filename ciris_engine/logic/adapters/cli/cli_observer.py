@@ -7,7 +7,7 @@ from typing import Awaitable, Callable, Optional, Set, Any
 from ciris_engine.schemas.runtime.messages import IncomingMessage
 from ciris_engine.schemas.services.filters_core import FilterResult
 from ciris_engine.logic.buses import BusManager
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.adapters.base_observer import BaseObserver
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 

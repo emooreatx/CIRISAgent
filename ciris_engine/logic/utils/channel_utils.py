@@ -14,9 +14,6 @@ def create_channel_context(
         channel_id: Channel ID string or existing ChannelContext
         channel_name: Human-readable channel name
         channel_type: Type of channel (discord, cli, api, etc.)
-        is_monitored: Whether this channel is actively monitored
-        is_deferral: Whether this is a WA deferral channel
-        is_home: Whether this is the agent's home channel
         
     Returns:
         ChannelContext instance or None if no valid input

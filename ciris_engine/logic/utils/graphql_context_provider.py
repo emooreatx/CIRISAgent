@@ -1,12 +1,12 @@
 import logging
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set
 import httpx
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.schemas.services.graph_core import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.adapters.graphql_core import (
     GraphQLQuery, GraphQLResponse, UserQueryVariables, UserQueryResponse,
-    UserProfile, EnrichedContext
+    UserProfile, UserAttribute, EnrichedContext
 )
 from ciris_engine.logic.config.env_utils import get_env_var
 
@@ -97,28 +97,42 @@ class GraphQLContextProvider:
                 except Exception as exc:
                     logger.warning("Failed to parse user query response: %s", exc)
 
-        # Get missing users from memory service
+        # Get missing users from memory service using search
         missing = [name for name in authors if name not in user_profiles and name is not None]
         if self.memory_service and missing:
-            from ciris_engine.schemas.services.operations import MemoryQuery
-            memory_results = await asyncio.gather(
-                *(self.memory_service.recall(
-                    MemoryQuery(
-                        node_id=n,
-                        scope=GraphScope.LOCAL,
-                        type=NodeType.USER,
-                        include_edges=False,
-                        depth=1
+            from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
+            # Search for each missing user by name
+            for name in missing:
+                if not name:
+                    continue
+                try:
+                    # Use search to find user nodes that match the username
+                    search_filter = MemorySearchFilter(
+                        node_type=NodeType.USER.value,
+                        scope=GraphScope.LOCAL.value
                     )
-                ) for n in missing if n),
-                return_exceptions=True
-            )
-            for name, mem_result in zip(missing, memory_results):
-                if mem_result and not isinstance(mem_result, Exception) and isinstance(mem_result, list):
-                    if mem_result and mem_result[0].attributes:
-                        user_profiles[name] = UserProfile(
-                            attributes=mem_result[0].attributes if isinstance(mem_result[0].attributes, dict) else {"data": mem_result[0].attributes}
-                        )
+                    search_results = await self.memory_service.search(
+                        query=name,
+                        filters=search_filter
+                    )
+                    
+                    # Look for exact username match in attributes
+                    for node in search_results:
+                        if node.attributes:
+                            attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
+                            # Check if this node has the username we're looking for
+                            if attrs.get('username') == name or attrs.get('display_name') == name or attrs.get('name') == name:
+                                # Convert attributes dict to UserAttribute list
+                                user_attrs = [
+                                    UserAttribute(key=k, value=str(v)) 
+                                    for k, v in attrs.items()
+                                ]
+                                user_profiles[name] = UserProfile(
+                                    attributes=user_attrs
+                                )
+                                break
+                except Exception as exc:
+                    logger.debug(f"Failed to search for user {name}: {exc}")
 
         # Get identity context
         identity_block = ""
@@ -128,7 +142,10 @@ class GraphQLContextProvider:
             except Exception as exc:
                 logger.warning("Failed to export identity context: %s", exc)
 
+        # Convert user_profiles dict to list of tuples as expected by EnrichedContext
+        user_profiles_list = [(name, profile) for name, profile in user_profiles.items()]
+        
         return EnrichedContext(
-            user_profiles=user_profiles,
+            user_profiles=user_profiles_list,
             identity_context=identity_block if identity_block else None
         )

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class ResourceAction(str, Enum):
     """Actions to take when a resource limit is exceeded"""
@@ -27,8 +27,7 @@ class ResourceLimit(BaseModel):
     action: ResourceAction = Field(default=ResourceAction.DEFER, description="Action when limit exceeded")
     cooldown_seconds: int = Field(default=60, ge=0, description="Cooldown period in seconds")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 def _memory_mb_limit() -> ResourceLimit:
     return ResourceLimit(limit=4096, warning=3072, critical=3840)
@@ -75,8 +74,7 @@ class ResourceBudget(BaseModel):
         description="Active thoughts limit"
     )
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ResourceSnapshot(BaseModel):
     """Current resource usage snapshot"""
@@ -94,8 +92,7 @@ class ResourceSnapshot(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Active warnings")
     critical: List[str] = Field(default_factory=list, description="Critical issues")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ResourceCost(BaseModel):
     """Environmental and financial cost of AI operations"""
@@ -155,8 +152,7 @@ class ResourceCost(BaseModel):
         """Get carbon emissions in kilograms"""
         return self.carbon_g / 1000.0
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ResourceUsageMetrics(BaseModel):
     """Comprehensive resource usage tracking with costs"""
@@ -188,8 +184,7 @@ class ResourceUsageMetrics(BaseModel):
     carbon_intensity_g_per_kwh: float = Field(default=400.0, ge=0.0, description="Grid carbon intensity")
     renewable_energy_percent: float = Field(default=20.0, ge=0.0, le=100.0, description="Estimated renewable energy %")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ResourceAlert(BaseModel):
     """Resource usage alert"""
@@ -201,8 +196,7 @@ class ResourceAlert(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When alert was triggered")
     message: str = Field(description="Human-readable alert message")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "ResourceAction",

@@ -14,7 +14,9 @@ from ciris_engine.schemas.services.authority_core import (
     DeferralApprovalContext
 )
 from ciris_engine.logic.adapters.discord.discord_reaction_handler import ApprovalStatus
-from ciris_engine.schemas.runtime.tools import ToolExecutionResult
+from ciris_engine.schemas.adapters.tools import (
+    ToolExecutionResult, ToolExecutionStatus, ToolResult
+)
 
 
 @pytest.fixture
@@ -98,6 +100,9 @@ class TestDiscordAdapterCore:
     @pytest.mark.asyncio
     async def test_send_message_success(self, discord_adapter, mock_discord_client):
         """Test successful message sending."""
+        # Mock connection manager to return connected
+        discord_adapter._connection_manager.is_connected = Mock(return_value=True)
+        
         # Mock channel
         mock_channel = AsyncMock()
         mock_channel.send = AsyncMock(return_value=Mock(id=123))
@@ -116,8 +121,14 @@ class TestDiscordAdapterCore:
     @pytest.mark.asyncio
     async def test_send_message_with_rate_limiting(self, discord_adapter):
         """Test message sending respects rate limits."""
+        # Mock connection manager to return connected
+        discord_adapter._connection_manager.is_connected = Mock(return_value=True)
+        
         # Mock rate limiter to introduce delay
         discord_adapter._rate_limiter.acquire = AsyncMock()
+        
+        # Mock connection manager to return connected
+        discord_adapter._connection_manager.is_connected = Mock(return_value=True)
         
         # Mock channel
         mock_channel = AsyncMock()
@@ -300,12 +311,14 @@ class TestDiscordToolExecution:
     @pytest.mark.asyncio
     async def test_execute_tool_success(self, discord_adapter):
         """Test successful tool execution."""
-        # Mock tool execution
+        # Mock tool execution with proper schema
         mock_result = ToolExecutionResult(
+            tool_name="test_tool",
+            status=ToolExecutionStatus.COMPLETED,
             success=True,
-            result="Tool output",
-            execution_time=123.45,
-            adapter_id="discord"
+            data={"output": "Tool output"},
+            error=None,
+            correlation_id="test-correlation-123"
         )
         
         discord_adapter._tool_handler.execute_tool = AsyncMock(return_value=mock_result)
@@ -313,9 +326,9 @@ class TestDiscordToolExecution:
         # Execute tool
         result = await discord_adapter.execute_tool("test_tool", {"param": "value"})
         
+        assert result.status == ToolExecutionStatus.COMPLETED
         assert result.success is True
-        assert result.result == "Tool output"
-        assert result.execution_time == 123.45
+        assert result.data["output"] == "Tool output"
         
         # Check telemetry
         discord_adapter.bus_manager.memory.memorize_metric.assert_called()
@@ -409,6 +422,9 @@ class TestDiscordAuditLogging:
         # Mock audit service
         mock_audit_service = AsyncMock()
         discord_adapter._audit_logger.set_audit_service(mock_audit_service)
+        
+        # Mock connection manager to return connected
+        discord_adapter._connection_manager.is_connected = Mock(return_value=True)
         
         # Mock successful message send
         mock_channel = AsyncMock()

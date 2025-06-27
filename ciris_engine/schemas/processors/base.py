@@ -5,8 +5,8 @@ These replace all Dict[str, Any] usage in base_processor.py.
 """
 from typing import Optional, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class ProcessorMetrics(BaseModel):
     """Metrics tracked by processors."""
@@ -36,8 +36,7 @@ class ProcessorServices(BaseModel):
     audit_service: Optional[object] = Field(None, description="Audit service")
     telemetry_service: Optional[object] = Field(None, description="Telemetry service")
     
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed = True)
 
 class ProcessorContext(BaseModel):
     """Context for processor operations."""

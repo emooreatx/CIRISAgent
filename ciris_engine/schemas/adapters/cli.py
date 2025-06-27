@@ -24,6 +24,7 @@ class ListFilesToolParams(CLIToolParameters):
 
 class ListFilesToolResult(BaseModel):
     """Result from list_files tool."""
+    success: bool = Field(..., description="Whether the operation succeeded")
     files: List[str] = Field(default_factory=list, description="List of files")
     count: int = Field(..., description="Number of files")
     error: Optional[str] = Field(None, description="Error message if failed")
@@ -35,24 +36,14 @@ class ReadFileToolParams(CLIToolParameters):
 
 class ReadFileToolResult(BaseModel):
     """Result from read_file tool."""
+    success: bool = Field(..., description="Whether the operation succeeded")
     content: Optional[str] = Field(None, description="File content")
     size: Optional[int] = Field(None, description="File size in bytes")
     error: Optional[str] = Field(None, description="Error message if failed")
 
-class WriteFileToolParams(CLIToolParameters):
-    """Parameters for write_file tool."""
-    path: str = Field(..., description="File path to write")
-    content: str = Field(..., description="Content to write")
-    encoding: str = Field("utf-8", description="File encoding")
-
-class WriteFileToolResult(BaseModel):
-    """Result from write_file tool."""
-    success: bool = Field(..., description="Whether write succeeded")
-    bytes_written: Optional[int] = Field(None, description="Bytes written")
-    error: Optional[str] = Field(None, description="Error message if failed")
-
 class SystemInfoToolResult(BaseModel):
     """Result from system_info tool."""
+    success: bool = Field(..., description="Whether the operation succeeded")
     platform: str = Field(..., description="Operating system platform")
     python_version: str = Field(..., description="Python version")
     cpu_count: int = Field(..., description="Number of CPUs")

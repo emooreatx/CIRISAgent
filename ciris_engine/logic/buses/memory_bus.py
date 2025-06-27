@@ -20,18 +20,18 @@ from .base_bus import BaseBus, BusMessage
 logger = logging.getLogger(__name__)
 
 @dataclass
-class MemorizeRequest(BusMessage):
-    """Request to memorize a node"""
+class MemorizeBusMessage(BusMessage):
+    """Bus message to memorize a node"""
     node: GraphNode
 
 @dataclass
-class RecallRequest(BusMessage):
-    """Request to recall a node"""
+class RecallBusMessage(BusMessage):
+    """Bus message to recall a node"""
     node: GraphNode
 
 @dataclass
-class ForgetRequest(BusMessage):
-    """Request to forget a node"""
+class ForgetBusMessage(BusMessage):
+    """Bus message to forget a node"""
     node: GraphNode
 
 class MemoryBus(BaseBus[MemoryService]):

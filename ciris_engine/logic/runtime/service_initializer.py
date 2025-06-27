@@ -16,7 +16,7 @@ from ciris_engine.logic.services.graph.audit_service import GraphAuditService as
 from ciris_engine.logic.services.governance.filter import AdaptiveFilterService
 # CoreToolService removed - SELF_HELP moved to memory per user request
 # BasicTelemetryCollector removed - using GraphTelemetryService instead
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.persistence.maintenance import DatabaseMaintenanceService
 from ciris_engine.logic.registries.base import ServiceRegistry, Priority
 from ciris_engine.schemas.runtime.enums import ServiceType
@@ -196,6 +196,24 @@ This directory contains critical cryptographic keys for the CIRIS system.
         await self.secrets_service.start()
         logger.info("SecretsService initialized")
         
+        # Create and register SecretsToolService
+        from ciris_engine.logic.services.tools import SecretsToolService
+        self.secrets_tool_service = SecretsToolService(
+            secrets_service=self.secrets_service,
+            time_service=self.time_service
+        )
+        await self.secrets_tool_service.start()
+        
+        # Register as a global tool service
+        if self.service_registry:
+            self.service_registry.register_global(
+                service_type=ServiceType.TOOL,
+                provider=self.secrets_tool_service,
+                priority=Priority.HIGH,
+                capabilities=["execute_tool", "get_available_tools", "get_tool_info", "get_all_tool_info", "validate_parameters"]
+            )
+            logger.info("SecretsToolService registered globally")
+        
         # LocalGraphMemoryService uses SQLite by default
         self.memory_service = LocalGraphMemoryService(
             time_service=self.time_service,
@@ -368,7 +386,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 service_type=ServiceType.MEMORY,
                 provider=self.memory_service,
                 priority=Priority.HIGH,
-                capabilities=["memorize", "recall", "forget", "graph_operations", "memorize_metric"],
+                capabilities=["memorize", "recall", "forget", "graph_operations", "memorize_metric", "memorize_log", "recall_timeseries", "export_identity_context", "search"],
                 metadata={"backend": "sqlite", "graph_type": "local"}
             )
             logger.info("Memory service registered in ServiceRegistry")
@@ -384,27 +402,28 @@ This directory contains critical cryptographic keys for the CIRIS system.
             )
             logger.info("WiseAuthority service registered in ServiceRegistry")
         
+        # Create BusManager first (without telemetry service)
+        self.bus_manager = BusManager(
+            self.service_registry, 
+            self.time_service,
+            None,  # telemetry_service will be set later
+            None  # audit_service will be set later
+        )
+        
         # Initialize telemetry service using GraphTelemetryService
         # This implements the "Graph Memory as Identity Architecture" patent
         # where telemetry IS memory stored in the agent's identity graph
         from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
         self.telemetry_service = GraphTelemetryService(
-            memory_bus=None,  # Will be set after bus_manager is created
+            memory_bus=self.bus_manager.memory,  # Now we have the memory bus
             time_service=self.time_service
         )
         await self.telemetry_service.start()
         logger.info("GraphTelemetryService initialized")
         
-        # Create BusManager with service registry and telemetry service
-        self.bus_manager = BusManager(
-            self.service_registry, 
-            self.time_service,
-            self.telemetry_service,
-            None  # audit_service will be set later
-        )
-        
-        # Now set the memory bus in telemetry service
-        self.telemetry_service._memory_bus = self.bus_manager.memory
+        # Now set the telemetry service in bus manager and LLM bus
+        self.bus_manager.telemetry_service = self.telemetry_service
+        self.bus_manager.llm.telemetry_service = self.telemetry_service
         
         # Initialize LLM service(s) based on configuration
         await self._initialize_llm_services(config)
@@ -483,6 +502,10 @@ This directory contains critical cryptographic keys for the CIRIS system.
         
         # Check if mock LLM is enabled via config (legacy)
         mock_llm_enabled = getattr(config, 'mock_llm', False)
+        
+        # Also check if mock_llm is in the modules to be loaded
+        if hasattr(self, '_modules_to_load') and 'mock_llm' in self._modules_to_load:
+            mock_llm_enabled = True
         
         # Also check if we have NO API key - this means mock LLM will be loaded as a module
         api_key = os.environ.get("OPENAI_API_KEY", "")

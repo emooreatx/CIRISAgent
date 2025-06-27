@@ -15,7 +15,7 @@ from ciris_engine.schemas.telemetry.core import (
     ServiceResponseData,
 )
 from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
-from ciris_engine.schemas.runtime.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult
+from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.services.authority_core import (
     DeferralRequest, DeferralResponse, GuidanceRequest, GuidanceResponse,
@@ -158,6 +158,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
 
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Implementation of CommunicationService.send_message"""
+        # Check if Discord client is connected before attempting to send
+        if not self._client or not self._connection_manager.is_connected():
+            logger.warning(f"Discord adapter not connected, cannot send message to channel {channel_id}")
+            return False
+            
         correlation_id = str(uuid.uuid4())
         start_time = self._time_service.now()
         
@@ -660,25 +665,86 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         deferral_channel_id = self.discord_config.deferral_channel_id
         if not deferral_channel_id:
             logger.error("DiscordAdapter: Deferral channel not configured.")
+            logger.error(f"  - Current config: {self.discord_config}")
+            logger.error(f"  - Monitored channels: {self.discord_config.monitored_channel_ids}")
+            logger.error(f"  - Admin user IDs: {self.discord_config.admin_user_ids}")
             raise RuntimeError("Deferral channel not configured.")
+        
+        logger.info(f"Sending deferral to channel {deferral_channel_id}")
+        logger.info(f"  - Task ID: {deferral.task_id}")
+        logger.info(f"  - Thought ID: {deferral.thought_id}")
+        logger.info(f"  - Reason: {deferral.reason}")
         
         start_time = self._time_service.now()
         
         try:
             correlation_id = str(uuid.uuid4())
             
-            # Format deferral message
-            message = f"**DEFERRAL REQUEST** (ID: {correlation_id})\n"
-            message += f"Task ID: {deferral.task_id}\n"
-            message += f"Thought ID: {deferral.thought_id}\n"
-            message += f"Reason: {deferral.reason}\n"
-            message += f"Defer Until: {deferral.defer_until.isoformat()}\n"
-            if deferral.context:
-                message += f"Context: {deferral.context}\n"
+            # Create deferral data for embed formatter
+            deferral_data = {
+                "deferral_id": correlation_id,
+                "task_id": deferral.task_id,
+                "thought_id": deferral.thought_id,
+                "reason": deferral.reason,
+                "defer_until": deferral.defer_until,
+                "context": deferral.context
+            }
             
-            sent = await self.send_message(deferral_channel_id, message)
-            if not sent:
-                raise RuntimeError("Failed to send deferral message")
+            # Create rich embed
+            embed = self._embed_formatter.format_deferral_request(deferral_data)
+            
+            # Send the embed with a plain text notification
+            message_text = (
+                f"**DEFERRAL REQUEST (ID: {correlation_id})**\n"
+                f"Task ID: {deferral.task_id}\n"
+                f"Thought ID: {deferral.thought_id}\n"
+                f"Reason: {deferral.reason}"
+            )
+            if deferral.defer_until:
+                message_text += f"\nDefer Until: {deferral.defer_until}"
+            if deferral.context:
+                context_str = ", ".join(f"{k}: {v}" for k, v in deferral.context.items())
+                message_text += f"\nContext: {context_str}"
+            
+            # Get the Discord client from channel manager
+            client = self._channel_manager.client
+            if not client:
+                raise RuntimeError("Discord client not available")
+            
+            # Get the channel
+            channel = client.get_channel(int(deferral_channel_id))
+            if not channel:
+                raise RuntimeError(f"Deferral channel {deferral_channel_id} not found")
+            
+            # Split the message if needed using the message handler's method
+            chunks = self._message_handler._split_message(message_text, max_length=1900)
+            
+            # Send the first chunk with the embed
+            if chunks:
+                sent_message = await channel.send(content=chunks[0], embed=embed)
+                
+                # Send additional chunks if any (without embed)
+                for i in range(1, len(chunks)):
+                    continuation = f"*(Continued from deferral {correlation_id})*\n\n{chunks[i]}"
+                    await channel.send(content=continuation)
+                    await asyncio.sleep(0.5)  # Small delay between messages
+            else:
+                # Fallback if no chunks
+                sent_message = await channel.send(content="**DEFERRAL REQUEST** (content too long)", embed=embed)
+            
+            # Add reaction UI for WAs to respond
+            await sent_message.add_reaction("✅")  # Approve
+            await sent_message.add_reaction("❌")  # Deny
+            await sent_message.add_reaction("🔄")  # Request more info
+            
+            # Store message ID for tracking responses
+            if hasattr(self._reaction_handler, 'track_deferral'):
+                await self._reaction_handler.track_deferral(
+                    message_id=str(sent_message.id),
+                    deferral_id=correlation_id,
+                    task_id=deferral.task_id,
+                    thought_id=deferral.thought_id
+                )
             
             # Store deferral in memory graph
             if self.bus_manager and self.bus_manager.memory:
@@ -825,10 +891,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
     def get_capabilities(self) -> ServiceCapabilities:
         """Return service capabilities in the proper format."""
         return ServiceCapabilities(
-            supports_batch=False,
-            max_batch_size=1,
-            supports_streaming=False,
-            supported_operations=[
+            service_name="DiscordAdapter",
+            actions=[
                 # Communication capabilities
                 "send_message", "fetch_messages",
                 # WiseAuthority capabilities
@@ -840,7 +904,9 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                 "execute_tool", "get_available_tools", "get_tool_result",
                 "validate_parameters", "get_tool_info", "get_all_tool_info",
                 "get_tool_schema", "list_tools"
-            ]
+            ],
+            version="1.0.0",
+            dependencies=["discord.py"]
         )
     
     def get_status(self) -> ServiceStatus:
@@ -852,13 +918,12 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             is_healthy = False
             
         return ServiceStatus(
-            healthy=is_healthy,
-            ready=self._channel_manager.client is not None,
-            message="Discord adapter connected" if is_healthy else "Discord adapter not connected",
-            stats={
-                "has_client": self._channel_manager.client is not None,
-                "client_closed": self._channel_manager.client.is_closed() if self._channel_manager.client else True,
-                "connection_info": self._connection_manager.get_connection_info()
+            service_name="DiscordAdapter",
+            service_type="adapter",
+            is_healthy=is_healthy,
+            uptime_seconds=3600,  # TODO: Track actual uptime
+            metrics={
+                "latency": 50  # TODO: Track actual latency
             }
         )
 
@@ -901,6 +966,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         
         self._channel_manager.attach_to_client(client)
         self._connection_manager.set_client(client)
+        
+        # Attach reaction event handler
+        @client.event
+        async def on_raw_reaction_add(payload: discord.RawReactionActionEvent) -> None:
+            await self.on_raw_reaction_add(payload)
         
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         """Handle raw reaction add events.
@@ -962,6 +1032,19 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to start Discord adapter: {e}")
             raise
 
+    async def wait_until_ready(self, timeout: float = 30.0) -> bool:
+        """
+        Wait until the Discord client is ready or timeout.
+        
+        Args:
+            timeout: Maximum time to wait in seconds
+            
+        Returns:
+            True if ready, False if timeout
+        """
+        logger.info(f"Waiting for Discord adapter to be ready (timeout: {timeout}s)...")
+        return await self._connection_manager.wait_until_ready(timeout)
+
     async def stop(self) -> None:
         """
         Stop the Discord adapter and clean up resources.
@@ -987,8 +1070,14 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             await self._emit_telemetry("discord.adapter.stopped", {
                 "adapter_type": "discord"
             })
+        except AttributeError as e:
+            # Handle the '_MissingSentinel' error that occurs during shutdown
+            if "'_MissingSentinel' object has no attribute 'create_task'" in str(e):
+                logger.debug("Discord client already shut down, ignoring event loop error")
+            else:
+                logger.error(f"AttributeError stopping Discord adapter: {e}")
         except Exception as e:
-            logger.exception(f"Error stopping Discord adapter: {e}")
+            logger.error(f"Error stopping Discord adapter: {e}")
 
     async def is_healthy(self) -> bool:
         """Check if the Discord adapter is healthy"""
@@ -1076,3 +1165,35 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
     def _client(self) -> Optional[discord.Client]:
         """Get the Discord client instance."""
         return self._channel_manager.client
+    
+    def get_services_to_register(self) -> List['AdapterServiceRegistration']:
+        """Register Discord services for communication, tools, and wise authority."""
+        from ciris_engine.schemas.adapters import AdapterServiceRegistration
+        from ciris_engine.schemas.runtime.enums import ServiceType
+        from ciris_engine.logic.registries.base import Priority
+        
+        registrations = [
+            AdapterServiceRegistration(
+                service_type=ServiceType.COMMUNICATION,
+                provider=self,  # The Discord adapter itself is the provider
+                priority=Priority.HIGH,
+                handlers=["SpeakHandler", "ObserveHandler"],  # Specific handlers
+                capabilities=["send_message", "fetch_messages"]
+            ),
+            AdapterServiceRegistration(
+                service_type=ServiceType.TOOL,
+                provider=self,  # Discord adapter handles tools too
+                priority=Priority.NORMAL,  # Lower priority than CLI for tools
+                handlers=["ToolHandler"],
+                capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
+            ),
+            AdapterServiceRegistration(
+                service_type=ServiceType.WISE_AUTHORITY,
+                provider=self,  # Discord adapter can handle WA
+                priority=Priority.HIGH,
+                handlers=["DeferralHandler", "GuidanceHandler"],
+                capabilities=["send_deferral", "check_deferral", "fetch_guidance", "request_permission", "check_permission", "list_permissions"]
+            )
+        ]
+        
+        return registrations

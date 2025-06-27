@@ -67,6 +67,9 @@ class ActionSelectionContextBuilder:
         # Build startup guidance
         startup_guidance = self._build_startup_guidance(original_thought)
         
+        # Build conscience feedback guidance if available
+        conscience_guidance = self._build_conscience_guidance(triaged_inputs.get("conscience_feedback"))
+        
         # Assemble final content
         main_user_content = f"""
 {ENGINE_OVERVIEW_TEMPLATE}Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
@@ -74,32 +77,23 @@ You MUST execute the Principled Decision-Making Algorithm (PDMA) to choose this 
 All fields specified in the schema for your response are MANDATORY unless explicitly marked as optional.
 Permitted Handler Actions: {action_options_str}{available_tools_str}
 {startup_guidance}
+{conscience_guidance}
 {self._get_reject_thought_guidance()}
 {final_ponder_advisory}
 {guidance_sections['action_parameter_schemas']}
-PDMA for Action Selection (all fields MANDATORY):
-1.  'context_summary_for_action_selection': Summarize situation from original thought and DMAs. Crucially, note if CSDMA (see `csdma_summary`) flagged significant ambiguity impacting comprehension or safety. What is the core challenge, especially if such ambiguity exists?
-2.  'action_alignment_check': MANDATORY field. This MUST be a JSON object (dictionary) where keys are
-    plausible HANDLER ACTIONS (from {action_options_str}) and values are their evaluations
-    against CIRIS principles & M-1. Use DMA summaries.
-    {guidance_sections['action_alignment_csdma_guidance']}
-    {guidance_sections['action_alignment_example']}
-3.  'action_conflicts': Identify conflicts *between potential handler actions*. If none, "No conflicts identified." or null.
-4.  'action_resolution': Resolve conflicts. If none, "Not applicable as no conflicts were identified." or null.
-5.  'selected_action': The LLM should determine this based on the inputs and other PDMA steps from the list: {action_options_str}.
-6.  'action_parameters': Parameters for the chosen action. This MUST be a JSON object strictly matching the schema for the selected_action.
+Action Selection Instructions:
+Based on the DMA results and original thought, select the most appropriate handler action.
+
+Your response MUST be a JSON object with exactly these three keys:
+1. 'selected_action': Choose from {action_options_str}
+2. 'action_parameters': Parameters matching the schema for your selected_action
     {guidance_sections['action_parameters_speak_csdma_guidance']}
     {guidance_sections['action_parameters_ponder_guidance']}
-    Provide empty dict {{}} if no parameters for other actions.
     {guidance_sections['action_parameters_observe_guidance']}
-7.  'rationale': Justify *why* this handler action is optimal. {guidance_sections['action_selection_rationale_csdma_guidance']}
-8.  'monitoring_for_selected_action': Concrete monitoring plan for THIS chosen action (string or dict).
+3. 'rationale': Explain why this action is optimal given the DMA evaluations and CIRIS principles
+    {guidance_sections['rationale_csdma_guidance']}
 
-IMPORTANT: Your entire response MUST be a single JSON object.
-The JSON object MUST have these top-level keys, all populated:
-'context_summary_for_action_selection', 'action_alignment_check', 'action_conflicts',
-'action_resolution', 'selected_action', 'action_parameters',
-'rationale', 'monitoring_for_selected_action'.
+IMPORTANT: Return ONLY a JSON object with these exact keys: selected_action, action_parameters, rationale.
 
 Original Thought: "{original_thought.content}"
 {ponder_notes_str}
@@ -272,8 +266,8 @@ Adhere strictly to the schema for your JSON output.
             'action_parameters_observe_guidance': self._get_agent_specific_prompt(
                 "action_params_observe_guidance", agent_name
             ),
-            'action_selection_rationale_csdma_guidance': self._get_agent_specific_prompt(
-                "action_selection_rationale_csdma_guidance", agent_name
+            'rationale_csdma_guidance': self._get_agent_specific_prompt(
+                "rationale_csdma_guidance", agent_name
             ),
             'action_parameter_schemas': self._get_dynamic_action_schemas(permitted_actions),
         }
@@ -306,6 +300,16 @@ Adhere strictly to the schema for your JSON output.
                 "select SPEAK to confirm status or PONDER only if additional internal checks are required. "
                 "Avoid MEMORIZE, ACT, REJECT, or DEFER during startup."
             )
+        return ""
+    
+    def _build_conscience_guidance(self, conscience_feedback: Optional[Dict[str, Any]]) -> str:
+        """Build conscience guidance from feedback if available."""
+        if not conscience_feedback:
+            return ""
+        
+        if isinstance(conscience_feedback, dict) and "retry_guidance" in conscience_feedback:
+            return f"\n\n**CONSCIENCE OVERRIDE GUIDANCE:**\n{conscience_feedback['retry_guidance']}\n"
+        
         return ""
     
     def _get_reject_thought_guidance(self) -> str:

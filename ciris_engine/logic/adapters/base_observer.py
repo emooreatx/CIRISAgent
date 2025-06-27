@@ -5,13 +5,12 @@ from typing import Awaitable, Callable, Generic, List, Optional, Set, TypeVar, c
 from pydantic import BaseModel
 
 from ciris_engine.schemas.runtime.enums import ThoughtType
-from ciris_engine.schemas.runtime.processing_context import ThoughtContext
-from ciris_engine.schemas.runtime.models import TaskContext
+from ciris_engine.schemas.runtime.models import TaskContext, ThoughtContext as ThoughtModelContext
 from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.schemas.services.filters_core import FilterResult, FilterPriority
 
 from ciris_engine.logic.buses import BusManager
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from datetime import datetime, timezone
 
@@ -95,11 +94,13 @@ class BaseObserver(Generic[MessageT], ABC):
             )
 
     async def _process_message_secrets(self, msg: MessageT) -> MessageT:
+        if not self.secrets_service:
+            logger.error(f"CRITICAL: secrets_service is None in {self.origin_service} observer! Cannot process secrets.")
+            raise RuntimeError("SecretsService is required but not available")
         try:
             processed_content, secret_refs = await self.secrets_service.process_incoming_text(
                 msg.content,  # type: ignore[attr-defined]
-                context_hint=f"{self.origin_service} message from {msg.author_name}",  # type: ignore[attr-defined]
-                source_message_id=msg.message_id,  # type: ignore[attr-defined]
+                msg.message_id,  # type: ignore[attr-defined]
             )
             processed_msg = msg.model_copy(update={"content": processed_content})
             if secret_refs:
@@ -196,42 +197,68 @@ class BaseObserver(Generic[MessageT], ABC):
             import uuid
             from ciris_engine.schemas.runtime.models import Task, Thought
             from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
+            from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext
             from ciris_engine.logic import persistence
+
+            # Create minimal system snapshot for passive observation
+            channel_context = ChannelContext(
+                channel_id=getattr(msg, "channel_id", "system"),
+                channel_name=getattr(msg, "channel_name", f"Channel {getattr(msg, 'channel_id', 'system')}"),
+                channel_type="text",
+                is_private=False,
+                created_at=self.time_service.now(),
+                allowed_actions=["send_messages", "read_messages"]
+            )
+            
+            minimal_snapshot = SystemSnapshot(
+                channel_context=channel_context,
+                agent_identity={
+                    "agent_id": self.agent_id or "ciris",
+                    "purpose": "Process and respond to messages"
+                }
+            )
+
+            # Build message history context
+            history_context = []
+            for hist_msg in self._history[-PASSIVE_CONTEXT_LIMIT:]:
+                history_context.append({
+                    "author": getattr(hist_msg, "author_name", "Unknown"),
+                    "content": getattr(hist_msg, "content", ""),
+                    "timestamp": getattr(hist_msg, "timestamp", "")
+                })
 
             task = Task(
                 task_id=str(uuid.uuid4()),
                 channel_id=getattr(msg, "channel_id", "system"),
-                description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content}'",  # type: ignore[attr-defined]
+                description=f"Respond to message from @{msg.author_name} (ID: {msg.author_id}) in #{msg.channel_id}: '{msg.content}'",  # type: ignore[attr-defined]
                 status=TaskStatus.PENDING,
                 priority=0,
-                created_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
-                updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
-                context=ThoughtContext(
-                    initial_task_context=TaskContext(
-                        channel_id=getattr(msg, "channel_id", None),
-                        user_id=msg.author_id,  # type: ignore[attr-defined]
-                        correlation_id=msg.message_id,  # type: ignore[attr-defined]
-                        parent_task_id=None
-                    ),
-                    **{
-                        "message_id": msg.message_id,  # type: ignore[attr-defined]
-                        "observation_type": "passive",
-                        "recent_messages": [
-                            {
-                                "id": m.message_id,  # type: ignore[attr-defined]
-                                "content": m.content,  # type: ignore[attr-defined]
-                                "author_id": m.author_id,  # type: ignore[attr-defined]
-                                "author_name": m.author_name,  # type: ignore[attr-defined]
-                                "channel_id": getattr(m, "channel_id", None),
-                                "timestamp": getattr(m, "timestamp", "n/a"),
-                            }
-                            for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
-                        ],
-                    }
+                created_at=self.time_service.now_iso(),
+                updated_at=self.time_service.now_iso(),
+                context=TaskContext(
+                    channel_id=getattr(msg, "channel_id", None),
+                    user_id=msg.author_id,  # type: ignore[attr-defined]
+                    correlation_id=msg.message_id,  # type: ignore[attr-defined]
+                    parent_task_id=None
                 ),
             )
             
             await self._sign_and_add_task(task)
+
+            # Build conversation context for thought
+            conversation_lines = ["=== CONVERSATION HISTORY (Last 10 messages) ==="]
+            for i, hist_msg in enumerate(self._history[-PASSIVE_CONTEXT_LIMIT:], 1):
+                author = getattr(hist_msg, "author_name", "Unknown")
+                author_id = getattr(hist_msg, "author_id", "unknown")
+                content = getattr(hist_msg, "content", "")
+                timestamp = getattr(hist_msg, "timestamp", "")
+                conversation_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
+            
+            conversation_lines.append("\n=== CURRENT MESSAGE TO RESPOND TO ===")
+            conversation_lines.append(f"@{msg.author_name} (ID: {msg.author_id}): {msg.content}")  # type: ignore[attr-defined]
+            conversation_lines.append("=" * 40)
+            
+            thought_content = "\n".join(conversation_lines)
 
             thought = Thought(
                 thought_id=str(uuid.uuid4()),
@@ -241,8 +268,15 @@ class BaseObserver(Generic[MessageT], ABC):
                 created_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 round_number=0,
-                content=f"User @{msg.author_name} said: {msg.content}",  # type: ignore[attr-defined]
-                context=task.context,
+                content=thought_content,
+                context=ThoughtModelContext(
+                    task_id=task.task_id,
+                    channel_id=getattr(msg, "channel_id", None),
+                    round_number=0,
+                    depth=0,
+                    parent_thought_id=None,
+                    correlation_id=msg.message_id  # type: ignore[attr-defined]
+                ),
             )
             
             persistence.add_thought(thought)
@@ -264,38 +298,16 @@ class BaseObserver(Generic[MessageT], ABC):
             task = Task(
                 task_id=str(uuid.uuid4()),
                 channel_id=getattr(msg, "channel_id", "system"),
-                description=f"PRIORITY: Respond to {filter_result.priority.value} message from @{msg.author_name}: '{msg.content}'",  # type: ignore[attr-defined]
+                description=f"PRIORITY: Respond to {filter_result.priority.value} message from @{msg.author_name} (ID: {msg.author_id}): '{msg.content}'",  # type: ignore[attr-defined]
                 status=TaskStatus.PENDING,
                 priority=task_priority,
                 created_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
-                context=ThoughtContext(
-                    initial_task_context=TaskContext(
-                        channel_id=getattr(msg, "channel_id", None),
-                        user_id=msg.author_id,  # type: ignore[attr-defined]
-                        correlation_id=msg.message_id,  # type: ignore[attr-defined]
-                        parent_task_id=None
-                    ),
-                    **{
-                        "message_id": msg.message_id,  # type: ignore[attr-defined]
-                        "observation_type": "priority",
-                        "filter_priority": filter_result.priority.value,
-                        "filter_reasoning": filter_result.reasoning,
-                        "triggered_filters": filter_result.triggered_filters,
-                        "filter_confidence": filter_result.selection_confidence,
-                        "filter_context": filter_result.context_hints,
-                        "recent_messages": [
-                            {
-                                "id": m.message_id,  # type: ignore[attr-defined]
-                                "content": m.content,  # type: ignore[attr-defined]
-                                "author_id": m.author_id,  # type: ignore[attr-defined]
-                                "author_name": m.author_name,  # type: ignore[attr-defined]
-                                "channel_id": getattr(m, "channel_id", None),
-                                "timestamp": getattr(m, "timestamp", "n/a"),
-                            }
-                            for m in self._history[-PASSIVE_CONTEXT_LIMIT:]
-                        ],
-                    }
+                context=TaskContext(
+                    channel_id=getattr(msg, "channel_id", None),
+                    user_id=msg.author_id,  # type: ignore[attr-defined]
+                    correlation_id=msg.message_id,  # type: ignore[attr-defined]
+                    parent_task_id=None
                 ),
             )
             await self._sign_and_add_task(task)
@@ -308,8 +320,15 @@ class BaseObserver(Generic[MessageT], ABC):
                 created_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 round_number=0,
-                content=f"PRIORITY ({filter_result.priority.value}): User @{msg.author_name} said: {msg.content} | Filter: {filter_result.reasoning}",  # type: ignore[attr-defined]
-                context=task.context,
+                content=f"PRIORITY ({filter_result.priority.value}): User @{msg.author_name} (ID: {msg.author_id}) said: {msg.content} | Filter: {filter_result.reasoning}",  # type: ignore[attr-defined]
+                context=ThoughtModelContext(
+                    task_id=task.task_id,
+                    channel_id=getattr(msg, "channel_id", None),
+                    round_number=0,
+                    depth=0,
+                    parent_thought_id=None,
+                    correlation_id=msg.message_id  # type: ignore[attr-defined]
+                ),
             )
             persistence.add_thought(thought)
         except Exception as e:  # pragma: no cover - rarely hit in tests

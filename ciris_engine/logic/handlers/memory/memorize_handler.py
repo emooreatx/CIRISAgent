@@ -109,9 +109,20 @@ class MemorizeHandler(BaseActionHandler):
             
             # Create appropriate follow-up
             if success:
+                # Extract meaningful content from the node
+                content_preview = ""
+                if hasattr(node, 'attributes') and node.attributes:
+                    if 'content' in node.attributes:
+                        content_preview = f": {node.attributes['content'][:100]}"
+                    elif 'name' in node.attributes:
+                        content_preview = f": {node.attributes['name']}"
+                    elif 'value' in node.attributes:
+                        content_preview = f": {node.attributes['value']}"
+                
                 follow_up_content = (
-                    f"Successfully memorized node '{node.id}' "
-                    f"of type {node.type.value} in scope {scope.value}"
+                    f"MEMORIZE COMPLETE - stored {node.type.value} '{node.id}'{content_preview}. "
+                    f"ACTION REQUIRED: Your next action should be SPEAK to inform the user that the information has been stored, "
+                    f"followed by TASK_COMPLETE. Do NOT memorize again - the information is already stored."
                 )
             else:
                 follow_up_content = (
@@ -146,8 +157,7 @@ class MemorizeHandler(BaseActionHandler):
             )
             
             # Create error follow-up
-            follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=f"MEMORIZE action failed with error: {e}"
-            )
+            follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=f"MEMORIZE action failed with error: {e}")
             persistence.add_thought(follow_up)
             
             raise FollowUpCreationError from e

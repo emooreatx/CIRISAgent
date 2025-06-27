@@ -86,8 +86,7 @@ class WACertificate(BaseModel):
         """Check if certificate has a specific scope."""
         return scope in self.scopes
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ChannelIdentity(BaseModel):
     """Identity context from channel/adapter."""
@@ -97,8 +96,7 @@ class ChannelIdentity(BaseModel):
     external_username: Optional[str] = None
     metadata: Dict[str, str] = Field(default_factory=dict)
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class AuthorizationContext(BaseModel):
     """Context for authorization decisions."""
@@ -111,8 +109,7 @@ class AuthorizationContext(BaseModel):
     resource: Optional[str] = None
     channel_id: Optional[str] = None
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WACertificateRequest(BaseModel):
     """Request to create a new WA certificate."""
@@ -128,8 +125,7 @@ class WACertificateRequest(BaseModel):
     adapter_name: Optional[str] = None
     adapter_metadata: Dict[str, str] = Field(default_factory=dict)
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WAToken(BaseModel):
     """WA authentication token."""
@@ -139,8 +135,7 @@ class WAToken(BaseModel):
     scopes: List[str]
     wa_id: str
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WAAuthRequest(BaseModel):
     """Authentication request."""
@@ -151,8 +146,7 @@ class WAAuthRequest(BaseModel):
     channel_identity: Optional[ChannelIdentity] = None
     requested_scopes: List[str] = Field(default_factory=list)
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WAAuthResponse(BaseModel):
     """Authentication response."""
@@ -161,8 +155,7 @@ class WAAuthResponse(BaseModel):
     certificate: Optional[WACertificate] = None
     error: Optional[str] = None
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WARoleMintRequest(BaseModel):
     """Request to mint a new role certificate."""
@@ -173,8 +166,7 @@ class WARoleMintRequest(BaseModel):
     parent_signature: str
     scopes: List[str] = Field(default_factory=list)
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DeferralRequest(BaseModel):
     """Request for WA deferral approval."""
@@ -184,8 +176,7 @@ class DeferralRequest(BaseModel):
     defer_until: datetime
     context: Dict[str, str] = Field(default_factory=dict)
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DeferralResponse(BaseModel):
     """WA response to deferral request."""
@@ -195,8 +186,7 @@ class DeferralResponse(BaseModel):
     wa_id: str
     signature: str
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class GuidanceRequest(BaseModel):
     """Request for WA guidance."""
@@ -205,8 +195,7 @@ class GuidanceRequest(BaseModel):
     recommendation: Optional[str] = None
     urgency: str = Field(default="normal", pattern="^(low|normal|high|critical)$")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class GuidanceResponse(BaseModel):
     """WA guidance response."""
@@ -216,8 +205,7 @@ class GuidanceResponse(BaseModel):
     wa_id: str
     signature: str
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DeferralApprovalContext(BaseModel):
     """Context for deferral approval requests."""
@@ -229,8 +217,7 @@ class DeferralApprovalContext(BaseModel):
     channel_id: Optional[str] = None
     metadata: Dict[str, str] = Field(default_factory=dict)
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WAPermission(BaseModel):
     """Permission granted to a WA."""
@@ -244,8 +231,7 @@ class WAPermission(BaseModel):
     expires_at: Optional[datetime] = None
     metadata: Dict[str, str] = Field(default_factory=dict)
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "WARole",

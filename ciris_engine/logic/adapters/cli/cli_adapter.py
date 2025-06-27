@@ -10,14 +10,14 @@ from datetime import datetime
 from typing import Awaitable, Callable, Dict, List, Optional, Any
 
 from ciris_engine.schemas.adapters.cli import (
-    CLIMessage, CLIToolParameters, ListFilesToolParams, ListFilesToolResult,
+    CLIToolParameters, ListFilesToolParams, ListFilesToolResult,
     ReadFileToolParams, ReadFileToolResult,
     SystemInfoToolResult, CLICorrelationData
 )
 from ciris_engine.protocols.services import CommunicationService, ToolService
 from ciris_engine.schemas.runtime.messages import IncomingMessage, FetchedMessage
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
-from ciris_engine.schemas.runtime.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult
+from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult, ToolExecutionStatus
 from ciris_engine.logic import persistence
 
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -241,25 +241,23 @@ class CLIAdapter(CommunicationService, ToolService):
             )
             
             return ToolExecutionResult(
+                tool_name=tool_name,
+                status=ToolExecutionStatus.COMPLETED if result.get("success", True) else ToolExecutionStatus.FAILED,
                 success=result.get("success", True),
-                result=result,
+                data=result,
                 error=result.get("error"),
-                execution_time=execution_time / 1000,  # Convert to seconds
-                adapter_id="cli",
-                output=None,
-                metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+                correlation_id=correlation_id
             )
             
         except Exception as e:
             logger.error(f"Error executing tool {tool_name}: {e}")
             return ToolExecutionResult(
+                tool_name=tool_name,
+                status=ToolExecutionStatus.FAILED,
                 success=False,
+                data=None,
                 error=str(e),
-                result=None,
-                execution_time=0,
-                adapter_id="cli",
-                output=None,
-                metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+                correlation_id=correlation_id
             )
 
     async def get_available_tools(self) -> List[str]:
@@ -404,14 +402,33 @@ Tools available:
     async def _tool_system_info(self, params: dict) -> dict:
         """Get system information."""
         import platform
-        return {
-            "success": True,
-            "system": platform.system(),
-            "release": platform.release(),
-            "version": platform.version(),
-            "machine": platform.machine(),
-            "python_version": platform.python_version()
-        }
+        import psutil
+        
+        try:
+            # Get memory info
+            memory = psutil.virtual_memory()
+            memory_mb = memory.total // (1024 * 1024)
+            
+            result = SystemInfoToolResult(
+                success=True,
+                platform=platform.system(),
+                python_version=platform.python_version(),
+                cpu_count=psutil.cpu_count() or 1,
+                memory_mb=memory_mb,
+                error=None
+            )
+            return result.model_dump()
+        except Exception as e:
+            # Return error result if psutil fails
+            result = SystemInfoToolResult(
+                success=False,
+                platform=platform.system(),
+                python_version=platform.python_version(),
+                cpu_count=1,
+                memory_mb=0,
+                error=str(e)
+            )
+            return result.model_dump()
 
     async def start(self) -> None:
         """Start the CLI adapter."""

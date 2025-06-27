@@ -4,7 +4,7 @@ Emergency API endpoints.
 Provides WA-authorized emergency control endpoints including kill switch.
 """
 import logging
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Depends
 
 from ciris_engine.schemas.services.shutdown import (
     WASignedCommand, EmergencyShutdownStatus
@@ -36,7 +36,6 @@ async def emergency_shutdown(
     
     Args:
         command: Signed emergency shutdown command
-        authorization: Optional bearer token for additional auth
         
     Returns:
         Status of the emergency shutdown process

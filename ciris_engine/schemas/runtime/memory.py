@@ -5,8 +5,8 @@ Type-safe schemas for memory service operations.
 """
 from datetime import datetime, timezone
 from typing import Dict, Optional, Union
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class MemorySearchResult(BaseModel):
     """Result from memory search operation."""
@@ -17,8 +17,7 @@ class MemorySearchResult(BaseModel):
     created_at: datetime = Field(..., description="When the memory was created")
     metadata: Dict[str, str] = Field(default_factory=dict, description="Additional metadata")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class TimeSeriesDataPoint(BaseModel):
     """A time-series data point from memory correlations."""
@@ -29,8 +28,7 @@ class TimeSeriesDataPoint(BaseModel):
     tags: Dict[str, str] = Field(default_factory=dict, description="Optional tags")
     source: Optional[str] = Field(None, description="Source of the data")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class IdentityUpdateRequest(BaseModel):
     """Request to update identity graph."""
@@ -39,8 +37,7 @@ class IdentityUpdateRequest(BaseModel):
     source: str = Field(..., description="Source of the update (e.g., 'wa_feedback')")
     reason: Optional[str] = Field(None, description="Reason for the update")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class EnvironmentUpdateRequest(BaseModel):
     """Request to update environment graph."""
@@ -48,8 +45,7 @@ class EnvironmentUpdateRequest(BaseModel):
     environment_data: Dict[str, str] = Field(..., description="Environment data to merge")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When update occurred")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "MemorySearchResult",

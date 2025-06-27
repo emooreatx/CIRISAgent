@@ -141,9 +141,8 @@ async def test_memorize_handler_with_graph_node(monkeypatch):
         selected_action=HandlerActionType.MEMORIZE,
         action_parameters=params,
         rationale="Testing memorize action",
-        confidence=0.95,
         reasoning="This is a test memorization",
-        evaluation_time_ms=100
+        evaluation_time_ms=100.0
     )
     
     # Create thought and dispatch context
@@ -231,9 +230,8 @@ async def test_recall_handler_with_query(monkeypatch):
         selected_action=HandlerActionType.RECALL,
         action_parameters=params,
         rationale="Testing recall action",
-        confidence=0.95,
         reasoning="This is a test recall",
-        evaluation_time_ms=100
+        evaluation_time_ms=100.0
     )
     
     # Create thought and dispatch context
@@ -309,9 +307,8 @@ async def test_memorize_handler_error_handling(monkeypatch):
         selected_action=HandlerActionType.MEMORIZE,
         action_parameters=params,
         rationale="Testing error handling",
-        confidence=0.95,
         reasoning="This should fail",
-        evaluation_time_ms=100
+        evaluation_time_ms=100.0
     )
     
     thought = create_test_thought()

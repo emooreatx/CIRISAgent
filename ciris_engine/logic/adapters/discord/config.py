@@ -45,6 +45,24 @@ class DiscordAdapterConfig(BaseModel):
         intents.message_content = self.enable_message_content
         intents.guild_messages = self.enable_guild_messages
         intents.dm_messages = self.enable_dm_messages
+        
+        # Additional intents needed for full functionality
+        intents.reactions = True  # For reaction handling (approvals/deferrals)
+        intents.members = True    # For member info and user profiles
+        intents.guilds = True     # For guild info
+        
+        # Note: When inviting the bot to a server, ensure these permissions are granted:
+        # - Send Messages
+        # - Embed Links (for rich embeds)
+        # - Read Messages/View Channels
+        # - Add Reactions
+        # - Read Message History
+        # - Manage Messages (optional, for deleting commands)
+        # 
+        # Permission integer for bot invite: 412317240384
+        # This includes: VIEW_CHANNEL, SEND_MESSAGES, EMBED_LINKS, 
+        #                ADD_REACTIONS, READ_MESSAGE_HISTORY, MANAGE_MESSAGES
+        
         return intents
     
     def get_activity(self) -> Optional[Any]:

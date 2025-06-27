@@ -93,9 +93,9 @@ class ThoughtDepthconscience(ConscienceInterface):
                 reason=f"Maximum action depth ({self.max_depth}) reached. "
                        f"This task requires human guidance to proceed further.",
                 context={
-                    "thought_depth": current_depth,
+                    "thought_depth": str(current_depth),
                     "original_action": action.selected_action,  # It's already a string
-                    "auto_deferred": True
+                    "auto_deferred": "true"
                 },
                 defer_until=None  # No specific time, defer indefinitely
             )

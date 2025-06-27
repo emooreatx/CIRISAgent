@@ -4,11 +4,11 @@ Context schemas for CIRIS Trinity Architecture.
 Type-safe contexts for action dispatch and processing.
 """
 from typing import Optional, TYPE_CHECKING, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from .enums import HandlerActionType
 from .system_context import ChannelContext
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 if TYPE_CHECKING:
     from .system_context import ConscienceResult
@@ -52,8 +52,7 @@ class DispatchContext(BaseModel):
     span_id: Optional[str] = Field(None, description="Span ID for tracing")
     trace_id: Optional[str] = Field(None, description="Trace ID for distributed tracing")
     
-    class Config:
-        extra = "forbid"  # Strict - no extra fields allowed
+    model_config = ConfigDict(extra = "forbid")  # Strict - no extra fields allowed
 
 __all__ = ["DispatchContext"]
 

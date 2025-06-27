@@ -6,7 +6,7 @@ from ciris_engine.schemas.runtime.processing_context import ThoughtContext
 from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.utils import GraphQLContextProvider
 from ciris_engine.logic.config.env_utils import get_env_var
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 import logging
 from .system_snapshot import build_system_snapshot as _build_snapshot
 from .secrets_snapshot import build_secrets_snapshot as _secrets_snapshot

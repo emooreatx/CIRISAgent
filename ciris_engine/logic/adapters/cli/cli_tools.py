@@ -8,7 +8,7 @@ from ciris_engine.schemas.adapters.cli_tools import (
     ToolParameters, ListFilesParams, ListFilesResult,
     ReadFileParams, ReadFileResult, WriteFileParams, WriteFileResult,
     ShellCommandParams, ShellCommandResult, SearchTextParams, SearchTextResult,
-    SearchMatch, ToolResult
+    SearchMatch
 )
 from ciris_engine.schemas.telemetry.core import (
     ServiceCorrelation,
@@ -19,7 +19,7 @@ from ciris_engine.logic import persistence
 
 from ciris_engine.protocols.services import ToolService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.runtime.tools import ToolExecutionResult, ToolInfo, ToolParameterSchema
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolInfo, ToolParameterSchema, ToolResult
 
 class CLIToolService(ToolService):
     """Simple ToolService providing local filesystem browsing."""

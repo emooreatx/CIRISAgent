@@ -11,6 +11,10 @@ from ciris_engine.schemas.processors.main import ProcessorMetrics
 from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 from ciris_engine.schemas.processors.states import AgentState
+from ciris_engine.schemas.processors.results import (
+    WakeupResult, WorkResult, PlayResult, SolitudeResult, 
+    DreamResult, ShutdownResult, ProcessingResult
+)
 from ciris_engine.logic import persistence
 from ciris_engine.schemas.runtime.models import Thought, ThoughtStatus
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
@@ -228,12 +232,12 @@ class AgentProcessor:
             logger.info(f"=== WAKEUP Round {wakeup_round} ===")
             
             wakeup_result = await self.wakeup_processor.process(wakeup_round)
-            wakeup_complete = wakeup_result.get("wakeup_complete", False)
+            wakeup_complete = wakeup_result.wakeup_complete
             
             if not wakeup_complete:
                 thoughts_processed = await self._process_pending_thoughts_async()
                 
-                logger.info(f"Wakeup round {wakeup_round}: {wakeup_result.get('steps_completed', 0)}/{wakeup_result.get('total_steps', 5)} steps complete, {thoughts_processed} thoughts processed")
+                logger.info(f"Wakeup round {wakeup_round}: {wakeup_result.thoughts_processed} thoughts processed")
                 
                 # Use shorter delay for mock LLM
                 llm_service = self.services.get('llm_service')
@@ -589,6 +593,7 @@ class AgentProcessor:
                         # Process shutdown state with negotiation
                         logger.info("In SHUTDOWN state, processing shutdown negotiation")
                         processor = self.state_processors.get(current_state)
+                        logger.debug(f"Shutdown processor from state_processors: {processor}")
                         if processor:
                             try:
                                 result = await processor.process(self.current_round_number)
@@ -596,9 +601,20 @@ class AgentProcessor:
                                 consecutive_errors = 0
                                 
                                 # Check if shutdown is complete
-                                if processor == self.shutdown_processor and self.shutdown_processor.shutdown_complete:
-                                    logger.info("Shutdown negotiation complete, exiting processing loop")
+                                logger.debug(f"Shutdown check - result type: {type(result)}, has shutdown_ready: {hasattr(result, 'shutdown_ready')}")
+                                if hasattr(result, 'shutdown_ready'):
+                                    logger.debug(f"result.shutdown_ready = {result.shutdown_ready}")
+                                
+                                if hasattr(result, 'shutdown_ready') and result.shutdown_ready:
+                                    logger.info("Shutdown negotiation complete (from result), exiting processing loop")
                                     break
+                                
+                                # Check processor's shutdown_complete attribute directly
+                                if hasattr(processor, 'shutdown_complete'):
+                                    logger.debug(f"processor.shutdown_complete = {processor.shutdown_complete}")
+                                    if processor.shutdown_complete:
+                                        logger.info("Shutdown negotiation complete (processor.shutdown_complete is True), exiting processing loop")
+                                        break
                             except Exception as e:
                                 consecutive_errors += 1
                                 logger.error(f"Error in shutdown processor: {e}", exc_info=True)

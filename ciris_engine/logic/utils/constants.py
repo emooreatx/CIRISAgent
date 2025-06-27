@@ -5,7 +5,7 @@ from ciris_engine.logic.config.env_utils import get_env_var
 logger = logging.getLogger(__name__)
 
 DEFAULT_WA = get_env_var("WA_DISCORD_USER", "somecomputerguy")
-WA_USER_ID = get_env_var("WA_USER_ID")
+WA_USER_ID = get_env_var("WA_USER_ID", "537080239679864862")
 
 DISCORD_CHANNEL_ID = get_env_var("DISCORD_CHANNEL_ID")
 DISCORD_DEFERRAL_CHANNEL_ID = get_env_var("DISCORD_DEFERRAL_CHANNEL_ID")

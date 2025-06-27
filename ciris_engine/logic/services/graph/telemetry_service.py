@@ -20,7 +20,7 @@ from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.schemas.runtime.resources import ResourceUsage
 from ciris_engine.schemas.runtime.protocols_core import MetricDataPoint, ServiceStatus, ResourceLimits
 from ciris_engine.schemas.services.operations import MemoryOpStatus
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TelemetrySummary
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.services.graph.telemetry import (
     TelemetrySnapshotResult, TelemetryData, ResourceData, BehavioralData,
@@ -89,6 +89,10 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         # Cache for recent metrics (for quick status queries)
         self._recent_metrics: Dict[str, List[MetricDataPoint]] = {}
         self._max_cached_metrics = 100
+        
+        # Cache for telemetry summaries to avoid slamming persistence
+        self._summary_cache: Dict[str, Tuple[datetime, TelemetrySummary]] = {}
+        self._summary_cache_ttl_seconds = 60  # Cache for 1 minute
         
         # Consolidation settings
     
@@ -660,3 +664,186 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return self._memory_bus is not None and self._time_service is not None
+    
+    async def get_telemetry_summary(self) -> TelemetrySummary:
+        """Get aggregated telemetry summary for system snapshot.
+        
+        Uses intelligent caching to avoid overloading the persistence layer:
+        - Current task metrics: No cache (always fresh)
+        - Hour metrics: 1 minute cache
+        - Day metrics: 5 minute cache
+        """
+        now = self._now()
+        
+        # Check cache first for expensive queries
+        cache_key = "telemetry_summary"
+        if cache_key in self._summary_cache:
+            cached_time, cached_summary = self._summary_cache[cache_key]
+            if (now - cached_time).total_seconds() < self._summary_cache_ttl_seconds:
+                logger.debug("Returning cached telemetry summary")
+                return cached_summary
+        
+        # If memory bus is not available yet (during startup), return empty summary
+        if not self._memory_bus:
+            logger.debug("Memory bus not available yet, returning empty telemetry summary")
+            return TelemetrySummary(
+                window_start=now - timedelta(hours=24),
+                window_end=now,
+                uptime_seconds=0.0
+            )
+        
+        # Window boundaries
+        window_end = now
+        window_start_24h = now - timedelta(hours=24)
+        window_start_1h = now - timedelta(hours=1)
+        
+        # Initialize counters
+        tokens_24h = 0
+        tokens_1h = 0
+        cost_24h_cents = 0.0
+        cost_1h_cents = 0.0
+        carbon_24h_grams = 0.0
+        carbon_1h_grams = 0.0
+        
+        messages_24h = 0
+        messages_1h = 0
+        thoughts_24h = 0
+        thoughts_1h = 0
+        tasks_24h = 0
+        errors_24h = 0
+        errors_1h = 0
+        
+        service_calls: Dict[str, int] = {}
+        service_errors: Dict[str, int] = {}
+        service_latency: Dict[str, List[float]] = {}
+        
+        try:
+            # Query different metric types
+            metric_types = [
+                ("llm.tokens.total", "tokens"),
+                ("llm.cost.cents", "cost"),
+                ("llm.environmental.carbon_grams", "carbon"),
+                ("llm.latency.ms", "latency"),
+                ("message.processed", "messages"),
+                ("thought.processed", "thoughts"),
+                ("task.completed", "tasks"),
+                ("error.occurred", "errors")
+            ]
+            
+            for metric_name, metric_type in metric_types:
+                # Get 24h data
+                day_metrics = await self.query_metrics(
+                    metric_name=metric_name,
+                    start_time=window_start_24h,
+                    end_time=window_end
+                )
+                
+                for metric in day_metrics:
+                    value = metric.get("value", 0)
+                    timestamp = metric.get("timestamp")
+                    tags = metric.get("tags", {})
+                    
+                    # Convert timestamp to datetime if needed
+                    if isinstance(timestamp, str):
+                        timestamp = datetime.fromisoformat(timestamp)
+                    
+                    # Aggregate by time window
+                    if metric_type == "tokens":
+                        tokens_24h += int(value)
+                        if timestamp >= window_start_1h:
+                            tokens_1h += int(value)
+                    elif metric_type == "cost":
+                        cost_24h_cents += float(value)
+                        if timestamp >= window_start_1h:
+                            cost_1h_cents += float(value)
+                    elif metric_type == "carbon":
+                        carbon_24h_grams += float(value)
+                        if timestamp >= window_start_1h:
+                            carbon_1h_grams += float(value)
+                    elif metric_type == "messages":
+                        messages_24h += int(value)
+                        if timestamp >= window_start_1h:
+                            messages_1h += int(value)
+                    elif metric_type == "thoughts":
+                        thoughts_24h += int(value)
+                        if timestamp >= window_start_1h:
+                            thoughts_1h += int(value)
+                    elif metric_type == "tasks":
+                        tasks_24h += int(value)
+                    elif metric_type == "errors":
+                        errors_24h += int(value)
+                        if timestamp >= window_start_1h:
+                            errors_1h += int(value)
+                        # Track errors by service
+                        service = tags.get("service", "unknown")
+                        service_errors[service] = service_errors.get(service, 0) + 1
+                    elif metric_type == "latency":
+                        service = tags.get("service", "unknown")
+                        if service not in service_latency:
+                            service_latency[service] = []
+                        service_latency[service].append(float(value))
+                    
+                    # Track service calls
+                    if "service" in tags:
+                        service = tags["service"]
+                        service_calls[service] = service_calls.get(service, 0) + 1
+            
+            # Calculate rates
+            tokens_per_hour = tokens_1h  # Already for 1 hour
+            cost_per_hour_cents = cost_1h_cents
+            carbon_per_hour_grams = carbon_1h_grams
+            
+            # Calculate error rate
+            total_operations = messages_24h + thoughts_24h + tasks_24h
+            error_rate_percent = (errors_24h / total_operations * 100) if total_operations > 0 else 0.0
+            
+            # Calculate average latencies
+            service_latency_ms = {}
+            for service, latencies in service_latency.items():
+                if latencies:
+                    service_latency_ms[service] = sum(latencies) / len(latencies)
+            
+            # Get system uptime
+            uptime_seconds = 0.0
+            if hasattr(self, "_start_time") and self._start_time:
+                uptime_seconds = (now - self._start_time).total_seconds()
+            else:
+                # Fallback: assume service started 24h ago
+                uptime_seconds = 86400.0
+            
+            # Create summary
+            summary = TelemetrySummary(
+                window_start=window_start_24h,
+                window_end=window_end,
+                uptime_seconds=uptime_seconds,
+                messages_processed_24h=messages_24h,
+                thoughts_processed_24h=thoughts_24h,
+                tasks_completed_24h=tasks_24h,
+                errors_24h=errors_24h,
+                messages_current_hour=messages_1h,
+                thoughts_current_hour=thoughts_1h,
+                errors_current_hour=errors_1h,
+                service_calls=service_calls,
+                service_errors=service_errors,
+                service_latency_ms=service_latency_ms,
+                tokens_per_hour=float(tokens_per_hour),
+                cost_per_hour_cents=cost_per_hour_cents,
+                carbon_per_hour_grams=carbon_per_hour_grams,
+                error_rate_percent=error_rate_percent,
+                avg_thought_depth=1.5,  # TODO: Calculate from thought data
+                queue_saturation=0.0  # TODO: Calculate from queue metrics
+            )
+            
+            # Cache the result
+            self._summary_cache[cache_key] = (now, summary)
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"Failed to generate telemetry summary: {e}")
+            # Return empty summary on error
+            return TelemetrySummary(
+                window_start=window_start_24h,
+                window_end=window_end,
+                uptime_seconds=0.0
+            )

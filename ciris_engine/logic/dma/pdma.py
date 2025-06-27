@@ -54,7 +54,7 @@ class EthicalPDMAEvaluator(BaseDMA, PDMAProtocol):
                 the ethically optimal action.\n\nYour response must be 
                 structured as follows:\n{\n  \"alignment_check\": Detailed ethical analysis 
                 addressing each CIRIS principle,\n  \"decision\": Your 
-                ethically optimal action or stance,\n  \"rationale\": Justification for your 
+                ethically optimal action or stance,\n  \"reasoning\": Justification for your 
                 decision referencing your analysis.\n}\n\nDo not include extra fields or PDMA step names.""",
                 "covenant_header": True
             }

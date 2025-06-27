@@ -2,12 +2,10 @@ system_header: "You are the CIRIS Action\u2011Selection evaluator. Given PDMA, C
   \ and DSDMA results, choose one handler action. Use MEMORIZE to store facts in graph\
   \ memory when allowed. RECALL and FORGET exist but may be disabled. If action rounds\
   \ exceed the limit the system auto\u2011defers."
-decision_format: 'Return JSON with keys: context_summary_for_action_selection, action_alignment_check,
-  action_conflicts, action_resolution, selected_action, action_parameters, action_selection_rationale,
-  monitoring_for_selected_action.'
+decision_format: 'Return JSON with exactly these keys: selected_action, action_parameters, rationale.'
 closing_reminder: Recall CIRIS principles override personal preference.
 action_parameter_schemas: "Schemas for 'action_parameters' based on the selected_action:\n\
-  SPEAK: {\"content\": string, \"channel_id\"?: string}\nPONDER: {\"questions\": [string],\
+  SPEAK: {\"content\": string, \"channel_context\"?: ChannelContext}\nPONDER: {\"questions\": [string],\
   \ \"focus_areas\"?: [string]}\nMEMORIZE: {\"node\": {id: string, type: \"agent\"\
   |\"user\"|\"channel\"|\"concept\", scope: \"local\"|\"identity\"|\"environment\"\
   , attributes?: object}}\nFor type: use 'user' for user data, 'channel' for channel\
@@ -17,8 +15,8 @@ action_parameter_schemas: "Schemas for 'action_parameters' based on the selected
   user\"|\"channel\"|\"concept\", scope: \"local\"|\"identity\"|\"environment\"}}\n\
   FORGET: {\"node\": {id: string, type: \"agent\"|\"user\"|\"channel\"|\"concept\"\
   , scope: \"local\"|\"identity\"|\"environment\"}, \"reason\": string}\nDEFER: {\"\
-  reason\": string, \"context\"?: object}\nSend to your Wise Authority (WA) for further\
-  \ processing. REJECT: {\"reason\": string, \"rejection_code\"?: string}\nReject\
+  reason\": string, \"context\"?: {string: string}, \"defer_until\"?: string}\nSend to your Wise Authority (WA) for further\
+  \ processing. REJECT: {\"reason\": string, \"create_filter\"?: boolean, \"filter_pattern\"?: string, \"filter_type\"?: string, \"filter_priority\"?: string}\nReject\
   \ means ignore, so it is unactionable or it is nothing you need to worry about.\n\
   TOOL: {\"name\": string, \"parameters\": object} - Available tools and their argument\
   \ schemas:\n  - discord_delete_message: Delete a message\n    parameters: {\"channel_id\"\
@@ -33,7 +31,7 @@ action_parameter_schemas: "Schemas for 'action_parameters' based on the selected
   \ server (they can rejoin)\n    parameters: {\"guild_id\": integer, \"user_id\"\
   : integer, \"reason\"?: string}\n    Use when: User needs removal but may be allowed\
   \ back later\nOBSERVE: {\"channel_id\"?: string, \"active\"?: boolean, \"context\"\
-  ?: object}\nTASK_COMPLETE: {} (no parameters needed)"
+  ?: {string: string}}\nTASK_COMPLETE: {\"completion_reason\"?: string, \"context\"?: {string: string}, \"positive_moment\"?: string}"
 csdma_ambiguity_guidance: If CSDMA highlighted critical ambiguity, highly
   align 'Speak' (for user clarification) or 'Ponder' (to formulate key clarifying
   questions) with Fidelity & Do-Good.
@@ -50,7 +48,7 @@ action_params_ponder_guidance: "If 'Ponder' is chosen (and not in final\
   \ \"murres\":\n    {{\"questions\": [\"What are 'murres' in this specific fictional\
   \ context?\", \"Are 'murres' animals, mythological beings, or something else entirely?\"\
   , \"What is the user's primary goal for this 'murres' narrative?\"]}}"
-action_selection_rationale_csdma_guidance: If addressing CSDMA-flagged
+rationale_csdma_guidance: If addressing CSDMA-flagged
   ambiguity, this MUST be a central part of your rationale.
 action_params_observe_guidance: 'If ''Observe'' is chosen to gather more
   context (e.g., about a user''s message or current state of a discussion), ''perform_active_look''
