@@ -12,6 +12,9 @@ class OAuthProviderConfig(BaseModel):
     """Configuration for an OAuth provider."""
     client_id: str = Field(..., description="OAuth client ID")
     client_secret: str = Field(..., description="OAuth client secret")
+    auth_url: str = Field(..., description="OAuth authorization URL")
+    token_url: str = Field(..., description="OAuth token exchange URL")
+    scopes: str = Field(..., description="OAuth scopes to request")
     created: datetime = Field(..., description="When provider was configured")
     metadata: Optional[dict] = Field(None, description="Custom provider metadata")
 

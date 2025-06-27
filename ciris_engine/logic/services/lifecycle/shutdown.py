@@ -194,3 +194,60 @@ class ShutdownService(ShutdownServiceProtocol, ServiceProtocol):
     async def wait_for_shutdown_async(self) -> None:
         """Wait for shutdown to be requested (async)."""
         await self._wait_for_shutdown()
+    
+    async def emergency_shutdown(
+        self, 
+        reason: str, 
+        timeout_seconds: int = 5
+    ) -> None:
+        """
+        Execute emergency shutdown without negotiation.
+        
+        This method is used by the emergency shutdown endpoint to force
+        immediate system termination with minimal cleanup.
+        
+        Args:
+            reason: Why emergency shutdown was triggered
+            timeout_seconds: Grace period before force kill (default 5s)
+        """
+        logger.critical(f"EMERGENCY SHUTDOWN: {reason}")
+        
+        # Set emergency flags
+        self._shutdown_requested = True
+        self._shutdown_reason = f"EMERGENCY: {reason}"
+        self._emergency_mode = True
+        
+        # Set shutdown event immediately
+        if self._shutdown_event:
+            self._shutdown_event.set()
+        
+        # Notify all handlers with timeout
+        try:
+            # Execute sync handlers first (quick)
+            self._execute_sync_handlers()
+            
+            # Execute async handlers with timeout
+            await asyncio.wait_for(
+                self._execute_async_handlers(),
+                timeout=timeout_seconds / 2  # Use half timeout for handlers
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Emergency shutdown handlers timed out")
+        except Exception as e:
+            logger.error(f"Error during emergency shutdown: {e}")
+        
+        # Force termination after timeout
+        async def force_kill():
+            await asyncio.sleep(timeout_seconds)
+            logger.critical("Emergency shutdown timeout reached - forcing termination")
+            import os
+            import signal
+            os.kill(os.getpid(), signal.SIGKILL)
+        
+        # Start force kill timer
+        asyncio.create_task(force_kill())
+        
+        # Try graceful exit first
+        logger.info("Attempting graceful exit...")
+        import sys
+        sys.exit(1)

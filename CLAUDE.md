@@ -128,9 +128,28 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - Stored as typed graph nodes with full validation
    - Enables temporal analysis of system evolution
 
-### 🚨 Current Focus: Documentation and Polish
+13. **Telemetry Enhancement**: COMPLETE!
+   - Added telemetry_summary to SystemSnapshot
+   - Implemented smart caching (1-minute TTL) in GraphTelemetryService
+   - Full resource tracking (tokens, cost, carbon footprint)
+   - Model-specific pricing (Llama: $0.10/1M, GPT-4o-mini: $0.15/$0.60 per 1M)
 
-**Status as of June 24, 2025**: Major refactor COMPLETE! All tests green!
+14. **SELF_HELP Tool**: IMPLEMENTED!
+   - Added to SecretsToolService
+   - Returns agent experience document from `docs/agent_experience.md`
+   - Simple, direct access for agent self-reflection
+
+15. **API Specification v2.0**: DESIGNED!
+   - Role-based access control (OBSERVER/ADMIN/AUTHORITY/ROOT)
+   - Config filtering for security (sensitive keys redacted)
+   - Emergency shutdown endpoint (cryptographically signed)
+   - Natural reflection of 19 services' capabilities
+   - No tool execution via API (agent autonomy preserved)
+   - Self-configuration as observation, not control
+
+### 🚨 Current Focus: API Implementation
+
+**Status as of June 27, 2025**: Ready to implement final API refactor and complete the system!
 
 ## Cleanup Action Plan
 
@@ -575,6 +594,25 @@ All other services (Time, Shutdown, Audit, Telemetry, etc.) are single-instance 
 3. **Buses for Multi-Provider**: Memory, LLM, WiseAuthority use ServiceRegistry
 4. **Direct for Single-Instance**: All others use direct references
 5. **Utilities Are Not Services**: DatabaseMaintenanceService, helpers, etc. are NOT services
+
+## Final Component: API Adapter
+
+The API adapter is the last piece to complete the CIRIS refactor. Once implemented, it will:
+
+1. **Expose all 19 services** through RESTful endpoints
+2. **Implement role-based access** (OBSERVER/ADMIN/AUTHORITY/ROOT)
+3. **Filter sensitive configuration** based on user role
+4. **Provide emergency shutdown** with cryptographic signatures
+5. **Enable rich observability** through WebSocket streams
+6. **Maintain agent autonomy** - interaction over control
+
+### Implementation Plan:
+1. Authentication & role management
+2. Config security & filtering
+3. Emergency shutdown endpoint
+4. Route refactoring for all services
+5. WebSocket streaming support
+6. Comprehensive testing
 
 ## Development Commands
 

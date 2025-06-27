@@ -70,8 +70,3 @@ class SearchTextResult(BaseModel):
     matches: List[SearchMatch] = Field(default_factory=list, description="List of matches")
     error: Optional[str] = Field(None, description="Error message if failed")
 
-class ToolResult(BaseModel):
-    """Generic tool result wrapper."""
-    success: bool = Field(..., description="Whether tool execution succeeded")
-    data: Optional[dict] = Field(None, description="Tool-specific result data")
-    error: Optional[str] = Field(None, description="Error message if failed")

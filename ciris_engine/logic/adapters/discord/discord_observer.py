@@ -9,7 +9,7 @@ from ciris_engine.schemas.runtime.models import TaskContext
 from ciris_engine.schemas.runtime.processing_context import ThoughtContext
 from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.logic.buses import BusManager
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.adapters.base_observer import BaseObserver
 from ciris_engine.logic.adapters.discord.discord_vision_helper import DiscordVisionHelper
 from datetime import datetime, timezone
@@ -206,33 +206,16 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             logger.info(f"  - Author name matches DEFAULT_WA '{wa_discord_user}': {msg.author_name == wa_discord_user}")
             logger.debug("Ignoring priority message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id)
 
-    def _create_task_context_with_extras(self, msg: DiscordMessage, extras: dict) -> ThoughtContext:
-        """Create a ThoughtContext with extra fields."""
-        from datetime import datetime, timezone
-        
-        # Create channel context for this Discord message
-        channel_context = create_channel_context(
+    def _create_task_context_with_extras(self, msg: DiscordMessage, extras: dict) -> TaskContext:
+        """Create a TaskContext with extra fields."""
+        # TaskContext only has these fields, extras are ignored
+        # This is fine since extras were meant for ThoughtContext
+        return TaskContext(
             channel_id=msg.channel_id,
-            channel_type="discord"
+            user_id=msg.author_id,
+            correlation_id=msg.message_id,
+            parent_task_id=None
         )
-        
-        context = ThoughtContext(
-            system_snapshot=SystemSnapshot(
-                channel_context=channel_context
-            ),
-            user_profiles={},
-            task_history=[],
-            initial_task_context=TaskContext(
-                channel_id=msg.channel_id,
-                user_id=msg.author_id,
-                correlation_id=msg.message_id,
-                parent_task_id=None
-            )
-        )
-        # Add extra fields
-        for key, value in extras.items():
-            setattr(context, key, value)
-        return context
 
     async def _handle_passive_observation(self, msg: DiscordMessage) -> None:
         from ciris_engine.logic.utils.constants import (
@@ -290,7 +273,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                         # Check if the referenced message contains a thought ID
                         ref_content = ref.resolved.content
                         logger.info(f"Referenced message content: {ref_content}")
-                        thought_id_pattern = r'\*\*Thought ID:\*\*\s*`([a-f0-9-]+)`'
+                        thought_id_pattern = r'Thought ID:\s*([a-zA-Z0-9_-]+)'
                         match = re.search(thought_id_pattern, ref_content)
                         if match:
                             referenced_thought_id = match.group(1)
@@ -306,7 +289,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             
             # If not a reply, check if the message itself mentions a thought ID
             if not referenced_thought_id:
-                thought_id_pattern = r'(?:thought\s+id|thought_id|re:\s*thought)[\s:]*([a-f0-9-]+)'
+                thought_id_pattern = r'(?:thought\s+id|thought_id|re:\s*thought)[\s:]*([a-zA-Z0-9_-]+)'
                 match = re.search(thought_id_pattern, msg.content, re.IGNORECASE)
                 if match:
                     referenced_thought_id = match.group(1)

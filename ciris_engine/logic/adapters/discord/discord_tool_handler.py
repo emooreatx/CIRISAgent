@@ -11,7 +11,7 @@ from ciris_engine.schemas.telemetry.core import (
     ServiceCorrelationStatus,
 )
 from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
-from ciris_engine.schemas.runtime.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult
+from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult, ToolExecutionStatus
 from ciris_engine.logic import persistence
 
 if TYPE_CHECKING:
@@ -118,13 +118,12 @@ class DiscordToolHandler:
             
             # Create ToolExecutionResult
             execution_result = ToolExecutionResult(
+                tool_name=tool_name,
+                status=ToolExecutionStatus.COMPLETED if result_dict.get("success", True) else ToolExecutionStatus.FAILED,
                 success=result_dict.get("success", True),
-                result=result_dict,
+                data=result_dict,
                 error=result_dict.get("error"),
-                execution_time=execution_time / 1000,  # Convert to seconds
-                adapter_id="discord",
-                output=None,
-                metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+                correlation_id=correlation_id or str(uuid.uuid4())
             )
             
             if correlation_id:
@@ -157,13 +156,12 @@ class DiscordToolHandler:
                 )
             
             return ToolExecutionResult(
+                tool_name=tool_name,
+                status=ToolExecutionStatus.FAILED,
                 success=False,
+                data=None,
                 error=str(e),
-                result=None,
-                execution_time=0,
-                adapter_id="discord",
-                output=None,
-                metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+                correlation_id=correlation_id or str(uuid.uuid4())
             )
     
     async def get_tool_result(self, correlation_id: str, timeout: int = 10) -> Optional[ToolExecutionResult]:

@@ -10,7 +10,10 @@ from datetime import datetime, timezone
 from ciris_engine.logic.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.schemas.runtime.messages import IncomingMessage, DiscordMessage
 from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
-from ciris_engine.schemas.runtime.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult
+from ciris_engine.schemas.adapters.tools import (
+    ToolInfo, ToolParameterSchema, ToolExecutionResult, 
+    ToolExecutionStatus, ToolResult
+)
 from ciris_engine.logic.services.lifecycle.time import TimeService
 
 
@@ -165,16 +168,19 @@ class TestDiscordAdapter:
     @pytest.mark.asyncio
     async def test_list_tools(self, adapter):
         """Test listing available tools."""
-        # Setup mock tool registry
+        # Setup mock tool registry with proper schema
         mock_tools = [
             ToolInfo(
-                tool_name="test_tool",
-                display_name="Test Tool",
+                name="test_tool",  # Changed from tool_name to name
                 description="A test tool",
+                parameters=ToolParameterSchema(
+                    type="object",
+                    properties={},
+                    required=[]
+                ),
                 category="testing",
-                adapter_id="discord",
-                adapter_type="discord",
-                parameters=[]  # Empty parameters list
+                cost=0.0,
+                when_to_use="Use this tool for testing"
             )
         ]
         
@@ -190,10 +196,12 @@ class TestDiscordAdapter:
     async def test_execute_tool(self, adapter):
         """Test executing a tool."""
         expected_result = ToolExecutionResult(
+            tool_name="test_tool",
+            status=ToolExecutionStatus.COMPLETED,
             success=True,
-            result="Test output",
-            execution_time=123.45,
-            adapter_id="discord"
+            data={"output": "Test output"},
+            error=None,
+            correlation_id="test-correlation-123"
         )
         
         with patch.object(adapter._tool_handler, 'execute_tool',
@@ -203,8 +211,9 @@ class TestDiscordAdapter:
                 parameters={"input": "test"}
             )
             
+            assert result.status == ToolExecutionStatus.COMPLETED
             assert result.success is True
-            assert result.result == "Test output"
+            assert result.data["output"] == "Test output"
             mock_execute.assert_called_once_with("test_tool", {"input": "test"})
     
     @pytest.mark.asyncio

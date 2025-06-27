@@ -14,7 +14,9 @@ from ciris_engine.schemas.services.authority_core import (
     DeferralApprovalContext
 )
 from ciris_engine.logic.adapters.discord.discord_reaction_handler import ApprovalStatus
-from ciris_engine.schemas.runtime.tools import ToolExecutionResult
+from ciris_engine.schemas.adapters.tools import (
+    ToolExecutionResult, ToolExecutionStatus, ToolResult
+)
 
 
 @pytest.fixture
@@ -309,12 +311,14 @@ class TestDiscordToolExecution:
     @pytest.mark.asyncio
     async def test_execute_tool_success(self, discord_adapter):
         """Test successful tool execution."""
-        # Mock tool execution
+        # Mock tool execution with proper schema
         mock_result = ToolExecutionResult(
+            tool_name="test_tool",
+            status=ToolExecutionStatus.COMPLETED,
             success=True,
-            result="Tool output",
-            execution_time=123.45,
-            adapter_id="discord"
+            data={"output": "Tool output"},
+            error=None,
+            correlation_id="test-correlation-123"
         )
         
         discord_adapter._tool_handler.execute_tool = AsyncMock(return_value=mock_result)
@@ -322,9 +326,9 @@ class TestDiscordToolExecution:
         # Execute tool
         result = await discord_adapter.execute_tool("test_tool", {"param": "value"})
         
+        assert result.status == ToolExecutionStatus.COMPLETED
         assert result.success is True
-        assert result.result == "Tool output"
-        assert result.execution_time == 123.45
+        assert result.data["output"] == "Tool output"
         
         # Check telemetry
         discord_adapter.bus_manager.memory.memorize_metric.assert_called()

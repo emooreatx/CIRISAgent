@@ -73,6 +73,22 @@ class IdentityVarianceReport(BaseModel):
         datetime: lambda v: v.isoformat()
     })
 
+class TemporalPattern(BaseModel):
+    """A time-based pattern detected in agent behavior."""
+    pattern_id: str = Field(..., description="Unique pattern identifier")
+    pattern_type: str = Field(..., description="Type: daily, weekly, hourly")
+    time_window: str = Field(..., description="Time window (e.g., '09:00-17:00', 'monday-friday')")
+    activity_description: str = Field(..., description="What happens during this time")
+    occurrence_count: int = Field(0, description="Times this pattern occurred")
+    confidence: float = Field(0.5, description="Pattern confidence (0.0-1.0)")
+    first_detected: datetime = Field(..., description="When pattern was first detected")
+    last_observed: datetime = Field(..., description="Most recent occurrence")
+    metrics: Dict[str, float] = Field(default_factory=dict, description="Associated metrics")
+    
+    model_config = ConfigDict(json_encoders={
+        datetime: lambda v: v.isoformat()
+    })
+
 class FeedbackLoopAnalysis(BaseModel):
     """Analysis from configuration feedback loop."""
     timestamp: datetime = Field(..., description="Analysis timestamp")

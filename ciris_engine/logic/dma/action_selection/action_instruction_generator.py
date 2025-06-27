@@ -81,10 +81,16 @@ class ActionInstructionGenerator:
         elif action_type == HandlerActionType.FORGET:
             # Special formatting for FORGET to show the node structure
             return (f"FORGET: {{\"node\": {{id: string, type: \"agent\"|\"user\"|\"channel\"|\"concept\", "
-                   f"scope: \"local\"|\"identity\"|\"environment\"}}, \"reason\": string (required)}}")
+                   f"scope: \"local\"|\"identity\"|\"environment\"}}, \"reason\": string (required)}}\n"
+                   f"For user nodes: Use numeric Discord IDs like 'user/537080239679864862' as the node id.")
             
         elif action_type == HandlerActionType.DEFER:
-            return f"DEFER: {schema_str}\nUse defer_until for time-based deferrals that auto-reactivate."
+            # Override the schema string to be more explicit about types
+            defer_schema = '{"reason": string (required), "context"?: Dict[str, str], "defer_until"?: ISO 8601 timestamp string}'
+            return (f"DEFER: {defer_schema}\n"
+                   f"defer_until must be ISO 8601 format: '2025-01-20T15:00:00Z'\n"
+                   f"context should be a dictionary: {{\"key\": \"value\"}}\n"
+                   f"Use defer_until for time-based deferrals that auto-reactivate.")
             
         elif action_type == HandlerActionType.REJECT:
             return f"REJECT: {schema_str}\nUse create_filter=true to prevent similar future requests."
@@ -93,9 +99,18 @@ class ActionInstructionGenerator:
             return self._generate_tool_schema()
             
         elif action_type == HandlerActionType.TASK_COMPLETE:
-            return (f"TASK_COMPLETE: {schema_str}\n"
+            # Override schema to be explicit about context type
+            complete_schema = '{"completion_reason": string (default: "Task completed successfully"), "context"?: Dict[str, str], "positive_moment"?: string}'
+            return (f"TASK_COMPLETE: {complete_schema}\n"
+                   f"context should be a dictionary: {{\"task_id\": \"123\", \"status\": \"done\"}}\n"
                    f"Use when task is done, impossible, unnecessary, or cannot be actioned. "
                    f"This is the preferred resolution for problematic tasks.")
+        
+        elif action_type == HandlerActionType.OBSERVE:
+            # Override schema to be explicit about context type
+            observe_schema = '{"channel_id"?: string, "channel_context"?: object, "active": boolean (default: false), "context"?: Dict[str, str]}'
+            return (f"OBSERVE: {observe_schema}\n"
+                   f"context should be a dictionary: {{\"reason\": \"need more info\", \"focus\": \"user intent\"}}")
         
         else:
             # For all other actions, use the dynamically generated schema
@@ -103,28 +118,52 @@ class ActionInstructionGenerator:
     
     def _format_memory_action_schema(self, action_name: str) -> str:
         """Format schema for memory-related actions (MEMORIZE, RECALL)."""
-        base_schema = (f"{action_name}: {{\"node\": {{id: string (unique identifier), "
-                      f"type: \"agent\"|\"user\"|\"channel\"|\"concept\", "
-                      f"scope: \"local\"|\"identity\"|\"environment\"")
-        
         if action_name == "MEMORIZE":
-            base_schema += ", attributes?: object (data to store)"
+            base_schema = (f"MEMORIZE: {{\"node\": {{id: string (unique identifier), "
+                          f"type: \"agent\"|\"user\"|\"channel\"|\"concept\", "
+                          f"scope: \"local\"|\"identity\"|\"environment\", "
+                          f"attributes?: object (data to store)}}}}")
+            
+            # Add guidance for MEMORIZE
+            guidance = [
+                f"\nFor type: use 'user' for user data, 'channel' for channel data, "
+                f"'concept' for facts/beliefs/knowledge, 'agent' for agent data.",
+                f"For scope: use 'local' for user/channel data, 'identity' for personal "
+                f"facts/beliefs, 'environment' for external/internet data.",
+                f"\nIMPORTANT for user nodes: ALWAYS use numeric Discord IDs (e.g., 'user/537080239679864862') "
+                f"as the primary identifier, NOT usernames. Usernames can change, but numeric IDs are permanent. "
+                f"Store the username in attributes if needed, but the node ID must be the numeric user ID."
+            ]
+            
+            return base_schema + "\n".join(guidance)
+            
+        elif action_name == "RECALL":
+            # RECALL has a completely different schema
+            base_schema = (f"RECALL: {{\"query\"?: string (search text), "
+                          f"\"node_type\"?: \"agent\"|\"user\"|\"channel\"|\"concept\", "
+                          f"\"node_id\"?: string (specific node ID), "
+                          f"\"scope\"?: \"local\"|\"identity\"|\"environment\", "
+                          f"\"limit\"?: integer (default: 10)}}")
+            
+            # Add guidance for RECALL
+            guidance = [
+                f"\nUse query to search by text, node_type to filter by type, "
+                f"node_id to fetch a specific node.",
+                f"At least one of query, node_type, or node_id should be provided.",
+                f"For scope: use 'local' for user/channel data, 'identity' for personal "
+                f"facts/beliefs, 'environment' for external/internet data.",
+                f"\nFor user lookups: Use numeric Discord IDs like 'user/537080239679864862' for node_id. "
+                f"If you only have a username, use query with node_type='user' to search."
+            ]
+            
+            return base_schema + "\n".join(guidance)
         
-        base_schema += "}}"
-        
-        # Add guidance
-        guidance = [
-            f"\nFor type: use 'user' for user data, 'channel' for channel data, "
-            f"'concept' for facts/beliefs/knowledge, 'agent' for agent data.",
-            f"For scope: use 'local' for user/channel data, 'identity' for personal "
-            f"facts/beliefs, 'environment' for external/internet data."
-        ]
-        
-        return base_schema + "\n".join(guidance)
+        # Should not reach here
+        return f"{action_name}: {{}}"
     
     def _generate_tool_schema(self) -> str:
         """Generate dynamic tool schema based on available tools."""
-        base_schema = "TOOL: {\"name\": string (tool name), \"parameters\": object}"
+        base_schema = "TOOL: {\"name\": string (tool name), \"parameters\": Dict[str, str|int|float|bool|List[str]|Dict[str,str]]}"
         
         # If we have a service registry, try to get tools from all tool services
         if self.service_registry:
@@ -137,47 +176,78 @@ class ActionInstructionGenerator:
                 async def get_all_tools() -> Dict[str, Any]:
                     if not self.service_registry:
                         return {}
+                    
+                    # Get ALL tool services registered in the system
                     tool_services = self.service_registry.get_services_by_type('tool')
                     all_tools = {}
                     
                     # Aggregate tools from all services
                     for tool_service in tool_services:
                         try:
-                            service_tools = await tool_service.get_available_tools()
-                            # Add service identifier to tool info
+                            # Try to get detailed tool info first
                             service_name = getattr(tool_service, 'adapter_name', type(tool_service).__name__)
                             
-                            if isinstance(service_tools, list):
-                                # If it returns a list of names, convert to dict
-                                for tool_name in service_tools:
-                                    all_tools[tool_name] = {
-                                        'name': tool_name,
-                                        'description': 'No description available',
-                                        'service': service_name
-                                    }
-                            elif isinstance(service_tools, dict):
-                                # If it returns a dict with details
-                                for tool_name, tool_info in service_tools.items():
+                            # Check if service has get_all_tool_info method
+                            if hasattr(tool_service, 'get_all_tool_info'):
+                                tool_infos = await tool_service.get_all_tool_info()
+                                
+                                # Process ToolInfo objects
+                                for tool_info in tool_infos:
+                                    tool_name = tool_info.name
+                                    
                                     # Create unique key if tool name exists in multiple services
                                     if tool_name in all_tools:
                                         tool_key = f"{tool_name}_{service_name}"
                                     else:
                                         tool_key = tool_name
                                     
-                                    # Enhance tool info with service metadata
+                                    # Extract info from ToolInfo object
                                     enhanced_info = {
                                         'name': tool_name,
                                         'service': service_name,
-                                        'description': tool_info.get('description', 'No description') if isinstance(tool_info, dict) else 'No description',
+                                        'description': tool_info.description,
+                                        'parameters': tool_info.parameters.model_dump() if tool_info.parameters else {},
                                     }
                                     
-                                    if isinstance(tool_info, dict):
-                                        if 'parameters' in tool_info:
-                                            enhanced_info['parameters'] = tool_info['parameters']
-                                        if 'when_to_use' in tool_info:
-                                            enhanced_info['when_to_use'] = tool_info['when_to_use']
+                                    if hasattr(tool_info, 'when_to_use') and tool_info.when_to_use:
+                                        enhanced_info['when_to_use'] = tool_info.when_to_use
                                     
                                     all_tools[tool_key] = enhanced_info
+                            else:
+                                # Fallback to get_available_tools
+                                service_tools = await tool_service.get_available_tools()
+                                
+                                if isinstance(service_tools, list):
+                                    # If it returns a list of names, convert to dict
+                                    for tool_name in service_tools:
+                                        all_tools[tool_name] = {
+                                            'name': tool_name,
+                                            'description': 'No description available',
+                                            'service': service_name
+                                        }
+                                elif isinstance(service_tools, dict):
+                                    # If it returns a dict with details
+                                    for tool_name, tool_info in service_tools.items():
+                                        # Create unique key if tool name exists in multiple services
+                                        if tool_name in all_tools:
+                                            tool_key = f"{tool_name}_{service_name}"
+                                        else:
+                                            tool_key = tool_name
+                                        
+                                        # Enhance tool info with service metadata
+                                        enhanced_info = {
+                                            'name': tool_name,
+                                            'service': service_name,
+                                            'description': tool_info.get('description', 'No description') if isinstance(tool_info, dict) else 'No description',
+                                        }
+                                        
+                                        if isinstance(tool_info, dict):
+                                            if 'parameters' in tool_info:
+                                                enhanced_info['parameters'] = tool_info['parameters']
+                                            if 'when_to_use' in tool_info:
+                                                enhanced_info['when_to_use'] = tool_info['when_to_use']
+                                        
+                                        all_tools[tool_key] = enhanced_info
                                     
                         except Exception as e:
                             logger.warning(f"Failed to get tools from {type(tool_service).__name__}: {e}")
@@ -242,7 +312,12 @@ Available tools (check with tool service for current list):
         
         params = []
         for prop_name, prop_schema in properties.items():
-            prop_type = prop_schema.get("type", "any")
+            # Handle complex types (anyOf, oneOf, allOf)
+            prop_type = self._extract_type(prop_schema)
+            
+            # Add description if available
+            description = prop_schema.get("description", "")
+            
             if prop_name in required:
                 params.append(f'"{prop_name}": {prop_type} (required)')
             else:
@@ -253,6 +328,44 @@ Available tools (check with tool service for current list):
                     params.append(f'"{prop_name}"?: {prop_type}')
         
         return "{" + ", ".join(params) + "}"
+    
+    def _extract_type(self, prop_schema: Dict[str, Any]) -> str:
+        """Extract type information from a property schema, handling complex types."""
+        # Direct type
+        if "type" in prop_schema:
+            base_type = prop_schema["type"]
+            
+            # Handle object types with additionalProperties
+            if base_type == "object" and "additionalProperties" in prop_schema:
+                add_props = prop_schema["additionalProperties"]
+                if isinstance(add_props, dict) and add_props.get("type") == "string":
+                    return "Dict[str, str]"
+            
+            return base_type
+        
+        # Handle anyOf (nullable types)
+        if "anyOf" in prop_schema:
+            types = []
+            for option in prop_schema["anyOf"]:
+                if option.get("type") == "null":
+                    continue  # Skip null option
+                elif option.get("type") == "object":
+                    # Check if it's a Dict[str, str]
+                    if "additionalProperties" in option:
+                        add_props = option["additionalProperties"]
+                        if isinstance(add_props, dict) and add_props.get("type") == "string":
+                            types.append("Dict[str, str]")
+                        else:
+                            types.append("object")
+                    else:
+                        types.append("object")
+                else:
+                    types.append(option.get("type", "any"))
+            
+            return types[0] if len(types) == 1 else " | ".join(types)
+        
+        # Handle oneOf, allOf similarly if needed
+        return "any"
     
     def get_action_guidance(self, action_type: HandlerActionType) -> str:
         """Get specific guidance for an action type."""

@@ -10,7 +10,7 @@ from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.schemas.services.filters_core import FilterResult, FilterPriority
 
 from ciris_engine.logic.buses import BusManager
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from datetime import datetime, timezone
 
@@ -230,7 +230,7 @@ class BaseObserver(Generic[MessageT], ABC):
             task = Task(
                 task_id=str(uuid.uuid4()),
                 channel_id=getattr(msg, "channel_id", "system"),
-                description=f"Respond to message from @{msg.author_name} in #{msg.channel_id}: '{msg.content}'",  # type: ignore[attr-defined]
+                description=f"Respond to message from @{msg.author_name} (ID: {msg.author_id}) in #{msg.channel_id}: '{msg.content}'",  # type: ignore[attr-defined]
                 status=TaskStatus.PENDING,
                 priority=0,
                 created_at=self.time_service.now_iso(),
@@ -249,12 +249,13 @@ class BaseObserver(Generic[MessageT], ABC):
             conversation_lines = ["=== CONVERSATION HISTORY (Last 10 messages) ==="]
             for i, hist_msg in enumerate(self._history[-PASSIVE_CONTEXT_LIMIT:], 1):
                 author = getattr(hist_msg, "author_name", "Unknown")
+                author_id = getattr(hist_msg, "author_id", "unknown")
                 content = getattr(hist_msg, "content", "")
                 timestamp = getattr(hist_msg, "timestamp", "")
-                conversation_lines.append(f"{i}. @{author}: {content}")
+                conversation_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
             
             conversation_lines.append("\n=== CURRENT MESSAGE TO RESPOND TO ===")
-            conversation_lines.append(f"@{msg.author_name}: {msg.content}")  # type: ignore[attr-defined]
+            conversation_lines.append(f"@{msg.author_name} (ID: {msg.author_id}): {msg.content}")  # type: ignore[attr-defined]
             conversation_lines.append("=" * 40)
             
             thought_content = "\n".join(conversation_lines)
@@ -297,7 +298,7 @@ class BaseObserver(Generic[MessageT], ABC):
             task = Task(
                 task_id=str(uuid.uuid4()),
                 channel_id=getattr(msg, "channel_id", "system"),
-                description=f"PRIORITY: Respond to {filter_result.priority.value} message from @{msg.author_name}: '{msg.content}'",  # type: ignore[attr-defined]
+                description=f"PRIORITY: Respond to {filter_result.priority.value} message from @{msg.author_name} (ID: {msg.author_id}): '{msg.content}'",  # type: ignore[attr-defined]
                 status=TaskStatus.PENDING,
                 priority=task_priority,
                 created_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
@@ -319,7 +320,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 created_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 round_number=0,
-                content=f"PRIORITY ({filter_result.priority.value}): User @{msg.author_name} said: {msg.content} | Filter: {filter_result.reasoning}",  # type: ignore[attr-defined]
+                content=f"PRIORITY ({filter_result.priority.value}): User @{msg.author_name} (ID: {msg.author_id}) said: {msg.content} | Filter: {filter_result.reasoning}",  # type: ignore[attr-defined]
                 context=ThoughtModelContext(
                     task_id=task.task_id,
                     channel_id=getattr(msg, "channel_id", None),

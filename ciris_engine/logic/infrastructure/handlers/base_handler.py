@@ -14,7 +14,7 @@ from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.audit.core import AuditEventType
 from ciris_engine.logic.utils.channel_utils import extract_channel_id
 
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.utils.shutdown_manager import (
     request_global_shutdown, 

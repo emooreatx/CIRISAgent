@@ -13,9 +13,7 @@ from ciris_engine.schemas.runtime.messages import DiscordMessage
 
 from ciris_engine.logic.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.logic.adapters.discord.discord_observer import DiscordObserver
-from ciris_engine.logic.adapters.discord.discord_tools import register_discord_tools
-from ciris_engine.logic.services.runtime.secrets_service import register_secrets_tools
-from ciris_engine.logic.adapters.tool_registry import ToolRegistry
+# from ciris_engine.logic.adapters.discord.discord_tools import register_discord_tools
 
 logger = logging.getLogger(__name__)
 
@@ -93,11 +91,12 @@ class DiscordPlatform(Service):
         # Initialize observer as None - will be created in start() when services are ready
         self.discord_observer = None
 
-        self.tool_registry = ToolRegistry()
-        register_discord_tools(self.tool_registry, self.client)
+        # Tool registry removed - tools are handled through ToolBus
+        # self.tool_registry = ToolRegistry()
+        # register_discord_tools(self.tool_registry, self.client)
 
-        if hasattr(self.discord_adapter, 'tool_registry'):
-            self.discord_adapter.tool_registry = self.tool_registry
+        # if hasattr(self.discord_adapter, 'tool_registry'):
+        #     self.discord_adapter.tool_registry = self.tool_registry
 
         self._discord_client_task: Optional[asyncio.Task] = None
     
@@ -179,9 +178,7 @@ class DiscordPlatform(Service):
             time_service=time_service
         )
         
-        # Register secrets tools now that we have the service
-        if secrets_service and time_service:
-            register_secrets_tools(self.tool_registry, secrets_service, time_service)
+        # Secrets tools are now registered globally by SecretsToolService
         
         if hasattr(self.discord_observer, 'start'):
             await self.discord_observer.start()
@@ -231,9 +228,31 @@ class DiscordPlatform(Service):
                     task_name = task.get_name() if hasattr(task, 'get_name') else 'Unnamed task'
                     logger.error(f"DiscordPlatform: Task '{task_name}' exited with error: {task.exception()}", exc_info=task.exception())
                     if task is self._discord_client_task and not agent_run_task.done():
-                        agent_run_task.cancel()
-                        try: await agent_run_task
-                        except asyncio.CancelledError: pass
+                        # Discord client failed - restart it
+                        logger.warning("Discord client task failed. Attempting to restart Discord connection...")
+                        # Clear the failed task
+                        self._discord_client_task = None
+                        # Try to restart the Discord client
+                        try:
+                            # Close the client if it's still open
+                            if self.client and not self.client.is_closed():
+                                await self.client.close()
+                            # Wait a bit before reconnecting
+                            await asyncio.sleep(5.0)
+                            # Create a new task to restart the client
+                            self._discord_client_task = asyncio.create_task(
+                                self.client.start(self.token), 
+                                name="DiscordClientTask"
+                            )
+                            logger.info("Discord client restart task created")
+                            # Add the new task to the set we're waiting on
+                            tasks.add(self._discord_client_task)
+                        except Exception as e:
+                            logger.error(f"Failed to restart Discord client: {e}")
+                            # Only shutdown if we can't restart
+                            agent_run_task.cancel()
+                            try: await agent_run_task
+                            except asyncio.CancelledError: pass
 
         except discord.LoginFailure as e:
             logger.error(f"DiscordPlatform: Discord login failed: {e}. Check token and intents.", exc_info=True)

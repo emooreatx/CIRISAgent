@@ -1,6 +1,6 @@
 from typing import List
 import logging
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.schemas.secrets.core import SecretReference
 
 logger = logging.getLogger(__name__)

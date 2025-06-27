@@ -15,7 +15,7 @@ from ciris_engine.schemas.telemetry.core import (
     ServiceResponseData,
 )
 from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
-from ciris_engine.schemas.runtime.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult
+from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.services.authority_core import (
     DeferralRequest, DeferralResponse, GuidanceRequest, GuidanceResponse,
@@ -695,7 +695,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             
             # Send the embed with a plain text notification
             message_text = (
-                f"@here **DEFERRAL REQUEST (ID: {correlation_id})**\n"
+                f"**DEFERRAL REQUEST (ID: {correlation_id})**\n"
                 f"Task ID: {deferral.task_id}\n"
                 f"Thought ID: {deferral.thought_id}\n"
                 f"Reason: {deferral.reason}"
@@ -716,8 +716,21 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             if not channel:
                 raise RuntimeError(f"Deferral channel {deferral_channel_id} not found")
             
-            # Send message with embed
-            sent_message = await channel.send(content=message_text, embed=embed)
+            # Split the message if needed using the message handler's method
+            chunks = self._message_handler._split_message(message_text, max_length=1900)
+            
+            # Send the first chunk with the embed
+            if chunks:
+                sent_message = await channel.send(content=chunks[0], embed=embed)
+                
+                # Send additional chunks if any (without embed)
+                for i in range(1, len(chunks)):
+                    continuation = f"*(Continued from deferral {correlation_id})*\n\n{chunks[i]}"
+                    await channel.send(content=continuation)
+                    await asyncio.sleep(0.5)  # Small delay between messages
+            else:
+                # Fallback if no chunks
+                sent_message = await channel.send(content="**DEFERRAL REQUEST** (content too long)", embed=embed)
             
             # Add reaction UI for WAs to respond
             await sent_message.add_reaction("✅")  # Approve
@@ -953,6 +966,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         
         self._channel_manager.attach_to_client(client)
         self._connection_manager.set_client(client)
+        
+        # Attach reaction event handler
+        @client.event
+        async def on_raw_reaction_add(payload: discord.RawReactionActionEvent) -> None:
+            await self.on_raw_reaction_add(payload)
         
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         """Handle raw reaction add events.

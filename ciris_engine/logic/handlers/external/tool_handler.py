@@ -5,7 +5,7 @@ from ciris_engine.schemas.actions import ToolParams
 from ciris_engine.schemas.runtime.enums import ThoughtStatus, HandlerActionType
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.services.tools_core import ToolResult, ToolExecutionStatus
+from ciris_engine.schemas.adapters.tools import ToolResult, ToolExecutionStatus
 from ciris_engine.logic import persistence
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
 from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought

@@ -150,13 +150,15 @@ class ShutdownProcessor(BaseProcessor):
                     self.shutdown_result = {
                         "status": "completed",
                         "action": "shutdown_accepted",
-                        "message": "Agent acknowledged shutdown"
+                        "message": "Agent acknowledged shutdown",
+                        "shutdown_ready": True  # Add this field that main processor checks
                     }
                     logger.info("✓ Shutdown task completed - agent accepted shutdown")
                     # Signal the runtime to proceed with shutdown
                     logger.info("Shutdown processor signaling completion to runtime")
                 else:
                     # Already reported completion, just wait
+                    logger.debug(f"Shutdown already complete, self.shutdown_complete = {self.shutdown_complete}")
                     import asyncio
                     await asyncio.sleep(1.0)
                 return self.shutdown_result

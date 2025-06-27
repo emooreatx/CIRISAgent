@@ -1,0 +1,264 @@
+"""
+Authentication and authorization schemas for CIRIS API v2.0.
+
+Implements role-based access control with clear hierarchy:
+OBSERVER < ADMIN < AUTHORITY < ROOT
+"""
+from enum import Enum
+from typing import Set, Optional, Dict, Any, List
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field
+
+class UserRole(str, Enum):
+    """User roles in order of increasing privilege."""
+    OBSERVER = "OBSERVER"
+    ADMIN = "ADMIN"
+    AUTHORITY = "AUTHORITY"
+    ROOT = "ROOT"
+    
+    @property
+    def level(self) -> int:
+        """Numeric privilege level for comparison."""
+        return {
+            "OBSERVER": 1,
+            "ADMIN": 2,
+            "AUTHORITY": 3,
+            "ROOT": 4
+        }[self.value]
+    
+    def has_permission(self, required_role: "UserRole") -> bool:
+        """Check if this role meets or exceeds required role."""
+        return self.level >= required_role.level
+
+class Permission(str, Enum):
+    """Granular permissions for fine-grained access control."""
+    # Observer permissions
+    VIEW_MESSAGES = "view_messages"
+    VIEW_TELEMETRY = "view_telemetry"
+    VIEW_REASONING = "view_reasoning"
+    VIEW_CONFIG = "view_config"
+    VIEW_MEMORY = "view_memory"
+    VIEW_AUDIT = "view_audit"
+    VIEW_TOOLS = "view_tools"
+    
+    # Admin permissions
+    MANAGE_CONFIG = "manage_config"
+    RUNTIME_CONTROL = "runtime_control"
+    MANAGE_INCIDENTS = "manage_incidents"
+    MANAGE_TASKS = "manage_tasks"
+    MANAGE_FILTERS = "manage_filters"
+    TRIGGER_ANALYSIS = "trigger_analysis"
+    
+    # Authority permissions
+    RESOLVE_DEFERRALS = "resolve_deferrals"
+    PROVIDE_GUIDANCE = "provide_guidance"
+    GRANT_PERMISSIONS = "grant_permissions"
+    
+    # Root permissions
+    FULL_ACCESS = "full_access"
+    EMERGENCY_SHUTDOWN = "emergency_shutdown"
+    MANAGE_SENSITIVE_CONFIG = "manage_sensitive_config"
+
+# Role to permissions mapping
+ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
+    UserRole.OBSERVER: {
+        Permission.VIEW_MESSAGES,
+        Permission.VIEW_TELEMETRY,
+        Permission.VIEW_REASONING,
+        Permission.VIEW_CONFIG,
+        Permission.VIEW_MEMORY,
+        Permission.VIEW_AUDIT,
+        Permission.VIEW_TOOLS,
+    },
+    UserRole.ADMIN: {
+        # Includes all OBSERVER permissions
+        Permission.VIEW_MESSAGES,
+        Permission.VIEW_TELEMETRY,
+        Permission.VIEW_REASONING,
+        Permission.VIEW_CONFIG,
+        Permission.VIEW_MEMORY,
+        Permission.VIEW_AUDIT,
+        Permission.VIEW_TOOLS,
+        # Plus admin permissions
+        Permission.MANAGE_CONFIG,
+        Permission.RUNTIME_CONTROL,
+        Permission.MANAGE_INCIDENTS,
+        Permission.MANAGE_TASKS,
+        Permission.MANAGE_FILTERS,
+        Permission.TRIGGER_ANALYSIS,
+    },
+    UserRole.AUTHORITY: {
+        # Includes all ADMIN permissions
+        Permission.VIEW_MESSAGES,
+        Permission.VIEW_TELEMETRY,
+        Permission.VIEW_REASONING,
+        Permission.VIEW_CONFIG,
+        Permission.VIEW_MEMORY,
+        Permission.VIEW_AUDIT,
+        Permission.VIEW_TOOLS,
+        Permission.MANAGE_CONFIG,
+        Permission.RUNTIME_CONTROL,
+        Permission.MANAGE_INCIDENTS,
+        Permission.MANAGE_TASKS,
+        Permission.MANAGE_FILTERS,
+        Permission.TRIGGER_ANALYSIS,
+        # Plus authority permissions
+        Permission.RESOLVE_DEFERRALS,
+        Permission.PROVIDE_GUIDANCE,
+        Permission.GRANT_PERMISSIONS,
+    },
+    UserRole.ROOT: {
+        Permission.FULL_ACCESS,
+        Permission.EMERGENCY_SHUTDOWN,
+        Permission.MANAGE_SENSITIVE_CONFIG,
+    }
+}
+
+class AuthContext(BaseModel):
+    """Authentication context for API requests."""
+    user_id: str = Field(..., description="Unique user identifier")
+    role: UserRole = Field(..., description="User's role")
+    permissions: Set[Permission] = Field(..., description="Granted permissions")
+    api_key_id: Optional[str] = Field(None, description="API key ID if using key auth")
+    session_id: Optional[str] = Field(None, description="Session ID if using session auth")
+    authenticated_at: datetime = Field(..., description="When authentication occurred")
+    
+    class Config:
+        arbitrary_types_allowed = True
+    
+    # Request object (not serialized)
+    request: Optional[Any] = Field(None, exclude=True)
+    
+    @classmethod
+    def from_api_key(cls, api_key: "APIKey") -> "AuthContext":
+        """Create context from API key."""
+        return cls(
+            user_id=api_key.user_id,
+            role=api_key.role,
+            permissions=ROLE_PERMISSIONS.get(api_key.role, set()),
+            api_key_id=api_key.id,
+            authenticated_at=datetime.now(timezone.utc)
+        )
+    
+    def has_permission(self, permission: Permission) -> bool:
+        """Check if user has specific permission."""
+        if self.role == UserRole.ROOT:
+            return True  # ROOT has all permissions
+        return permission in self.permissions
+
+class APIKey(BaseModel):
+    """API key model for authentication."""
+    id: str = Field(..., description="Unique key identifier")
+    key_hash: str = Field(..., description="Hashed API key")
+    user_id: str = Field(..., description="User who owns this key")
+    role: UserRole = Field(..., description="Role granted by this key")
+    description: str = Field("", description="Human-readable description")
+    created_at: datetime = Field(..., description="When key was created")
+    last_used: Optional[datetime] = Field(None, description="Last time key was used")
+    expires_at: Optional[datetime] = Field(None, description="When key expires")
+    is_active: bool = Field(True, description="Whether key is active")
+    
+    def is_valid(self) -> bool:
+        """Check if key is currently valid."""
+        if not self.is_active:
+            return False
+        
+        if self.expires_at and self.expires_at < datetime.now(timezone.utc):
+            return False
+        
+        return True
+
+class LoginRequest(BaseModel):
+    """Request to authenticate with username/password."""
+    username: str = Field(..., description="Username")
+    password: str = Field(..., description="Password")
+
+class LoginResponse(BaseModel):
+    """Response after successful login."""
+    access_token: str = Field(..., description="JWT access token")
+    token_type: str = Field("bearer", description="Token type")
+    expires_in: int = Field(..., description="Token lifetime in seconds")
+    user_id: str = Field(..., description="Authenticated user ID")
+    role: UserRole = Field(..., description="User's role")
+
+class TokenRefreshRequest(BaseModel):
+    """Request to refresh access token."""
+    refresh_token: str = Field(..., description="Refresh token")
+
+class UserInfo(BaseModel):
+    """Current user information."""
+    user_id: str = Field(..., description="User ID")
+    username: str = Field(..., description="Username")
+    role: UserRole = Field(..., description="User's role")
+    permissions: List[str] = Field(..., description="List of permissions")
+    created_at: datetime = Field(..., description="Account creation time")
+    last_login: Optional[datetime] = Field(None, description="Last login time")
+
+
+class TokenResponse(BaseModel):
+    """Token information response."""
+    user_id: str
+    role: UserRole
+    scopes: List[str]
+    expires_at: Optional[datetime] = None
+
+
+class OAuth2StartRequest(BaseModel):
+    """OAuth2 flow start request."""
+    redirect_uri: Optional[str] = Field(
+        None,
+        description="Custom redirect URI after authentication"
+    )
+
+
+class OAuth2CallbackResponse(BaseModel):
+    """OAuth2 callback response with API key."""
+    access_token: str = Field(..., description="API key for accessing CIRIS API")
+    token_type: str = Field("Bearer", description="Token type")
+    expires_in: int = Field(..., description="Token expiration in seconds")
+    role: UserRole = Field(..., description="User role")
+    user_id: str = Field(..., description="User identifier")
+    provider: str = Field(..., description="OAuth provider used")
+    email: Optional[str] = Field(None, description="User email from OAuth provider")
+    name: Optional[str] = Field(None, description="User name from OAuth provider")
+
+
+class APIKeyCreateRequest(BaseModel):
+    """Request to create a new API key."""
+    role: UserRole = Field(..., description="Role for the API key")
+    description: Optional[str] = Field(
+        None,
+        description="Description of the key's purpose"
+    )
+    expires_in_days: Optional[int] = Field(
+        None,
+        description="Number of days until key expires (None = no expiration)"
+    )
+
+
+class APIKeyResponse(BaseModel):
+    """Response with created API key."""
+    api_key: str = Field(..., description="The generated API key (show only once!)")
+    role: UserRole = Field(..., description="Role assigned to the key")
+    expires_at: Optional[datetime] = Field(None, description="When the key expires")
+    description: Optional[str] = Field(None, description="Key description")
+    created_at: datetime = Field(..., description="When the key was created")
+    created_by: str = Field(..., description="User who created the key")
+
+
+class APIKeyInfo(BaseModel):
+    """API key information (without the actual key)."""
+    key_id: str = Field(..., description="Key identifier (partial)")
+    role: UserRole = Field(..., description="Role assigned to the key")
+    expires_at: Optional[datetime] = Field(None, description="When the key expires")
+    description: Optional[str] = Field(None, description="Key description")
+    created_at: datetime = Field(..., description="When the key was created")
+    created_by: str = Field(..., description="User who created the key")
+    last_used: Optional[datetime] = Field(None, description="Last time the key was used")
+    is_active: bool = Field(..., description="Whether the key is active")
+
+
+class APIKeyListResponse(BaseModel):
+    """List of API keys."""
+    api_keys: List[APIKeyInfo] = Field(..., description="List of API keys")
+    total: int = Field(..., description="Total number of keys")

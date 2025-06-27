@@ -4,9 +4,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel
 from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.utils import GraphQLContextProvider
-from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.schemas.runtime.models import Task
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TelemetrySummary
 from ciris_engine.schemas.services.graph_core import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery
 from ciris_engine.schemas.runtime.enums import TaskStatus
@@ -93,20 +93,39 @@ async def build_system_snapshot(
         channel_id, channel_context = safe_extract_channel_info(thought.context, "thought.context")
 
     if channel_id and memory_service:
-        channel_node = GraphNode(
-            id=f"channel/{channel_id}",
-            type=NodeType.CHANNEL,
-            scope=GraphScope.LOCAL,
-            attributes={}  # Required field
-        )
-        query = MemoryQuery(
-            node_id=f"channel/{channel_id}",
-            scope=GraphScope.LOCAL,
-            type=NodeType.CHANNEL,
-            include_edges=False,
-            depth=1
-        )
-        await memory_service.recall(query)
+        try:
+            # First try direct lookup for performance
+            query = MemoryQuery(
+                node_id=f"channel/{channel_id}",
+                scope=GraphScope.LOCAL,
+                type=NodeType.CHANNEL,
+                include_edges=False,
+                depth=1
+            )
+            channel_nodes = await memory_service.recall(query)
+            
+            # If not found, try search
+            if not channel_nodes:
+                from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
+                search_filter = MemorySearchFilter(
+                    node_types=[NodeType.CHANNEL],
+                    scopes=[GraphScope.LOCAL],
+                    limit=10
+                )
+                # Search by channel ID in attributes
+                search_results = await memory_service.search(
+                    query=channel_id,
+                    filters=search_filter
+                )
+                # Update channel_context if we found channel info
+                for node in search_results:
+                    if node.attributes:
+                        attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
+                        if attrs.get('channel_id') == channel_id or node.id == f"channel/{channel_id}":
+                            # Found the channel, could extract more context here if needed
+                            break
+        except Exception as e:
+            logger.debug(f"Failed to retrieve channel context for {channel_id}: {e}")
     
     # Retrieve agent identity from graph - SINGLE CALL at snapshot generation
     identity_data: dict = {}
@@ -261,6 +280,15 @@ async def build_system_snapshot(
         except Exception as e:
             logger.warning(f"Failed to collect service health status: {e}")
 
+    # Get telemetry summary for resource usage
+    telemetry_summary = None
+    if telemetry_service:
+        try:
+            telemetry_summary = await telemetry_service.get_telemetry_summary()
+            logger.debug("Successfully retrieved telemetry summary")
+        except Exception as e:
+            logger.warning(f"Failed to get telemetry summary: {e}")
+    
     context_data = {
         "current_task_details": current_task_summary,
         "current_thought_summary": thought_summary,
@@ -283,6 +311,7 @@ async def build_system_snapshot(
         "service_health": service_health,
         "circuit_breaker_status": circuit_breaker_status,
         "resource_alerts": resource_alerts,  # CRITICAL mission-critical alerts
+        "telemetry_summary": telemetry_summary,  # Resource usage data
         **secrets_data,
     }
 

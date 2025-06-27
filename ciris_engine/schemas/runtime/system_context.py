@@ -124,6 +124,12 @@ class SystemSnapshot(BaseModel):
         description="User profile information"
     )
     
+    # Telemetry summary for resource usage
+    telemetry_summary: Optional['TelemetrySummary'] = Field(
+        None,
+        description="Aggregated telemetry data for resource usage tracking"
+    )
+    
     model_config = ConfigDict(extra = "forbid")  # Be strict about fields to catch misuse
 
 class TaskSummary(BaseModel):
