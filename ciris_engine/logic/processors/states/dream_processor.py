@@ -24,7 +24,8 @@ from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetrySe
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.buses.communication_bus import CommunicationBus
 from ciris_engine.logic.processors.core.base_processor import BaseProcessor
-from ciris_engine.schemas.processors.base import ProcessingResult, MetricsUpdate
+from ciris_engine.schemas.processors.base import MetricsUpdate
+from ciris_engine.schemas.processors.results import DreamResult
 from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
 
@@ -1184,7 +1185,7 @@ class DreamProcessor(BaseProcessor):
         """Check if this processor can handle the current state."""
         return state == AgentState.DREAM
     
-    async def process(self, round_number: int) -> ProcessingResult:
+    async def process(self, round_number: int) -> DreamResult:
         """Execute one round of dream processing."""
         # Use our process_round method
         metrics = await self.process_round(round_number)
@@ -1197,13 +1198,24 @@ class DreamProcessor(BaseProcessor):
             additional=metrics
         ))
         
-        # Return processing result
-        return ProcessingResult(
-            success=metrics.get("errors", 0) == 0,
-            items_processed=metrics.get("thoughts_processed", 0),
+        # Return dream result
+        duration = metrics.get("duration_seconds", 0.0)
+        if duration == 0.0:
+            # Calculate if not in metrics
+            start_time = self.metrics.start_time or self.time_service.now()
+            duration = (self.time_service.now() - start_time).total_seconds()
+            
+        # Check if dream is complete based on phase and duration
+        dream_complete = False
+        if self.current_session and self.current_session.phase == DreamPhase.EXITING:
+            # Check if minimum duration has passed
+            session_duration = (self._get_current_time() - self.current_session.actual_start).total_seconds()
+            dream_complete = session_duration >= (self.min_dream_duration * 60)
+            
+        return DreamResult(
+            thoughts_processed=metrics.get("thoughts_processed", 0),
             errors=metrics.get("errors", 0),
-            state_transition_requested=None,  # Dream manages its own duration
-            additional_data=metrics
+            duration_seconds=duration
         )
     
     def should_enter_dream_state(self, idle_seconds: float, min_idle_threshold: float = 300) -> bool:

@@ -47,7 +47,36 @@ class WiseBus(BaseBus[WiseAuthorityService]):
             return False
             
         try:
-            result = await service.send_deferral(context)
+            # Convert DeferralContext to DeferralRequest
+            from ciris_engine.schemas.services.authority_core import DeferralRequest
+            
+            # Handle defer_until - it may be None
+            defer_until = None
+            if context.defer_until:
+                # If it's already a datetime, use it directly
+                if hasattr(context.defer_until, 'isoformat'):
+                    defer_until = context.defer_until
+                else:
+                    # Try to parse as string
+                    from datetime import datetime
+                    try:
+                        defer_until = datetime.fromisoformat(str(context.defer_until).replace('Z', '+00:00'))
+                    except:
+                        defer_until = self._time_service.now()
+            else:
+                # Default to now + 1 hour if not specified
+                from datetime import timedelta
+                defer_until = self._time_service.now() + timedelta(hours=1)
+            
+            deferral_request = DeferralRequest(
+                task_id=context.task_id,
+                thought_id=context.thought_id,
+                reason=context.reason,
+                defer_until=defer_until,
+                context=context.metadata  # Map metadata to context
+            )
+            
+            result = await service.send_deferral(deferral_request)
             return bool(result)
         except Exception as e:
             logger.error(f"Failed to send deferral: {e}", exc_info=True)

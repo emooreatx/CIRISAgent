@@ -5,7 +5,7 @@ Replaces Dict[str, Any] with properly typed structures.
 """
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ThoughtContext, ConscienceResult
@@ -99,8 +99,7 @@ class DMAInputData(BaseModel):
             return self.system_snapshot.last_audit_verification.result == "valid"
         return True  # Assume valid if no verification data
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DMAContext(BaseModel):
     """Additional context for DMA processing."""
@@ -135,8 +134,7 @@ class DMAContext(BaseModel):
         description="Applicable community guidelines"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DMADecision(BaseModel):
     """A decision made by a DMA."""
@@ -150,8 +148,7 @@ class DMADecision(BaseModel):
     factors_considered: List[str] = Field(default_factory=list, description="Factors in decision")
     alternatives_evaluated: List[str] = Field(default_factory=list, description="Alternatives considered")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class PrincipleEvaluation(BaseModel):
     """Evaluation of ethical principles."""
@@ -164,8 +161,7 @@ class PrincipleEvaluation(BaseModel):
     violation_details: Dict[str, str] = Field(default_factory=dict, description="Details per violation")
     mitigation_suggestions: List[str] = Field(default_factory=list, description="How to mitigate")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CommonSenseEvaluation(BaseModel):
     """Evaluation of common sense aspects."""
@@ -177,8 +173,7 @@ class CommonSenseEvaluation(BaseModel):
     identified_risks: List[Dict[str, str]] = Field(default_factory=list, description="Risks identified")
     risk_level: str = Field(..., description="Overall risk: negligible, low, medium, high, extreme")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DomainEvaluation(BaseModel):
     """Domain-specific evaluation."""
@@ -192,8 +187,7 @@ class DomainEvaluation(BaseModel):
     relevant_knowledge: List[str] = Field(default_factory=list, description="Relevant domain knowledge")
     recommendations: List[str] = Field(default_factory=list, description="Domain-specific recommendations")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class RecursiveReasoning(BaseModel):
     """Recursive ethical reasoning about the selection process itself."""
@@ -213,8 +207,7 @@ class RecursiveReasoning(BaseModel):
     selection_validated: bool = Field(..., description="Whether selection process was valid")
     validation_reasoning: str = Field(..., description="Why valid or not")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 # These are imported from other v1 schemas
 from ciris_engine.schemas.runtime.core import AgentIdentityRoot

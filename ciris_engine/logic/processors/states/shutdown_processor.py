@@ -10,6 +10,7 @@ from typing import Optional, List, TYPE_CHECKING, Any
 
 from ciris_engine.logic.processors.core.base_processor import BaseProcessor
 from ciris_engine.schemas.processors.states import AgentState
+from ciris_engine.schemas.processors.results import ShutdownResult
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtType, ThoughtStatus
 from ciris_engine.schemas.runtime.models import Task, Thought
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
@@ -69,12 +70,37 @@ class ShutdownProcessor(BaseProcessor):
         """We can always process shutdown state."""
         return state == AgentState.SHUTDOWN
         
-    async def process(self, round_number: int) -> dict:
+    async def process(self, round_number: int) -> ShutdownResult:
         """
         Execute shutdown processing for one round.
         Creates a task on first round, monitors for completion.
         When called directly (not in main loop), also processes thoughts.
         """
+        start_time = self.time_service.now()
+        result = await self._process_shutdown(round_number)
+        duration = (self.time_service.now() - start_time).total_seconds()
+        
+        # Convert dict result to ShutdownResult
+        tasks_cleaned = result.get("tasks_cleaned", 0)
+        shutdown_ready = result.get("status") == "completed"
+        errors = 1 if result.get("status") == "error" else 0
+        
+        logger.debug(f"ShutdownProcessor.process: status={result.get('status')}, shutdown_ready={shutdown_ready}")
+        
+        shutdown_result = ShutdownResult(
+            tasks_cleaned=tasks_cleaned,
+            shutdown_ready=shutdown_ready,
+            errors=errors,
+            duration_seconds=duration
+        )
+        
+        # Log the result we're returning
+        logger.debug(f"ShutdownProcessor returning: {shutdown_result}")
+        
+        return shutdown_result
+        
+    async def _process_shutdown(self, round_number: int) -> dict:
+        """Internal method that returns dict for backward compatibility."""
         logger.info(f"=== SHUTDOWN PROCESSOR: Round {round_number} ===")
         
         try:
@@ -119,13 +145,20 @@ class ShutdownProcessor(BaseProcessor):
                 logger.error("Current task is None after fetching")
                 return {"status": "error", "message": "Task not found"}
             if current_task.status == TaskStatus.COMPLETED:
-                self.shutdown_complete = True
-                self.shutdown_result = {
-                    "status": "completed",
-                    "action": "shutdown_accepted",
-                    "message": "Agent acknowledged shutdown"
-                }
-                logger.info("✓ Shutdown task completed - agent accepted shutdown")
+                if not self.shutdown_complete:
+                    self.shutdown_complete = True
+                    self.shutdown_result = {
+                        "status": "completed",
+                        "action": "shutdown_accepted",
+                        "message": "Agent acknowledged shutdown"
+                    }
+                    logger.info("✓ Shutdown task completed - agent accepted shutdown")
+                    # Signal the runtime to proceed with shutdown
+                    logger.info("Shutdown processor signaling completion to runtime")
+                else:
+                    # Already reported completion, just wait
+                    import asyncio
+                    await asyncio.sleep(1.0)
                 return self.shutdown_result
             elif current_task.status == TaskStatus.FAILED:
                 # Task failed - could be REJECT or error

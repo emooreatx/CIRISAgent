@@ -74,6 +74,9 @@ class TestDiscordAdapter:
     @pytest.mark.asyncio
     async def test_send_message_success(self, adapter, mock_bot, mock_bus_manager):
         """Test successful message sending."""
+        # Mock connection manager to return connected
+        adapter._connection_manager.is_connected = Mock(return_value=True)
+        
         # Setup mock channel
         mock_channel = Mock()
         mock_channel.send = AsyncMock(return_value=Mock(id=123))

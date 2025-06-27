@@ -199,7 +199,6 @@ class BaseActionHandler(ABC):
                     selected_action=result.selected_action,
                     action_parameters=decapsulated_params,
                     rationale=result.rationale,
-                    confidence=result.confidence,
                     # Optional fields
                     raw_llm_response=result.raw_llm_response,
                     reasoning=result.reasoning,

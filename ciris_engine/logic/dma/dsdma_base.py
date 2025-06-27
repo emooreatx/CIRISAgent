@@ -214,8 +214,7 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
                 f"DSDMA '{self.domain_name}' (instructor) evaluation successful for thought ID {thought_item.thought_id}: "
                 f"Domain Alignment: {result.domain_alignment}"
             )
-            if hasattr(llm_eval_data, "_raw_response"):
-                result.raw_llm_response = str(llm_eval_data._raw_response)
+            # raw_llm_response field has been removed from DSDMAResult
             return result
         except Exception as e:
             logger.error(

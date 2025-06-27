@@ -7,8 +7,8 @@ Replaces all Dict[str, Any] metadata in service method calls.
 from typing import Optional, Any
 from datetime import datetime, timezone
 from uuid import UUID
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class ServiceMetadata(BaseModel):
     """Typed metadata for all service method calls."""
@@ -20,5 +20,4 @@ class ServiceMetadata(BaseModel):
     trace_id: Optional[str] = Field(None, description="Distributed trace ID")
     span_id: Optional[str] = Field(None, description="Span ID within trace")
     
-    class Config:
-        extra = "forbid"  # No arbitrary fields allowed
+    model_config = ConfigDict(extra = "forbid")  # No arbitrary fields allowed

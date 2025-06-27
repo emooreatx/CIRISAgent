@@ -145,18 +145,17 @@ class TestDiscordRateLimiter:
     @pytest.mark.asyncio
     async def test_global_rate_limit(self, rate_limiter):
         """Test global rate limiting."""
-        # Make requests up to limit
-        for _ in range(50):
+        # Mock time to avoid actual sleeps
+        with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            # Make requests up to limit
+            for _ in range(50):
+                await rate_limiter.acquire("/channels/123/messages", "POST")
+            
+            # Next request should require wait
             await rate_limiter.acquire("/channels/123/messages", "POST")
-        
-        # Next request should require wait
-        start_time = datetime.now()
-        await rate_limiter.acquire("/channels/123/messages", "POST")
-        end_time = datetime.now()
-        
-        # Should have waited
-        wait_time = (end_time - start_time).total_seconds()
-        assert wait_time > 0
+            
+            # Should have called sleep at least once
+            assert mock_sleep.called
     
     def test_endpoint_normalization(self, rate_limiter):
         """Test endpoint path normalization."""

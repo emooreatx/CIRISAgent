@@ -484,6 +484,10 @@ This directory contains critical cryptographic keys for the CIRIS system.
         # Check if mock LLM is enabled via config (legacy)
         mock_llm_enabled = getattr(config, 'mock_llm', False)
         
+        # Also check if mock_llm is in the modules to be loaded
+        if hasattr(self, '_modules_to_load') and 'mock_llm' in self._modules_to_load:
+            mock_llm_enabled = True
+        
         # Also check if we have NO API key - this means mock LLM will be loaded as a module
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if not api_key and not mock_llm_enabled:

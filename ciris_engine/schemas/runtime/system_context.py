@@ -5,7 +5,7 @@ Provides type-safe contexts for system state and runtime operations.
 """
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class SystemSnapshot(BaseModel):
     """System state snapshot for processing context.
@@ -124,8 +124,7 @@ class SystemSnapshot(BaseModel):
         description="User profile information"
     )
     
-    class Config:
-        extra = "forbid"  # Be strict about fields to catch misuse
+    model_config = ConfigDict(extra = "forbid")  # Be strict about fields to catch misuse
 
 class TaskSummary(BaseModel):
     """Summary of a task for system snapshot."""
@@ -149,8 +148,7 @@ class TaskSummary(BaseModel):
     result_data: Optional[Dict[str, str]] = Field(None, description="Structured result data")
     error: Optional[str] = Field(None, description="Error if failed")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ThoughtContext(BaseModel):
     """Context for a thought being processed."""
@@ -177,8 +175,7 @@ class ThoughtContext(BaseModel):
     selected_action: Optional[str] = Field(None, description="Action selected")
     decision_confidence: float = Field(0.0, description="Confidence in decision")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class UserProfile(BaseModel):
     """User profile information."""
@@ -201,8 +198,7 @@ class UserProfile(BaseModel):
     permissions: List[str] = Field(default_factory=list, description="Granted permissions")
     restrictions: List[str] = Field(default_factory=list, description="Applied restrictions")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ChannelContext(BaseModel):
     """Context for a communication channel."""
@@ -224,8 +220,7 @@ class ChannelContext(BaseModel):
     allowed_actions: List[str] = Field(default_factory=list, description="Allowed actions in channel")
     moderation_level: str = Field("standard", description="Moderation level")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ResourceUsage(BaseModel):
     """Resource usage tracking."""
@@ -240,8 +235,7 @@ class ResourceUsage(BaseModel):
         description="Resource usage per service"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class AuditVerification(BaseModel):
     """Audit chain verification result."""
@@ -255,8 +249,7 @@ class AuditVerification(BaseModel):
     issues: List[str] = Field(default_factory=list, description="Issues found during verification")
     missing_entries: List[str] = Field(default_factory=list, description="Missing entry IDs")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ConscienceResult(BaseModel):
     """Result from conscience evaluation."""
@@ -271,8 +264,7 @@ class ConscienceResult(BaseModel):
     overridden: bool = Field(False, description="Whether was overridden")
     overridden_by: Optional[str] = Field(None, description="Who overrode")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 
 class ThoughtSummary(BaseModel):
@@ -284,8 +276,7 @@ class ThoughtSummary(BaseModel):
     thought_type: Optional[str] = Field(None, description="Type of thought")
     thought_depth: Optional[int] = Field(None, description="Processing depth")
     
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra = "allow")
 
 class TelemetrySummary(BaseModel):
     """Summary of recent telemetry metrics for system context."""
@@ -321,8 +312,7 @@ class TelemetrySummary(BaseModel):
     avg_thought_depth: float = Field(0.0, description="Average thought processing depth")
     queue_saturation: float = Field(0.0, description="Queue saturation 0-1")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "SystemSnapshot",

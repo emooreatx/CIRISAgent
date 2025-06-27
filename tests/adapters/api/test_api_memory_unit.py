@@ -3,7 +3,7 @@ import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock
 from aiohttp import web
-from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
+from aiohttp.test_utils import AioHTTPTestCase
 
 from ciris_engine.logic.adapters.api.api_memory import APIMemoryRoutes
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
@@ -38,7 +38,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         self.routes.register(app)
         return app
 
-    @unittest_run_loop
     async def test_register_routes(self):
         """Test that all memory routes are registered correctly."""
         # Just check that routes are registered by trying to access endpoints
@@ -58,7 +57,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
             resp = await self.client.request(method, path)
             assert resp.status != 404, f"Route {method} {path} not found (got 404)"
 
-    @unittest_run_loop
     async def test_memory_scopes_success(self):
         """Test successful memory scopes retrieval."""
         expected_scopes = [GraphScope.LOCAL.value, GraphScope.IDENTITY.value]
@@ -72,7 +70,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert set(data["scopes"]) == set(expected_scopes)
         self.mock_memory_service.list_scopes.assert_called_once()
 
-    @unittest_run_loop
     async def test_memory_scopes_fallback(self):
         """Test memory scopes fallback when service unavailable."""
         # Remove memory service to test fallback
@@ -87,7 +84,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         expected_scopes = [s.value for s in GraphScope]
         assert set(data["scopes"]) == set(expected_scopes)
 
-    @unittest_run_loop
     async def test_memory_scopes_error(self):
         """Test memory scopes error handling."""
         self.mock_memory_service.list_scopes = AsyncMock(side_effect=Exception("Database error"))
@@ -99,7 +95,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert "error" in data
         assert "Database error" in data["error"]
 
-    @unittest_run_loop
     async def test_memory_scope_nodes_success(self):
         """Test successful scope nodes retrieval."""
         mock_nodes = [
@@ -133,13 +128,11 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert len(data["nodes"]) == 2
         assert data["nodes"][0]["id"] == "node1"
 
-    @unittest_run_loop
     async def test_memory_entries_missing_scope(self):
         """Test memory entries with missing scope parameter."""
         resp = await self.client.request("GET", "/v1/memory/scopes//nodes")
         assert resp.status == 404  # Should not match route
 
-    @unittest_run_loop
     async def test_graph_nodes_list(self):
         """Test listing graph nodes."""
         # Create mock nodes
@@ -170,7 +163,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert len(data["nodes"]) == 2
         assert data["nodes"][0]["id"] == "node1"
 
-    @unittest_run_loop
     async def test_graph_search_success(self):
         """Test successful graph search."""
         # Mock search results as dictionaries (as API expects)
@@ -196,7 +188,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert len(data["results"]) == 1
         assert data["results"][0]["id"] == "result1"
 
-    @unittest_run_loop
     async def test_memory_timeline(self):
         """Test memory timeline endpoint."""
         # Mock timeline entries
@@ -226,7 +217,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert len(data["timeline"]) == 2
         assert data["timeline"][0]["node_id"] == "node1"  # Fixed: should be node_id not id
 
-    @unittest_run_loop
     async def test_node_details(self):
         """Test getting node details."""
         # Mock a specific node
@@ -250,7 +240,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert data["node"]["type"] == "agent"  # Enum value is lowercase
         assert data["node"]["attributes"]["purpose"] == "help users"
 
-    @unittest_run_loop
     async def test_memory_relationships(self):
         """Test getting memory relationships."""
         # Mock relationships/edges
@@ -280,7 +269,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert len(data["relationships"]) == 2
         assert data["relationships"][0]["source_id"] == "node1"  # Fixed: should be source_id not source
 
-    @unittest_run_loop
     async def test_agent_identity(self):
         """Test getting agent identity."""
         # Mock identity node
@@ -311,7 +299,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert data["identity"]["name"] == "CIRIS"
         assert data["identity"]["agent_id"] == "test-agent-123"
 
-    @unittest_run_loop
     async def test_memory_timeseries_success(self):
         """Test successful memory timeseries retrieval."""
         mock_timeseries = {
@@ -333,7 +320,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert len(data["timeline"]) == 2
         self.mock_memory_service.get_timeseries.assert_called_once()
 
-    @unittest_run_loop
     async def test_memory_service_unavailable(self):
         """Test behavior when memory service is completely unavailable."""
         # Remove memory service
@@ -346,7 +332,6 @@ class TestAPIMemoryRoutes(AioHTTPTestCase):
         assert "error" in data
         assert "Memory service not available" in data["error"]
 
-    @unittest_run_loop
     async def test_concurrent_memory_operations(self):
         """Test handling of concurrent memory operations."""
         # Mock all the methods that might be called

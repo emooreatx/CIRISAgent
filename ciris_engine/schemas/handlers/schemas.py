@@ -11,7 +11,7 @@ from typing import (
     Type,
     Union
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from .contexts import (
     SpeakContext, ToolContext, ObserveContext,
@@ -67,8 +67,7 @@ class HandlerContext(BaseModel):
     action_parameters: ActionParameters = Field(..., description="Action-specific parameters")
     metadata: ServiceMetadata = Field(..., description="Service metadata")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class HandlerResult(BaseModel):
     """Typed result from all handlers."""
@@ -79,5 +78,4 @@ class HandlerResult(BaseModel):
     )
     error: Optional[str] = Field(None, description="Error message if failed")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")

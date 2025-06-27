@@ -6,8 +6,8 @@ Typed states for each of the 6 cognitive phases.
 
 from typing import Dict, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class WakeupState(BaseModel):
     """State during WAKEUP phase."""
@@ -17,8 +17,7 @@ class WakeupState(BaseModel):
     incompleteness_accepted: bool = Field(False, description="Incompleteness acknowledgment status")
     gratitude_expressed: bool = Field(False, description="Gratitude expression status")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WorkState(BaseModel):
     """State during WORK phase."""
@@ -27,8 +26,7 @@ class WorkState(BaseModel):
     pending_thoughts: int = Field(0, ge=0, description="Number of pending thoughts")
     last_activity: datetime = Field(..., description="Timestamp of last activity")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class PlayState(BaseModel):
     """State during PLAY phase."""
@@ -36,8 +34,7 @@ class PlayState(BaseModel):
     experimental_approaches: List[str] = Field(default_factory=list, description="List of experimental approaches")
     novel_discoveries: int = Field(0, ge=0, description="Number of novel discoveries")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SolitudeState(BaseModel):
     """State during SOLITUDE phase."""
@@ -45,8 +42,7 @@ class SolitudeState(BaseModel):
     maintenance_tasks_completed: int = Field(0, ge=0, description="Number of maintenance tasks completed")
     patterns_identified: List[str] = Field(default_factory=list, description="Patterns identified during reflection")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DreamState(BaseModel):
     """State during DREAM phase."""
@@ -57,8 +53,7 @@ class DreamState(BaseModel):
     future_plans_generated: int = Field(0, ge=0, description="Number of future plans generated")
     benchmark_results: Optional[Dict[str, float]] = Field(None, description="Performance benchmark results")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ShutdownState(BaseModel):
     """State during SHUTDOWN phase."""
@@ -67,5 +62,4 @@ class ShutdownState(BaseModel):
     cleanup_completed: bool = Field(False, description="Whether cleanup is completed")
     final_message: Optional[str] = Field(None, description="Final message before shutdown")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")

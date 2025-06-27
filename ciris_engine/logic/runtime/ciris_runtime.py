@@ -70,6 +70,7 @@ class CIRISRuntime:
         # Initialize managers
         self.identity_manager: Optional[IdentityManager] = None
         self.service_initializer = ServiceInitializer(essential_config=essential_config)
+        self.service_initializer._modules_to_load = self.modules_to_load  # Pass modules to service initializer
         self.component_builder: Optional[ComponentBuilder] = None
         self.agent_processor: Optional['AgentProcessor'] = None
 
@@ -341,6 +342,14 @@ class CIRISRuntime:
             critical=True
         )
         
+        # Start adapters BEFORE registering their services
+        init_manager.register_step(
+            phase=InitializationPhase.SERVICES,
+            name="Start Adapters",
+            handler=self._start_adapters,
+            critical=True
+        )
+        
         init_manager.register_step(
             phase=InitializationPhase.SERVICES,
             name="Register Adapter Services",
@@ -360,13 +369,6 @@ class CIRISRuntime:
             phase=InitializationPhase.COMPONENTS,
             name="Initialize Maintenance Service",
             handler=self._initialize_maintenance_service,
-            critical=True
-        )
-        
-        init_manager.register_step(
-            phase=InitializationPhase.COMPONENTS,
-            name="Start Adapters",
-            handler=self._start_adapters,
             critical=True
         )
         
@@ -493,17 +495,23 @@ class CIRISRuntime:
         return await self.service_initializer.verify_core_services()
     
     async def _initialize_maintenance_service(self) -> None:
-        """Initialize the maintenance service."""
-        # This is a no-op since maintenance service is already initialized in initialize_all_services
-        # We just verify it's available
+        """Initialize the maintenance service and perform startup cleanup."""
+        # Verify maintenance service is available
         if not self.maintenance_service:
             raise RuntimeError("Maintenance service was not initialized properly")
         logger.info("Maintenance service verified available")
+        
+        # Perform startup maintenance to clean stale tasks
+        await self._perform_startup_maintenance()
     
     async def _start_adapters(self) -> None:
         """Start all adapters."""
         await asyncio.gather(*(adapter.start() for adapter in self.adapters))
         logger.info(f"All {len(self.adapters)} adapters started")
+        
+        # Give adapters time to establish connections (especially Discord)
+        await asyncio.sleep(5.0)
+        logger.info("Adapter startup grace period complete")
     
     async def _final_verification(self) -> None:
         """Perform final system verification."""
@@ -659,6 +667,26 @@ class CIRISRuntime:
             if not self.agent_processor:
                 raise RuntimeError("Agent processor not initialized")
 
+            # Wait for at least one communication service to be available
+            logger.info("Waiting for communication service to be available...")
+            max_wait = 30.0  # Wait up to 30 seconds for adapters to connect
+            start_time = asyncio.get_event_loop().time()
+            
+            while (asyncio.get_event_loop().time() - start_time) < max_wait:
+                # Check if any communication service is available
+                from ciris_engine.schemas.runtime.enums import ServiceType
+                comm_service = await self.service_registry.get_service(
+                    handler="SpeakHandler",
+                    service_type=ServiceType.COMMUNICATION,
+                    required_capabilities=["send_message"]
+                )
+                if comm_service:
+                    logger.info("Communication service available, starting agent processor")
+                    break
+                await asyncio.sleep(0.5)
+            else:
+                logger.warning(f"No communication service available after {max_wait} seconds, starting anyway")
+
             effective_num_rounds = num_rounds if num_rounds is not None else DEFAULT_NUM_ROUNDS
             logger.info(f"Starting agent processing (num_rounds={effective_num_rounds if effective_num_rounds != -1 else 'infinite'})...")
 
@@ -683,36 +711,39 @@ class CIRISRuntime:
             if shutdown_event_task:
                 all_tasks.append(shutdown_event_task)
             
-            done, pending = await asyncio.wait(all_tasks, return_when=asyncio.FIRST_COMPLETED)
+            # Keep monitoring until agent task completes
+            shutdown_logged = False
+            while not agent_task.done():
+                done, pending = await asyncio.wait(all_tasks, return_when=asyncio.FIRST_COMPLETED)
 
-            # Handle task completion and cancellation logic
-            if (self._shutdown_event and self._shutdown_event.is_set()) or is_global_shutdown_requested():
-                shutdown_reason = self._shutdown_reason or self._shutdown_manager.get_shutdown_reason() or "Unknown reason"
-                logger.critical(f"GRACEFUL SHUTDOWN TRIGGERED: {shutdown_reason}")
-                # Ensure all other tasks are cancelled if a shutdown event occurred
-                for task in pending:
-                    if not task.done():
-                        task.cancel()
-                if not agent_task.done(): # Ensure agent task is cancelled if not already
-                    agent_task.cancel()
-                for ad_task in adapter_tasks: # Ensure adapter tasks are cancelled
-                    if not ad_task.done():
-                        ad_task.cancel()
-            elif agent_task in done:
-                logger.info(f"Agent processing task completed. Result: {agent_task.result() if not agent_task.cancelled() else 'Cancelled'}")
-                # If agent task finishes (e.g. num_rounds reached), signal shutdown for adapters
-                self.request_shutdown("Agent processing completed normally.")
-                for ad_task in adapter_tasks: # Adapters should react to agent_task completion via its cancellation or by observing shutdown event
-                    if not ad_task.done():
-                         ad_task.cancel() # Or rely on their run_lifecycle to exit when agent_task is done
-            else: # One of the adapter tasks finished, or an unexpected task completion
-                for task in done:
-                    if task not in [shutdown_event_task, global_shutdown_task]: # Don't log for event tasks
-                        task_name = task.get_name() if hasattr(task, 'get_name') else "Unnamed task"
-                        logger.info(f"Task '{task_name}' completed. Result: {task.result() if not task.cancelled() else 'Cancelled'}")
-                        if task.exception():
-                            logger.error(f"Task '{task_name}' raised an exception: {task.exception()}", exc_info=task.exception())
-                            self.request_shutdown(f"Task {task_name} failed: {task.exception()}")
+                # Remove completed tasks from all_tasks to avoid re-processing
+                all_tasks = [t for t in all_tasks if t not in done]
+                
+                # Handle task completion and cancellation logic
+                if (self._shutdown_event and self._shutdown_event.is_set()) or is_global_shutdown_requested():
+                    if not shutdown_logged:
+                        shutdown_reason = self._shutdown_reason or self._shutdown_manager.get_shutdown_reason() or "Unknown reason"
+                        logger.critical(f"GRACEFUL SHUTDOWN TRIGGERED: {shutdown_reason}")
+                        shutdown_logged = True
+                    # Don't cancel anything! Let the graceful shutdown process handle it
+                    # The agent processor will transition to SHUTDOWN state and handle everything
+                    # Continue the loop - wait for agent to finish its shutdown process
+                elif agent_task in done:
+                    logger.info(f"Agent processing task completed. Result: {agent_task.result() if not agent_task.cancelled() else 'Cancelled'}")
+                    # If agent task finishes (e.g. num_rounds reached), signal shutdown for adapters
+                    self.request_shutdown("Agent processing completed normally.")
+                    for ad_task in adapter_tasks: # Adapters should react to agent_task completion via its cancellation or by observing shutdown event
+                        if not ad_task.done():
+                             ad_task.cancel() # Or rely on their run_lifecycle to exit when agent_task is done
+                    break  # Exit the while loop
+                else: # One of the adapter tasks finished, or an unexpected task completion
+                    for task in done:
+                        if task not in [shutdown_event_task, global_shutdown_task]: # Don't log for event tasks
+                            task_name = task.get_name() if hasattr(task, 'get_name') else "Unnamed task"
+                            logger.info(f"Task '{task_name}' completed. Result: {task.result() if not task.cancelled() else 'Cancelled'}")
+                            if task.exception():
+                                logger.error(f"Task '{task_name}' raised an exception: {task.exception()}", exc_info=task.exception())
+                                self.request_shutdown(f"Task {task_name} failed: {task.exception()}")
 
             # Await all pending tasks (including cancellations)
             if pending:

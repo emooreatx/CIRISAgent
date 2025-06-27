@@ -5,8 +5,8 @@ Provides type-safe structures for agent identity and capabilities.
 """
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class CoreProfile(BaseModel):
     """Core identity profile for the agent."""
@@ -47,8 +47,7 @@ class CoreProfile(BaseModel):
         description="Instructions for startup"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class IdentityMetadata(BaseModel):
     """Metadata about identity creation and modification."""
@@ -75,8 +74,7 @@ class IdentityMetadata(BaseModel):
         description="Previous version hashes"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CapabilityDefinition(BaseModel):
     """Definition of an agent capability."""
@@ -107,8 +105,7 @@ class CapabilityDefinition(BaseModel):
         description="Conflicting capabilities"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class AgentIdentityRoot(BaseModel):
     """Root identity structure for an agent."""
@@ -155,8 +152,7 @@ class AgentIdentityRoot(BaseModel):
         description="Child agents spawned"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class IdentityUpdate(BaseModel):
     """Update to agent identity."""
@@ -177,8 +173,7 @@ class IdentityUpdate(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     correlation_id: str = Field(..., description="For tracing")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class IdentityValidation(BaseModel):
     """Result of identity validation."""
@@ -203,8 +198,7 @@ class IdentityValidation(BaseModel):
         description="Recommendations for fixes"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class IdentitySnapshot(BaseModel):
     """Point-in-time snapshot of identity."""
@@ -236,8 +230,7 @@ class IdentitySnapshot(BaseModel):
         description="Snapshot tags"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "CoreProfile",

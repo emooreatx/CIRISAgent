@@ -5,8 +5,8 @@ Replaces Dict[str, Any] in audit service operations.
 """
 from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class AuditEventData(BaseModel):
     """Data for an audit event."""
@@ -26,8 +26,7 @@ class AuditEventData(BaseModel):
         description="Additional event metadata"
     )
     
-    class Config:
-        extra = "allow"  # Allow additional fields for flexibility
+    model_config = ConfigDict(extra="allow")  # Allow additional fields for flexibility
 
 class VerificationReport(BaseModel):
     """Audit integrity verification report."""

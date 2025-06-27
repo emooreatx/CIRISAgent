@@ -98,6 +98,9 @@ class TestDiscordAdapterCore:
     @pytest.mark.asyncio
     async def test_send_message_success(self, discord_adapter, mock_discord_client):
         """Test successful message sending."""
+        # Mock connection manager to return connected
+        discord_adapter._connection_manager.is_connected = Mock(return_value=True)
+        
         # Mock channel
         mock_channel = AsyncMock()
         mock_channel.send = AsyncMock(return_value=Mock(id=123))
@@ -116,8 +119,14 @@ class TestDiscordAdapterCore:
     @pytest.mark.asyncio
     async def test_send_message_with_rate_limiting(self, discord_adapter):
         """Test message sending respects rate limits."""
+        # Mock connection manager to return connected
+        discord_adapter._connection_manager.is_connected = Mock(return_value=True)
+        
         # Mock rate limiter to introduce delay
         discord_adapter._rate_limiter.acquire = AsyncMock()
+        
+        # Mock connection manager to return connected
+        discord_adapter._connection_manager.is_connected = Mock(return_value=True)
         
         # Mock channel
         mock_channel = AsyncMock()
@@ -409,6 +418,9 @@ class TestDiscordAuditLogging:
         # Mock audit service
         mock_audit_service = AsyncMock()
         discord_adapter._audit_logger.set_audit_service(mock_audit_service)
+        
+        # Mock connection manager to return connected
+        discord_adapter._connection_manager.is_connected = Mock(return_value=True)
         
         # Mock successful message send
         mock_channel = AsyncMock()

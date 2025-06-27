@@ -3,12 +3,12 @@ Feedback schemas for Wise Authority feedback processing.
 
 Provides type-safe structures for WA feedback and directives.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Dict, List, Optional, Union
 from enum import Enum
 from datetime import datetime, timezone
 from datetime import timezone
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 class FeedbackType(str, Enum):
     """Types of WA feedback."""
@@ -33,8 +33,7 @@ class FeedbackDirective(BaseModel):
     data: Union[Dict[str, str], str, List[str]] = Field(..., description="Directive data")
     reasoning: Optional[str] = Field(None, description="Reasoning for directive")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WiseAuthorityFeedback(BaseModel):
     """Structured feedback from WA on deferred decisions."""
@@ -69,8 +68,7 @@ class WiseAuthorityFeedback(BaseModel):
     processed_at: Optional[datetime] = Field(None, description="Processing time")
     processing_result: Dict[str, str] = Field(default_factory=dict, description="Processing results")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class FeedbackMapping(BaseModel):
     """Maps feedback to original context for processing."""
@@ -88,8 +86,7 @@ class FeedbackMapping(BaseModel):
     
     created_at: datetime = Field(..., description="Creation time")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class FeedbackProcessingRequest(BaseModel):
     """Request to process feedback."""
@@ -97,8 +94,7 @@ class FeedbackProcessingRequest(BaseModel):
     force: bool = Field(False, description="Force reprocessing")
     dry_run: bool = Field(False, description="Validate without applying")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class FeedbackProcessingResult(BaseModel):
     """Result of feedback processing."""
@@ -108,8 +104,7 @@ class FeedbackProcessingResult(BaseModel):
     errors: List[str] = Field(default_factory=list, description="Errors encountered")
     warnings: List[str] = Field(default_factory=list, description="Warnings")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "FeedbackType",

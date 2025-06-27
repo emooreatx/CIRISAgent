@@ -6,11 +6,11 @@ and management of sensitive information within the CIRIS pipeline.
 """
 from datetime import datetime
 from typing import Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 from ciris_engine.schemas.runtime.enums import SensitivityLevel
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 class SecretType(str, Enum):
     """Standard secret types with default detection patterns"""
@@ -51,8 +51,7 @@ class SecretRecord(BaseModel):
     )
     manual_access_only: bool = Field(False, description="Require manual access")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SecretReference(BaseModel):
     """Non-sensitive reference to a stored secret for SystemSnapshot"""
@@ -65,8 +64,7 @@ class SecretReference(BaseModel):
     created_at: datetime = Field(..., description="Creation time")
     last_accessed: Optional[datetime] = Field(None, description="Last access")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SecretAccessLog(BaseModel):
     """Audit log for secret access"""
@@ -82,8 +80,7 @@ class SecretAccessLog(BaseModel):
     success: bool = Field(True, description="Whether access succeeded")
     failure_reason: Optional[str] = Field(None, description="Failure reason if any")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DetectedSecret(BaseModel):
     """Secret detected during filtering process"""
@@ -95,8 +92,7 @@ class DetectedSecret(BaseModel):
     context_hint: str = Field(..., description="Safe context description")
     replacement_text: str = Field(..., description="Text to replace secret with in context")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SecretsFilterResult(BaseModel):
     """Result of applying secrets filter to content"""
@@ -105,8 +101,7 @@ class SecretsFilterResult(BaseModel):
     secrets_found: int = Field(default=0, description="Number of secrets found")
     patterns_matched: List[str] = Field(default_factory=list, description="Patterns that matched")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class RecallSecretParams(BaseModel):
     """Parameters for RECALL_SECRET tool"""
@@ -114,8 +109,7 @@ class RecallSecretParams(BaseModel):
     purpose: str = Field(..., description="Why the secret is needed (for audit)")
     decrypt: bool = Field(default=False, description="Whether to decrypt the secret value")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SecretPattern(BaseModel):
     """Pattern for detecting secrets"""
@@ -125,8 +119,7 @@ class SecretPattern(BaseModel):
     sensitivity: SensitivityLevel = Field(..., description="Default sensitivity")
     enabled: bool = Field(True, description="Whether pattern is active")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 def _default_secret_patterns() -> List[SecretPattern]:
     """Default secret detection patterns."""
@@ -162,8 +155,7 @@ class SecretsDetectionConfig(BaseModel):
         description="Detection patterns"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class UpdateSecretsFilterParams(BaseModel):
     """Parameters for UPDATE_SECRETS_FILTER tool"""
@@ -176,8 +168,7 @@ class UpdateSecretsFilterParams(BaseModel):
     pattern_name: Optional[str] = Field(None, description="Pattern name for remove/update")
     config_updates: Optional[Dict[str, str]] = Field(None, description="Configuration updates")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SecretStorageConfig(BaseModel):
     """Configuration for secret storage"""
@@ -187,8 +178,7 @@ class SecretStorageConfig(BaseModel):
     auto_expire_days: Optional[int] = Field(None, description="Auto-expiry in days")
     require_mfa: bool = Field(False, description="Require MFA for access")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SecretMetrics(BaseModel):
     """Metrics for secret management"""
@@ -198,8 +188,7 @@ class SecretMetrics(BaseModel):
     access_count_last_day: int = Field(..., description="Accesses in last 24h")
     detection_count_last_day: int = Field(..., description="Detections in last 24h")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "SecretType",

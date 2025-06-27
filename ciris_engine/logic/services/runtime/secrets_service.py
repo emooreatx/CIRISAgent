@@ -382,9 +382,9 @@ class SecretsTools:
                 execution_time_ms=(self._time_service.now() - start_time).total_seconds() * 1000
             )
 
-def register_secrets_tools(registry: 'ToolRegistry', secrets_service: SecretsService) -> None:
+def register_secrets_tools(registry: 'ToolRegistry', secrets_service: SecretsService, time_service: TimeServiceProtocol) -> None:
     """Register secrets tools in the ToolRegistry."""
-    secrets_tools = SecretsTools(secrets_service)
+    secrets_tools = SecretsTools(secrets_service, time_service)
     
     registry.register_tool(
         "recall_secret",

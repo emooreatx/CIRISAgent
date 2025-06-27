@@ -5,10 +5,10 @@ These replace all Dict[str, Any] usage in logic/processors/core/main_processor.p
 """
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from ciris_engine.schemas.processors.states import AgentState
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 class ProcessorServices(BaseModel):
     """Services available to processors."""
@@ -19,8 +19,7 @@ class ProcessorServices(BaseModel):
     telemetry_service: Optional[object] = Field(None, description="Telemetry service")
     time_service: Optional[object] = Field(None, description="Time service")
     
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed = True)
 
 class ProcessingRoundResult(BaseModel):
     """Result from a single processing round."""

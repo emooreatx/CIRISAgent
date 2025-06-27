@@ -5,8 +5,8 @@ Type-safe schemas for core service operations.
 """
 from datetime import datetime
 from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class LLMStatus(BaseModel):
     """Status information from LLM service."""
@@ -19,8 +19,7 @@ class LLMStatus(BaseModel):
     rate_limit_remaining: Optional[int] = Field(None, description="Remaining API calls")
     response_time_avg: Optional[float] = Field(None, description="Average response time")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class NetworkQueryRequest(BaseModel):
     """Request for network query."""
@@ -28,8 +27,7 @@ class NetworkQueryRequest(BaseModel):
     parameters: Dict[str, str] = Field(default_factory=dict, description="Query parameters")
     timeout: Optional[float] = Field(30.0, description="Query timeout")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class MetricDataPoint(BaseModel):
     """A single metric data point."""
@@ -39,8 +37,7 @@ class MetricDataPoint(BaseModel):
     tags: Dict[str, str] = Field(default_factory=dict, description="Metric tags")
     service_name: Optional[str] = Field(None, description="Service that recorded metric")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ServiceStatus(BaseModel):
     """Status of a service."""
@@ -50,8 +47,7 @@ class ServiceStatus(BaseModel):
     last_heartbeat: Optional[datetime] = Field(None, description="Last heartbeat time")
     metrics: Dict[str, float] = Field(default_factory=dict, description="Recent metrics")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ResourceLimits(BaseModel):
     """Resource limits and quotas."""
@@ -61,8 +57,7 @@ class ResourceLimits(BaseModel):
     max_api_calls_per_minute: Optional[int] = Field(None, description="API rate limit")
     max_concurrent_operations: Optional[int] = Field(None, description="Max concurrent ops")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ConfigValue(BaseModel):
     """A configuration value with metadata."""
@@ -73,8 +68,7 @@ class ConfigValue(BaseModel):
     source: Optional[str] = Field(None, description="Configuration source")
     last_modified: Optional[datetime] = Field(None, description="Last modification time")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SecretInfo(BaseModel):
     """Information about a stored secret."""
@@ -87,8 +81,7 @@ class SecretInfo(BaseModel):
     access_count: int = Field(0, description="Number of times accessed")
     decrypted_value: Optional[str] = Field(None, description="Decrypted value if requested")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SecretsServiceStats(BaseModel):
     """Statistics from secrets service."""
@@ -98,8 +91,7 @@ class SecretsServiceStats(BaseModel):
     recent_detections: int = Field(0, description="Detections in last hour")
     storage_size_bytes: Optional[int] = Field(None, description="Storage size used")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "LLMStatus",

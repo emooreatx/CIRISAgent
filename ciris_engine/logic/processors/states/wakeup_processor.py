@@ -7,6 +7,7 @@ import uuid
 from typing import Any, List, Optional, Tuple
 
 from ciris_engine.schemas.processors.states import AgentState
+from ciris_engine.schemas.processors.results import WakeupResult
 from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus, HandlerActionType, ThoughtType
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
@@ -80,12 +81,22 @@ class WakeupProcessor(BaseProcessor):
     3. Check completion status without blocking
     """
 
-    async def process(self, round_number: int) -> dict:
+    async def process(self, round_number: int) -> WakeupResult:
             """
             Execute wakeup processing for one round.
             This is the required method from BaseProcessor.
             """
-            return await self._process_wakeup(round_number, non_blocking=True)
+            start_time = self.time_service.now()
+            result = await self._process_wakeup(round_number, non_blocking=True)
+            duration = (self.time_service.now() - start_time).total_seconds()
+            
+            # Convert dict result to WakeupResult
+            return WakeupResult(
+                thoughts_processed=result.get("processed_thoughts", 0),
+                wakeup_complete=result.get("wakeup_complete", False),
+                errors=0,  # TODO: track errors properly
+                duration_seconds=duration
+            )
         
     async def _process_wakeup(self, round_number: int, non_blocking: bool = False) -> dict:
         """

@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Awaitable, Callable, Dict, List, Optional, Any
 
 from ciris_engine.schemas.adapters.cli import (
-    CLIMessage, CLIToolParameters, ListFilesToolParams, ListFilesToolResult,
+    CLIToolParameters, ListFilesToolParams, ListFilesToolResult,
     ReadFileToolParams, ReadFileToolResult,
     SystemInfoToolResult, CLICorrelationData
 )
@@ -404,14 +404,33 @@ Tools available:
     async def _tool_system_info(self, params: dict) -> dict:
         """Get system information."""
         import platform
-        return {
-            "success": True,
-            "system": platform.system(),
-            "release": platform.release(),
-            "version": platform.version(),
-            "machine": platform.machine(),
-            "python_version": platform.python_version()
-        }
+        import psutil
+        
+        try:
+            # Get memory info
+            memory = psutil.virtual_memory()
+            memory_mb = memory.total // (1024 * 1024)
+            
+            result = SystemInfoToolResult(
+                success=True,
+                platform=platform.system(),
+                python_version=platform.python_version(),
+                cpu_count=psutil.cpu_count() or 1,
+                memory_mb=memory_mb,
+                error=None
+            )
+            return result.model_dump()
+        except Exception as e:
+            # Return error result if psutil fails
+            result = SystemInfoToolResult(
+                success=False,
+                platform=platform.system(),
+                python_version=platform.python_version(),
+                cpu_count=1,
+                memory_mb=0,
+                error=str(e)
+            )
+            return result.model_dump()
 
     async def start(self) -> None:
         """Start the CLI adapter."""

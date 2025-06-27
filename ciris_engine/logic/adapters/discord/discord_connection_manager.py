@@ -220,7 +220,9 @@ class DiscordConnectionManager:
                 intents.guilds = True
                 intents.members = True
                 
-                self.client = discord.Client(intents=intents)
+                # Get the current event loop
+                loop = asyncio.get_running_loop()
+                self.client = discord.Client(intents=intents, loop=loop)
                 self._setup_event_handlers()
             
             # Start the client

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.processors.states import AgentState
+from ciris_engine.schemas.processors.results import SolitudeResult
 from ciris_engine.schemas.processors.solitude import (
     ReflectionData, SolitudeProcessingResult, MaintenanceResult,
     TaskTypePattern, ReflectionResult, ExitConditions, TaskTypeStats
@@ -16,7 +17,6 @@ from ciris_engine.logic import persistence
 
 from ciris_engine.logic.processors.core.base_processor import BaseProcessor
 # ServiceProtocol import removed - processors aren't services
-from ciris_engine.schemas.processors.base import ProcessingResult
 from ciris_engine.logic.registries.base import ServiceRegistry
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class SolitudeProcessor(BaseProcessor):
         """Check if we can process the given state."""
         return state == AgentState.SOLITUDE
     
-    async def process(self, round_number: int) -> ProcessingResult:
+    async def process(self, round_number: int) -> SolitudeResult:
         """
         Execute solitude processing.
         Performs minimal work focusing on critical tasks and maintenance.
@@ -70,6 +70,8 @@ class SolitudeProcessor(BaseProcessor):
         else:
             logger.debug(f"Solitude round {round_number}: Minimal processing mode")
         
+        start_time = self.time_service.now()
+        
         try:
             critical_count = await self._check_critical_tasks()
             
@@ -78,11 +80,11 @@ class SolitudeProcessor(BaseProcessor):
                 # Check if we've been in solitude long enough to handle critical tasks
                 if self._ready_to_exit_solitude():
                     logger.info(f"Found {critical_count} critical tasks - exiting solitude")
-                    return ProcessingResult(
-                        success=True,
-                        items_processed=0,
-                        state_transition_requested=AgentState.WORK,
-                        additional_data={"critical_tasks": critical_count}
+                    duration = (self.time_service.now() - start_time).total_seconds()
+                    return SolitudeResult(
+                        thoughts_processed=0,
+                        errors=0,
+                        duration_seconds=duration
                     )
                 else:
                     logger.info(f"Found {critical_count} critical tasks but need more solitude time")
@@ -96,21 +98,19 @@ class SolitudeProcessor(BaseProcessor):
         except Exception as e:
             logger.error(f"Error in solitude round {round_number}: {e}", exc_info=True)
             self.metrics.errors += 1
-            return ProcessingResult(
-                success=False,
+            duration = (self.time_service.now() - start_time).total_seconds()
+            return SolitudeResult(
+                thoughts_processed=0,
                 errors=1,
-                additional_data={"error": str(e)}
+                duration_seconds=duration
             )
         
         # No critical tasks, stay in solitude
-        return ProcessingResult(
-            success=True,
-            items_processed=0,
-            additional_data={
-                "mode": "solitude",
-                "reason": getattr(self, 'solitude_reason', None) or "conserving_resources",
-                "duration_minutes": self._get_solitude_duration_minutes()
-            }
+        duration = (self.time_service.now() - start_time).total_seconds()
+        return SolitudeResult(
+            thoughts_processed=0,
+            errors=0,
+            duration_seconds=duration
         )
     
     async def _check_critical_tasks(self) -> int:

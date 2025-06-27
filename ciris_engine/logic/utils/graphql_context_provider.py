@@ -104,7 +104,7 @@ class GraphQLContextProvider:
             memory_results = await asyncio.gather(
                 *(self.memory_service.recall(
                     MemoryQuery(
-                        node_id=n,
+                        node_id=f"user/{n}",
                         scope=GraphScope.LOCAL,
                         type=NodeType.USER,
                         include_edges=False,

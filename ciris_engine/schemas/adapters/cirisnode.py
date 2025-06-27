@@ -83,23 +83,6 @@ class EventLogResponse(BaseModel):
     accepted: bool = Field(..., description="Whether event was accepted")
     timestamp: datetime = Field(..., description="Server timestamp")
 
-# Query schemas
-class EventQueryRequest(BaseModel):
-    """Request to query events."""
-    event_type: Optional[str] = Field(None, description="Filter by event type")
-    agent_id: Optional[str] = Field(None, description="Filter by agent")
-    start_time: Optional[datetime] = Field(None, description="Start time filter")
-    end_time: Optional[datetime] = Field(None, description="End time filter")
-    limit: int = Field(100, description="Maximum results")
-
-class EventQueryResult(BaseModel):
-    """Single event from query."""
-    event_id: str = Field(..., description="Event ID")
-    event_type: str = Field(..., description="Event type")
-    event_data: dict = Field(..., description="Event data")
-    timestamp: datetime = Field(..., description="Event timestamp")
-    agent_id: Optional[str] = Field(None, description="Agent ID")
-
 # Assessment schemas
 class AssessmentSubmission(BaseModel):
     """Submit assessment answers."""

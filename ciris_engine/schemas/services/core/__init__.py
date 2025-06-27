@@ -5,8 +5,8 @@ Critical schemas for service container, status, and capabilities.
 """
 from typing import Dict, List, Optional, TYPE_CHECKING, Any
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services import (
@@ -54,8 +54,7 @@ class ServiceContainer(BaseModel):
     core_tool_service: Optional[Any] = Field(None, description="Core tool capabilities")
     maintenance_service: Optional[Any] = Field(None, description="System maintenance service")
     
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed = True)
     
     def get_service_by_type(self, service_type: str) -> Optional[List[Any]]:
         """Get services by type name."""

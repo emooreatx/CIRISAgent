@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from aiohttp import web
-from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
+from aiohttp.test_utils import AioHTTPTestCase
 
 from ciris_engine.logic.adapters.api.api_runtime_control import APIRuntimeControlRoutes
 from ciris_engine.schemas.services.core.runtime import ProcessorStatus, AdapterStatus
@@ -22,7 +22,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         self.routes.register(app)
         return app
 
-    @unittest_run_loop
     async def test_register_routes(self):
         """Test that all routes are registered correctly."""
         # Just check that routes are registered by trying to access endpoints
@@ -48,7 +47,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
             resp = await self.client.request(method, path)
             assert resp.status != 404, f"Route {method} {path} not found (got 404)"
 
-    @unittest_run_loop
     async def test_single_step_success(self):
         """Test single step processor control."""
         result = {
@@ -68,7 +66,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert data["status"] == "completed"
         self.mock_runtime_control.single_step.assert_called_once()
 
-    @unittest_run_loop
     async def test_single_step_error(self):
         """Test single step with error."""
         self.mock_runtime_control.single_step = AsyncMock(side_effect=Exception("Test error"))
@@ -80,7 +77,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert "error" in data
         assert "Test error" in data["error"]
 
-    @unittest_run_loop
     async def test_pause_processing(self):
         """Test pause processing."""
         result = {
@@ -98,7 +94,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert data["success"] is True
         assert data["status"] == ProcessorStatus.PAUSED.value
 
-    @unittest_run_loop
     async def test_resume_processing(self):
         """Test resume processing."""
         self.mock_runtime_control.resume_processing = AsyncMock(return_value={"status": "resumed"})
@@ -109,7 +104,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         data = await resp.json()
         assert data["status"] == "resumed"
 
-    @unittest_run_loop
     async def test_shutdown_runtime(self):
         """Test shutdown runtime."""
         self.mock_runtime_control.shutdown_runtime = AsyncMock(return_value={"status": "shutting_down"})
@@ -120,7 +114,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         data = await resp.json()
         assert data["status"] == "shutting_down"
 
-    @unittest_run_loop
     async def test_get_queue_status(self):
         """Test get queue status."""
         self.mock_runtime_control.get_processor_queue_status = AsyncMock(return_value={
@@ -135,7 +128,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert data["queue_size"] == 5
         assert data["processing"] is True
 
-    @unittest_run_loop
     async def test_load_adapter(self):
         """Test load adapter."""
         result = {
@@ -159,7 +151,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert data["adapter_type"] == "cli"
         assert data["status"] == AdapterStatus.ACTIVE.value
 
-    @unittest_run_loop
     async def test_unload_adapter(self):
         """Test unload adapter."""
         self.mock_runtime_control.unload_adapter = AsyncMock(return_value={"status": "unloaded"})
@@ -170,7 +161,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         data = await resp.json()
         assert data["status"] == "unloaded"
 
-    @unittest_run_loop
     async def test_list_adapters(self):
         """Test list adapters."""
         self.mock_runtime_control.list_adapters = AsyncMock(return_value={
@@ -187,7 +177,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert len(data["adapters"]) == 2
         assert data["adapters"][0]["id"] == "adapter1"
 
-    @unittest_run_loop
     async def test_get_adapter_info(self):
         """Test get adapter info."""
         self.mock_runtime_control.get_adapter_info = AsyncMock(return_value={
@@ -204,7 +193,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert data["id"] == "test_adapter"
         assert data["type"] == "cli"
 
-    @unittest_run_loop
     async def test_get_config(self):
         """Test get configuration."""
         self.mock_runtime_control.get_config = AsyncMock(return_value={
@@ -219,7 +207,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert data["database"]["db_filename"] == "test.db"
         assert data["log_level"] == "INFO"
 
-    @unittest_run_loop
     async def test_update_config(self):
         """Test update configuration."""
         self.mock_runtime_control.update_config = AsyncMock(return_value={
@@ -237,7 +224,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert data["status"] == "updated"
         assert "log_level" in data["changes"]
 
-    @unittest_run_loop
     async def test_validate_config(self):
         """Test validate configuration."""
         self.mock_runtime_control.validate_config = AsyncMock(return_value={
@@ -255,7 +241,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert data["valid"] is True
         assert len(data["errors"]) == 0
 
-    @unittest_run_loop
     async def test_reload_config(self):
         """Test reload configuration."""
         self.mock_runtime_control.reload_config = AsyncMock(return_value={
@@ -270,30 +255,25 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
         assert data["status"] == "reloaded"
 
     @pytest.mark.skip(reason="Profile endpoints not implemented - identity is now graph-based")
-    @unittest_run_loop
     async def test_list_profiles(self):
         """Test list profiles."""
         pass  # Profile endpoints not implemented
 
     @pytest.mark.skip(reason="Profile endpoints not implemented - identity is now graph-based")
-    @unittest_run_loop
     async def test_load_profile(self):
         """Test load profile."""
         pass  # Profile endpoints not implemented
 
     @pytest.mark.skip(reason="Profile endpoints not implemented - identity is now graph-based")
-    @unittest_run_loop
     async def test_get_profile(self):
         """Test get profile."""
         pass  # Profile endpoints not implemented
 
     @pytest.mark.skip(reason="Profile endpoints not implemented - identity is now graph-based")
-    @unittest_run_loop
     async def test_create_profile(self):
         """Test create profile - currently not implemented."""
         pass  # Profile endpoints not implemented
 
-    @unittest_run_loop
     async def test_invalid_json_payload(self):
         """Test handling of invalid JSON payload."""
         resp = await self.client.request("POST", "/v1/runtime/adapters",
@@ -301,7 +281,6 @@ class TestAPIRuntimeControlRoutes(AioHTTPTestCase):
                                        headers={"Content-Type": "application/json"})
         assert resp.status == 400
 
-    @unittest_run_loop
     async def test_method_not_allowed(self):
         """Test method not allowed responses."""
         resp = await self.client.request("GET", "/v1/runtime/processor/step")

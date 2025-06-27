@@ -5,8 +5,8 @@ Replaces the generic NodeAttributes.data: Dict[str, Union[...]] with specific ty
 """
 from typing import Dict, List, Optional, Type, Union
 from datetime import datetime
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class ValidationRule(BaseModel):
     """A single validation rule for configuration."""
@@ -14,8 +14,7 @@ class ValidationRule(BaseModel):
     parameters: Dict[str, Union[str, int, float, bool]] = Field(..., description="Rule parameters")
     error_message: Optional[str] = Field(None, description="Custom error message")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class BaseNodeData(BaseModel):
     """Base class for all typed node data."""
@@ -23,11 +22,12 @@ class BaseNodeData(BaseModel):
     created_at: datetime = Field(..., description="When this data was created")
     updated_at: datetime = Field(..., description="Last update time")
     
-    class Config:
-        extra = "forbid"  # No extra fields allowed
-        json_encoders = {
+    model_config = ConfigDict(
+        extra="forbid",  # No extra fields allowed
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 class ConfigNodeData(BaseNodeData):
     """Data for configuration nodes."""

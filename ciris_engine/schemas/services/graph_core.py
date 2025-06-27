@@ -7,7 +7,7 @@ NO Dict[str, Any] - use typed attributes.
 from enum import Enum
 from typing import Optional, List, Union, Any, Dict
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class GraphScope(str, Enum):
     """Scope of graph nodes and edges."""
@@ -68,8 +68,7 @@ class GraphNodeAttributes(BaseModel):
     created_by: str = Field(..., description="Who created this node")
     tags: List[str] = Field(default_factory=list, description="Tags for categorization")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class GraphNode(BaseModel):
     """Base node for the graph - everything is a memory."""
@@ -81,16 +80,14 @@ class GraphNode(BaseModel):
     updated_by: Optional[str] = Field(None, description="Who last updated")
     updated_at: Optional[datetime] = Field(None, description="When last updated")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class GraphEdgeAttributes(BaseModel):
     """Typed attributes for graph edges."""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     context: Optional[str] = Field(None, description="Context of the relationship")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class GraphEdge(BaseModel):
     """Edge connecting nodes in the graph."""
@@ -101,8 +98,7 @@ class GraphEdge(BaseModel):
     weight: float = Field(default=1.0, ge=0.0, le=1.0, description="Relationship weight")
     attributes: GraphEdgeAttributes = Field(default_factory=lambda: GraphEdgeAttributes())
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "GraphScope",

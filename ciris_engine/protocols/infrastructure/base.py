@@ -14,7 +14,7 @@ from ciris_engine.schemas.infrastructure.base import (
     BusMetrics, ConsolidationResult, DreamSchedule, DreamInsight,
     IdentityBaseline, IdentityVarianceMetric, ConfigurationFeedback,
     ConfigurationPattern, ConfigurationUpdate, ActiveAdapter,
-    CheckpointInfo, ServiceRegistration, ServiceRegistry
+    CheckpointInfo, ServiceRegistration, ServiceRegistrySnapshot
 )
 
 # ============================================================================

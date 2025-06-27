@@ -177,10 +177,7 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
             )
             csdma_eval: CSDMAResult = result_tuple[0]
 
-            if hasattr(csdma_eval, '_raw_response') and hasattr(csdma_eval, 'raw_llm_response'):
-                raw_resp = getattr(csdma_eval, '_raw_response', None)
-                if raw_resp:
-                    setattr(csdma_eval, 'raw_llm_response', str(raw_resp))
+            # raw_llm_response field has been removed from CSDMAResult
 
             logger.info(f"CSDMA (instructor) evaluation successful for thought ID {thought_item.thought_id}: Score {csdma_eval.plausibility_score:.2f}")
             return csdma_eval

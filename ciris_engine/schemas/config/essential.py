@@ -6,7 +6,7 @@ This replaces AppConfig for a cleaner, graph-based config system.
 """
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class DatabaseConfig(BaseModel):
     """Core database paths configuration."""
@@ -23,8 +23,7 @@ class DatabaseConfig(BaseModel):
         description="Audit trail database with signatures"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ServiceEndpointsConfig(BaseModel):
     """External service endpoints configuration."""
@@ -45,8 +44,7 @@ class ServiceEndpointsConfig(BaseModel):
         description="Maximum LLM retry attempts"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SecurityConfig(BaseModel):
     """Security and audit configuration."""
@@ -71,8 +69,7 @@ class SecurityConfig(BaseModel):
         description="Maximum thought chain depth before auto-defer"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class OperationalLimitsConfig(BaseModel):
     """Operational limits and thresholds."""
@@ -105,8 +102,7 @@ class OperationalLimitsConfig(BaseModel):
         description="Maximum conscience evaluation retries"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class TelemetryConfig(BaseModel):
     """Telemetry configuration."""
@@ -123,8 +119,7 @@ class TelemetryConfig(BaseModel):
         description="Telemetry data retention period"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WorkflowConfig(BaseModel):
     """Workflow configuration for agent processing."""
@@ -141,8 +136,7 @@ class WorkflowConfig(BaseModel):
         description="Automatically defer when hitting limits"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class EssentialConfig(BaseModel):
     """
@@ -190,8 +184,7 @@ class EssentialConfig(BaseModel):
         description="Directory containing identity templates"
     )
     
-    class Config:
-        extra = "forbid"  # No ambiguity allowed in mission-critical config
+    model_config = ConfigDict(extra = "forbid")  # No ambiguity allowed in mission-critical config
 
 class CIRISNodeConfig(BaseModel):
     """Configuration for CIRISNode integration."""
@@ -204,5 +197,4 @@ class CIRISNodeConfig(BaseModel):
         description="Whether CIRISNode integration is enabled"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")

@@ -4,8 +4,8 @@ Tool protocol schemas.
 Type-safe schemas for tool service operations.
 """
 from typing import Dict, List, Optional, Union
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class ToolParameterSchema(BaseModel):
     """Schema for a tool parameter."""
@@ -17,8 +17,7 @@ class ToolParameterSchema(BaseModel):
     enum: Optional[List[Union[str, int]]] = Field(None, description="Valid values for enum parameters")
     pattern: Optional[str] = Field(None, description="Regex pattern for validation")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ToolInfo(BaseModel):
     """Complete information about a tool including its source."""
@@ -46,8 +45,7 @@ class ToolInfo(BaseModel):
     enabled: bool = Field(True, description="Whether tool is currently enabled")
     health_status: Optional[str] = Field(None, description="Current health status")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ToolExecutionRequest(BaseModel):
     """Request to execute a tool."""
@@ -60,8 +58,7 @@ class ToolExecutionRequest(BaseModel):
     timeout: Optional[float] = Field(None, description="Execution timeout in seconds")
     correlation_id: Optional[str] = Field(None, description="For tracking async execution")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ToolExecutionResult(BaseModel):
     """Result from tool execution."""
@@ -74,8 +71,7 @@ class ToolExecutionResult(BaseModel):
     adapter_id: str = Field(..., description="ID of adapter that executed the tool")
     metadata: Dict[str, str] = Field(default_factory=dict, description="Additional metadata")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "ToolParameterSchema",

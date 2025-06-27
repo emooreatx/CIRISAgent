@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class ConscienceStatus(str, Enum):
     """Status of a conscience check"""
@@ -23,8 +23,7 @@ class EntropyCheckResult(BaseModel):
     threshold: float = Field(ge=0.0, le=1.0, description="Threshold used for check")
     message: str = Field(description="Human-readable result message")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CoherenceCheckResult(BaseModel):
     """Result of coherence safety check"""
@@ -33,8 +32,7 @@ class CoherenceCheckResult(BaseModel):
     threshold: float = Field(ge=0.0, le=1.0, description="Threshold used for check")
     message: str = Field(description="Human-readable result message")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class OptimizationVetoResult(BaseModel):
     """Result of optimization veto check"""
@@ -44,8 +42,7 @@ class OptimizationVetoResult(BaseModel):
     affected_values: List[str] = Field(default_factory=list, description="Values that would be affected")
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence in assessment")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class EpistemicHumilityResult(BaseModel):
     """Result of epistemic humility check"""
@@ -54,8 +51,7 @@ class EpistemicHumilityResult(BaseModel):
     reflective_justification: str = Field(description="Reflective justification")
     recommended_action: str = Field(description="Recommended action: proceed, ponder, or defer")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class EpistemicData(BaseModel):
     """Epistemic safety metadata"""
@@ -64,8 +60,7 @@ class EpistemicData(BaseModel):
     uncertainty_acknowledged: bool = Field(description="Whether uncertainty was acknowledged")
     reasoning_transparency: float = Field(ge=0.0, le=1.0, description="Transparency of reasoning")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ConscienceCheckResult(BaseModel):
     """Unified result from conscience safety checks"""
@@ -88,8 +83,7 @@ class ConscienceCheckResult(BaseModel):
     check_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When check was performed")
     processing_time_ms: Optional[float] = Field(default=None, ge=0.0, description="Processing time in milliseconds")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "ConscienceStatus",

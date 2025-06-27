@@ -20,7 +20,7 @@ class ObserveParams(BaseModel):
     """Parameters for OBSERVE action."""
     channel_context: Optional[ChannelContext] = None
     active: bool = False
-    context: Dict[str, str] = Field(default_factory=dict)
+    context: Optional[Dict[str, str]] = Field(default=None)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -57,7 +57,7 @@ class RejectParams(BaseModel):
 class DeferParams(BaseModel):
     """Parameters for DEFER action."""
     reason: str
-    context: Dict[str, str] = Field(default_factory=dict)
+    context: Optional[Dict[str, str]] = Field(default=None)
     defer_until: Optional[str] = Field(
         None, 
         description="ISO timestamp to reactivate task (e.g., '2025-01-20T15:00:00Z')"
@@ -100,7 +100,7 @@ class ForgetParams(BaseModel):
 class TaskCompleteParams(BaseModel):
     """Parameters for TASK_COMPLETE action."""
     completion_reason: str = "Task completed successfully"
-    context: Dict[str, str] = Field(default_factory=dict)
+    context: Optional[Dict[str, str]] = Field(default=None)
     positive_moment: Optional[str] = Field(None, description="Optional note about positive vibes/joy from this task")
     
     model_config = ConfigDict(extra="forbid")

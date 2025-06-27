@@ -4,7 +4,7 @@ Agent configuration schemas.
 Minimal schemas for agent identity and templates.
 """
 from typing import List, Optional, Any, Dict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class AgentTemplate(BaseModel):
     """Agent profile template for identity configuration."""
@@ -46,5 +46,4 @@ class AgentTemplate(BaseModel):
         description="CLI adapter configuration"
     )
     
-    class Config:
-        extra = "allow"  # Allow additional fields for extensibility
+    model_config = ConfigDict(extra = "allow")  # Allow additional fields for extensibility

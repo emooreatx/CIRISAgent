@@ -176,8 +176,8 @@ class ServiceRegistration(BaseModel):
     health_check_url: Optional[str] = Field(None, description="Health check endpoint")
     metadata: dict = Field(default_factory=dict, description="Additional service metadata")
 
-class ServiceRegistry(BaseModel):
-    """Complete service registry."""
+class ServiceRegistrySnapshot(BaseModel):
+    """Snapshot of the service registry state for serialization."""
     services: Dict[str, ServiceRegistration] = Field(..., description="All registered services")
     total_services: int = Field(..., description="Total number of services")
     healthy_services: int = Field(..., description="Number of healthy services")

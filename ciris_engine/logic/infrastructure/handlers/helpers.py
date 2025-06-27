@@ -30,6 +30,14 @@ def create_follow_up_thought(
     elif parent.context and hasattr(parent.context, 'channel_id') and parent.context.channel_id:
         channel_id = parent.context.channel_id
     
+    # Cap thought depth at maximum allowed value (7)
+    next_depth = min(parent.thought_depth + 1, 7)
+    
+    # If we're already at max depth, log a warning
+    if parent.thought_depth >= 7:
+        logger.warning(f"Parent thought {parent.thought_id} is already at max depth {parent.thought_depth}. "
+                      f"Creating follow-up at same depth.")
+    
     follow_up = Thought(
         thought_id=str(uuid.uuid4()),
         source_task_id=parent.source_task_id,
@@ -41,7 +49,7 @@ def create_follow_up_thought(
         round_number=parent_round,
         content=content,
         context=parent.context.model_copy() if parent.context else None,
-        thought_depth=parent.thought_depth + 1,
+        thought_depth=next_depth,
         ponder_notes=None,
         parent_thought_id=parent.thought_id,
         final_action=None,

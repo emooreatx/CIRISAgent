@@ -10,11 +10,11 @@ from typing import (
     Type,
     Union
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from ..dma.results import EthicalDMAResult, CSDMAResult, DSDMAResult, ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.enums import HandlerActionType
-from pydantic import Field
+from pydantic import Field, ConfigDict
 from ..actions.parameters import (
     ObserveParams, SpeakParams, ToolParams, PonderParams, RejectParams,
     DeferParams, MemorizeParams, RecallParams, ForgetParams, TaskCompleteParams
@@ -27,8 +27,7 @@ class DMAResults(BaseModel):
     dsdma: Optional[DSDMAResult] = Field(None, description="Domain-specific evaluation")
     errors: List[str] = Field(default_factory=list, description="Errors during evaluation")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ConscienceResult(BaseModel):
     """Result from conscience application."""
@@ -38,8 +37,7 @@ class ConscienceResult(BaseModel):
     override_reason: Optional[str] = Field(None, description="Reason for override")
     epistemic_data: Dict[str, str] = Field(default_factory=dict, description="Epistemic faculty data")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ProcessedThoughtResult(BaseModel):
     """Result from thought processor containing both action and conscience data."""
@@ -67,8 +65,7 @@ class ProcessedThoughtResult(BaseModel):
         """Convenience property for compatibility."""
         return self.action_result.action_parameters
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ThoughtProcessingMetrics(BaseModel):
     """Metrics for thought processing."""
@@ -78,8 +75,7 @@ class ThoughtProcessingMetrics(BaseModel):
     llm_calls: int = Field(..., description="Number of LLM calls")
     tokens_used: int = Field(..., description="Total tokens consumed")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ProcessingError(BaseModel):
     """Error during thought processing."""
@@ -88,8 +84,7 @@ class ProcessingError(BaseModel):
     component: str = Field(..., description="Component that failed")
     recoverable: bool = Field(..., description="Whether error is recoverable")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "DMAResults",

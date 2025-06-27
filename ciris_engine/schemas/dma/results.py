@@ -5,7 +5,7 @@ Provides type-safe results from each Decision Making Algorithm.
 """
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from ..runtime.enums import HandlerActionType
 from ..actions.parameters import (
@@ -19,8 +19,7 @@ class EthicalDMAResult(BaseModel):
     reasoning: str = Field(..., description="Ethical reasoning")
     alignment_check: Dict[str, Any] = Field(..., description="Alignment check results")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CSDMAResult(BaseModel):
     """Result from Common Sense Decision Making Algorithm."""
@@ -28,8 +27,7 @@ class CSDMAResult(BaseModel):
     flags: List[str] = Field(default_factory=list, description="Common sense flags raised")
     reasoning: str = Field(..., description="Common sense reasoning")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DSDMAResult(BaseModel):
     """Result from Domain Specific Decision Making Algorithm."""
@@ -38,8 +36,7 @@ class DSDMAResult(BaseModel):
     flags: List[str] = Field(default_factory=list, description="Domain-specific flags")
     reasoning: str = Field(..., description="Domain-specific reasoning")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ActionSelectionDMAResult(BaseModel):
     """Result from Action Selection DMA - the meta-decision maker."""
@@ -57,8 +54,7 @@ class ActionSelectionDMAResult(BaseModel):
         ForgetParams,
         TaskCompleteParams,
     ] = Field(..., description="Parameters for the selected action")
-    rationale: str = Field(..., description="Reasoning for this action selection")
-    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence in selection")
+    rationale: Optional[str] = Field(None, description="Reasoning for this action selection")
     
     # LLM metadata
     raw_llm_response: Optional[str] = Field(None, description="Raw LLM response")
@@ -68,8 +64,7 @@ class ActionSelectionDMAResult(BaseModel):
     evaluation_time_ms: Optional[float] = Field(None, description="Time taken for evaluation")
     resource_usage: Optional[Dict[str, Any]] = Field(None, description="Resource usage details")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 
 __all__ = [

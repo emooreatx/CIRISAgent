@@ -50,6 +50,8 @@ class DiscordPlatform(Service):
         
         self.token = self.config.bot_token
         intents = self.config.get_intents()
+        
+        # Create Discord client without explicit loop (discord.py will manage it)
         self.client = discord.Client(intents=intents)
         
         # Generate adapter_id - will be updated with actual guild_id when bot connects
@@ -63,7 +65,8 @@ class DiscordPlatform(Service):
             token=self.token,
             bot=self.client,
             on_message=self._handle_discord_message_event,
-            time_service=time_service
+            time_service=time_service,
+            config=self.config
         )
 
         if hasattr(self.discord_adapter, 'attach_to_client'):
@@ -87,27 +90,11 @@ class DiscordPlatform(Service):
         if self.config.monitored_channel_ids:
             logger.info(f"DiscordPlatform: Using {len(self.config.monitored_channel_ids)} channels: {self.config.monitored_channel_ids}")
         
-        self.discord_observer = DiscordObserver(
-            monitored_channel_ids=self.config.monitored_channel_ids,
-            deferral_channel_id=self.config.deferral_channel_id,
-            wa_user_ids=self.config.admin_user_ids,
-            memory_service=getattr(self.runtime, 'memory_service', None),
-            agent_id=getattr(self.runtime, 'agent_id', None),
-            bus_manager=getattr(self.runtime, 'bus_manager', None),  # multi_service_sink returns bus_manager now
-            filter_service=getattr(self.runtime, 'adaptive_filter_service', None),
-            secrets_service=getattr(self.runtime, 'secrets_service', None),
-            communication_service=self.discord_adapter,
-            time_service=time_service
-        )
+        # Initialize observer as None - will be created in start() when services are ready
+        self.discord_observer = None
 
         self.tool_registry = ToolRegistry()
-        secrets_service = getattr(self.runtime, 'secrets_service', None)
-
         register_discord_tools(self.tool_registry, self.client)
-        if secrets_service:
-            register_secrets_tools(self.tool_registry, secrets_service)
-        else:
-            logger.warning("DiscordPlatform: SecretsService not available for register_secrets_tools.")
 
         if hasattr(self.discord_adapter, 'tool_registry'):
             self.discord_adapter.tool_registry = self.tool_registry
@@ -168,6 +155,34 @@ class DiscordPlatform(Service):
 
     async def start(self) -> None:
         logger.info("DiscordPlatform: Starting internal components...")
+        
+        # Create observer now that services are available
+        secrets_service = getattr(self.runtime, 'secrets_service', None)
+        if not secrets_service:
+            logger.error("CRITICAL: secrets_service not available at start time!")
+        else:
+            logger.info("Found secrets_service from runtime")
+            
+        # Get time_service from runtime
+        time_service = getattr(self.runtime, 'time_service', None)
+        
+        self.discord_observer = DiscordObserver(
+            monitored_channel_ids=self.config.monitored_channel_ids,
+            deferral_channel_id=self.config.deferral_channel_id,
+            wa_user_ids=self.config.admin_user_ids,
+            memory_service=getattr(self.runtime, 'memory_service', None),
+            agent_id=getattr(self.runtime, 'agent_id', None),
+            bus_manager=getattr(self.runtime, 'bus_manager', None),
+            filter_service=getattr(self.runtime, 'adaptive_filter_service', None),
+            secrets_service=secrets_service,
+            communication_service=self.discord_adapter,
+            time_service=time_service
+        )
+        
+        # Register secrets tools now that we have the service
+        if secrets_service and time_service:
+            register_secrets_tools(self.tool_registry, secrets_service, time_service)
+        
         if hasattr(self.discord_observer, 'start'):
             await self.discord_observer.start()
         if hasattr(self.discord_adapter, 'start'):
@@ -186,29 +201,23 @@ class DiscordPlatform(Service):
             self._discord_client_task = asyncio.create_task(self.client.start(self.token), name="DiscordClientTask")
             logger.info("DiscordPlatform: Discord client start initiated.")
             
-            ready_task = asyncio.create_task(self.client.wait_until_ready(), name="DiscordReadyWait")
+            # Wait for Discord client to be ready with timeout
+            logger.info("DiscordPlatform: Waiting for Discord client to be ready...")
+            ready = await self.discord_adapter.wait_until_ready(timeout=30.0)
             
-            done, pending = await asyncio.wait(
-                [agent_run_task, self._discord_client_task, ready_task],
-                return_when=asyncio.FIRST_COMPLETED
-            )
-            
-            if ready_task in done and not ready_task.exception():
-                logger.info(f"DiscordPlatform: Discord client ready! Logged in as: {self.client.user}")
-                if not ready_task.done():
-                    ready_task.cancel()
-                
-                done, pending = await asyncio.wait(
-                    [agent_run_task, self._discord_client_task],
-                    return_when=asyncio.FIRST_COMPLETED
-                )
-            elif ready_task in done and ready_task.exception():
-                logger.error(f"DiscordPlatform: Discord client failed to become ready: {ready_task.exception()}")
-                for task in pending:
-                    task.cancel()
+            if not ready:
+                logger.error("DiscordPlatform: Discord client failed to become ready within timeout")
                 if not agent_run_task.done():
                     agent_run_task.cancel()
                 return
+            
+            logger.info(f"DiscordPlatform: Discord client ready! Logged in as: {self.client.user}")
+            
+            # Now wait for either the agent task or Discord client task to complete
+            done, pending = await asyncio.wait(
+                [agent_run_task, self._discord_client_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
 
             for task in pending:
                 task.cancel()
@@ -243,19 +252,13 @@ class DiscordPlatform(Service):
     async def stop(self) -> None:
         logger.info("DiscordPlatform: Stopping...")
 
+        # Stop observer and adapter first
         if hasattr(self.discord_observer, 'stop'):
             await self.discord_observer.stop()
         if hasattr(self.discord_adapter, 'stop'):
             await self.discord_adapter.stop()
 
-        if self._discord_client_task and not self._discord_client_task.done():
-            logger.info("DiscordPlatform: Cancelling active Discord client task.")
-            self._discord_client_task.cancel()
-            try:
-                await self._discord_client_task
-            except asyncio.CancelledError:
-                logger.info("DiscordPlatform: Discord client task successfully cancelled.")
-
+        # Close the Discord client before cancelling the task
         if self.client and not self.client.is_closed():
             logger.info("DiscordPlatform: Closing Discord client connection.")
             try:
@@ -263,5 +266,14 @@ class DiscordPlatform(Service):
                 logger.info("DiscordPlatform: Discord client connection closed.")
             except Exception as e:
                 logger.error(f"DiscordPlatform: Error while closing Discord client: {e}", exc_info=True)
+
+        # Then cancel the task
+        if self._discord_client_task and not self._discord_client_task.done():
+            logger.info("DiscordPlatform: Cancelling active Discord client task.")
+            self._discord_client_task.cancel()
+            try:
+                await self._discord_client_task
+            except asyncio.CancelledError:
+                logger.info("DiscordPlatform: Discord client task successfully cancelled.")
 
         logger.info("DiscordPlatform: Stopped.")

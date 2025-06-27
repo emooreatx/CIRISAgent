@@ -5,7 +5,7 @@ Provides context objects for thought and task processing that carry
 system state and metadata through the processing pipeline.
 """
 from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from .system_context import SystemSnapshot
 from .models import TaskContext
@@ -32,8 +32,7 @@ class ProcessingThoughtContext(BaseModel):
     # Initial task context
     initial_task_context: Optional[TaskContext] = Field(None, description="Original task context")
     
-    class Config:
-        extra = "allow"  # Allow additional fields for flexibility
+    model_config = ConfigDict(extra = "allow")  # Allow additional fields for flexibility
 
 
 # For backward compatibility, alias to ThoughtContext

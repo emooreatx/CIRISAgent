@@ -5,8 +5,8 @@ Provides type-safe structures for tool invocation and results.
 """
 from typing import Dict, List, Optional, Union
 from enum import Enum
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class ToolExecutionStatus(str, Enum):
     """Status of tool execution."""
@@ -45,8 +45,7 @@ class ToolParameter(BaseModel):
     min_length: Optional[int] = Field(default=None, description="Minimum length for string parameters")
     max_length: Optional[int] = Field(default=None, description="Maximum length for string parameters")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ToolExample(BaseModel):
     """Example tool invocation."""
@@ -54,8 +53,7 @@ class ToolExample(BaseModel):
     parameters: Dict[str, Union[str, int, float, bool]] = Field(..., description="Example parameters")
     expected_result: Optional[str] = Field(None, description="Expected result description")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ToolDescription(BaseModel):
     """Complete description of a tool including its parameters."""
@@ -69,8 +67,7 @@ class ToolDescription(BaseModel):
     rate_limit: Optional[int] = Field(default=None, description="Rate limit per minute")
     timeout_seconds: float = Field(default=30.0, description="Execution timeout")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ToolInvocation(BaseModel):
     """Request to invoke a tool."""
@@ -82,8 +79,7 @@ class ToolInvocation(BaseModel):
     correlation_id: Optional[str] = Field(default=None, description="Correlation ID for tracking")
     timeout_override: Optional[float] = Field(default=None, description="Override default timeout")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ToolResult(BaseModel):
     """Result from tool execution."""
@@ -94,8 +90,7 @@ class ToolResult(BaseModel):
     execution_time_ms: Optional[float] = Field(None, description="Execution time in milliseconds")
     metadata: Dict[str, str] = Field(default_factory=dict, description="Additional metadata")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ToolRegistryEntry(BaseModel):
     """Entry in the tool registry."""
@@ -106,8 +101,7 @@ class ToolRegistryEntry(BaseModel):
     last_used: Optional[str] = Field(None, description="ISO timestamp of last use")
     usage_count: int = Field(0, description="Number of times used")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ToolCapability(BaseModel):
     """Capability provided by a tool."""
@@ -118,8 +112,7 @@ class ToolCapability(BaseModel):
         description="Required permissions"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "ToolExecutionStatus",

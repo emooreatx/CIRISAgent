@@ -5,8 +5,8 @@ Provides context structures for WA interactions.
 """
 from typing import Dict, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class GuidanceContext(BaseModel):
     """Context for requesting guidance from Wise Authority."""
@@ -23,8 +23,7 @@ class GuidanceContext(BaseModel):
         description="Domain-specific context"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class DeferralContext(BaseModel):
     """Context for deferral operations."""
@@ -39,8 +38,7 @@ class DeferralContext(BaseModel):
         description="Additional deferral metadata"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ApprovalContext(BaseModel):
     """Context for WA approval requests."""
@@ -64,8 +62,7 @@ class ApprovalContext(BaseModel):
         description="Supporting information"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WADecision(BaseModel):
     """A decision made by a Wise Authority."""
@@ -96,8 +93,7 @@ class WADecision(BaseModel):
     # Signature
     signature: str = Field(..., description="Digital signature of decision")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class WAInteractionLog(BaseModel):
     """Log entry for WA interactions."""
@@ -124,8 +120,7 @@ class WAInteractionLog(BaseModel):
     task_id: Optional[str] = Field(None, description="Associated task")
     thought_id: Optional[str] = Field(None, description="Associated thought")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "GuidanceContext",

@@ -5,11 +5,11 @@ All memory operations are typed - no Dict[str, Any].
 """
 from enum import Enum
 from typing import List, Optional, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from ciris_engine.schemas.runtime.enums import CaseInsensitiveEnum
 from ciris_engine.schemas.services.graph_core import NodeType, GraphScope, GraphNode
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 class InitializationPhase(str, Enum):
     """Initialization phases in order."""
@@ -53,8 +53,7 @@ class MemoryOpResult(BaseModel):
     data: Optional[Any] = None  # Will be typed based on operation
     error: Optional[str] = None
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class MemoryQuery(BaseModel):
     """Query parameters for memory recall operations."""
@@ -64,16 +63,14 @@ class MemoryQuery(BaseModel):
     include_edges: bool = Field(False, description="Whether to include connected edges")
     depth: int = Field(1, ge=1, le=10, description="Graph traversal depth for connected nodes")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class MemoryRecallResult(BaseModel):
     """Result of a memory recall operation."""
     nodes: List[GraphNode] = Field(default_factory=list, description="Retrieved graph nodes")
     total_count: int = Field(0, ge=0, description="Total number of nodes found")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "MemoryOpStatus",

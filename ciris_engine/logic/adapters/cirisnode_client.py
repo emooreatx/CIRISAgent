@@ -15,7 +15,6 @@ from ciris_engine.schemas.adapters.cirisnode import (
     ChaosTestRequest, ChaosTestResult,
     WAServiceRequest, WAServiceResponse,
     EventLogRequest, EventLogResponse,
-    EventQueryRequest, EventQueryResult,
     AssessmentSubmission, AssessmentResult
 )
 

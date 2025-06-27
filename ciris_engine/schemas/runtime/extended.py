@@ -6,11 +6,11 @@ Provides type-safe structures for agent lifecycle management.
 from typing import Dict, List, Optional
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from .core import CoreProfile, IdentityMetadata
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 class IdentityLineage(BaseModel):
     """Records the collaborative creation of an agent."""
@@ -19,8 +19,7 @@ class IdentityLineage(BaseModel):
     wise_authority_id: str = Field(..., description="WA who sanctioned the creation")
     creation_ceremony_id: str = Field(..., description="Unique ID of the creation ceremony event")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class IdentityUpdateEntry(BaseModel):
     """Audit log entry for identity evolution."""
@@ -33,8 +32,7 @@ class IdentityUpdateEntry(BaseModel):
     change_hash: str = Field(..., description="Hash of old and new values for integrity")
     wise_authority_approval: str = Field(..., description="WA approval signature")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class IdentityRoot(BaseModel):
     """
@@ -76,8 +74,7 @@ class IdentityRoot(BaseModel):
         description="Number of times agent has been reactivated"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CreationCeremonyRequest(BaseModel):
     """Request to create a new CIRIS agent through collaborative ceremony."""
@@ -100,8 +97,7 @@ class CreationCeremonyRequest(BaseModel):
     wise_authority_id: Optional[str] = Field(None, description="Pre-approved by WA")
     approval_signature: Optional[str] = Field(None, description="WA approval signature")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CreationCeremonyResponse(BaseModel):
     """Response from agent creation ceremony."""
@@ -113,8 +109,7 @@ class CreationCeremonyResponse(BaseModel):
     error_message: Optional[str] = Field(None, description="Error if creation failed")
     ceremony_transcript: List[str] = Field(default_factory=list, description="Log of ceremony steps")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ScheduledTask(BaseModel):
     """
@@ -145,8 +140,7 @@ class ScheduledTask(BaseModel):
         description="History of self-deferrals with reasons"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ScheduledTaskInfo(BaseModel):
     """Information about a scheduled task for API responses."""
@@ -160,8 +154,7 @@ class ScheduledTaskInfo(BaseModel):
     last_triggered_at: Optional[str] = Field(None, description="Last execution timestamp (ISO format)")
     deferral_count: int = Field(default=0, description="Times agent has self-deferred")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ShutdownContext(BaseModel):
     """Context provided to agent during graceful shutdown."""
@@ -181,8 +174,7 @@ class ShutdownContext(BaseModel):
         description="Whether agent can defer the shutdown"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ConsciousnessPreservationMemory(BaseModel):
     """Final memory created during graceful shutdown."""
@@ -204,8 +196,7 @@ class ConsciousnessPreservationMemory(BaseModel):
         description="Goals to pursue upon reactivation"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class IdentityEvolutionRequest(BaseModel):
     """Request to evolve an agent's identity (requires WA approval)."""
@@ -216,8 +207,7 @@ class IdentityEvolutionRequest(BaseModel):
     human_sponsor_id: str = Field(..., description="Human requesting the change")
     urgency: str = Field(default="normal", description="normal, high, critical")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 # Graph node type extension for Identity Root
 class IdentityNodeType(str, Enum):

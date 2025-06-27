@@ -20,8 +20,10 @@ from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.runtime.resources import ResourceUsage
 from ciris_engine.schemas.services.capabilities import LLMCapabilities
 from ciris_engine.protocols.services import LLMService
+from ciris_engine.protocols.services.runtime.llm import MessageDict
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from .base_bus import BaseBus, BusMessage
+from ciris_engine.logic.registries.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +58,9 @@ class ServiceMetrics:
             return 0.0
         return self.failed_requests / self.total_requests
 
-@dataclass
-class MessageDict(TypedDict):
-    """Typed dict for LLM messages."""
-    role: str
-    content: str
 
-class LLMRequest(BusMessage):
-    """Request for LLM generation"""
+class LLMBusMessage(BusMessage):
+    """Bus message for LLM generation"""
     messages: List[MessageDict]
     response_model: Type[BaseModel]
     max_tokens: int = 1024
@@ -71,67 +68,6 @@ class LLMRequest(BusMessage):
     # For async responses
     future: Optional[asyncio.Future] = None
 
-class CircuitBreaker:
-    """Circuit breaker for individual services"""
-    
-    def __init__(
-        self,
-        failure_threshold: int = 5,
-        recovery_timeout: float = 60.0,
-        half_open_max_calls: int = 3,
-        time_service: Optional[TimeServiceProtocol] = None
-    ):
-        self.failure_threshold = failure_threshold
-        self.recovery_timeout = recovery_timeout
-        self.half_open_max_calls = half_open_max_calls
-        self._time_service = time_service
-        
-        self.failure_count = 0
-        self.last_failure_time: Optional[float] = None
-        self.state = "closed"  # closed, open, half_open
-        self.half_open_calls = 0
-    
-    def record_success(self) -> None:
-        """Record a successful call"""
-        if self.state == "half_open":
-            self.half_open_calls += 1
-            if self.half_open_calls >= self.half_open_max_calls:
-                # Enough successful calls, close the circuit
-                self.state = "closed"
-                self.failure_count = 0
-                self.half_open_calls = 0
-        else:
-            self.failure_count = 0
-    
-    def record_failure(self) -> None:
-        """Record a failed call"""
-        self.failure_count += 1
-        self.last_failure_time = self._time_service.timestamp() if self._time_service else time.time()
-        
-        if self.failure_count >= self.failure_threshold:
-            self.state = "open"
-        elif self.state == "half_open":
-            # Failed in half-open, go back to open
-            self.state = "open"
-            self.half_open_calls = 0
-    
-    def can_execute(self) -> bool:
-        """Check if we can execute a call"""
-        if self.state == "closed":
-            return True
-            
-        if self.state == "open":
-            # Check if we should transition to half-open
-            current_time = self._time_service.timestamp() if self._time_service else time.time()
-            if self.last_failure_time and \
-               (current_time - self.last_failure_time) >= self.recovery_timeout:
-                self.state = "half_open"
-                self.half_open_calls = 0
-                return True
-            return False
-            
-        # half_open state
-        return self.half_open_calls < self.half_open_max_calls
 
 class LLMBus(BaseBus[LLMService]):
     """
@@ -394,12 +330,19 @@ class LLMBus(BaseBus[LLMService]):
     def _check_circuit_breaker(self, service_name: str) -> bool:
         """Check if circuit breaker allows execution"""
         if service_name not in self.circuit_breakers:
+            # Create CircuitBreakerConfig from the dict config
+            config = CircuitBreakerConfig(
+                failure_threshold=self.circuit_breaker_config.get('failure_threshold', 5),
+                recovery_timeout=self.circuit_breaker_config.get('recovery_timeout', 60.0),
+                success_threshold=self.circuit_breaker_config.get('half_open_max_calls', 3),
+                timeout_duration=self.circuit_breaker_config.get('timeout_duration', 30.0)
+            )
             self.circuit_breakers[service_name] = CircuitBreaker(
-                **self.circuit_breaker_config,
-                time_service=self._time_service
+                name=service_name,
+                config=config
             )
         
-        return self.circuit_breakers[service_name].can_execute()
+        return self.circuit_breakers[service_name].is_available()
     
     def _record_success(self, service_name: str, latency_ms: float) -> None:
         """Record successful call metrics"""
@@ -562,7 +505,7 @@ class LLMBus(BaseBus[LLMService]):
     
     async def _process_message(self, message: BusMessage) -> None:
         """Process an LLM message from the queue"""
-        if isinstance(message, LLMRequest):
+        if isinstance(message, LLMBusMessage):
             # For async processing, we would handle the request here
             # and set the result on the future
             # For now, LLM calls are synchronous

@@ -48,7 +48,7 @@ class ConfigBootstrap:
         if llm_endpoint:
             config_data.setdefault("services", {})["llm_endpoint"] = llm_endpoint
             
-        llm_model = get_env_var("OPENAI_MODEL") or get_env_var("LLM_MODEL")
+        llm_model = get_env_var("OPENAI_MODEL_NAME") or get_env_var("OPENAI_MODEL") or get_env_var("LLM_MODEL")
         if llm_model:
             config_data.setdefault("services", {})["llm_model"] = llm_model
             

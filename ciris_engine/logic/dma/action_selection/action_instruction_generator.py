@@ -68,52 +68,38 @@ class ActionInstructionGenerator:
         # Get the Pydantic schema
         schema = param_class.model_json_schema()
         
-        # Custom formatting for each action type
-        if action_type == HandlerActionType.SPEAK:
-            return f"SPEAK: {{\"content\": string (required), \"channel_id\"?: string}}"
-            
-        elif action_type == HandlerActionType.PONDER:
-            return f"PONDER: {{\"questions\": [string] (required list of 2-3 questions)}}"
-            
-        elif action_type == HandlerActionType.MEMORIZE:
+        # Use the actual schema to generate the format
+        schema_str = self._simplify_schema(schema)
+        
+        # Add action-specific guidance
+        if action_type == HandlerActionType.MEMORIZE:
             return self._format_memory_action_schema("MEMORIZE")
             
         elif action_type == HandlerActionType.RECALL:
             return self._format_memory_action_schema("RECALL")
             
         elif action_type == HandlerActionType.FORGET:
+            # Special formatting for FORGET to show the node structure
             return (f"FORGET: {{\"node\": {{id: string, type: \"agent\"|\"user\"|\"channel\"|\"concept\", "
                    f"scope: \"local\"|\"identity\"|\"environment\"}}, \"reason\": string (required)}}")
             
         elif action_type == HandlerActionType.DEFER:
-            defer_schema = (f"DEFER: {{\"reason\": string (required), \"context\"?: object, "
-                           f"\"defer_until\"?: string (ISO timestamp like '2025-01-20T15:00:00Z')}}")
-            return defer_schema + "\nUse defer_until for time-based deferrals that auto-reactivate."
+            return f"DEFER: {schema_str}\nUse defer_until for time-based deferrals that auto-reactivate."
             
         elif action_type == HandlerActionType.REJECT:
-            reject_schema = (f"REJECT: {{\"reason\": string (required), "
-                           f"\"create_filter\"?: boolean (default: false), "
-                           f"\"filter_pattern\"?: string, "
-                           f"\"filter_type\"?: \"regex\"|\"semantic\"|\"keyword\" (default: \"regex\"), "
-                           f"\"filter_priority\"?: \"critical\"|\"high\"|\"medium\" (default: \"high\")}}")
-            return reject_schema + "\nUse create_filter=true to prevent similar future requests."
+            return f"REJECT: {schema_str}\nUse create_filter=true to prevent similar future requests."
             
         elif action_type == HandlerActionType.TOOL:
             return self._generate_tool_schema()
             
-        elif action_type == HandlerActionType.OBSERVE:
-            return (f"OBSERVE: {{\"channel_id\"?: string, \"active\"?: boolean (default: false), "
-                   f"\"context\"?: object}}")
-            
         elif action_type == HandlerActionType.TASK_COMPLETE:
-            return (f"TASK_COMPLETE: {{\"completion_reason\"?: string (default: \"Task completed successfully\"), "
-                   f"\"context\"?: object}}\n"
+            return (f"TASK_COMPLETE: {schema_str}\n"
                    f"Use when task is done, impossible, unnecessary, or cannot be actioned. "
                    f"This is the preferred resolution for problematic tasks.")
         
         else:
-            # Fallback to generic schema representation for any other action types
-            return f"{action_type.value.upper()}: {self._simplify_schema(schema)}"  # type: ignore[unreachable]
+            # For all other actions, use the dynamically generated schema
+            return f"{action_type.value.upper()}: {schema_str}"
     
     def _format_memory_action_schema(self, action_name: str) -> str:
         """Format schema for memory-related actions (MEMORIZE, RECALL)."""

@@ -5,8 +5,8 @@ Replaces Dict[str, Any] in memory service operations.
 """
 from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class NodeAttributes(BaseModel):
     """Attributes for a graph node."""
@@ -25,8 +25,7 @@ class NodeAttributes(BaseModel):
         description="Node data attributes"
     )
     
-    class Config:
-        extra = "allow"  # Allow additional fields for flexibility
+    model_config = ConfigDict(extra = "allow")  # Allow additional fields for flexibility
 
 class MemorySearchFilter(BaseModel):
     """Filters for memory search operations."""

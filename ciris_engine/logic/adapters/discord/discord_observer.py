@@ -55,6 +55,12 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
 
         self.monitored_channel_ids = monitored_channel_ids or []
         
+        # Log configuration for debugging
+        logger.info(f"DiscordObserver initialized with:")
+        logger.info(f"  - Monitored channels: {self.monitored_channel_ids}")
+        logger.info(f"  - Deferral channel: {self.deferral_channel_id}")
+        logger.info(f"  - WA user IDs: {self.wa_user_ids}")
+        
         # Initialize vision helper
         self._vision_helper = DiscordVisionHelper()
         if self._vision_helper.is_available():
@@ -93,6 +99,11 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         # Check if message is from a monitored channel or deferral channel
         is_from_monitored = (self.monitored_channel_ids and msg.channel_id in self.monitored_channel_ids)
         is_from_deferral = (self.deferral_channel_id and msg.channel_id == self.deferral_channel_id)
+        
+        logger.info(f"Message from {msg.author_name} (ID: {msg.author_id}) in channel {msg.channel_id}")
+        logger.info(f"  - Is from monitored channel: {is_from_monitored}")
+        logger.info(f"  - Is from deferral channel: {is_from_deferral}")
+        logger.info(f"  - Deferral channel ID: {self.deferral_channel_id}")
         
         if not (is_from_monitored or is_from_deferral):
             logger.debug("Ignoring message from channel %s (not in monitored channels %s or deferral %s)", 
@@ -186,8 +197,13 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         if msg.channel_id in monitored_channel_ids:
             await self._create_priority_observation_result(msg, filter_result)
         elif msg.channel_id == self.deferral_channel_id and (msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user):
+            logger.info(f"[PRIORITY] Routing message to WA feedback queue - author {msg.author_name} is WA")
             await self._add_to_feedback_queue(msg)
         else:
+            logger.info(f"[PRIORITY] Not routing to WA feedback - checking conditions:")
+            logger.info(f"  - Is deferral channel: {msg.channel_id == self.deferral_channel_id}")
+            logger.info(f"  - Author ID in WA list: {msg.author_id in self.wa_user_ids}")
+            logger.info(f"  - Author name matches DEFAULT_WA '{wa_discord_user}': {msg.author_name == wa_discord_user}")
             logger.debug("Ignoring priority message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id)
 
     def _create_task_context_with_extras(self, msg: DiscordMessage, extras: dict) -> ThoughtContext:
@@ -197,10 +213,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         # Create channel context for this Discord message
         channel_context = create_channel_context(
             channel_id=msg.channel_id,
-            channel_type="discord",
-            is_monitored=msg.channel_id in self.monitored_channel_ids,
-            is_deferral=msg.channel_id == self.deferral_channel_id,
-            is_home=False  # Can be set later based on config
+            channel_type="discord"
         )
         
         context = ThoughtContext(
@@ -232,8 +245,13 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         if msg.channel_id in monitored_channel_ids:
             await self._create_passive_observation_result(msg)
         elif msg.channel_id == self.deferral_channel_id and (msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user):
+            logger.info(f"Routing message to WA feedback queue - author {msg.author_name} is WA")
             await self._add_to_feedback_queue(msg)
         else:
+            logger.info(f"Not routing to WA feedback - checking conditions:")
+            logger.info(f"  - Is deferral channel: {msg.channel_id == self.deferral_channel_id}")
+            logger.info(f"  - Author ID in WA list: {msg.author_id in self.wa_user_ids}")
+            logger.info(f"  - Author name matches DEFAULT_WA '{wa_discord_user}': {msg.author_name == wa_discord_user}")
             logger.debug("Ignoring message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id)
 
     async def _add_to_feedback_queue(self, msg: DiscordMessage) -> None:

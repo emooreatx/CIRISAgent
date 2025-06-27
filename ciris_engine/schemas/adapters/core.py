@@ -7,7 +7,7 @@ Provides schemas for API endpoints including messages, services, status, and hea
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from ciris_engine.schemas.runtime.enums import ServiceType
 
@@ -18,8 +18,7 @@ class MessageRequest(BaseModel):
     author_id: Optional[str] = Field(default="api_user", description="Author ID")
     author_name: Optional[str] = Field(default="API User", description="Display name")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class MessageResponse(BaseModel):
     """Response schema for message operations"""
@@ -31,8 +30,7 @@ class MessageResponse(BaseModel):
     author_id: Optional[str] = Field(default=None, description="Message author ID")
     author_name: Optional[str] = Field(default=None, description="Message author name")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class MessageListResponse(BaseModel):
     """Response schema for listing messages"""
@@ -40,8 +38,7 @@ class MessageListResponse(BaseModel):
     channel_id: str = Field(description="Channel ID")
     count: int = Field(description="Number of messages returned")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ServiceProvider(BaseModel):
     """Schema for a service provider"""
@@ -51,8 +48,7 @@ class ServiceProvider(BaseModel):
     capabilities: List[str] = Field(description="Provider capabilities")
     is_global: bool = Field(default=False, description="Whether this is a global service")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ServiceTypeInfo(BaseModel):
     """Information about a service type"""
@@ -60,16 +56,14 @@ class ServiceTypeInfo(BaseModel):
     providers: List[ServiceProvider] = Field(description="Available providers")
     total_providers: int = Field(description="Total number of providers")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ServicesResponse(BaseModel):
     """Response schema for services listing"""
     services: List[ServiceTypeInfo] = Field(description="Services organized by type")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class RuntimeStatus(BaseModel):
     """Schema for runtime status"""
@@ -78,8 +72,7 @@ class RuntimeStatus(BaseModel):
     version: str = Field(description="Runtime version")
     start_time: datetime = Field(description="When runtime started")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class RuntimeMetrics(BaseModel):
     """Runtime performance metrics"""
@@ -88,8 +81,7 @@ class RuntimeMetrics(BaseModel):
     memory_usage_mb: Optional[float] = Field(default=None, ge=0.0, description="Memory usage in MB")
     cpu_usage_percent: Optional[float] = Field(default=None, ge=0.0, le=100.0, description="CPU usage percentage")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class RuntimeStatusResponse(BaseModel):
     """Response schema for runtime status"""
@@ -97,8 +89,7 @@ class RuntimeStatusResponse(BaseModel):
     metrics: Optional[RuntimeMetrics] = Field(default=None, description="Runtime metrics")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class HealthResponse(BaseModel):
     """Response schema for health check"""
@@ -108,8 +99,7 @@ class HealthResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Active warnings")
     errors: List[str] = Field(default_factory=list, description="Active errors")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ErrorResponse(BaseModel):
     """Response schema for errors"""
@@ -118,8 +108,7 @@ class ErrorResponse(BaseModel):
     details: Optional[str] = Field(default=None, description="Additional error details")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ChannelInfo(BaseModel):
     """Schema for channel information"""
@@ -130,8 +119,7 @@ class ChannelInfo(BaseModel):
     last_activity: datetime = Field(description="Last activity time")
     is_active: bool = Field(description="Whether channel is currently active")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class AgentIdentity(BaseModel):
     """Agent identity information"""
@@ -140,8 +128,7 @@ class AgentIdentity(BaseModel):
     version: str = Field(description="Agent version")
     capabilities: List[str] = Field(description="Agent capabilities")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class MessageProcessorMetrics(BaseModel):
     """Message processor status"""
@@ -149,8 +136,7 @@ class MessageProcessorMetrics(BaseModel):
     queue_size: int = Field(ge=0, description="Messages in queue")
     processing_rate: float = Field(ge=0.0, description="Messages per second")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class AgentStatus(BaseModel):
     """Schema for agent status"""
@@ -160,8 +146,7 @@ class AgentStatus(BaseModel):
     processor: Optional[MessageProcessorMetrics] = Field(default=None, description="Processor status")
     active_channels: int = Field(ge=0, description="Number of active channels")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ChannelListResponse(BaseModel):
     """Response for listing channels"""
@@ -169,8 +154,7 @@ class ChannelListResponse(BaseModel):
     total_channels: int = Field(ge=0, description="Total number of channels")
     active_channels: int = Field(ge=0, description="Number of active channels")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "MessageRequest",

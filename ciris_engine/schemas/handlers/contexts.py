@@ -7,8 +7,8 @@ Replaces context: Dict[str, Any] for each action type.
 from typing import Dict, List, Literal, Optional, Any
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field
-from pydantic import Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
 class BaseActionContext(BaseModel):
     """Base context shared by all actions."""
@@ -18,8 +18,7 @@ class BaseActionContext(BaseModel):
     channel_id: str = Field(..., description="Channel where action occurs")
     user_id: Optional[str] = Field(None, description="User requesting action")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class SpeakContext(BaseActionContext):
     """Context for SPEAK action."""

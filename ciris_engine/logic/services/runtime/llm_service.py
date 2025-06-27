@@ -81,7 +81,7 @@ class OpenAICompatibleClient(LLMServiceProtocol):
             instructor_mode = getattr(self.openai_config, 'instructor_mode', 'json')
             self.instruct_client = instructor.from_openai(
                 self.client,
-                mode=instructor.Mode.JSON if instructor_mode == 'json' else instructor.Mode.TOOLS
+                mode=instructor.Mode.JSON if instructor_mode.lower() == 'json' else instructor.Mode.TOOLS
             )
         except Exception as e:
             raise RuntimeError(f"Failed to initialize OpenAI client: {e}")

@@ -7,7 +7,7 @@ Designed for deployments that might track just one community at a time.
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class SchemaVersion(str, Enum):
     """Version of the schema."""
@@ -20,16 +20,14 @@ class CommunityHealth(BaseModel):
     helpfulness: int = Field(default=50, ge=0, le=100, description="Helpfulness level (0-100)")
     flourishing: int = Field(default=50, ge=0, le=100, description="Composite flourishing metric from Annex A")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CommunityValue(BaseModel):
     """A single community value"""
     name: str = Field(description="Value name")
     importance: int = Field(ge=0, le=100, description="Importance rating (0-100)")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class MinimalCommunityContext(BaseModel):
     """Just enough context to serve a community well"""
@@ -40,8 +38,7 @@ class MinimalCommunityContext(BaseModel):
     health: CommunityHealth = Field(default_factory=CommunityHealth, description="Community health metrics")
     agent_role: Optional[str] = Field(default=None, description="Agent's role (moderator, helper, etc.)")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CommunityMember(BaseModel):
     """Minimal member information"""
@@ -50,8 +47,7 @@ class CommunityMember(BaseModel):
     contribution_score: int = Field(default=50, ge=0, le=100, description="Contribution score (0-100)")
     last_active: Optional[str] = Field(default=None, description="ISO timestamp of last activity")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CommunityEvent(BaseModel):
     """Significant community event"""
@@ -61,8 +57,7 @@ class CommunityEvent(BaseModel):
     timestamp: str = Field(description="ISO timestamp of event")
     summary: str = Field(description="Brief event summary")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class CommunitySnapshot(BaseModel):
     """Point-in-time community state"""
@@ -72,8 +67,7 @@ class CommunitySnapshot(BaseModel):
     active_members: List[str] = Field(default_factory=list, description="IDs of currently active members")
     recent_events: List[CommunityEvent] = Field(default_factory=list, description="Recent significant events")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "SchemaVersion",

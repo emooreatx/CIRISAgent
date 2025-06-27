@@ -13,7 +13,7 @@ from typing import (
 )
 from datetime import datetime, timezone
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from .metadata import ServiceMetadata
 from ciris_engine.schemas.actions.parameters import MemorizeParams, RecallParams
@@ -23,8 +23,7 @@ class ServiceRequest(BaseModel):
     metadata: ServiceMetadata = Field(..., description="Service call metadata")
     correlation_id: UUID = Field(..., description="Correlation ID for tracing")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 class ServiceResponse(BaseModel):
     """Base response from all service methods."""
@@ -33,8 +32,7 @@ class ServiceResponse(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp")
     error: Optional[str] = Field(None, description="Error message if failed")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra = "forbid")
 
 # Memory Service specific requests/responses
 
