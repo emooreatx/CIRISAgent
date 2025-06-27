@@ -837,8 +837,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         await self._emit_telemetry("discord.tool.executed", {
             "adapter_type": "discord",
             "tool_name": tool_name,
-            "success": result.success,
-            "execution_time": result.execution_time
+            "success": result.success
         })
         
         # Audit log the tool execution
@@ -847,7 +846,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             tool_name=tool_name,
             parameters=parameters,
             success=result.success,
-            execution_time_ms=result.execution_time,
+            execution_time_ms=0,  # TODO: Add execution time tracking to ToolExecutionResult
             error=result.error if not result.success else None
         )
         
