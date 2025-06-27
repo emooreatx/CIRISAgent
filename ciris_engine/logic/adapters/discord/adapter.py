@@ -211,25 +211,37 @@ class DiscordPlatform(Service):
             logger.info(f"DiscordPlatform: Discord client ready! Logged in as: {self.client.user}")
             
             # Now wait for either the agent task or Discord client task to complete
-            done, pending = await asyncio.wait(
-                [agent_run_task, self._discord_client_task],
-                return_when=asyncio.FIRST_COMPLETED
-            )
+            # Keep retrying Discord connection on transient errors
+            while not agent_run_task.done():
+                done, pending = await asyncio.wait(
+                    [agent_run_task, self._discord_client_task],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
 
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+                # Check if agent task completed
+                if agent_run_task in done:
+                    # Agent is shutting down, cancel Discord task
+                    if self._discord_client_task and not self._discord_client_task.done():
+                        self._discord_client_task.cancel()
+                        try:
+                            await self._discord_client_task
+                        except asyncio.CancelledError:
+                            pass
+                    break
 
-            for task in done: # Check completed tasks for exceptions
-                if task.exception():
-                    task_name = task.get_name() if hasattr(task, 'get_name') else 'Unnamed task'
-                    logger.error(f"DiscordPlatform: Task '{task_name}' exited with error: {task.exception()}", exc_info=task.exception())
-                    if task is self._discord_client_task and not agent_run_task.done():
-                        # Discord client failed - restart it
-                        logger.warning("Discord client task failed. Attempting to restart Discord connection...")
+                # Check if Discord task failed
+                if self._discord_client_task in done and self._discord_client_task.exception():
+                    exc = self._discord_client_task.exception()
+                    task_name = self._discord_client_task.get_name() if hasattr(self._discord_client_task, 'get_name') else 'DiscordClientTask'
+                    logger.error(f"DiscordPlatform: Task '{task_name}' exited with error: {exc}", exc_info=exc)
+                    
+                    # Check if this is a transient error we should retry
+                    if isinstance(exc, (RuntimeError, discord.ConnectionClosed)) and str(exc) in [
+                        "Concurrent call to receive() is not allowed",
+                        "WebSocket connection is closed.",
+                        "Shard ID None has stopped responding to the gateway."
+                    ]:
+                        logger.warning("Discord client encountered transient error. Attempting to reconnect...")
                         # Clear the failed task
                         self._discord_client_task = None
                         # Try to restart the Discord client
@@ -245,14 +257,15 @@ class DiscordPlatform(Service):
                                 name="DiscordClientTask"
                             )
                             logger.info("Discord client restart task created")
-                            # Add the new task to the set we're waiting on
-                            tasks.add(self._discord_client_task)
+                            continue  # Continue the while loop with the new task
                         except Exception as e:
                             logger.error(f"Failed to restart Discord client: {e}")
                             # Only shutdown if we can't restart
-                            agent_run_task.cancel()
-                            try: await agent_run_task
-                            except asyncio.CancelledError: pass
+                            break
+                    else:
+                        # Non-transient error, don't retry
+                        logger.error(f"Discord client encountered non-transient error: {exc}")
+                        break
 
         except discord.LoginFailure as e:
             logger.error(f"DiscordPlatform: Discord login failed: {e}. Check token and intents.", exc_info=True)

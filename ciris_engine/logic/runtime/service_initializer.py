@@ -581,19 +581,48 @@ This directory contains critical cryptographic keys for the CIRIS system.
             # Store reference for compatibility
             self.llm_service = openai_service
             
-            # Future: Add additional real LLM providers here
-            # Example for Anthropic (when implemented):
-            # anthropic_service = AnthropicLLMService(config.llm_services.anthropic)
-            # await anthropic_service.start()
-            # self.service_registry.register_global(
-            #     service_type=ServiceType.LLM,
-            #     provider=anthropic_service,
-            #     priority=Priority.NORMAL,
-            #     capabilities=["generate_structured_response", "anthropic"],
-            #     metadata={"provider": "anthropic"}
-            # )
+            # Check for second LLM service configuration
+            second_api_key = os.environ.get("CIRIS_OPENAI_API_KEY_2", "")
+            if second_api_key:
+                logger.info("Found CIRIS_OPENAI_API_KEY_2, initializing secondary LLM service")
+                
+                # Get configuration from environment variables with defaults
+                second_base_url = os.environ.get("CIRIS_OPENAI_API_BASE_2", config.services.llm_endpoint)
+                second_model_name = os.environ.get("CIRIS_OPENAI_MODEL_NAME_2", config.services.llm_model)
+                
+                # Create config for second LLM service
+                second_llm_config = OpenAIConfig(
+                    base_url=second_base_url,
+                    model_name=second_model_name,
+                    api_key=second_api_key,
+                    timeout_seconds=config.services.llm_timeout,
+                    max_retries=config.services.llm_max_retries
+                )
+                
+                # Create second OpenAI-compatible service
+                second_openai_service = OpenAICompatibleClient(
+                    second_llm_config,
+                    telemetry_service=self.telemetry_service
+                )
+                await second_openai_service.start()
+                
+                # Register second service with NORMAL priority (lower than primary)
+                if self.service_registry:
+                    self.service_registry.register_global(
+                        service_type=ServiceType.LLM,
+                        provider=second_openai_service,
+                        priority=Priority.NORMAL,
+                        capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
+                        metadata={
+                            "provider": "openai_secondary",
+                            "model": second_llm_config.model_name,
+                            "base_url": second_base_url
+                        }
+                    )
+                
+                logger.info(f"Secondary LLM service initialized: {second_llm_config.model_name} at {second_base_url}")
             
-            logger.info(f"Real LLM service(s) initialized: {llm_config.model_name}")
+            logger.info(f"Real LLM service(s) initialized: primary={llm_config.model_name}")
     
     async def _initialize_audit_services(self, config: Any, agent_id: str) -> None:
         """Initialize all three required audit services."""
