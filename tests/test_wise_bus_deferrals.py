@@ -57,7 +57,7 @@ class TestWiseBusDeferrals:
     def mock_service_registry(self, mock_wise_service):
         """Mock service registry that returns our WA service."""
         registry = Mock()
-        registry.get_service = Mock(return_value=mock_wise_service)
+        registry.get_service = AsyncMock(return_value=mock_wise_service)
         return registry
     
     @pytest.fixture
@@ -343,11 +343,21 @@ class TestWiseBusDeferrals:
         service_with_defer = mock_wise_service
         
         # Registry returns different services based on handler
-        def get_service_by_handler(handler, service_type):
+        async def get_service_by_handler(handler, service_type, **kwargs):
+            required_capabilities = kwargs.get('required_capabilities', [])
+            
             if handler == "HandlerA":
-                return service_without_defer
+                service = service_without_defer
             else:
-                return service_with_defer
+                service = service_with_defer
+            
+            # Check if service has required capabilities
+            if required_capabilities:
+                service_caps = service.get_capabilities()
+                if not all(cap in service_caps for cap in required_capabilities):
+                    return None
+            
+            return service
         
         mock_service_registry.get_service.side_effect = get_service_by_handler
         
@@ -419,6 +429,11 @@ class TestWiseBusErrorHandling:
     """Test error handling scenarios in WiseBus."""
     
     @pytest.fixture
+    def mock_time_service(self):
+        """Provide a mock time service."""
+        return MockTimeService()
+    
+    @pytest.fixture
     def wise_bus(self):
         """Create WiseBus with minimal mocking."""
         mock_registry = Mock()
@@ -431,30 +446,42 @@ class TestWiseBusErrorHandling:
         wise_bus,
         mock_time_service
     ):
-        """Test handling of invalid defer_until timestamp."""
+        """Test handling of invalid defer_until timestamp in Pydantic validation."""
         # Arrange
         mock_service = MockWiseAuthorityService()
-        wise_bus._service_registry.get_service = Mock(return_value=mock_service)
+        wise_bus.service_registry.get_service = AsyncMock(return_value=mock_service)
         
-        context = DeferralContext(
+        # Since DeferralContext expects datetime or None, passing an invalid string
+        # will raise a Pydantic ValidationError at model creation time
+        from pydantic import ValidationError
+        
+        # Act & Assert
+        with pytest.raises(ValidationError) as exc_info:
+            context = DeferralContext(
+                thought_id="thought_123",
+                task_id="task_456",
+                reason="Test",
+                defer_until="invalid-timestamp",  # Invalid format - will fail validation
+                priority="medium",
+                metadata={}
+            )
+        
+        # Verify the validation error is about the defer_until field
+        errors = exc_info.value.errors()
+        assert any(error['loc'] == ('defer_until',) for error in errors)
+        
+        # Now test that a properly formed context works
+        valid_context = DeferralContext(
             thought_id="thought_123",
             task_id="task_456",
             reason="Test",
-            defer_until="invalid-timestamp",  # Invalid format
+            defer_until=mock_time_service.now(),  # Valid datetime
             priority="medium",
             metadata={}
         )
         
-        # Act
-        result = await wise_bus.send_deferral(context, "TestHandler")
-        
-        # Assert
-        assert result is True  # Should still succeed
-        
-        # Should fall back to current time
-        call_args = mock_service.send_deferral.call_args
-        deferral_request = call_args[0][0]
-        assert isinstance(deferral_request.defer_until, datetime)
+        result = await wise_bus.send_deferral(valid_context, "TestHandler")
+        assert result is True
     
     @pytest.mark.asyncio 
     async def test_process_message_warning(
@@ -465,9 +492,12 @@ class TestWiseBusErrorHandling:
         """Test that async message processing logs warning."""
         # Arrange
         from ciris_engine.logic.buses.base_bus import BusMessage
+        from datetime import datetime, timezone
         message = BusMessage(
+            id="test_msg_001",
             handler_name="TestHandler",
-            payload={"test": "data"}
+            timestamp=datetime.now(timezone.utc),
+            metadata={"test": "data"}
         )
         
         # Act

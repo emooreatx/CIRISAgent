@@ -126,7 +126,7 @@ class TestDreamProcessor:
         await dream_processor.initialize()
         
         # Patch persistence functions
-        with patch('ciris_engine.logic.persistence.get_active_tasks') as mock_get_tasks:
+        with patch('ciris_engine.logic.persistence.get_tasks_by_status') as mock_get_tasks:
             with patch('ciris_engine.logic.persistence.update_task_status'):
                 with patch('ciris_engine.logic.persistence.count_active_tasks', return_value=0):
                     with patch('ciris_engine.logic.persistence.get_pending_tasks_for_activation', return_value=[]):

@@ -129,11 +129,6 @@ class BaseDMAProtocol(Protocol):
         ...
     
     @abstractmethod
-    def get_confidence(self) -> float:
-        """Get confidence in the last decision."""
-        ...
-    
-    @abstractmethod
     def get_algorithm_type(self) -> str:
         """Get the type of decision making algorithm."""
         ...

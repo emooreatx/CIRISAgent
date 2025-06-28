@@ -116,7 +116,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         - OBSERVER: Can only read and send messages
         """
         wa = await self.auth_service.get_wa(wa_id)
-        if not wa or not wa.active:
+        if not wa:
             return False
         
         # Root can do anything

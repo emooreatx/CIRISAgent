@@ -45,7 +45,6 @@ class ActionSelectionSpecialCases:
                 selected_action=HandlerActionType.PONDER,
                 action_parameters=ponder_params,
                 rationale="Forced PONDER for testing ponder loop.",
-                confidence=None,
             )
         
         return None
@@ -81,7 +80,6 @@ class ActionSelectionSpecialCases:
                     selected_action=HandlerActionType.PONDER,
                     action_parameters=ponder_params,
                     rationale="Wakeup task requires SPEAK action before TASK_COMPLETE",
-                    confidence=0.95,
                 )
         
         return None

@@ -174,33 +174,33 @@ async def test_dream_processor_queries_behavioral_insights():
 
 @pytest.mark.asyncio
 async def test_all_insights_processed_without_filtering():
-    """Test that all behavioral pattern insights are processed without confidence filtering."""
+    """Test that all behavioral pattern insights are processed without reliability filtering."""
     # Setup
     time_service = MockTimeService()
     memory_bus = MagicMock(spec=MemoryBus)
     
-    # Create insight nodes with varying confidence
+    # Create insight nodes with varying reliability
     insight_nodes = [
         GraphNode(
-            id="high_confidence",
+            id="high_reliability",
             type=NodeType.CONCEPT,
             scope=GraphScope.LOCAL,
             attributes={
                 "insight_type": "behavioral_pattern",
                 "pattern_type": "frequency",
-                "description": "High confidence pattern",
+                "description": "High reliability pattern",
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
             }
         ),
         GraphNode(
-            id="low_confidence",
+            id="low_reliability",
             type=NodeType.CONCEPT,
             scope=GraphScope.LOCAL,
             attributes={
                 "insight_type": "behavioral_pattern",
                 "pattern_type": "frequency",
-                "description": "Low confidence pattern",
+                "description": "Low reliability pattern",
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
             }
@@ -230,10 +230,10 @@ async def test_all_insights_processed_without_filtering():
     # Process insights
     insights = await dream_processor._process_behavioral_insights()
     
-    # Verify all insights are processed (no confidence filtering)
+    # Verify all insights are processed (no reliability filtering)
     assert len(insights) == 4  # 2 patterns + 2 action opportunities
-    assert "High confidence pattern" in str(insights)
-    assert "Low confidence pattern" in str(insights)
+    assert "High reliability pattern" in str(insights)
+    assert "Low reliability pattern" in str(insights)
 
 
 @pytest.mark.asyncio
@@ -252,12 +252,12 @@ async def test_feedback_loop_stores_all_detected_patterns():
         memory_bus=memory_bus
     )
     
-    # Create patterns with varying confidence
+    # Create patterns with varying reliability
     patterns = [
         DetectedPattern(
             pattern_type=PatternType.FREQUENCY,
             pattern_id="high_conf",
-            description="High confidence pattern",
+            description="High reliability pattern",
             evidence_nodes=["node1"],
                 detected_at=time_service.now(),
             metrics=PatternMetrics(
@@ -268,7 +268,7 @@ async def test_feedback_loop_stores_all_detected_patterns():
         DetectedPattern(
             pattern_type=PatternType.FREQUENCY,
             pattern_id="low_conf",
-            description="Low confidence pattern",
+            description="Low reliability pattern",
             evidence_nodes=["node2"],
             detected_at=time_service.now(),
             metrics=PatternMetrics(

@@ -529,7 +529,6 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
                     opportunity_id=f"opp_{insight.id}",
                     signal_type=insight.attributes.get("pattern_type", "unknown"),
                     description=insight.attributes.get("description", ""),
-                    confidence=insight.attributes.get("confidence", 0.0),
                     expected_benefit="Agent can decide to optimize based on this pattern",
                     risk_level="low"  # All insights are pre-filtered as safe
                 )

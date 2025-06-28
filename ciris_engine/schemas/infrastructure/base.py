@@ -83,7 +83,6 @@ class DreamInsight(BaseModel):
     """Insight discovered during dream analysis."""
     insight_id: str = Field(..., description="Unique insight ID")
     insight_type: str = Field(..., description="Type of insight")
-    confidence: float = Field(..., description="Confidence score 0-1")
     description: str = Field(..., description="Insight description")
     supporting_memories: List[str] = Field(default_factory=list, description="Memory IDs supporting this insight")
     timestamp: datetime = Field(..., description="When insight was discovered")
@@ -129,7 +128,6 @@ class ConfigurationPattern(BaseModel):
     success_rate: float = Field(..., description="Success rate when pattern active")
     configuration_items: List[str] = Field(..., description="Configuration items in pattern")
     recommended_action: str = Field(..., description="Recommended action for pattern")
-    confidence: float = Field(..., description="Confidence in pattern detection")
 
 class ConfigurationUpdate(BaseModel):
     """Proposed configuration update."""

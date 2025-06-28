@@ -36,7 +36,6 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
         thought_id: str,
         decision: str,
         reasoning: str,
-        confidence: float,
         metadata: Optional[dict] = None
     ) -> None:
         """Log a conscience decision event."""

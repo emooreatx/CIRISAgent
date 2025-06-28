@@ -81,7 +81,6 @@ def create_test_thought(
         final_action = FinalAction(
             action_type=action_type,
             action_params={"message": "Test message"},
-            confidence=0.95,
             reasoning=f"Reasoning for {action_type}"
         )
     

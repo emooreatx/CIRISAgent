@@ -141,7 +141,6 @@ class DMADecision(BaseModel):
     """A decision made by a DMA."""
     dma_type: str = Field(..., description="Type of DMA: PDMA, CSDMA, DSDMA, ActionSelection")
     decision: str = Field(..., description="The decision: approve, reject, defer, etc.")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in decision")
     reasoning: str = Field(..., description="Explanation of the decision")
     timestamp: datetime = Field(..., description="Decision timestamp")
     

@@ -196,7 +196,7 @@ class TestThoughtDepthPropagation:
             selected_action=HandlerActionType.PONDER,
             action_parameters=PonderParams(
                 questions=["Why did this fail guardrails?", "What's a better approach?"]
-            ).model_dump(),
+            ),
             rationale="Failed guardrails check",
             raw_llm_response=None
         )
@@ -270,7 +270,7 @@ class TestThoughtDepthPropagation:
         
         ponder_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
-            action_parameters=PonderParams(questions=["Final attempt"]).model_dump(),
+            action_parameters=PonderParams(questions=["Final attempt"]),
             rationale="Last chance",
             raw_llm_response=None
         )

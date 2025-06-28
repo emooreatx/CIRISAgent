@@ -55,7 +55,7 @@ class ActionSelectionDMAProtocol(BaseDMAProtocol):
     # - selected_action: The action selected by the meta-evaluation
     # - ethical_analysis: Analysis of the selection ethics
     # - reasoning: Explanation of the recursive reasoning
-    # - confidence: Confidence in the selection
+    # - reliability: Reliability score for the selection
     pass
 
 # ============================================================================

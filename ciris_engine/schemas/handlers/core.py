@@ -25,7 +25,6 @@ class DeferralReason(str, Enum):
 class EthicalAssessment(BaseModel):
     """Ethical evaluation results."""
     decision: str = Field(..., description="approve, reject, defer")
-    confidence: float = Field(..., ge=0.0, le=1.0)
     reasoning: str = Field(..., description="Explanation")
     principles_upheld: List[str] = Field(default_factory=list)
     principles_violated: List[str] = Field(default_factory=list)

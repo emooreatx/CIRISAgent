@@ -586,7 +586,6 @@ class IdentityVarianceMonitor(Service):
                         evidence=evidence.get(action_type, []),
                         first_seen=first_seen.get(action_type, self._time_service.now()),
                         last_seen=last_seen.get(action_type, self._time_service.now()),
-                        confidence=min(count / 10.0, 1.0)  # Higher count = higher confidence
                     )
                     patterns.append(pattern)
             

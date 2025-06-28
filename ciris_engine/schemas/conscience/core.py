@@ -40,7 +40,6 @@ class OptimizationVetoResult(BaseModel):
     justification: str = Field(description="Justification for the decision")
     entropy_reduction_ratio: float = Field(ge=0.0, description="Estimated entropy reduction ratio")
     affected_values: List[str] = Field(default_factory=list, description="Values that would be affected")
-    confidence: float = Field(ge=0.0, le=1.0, description="Confidence in assessment")
 
     model_config = ConfigDict(extra = "forbid")
 

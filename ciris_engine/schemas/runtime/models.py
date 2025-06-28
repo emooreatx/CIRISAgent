@@ -44,7 +44,6 @@ class FinalAction(BaseModel):
     """Typed final action from thought processing."""
     action_type: str = Field(..., description="Action type chosen")
     action_params: dict = Field(..., description="Action parameters (will be typed per action)")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in action")
     reasoning: str = Field(..., description="Why this action was chosen")
     
     model_config = ConfigDict(extra = "forbid")

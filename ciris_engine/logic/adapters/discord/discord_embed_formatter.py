@@ -1,7 +1,7 @@
 """Discord embed formatting component for rich message presentation."""
 import discord
 from typing import Dict, List, Optional, Any, Union
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 class EmbedType(Enum):
@@ -40,7 +40,7 @@ class DiscordEmbedFormatter:
             title=f"{icon} {title}",
             description=description,
             color=color,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         return embed

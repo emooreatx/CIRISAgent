@@ -86,7 +86,6 @@ def sample_thought():
         final_action=FinalAction(
             action_type="MEMORIZE",
             action_params={"key": "test", "value": "data"},
-            confidence=0.95,
             reasoning="Need to store this information for future reference"
         )
     )

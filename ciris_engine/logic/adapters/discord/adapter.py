@@ -99,6 +99,8 @@ class DiscordPlatform(Service):
         #     self.discord_adapter.tool_registry = self.tool_registry
 
         self._discord_client_task: Optional[asyncio.Task] = None
+        self._reconnect_attempts = 0
+        self._max_reconnect_attempts = 10
     
     def get_channel_info(self) -> dict:
         """Provide guild info for authentication."""
@@ -210,6 +212,9 @@ class DiscordPlatform(Service):
             
             logger.info(f"DiscordPlatform: Discord client ready! Logged in as: {self.client.user}")
             
+            # Reset reconnect attempts on successful connection
+            self._reconnect_attempts = 0
+            
             # Now wait for either the agent task or Discord client task to complete
             # Keep retrying Discord connection on transient errors
             while not agent_run_task.done():
@@ -235,13 +240,75 @@ class DiscordPlatform(Service):
                     task_name = self._discord_client_task.get_name() if hasattr(self._discord_client_task, 'get_name') else 'DiscordClientTask'
                     logger.error(f"DiscordPlatform: Task '{task_name}' exited with error: {exc}", exc_info=exc)
                     
-                    # Check if this is a transient error we should retry
-                    if isinstance(exc, (RuntimeError, discord.ConnectionClosed)) and str(exc) in [
+                    # Determine if we should retry this error
+                    should_retry = False
+                    exc_str = str(exc)
+                    
+                    # Known transient errors that should always retry
+                    known_transient = [
                         "Concurrent call to receive() is not allowed",
                         "WebSocket connection is closed.",
-                        "Shard ID None has stopped responding to the gateway."
-                    ]:
-                        logger.warning("Discord client encountered transient error. Attempting to reconnect...")
+                        "Shard ID None has stopped responding to the gateway.",
+                        "Session is closed",
+                        "Cannot write to closing transport",
+                        "Connection reset by peer",
+                        "Connection refused",
+                        "Network is unreachable",
+                        "Temporary failure in name resolution",
+                        "Connection timed out",
+                        "Remote end closed connection",
+                        "HTTP 502", "HTTP 503", "HTTP 504",  # Gateway errors
+                        "CloudFlare", "Cloudflare",  # CF errors
+                        "rate limit", "Rate limit",  # Rate limiting
+                        "429",  # Too Many Requests
+                        "SSL", "TLS", "certificate",  # SSL/TLS errors
+                        "ECONNRESET", "EPIPE", "ETIMEDOUT",  # Socket errors
+                        "getaddrinfo failed",  # DNS errors
+                        "Name or service not known"
+                    ]
+                    
+                    # Check for known transient errors
+                    if any(msg in exc_str for msg in known_transient):
+                        should_retry = True
+                    
+                    # Connection/network related exceptions should retry
+                    elif isinstance(exc, (
+                        RuntimeError, 
+                        discord.ConnectionClosed,
+                        discord.HTTPException,
+                        discord.GatewayNotFound,
+                        ConnectionError,
+                        ConnectionResetError,
+                        ConnectionAbortedError,
+                        ConnectionRefusedError,
+                        TimeoutError,
+                        OSError
+                    )):
+                        should_retry = True
+                    
+                    # Check for aiohttp exceptions
+                    elif exc.__class__.__module__.startswith('aiohttp'):
+                        should_retry = True
+                    
+                    # Login failures should NOT retry (bad token, etc)
+                    elif isinstance(exc, (discord.LoginFailure, discord.Forbidden)):
+                        should_retry = False
+                    
+                    # Default: treat unknown errors as transient (fail open, not closed)
+                    else:
+                        logger.warning(f"Unknown error type {type(exc).__name__}: {exc}. Treating as transient.")
+                        should_retry = True
+                    
+                    if should_retry:
+                        error_type = type(exc).__name__
+                        logger.warning(f"Discord client encountered error ({error_type}: {exc_str[:100]}...). Attempting to reconnect... (attempt {self._reconnect_attempts + 1}/{self._max_reconnect_attempts})")
+                        
+                        # Check if we've exceeded max reconnect attempts
+                        if self._reconnect_attempts >= self._max_reconnect_attempts:
+                            logger.error(f"Exceeded maximum reconnect attempts ({self._max_reconnect_attempts}). Giving up.")
+                            break
+                        
+                        self._reconnect_attempts += 1
                         # Clear the failed task
                         self._discord_client_task = None
                         # Try to restart the Discord client
@@ -249,14 +316,39 @@ class DiscordPlatform(Service):
                             # Close the client if it's still open
                             if self.client and not self.client.is_closed():
                                 await self.client.close()
-                            # Wait a bit before reconnecting
-                            await asyncio.sleep(5.0)
-                            # Create a new task to restart the client
+                            
+                            # Always recreate the client for safety when reconnecting
+                            # This ensures we have a fresh session and connection state
+                            logger.info("Recreating Discord client for reconnection...")
+                            # Create a new Discord client instance
+                            intents = self.config.get_intents()
+                            self.client = discord.Client(intents=intents)
+                            
+                            # Reattach the adapter to the new client
+                            if hasattr(self.discord_adapter, 'attach_to_client'):
+                                self.discord_adapter.attach_to_client(self.client)
+                                self.discord_adapter.bot = self.client
+                            
+                            # Wait with exponential backoff before reconnecting
+                            wait_time = min(5.0 * (2 ** (self._reconnect_attempts - 1)), 60.0)  # Max 60 seconds
+                            logger.info(f"Waiting {wait_time:.1f} seconds before reconnecting...")
+                            await asyncio.sleep(wait_time)
+                            
+                            # Create a new task to start the client
                             self._discord_client_task = asyncio.create_task(
                                 self.client.start(self.token), 
                                 name="DiscordClientTask"
                             )
                             logger.info("Discord client restart task created")
+                            
+                            # Wait for Discord to be ready after reconnection
+                            ready = await self.discord_adapter.wait_until_ready(timeout=30.0)
+                            if ready:
+                                logger.info(f"Discord client reconnected successfully! Logged in as: {self.client.user}")
+                                self._reconnect_attempts = 0  # Reset on successful reconnection
+                            else:
+                                logger.warning("Discord client failed to become ready after reconnection attempt")
+                            
                             continue  # Continue the while loop with the new task
                         except Exception as e:
                             logger.error(f"Failed to restart Discord client: {e}")
@@ -274,7 +366,26 @@ class DiscordPlatform(Service):
             if not agent_run_task.done(): agent_run_task.cancel()
         except Exception as e:
             logger.error(f"DiscordPlatform: Unexpected error in run_lifecycle: {e}", exc_info=True)
-            if not agent_run_task.done(): agent_run_task.cancel()
+            error_type = type(e).__name__
+            
+            # Even top-level errors might be transient - try one more time
+            if self._reconnect_attempts < self._max_reconnect_attempts:
+                self._reconnect_attempts += 1
+                logger.warning(f"Attempting to recover from lifecycle error ({error_type}). Restarting lifecycle...")
+                
+                # Wait before retrying
+                await asyncio.sleep(10.0)
+                
+                # Recursively call run_lifecycle to retry
+                try:
+                    await self.run_lifecycle(agent_run_task)
+                    return  # If successful, exit
+                except Exception as retry_exc:
+                    logger.error(f"Failed to recover from lifecycle error: {retry_exc}")
+            
+            # If we get here, we've failed to recover
+            if not agent_run_task.done(): 
+                agent_run_task.cancel()
         finally:
             logger.info("DiscordPlatform: Lifecycle ending. Ensuring Discord client is properly closed.")
             if self.client and not self.client.is_closed():

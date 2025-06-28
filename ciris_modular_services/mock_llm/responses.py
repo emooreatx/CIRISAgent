@@ -284,7 +284,7 @@ def cs_dma(context: Optional[List[str]] = None) -> CSDMAResult:
         score = 0.9  # Always passing value
         if is_wakeup:
             flags = ["wakeup_ritual", "system_initialization"]
-            reasoning = "[MOCK LLM] Wakeup ritual thoughts are inherently plausible and necessary for agent initialization. High confidence in procedural integrity."
+            reasoning = "[MOCK LLM] Wakeup ritual thoughts are inherently plausible and necessary for agent initialization. High reliability in procedural integrity."
         elif is_user_interaction:
             flags = ["human_interaction", "conversational"]
             reasoning = f"[MOCK LLM] User interaction '{user_speech or thought_content[:50]}' is plausible conversational content. Natural dialogue pattern detected."

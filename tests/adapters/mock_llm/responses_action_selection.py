@@ -23,8 +23,7 @@ def action_selection(context=None, messages=None):
         result = ActionSelectionDMAResult(
             selected_action=action,
             action_parameters=params,
-            rationale=rationale,
-            confidence=0.95
+            rationale=rationale
         )
         object.__setattr__(result, 'choices', [result])
         object.__setattr__(result, 'finish_reason', 'stop')

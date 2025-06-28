@@ -246,7 +246,6 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
                         "goal_description": task.goal_description,
                         "trigger_type": "scheduled"
                     },
-                    confidence=1.0,
                     reasoning=f"Scheduled task '{task.name}' triggered"
                 )
             )

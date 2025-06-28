@@ -14,7 +14,6 @@ class BehavioralPattern(BaseModel):
     evidence: List[str] = Field(default_factory=list, description="Evidence supporting this pattern")
     first_seen: datetime = Field(..., description="When pattern was first observed")
     last_seen: datetime = Field(..., description="Most recent occurrence")
-    confidence: float = Field(0.5, description="Confidence in pattern detection (0.0-1.0)")
     
     model_config = ConfigDict()
     
@@ -89,7 +88,6 @@ class TemporalPattern(BaseModel):
     time_window: str = Field(..., description="Time window (e.g., '09:00-17:00', 'monday-friday')")
     activity_description: str = Field(..., description="What happens during this time")
     occurrence_count: int = Field(0, description="Times this pattern occurred")
-    confidence: float = Field(0.5, description="Pattern confidence (0.0-1.0)")
     first_detected: datetime = Field(..., description="When pattern was first detected")
     last_observed: datetime = Field(..., description="Most recent occurrence")
     metrics: Dict[str, float] = Field(default_factory=dict, description="Associated metrics")
@@ -106,7 +104,7 @@ class FeedbackLoopAnalysis(BaseModel):
     dominant_actions: Dict[str, ActionFrequency] = Field(default_factory=dict, description="Most frequent actions")
     underused_capabilities: List[str] = Field(default_factory=list, description="Capabilities not being used")
     suggested_adjustments: List[str] = Field(default_factory=list, description="Recommended config changes")
-    confidence_level: float = Field(0.5, description="Confidence in recommendations (0.0-1.0)")
+    reliability_level: float = Field(0.5, description="Reliability of recommendations (0.0-1.0)")
     
     model_config = ConfigDict()
     

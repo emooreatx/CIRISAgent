@@ -580,9 +580,10 @@ class DreamProcessor(BaseProcessor):
             return
             
         from ciris_engine.logic import persistence
+        from ciris_engine.schemas.runtime.enums import TaskStatus
         
         # Get active tasks
-        active_tasks = persistence.get_active_tasks(limit=100)
+        active_tasks = persistence.get_tasks_by_status(TaskStatus.ACTIVE)
         
         # Count tasks by phase
         phase_counts = {phase: 0 for phase in DreamPhase}
@@ -905,7 +906,7 @@ class DreamProcessor(BaseProcessor):
                 pattern_type = attrs.get("pattern_type", "unknown")
                 description = attrs.get("description", "")
                 
-                # Process all insights (no confidence filtering)
+                # Process all insights
                 insight_str = f"Pattern ({pattern_type}): {description}"
                 insights.append(insight_str)
                 

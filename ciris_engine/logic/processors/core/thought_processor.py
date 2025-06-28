@@ -136,7 +136,7 @@ class ThoughtProcessor:
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER,
                 action_parameters=defer_params.model_dump(),
-                selection_reasoning="DMA timeout",
+                rationale="DMA timeout",
             )
 
         # 4. Check for failures/escalations
@@ -166,7 +166,7 @@ class ThoughtProcessor:
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER,
                 action_parameters=defer_params.model_dump(),
-                selection_reasoning="DMA timeout",
+                rationale="DMA timeout",
             )
         
         # CRITICAL DEBUG: Check action_result details immediately
@@ -293,7 +293,7 @@ class ThoughtProcessor:
                 final_result = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.PONDER,
                     action_parameters=ponder_params.model_dump(),
-                    selection_reasoning="No conscience result",
+                    rationale="No conscience result",
                 )
 
         # Store conscience result on the action result for later access
@@ -558,7 +558,7 @@ class ThoughtProcessor:
         return ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=defer_params.model_dump(),
-            selection_reasoning=defer_reason
+            rationale=defer_reason
         )
 
     async def _handle_special_cases(self, result: Any, thought: Thought, context: Any) -> Optional[ActionSelectionDMAResult]:
@@ -576,7 +576,7 @@ class ThoughtProcessor:
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.PONDER,
                 action_parameters=ponder_params.model_dump(),
-                selection_reasoning="conscience result missing",
+                rationale="conscience result missing",
             )
 
         if hasattr(result, 'selected_action'):
@@ -603,7 +603,7 @@ class ThoughtProcessor:
                 final_result = ActionSelectionDMAResult(
                     selected_action=selected_action,
                     action_parameters=ponder_params.model_dump(),
-                    selection_reasoning="conscience result empty",
+                    rationale="conscience result empty",
                 )
         else:
             logger.warning(
@@ -697,7 +697,7 @@ class ThoughtProcessor:
             ponder_result = ActionSelectionDMAResult(
                 selected_action=HandlerActionType.PONDER,
                 action_parameters=ponder_params.model_dump(),
-                selection_reasoning="Processing PONDER action from action selection"
+                rationale="Processing PONDER action from action selection"
             )
             
             # Create proper DispatchContext

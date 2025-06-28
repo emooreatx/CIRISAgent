@@ -76,7 +76,6 @@ class MemoryNodeData(BaseNodeData):
     content: str = Field(..., description="The actual memory content")
     memory_type: str = Field(..., description="Type: fact, experience, learning, insight")
     source: str = Field(..., description="Where this memory came from")
-    confidence: float = Field(1.0, description="Confidence in this memory 0.0-1.0")
     
     # Relationships
     related_memories: List[str] = Field(default_factory=list, description="Related memory node IDs")

@@ -180,7 +180,6 @@ class ThoughtState(BaseModel):
     
     # Decision
     selected_action: Optional[str] = Field(None, description="Action selected")
-    decision_confidence: float = Field(0.0, description="Confidence in decision")
     
     model_config = ConfigDict(extra = "forbid")
 
