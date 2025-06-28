@@ -8,7 +8,8 @@ from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
 from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ThoughtContext, ConscienceResult
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ThoughtState
+from ciris_engine.schemas.conscience.results import ConscienceResult
 from .decisions import PDMADecision, CSDMADecision, DSDMADecision
 from .results import EthicalDMAResult, CSDMAResult, DSDMAResult
 
@@ -17,7 +18,7 @@ class DMAInputData(BaseModel):
     
     # Core thought being processed
     original_thought: Thought = Field(..., description="The thought being evaluated")
-    processing_context: ThoughtContext = Field(..., description="Full context for processing")
+    processing_context: ThoughtState = Field(..., description="Full context for processing")
     
     # DMA results (from parallel execution)
     ethical_pdma_result: Optional[EthicalDMAResult] = Field(None, description="Ethical evaluation result")
@@ -140,7 +141,6 @@ class DMADecision(BaseModel):
     """A decision made by a DMA."""
     dma_type: str = Field(..., description="Type of DMA: PDMA, CSDMA, DSDMA, ActionSelection")
     decision: str = Field(..., description="The decision: approve, reject, defer, etc.")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in decision")
     reasoning: str = Field(..., description="Explanation of the decision")
     timestamp: datetime = Field(..., description="Decision timestamp")
     

@@ -147,11 +147,6 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
                 
         return results
     
-    def get_confidence(self) -> float:
-        """Get confidence in the last decision."""
-        # Default implementation - subclasses can override
-        return 0.8
-    
     def get_algorithm_type(self) -> str:
         """Get the type of decision making algorithm."""
         # Return class name by default

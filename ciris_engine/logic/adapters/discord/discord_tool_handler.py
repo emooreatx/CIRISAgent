@@ -71,25 +71,23 @@ class DiscordToolHandler:
         """
         if not self.tool_registry:
             return ToolExecutionResult(
+                tool_name=tool_name,
+                status=ToolExecutionStatus.FAILED,
                 success=False,
+                data=None,
                 error="Tool registry not configured",
-                result=None,
-                execution_time=0,
-                adapter_id="discord",
-                output=None,
-                metadata=None
+                correlation_id=str(uuid.uuid4())
             )
         
         handler = self.tool_registry.get_handler(tool_name)
         if not handler:
             return ToolExecutionResult(
+                tool_name=tool_name,
+                status=ToolExecutionStatus.FAILED,
                 success=False,
+                data=None,
                 error=f"Tool handler for '{tool_name}' not found",
-                result=None,
-                execution_time=0,
-                adapter_id="discord",
-                output=None,
-                metadata=None
+                correlation_id=str(uuid.uuid4())
             )
         
         correlation_id = tool_args.get("correlation_id", str(uuid.uuid4()))

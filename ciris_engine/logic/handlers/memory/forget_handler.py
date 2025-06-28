@@ -35,8 +35,8 @@ class ForgetHandler(BaseActionHandler):
                     "is_follow_up": True,
                     "error": str(e)
                 })
-                from ciris_engine.schemas.runtime.system_context import ThoughtContext
-                follow_up.context = ThoughtContext.model_validate(context_data)
+                # Note: We don't modify the context here since ThoughtContext has extra="forbid"
+                # The error details are already captured in the follow_up content
                 persistence.add_thought(follow_up)
                 await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="failed")
                 return
@@ -51,8 +51,8 @@ class ForgetHandler(BaseActionHandler):
                 "is_follow_up": True,
                 "error": f"Invalid params type: {type(raw_params)}"
             })
-            from ciris_engine.schemas.runtime.system_context import ThoughtContext
-            follow_up.context = ThoughtContext.model_validate(context_data)
+            # Note: We don't modify the context here since ThoughtContext has extra="forbid"
+            # The error details are already captured in the follow_up content
             persistence.add_thought(follow_up)
             await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="failed")
             return
@@ -67,9 +67,14 @@ class ForgetHandler(BaseActionHandler):
                 "is_follow_up": True,
                 "error": "Permission denied or WA required"
             })
-            from ciris_engine.schemas.runtime.system_context import ThoughtContext
-            follow_up.context = ThoughtContext.model_validate(context_data)
+            # Note: We don't modify the context here since ThoughtContext has extra="forbid"
+            # The error details are already captured in the follow_up content
             persistence.add_thought(follow_up)
+            await self._audit_log(
+                HandlerActionType.FORGET,
+                dispatch_context.model_copy(update={"thought_id": thought_id}),
+                outcome="wa_denied"
+            )
             return
         # Memory operations will use the memory bus
 
@@ -85,8 +90,8 @@ class ForgetHandler(BaseActionHandler):
                 "is_follow_up": True,
                 "error": "wa_denied",
             })
-            from ciris_engine.schemas.runtime.system_context import ThoughtContext
-            follow_up.context = ThoughtContext.model_validate(context_data)
+            # Note: We don't modify the context here since ThoughtContext has extra="forbid"
+            # The error details are already captured in the follow_up content
             persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.FORGET,
@@ -110,19 +115,9 @@ class ForgetHandler(BaseActionHandler):
             follow_up_content = (
                 f"CIRIS_FOLLOW_UP_THOUGHT: This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. Failed to forget key '{node.id}' in scope {node.scope.value}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-        follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=ThoughtStatus.PENDING,
-        )
-        context_data = follow_up.context.model_dump() if follow_up.context else {}
-        context_data.update({
-            "action_performed": HandlerActionType.FORGET.name,
-            "parent_task_id": thought.source_task_id,
-            "is_follow_up": True,
-            "forget_key": node.id,
-            "forget_scope": node.scope.value,
-            "forget_status": str(getattr(forget_result, "status", forget_result))
-        })
-        from ciris_engine.schemas.runtime.system_context import ThoughtContext
-        follow_up.context = ThoughtContext.model_validate(context_data)
+        follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_content)
+        # Note: We don't modify the context here since ThoughtContext has extra="forbid"
+        # The action details are already captured in the follow_up_text content
         persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.FORGET,

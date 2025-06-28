@@ -20,10 +20,12 @@ class DeferHandler(BaseActionHandler):
         try:
             if hasattr(self, '_service_registry') and self._service_registry:
                 # Try to get from service registry
-                return self._service_registry.get_service(
+                return await self._service_registry.get_service(
                     handler="task_scheduler",
                     service_type="scheduler"
                 )
+            else:
+                logger.debug("No _service_registry available for task scheduler lookup")
         except Exception as e:
             logger.warning(f"Could not get task scheduler service: {e}")
         return None
@@ -59,8 +61,11 @@ class DeferHandler(BaseActionHandler):
                 scheduler_service = await self._get_task_scheduler_service()
                 if scheduler_service:
                     try:
-                        # Parse the defer_until timestamp
-                        defer_time = datetime.fromisoformat(defer_params_obj.defer_until.replace('Z', '+00:00'))
+                        # Parse the defer_until timestamp - handle both 'Z' and '+00:00' formats
+                        defer_str = defer_params_obj.defer_until
+                        if defer_str.endswith('Z'):
+                            defer_str = defer_str[:-1] + '+00:00'
+                        defer_time = datetime.fromisoformat(defer_str)
                         
                         # Create scheduled task
                         scheduled_task = await scheduler_service.schedule_deferred_task(
@@ -99,11 +104,16 @@ class DeferHandler(BaseActionHandler):
                     if task and hasattr(task, 'description'):
                         metadata["task_description"] = task.description
                 
+                # Convert defer_until from ISO string to datetime if present
+                defer_until_dt = None
+                if defer_params_obj.defer_until:
+                    defer_until_dt = datetime.fromisoformat(defer_params_obj.defer_until.replace('Z', '+00:00'))
+                
                 deferral_context = DeferralContext(
                     thought_id=thought_id,
                     task_id=thought.source_task_id,
                     reason=defer_params_obj.reason,
-                    defer_until=defer_params_obj.defer_until,
+                    defer_until=defer_until_dt,
                     priority=getattr(defer_params_obj, 'priority', 'medium'),
                     metadata=metadata
                 )

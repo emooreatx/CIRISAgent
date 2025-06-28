@@ -204,7 +204,6 @@ class MockLLMService(Service, MockLLMServiceProtocol):
             energy_kwh=(input_tokens + output_tokens) * 0.0001 / 1000,
             # Carbon: ~0.5g CO2 per kWh (US grid average)
             carbon_grams=((input_tokens + output_tokens) * 0.0001 / 1000) * 500,
-            compute_ms=50 + (output_tokens // 10),  # Base 50ms + ~0.1ms per output token
             model_used="llama4scout (mock)"
         )
         

@@ -28,6 +28,7 @@ def mock_config():
     config.database.graph_db = ":memory:"
     config.database.audit_db = ":memory:"
     config.database.runtime_db = ":memory:"
+    config.mock_llm = False  # Explicitly disable mock LLM
     return config
 
 
@@ -51,10 +52,13 @@ def mock_time_service():
 @pytest.fixture
 def service_initializer(mock_config, mock_service_registry, mock_time_service):
     """Create service initializer with mocks."""
-    initializer = ServiceInitializer(config=mock_config)
+    initializer = ServiceInitializer(essential_config=mock_config)
     initializer.service_registry = mock_service_registry
     initializer.time_service = mock_time_service
     initializer.telemetry_service = Mock()
+    initializer.config = mock_config  # Store config for _initialize_llm_services
+    initializer._skip_llm_init = False  # Ensure LLM initialization is not skipped
+    initializer._modules_to_load = []  # Ensure no mock_llm module is in the list
     return initializer
 
 

@@ -4,9 +4,9 @@ Emergency shutdown schemas for CIRIS API v2.0.
 Provides cryptographically signed emergency shutdown capability
 that bypasses normal authentication for critical situations.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 class EmergencyShutdownCommand(BaseModel):
     """
@@ -15,14 +15,14 @@ class EmergencyShutdownCommand(BaseModel):
     Must be signed by a ROOT or AUTHORITY key to be valid.
     Timestamp must be within 5 minutes to prevent replay attacks.
     """
-    action: str = Field("emergency_shutdown", const=True, description="Action type (always 'emergency_shutdown')")
+    action: Literal["emergency_shutdown"] = Field("emergency_shutdown", description="Action type (always 'emergency_shutdown')")
     reason: str = Field(..., description="Reason for emergency shutdown", min_length=1, max_length=500)
     timestamp: str = Field(..., description="ISO format timestamp of command creation")
     force: bool = Field(True, description="Force immediate shutdown without graceful cleanup")
     signature: str = Field(..., description="HMAC-SHA256 signature of command")
     
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "action": "emergency_shutdown",
                 "reason": "Critical security breach detected",
@@ -31,6 +31,7 @@ class EmergencyShutdownCommand(BaseModel):
                 "signature": "a1b2c3d4e5f6..."
             }
         }
+    )
 
 class EmergencyShutdownResponse(BaseModel):
     """Response to emergency shutdown command."""
@@ -40,8 +41,8 @@ class EmergencyShutdownResponse(BaseModel):
     timestamp: datetime = Field(..., description="When command was processed")
     shutdown_initiated: bool = Field(..., description="Whether shutdown was initiated")
     
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "accepted",
                 "message": "Emergency shutdown initiated",
@@ -50,6 +51,7 @@ class EmergencyShutdownResponse(BaseModel):
                 "shutdown_initiated": True
             }
         }
+    )
 
 class EmergencyStatus(BaseModel):
     """Current emergency system status."""
@@ -58,8 +60,8 @@ class EmergencyStatus(BaseModel):
     last_emergency_command: Optional[datetime] = Field(None, description="Timestamp of last emergency command")
     failed_attempts_24h: int = Field(0, description="Failed emergency attempts in last 24 hours")
 
-class SignatureVerificationResult(BaseModel):
-    """Result of signature verification."""
+class EmergencySignatureResult(BaseModel):
+    """Result of emergency shutdown signature verification."""
     valid: bool = Field(..., description="Whether signature is valid")
     authority_id: Optional[str] = Field(None, description="Authority ID if valid")
     reason: Optional[str] = Field(None, description="Reason for invalid signature")
@@ -81,3 +83,12 @@ class TrustedAuthority(BaseModel):
     added_at: datetime = Field(..., description="When authority was added")
     added_by: str = Field(..., description="Who added this authority")
     is_active: bool = Field(True, description="Whether authority is active")
+
+__all__ = [
+    "EmergencyShutdownCommand",
+    "EmergencyShutdownResponse",
+    "EmergencyStatus",
+    "EmergencySignatureResult",
+    "EmergencyAuditEntry",
+    "TrustedAuthority",
+]

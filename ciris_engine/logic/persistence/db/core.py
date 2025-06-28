@@ -1,6 +1,7 @@
 import sqlite3
 import logging
 from typing import Optional
+from datetime import datetime
 from ciris_engine.logic.config.db_paths import get_sqlite_db_full_path
 from ciris_engine.schemas.persistence.tables import (
     TASKS_TABLE_V1 as tasks_table_v1,

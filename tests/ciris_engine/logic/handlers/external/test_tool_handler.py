@@ -107,7 +107,7 @@ def create_tool_execution_result(
     result.status = status
     result.success = success
     result.error = error
-    result.result = data or {"output": "Tool executed successfully"} if success else None
+    result.data = data or {"output": "Tool executed successfully"} if success else None
     result.correlation_id = str(uuid.uuid4())
     return result
 
@@ -143,11 +143,11 @@ def mock_dependencies(monkeypatch):
     mock_persistence.update_thought_status = Mock()
     monkeypatch.setattr('ciris_engine.logic.handlers.external.tool_handler.persistence', mock_persistence)
     
-    # Mock the system_context ThoughtContext to avoid validation issues
+    # Mock the models ThoughtContext to avoid validation issues
     mock_thought_context = Mock()
     mock_thought_context.model_validate = Mock(side_effect=lambda x: Mock())
     monkeypatch.setattr(
-        'ciris_engine.schemas.runtime.system_context.ThoughtContext',
+        'ciris_engine.schemas.runtime.models.ThoughtContext',
         mock_thought_context
     )
     

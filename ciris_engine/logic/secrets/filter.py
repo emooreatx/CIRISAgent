@@ -9,9 +9,12 @@ import uuid
 import logging
 from typing import Dict, List, Optional, Tuple
 
-from ciris_engine.schemas.secrets.core import DetectedSecret
-from ciris_engine.schemas.secrets.filter import PatternStats, ConfigExport
-from ciris_engine.schemas.secrets.core import SecretsFilterResult
+from ciris_engine.schemas.secrets.core import (
+    DetectedSecret,
+    PatternStats,
+    ConfigExport,
+    SecretsFilterResult
+)
 from ciris_engine.schemas.secrets.core import (
     SecretsDetectionConfig, 
     SecretPattern as ConfigSecretPattern

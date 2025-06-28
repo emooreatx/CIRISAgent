@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
 class InitializationStatus(BaseModel):
     """Status of system initialization."""
@@ -13,6 +13,12 @@ class InitializationStatus(BaseModel):
     phase_status: Dict[str, str] = Field(default_factory=dict, description="Status of each phase")
     error: Optional[str] = Field(None, description="Error message if initialization failed")
     total_steps: int = Field(0, description="Total number of steps registered")
+    
+    model_config = ConfigDict()
+    
+    @field_serializer('start_time')
+    def serialize_datetime(self, dt: Optional[datetime]) -> Optional[str]:
+        return dt.isoformat() if dt else None
 
 class InitializationVerification(BaseModel):
     """Results of initialization verification."""

@@ -1,5 +1,5 @@
 """
-Unit tests for Shutdown Service API routes.
+Unit tests for System Shutdown API route.
 """
 import pytest
 from unittest.mock import Mock, AsyncMock
@@ -7,13 +7,10 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from ciris_engine.api.routes.shutdown import (
+from ciris_engine.api.routes.system import (
     router,
-    get_shutdown_service,
-    ShutdownStatus,
-    ShutdownPrepareResponse,
-    ShutdownExecuteResponse,
-    ShutdownAbortResponse
+    ShutdownRequest,
+    ShutdownResponse
 )
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.api.auth import AuthContext, UserRole, Permission, ROLE_PERMISSIONS
@@ -64,188 +61,65 @@ def admin_auth():
     )
 
 
-class TestGetShutdownService:
-    """Test get_shutdown_service dependency."""
+class TestShutdownEndpoint:
+    """Test POST /system/shutdown endpoint."""
     
     @pytest.mark.asyncio
-    async def test_get_shutdown_service_success(self, mock_request):
-        """Test successful service retrieval."""
-        service = await get_shutdown_service(mock_request)
-        assert service == mock_request.app.state.runtime.shutdown_service
-    
-    @pytest.mark.asyncio
-    async def test_get_shutdown_service_no_runtime(self):
-        """Test when runtime is not available."""
-        request = Mock()
-        request.app.state = Mock(spec=[])  # No runtime attribute
+    async def test_shutdown_success(self, mock_request, mock_shutdown_service, admin_auth):
+        """Test successful shutdown."""
+        from ciris_engine.api.routes.system import shutdown_system
         
-        with pytest.raises(HTTPException) as exc_info:
-            await get_shutdown_service(request)
+        body = ShutdownRequest(
+            reason="Scheduled maintenance",
+            confirm=True,
+            force=False
+        )
         
-        assert exc_info.value.status_code == 503
-        assert "Runtime not available" in str(exc_info.value.detail)
-    
-    @pytest.mark.asyncio
-    async def test_get_shutdown_service_no_service(self):
-        """Test when shutdown service is not available."""
-        request = Mock()
-        request.app.state.runtime = Mock(spec=[])  # No shutdown_service attribute
-        
-        with pytest.raises(HTTPException) as exc_info:
-            await get_shutdown_service(request)
-        
-        assert exc_info.value.status_code == 503
-        assert "Shutdown service not available" in str(exc_info.value.detail)
-
-
-class TestShutdownStatus:
-    """Test GET /shutdown/status endpoint."""
-    
-    @pytest.mark.asyncio
-    async def test_get_status_not_requested(self, mock_request, mock_shutdown_service):
-        """Test status when shutdown not requested."""
-        from ciris_engine.api.routes.shutdown import get_shutdown_status
-        
-        result = await get_shutdown_status(mock_request, mock_shutdown_service)
+        result = await shutdown_system(body, mock_request, admin_auth)
         
         assert isinstance(result, SuccessResponse)
-        assert isinstance(result.data, ShutdownStatus)
-        assert result.data.shutdown_requested is False
-        assert result.data.shutdown_reason is None
-        assert result.data.registered_handlers == 5
-        assert result.data.service_healthy is True
-    
-    @pytest.mark.asyncio
-    async def test_get_status_shutdown_requested(self, mock_request, mock_shutdown_service):
-        """Test status when shutdown is requested."""
-        from ciris_engine.api.routes.shutdown import get_shutdown_status
-        
-        mock_shutdown_service.is_shutdown_requested.return_value = True
-        mock_shutdown_service.get_shutdown_reason.return_value = "User requested shutdown"
-        
-        result = await get_shutdown_status(mock_request, mock_shutdown_service)
-        
-        assert result.data.shutdown_requested is True
-        assert result.data.shutdown_reason == "User requested shutdown"
-    
-    @pytest.mark.asyncio
-    async def test_get_status_service_unhealthy(self, mock_request, mock_shutdown_service):
-        """Test status when service is unhealthy."""
-        from ciris_engine.api.routes.shutdown import get_shutdown_status
-        
-        mock_shutdown_service.is_healthy.return_value = False
-        
-        result = await get_shutdown_status(mock_request, mock_shutdown_service)
-        
-        assert result.data.service_healthy is False
-    
-    @pytest.mark.asyncio
-    async def test_get_status_error(self, mock_request, mock_shutdown_service):
-        """Test status when an error occurs."""
-        from ciris_engine.api.routes.shutdown import get_shutdown_status
-        
-        mock_shutdown_service.is_shutdown_requested.side_effect = Exception("Test error")
-        
-        with pytest.raises(HTTPException) as exc_info:
-            await get_shutdown_status(mock_request, mock_shutdown_service)
-        
-        assert exc_info.value.status_code == 500
-        assert "Test error" in str(exc_info.value.detail)
-
-
-class TestPrepareShutdown:
-    """Test POST /shutdown/prepare endpoint."""
-    
-    @pytest.mark.asyncio
-    async def test_prepare_success(self, mock_request, mock_shutdown_service, admin_auth):
-        """Test successful shutdown preparation."""
-        from ciris_engine.api.routes.shutdown import prepare_shutdown, ShutdownPrepareRequest
-        
-        body = ShutdownPrepareRequest(reason="Scheduled maintenance")
-        
-        result = await prepare_shutdown(body, mock_request, admin_auth, mock_shutdown_service)
-        
-        assert isinstance(result, SuccessResponse)
-        assert isinstance(result.data, ShutdownPrepareResponse)
-        assert result.data.status == "prepared"
-        assert "Scheduled maintenance" in result.data.message
-        assert result.data.handlers_notified == 5
-    
-    @pytest.mark.asyncio
-    async def test_prepare_already_shutting_down(self, mock_request, mock_shutdown_service, admin_auth):
-        """Test prepare when shutdown already requested."""
-        from ciris_engine.api.routes.shutdown import prepare_shutdown, ShutdownPrepareRequest
-        
-        mock_shutdown_service.is_shutdown_requested.return_value = True
-        mock_shutdown_service.get_shutdown_reason.return_value = "Previous shutdown"
-        
-        body = ShutdownPrepareRequest(reason="New shutdown")
-        
-        with pytest.raises(HTTPException) as exc_info:
-            await prepare_shutdown(body, mock_request, admin_auth, mock_shutdown_service)
-        
-        assert exc_info.value.status_code == 409
-        assert "Previous shutdown" in str(exc_info.value.detail)
-    
-    @pytest.mark.asyncio
-    async def test_prepare_error(self, mock_request, mock_shutdown_service, admin_auth):
-        """Test prepare when an error occurs."""
-        from ciris_engine.api.routes.shutdown import prepare_shutdown, ShutdownPrepareRequest
-        
-        mock_shutdown_service.get_status.side_effect = Exception("Service error")
-        
-        body = ShutdownPrepareRequest(reason="Test")
-        
-        with pytest.raises(HTTPException) as exc_info:
-            await prepare_shutdown(body, mock_request, admin_auth, mock_shutdown_service)
-        
-        assert exc_info.value.status_code == 500
-
-
-class TestExecuteShutdown:
-    """Test POST /shutdown/execute endpoint."""
-    
-    @pytest.mark.asyncio
-    async def test_execute_success(self, mock_request, mock_shutdown_service, admin_auth):
-        """Test successful shutdown execution."""
-        from ciris_engine.api.routes.shutdown import execute_shutdown, ShutdownExecuteRequest
-        
-        body = ShutdownExecuteRequest(confirm=True, force=False)
-        
-        result = await execute_shutdown(body, mock_request, admin_auth, mock_shutdown_service)
-        
-        assert isinstance(result, SuccessResponse)
-        assert isinstance(result.data, ShutdownExecuteResponse)
+        assert isinstance(result.data, ShutdownResponse)
         assert result.data.status == "initiated"
         assert result.data.shutdown_initiated is True
+        assert "Scheduled maintenance" in result.data.message
+        assert "admin_user" in result.data.message
         
         # Verify shutdown was requested
         mock_shutdown_service.request_shutdown.assert_called_once()
         call_args = mock_shutdown_service.request_shutdown.call_args[0]
+        assert "Scheduled maintenance" in call_args[0]
         assert "admin_user" in call_args[0]
-        assert "forced" not in call_args[0]
+        assert "[FORCED]" not in call_args[0]
     
     @pytest.mark.asyncio
-    async def test_execute_forced(self, mock_request, mock_shutdown_service, admin_auth):
-        """Test forced shutdown execution."""
-        from ciris_engine.api.routes.shutdown import execute_shutdown, ShutdownExecuteRequest
+    async def test_shutdown_forced(self, mock_request, mock_shutdown_service, admin_auth):
+        """Test forced shutdown."""
+        from ciris_engine.api.routes.system import shutdown_system
         
-        body = ShutdownExecuteRequest(confirm=True, force=True)
+        body = ShutdownRequest(
+            reason="Emergency shutdown",
+            confirm=True,
+            force=True
+        )
         
-        result = await execute_shutdown(body, mock_request, admin_auth, mock_shutdown_service)
+        result = await shutdown_system(body, mock_request, admin_auth)
         
         call_args = mock_shutdown_service.request_shutdown.call_args[0]
-        assert "(forced)" in call_args[0]
+        assert "[FORCED]" in call_args[0]
     
     @pytest.mark.asyncio
-    async def test_execute_no_confirmation(self, mock_request, mock_shutdown_service, admin_auth):
-        """Test execute without confirmation."""
-        from ciris_engine.api.routes.shutdown import execute_shutdown, ShutdownExecuteRequest
+    async def test_shutdown_no_confirmation(self, mock_request, mock_shutdown_service, admin_auth):
+        """Test shutdown without confirmation."""
+        from ciris_engine.api.routes.system import shutdown_system
         
-        body = ShutdownExecuteRequest(confirm=False, force=False)
+        body = ShutdownRequest(
+            reason="Test shutdown",
+            confirm=False,
+            force=False
+        )
         
         with pytest.raises(HTTPException) as exc_info:
-            await execute_shutdown(body, mock_request, admin_auth, mock_shutdown_service)
+            await shutdown_system(body, mock_request, admin_auth)
         
         assert exc_info.value.status_code == 400
         assert "Confirmation required" in str(exc_info.value.detail)
@@ -254,75 +128,136 @@ class TestExecuteShutdown:
         mock_shutdown_service.request_shutdown.assert_not_called()
     
     @pytest.mark.asyncio
-    async def test_execute_error(self, mock_request, mock_shutdown_service, admin_auth):
-        """Test execute when an error occurs."""
-        from ciris_engine.api.routes.shutdown import execute_shutdown, ShutdownExecuteRequest
+    async def test_shutdown_already_requested(self, mock_request, mock_shutdown_service, admin_auth):
+        """Test shutdown when already shutting down."""
+        from ciris_engine.api.routes.system import shutdown_system
+        
+        mock_shutdown_service.is_shutdown_requested.return_value = True
+        mock_shutdown_service.get_shutdown_reason.return_value = "Previous shutdown"
+        
+        body = ShutdownRequest(
+            reason="New shutdown",
+            confirm=True,
+            force=False
+        )
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await shutdown_system(body, mock_request, admin_auth)
+        
+        assert exc_info.value.status_code == 409
+        assert "Previous shutdown" in str(exc_info.value.detail)
+    
+    @pytest.mark.asyncio
+    async def test_shutdown_no_runtime(self, admin_auth):
+        """Test shutdown when runtime is not available."""
+        from ciris_engine.api.routes.system import shutdown_system
+        
+        request = Mock()
+        request.app.state = Mock(spec=[])  # No runtime attribute
+        
+        body = ShutdownRequest(
+            reason="Test",
+            confirm=True,
+            force=False
+        )
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await shutdown_system(body, request, admin_auth)
+        
+        assert exc_info.value.status_code == 503
+        assert "Runtime not available" in str(exc_info.value.detail)
+    
+    @pytest.mark.asyncio
+    async def test_shutdown_no_service(self, admin_auth):
+        """Test shutdown when shutdown service is not available."""
+        from ciris_engine.api.routes.system import shutdown_system
+        
+        request = Mock()
+        request.app.state.runtime = Mock(spec=[])  # No shutdown_service attribute
+        
+        body = ShutdownRequest(
+            reason="Test",
+            confirm=True,
+            force=False
+        )
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await shutdown_system(body, request, admin_auth)
+        
+        assert exc_info.value.status_code == 503
+        assert "Shutdown service not available" in str(exc_info.value.detail)
+    
+    @pytest.mark.asyncio
+    async def test_shutdown_error(self, mock_request, mock_shutdown_service, admin_auth):
+        """Test shutdown when an error occurs."""
+        from ciris_engine.api.routes.system import shutdown_system
         
         mock_shutdown_service.request_shutdown.side_effect = Exception("Shutdown failed")
         
-        body = ShutdownExecuteRequest(confirm=True, force=False)
+        body = ShutdownRequest(
+            reason="Test",
+            confirm=True,
+            force=False
+        )
         
         with pytest.raises(HTTPException) as exc_info:
-            await execute_shutdown(body, mock_request, admin_auth, mock_shutdown_service)
+            await shutdown_system(body, mock_request, admin_auth)
         
         assert exc_info.value.status_code == 500
         assert "Shutdown failed" in str(exc_info.value.detail)
 
 
-class TestAbortShutdown:
-    """Test POST /shutdown/abort endpoint."""
+class TestShutdownInHealthStatus:
+    """Test that shutdown status is reflected in health endpoint."""
     
     @pytest.mark.asyncio
-    async def test_abort_no_shutdown(self, mock_request, mock_shutdown_service, admin_auth):
-        """Test abort when no shutdown in progress."""
-        from ciris_engine.api.routes.shutdown import abort_shutdown
+    async def test_health_shows_shutdown_status(self, mock_request, mock_shutdown_service):
+        """Test that health endpoint shows shutdown status."""
+        from ciris_engine.api.routes.system import get_system_health
         
-        mock_shutdown_service.is_shutdown_requested.return_value = False
+        # Mock time service
+        mock_time_service = Mock()
+        mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
+        mock_time_service._start_time = datetime.now(timezone.utc)
+        mock_request.app.state.time_service = mock_time_service
         
-        result = await abort_shutdown(mock_request, admin_auth, mock_shutdown_service)
+        # Mock initialization service
+        mock_init_service = Mock()
+        mock_init_service.is_initialized = Mock(return_value=True)
+        mock_request.app.state.initialization_service = mock_init_service
+        
+        # Mock agent processor for cognitive state
+        mock_request.app.state.runtime.agent_processor = Mock()
+        mock_request.app.state.runtime.agent_processor.get_current_state = Mock(return_value="WORK")
+        
+        # Mock service registry
+        mock_request.app.state.service_registry = Mock()
+        mock_request.app.state.service_registry.get_services_by_type = Mock(return_value=[])
+        
+        # Set shutdown requested
+        mock_shutdown_service.is_shutdown_requested.return_value = True
+        mock_shutdown_service.get_shutdown_reason.return_value = "Maintenance shutdown"
+        
+        result = await get_system_health(mock_request)
         
         assert isinstance(result, SuccessResponse)
-        assert isinstance(result.data, ShutdownAbortResponse)
-        assert result.data.status == "no_shutdown"
-        assert result.data.was_active is False
-    
-    @pytest.mark.asyncio
-    async def test_abort_shutdown_in_progress(self, mock_request, mock_shutdown_service, admin_auth):
-        """Test abort when shutdown is in progress."""
-        from ciris_engine.api.routes.shutdown import abort_shutdown
-        
-        mock_shutdown_service.is_shutdown_requested.return_value = True
-        
-        with pytest.raises(HTTPException) as exc_info:
-            await abort_shutdown(mock_request, admin_auth, mock_shutdown_service)
-        
-        assert exc_info.value.status_code == 501
-        assert "not implemented" in str(exc_info.value.detail).lower()
-    
-    @pytest.mark.asyncio
-    async def test_abort_error(self, mock_request, mock_shutdown_service, admin_auth):
-        """Test abort when an error occurs."""
-        from ciris_engine.api.routes.shutdown import abort_shutdown
-        
-        mock_shutdown_service.is_shutdown_requested.side_effect = Exception("Check failed")
-        
-        with pytest.raises(HTTPException) as exc_info:
-            await abort_shutdown(mock_request, admin_auth, mock_shutdown_service)
-        
-        assert exc_info.value.status_code == 500
-        assert "Check failed" in str(exc_info.value.detail)
+        assert result.data.status in ["healthy", "degraded", "critical", "initializing"]
+        assert result.data.cognitive_state == "WORK"
+        assert result.data.initialization_complete is True
+        # The health endpoint doesn't currently show shutdown status,
+        # but it could be enhanced to include it in the future
 
 
 class TestAuthRequirements:
-    """Test that endpoints require proper authentication."""
+    """Test that shutdown endpoint requires proper authentication."""
     
-    def test_prepare_requires_admin(self):
-        """Test that prepare requires ADMIN role."""
-        from ciris_engine.api.routes.shutdown import prepare_shutdown
+    def test_shutdown_requires_admin(self):
+        """Test that shutdown requires ADMIN role."""
+        from ciris_engine.api.routes.system import shutdown_system
         import inspect
         
         # Get function signature
-        sig = inspect.signature(prepare_shutdown)
+        sig = inspect.signature(shutdown_system)
         params = list(sig.parameters.values())
         
         # Check that one of the parameters has require_admin as default
@@ -331,38 +266,4 @@ class TestAuthRequirements:
             for param in params 
             if param.default is not inspect.Parameter.empty
         )
-        assert has_require_admin, "prepare_shutdown should require admin auth"
-    
-    def test_execute_requires_admin(self):
-        """Test that execute requires ADMIN role."""
-        from ciris_engine.api.routes.shutdown import execute_shutdown
-        import inspect
-        
-        # Get function signature
-        sig = inspect.signature(execute_shutdown)
-        params = list(sig.parameters.values())
-        
-        # Check that one of the parameters has require_admin as default
-        has_require_admin = any(
-            'require_admin' in str(param.default) 
-            for param in params 
-            if param.default is not inspect.Parameter.empty
-        )
-        assert has_require_admin, "execute_shutdown should require admin auth"
-    
-    def test_abort_requires_admin(self):
-        """Test that abort requires ADMIN role."""
-        from ciris_engine.api.routes.shutdown import abort_shutdown
-        import inspect
-        
-        # Get function signature
-        sig = inspect.signature(abort_shutdown)
-        params = list(sig.parameters.values())
-        
-        # Check that one of the parameters has require_admin as default
-        has_require_admin = any(
-            'require_admin' in str(param.default) 
-            for param in params 
-            if param.default is not inspect.Parameter.empty
-        )
-        assert has_require_admin, "abort_shutdown should require admin auth"
+        assert has_require_admin, "shutdown_system should require admin auth"

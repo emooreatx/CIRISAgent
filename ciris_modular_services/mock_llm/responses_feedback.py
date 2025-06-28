@@ -8,8 +8,7 @@ def optimization_veto(context: Optional[Any] = None) -> OptimizationVetoResult:
         decision="proceed",
         justification="No harmful optimization attempts detected",
         entropy_reduction_ratio=0.1,
-        affected_values=[],
-        confidence=0.8
+        affected_values=[]
     )
     # Return structured result directly - instructor will handle it
     return result

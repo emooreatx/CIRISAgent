@@ -11,7 +11,6 @@ from pydantic import Field, ConfigDict
 class PDMADecision(BaseModel):
     """Decision from Principled Decision Making Algorithm."""
     action: str = Field(..., description="Recommended action")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence level (0.0 to 1.0)")
     principles_evaluated: List[str] = Field(..., description="List of principles evaluated")
     violations_found: List[str] = Field(default_factory=list, description="Principle violations found")
     ethical_justification: str = Field(..., description="Ethical justification for the action")
@@ -21,7 +20,6 @@ class PDMADecision(BaseModel):
 class CSDMADecision(BaseModel):
     """Decision from Common Sense Decision Making Algorithm."""
     action: str = Field(..., description="Recommended action")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence level (0.0 to 1.0)")
     practical_considerations: List[str] = Field(..., description="Practical considerations evaluated")
     safety_concerns: List[str] = Field(default_factory=list, description="Safety concerns identified")
     common_sense_rating: float = Field(..., ge=0.0, le=1.0, description="Common sense rating (0.0 to 1.0)")
@@ -31,7 +29,6 @@ class CSDMADecision(BaseModel):
 class DSDMADecision(BaseModel):
     """Decision from Domain Specific Decision Making Algorithm."""
     action: str = Field(..., description="Recommended action")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence level (0.0 to 1.0)")
     domain: str = Field(..., description="Domain of expertise")
     domain_expertise_applied: List[str] = Field(..., description="Domain expertise applied")
     domain_specific_risks: List[str] = Field(default_factory=list, description="Domain-specific risks identified")
@@ -41,7 +38,6 @@ class DSDMADecision(BaseModel):
 class ActionSelectionDecision(BaseModel):
     """Meta-decision from Action Selection DMA."""
     selected_action: str = Field(..., description="The selected action")
-    selection_confidence: float = Field(..., ge=0.0, le=1.0, description="Selection confidence (0.0 to 1.0)")
     pdma_weight: float = Field(..., ge=0.0, le=1.0, description="Weight given to PDMA input")
     csdma_weight: float = Field(..., ge=0.0, le=1.0, description="Weight given to CSDMA input")
     dsdma_weight: float = Field(..., ge=0.0, le=1.0, description="Weight given to DSDMA input")

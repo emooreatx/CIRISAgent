@@ -52,7 +52,6 @@ class WiseAuthorityFeedback(BaseModel):
     # Content
     summary: str = Field("", description="Feedback summary")
     detailed_reasoning: Optional[str] = Field(None, description="Detailed reasoning")
-    authority_confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence level")
     
     # Priority and timing
     priority: str = Field(default="normal", pattern="^(low|normal|high|critical)$")

@@ -13,8 +13,7 @@ if TYPE_CHECKING:
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.protocols.services import RuntimeControlService
 from ciris_engine.schemas.services.core.runtime import ProcessorQueueStatus, AdapterInfo
-from ciris_engine.schemas.runtime.protocols_core import ConfigValue
-from ciris_engine.schemas.services.core.runtime import ProcessorControlResponse
+from ciris_engine.schemas.services.core.runtime import ProcessorControlResponse, RuntimeStateSnapshot, ConfigSnapshot
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from .base_bus import BaseBus, BusMessage
 
@@ -141,7 +140,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
         path: Optional[str] = None,
         include_sensitive: bool = False,
         handler_name: str = "default"
-    ) -> Union[ConfigValue, Dict[str, ConfigValue]]:
+    ) -> ConfigSnapshot:
         """Get configuration value(s)"""
         service = await self.get_service(
             handler_name=handler_name,
@@ -150,13 +149,21 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
         
         if not service:
             logger.error(f"No runtime control service available for {handler_name}")
-            return {}
+            return ConfigSnapshot(
+                configs={},
+                version="unknown",
+                metadata={"error": "Runtime control service unavailable"}
+            )
         
         try:
             return await service.get_config(path, include_sensitive)
         except Exception as e:
             logger.error(f"Failed to get config: {e}", exc_info=True)
-            return {}
+            return ConfigSnapshot(
+                configs={},
+                version="unknown",
+                metadata={"error": str(e)}
+            )
     
     async def get_runtime_status(
         self,

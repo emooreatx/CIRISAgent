@@ -15,9 +15,10 @@ from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetrySe
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.services.graph.telemetry import (
     TelemetryServiceStatus, TelemetrySnapshotResult, TelemetryData,
-    ResourceData, BehavioralData, UserProfile, ChannelContext,
+    ResourceData, BehavioralData,
     ServiceCapabilities as TelemetryCapabilities
 )
+from ciris_engine.schemas.runtime.system_context import UserProfile, ChannelContext
 from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryOpResult
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.schemas.runtime.resources import ResourceUsage
@@ -406,14 +407,14 @@ async def test_telemetry_service_resource_usage(telemetry_service, memory_bus):
         tokens_output=200,
         cost_cents=0.5,
         carbon_grams=0.1,
-        compute_ms=150,
-        memory_mb=256
+        energy_kwh=0.001,
+        model_used="test-model"
     )
     
     await telemetry_service._record_resource_usage("llm_service", usage)
     
-    # Should have recorded 7 different metrics
-    assert memory_bus.memorize_metric.call_count == 7
+    # Should have recorded 6 different metrics (excluding model_used which is a string)
+    assert memory_bus.memorize_metric.call_count == 6
     
     # Check that each metric was recorded
     metric_names = [call[1]['metric_name'] for call in memory_bus.memorize_metric.call_args_list]
@@ -422,8 +423,7 @@ async def test_telemetry_service_resource_usage(telemetry_service, memory_bus):
     assert "llm_service.tokens_output" in metric_names
     assert "llm_service.cost_cents" in metric_names
     assert "llm_service.carbon_grams" in metric_names
-    assert "llm_service.compute_ms" in metric_names
-    assert "llm_service.memory_mb" in metric_names
+    assert "llm_service.energy_kwh" in metric_names
 
 
 @pytest.mark.asyncio

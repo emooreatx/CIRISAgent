@@ -30,8 +30,8 @@ class MemoryHandlerData(HandlerData):
     allow_duplicates: bool = Field(False, description="Whether to allow duplicate memories")
     cascade_delete: bool = Field(False, description="Whether to cascade delete related memories")
 
-class HandlerContext(BaseModel):
-    """Context passed to all handlers - fully typed."""
+class HandlerRequest(BaseModel):
+    """Request passed to all handlers - fully typed."""
     task_id: str = Field(..., description="ID of the task being handled")
     thought_id: str = Field(..., description="ID of the thought being processed")
     correlation_id: str = Field(..., description="Correlation ID for tracing")
@@ -80,3 +80,16 @@ class ActionContext(BaseModel):
     thought_id: str = Field(..., description="Associated thought ID")
     correlation_id: str = Field(..., description="Correlation ID")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+__all__ = [
+    "HandlerData",
+    "SpeakHandlerData", 
+    "ToolHandlerData",
+    "MemoryHandlerData",
+    "HandlerContext",
+    "ActionContextParams",
+    "SpeakActionParams",
+    "ToolActionParams",
+    "MemoryActionParams",
+    "ActionContext",
+]

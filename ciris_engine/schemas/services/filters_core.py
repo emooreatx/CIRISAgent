@@ -49,7 +49,6 @@ class FilterTrigger(BaseModel):
     
     # For learned patterns
     learned_from: Optional[str] = Field(default=None, description="Source of learned pattern")
-    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence in the pattern")
 
     model_config = ConfigDict(extra = "forbid")
 
@@ -94,7 +93,6 @@ class ContextHint(BaseModel):
     """Typed context hint for filter results"""
     key: str = Field(description="Context key")
     value: str = Field(description="Context value")
-    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence in hint")
 
     model_config = ConfigDict(extra = "forbid")
 
@@ -106,7 +104,6 @@ class FilterResult(BaseModel):
     should_process: bool = Field(description="Whether to process the message")
     should_defer: bool = Field(default=False, description="Whether to defer processing")
     reasoning: str = Field(description="Human-readable reasoning")
-    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence in result")
     
     suggested_action: Optional[str] = Field(default=None, description="Suggested action to take")
     context_hints: List[ContextHint] = Field(default_factory=list, description="Additional context")

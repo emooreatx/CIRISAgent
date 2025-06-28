@@ -65,8 +65,8 @@ class UserAttribute(BaseModel):
 
     model_config = ConfigDict(extra = "forbid")
 
-class UserProfile(BaseModel):
-    """Enriched user profile data"""
+class GraphQLUserProfile(BaseModel):
+    """Enriched user profile data from GraphQL"""
     nick: Optional[str] = Field(default=None, description="User nickname")
     channel: Optional[str] = Field(default=None, description="User's primary channel")
     # Additional fields from memory service
@@ -78,7 +78,7 @@ class UserProfile(BaseModel):
 
 class EnrichedContext(BaseModel):
     """Enriched context data"""
-    user_profiles: List[Tuple[str, UserProfile]] = Field(default_factory=list, description="User profiles by name")
+    user_profiles: List[Tuple[str, GraphQLUserProfile]] = Field(default_factory=list, description="User profiles by name")
     identity_context: Optional[str] = Field(default=None, description="Identity context block")
     community_context: Optional[str] = Field(default=None, description="Community context information")
 
@@ -109,7 +109,7 @@ __all__ = [
     "GraphQLError",
     "GraphQLResponse",
     "UserAttribute",
-    "UserProfile",
+    "GraphQLUserProfile",
     "EnrichedContext",
     "GraphQLMutation",
     "GraphQLSubscription",

@@ -6,7 +6,7 @@ Monitors system resource usage and limits. Includes predictive analytics.
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Body
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 import logging
 
 from ciris_engine.schemas.api.responses import SuccessResponse
@@ -33,12 +33,20 @@ class ResourceLimitsResponse(BaseModel):
     disk_mb: ResourceLimit = Field(..., description="Disk usage limits in MB")
     thoughts_active: ResourceLimit = Field(..., description="Active thoughts limit")
     effective_from: datetime = Field(..., description="When these limits became effective")
+    
+    @field_serializer('effective_from')
+    def serialize_effective_from(self, effective_from: datetime, _info):
+        return effective_from.isoformat() if effective_from else None
 
 class ResourceUsageResponse(BaseModel):
     """Current resource usage snapshot."""
     snapshot: ResourceSnapshot = Field(..., description="Current resource usage")
     budget: ResourceBudget = Field(..., description="Configured resource budget")
     timestamp: datetime = Field(..., description="When snapshot was taken")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, timestamp: datetime, _info):
+        return timestamp.isoformat() if timestamp else None
     
 class ResourcePrediction(BaseModel):
     """Resource usage prediction."""
@@ -47,7 +55,6 @@ class ResourcePrediction(BaseModel):
     predicted_usage_1h: float = Field(..., description="Predicted usage in 1 hour")
     predicted_usage_24h: float = Field(..., description="Predicted usage in 24 hours")
     time_to_limit: Optional[float] = Field(None, description="Hours until limit reached (null if never)")
-    confidence: float = Field(..., ge=0, le=1, description="Prediction confidence (0-1)")
     trend: str = Field(..., description="Usage trend (increasing, stable, decreasing)")
 
 class ResourcePredictionsResponse(BaseModel):
@@ -55,6 +62,10 @@ class ResourcePredictionsResponse(BaseModel):
     predictions: List[ResourcePrediction] = Field(..., description="Predictions for each resource")
     analysis_window_hours: int = Field(..., description="Hours of history analyzed")
     generated_at: datetime = Field(..., description="When predictions were generated")
+    
+    @field_serializer('generated_at')
+    def serialize_generated_at(self, generated_at: datetime, _info):
+        return generated_at.isoformat() if generated_at else None
 
 class AlertConfiguration(BaseModel):
     """Alert configuration update request."""
@@ -270,7 +281,6 @@ async def get_resource_predictions(
             predicted_usage_1h=memory_pred_1h,
             predicted_usage_24h=memory_pred_24h,
             time_to_limit=memory_time_to_limit,
-            confidence=0.8,
             trend=memory_trend
         ))
         
@@ -285,7 +295,6 @@ async def get_resource_predictions(
             predicted_usage_1h=tokens_per_hour * 1.1,  # 10% growth estimate
             predicted_usage_24h=tokens_per_hour,  # Resets each hour
             time_to_limit=1.0 if tokens_per_hour > budget.tokens_hour.warning else None,
-            confidence=0.7,
             trend=token_trend
         ))
         
@@ -299,7 +308,6 @@ async def get_resource_predictions(
             predicted_usage_1h=tokens_per_day + daily_rate,
             predicted_usage_24h=tokens_per_day + (daily_rate * 24),
             time_to_limit=(budget.tokens_day.limit - tokens_per_day) / daily_rate if daily_rate > 0 else None,
-            confidence=0.75,
             trend="increasing" if daily_rate > 0 else "stable"
         ))
         
@@ -311,7 +319,6 @@ async def get_resource_predictions(
             predicted_usage_1h=float(snapshot.cpu_average_1m),
             predicted_usage_24h=float(snapshot.cpu_average_1m),
             time_to_limit=None,  # CPU typically fluctuates
-            confidence=0.6,
             trend=cpu_trend
         ))
         
@@ -323,7 +330,6 @@ async def get_resource_predictions(
             predicted_usage_1h=float(snapshot.thoughts_active),
             predicted_usage_24h=float(snapshot.thoughts_active),
             time_to_limit=None,
-            confidence=0.5,
             trend=thoughts_trend
         ))
         

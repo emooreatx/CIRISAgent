@@ -7,7 +7,7 @@ OBSERVER < ADMIN < AUTHORITY < ROOT
 from enum import Enum
 from typing import Set, Optional, Dict, Any, List
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class UserRole(str, Enum):
     """User roles in order of increasing privilege."""
@@ -40,6 +40,7 @@ class Permission(str, Enum):
     VIEW_MEMORY = "view_memory"
     VIEW_AUDIT = "view_audit"
     VIEW_TOOLS = "view_tools"
+    VIEW_LOGS = "view_logs"
     
     # Admin permissions
     MANAGE_CONFIG = "manage_config"
@@ -69,6 +70,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.VIEW_MEMORY,
         Permission.VIEW_AUDIT,
         Permission.VIEW_TOOLS,
+        Permission.VIEW_LOGS,
     },
     UserRole.ADMIN: {
         # Includes all OBSERVER permissions
@@ -79,6 +81,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.VIEW_MEMORY,
         Permission.VIEW_AUDIT,
         Permission.VIEW_TOOLS,
+        Permission.VIEW_LOGS,
         # Plus admin permissions
         Permission.MANAGE_CONFIG,
         Permission.RUNTIME_CONTROL,
@@ -96,6 +99,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.VIEW_MEMORY,
         Permission.VIEW_AUDIT,
         Permission.VIEW_TOOLS,
+        Permission.VIEW_LOGS,
         Permission.MANAGE_CONFIG,
         Permission.RUNTIME_CONTROL,
         Permission.MANAGE_INCIDENTS,
@@ -123,8 +127,7 @@ class AuthContext(BaseModel):
     session_id: Optional[str] = Field(None, description="Session ID if using session auth")
     authenticated_at: datetime = Field(..., description="When authentication occurred")
     
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     
     # Request object (not serialized)
     request: Optional[Any] = Field(None, exclude=True)

@@ -1190,8 +1190,11 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 with open(seed_path) as f:
                     root_data = json.load(f)
                 
-                # Convert created timestamp
-                root_data['created'] = datetime.fromisoformat(root_data['created'].replace('Z', '+00:00'))
+                # Convert created timestamp - handle both 'Z' and '+00:00' formats
+                created_str = root_data['created']
+                if created_str.endswith('Z'):
+                    created_str = created_str[:-1] + '+00:00'
+                root_data['created'] = datetime.fromisoformat(created_str)
                 
                 root_wa = WACertificate(**root_data)
                 await self._store_wa_certificate(root_wa)

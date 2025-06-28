@@ -61,7 +61,7 @@ class StateTransitionResult(BaseModel):
     timestamp: datetime = Field(..., description="When transition occurred")
     validation_errors: List[str] = Field(default_factory=list, description="Validation errors if failed")
 
-class ProcessorMetrics(BaseModel):
+class MainProcessorMetrics(BaseModel):
     """Metrics for a specific processor."""
     processor_name: str = Field(..., description="Name of processor")
     rounds_handled: int = Field(0, description="Rounds handled by this processor")
@@ -76,7 +76,7 @@ class GlobalProcessingMetrics(BaseModel):
     total_items_processed: int = Field(0, description="Total items processed")
     total_errors: int = Field(0, description="Total errors")
     uptime_seconds: float = Field(0.0, description="Processing uptime")
-    processor_metrics: Dict[str, ProcessorMetrics] = Field(default_factory=dict, description="Per-processor metrics")
+    processor_metrics: Dict[str, MainProcessorMetrics] = Field(default_factory=dict, description="Per-processor metrics")
     state_distribution: Dict[AgentState, int] = Field(default_factory=dict, description="Time spent in each state")
 
 class ShutdownRequest(BaseModel):

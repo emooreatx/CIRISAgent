@@ -39,15 +39,6 @@ class MetricDataPoint(BaseModel):
     
     model_config = ConfigDict(extra = "forbid")
 
-class ServiceStatus(BaseModel):
-    """Status of a service."""
-    service_name: str = Field(..., description="Name of the service")
-    status: str = Field(..., description="Service status (healthy/unhealthy/degraded)")
-    uptime_seconds: Optional[float] = Field(None, description="Service uptime")
-    last_heartbeat: Optional[datetime] = Field(None, description="Last heartbeat time")
-    metrics: Dict[str, float] = Field(default_factory=dict, description="Recent metrics")
-    
-    model_config = ConfigDict(extra = "forbid")
 
 class ResourceLimits(BaseModel):
     """Resource limits and quotas."""
@@ -59,16 +50,6 @@ class ResourceLimits(BaseModel):
     
     model_config = ConfigDict(extra = "forbid")
 
-class ConfigValue(BaseModel):
-    """A configuration value with metadata."""
-    path: str = Field(..., description="Configuration path")
-    value: str = Field(..., description="Configuration value")
-    type: str = Field(..., description="Value type")
-    sensitive: bool = Field(False, description="Whether value is sensitive")
-    source: Optional[str] = Field(None, description="Configuration source")
-    last_modified: Optional[datetime] = Field(None, description="Last modification time")
-    
-    model_config = ConfigDict(extra = "forbid")
 
 class SecretInfo(BaseModel):
     """Information about a stored secret."""
@@ -97,9 +78,7 @@ __all__ = [
     "LLMStatus",
     "NetworkQueryRequest",
     "MetricDataPoint",
-    "ServiceStatus",
     "ResourceLimits",
-    "ConfigValue",
     "SecretInfo",
     "SecretsServiceStats"
 ]

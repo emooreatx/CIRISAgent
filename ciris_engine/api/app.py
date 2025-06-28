@@ -10,11 +10,10 @@ from typing import Any
 
 # Import all route modules
 from ciris_engine.api.routes import (
-    adaptation, agent, audit, auth, config, emergency,
-    filters, health, incidents, init, llm, memory,
-    observe, resources, runtime, scheduler, secrets,
-    shutdown, stream, telemetry, time, tools, tsdb,
-    visibility, wa
+    agent, audit, auth, config, emergency,
+    health, llm, memory,
+    resources, system,
+    telemetry, time, wa
 )
 
 @asynccontextmanager
@@ -39,7 +38,7 @@ def create_app(runtime: Any = None) -> FastAPI:
     app = FastAPI(
         title="CIRIS API",
         description="Autonomous AI Agent Control and Observability API",
-        version="2.0.0",
+        version="3.0.0",
         lifespan=lifespan
     )
     
@@ -62,26 +61,16 @@ def create_app(runtime: Any = None) -> FastAPI:
         auth.router,
         agent.router,
         memory.router,
-        llm.router,
-        audit.router,
+        system.router,  # Consolidated system operations
         config.router,
         telemetry.router,
-        incidents.router,
-        tsdb.router,
-        secrets.router,
-        time.router,
-        shutdown.router,
-        init.router,
-        visibility.router,
-        resources.router,
-        runtime.router,
+        audit.router,
         wa.router,
-        adaptation.router,
-        filters.router,
-        scheduler.router,
-        tools.router,
-        observe.router,
-        stream.router,
+        # Infrastructure routes
+        time.router,
+        resources.router,
+        # Legacy route (to be migrated)
+        llm.router,
     ]
     
     # Include all v1 routes with /v1 prefix

@@ -14,6 +14,7 @@ from ciris_engine.schemas.services.core.runtime import (
     ConfigBackup,
     RuntimeStatusResponse,
     RuntimeStateSnapshot,
+    ConfigSnapshot,
     ServiceHealthStatus,
     RuntimeEvent
 )
@@ -97,7 +98,7 @@ class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
         self,
         path: Optional[str] = None,
         include_sensitive: bool = False
-    ) -> RuntimeStateSnapshot:
+    ) -> ConfigSnapshot:
         """Get configuration values."""
         ...
     

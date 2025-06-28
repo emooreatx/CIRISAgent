@@ -4,9 +4,8 @@ Typed node data schemas for graph nodes.
 Replaces the generic NodeAttributes.data: Dict[str, Union[...]] with specific typed schemas.
 """
 from typing import Dict, List, Optional, Type, Union
-from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
-from pydantic import Field, ConfigDict
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
 class ValidationRule(BaseModel):
     """A single validation rule for configuration."""
@@ -23,11 +22,12 @@ class BaseNodeData(BaseModel):
     updated_at: datetime = Field(..., description="Last update time")
     
     model_config = ConfigDict(
-        extra="forbid",  # No extra fields allowed
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
+        extra="forbid"  # No extra fields allowed
     )
+    
+    @field_serializer('created_at', 'updated_at')
+    def serialize_datetime(self, dt: datetime) -> str:
+        return dt.isoformat()
 
 class ConfigNodeData(BaseNodeData):
     """Data for configuration nodes."""
@@ -76,7 +76,6 @@ class MemoryNodeData(BaseNodeData):
     content: str = Field(..., description="The actual memory content")
     memory_type: str = Field(..., description="Type: fact, experience, learning, insight")
     source: str = Field(..., description="Where this memory came from")
-    confidence: float = Field(1.0, description="Confidence in this memory 0.0-1.0")
     
     # Relationships
     related_memories: List[str] = Field(default_factory=list, description="Related memory node IDs")
@@ -103,6 +102,10 @@ class TaskNodeData(BaseNodeData):
     progress_percentage: float = Field(0.0, description="Completion percentage")
     milestones: List[str] = Field(default_factory=list, description="Completed milestones")
     blockers: List[str] = Field(default_factory=list, description="Current blockers")
+    
+    @field_serializer('deadline')
+    def serialize_optional_datetime(self, dt: Optional[datetime]) -> Optional[str]:
+        return dt.isoformat() if dt else None
 
 class EnvironmentNodeData(BaseNodeData):
     """Data for environment/context nodes."""
@@ -139,7 +142,6 @@ def create_node_data(node_type: str, data: dict) -> NodeData:
         "memory": MemoryNodeData,
         "task": TaskNodeData,
         "environment": EnvironmentNodeData,
-        "gratitude": GratitudeNodeData,
     }
     
     data_class = type_map.get(node_type)
@@ -147,7 +149,7 @@ def create_node_data(node_type: str, data: dict) -> NodeData:
         raise ValueError(f"Unknown node type: {node_type}")
     
     # Add timestamps if not present
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     if "created_at" not in data:
         data["created_at"] = now
     if "updated_at" not in data:

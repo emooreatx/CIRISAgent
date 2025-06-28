@@ -7,7 +7,7 @@ from typing import List, Optional, Any
 from pydantic import BaseModel, Field
 from pydantic import Field
 
-class AuditEntry(BaseModel):
+class HashChainAuditEntry(BaseModel):
     """An entry in the audit log with hash chain fields."""
     event_id: str = Field(..., description="Unique event ID")
     event_timestamp: str = Field(..., description="Event timestamp")
@@ -19,7 +19,7 @@ class AuditEntry(BaseModel):
     entry_hash: Optional[str] = Field(None, description="Hash of this entry")
     additional_fields: dict = Field(default_factory=dict, description="Additional audit fields")
 
-class ChainVerificationResult(BaseModel):
+class HashChainVerificationResult(BaseModel):
     """Result from verifying hash chain integrity."""
     valid: bool = Field(..., description="Whether chain is valid")
     entries_checked: int = Field(..., description="Number of entries verified")
@@ -36,3 +36,9 @@ class ChainSummary(BaseModel):
     oldest_entry: Optional[str] = Field(None, description="Timestamp of oldest entry")
     newest_entry: Optional[str] = Field(None, description="Timestamp of newest entry")
     error: Optional[str] = Field(None, description="Error if any")
+
+__all__ = [
+    "HashChainAuditEntry",
+    "HashChainVerificationResult",
+    "ChainSummary"
+]

@@ -204,7 +204,6 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
         
         triggered = []
         priority = FilterPriority.LOW
-        confidence = 1.0
         
         content = self._extract_content(message, adapter_type)
         user_id = self._extract_user_id(message, adapter_type)
@@ -255,7 +254,6 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
             should_process=should_process,
             should_defer=should_defer,
             reasoning=reasoning,
-            confidence=confidence,
             context_hints=[
                 ContextHint(key="user_id", value=user_id or "unknown"),
                 ContextHint(key="channel_id", value=channel_id or "unknown"),

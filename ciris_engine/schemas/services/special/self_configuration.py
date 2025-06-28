@@ -139,7 +139,7 @@ class ConfigurationChange(BaseModel):
     old_value: Optional[Union[str, int, float, bool, List, Dict]] = Field(None)
     new_value: Union[str, int, float, bool, List, Dict] = Field(...)
     estimated_variance_impact: float = Field(..., description="Estimated variance %")
-    confidence_score: float = Field(..., description="Confidence in this change")
+    reliability_score: float = Field(..., description="Reliability score for this change")
     reason: str = Field(..., description="Why this change is proposed")
     status: str = Field("proposed", description="proposed, approved, applied, rolled_back")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -229,14 +229,14 @@ class PatternRecord(BaseModel):
     successful_applications: int = Field(0, description="Times successfully applied")
     failed_applications: int = Field(0, description="Times failed")
     average_improvement: float = Field(0.0, description="Average improvement %")
-    confidence_score: float = Field(0.0, description="Confidence in pattern")
+    reliability_score: float = Field(0.0, description="Reliability score for pattern")
     last_applied: Optional[datetime] = Field(None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class PatternLibrarySummary(BaseModel):
     """Summary of the pattern library."""
     total_patterns: int = Field(0, description="Total patterns in library")
-    high_confidence_patterns: int = Field(0, description="Patterns with >70% confidence")
+    high_reliability_patterns: int = Field(0, description="Patterns with >70% reliability score")
     recently_used_patterns: int = Field(0, description="Used in last 30 days")
     most_effective_patterns: List[PatternRecord] = Field(default_factory=list)
     pattern_categories: Dict[str, int] = Field(default_factory=dict)

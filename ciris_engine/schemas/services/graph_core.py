@@ -30,6 +30,7 @@ class NodeType(str, Enum):
     BEHAVIORAL = "behavioral"
     SOCIAL = "social"
     IDENTITY = "identity"
+    OBSERVATION = "observation"
 
 class ConfigNodeType(str, Enum):
     """Types of configuration nodes with scope requirements."""

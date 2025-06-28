@@ -2,7 +2,7 @@ from typing import Optional, Any
 from ciris_engine.schemas.runtime.models import Thought, Task
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.schemas.runtime.models import TaskContext
-from ciris_engine.schemas.runtime.processing_context import ThoughtContext
+from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
 from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.utils import GraphQLContextProvider
 from ciris_engine.logic.config.env_utils import get_env_var
@@ -38,10 +38,12 @@ class ContextBuilder:
         self,
         thought: Thought,
         task: Optional[Task] = None
-    ) -> ThoughtContext:
+    ) -> ProcessingThoughtContext:
         """Build complete context for thought processing."""
         system_snapshot_data = await self.build_system_snapshot(task, thought)
-        user_profiles_data = getattr(system_snapshot_data, 'user_profiles', None) or {}
+        # Convert list of UserProfile to dict keyed by user_id
+        user_profiles_list = getattr(system_snapshot_data, 'user_profiles', []) or []
+        user_profiles_data = {profile.user_id: profile for profile in user_profiles_list}
         task_history_data = getattr(system_snapshot_data, 'recently_completed_tasks_summary', None) or []
         
         # Get identity context from memory service
@@ -188,11 +190,11 @@ class ContextBuilder:
         initial_task_context = None
         if task and hasattr(task, 'context'):
             ctx = task.context
-            if isinstance(ctx, ThoughtContext):
+            if isinstance(ctx, ProcessingThoughtContext):
                 initial_task_context = ctx.initial_task_context
             elif isinstance(ctx, TaskContext):
                 pass
-        return ThoughtContext(
+        return ProcessingThoughtContext(
             system_snapshot=system_snapshot_data,
             user_profiles=user_profiles_data,
             task_history=task_history_data,

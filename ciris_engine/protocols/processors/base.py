@@ -5,8 +5,11 @@ This protocol defines the interface that all state processors
 (WorkProcessor, PlayProcessor, DreamProcessor, etc.) must implement.
 """
 
-from typing import Protocol, List, Dict, Any, Optional
+from typing import Protocol, List, Dict, Any, Optional, TYPE_CHECKING
 from abc import abstractmethod
+
+if TYPE_CHECKING:
+    from ciris_engine.schemas.processors.results import ProcessingResult
 
 class ProcessorProtocol(Protocol):
     """
@@ -32,7 +35,7 @@ class ProcessorProtocol(Protocol):
         ...
     
     @abstractmethod
-    async def process(self, round_number: int) -> Dict[str, Any]:
+    async def process(self, round_number: int) -> "ProcessingResult":
         """
         Main processing method for the state.
         
@@ -40,13 +43,7 @@ class ProcessorProtocol(Protocol):
             round_number: Current processing round
             
         Returns:
-            Processing result including:
-            - thoughts_processed: int
-            - tasks_processed: int
-            - errors: List[str]
-            - should_transition: bool
-            - next_state: Optional[str]
-            - metrics: Dict[str, Any]
+            ProcessingResult - A state-specific result (WakeupResult, WorkResult, etc.)
         """
         ...
     

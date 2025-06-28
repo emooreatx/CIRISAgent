@@ -7,7 +7,6 @@ import logging
 from typing import Any, List, Optional, TYPE_CHECKING
 from datetime import datetime, timedelta
 
-from ciris_engine.schemas.processors.main import ProcessorMetrics
 from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 from ciris_engine.schemas.processors.states import AgentState
@@ -549,8 +548,8 @@ class AgentProcessor:
                     # Get processor for current state
                     processor = self.state_processors.get(current_state)
                     
-                    if processor:
-                        # Use the appropriate processor
+                    if processor and current_state != AgentState.SHUTDOWN:
+                        # Use the appropriate processor (except for SHUTDOWN which has special handling)
                         try:
                             result = await processor.process(self.current_round_number)
                             round_count += 1
@@ -601,13 +600,25 @@ class AgentProcessor:
                                 consecutive_errors = 0
                                 
                                 # Check if shutdown is complete
-                                logger.debug(f"Shutdown check - result type: {type(result)}, has shutdown_ready: {hasattr(result, 'shutdown_ready')}")
-                                if hasattr(result, 'shutdown_ready'):
-                                    logger.debug(f"result.shutdown_ready = {result.shutdown_ready}")
+                                logger.info(f"Shutdown check - result type: {type(result)}, result: {result}")
                                 
-                                if hasattr(result, 'shutdown_ready') and result.shutdown_ready:
-                                    logger.info("Shutdown negotiation complete (from result), exiting processing loop")
-                                    break
+                                # Handle dict result
+                                if isinstance(result, dict):
+                                    logger.debug(f"Result is dict: {result}")
+                                    if result.get('shutdown_ready', False):
+                                        logger.info("Shutdown negotiation complete (shutdown_ready=True), exiting processing loop")
+                                        break
+                                    elif result.get('status') == 'completed':
+                                        logger.info("Shutdown negotiation complete (status=completed), exiting processing loop")
+                                        break
+                                # Handle object result (ShutdownResult)
+                                else:
+                                    logger.debug(f"Result is object, checking for shutdown_ready: hasattr={hasattr(result, 'shutdown_ready')}")
+                                    if hasattr(result, 'shutdown_ready'):
+                                        logger.debug(f"result.shutdown_ready = {result.shutdown_ready}")
+                                        if result.shutdown_ready:
+                                            logger.info("Shutdown negotiation complete (from result object), exiting processing loop")
+                                            break
                                 
                                 # Check processor's shutdown_complete attribute directly
                                 if hasattr(processor, 'shutdown_complete'):
@@ -835,7 +846,11 @@ class AgentProcessor:
                 if scheduled_for:
                     # Parse ISO format datetime
                     if isinstance(scheduled_for, str):
-                        scheduled_time = datetime.fromisoformat(scheduled_for.replace('Z', '+00:00'))
+                        # Handle both 'Z' and '+00:00' formats
+                        scheduled_str = scheduled_for
+                        if scheduled_str.endswith('Z'):
+                            scheduled_str = scheduled_str[:-1] + '+00:00'
+                        scheduled_time = datetime.fromisoformat(scheduled_str)
                     else:
                         scheduled_time = scheduled_for
                     

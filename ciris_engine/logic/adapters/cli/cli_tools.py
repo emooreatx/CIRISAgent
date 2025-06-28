@@ -19,7 +19,7 @@ from ciris_engine.logic import persistence
 
 from ciris_engine.protocols.services import ToolService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolInfo, ToolParameterSchema, ToolResult
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema, ToolResult
 
 class CLIToolService(ToolService):
     """Simple ToolService providing local filesystem browsing."""
@@ -77,13 +77,12 @@ class CLIToolService(ToolService):
         execution_time = (self._time_service.timestamp() - start_time) * 1000  # milliseconds
 
         tool_result = ToolExecutionResult(
+            tool_name=tool_name,
+            status=ToolExecutionStatus.COMPLETED if success else ToolExecutionStatus.FAILED,
             success=success,
-            result=result,
+            data=result,
             error=error_msg,
-            execution_time=execution_time / 1000,  # Convert to seconds
-            adapter_id="cli",
-            output=None,
-            metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+            correlation_id=correlation_id
         )
 
         if correlation_id:

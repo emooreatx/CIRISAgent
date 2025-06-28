@@ -105,7 +105,6 @@ class ThoughtDepthconscience(ConscienceInterface):
                 selected_action=HandlerActionType.DEFER.value,
                 action_parameters=None,  # No parameters needed
                 selection_reasoning=f"Automatically deferred: Maximum thought depth of {self.max_depth} reached",
-                selection_confidence=1.0,
                 # Add required fields for ActionSelectionDMAResult
                 pdma_weight=1.0,
                 csdma_weight=0.0,

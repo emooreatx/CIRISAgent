@@ -3,6 +3,7 @@ Simple test for dual LLM service initialization.
 """
 import os
 import asyncio
+import pytest
 from ciris_engine.logic.runtime.service_initializer import ServiceInitializer
 from ciris_engine.schemas.config.essential import EssentialConfig
 from ciris_engine.logic.registries.base import ServiceRegistry, Priority
@@ -60,6 +61,12 @@ async def test_dual_llm_direct():
                 print(f"    Model: {provider.metadata.get('model')}")
                 print(f"    Base URL: {provider.metadata.get('base_url', 'default')}")
             print()
+        
+        # Check if dual LLM is configured
+        if len(global_llm) == 1:
+            print("ℹ️  Only one LLM provider configured (dual LLM not enabled)")
+            print("   To enable dual LLM, set CIRIS_OPENAI_API_KEY_2 environment variable")
+            pytest.skip("Secondary API key not configured, skipping dual LLM test")
         
         # Verify we have 2 providers
         assert len(global_llm) == 2, f"Expected 2 LLM providers, got {len(global_llm)}"

@@ -11,7 +11,7 @@ import sqlite3
 import logging
 from typing import Optional, List
 from ciris_engine.schemas.audit.hash_chain import (
-    AuditEntry, ChainVerificationResult, ChainSummary
+    HashChainAuditEntry, HashChainVerificationResult, ChainSummary
 )
 
 logger = logging.getLogger(__name__)
@@ -99,7 +99,7 @@ class AuditHashChain:
             logger.error(f"Failed to get last entry: {e}")
             return None
     
-    def verify_chain_integrity(self, start_seq: int = 1, end_seq: Optional[int] = None) -> ChainVerificationResult:
+    def verify_chain_integrity(self, start_seq: int = 1, end_seq: Optional[int] = None) -> HashChainVerificationResult:
         """Verify the integrity of the hash chain"""
         conn = None
         result = None
@@ -125,7 +125,7 @@ class AuditHashChain:
             entries = [dict(row) for row in cursor.fetchall()]
             
             if not entries:
-                result = ChainVerificationResult(
+                result = HashChainVerificationResult(
                     valid=True,
                     entries_checked=0,
                     errors=[]
@@ -163,7 +163,7 @@ class AuditHashChain:
                     
                     previous_hash = entry["entry_hash"]
                 
-                result = ChainVerificationResult(
+                result = HashChainVerificationResult(
                     valid=len(errors) == 0,
                     entries_checked=len(entries),
                     errors=errors,

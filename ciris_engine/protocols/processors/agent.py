@@ -20,7 +20,7 @@ class ProcessingSchedule(Protocol):
     work_play_ratio: float
     solitude_triggers: List[str]
 
-class ProcessorMetrics(Protocol):
+class AgentProcessorMetrics(Protocol):
     """Detailed processor metrics."""
     
     thoughts_processed: int
@@ -42,8 +42,8 @@ class QueueStatus(Protocol):
     blocked_items: int
     priority_distribution: Dict[str, int]
 
-class ProcessingResult(Protocol):
-    """Result of processing operation."""
+class StepResult(Protocol):
+    """Result of a single-step processing operation."""
     
     success: bool
     item_processed: Optional[str]  # thought_id or task_id
@@ -150,7 +150,7 @@ class AgentProcessorProtocol(Protocol):
         ...
     
     @abstractmethod
-    async def single_step(self) -> ProcessingResult:
+    async def single_step(self) -> StepResult:
         """
         Process one item and pause.
         
@@ -187,7 +187,7 @@ class AgentProcessorProtocol(Protocol):
     # ========================================================================
     
     @abstractmethod
-    def get_processor_metrics(self) -> ProcessorMetrics:
+    def get_processor_metrics(self) -> AgentProcessorMetrics:
         """
         Get detailed processor metrics.
         
@@ -264,7 +264,7 @@ class AgentProcessorProtocol(Protocol):
         ...
     
     @abstractmethod
-    async def replay_last_item(self) -> ProcessingResult:
+    async def replay_last_item(self) -> StepResult:
         """
         Replay the last processed item.
         

@@ -200,37 +200,7 @@ class IdentityValidation(BaseModel):
     
     model_config = ConfigDict(extra = "forbid")
 
-class IdentitySnapshot(BaseModel):
-    """Point-in-time snapshot of identity."""
-    snapshot_id: str = Field(..., description="Unique snapshot ID")
-    agent_id: str = Field(..., description="Agent whose identity was captured")
-    timestamp: datetime = Field(..., description="When snapshot was taken")
-    
-    # Snapshot data
-    identity_root: AgentIdentityRoot = Field(..., description="Complete identity at time")
-    reason: str = Field(..., description="Why snapshot was taken")
-    
-    # Context
-    system_state: Optional[Dict[str, str]] = Field(
-        None,
-        description="System state at snapshot time"
-    )
-    active_tasks: List[str] = Field(
-        default_factory=list,
-        description="Active tasks at time"
-    )
-    
-    # Metadata
-    expires_at: Optional[datetime] = Field(
-        None,
-        description="When snapshot expires"
-    )
-    tags: List[str] = Field(
-        default_factory=list,
-        description="Snapshot tags"
-    )
-    
-    model_config = ConfigDict(extra = "forbid")
+# IdentitySnapshot moved to schemas/services/nodes.py as TypedGraphNode
 
 __all__ = [
     "CoreProfile",
@@ -238,6 +208,5 @@ __all__ = [
     "CapabilityDefinition",
     "AgentIdentityRoot",
     "IdentityUpdate",
-    "IdentityValidation",
-    "IdentitySnapshot"
+    "IdentityValidation"
 ]

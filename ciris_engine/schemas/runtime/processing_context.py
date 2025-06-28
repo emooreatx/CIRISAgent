@@ -7,7 +7,7 @@ system state and metadata through the processing pipeline.
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field, ConfigDict
 
-from .system_context import SystemSnapshot
+from .system_context import SystemSnapshot, UserProfile
 from .models import TaskContext
 
 
@@ -21,7 +21,7 @@ class ProcessingThoughtContext(BaseModel):
     system_snapshot: SystemSnapshot = Field(..., description="Current system state")
     
     # User and profile data
-    user_profiles: Dict[str, Any] = Field(default_factory=dict, description="User profile data")
+    user_profiles: Dict[str, UserProfile] = Field(default_factory=dict, description="User profile data keyed by user_id")
     
     # Task history
     task_history: List[Any] = Field(default_factory=list, description="Recent task history")
@@ -35,9 +35,4 @@ class ProcessingThoughtContext(BaseModel):
     model_config = ConfigDict(extra = "allow")  # Allow additional fields for flexibility
 
 
-# For backward compatibility, alias to ThoughtContext
-# This allows existing code to work while we migrate
-ThoughtContext = ProcessingThoughtContext
-
-
-__all__ = ["ProcessingThoughtContext", "ThoughtContext"]
+__all__ = ["ProcessingThoughtContext"]

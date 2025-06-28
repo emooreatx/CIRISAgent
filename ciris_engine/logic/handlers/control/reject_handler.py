@@ -8,7 +8,7 @@ from ciris_engine.schemas.actions import RejectParams
 from ciris_engine.schemas.runtime.enums import ThoughtStatus, TaskStatus, HandlerActionType
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.runtime.system_context import ThoughtContext, SystemSnapshot
+from ciris_engine.schemas.runtime.system_context import ThoughtState, SystemSnapshot
 from ciris_engine.logic.utils.channel_utils import extract_channel_id
 from ciris_engine.schemas.services.filters_core import FilterTrigger, TriggerType, FilterPriority
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope

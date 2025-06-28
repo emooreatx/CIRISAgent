@@ -10,7 +10,7 @@ from typing import Optional
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.services.lifecycle.time import TimeSnapshot, TimeServiceStatus
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 router = APIRouter(prefix="/time", tags=["time"])
 
@@ -19,6 +19,10 @@ class CurrentTimeResponse(BaseModel):
     current_time: datetime = Field(..., description="Current time in UTC")
     current_iso: str = Field(..., description="Current time as ISO string")
     current_timestamp: float = Field(..., description="Current Unix timestamp")
+    
+    @field_serializer('current_time')
+    def serialize_current_time(self, current_time: datetime, _info):
+        return current_time.isoformat() if current_time else None
 
 class UptimeResponse(BaseModel):
     """Service uptime response."""
@@ -26,6 +30,10 @@ class UptimeResponse(BaseModel):
     uptime_seconds: float = Field(..., description="Service uptime in seconds")
     start_time: datetime = Field(..., description="Service start time")
     current_time: datetime = Field(..., description="Current time")
+    
+    @field_serializer('start_time', 'current_time')
+    def serialize_times(self, dt: datetime, _info):
+        return dt.isoformat() if dt else None
 
 class TimeSyncStatus(BaseModel):
     """Time synchronization status."""
@@ -34,6 +42,10 @@ class TimeSyncStatus(BaseModel):
     last_sync: Optional[datetime] = Field(None, description="Last synchronization time")
     drift_ms: float = Field(0.0, description="Time drift in milliseconds")
     is_mocked: bool = Field(..., description="Whether time is mocked for testing")
+    
+    @field_serializer('last_sync')
+    def serialize_last_sync(self, last_sync: Optional[datetime], _info):
+        return last_sync.isoformat() if last_sync else None
 
 @router.get("/current", response_model=SuccessResponse[CurrentTimeResponse])
 async def get_current_time(request: Request):

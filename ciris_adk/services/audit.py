@@ -18,7 +18,6 @@ class AuditRecord(BaseModel):
     channel_id: str
     action: str
     outcome: Outcome
-    decision_confidence: float | None = None
     guardrail_hits: list[GuardrailHit] = []
     thought_id: str | None = None
     dma_trace_id: str | None = None

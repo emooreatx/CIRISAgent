@@ -1,0 +1,1292 @@
+Scanning for duplicate class definitions...
+
+Found 67 duplicate class names:
+
+============================================================
+Class: ConfigValue (3 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/config.py:19
+Context:
+class ConfigValue(BaseModel):
+    """Configuration value."""
+    key: str = Field(..., description="Configuration key")
+    value: Any = Field(..., description="Configuration value")
+    updated_at: d
+
+File: ciris_engine/schemas/runtime/protocols_core.py:62
+Context:
+class ConfigValue(BaseModel):
+    """A configuration value with metadata."""
+    path: str = Field(..., description="Configuration path")
+    value: str = Field(..., description="Configuration value")
+
+File: ciris_engine/schemas/services/nodes.py:120
+Context:
+class ConfigValue(BaseModel):
+    """Typed configuration value wrapper."""
+    string_value: Optional[str] = None
+    int_value: Optional[int] = None
+    float_value: Optional[float] = None
+
+============================================================
+Class: IdentitySnapshot (3 occurrences)
+============================================================
+
+File: ciris_engine/schemas/infrastructure/identity_variance.py:38
+Context:
+class IdentitySnapshot(BaseModel):
+    """Snapshot of identity state at a point in time."""
+    snapshot_id: str = Field(..., description="Unique snapshot ID")
+    timestamp: datetime = Field(..., des
+
+File: ciris_engine/schemas/runtime/core.py:203
+Context:
+class IdentitySnapshot(BaseModel):
+    """Point-in-time snapshot of identity."""
+    snapshot_id: str = Field(..., description="Unique snapshot ID")
+    agent_id: str = Field(..., description="Agent w
+
+File: ciris_engine/schemas/services/nodes.py:215
+Context:
+class IdentitySnapshot(TypedGraphNode):
+    """Snapshot of identity state for variance monitoring."""
+    snapshot_id: str = Field(..., description="Unique snapshot ID")
+    timestamp: datetime = Fiel
+
+============================================================
+Class: UserProfile (3 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/system_context.py:186
+Context:
+class UserProfile(BaseModel):
+    """User profile information."""
+    user_id: str = Field(..., description="Unique user identifier")
+    display_name: str = Field(..., description="User display name"
+
+File: ciris_engine/schemas/adapters/graphql_core.py:68
+Context:
+class UserProfile(BaseModel):
+    """Enriched user profile data"""
+    nick: Optional[str] = Field(default=None, description="User nickname")
+    channel: Optional[str] = Field(default=None, descripti
+
+File: ciris_engine/schemas/services/graph/telemetry.py:40
+Context:
+class UserProfile(BaseModel):
+    """User profile in social context."""
+    user_id: str = Field(..., description="User identifier")
+    name: Optional[str] = Field(None, description="User name")
+    
+
+============================================================
+Class: ConscienceResult (3 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/system_context.py:260
+Context:
+class ConscienceResult(BaseModel):
+    """Result from conscience evaluation."""
+    passed: bool = Field(..., description="Whether consciences passed")
+    conscience_name: str = Field(..., descriptio
+
+File: ciris_engine/schemas/processors/core.py:32
+Context:
+class ConscienceResult(BaseModel):
+    """Result from conscience application."""
+    original_action: ActionSelectionDMAResult = Field(..., description="Original action selected")
+    final_action: Ac
+
+File: ciris_engine/schemas/conscience/results.py:11
+Context:
+class ConscienceResult(BaseModel):
+    """Result from any conscience check."""
+    conscience_name: str = Field(..., description="Name of the conscience")
+    passed: bool = Field(..., description="Wh
+
+============================================================
+Class: AuditEntry (3 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/audit.py:30
+Context:
+class AuditEntry(BaseModel):
+    """An entry in the audit trail."""
+    entry_id: str = Field(..., description="Unique audit entry ID")
+    timestamp: datetime = Field(..., description="When the event
+
+File: ciris_engine/schemas/audit/hash_chain.py:10
+Context:
+class AuditEntry(BaseModel):
+    """An entry in the audit log with hash chain fields."""
+    event_id: str = Field(..., description="Unique event ID")
+    event_timestamp: str = Field(..., description
+
+File: ciris_engine/schemas/services/nodes.py:24
+Context:
+class AuditEntry(TypedGraphNode):
+    """An audit trail entry stored as a graph memory."""
+    action: str = Field(..., description="The action that was performed")
+    actor: str = Field(..., descrip
+
+============================================================
+Class: ProcessorMetrics (3 occurrences)
+============================================================
+
+File: ciris_engine/schemas/processors/base.py:11
+Context:
+class ProcessorMetrics(BaseModel):
+    """Metrics tracked by processors."""
+    start_time: Optional[datetime] = Field(None, description="When processing started")
+    end_time: Optional[datetime] = F
+
+File: ciris_engine/schemas/processors/main.py:64
+Context:
+class ProcessorMetrics(BaseModel):
+    """Metrics for a specific processor."""
+    processor_name: str = Field(..., description="Name of processor")
+    rounds_handled: int = Field(0, description="Rou
+
+File: ciris_engine/protocols/processors/agent.py:23
+Context:
+class ProcessorMetrics(Protocol):
+    """Detailed processor metrics."""
+    
+    thoughts_processed: int
+    tasks_completed: int
+
+============================================================
+Class: StreamMessage (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/visibility.py:59
+Context:
+class StreamMessage(BaseModel):
+    """WebSocket stream message."""
+    type: str = Field(..., description="Message type: reasoning|thought|decision|state")
+    timestamp: datetime = Field(default_fac
+
+File: ciris_engine/api/routes/stream.py:36
+Context:
+class StreamMessage(BaseModel):
+    """Base message for all stream communications."""
+    type: StreamMessageType = Field(..., description="Message type")
+    timestamp: datetime = Field(default_facto
+
+============================================================
+Class: FilterConfigUpdate (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/filters.py:52
+Context:
+class FilterConfigUpdate(BaseModel):
+    """Request to update filter configuration."""
+    add_triggers: Optional[List[FilterTrigger]] = Field(None, description="Triggers to add")
+    remove_trigger_i
+
+File: ciris_engine/schemas/secrets/filter.py:30
+Context:
+class FilterConfigUpdate(BaseModel):
+    """Update to filter configuration."""
+    updates: dict = Field(..., description="Configuration updates to apply")
+    update_type: str = Field("config", descr
+
+============================================================
+Class: HealthStatus (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/health.py:14
+Context:
+class HealthStatus(BaseModel):
+    """Health check response."""
+    status: str = Field(..., description="Overall health status")
+    version: str = Field(..., description="API version")
+    timestamp
+
+File: ciris_engine/schemas/telemetry/collector.py:17
+Context:
+class HealthStatus(BaseModel):
+    """Overall system health status."""
+    overall: str = Field("unknown", description="Overall health: healthy, degraded, critical, error, unknown")
+    details: Healt
+
+============================================================
+Class: SendMessageRequest (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/agent.py:22
+Context:
+class SendMessageRequest(BaseModel):
+    """Request to send a message to the agent."""
+    content: str = Field(..., description="Message content")
+    channel_id: str = Field("api_default", descripti
+
+File: ciris_engine/logic/buses/communication_bus.py:22
+Context:
+class SendMessageRequest(BusMessage):
+    """Request to send a message"""
+    channel_id: str
+    content: str
+
+============================================================
+Class: MessageResponse (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/agent.py:30
+Context:
+class MessageResponse(BaseModel):
+    """Response after sending a message."""
+    message_id: str = Field(..., description="Unique message ID")
+    channel_id: str = Field(..., description="Channel th
+
+File: ciris_engine/schemas/adapters/core.py:23
+Context:
+class MessageResponse(BaseModel):
+    """Response schema for message operations"""
+    status: str = Field(description="Message status")
+    message_id: str = Field(description="Message ID")
+    chann
+
+============================================================
+Class: AgentStatus (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/agent.py:50
+Context:
+class AgentStatus(BaseModel):
+    """Agent status information."""
+    agent_id: str = Field(..., description="Agent identifier")
+    name: str = Field(..., description="Agent name")
+    state: Cogniti
+
+File: ciris_engine/schemas/adapters/core.py:141
+Context:
+class AgentStatus(BaseModel):
+    """Schema for agent status"""
+    online: bool = Field(description="Whether agent is online")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(tim
+
+============================================================
+Class: AgentIdentity (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/agent.py:59
+Context:
+class AgentIdentity(BaseModel):
+    """Agent identity information."""
+    agent_id: str = Field(..., description="Unique agent identifier")
+    name: str = Field(..., description="Agent name")
+    pur
+
+File: ciris_engine/schemas/adapters/core.py:124
+Context:
+class AgentIdentity(BaseModel):
+    """Agent identity information"""
+    name: str = Field(description="Agent name")
+    template: str = Field(description="Agent template")
+    version: str = Field(de
+
+============================================================
+Class: LLMCapabilities (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/llm.py:45
+Context:
+class LLMCapabilities(BaseModel):
+    """LLM service capabilities."""
+    structured_generation: bool = Field(True, description="Supports structured output")
+    function_calling: bool = Field(True, d
+
+File: ciris_engine/schemas/services/capabilities.py:9
+Context:
+class LLMCapabilities(str, Enum):
+    """Core capabilities for LLM services - maps to LLMService protocol"""
+    CALL_LLM_STRUCTURED = "call_llm_structured"
+
+class AuditCapabilities(str, Enum):
+
+============================================================
+Class: MemorizeRequest (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/memory.py:22
+Context:
+class MemorizeRequest(BaseModel):
+    """Request to memorize a graph node."""
+    node: GraphNode = Field(..., description="Graph node to store in memory")
+
+class RecallRequest(BaseModel):
+
+File: ciris_engine/schemas/services/requests.py:39
+Context:
+class MemorizeRequest(ServiceRequest):
+    """Request for memory service memorize method."""
+    node_data: MemorizeParams = Field(..., description="Memory node data")
+
+class MemorizeResponse(ServiceR
+
+============================================================
+Class: RecallRequest (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/memory.py:26
+Context:
+class RecallRequest(BaseModel):
+    """Request to recall memories."""
+    query: MemoryQuery = Field(..., description="Memory query parameters")
+
+class ForgetRequest(BaseModel):
+
+File: ciris_engine/schemas/services/requests.py:48
+Context:
+class RecallRequest(ServiceRequest):
+    """Request for memory service recall method."""
+    query_params: RecallParams = Field(..., description="Recall query parameters")
+
+class RecallResponse(Servic
+
+============================================================
+Class: ConfigUpdate (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/config.py:32
+Context:
+class ConfigUpdate(BaseModel):
+    """Configuration update request."""
+    value: Any = Field(..., description="New configuration value")
+    reason: Optional[str] = Field(None, description="Reason fo
+
+File: ciris_engine/schemas/services/core/secrets.py:20
+Context:
+class ConfigUpdate(BaseModel):
+    """Configuration update for secrets filters."""
+    action: str = Field(..., description="Update action: add, remove, update")
+    filter_type: str = Field(..., desc
+
+============================================================
+Class: MetricData (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/telemetry.py:19
+Context:
+class MetricData(BaseModel):
+    """Single metric data point."""
+    timestamp: datetime = Field(..., description="When metric was recorded")
+    value: float = Field(..., description="Metric value")
+
+
+File: ciris_engine/schemas/telemetry/core.py:100
+Context:
+class MetricData(BaseModel):
+    """Metric data for correlations."""
+    metric_name: str = Field(..., description="Name of the metric")
+    metric_value: float = Field(..., description="Numeric value
+
+============================================================
+Class: MetricsResponse (2 occurrences)
+============================================================
+
+File: ciris_engine/api/routes/telemetry.py:32
+Context:
+class MetricsResponse(BaseModel):
+    """Current metrics response."""
+    metrics: Dict[str, MetricSeries] = Field(..., description="Current metrics by name")
+    timestamp: datetime = Field(..., desc
+
+File: ciris_engine/api/routes/observe.py:92
+Context:
+class MetricsResponse(BaseModel):
+    """Aggregated metrics response."""
+    metrics: List[AggregatedMetric] = Field(..., description="Aggregated metrics")
+    timestamp: datetime = Field(default_fact
+
+============================================================
+Class: StoredAPIKey (2 occurrences)
+============================================================
+
+File: ciris_engine/api/old/services/auth_service.py:14
+Context:
+class StoredAPIKey:
+    """Internal representation of an API key."""
+    key_hash: str
+    user_id: str
+    role: UserRole
+
+File: ciris_engine/api/services/auth_service.py:14
+Context:
+class StoredAPIKey:
+    """Internal representation of an API key."""
+    key_hash: str
+    user_id: str
+    role: UserRole
+
+============================================================
+Class: OAuthUser (2 occurrences)
+============================================================
+
+File: ciris_engine/api/old/services/auth_service.py:27
+Context:
+class OAuthUser:
+    """OAuth user information."""
+    user_id: str  # Format: provider:external_id
+    provider: str
+    external_id: str
+
+File: ciris_engine/api/services/auth_service.py:27
+Context:
+class OAuthUser:
+    """OAuth user information."""
+    user_id: str  # Format: provider:external_id
+    provider: str
+    external_id: str
+
+============================================================
+Class: APIAuthService (2 occurrences)
+============================================================
+
+File: ciris_engine/api/old/services/auth_service.py:38
+Context:
+class APIAuthService:
+    """Simple in-memory authentication service."""
+    
+    def __init__(self):
+        # In production, these would be backed by a database
+
+File: ciris_engine/api/services/auth_service.py:38
+Context:
+class APIAuthService:
+    """Simple in-memory authentication service."""
+    
+    def __init__(self):
+        # In production, these would be backed by a database
+
+============================================================
+Class: ServiceProvider (2 occurrences)
+============================================================
+
+File: ciris_engine/logic/registries/base.py:34
+Context:
+class ServiceProvider:
+    """Represents a registered service provider with metadata"""
+    name: str
+    priority: Priority
+    instance: Any
+
+File: ciris_engine/schemas/adapters/core.py:43
+Context:
+class ServiceProvider(BaseModel):
+    """Schema for a service provider"""
+    provider: str = Field(description="Provider name")
+    handler: str = Field(description="Handler name or 'global'")
+    pr
+
+============================================================
+Class: AdaptationState (2 occurrences)
+============================================================
+
+File: ciris_engine/logic/services/adaptation/self_configuration.py:45
+Context:
+class AdaptationState(str, Enum):
+    """Current state of the self-configuration system."""
+    LEARNING = "learning"          # Gathering data, no changes yet
+    PROPOSING = "proposing"        # Act
+
+File: ciris_engine/schemas/services/special/self_configuration.py:12
+Context:
+class AdaptationState(str, Enum):
+    """Current state of the self-configuration system."""
+    LEARNING = "learning"          # Gathering data, no changes yet
+    PROPOSING = "proposing"        # Act
+
+============================================================
+Class: DateTimeEncoder (2 occurrences)
+============================================================
+
+File: ciris_engine/logic/services/graph/memory_service.py:33
+Context:
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    
+    def default(self, obj: object) -> str:
+        if isinstance(obj, datetime):
+
+File: ciris_engine/logic/persistence/models/graph.py:12
+Context:
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects and Pydantic models."""
+    
+    def default(self, obj: Any):
+        if isinstance(obj, datetime):
+
+============================================================
+Class: BusMessage (2 occurrences)
+============================================================
+
+File: ciris_engine/logic/buses/base_bus.py:19
+Context:
+class BusMessage:
+    """Base message for all buses"""
+    id: str
+    handler_name: str
+    timestamp: datetime
+
+File: ciris_engine/schemas/services/core/__init__.py:113
+Context:
+class BusMessage(BaseModel):
+    """Message sent through the service bus."""
+    id: str = Field(..., description="Unique message ID")
+    from_service: str = Field(..., description="Sending service")
+
+============================================================
+Class: ConsolidationResult (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/infrastructure/base.py:60
+Context:
+class ConsolidationResult(BaseModel):
+    """Result of memory consolidation during dream state."""
+    dream_id: str = Field(..., description="Dream session ID")
+    memories_processed: int = Field(0,
+
+File: ciris_engine/schemas/services/graph/telemetry.py:54
+Context:
+class ConsolidationResult(BaseModel):
+    """Result of memory consolidation."""
+    status: str = Field(..., description="Consolidation status")
+    grace_applied: int = Field(0, description="Number o
+
+============================================================
+Class: ServiceRegistration (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/infrastructure/base.py:167
+Context:
+class ServiceRegistration(BaseModel):
+    """Service registration information."""
+    service_name: str = Field(..., description="Service name")
+    service_type: str = Field(..., description="Service
+
+File: ciris_engine/schemas/services/core/__init__.py:124
+Context:
+class ServiceRegistration(BaseModel):
+    """Service registration information."""
+    service_name: str = Field(..., description="Unique service name")
+    service_type: str = Field(..., description="
+
+============================================================
+Class: ThoughtContext (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/system_context.py:159
+Context:
+class ThoughtContext(BaseModel):
+    """Context for a thought being processed."""
+    thought_id: str = Field(..., description="Unique thought identifier")
+    task_id: str = Field(..., description="A
+
+File: ciris_engine/schemas/runtime/models.py:32
+Context:
+class ThoughtContext(BaseModel):
+    """Typed context for thoughts."""
+    task_id: str = Field(..., description="Parent task ID")
+    channel_id: Optional[str] = Field(None, description="Channel wher
+
+============================================================
+Class: ChannelContext (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/system_context.py:209
+Context:
+class ChannelContext(BaseModel):
+    """Context for a communication channel."""
+    channel_id: str = Field(..., description="Unique channel identifier")
+    channel_type: str = Field(..., description
+
+File: ciris_engine/schemas/services/graph/telemetry.py:47
+Context:
+class ChannelContext(BaseModel):
+    """Channel context in social interactions."""
+    channel_id: str = Field(..., description="Channel identifier")
+    channel_type: str = Field(..., description="Ty
+
+============================================================
+Class: ResourceUsage (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/system_context.py:231
+Context:
+class ResourceUsage(BaseModel):
+    """Resource usage tracking."""
+    tokens_used: int = Field(0, description="Tokens consumed")
+    cost_cents: float = Field(0.0, description="Cost in cents")
+    ca
+
+File: ciris_engine/schemas/runtime/resources.py:10
+Context:
+class ResourceUsage(BaseModel):
+    """Track LLM resource utilization with environmental awareness."""
+    
+    # Token usage
+    tokens_used: int = Field(default=0, description="Total tokens consumed
+
+============================================================
+Class: ThoughtSummary (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/system_context.py:276
+Context:
+class ThoughtSummary(BaseModel):
+    """Summary of a thought for context."""
+    thought_id: str = Field(..., description="Thought ID")
+    content: Optional[str] = Field(None, description="Thought co
+
+File: ciris_engine/schemas/persistence/core.py:75
+Context:
+class ThoughtSummary(BaseModel):
+    """Type-safe thought summary for recent thoughts queries."""
+    thought_id: str = Field(..., description="Unique thought ID")
+    thought_type: str = Field(..., d
+
+============================================================
+Class: AgentIdentityRoot (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/core.py:110
+Context:
+class AgentIdentityRoot(BaseModel):
+    """Root identity structure for an agent."""
+    agent_id: str = Field(..., description="Unique agent identifier")
+    identity_hash: str = Field(..., descriptio
+
+File: ciris_engine/schemas/services/special/self_configuration.py:125
+Context:
+class AgentIdentityRoot(BaseModel):
+    """Root identity configuration for baseline establishment."""
+    identity_id: str = Field(..., description="Unique identity identifier")
+    core_values: List[
+
+============================================================
+Class: ActionContext (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/audit.py:11
+Context:
+class ActionContext(BaseModel):
+    """Context for an audited action."""
+    thought_id: str = Field(..., description="ID of the thought initiating action")
+    task_id: str = Field(..., description="
+
+File: ciris_engine/schemas/handlers/context.py:69
+Context:
+class ActionContext(BaseModel):
+    """Context for an action being audited - fully typed."""
+    action_type: str = Field(..., description="Type of action performed")
+    action_params: Union[SpeakAct
+
+============================================================
+Class: ConscienceCheckResult (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/audit.py:21
+Context:
+class ConscienceCheckResult(BaseModel):
+    """Result from a conscience check."""
+    allowed: bool = Field(..., description="Whether action is allowed")
+    reason: Optional[str] = Field(None, descri
+
+File: ciris_engine/schemas/conscience/core.py:65
+Context:
+class ConscienceCheckResult(BaseModel):
+    """Unified result from conscience safety checks"""
+    status: ConscienceStatus = Field(description="Overall check status")
+    passed: bool = Field(descrip
+
+============================================================
+Class: ServiceStatus (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/protocols_core.py:42
+Context:
+class ServiceStatus(BaseModel):
+    """Status of a service."""
+    service_name: str = Field(..., description="Name of the service")
+    status: str = Field(..., description="Service status (healthy/u
+
+File: ciris_engine/schemas/services/core/__init__.py:25
+Context:
+class ServiceStatus(BaseModel):
+    """Status information for any service."""
+    service_name: str = Field(..., description="Name of the service")
+    service_type: str = Field(..., description="Type
+
+============================================================
+Class: SecretsServiceStats (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/protocols_core.py:86
+Context:
+class SecretsServiceStats(BaseModel):
+    """Statistics from secrets service."""
+    secrets_stored: int = Field(..., description="Total secrets in storage")
+    filter_active: bool = Field(..., descr
+
+File: ciris_engine/schemas/services/core/secrets.py:49
+Context:
+class SecretsServiceStats(BaseModel):
+    """Statistics for the secrets service."""
+    total_secrets: int = Field(0, description="Total secrets stored")
+    active_filters: int = Field(0, description
+
+============================================================
+Class: AdapterConfig (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/adapter_management.py:10
+Context:
+class AdapterConfig(BaseModel):
+    """Configuration for an adapter."""
+    adapter_type: str = Field(..., description="Type of adapter (cli, api, discord, etc.)")
+    enabled: bool = Field(True, desc
+
+File: ciris_engine/schemas/services/core/runtime_config.py:11
+Context:
+class AdapterConfig(BaseModel):
+    """Configuration for adapter instances."""
+    adapter_type: str = Field(..., description="Type of adapter")
+    adapter_id: str = Field(..., description="Unique ad
+
+============================================================
+Class: AdapterOperationResult (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/adapter_management.py:23
+Context:
+class AdapterOperationResult(BaseModel):
+    """Result of an adapter operation."""
+    success: bool = Field(..., description="Whether operation succeeded")
+    adapter_id: str = Field(..., descriptio
+
+File: ciris_engine/schemas/services/core/runtime.py:61
+Context:
+class AdapterOperationResult(BaseModel):
+    """Result of an adapter operation."""
+    success: bool = Field(..., description="Whether operation succeeded")
+    adapter_id: str = Field(..., descriptio
+
+============================================================
+Class: AdapterStatus (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/runtime/adapter_management.py:32
+Context:
+class AdapterStatus(BaseModel):
+    """Status of a single adapter."""
+    adapter_id: str = Field(..., description="Unique adapter ID")
+    adapter_type: str = Field(..., description="Type of adapter"
+
+File: ciris_engine/schemas/services/core/runtime.py:12
+Context:
+class AdapterStatus(str, Enum):
+    """Adapter operational status."""
+    ACTIVE = "active"
+    RUNNING = "running"
+    STOPPED = "stopped"
+
+============================================================
+Class: ServiceTypeInfo (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/adapters/core.py:53
+Context:
+class ServiceTypeInfo(BaseModel):
+    """Information about a service type"""
+    service_type: ServiceType = Field(description="Type of service")
+    providers: List[ServiceProvider] = Field(descripti
+
+File: ciris_engine/schemas/registries/base.py:27
+Context:
+class ServiceTypeInfo(BaseModel):
+    """Information about services of a specific type."""
+    providers: List[ProviderInfo] = Field(default_factory=list, description="List of providers")
+
+class Handl
+
+============================================================
+Class: RuntimeStatus (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/adapters/core.py:68
+Context:
+class RuntimeStatus(BaseModel):
+    """Schema for runtime status"""
+    state: str = Field(description="Current runtime state")
+    uptime_seconds: float = Field(ge=0.0, description="Uptime in seconds
+
+File: ciris_engine/schemas/services/core/__init__.py:104
+Context:
+class RuntimeStatus(BaseModel):
+    """Current runtime status."""
+    is_running: bool = Field(..., description="Whether runtime is active")
+    is_paused: bool = Field(False, description="Whether pro
+
+============================================================
+Class: RuntimeMetrics (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/adapters/core.py:77
+Context:
+class RuntimeMetrics(BaseModel):
+    """Runtime performance metrics"""
+    messages_processed: int = Field(ge=0, description="Total messages processed")
+    active_tasks: int = Field(ge=0, description
+
+File: ciris_engine/schemas/services/core/__init__.py:84
+Context:
+class RuntimeMetrics(BaseModel):
+    """Runtime metrics for monitoring."""
+    uptime_seconds: float = Field(..., description="Total uptime")
+    tasks_processed: int = Field(..., description="Total t
+
+============================================================
+Class: RuntimeStatusResponse (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/adapters/core.py:86
+Context:
+class RuntimeStatusResponse(BaseModel):
+    """Response schema for runtime status"""
+    status: RuntimeStatus = Field(description="Runtime status")
+    metrics: Optional[RuntimeMetrics] = Field(defau
+
+File: ciris_engine/schemas/services/core/runtime.py:143
+Context:
+class RuntimeStatusResponse(BaseModel):
+    """Overall runtime status response."""
+    is_running: bool = Field(..., description="Whether runtime is active")
+    uptime_seconds: float = Field(..., des
+
+============================================================
+Class: ErrorResponse (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/adapters/core.py:104
+Context:
+class ErrorResponse(BaseModel):
+    """Response schema for errors"""
+    error: str = Field(description="Error message")
+    error_code: Optional[str] = Field(default=None, description="Error code")
+ 
+
+File: ciris_engine/schemas/api/responses.py:29
+Context:
+class ErrorResponse(BaseModel):
+    """Standard error response."""
+    error: ErrorDetail = Field(..., description="Error information")
+    metadata: ResponseMetadata = Field(default_factory=ResponseM
+
+============================================================
+Class: ProcessingResult (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/processors/base.py:22
+Context:
+class ProcessingResult(BaseModel):
+    """Result from a processing round."""
+    round_number: int = Field(..., description="Processing round number")
+    success: bool = Field(..., description="Wheth
+
+File: ciris_engine/protocols/processors/agent.py:45
+Context:
+class ProcessingResult(Protocol):
+    """Result of processing operation."""
+    
+    success: bool
+    item_processed: Optional[str]  # thought_id or task_id
+
+============================================================
+Class: ProcessorServices (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/processors/base.py:32
+Context:
+class ProcessorServices(BaseModel):
+    """Services available to processors."""
+    discord_service: Optional[object] = Field(None, description="Discord service if available")
+    memory_service: Opti
+
+File: ciris_engine/schemas/processors/main.py:13
+Context:
+class ProcessorServices(BaseModel):
+    """Services available to processors."""
+    service_registry: Optional[object] = Field(None, description="Service registry")
+    identity_manager: Optional[obje
+
+============================================================
+Class: DMAContext (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/processors/dma.py:15
+Context:
+class DMAContext(BaseModel):
+    """Context for DSDMA operations."""
+    channel_id: Optional[str] = Field(None, description="Channel ID if available")
+    user_id: Optional[str] = Field(None, descrip
+
+File: ciris_engine/schemas/dma/core.py:104
+Context:
+class DMAContext(BaseModel):
+    """Additional context for DMA processing."""
+    
+    # Domain-specific knowledge from identity
+    domain_knowledge: Dict[str, str] = Field(
+
+============================================================
+Class: ConfigValidationResponse (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/api/config_security.py:216
+Context:
+class ConfigValidationResponse(BaseModel):
+    """Response from configuration validation."""
+    valid: bool = Field(..., description="Whether all changes are valid")
+    errors: Dict[str, str] = Fiel
+
+File: ciris_engine/schemas/services/core/runtime.py:169
+Context:
+class ConfigValidationResponse(BaseModel):
+    """Configuration validation response."""
+    valid: bool = Field(..., description="Whether config is valid")
+    validation_level: ConfigValidationLevel 
+
+============================================================
+Class: SignatureVerificationResult (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/api/emergency.py:61
+Context:
+class SignatureVerificationResult(BaseModel):
+    """Result of signature verification."""
+    valid: bool = Field(..., description="Whether signature is valid")
+    authority_id: Optional[str] = Field
+
+File: ciris_engine/schemas/audit/verification.py:18
+Context:
+class SignatureVerificationResult(BaseModel):
+    """Result of signature verification."""
+    valid: bool = Field(..., description="Whether all signatures are valid")
+    entries_signed: int = Field(0
+
+============================================================
+Class: ChainVerificationResult (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/audit/hash_chain.py:22
+Context:
+class ChainVerificationResult(BaseModel):
+    """Result from verifying hash chain integrity."""
+    valid: bool = Field(..., description="Whether chain is valid")
+    entries_checked: int = Field(...,
+
+File: ciris_engine/schemas/audit/verification.py:11
+Context:
+class ChainVerificationResult(BaseModel):
+    """Result of hash chain verification."""
+    valid: bool = Field(..., description="Whether chain is valid")
+    entries_checked: int = Field(0, descriptio
+
+============================================================
+Class: ChainSummary (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/audit/hash_chain.py:30
+Context:
+class ChainSummary(BaseModel):
+    """Summary of the hash chain state."""
+    total_entries: int = Field(0, description="Total number of entries")
+    sequence_range: List[int] = Field(default_factory
+
+File: ciris_engine/schemas/audit/verification.py:60
+Context:
+class ChainSummary(BaseModel):
+    """Summary of audit chain state."""
+    total_entries: int = Field(0, description="Total number of entries")
+    signed_entries: int = Field(0, description="Number o
+
+============================================================
+Class: AuditQuery (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/audit/core.py:103
+Context:
+class AuditQuery(BaseModel):
+    """Query parameters for audit log search"""
+    event_types: Optional[List[AuditEventType]] = Field(default=None, description="Filter by event types")
+    start_time: 
+
+File: ciris_engine/schemas/services/graph/audit.py:71
+Context:
+class AuditQuery(BaseModel):
+    """Query parameters for audit searches."""
+    # Time range
+    start_time: Optional[datetime] = Field(None, description="Start of time range")
+    end_time: Optional[
+
+============================================================
+Class: VerificationReport (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/audit/verification.py:72
+Context:
+class VerificationReport(BaseModel):
+    """Comprehensive verification report."""
+    timestamp: datetime = Field(..., description="Report generation timestamp")
+    verification_result: CompleteVerif
+
+File: ciris_engine/schemas/services/graph/audit.py:31
+Context:
+class VerificationReport(BaseModel):
+    """Audit integrity verification report."""
+    verified: bool = Field(..., description="Whether integrity check passed")
+    total_entries: int = Field(..., de
+
+============================================================
+Class: SecretAccessLog (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/secrets/core.py:69
+Context:
+class SecretAccessLog(BaseModel):
+    """Audit log for secret access"""
+    access_id: str = Field(..., description="Unique access identifier")
+    secret_uuid: str = Field(..., description="Secret th
+
+File: ciris_engine/schemas/services/core/secrets.py:29
+Context:
+class SecretAccessLog(BaseModel):
+    """Log entry for secret access."""
+    secret_id: str = Field(..., description="Secret UUID")
+    operation: str = Field(..., description="Operation performed")
+ 
+
+============================================================
+Class: SecretsFilterResult (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/secrets/core.py:97
+Context:
+class SecretsFilterResult(BaseModel):
+    """Result of applying secrets filter to content"""
+    filtered_content: str = Field(..., description="Content with secrets replaced by references")
+    detec
+
+File: ciris_engine/schemas/secrets/filter.py:36
+Context:
+class SecretsFilterResult(BaseModel):
+    """Result of a secrets filtering operation."""
+    filtered_content: str = Field(..., description="Content after filtering")
+    secrets_found: List[str] = Fi
+
+============================================================
+Class: FilterStats (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/secrets/service.py:44
+Context:
+class FilterStats(BaseModel):
+    """Statistics from filter operations."""
+    patterns_updated: int = Field(0, description="Number of patterns updated")
+    sensitivity_levels_updated: int = Field(0,
+
+File: ciris_engine/schemas/services/filters_core.py:178
+Context:
+class FilterStats(BaseModel):
+    """Statistics for filter performance monitoring"""
+    total_messages_processed: int = Field(default=0, description="Total messages processed")
+    total_filtered: in
+
+============================================================
+Class: ServiceMetadata (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/registries/base.py:10
+Context:
+class ServiceMetadata(BaseModel):
+    """Metadata for a registered service."""
+    version: Optional[str] = Field(None, description="Service version")
+    description: Optional[str] = Field(None, desc
+
+File: ciris_engine/schemas/services/metadata.py:13
+Context:
+class ServiceMetadata(BaseModel):
+    """Typed metadata for all service method calls."""
+    service_name: str = Field(..., description="Name of the calling service")
+    method_name: str = Field(...,
+
+============================================================
+Class: CircuitBreakerStats (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/registries/base.py:35
+Context:
+class CircuitBreakerStats(BaseModel):
+    """Circuit breaker statistics."""
+    state: str = Field(..., description="Current state")
+    failure_count: int = Field(0, description="Failure count")
+    
+
+File: ciris_engine/schemas/services/llm.py:10
+Context:
+class CircuitBreakerStats(BaseModel):
+    """Circuit breaker statistics."""
+    state: str = Field(..., description="Current state: closed, open, or half-open")
+    failure_count: int = Field(..., des
+
+============================================================
+Class: InitializationStatus (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/services/operations.py:25
+Context:
+class InitializationStatus(str, Enum):
+    """Status of initialization phases."""
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+
+File: ciris_engine/schemas/services/lifecycle/initialization.py:7
+Context:
+class InitializationStatus(BaseModel):
+    """Status of system initialization."""
+    complete: bool = Field(..., description="Whether initialization is complete")
+    start_time: Optional[datetime] =
+
+============================================================
+Class: LLMResponse (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/services/llm.py:31
+Context:
+class LLMResponse(BaseModel):
+    """Standard LLM response structure."""
+    content: str = Field(..., description="Response content")
+    model: str = Field(..., description="Model that generated res
+
+File: ciris_engine/schemas/services/requests.py:81
+Context:
+class LLMResponse(ServiceResponse):
+    """Response from LLM service."""
+    text: str = Field(..., description="Generated text")
+    model_used: str = Field(..., description="Model that was used")
+  
+
+============================================================
+Class: DeferralResolution (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/services/authority/wise_authority.py:77
+Context:
+class DeferralResolution(BaseModel):
+    """Resolution of a deferral by WA."""
+    deferral_id: str = Field(..., description="Deferral being resolved")
+    wa_id: str = Field(..., description="WA reso
+
+File: ciris_engine/schemas/handlers/core.py:142
+Context:
+class DeferralResolution(BaseModel):
+    """WA resolution of a deferral."""
+    report_id: str = Field(..., description="Report being resolved")
+    wa_id: str = Field(..., description="WA who resolve
+
+============================================================
+Class: ServiceCapabilities (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/services/core/__init__.py:17
+Context:
+class ServiceCapabilities(BaseModel):
+    """Capabilities exposed by a service."""
+    service_name: str = Field(..., description="Name of the service")
+    actions: List[str] = Field(..., description
+
+File: ciris_engine/schemas/services/graph/telemetry.py:77
+Context:
+class ServiceCapabilities(BaseModel):
+    """Service capabilities declaration."""
+    actions: List[str] = Field(..., description="Supported actions")
+    features: List[str] = Field(..., description=
+
+============================================================
+Class: GraphQuery (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/services/graph/memory.py:44
+Context:
+class GraphQuery(BaseModel):
+    """Query parameters for graph operations."""
+    # Query type
+    query_type: str = Field(..., description="Type of query: match, traverse, aggregate")
+
+File: ciris_engine/schemas/services/graph/telemetry.py:70
+Context:
+class GraphQuery(BaseModel):
+    """Query parameters for graph operations."""
+    hours: int = Field(24, description="Hours of data to query")
+    node_types: List[str] = Field(default_factory=list, d
+
+============================================================
+Class: DeferralPackage (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/persistence/core.py:18
+Context:
+class DeferralPackage(BaseModel):
+    """Type-safe container for deferral report package data."""
+    defer_until: Optional[datetime] = Field(None, description="Timestamp for deferred execution")
+    
+
+File: ciris_engine/schemas/handlers/core.py:62
+Context:
+class DeferralPackage(BaseModel):
+    """Complete context package for deferred decisions."""
+    thought_id: str = Field(..., description="ID of deferred thought")
+    task_id: str = Field(..., descri
+
+============================================================
+Class: HandlerContext (2 occurrences)
+============================================================
+
+File: ciris_engine/schemas/handlers/context.py:33
+Context:
+class HandlerContext(BaseModel):
+    """Context passed to all handlers - fully typed."""
+    task_id: str = Field(..., description="ID of the task being handled")
+    thought_id: str = Field(..., desc
+
+File: ciris_engine/schemas/handlers/schemas.py:63
+Context:
+class HandlerContext(BaseModel):
+    """Typed context for all handlers."""
+    action_type: str = Field(..., description="Type of action being handled")
+    action_context: ActionContext = Field(..., 
+
+============================================================
+Class: VisibilityServiceProtocol (2 occurrences)
+============================================================
+
+File: ciris_engine/protocols/runtime/base.py:79
+Context:
+class VisibilityServiceProtocol(ServiceProtocol, Protocol):
+    """Base for services that provide transparency and compliance."""
+    
+    @abstractmethod
+    async def get_visibility_data(self) -> di
+
+File: ciris_engine/protocols/services/governance/visibility.py:11
+Context:
+class VisibilityServiceProtocol(ServiceProtocol, Protocol):
+    """Protocol for visibility service."""
+    
+    @abstractmethod
+    async def get_current_state(self) -> VisibilitySnapshot:
+

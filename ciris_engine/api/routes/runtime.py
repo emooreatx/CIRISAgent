@@ -18,7 +18,6 @@ from ciris_engine.schemas.services.core.runtime import (
     RuntimeEvent
 )
 # CognitiveState import removed - using string values directly
-from ciris_engine.schemas.runtime.queue import QueueStatus
 from ciris_engine.api.dependencies.auth import require_admin, require_authority, AuthContext
 
 router = APIRouter(prefix="/runtime", tags=["runtime"])
@@ -348,7 +347,7 @@ async def force_state_transition(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/queue", response_model=SuccessResponse[QueueStatus])
+@router.get("/queue", response_model=SuccessResponse[ProcessorQueueStatus])
 async def get_queue_status(
     request: Request,
     auth: AuthContext = Depends(require_admin)
@@ -384,7 +383,7 @@ async def get_queue_status(
                 "blocked_items": queue_status.blocked_items,
                 "priority_distribution": queue_status.priority_distribution
             }
-            queue_status = QueueStatus(**status_data)
+            queue_status = ProcessorQueueStatus(**status_data)
         
         return SuccessResponse(data=queue_status)
         

@@ -9,6 +9,7 @@ from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatu
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.runtime.resources import ResourceUsage
+from ciris_engine.schemas.actions.parameters import SpeakParams
 
 
 @pytest.fixture
@@ -37,9 +38,8 @@ async def test_llm_service_call_structured(llm_service):
     # Mock the instructor client's response
     mock_result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.SPEAK,
-        action_parameters={"content": "Test response"},
+        action_parameters=SpeakParams(content="Test response"),
         rationale="Test response reasoning",
-        confidence=0.95,
         reasoning="This is a test",
         evaluation_time_ms=100
     )
@@ -56,7 +56,7 @@ async def test_llm_service_call_structured(llm_service):
         
         assert isinstance(result, ActionSelectionDMAResult)
         assert result.selected_action == HandlerActionType.SPEAK
-        assert result.confidence == 0.95
+        assert result.rationale == "Test response reasoning"
         assert hasattr(usage, 'tokens_used')
 
 
@@ -216,11 +216,11 @@ async def test_llm_service_pydantic_response(llm_service):
     
     class TestResponse(BaseModel):
         message: str
-        confidence: float
+        status: str
     
     mock_result = TestResponse(
         message="Hello",
-        confidence=0.9
+        status="completed"
     )
     
     with patch.object(llm_service.instruct_client.chat.completions, 'create',
@@ -235,7 +235,7 @@ async def test_llm_service_pydantic_response(llm_service):
         
         assert isinstance(result, TestResponse)
         assert result.message == "Hello"
-        assert result.confidence == 0.9
+        assert result.status == "completed"
 
 
 @pytest.mark.asyncio

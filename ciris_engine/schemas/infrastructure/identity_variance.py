@@ -35,21 +35,7 @@ class VarianceReport(BaseModel):
     requires_wa_review: bool = Field(..., description="Whether WA review is required")
     recommendations: List[str] = Field(default_factory=list, description="Recommended actions")
 
-class IdentitySnapshot(BaseModel):
-    """Snapshot of identity state at a point in time."""
-    snapshot_id: str = Field(..., description="Unique snapshot ID")
-    timestamp: datetime = Field(..., description="When snapshot was taken")
-    agent_id: str = Field(..., description="Agent ID")
-    identity_hash: str = Field(..., description="Identity hash")
-    core_purpose: str = Field(..., description="Core purpose description")
-    role: str = Field(..., description="Role description")
-    permitted_actions: List[str] = Field(default_factory=list, description="Permitted action names")
-    restricted_capabilities: List[str] = Field(default_factory=list, description="Restricted capabilities")
-    ethical_boundaries: List[str] = Field(default_factory=list, description="Ethical boundaries")
-    trust_parameters: Dict[str, str] = Field(default_factory=dict, description="Trust parameters")
-    behavioral_patterns: Dict[str, float] = Field(default_factory=dict, description="Behavioral pattern scores")
-    config_preferences: Dict[str, str] = Field(default_factory=dict, description="Configuration preferences")
-    attributes: dict = Field(default_factory=dict, description="Additional attributes")
+# IdentitySnapshot moved to schemas/services/nodes.py as TypedGraphNode
 
 class VarianceAnalysis(BaseModel):
     """Detailed variance analysis between snapshots."""

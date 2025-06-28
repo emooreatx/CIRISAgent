@@ -136,7 +136,7 @@ class ThoughtProcessor:
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER,
                 action_parameters=defer_params.model_dump(),
-                selection_reasoning="DMA timeout",
+                rationale="DMA timeout",
             )
 
         # 4. Check for failures/escalations
@@ -166,7 +166,7 @@ class ThoughtProcessor:
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER,
                 action_parameters=defer_params.model_dump(),
-                selection_reasoning="DMA timeout",
+                rationale="DMA timeout",
             )
         
         # CRITICAL DEBUG: Check action_result details immediately
@@ -293,7 +293,7 @@ class ThoughtProcessor:
                 final_result = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.PONDER,
                     action_parameters=ponder_params.model_dump(),
-                    selection_reasoning="No conscience result",
+                    rationale="No conscience result",
                 )
 
         # Store conscience result on the action result for later access
@@ -336,8 +336,8 @@ class ThoughtProcessor:
         processing_context: Optional[Any] = None,
     ):
         """Simple conscience application without orchestrator."""
-        # Import ConscienceResult here to avoid circular imports
-        from ciris_engine.schemas.processors.core import ConscienceResult
+        # Import ConscienceApplicationResult here to avoid circular imports
+        from ciris_engine.schemas.processors.core import ConscienceApplicationResult
         
         # Check if this is a conscience retry
         is_conscience_retry = (
@@ -358,7 +358,7 @@ class ThoughtProcessor:
         }
         
         if action_result.selected_action in exempt_actions:
-            return ConscienceResult(
+            return ConscienceApplicationResult(
                 original_action=action_result,
                 final_action=action_result,
                 overridden=False,
@@ -444,7 +444,7 @@ class ThoughtProcessor:
                 overridden = True
                 override_reason = "Conscience retry - forcing PONDER to prevent loops"
         
-        result = ConscienceResult(
+        result = ConscienceApplicationResult(
             original_action=action_result,
             final_action=final_action,
             overridden=overridden,
@@ -558,7 +558,7 @@ class ThoughtProcessor:
         return ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=defer_params.model_dump(),
-            selection_reasoning=defer_reason
+            rationale=defer_reason
         )
 
     async def _handle_special_cases(self, result: Any, thought: Thought, context: Any) -> Optional[ActionSelectionDMAResult]:
@@ -576,7 +576,7 @@ class ThoughtProcessor:
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.PONDER,
                 action_parameters=ponder_params.model_dump(),
-                selection_reasoning="conscience result missing",
+                rationale="conscience result missing",
             )
 
         if hasattr(result, 'selected_action'):
@@ -603,7 +603,7 @@ class ThoughtProcessor:
                 final_result = ActionSelectionDMAResult(
                     selected_action=selected_action,
                     action_parameters=ponder_params.model_dump(),
-                    selection_reasoning="conscience result empty",
+                    rationale="conscience result empty",
                 )
         else:
             logger.warning(
@@ -697,7 +697,7 @@ class ThoughtProcessor:
             ponder_result = ActionSelectionDMAResult(
                 selected_action=HandlerActionType.PONDER,
                 action_parameters=ponder_params.model_dump(),
-                selection_reasoning="Processing PONDER action from action selection"
+                rationale="Processing PONDER action from action selection"
             )
             
             # Create proper DispatchContext

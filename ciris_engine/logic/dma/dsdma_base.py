@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Any, Optional, List
-from ciris_engine.schemas.processors.dma import DMAContext
+from ciris_engine.schemas.dma.core import DMAInputData
 
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
 from ciris_engine.schemas.dma.results import DSDMAResult
@@ -85,18 +85,18 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
         **kwargs: Any
     ) -> DSDMAResult:
         """Evaluate thought within domain-specific context."""
-        # Convert Dict[str, Any] to DMAContext if provided
-        dma_context: Optional[DMAContext] = None
+        # Extract DMAInputData if provided
+        dma_input_data: Optional[DMAInputData] = None
         if current_context and isinstance(current_context, dict):
-            # Try to extract DMAContext if it's in the context
-            if "dma_context" in current_context:
-                dma_context = current_context["dma_context"]
+            # Try to extract DMAInputData if it's in the context
+            if "dma_input_data" in current_context:
+                dma_input_data = current_context["dma_input_data"]
             else:
-                logger.debug("No DMAContext in context, using legacy Dict[str, Any]")
+                logger.debug("No DMAInputData in context, using legacy Dict[str, Any]")
         
-        return await self.evaluate_thought(input_data, dma_context)
+        return await self.evaluate_thought(input_data, dma_input_data)
     
-    async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Optional[DMAContext]) -> DSDMAResult:
+    async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Optional[DMAInputData]) -> DSDMAResult:
 
         thought_content_str = str(thought_item.content)
 

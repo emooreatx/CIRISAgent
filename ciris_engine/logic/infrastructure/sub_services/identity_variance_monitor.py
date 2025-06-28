@@ -12,9 +12,10 @@ from datetime import datetime
 from ciris_engine.protocols.services import Service
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.infrastructure.identity_variance import (
-    VarianceImpact, IdentityDiff, VarianceReport, IdentitySnapshot,
+    VarianceImpact, IdentityDiff, VarianceReport,
     VarianceAnalysis, WAReviewRequest, VarianceCheckMetadata
 )
+from ciris_engine.schemas.services.nodes import IdentitySnapshot
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType, ConfigNodeType, CONFIG_SCOPE_MAP
 from ciris_engine.schemas.services.operations import MemoryQuery
 from ciris_engine.schemas.runtime.core import AgentIdentityRoot
@@ -585,7 +586,6 @@ class IdentityVarianceMonitor(Service):
                         evidence=evidence.get(action_type, []),
                         first_seen=first_seen.get(action_type, self._time_service.now()),
                         last_seen=last_seen.get(action_type, self._time_service.now()),
-                        confidence=min(count / 10.0, 1.0)  # Higher count = higher confidence
                     )
                     patterns.append(pattern)
             

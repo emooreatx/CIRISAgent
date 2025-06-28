@@ -6,7 +6,8 @@ based on user role to prevent information leakage.
 """
 import re
 from typing import Set, Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from datetime import datetime
+from pydantic import BaseModel, Field, field_serializer
 
 from .auth import UserRole
 
@@ -182,11 +183,29 @@ class ConfigValueResponse(BaseModel):
     is_redacted: bool = Field(..., description="Whether value was redacted")
     last_updated: Optional[datetime] = Field(None, description="When value was last updated")
     updated_by: Optional[str] = Field(None, description="Who last updated this value")
+    
+    @field_serializer('last_updated')
+    def serialize_last_updated(self, last_updated: Optional[datetime], _info):
+        return last_updated.isoformat() if last_updated else None
 
 class ConfigListResponse(BaseModel):
     """Response for configuration list."""
     configs: Dict[str, Any] = Field(..., description="Configuration values")
     metadata: Dict[str, Any] = Field(..., description="Response metadata")
+
+
+def filter_config_for_role(config: Dict[str, Any], role: UserRole) -> Dict[str, Any]:
+    """
+    Filter configuration values based on user role.
+    
+    Args:
+        config: Configuration dictionary
+        role: User's role
+        
+    Returns:
+        Filtered configuration with sensitive values redacted
+    """
+    return ConfigSecurity.filter_config(config, role)
     
 class ConfigUpdateRequest(BaseModel):
     """Request to update configuration value."""

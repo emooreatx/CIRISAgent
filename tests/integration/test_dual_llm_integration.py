@@ -16,7 +16,11 @@ async def test_dual_llm_service_real_initialization():
     """Test real initialization with dual LLM services from environment."""
     # Ensure environment variables are set
     assert os.environ.get("OPENAI_API_KEY"), "Primary API key not found"
-    assert os.environ.get("CIRIS_OPENAI_API_KEY_2"), "Secondary API key not found"
+    
+    # Check if dual LLM is configured
+    has_secondary = os.environ.get("CIRIS_OPENAI_API_KEY_2") is not None
+    if not has_secondary:
+        pytest.skip("Secondary API key not configured, skipping dual LLM test")
     
     # Create essential config
     essential_config = EssentialConfig()
@@ -29,8 +33,11 @@ async def test_dual_llm_service_real_initialization():
     initializer.service_registry = service_registry
     
     try:
-        # Initialize services
-        await initializer.initialize_services()
+        # Initialize all services - need to call the proper initialization sequence
+        await initializer.initialize_infrastructure_services()
+        await initializer.initialize_memory_service(essential_config)
+        await initializer.initialize_security_services(essential_config, essential_config)
+        await initializer.initialize_all_services(essential_config, essential_config, "test_agent", None, [])
         
         # Check that LLM services were registered
         llm_providers = service_registry.get_all_providers(ServiceType.LLM)

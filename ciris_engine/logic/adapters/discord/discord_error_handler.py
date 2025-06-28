@@ -2,7 +2,7 @@
 import logging
 from typing import Optional, Dict, Any, Callable, Awaitable
 from enum import Enum
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import discord
 from discord.errors import (
     Forbidden, NotFound, HTTPException, RateLimited,
@@ -235,7 +235,7 @@ class DiscordErrorHandler:
             error_key: Unique key for this error type
             severity: Error severity
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         
         # Clean old errors
         cutoff = now - self._error_window
@@ -292,7 +292,7 @@ class DiscordErrorHandler:
             title=f"⚠️ Error: {error_info.get('error_type', 'Unknown')}",
             description=error_info.get('message', 'An error occurred'),
             color=colors.get(error_info.get('severity', 'medium'), 0x95a5a6),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         # Add fields

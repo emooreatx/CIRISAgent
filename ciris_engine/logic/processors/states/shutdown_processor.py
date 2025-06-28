@@ -14,7 +14,7 @@ from ciris_engine.schemas.processors.results import ShutdownResult
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtType, ThoughtStatus
 from ciris_engine.schemas.runtime.models import Task, Thought
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
-from ciris_engine.schemas.runtime.processing_context import ThoughtContext
+from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
 from ciris_engine.schemas.runtime.extended import ShutdownContext
 from ciris_engine.schemas.runtime.models import TaskContext
 from ciris_engine.logic import persistence
@@ -82,10 +82,10 @@ class ShutdownProcessor(BaseProcessor):
         
         # Convert dict result to ShutdownResult
         tasks_cleaned = result.get("tasks_cleaned", 0)
-        shutdown_ready = result.get("status") == "completed"
+        shutdown_ready = result.get("shutdown_ready", False) or result.get("status") == "completed"
         errors = 1 if result.get("status") == "error" else 0
         
-        logger.debug(f"ShutdownProcessor.process: status={result.get('status')}, shutdown_ready={shutdown_ready}")
+        logger.info(f"ShutdownProcessor.process: status={result.get('status')}, shutdown_ready from dict={result.get('shutdown_ready')}, final shutdown_ready={shutdown_ready}")
         
         shutdown_result = ShutdownResult(
             tasks_cleaned=tasks_cleaned,
@@ -95,7 +95,7 @@ class ShutdownProcessor(BaseProcessor):
         )
         
         # Log the result we're returning
-        logger.debug(f"ShutdownProcessor returning: {shutdown_result}")
+        logger.info(f"ShutdownProcessor returning: shutdown_ready={shutdown_result.shutdown_ready}, full result={shutdown_result}")
         
         return shutdown_result
         

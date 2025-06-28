@@ -8,7 +8,7 @@ from ciris_engine.schemas.audit.core import AuditLogEntry  # Use schema version
 # TODO: Refactor to use dependency injection instead of get_config
 from ciris_engine.schemas.config.essential import CIRISNodeConfig
 from ciris_engine.schemas.runtime.enums import HandlerActionType, ServiceType
-from ciris_engine.schemas.runtime.audit import ActionContext
+from ciris_engine.schemas.runtime.audit import AuditActionContext
 from ciris_engine.schemas.adapters.cirisnode import (
     SimpleBenchRequest, SimpleBenchResult,
     HE300Request, HE300Result,
@@ -46,10 +46,16 @@ class CIRISNodeClient(Service):
         
         self.service_registry = service_registry
         self._audit_service: Optional["AuditService"] = None
-        config = get_config()
-        node_cfg: CIRISNodeConfig = getattr(config, "cirisnode", CIRISNodeConfig())
-        node_cfg.load_env_vars()
-        self.base_url = base_url or node_cfg.base_url
+        
+        # Use base_url if provided, otherwise use default
+        if base_url:
+            self.base_url = base_url
+        else:
+            # Default to localhost for testing/development
+            node_cfg = CIRISNodeConfig()
+            node_cfg.load_env_vars()
+            self.base_url = node_cfg.base_url
+            
         self._client = httpx.AsyncClient(base_url=self.base_url)
         self._closed = False
 
@@ -144,7 +150,7 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                ActionContext(
+                AuditActionContext(
                     thought_id=agent_id,
                     task_id="simplebench",
                     handler_name="cirisnode_client",
@@ -163,7 +169,7 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                ActionContext(
+                AuditActionContext(
                     thought_id=agent_id,
                     task_id="he300",
                     handler_name="cirisnode_client",
@@ -182,7 +188,7 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                ActionContext(
+                AuditActionContext(
                     thought_id=agent_id,
                     task_id="chaos_tests",
                     handler_name="cirisnode_client",
@@ -201,7 +207,7 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                ActionContext(
+                AuditActionContext(
                     thought_id=params.get("agent_id", "unknown"),
                     task_id=f"wa_service_{service}",
                     handler_name="cirisnode_client",
@@ -220,7 +226,7 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                ActionContext(
+                AuditActionContext(
                     thought_id=agent_id or "unknown",
                     task_id="log_event",
                     handler_name="cirisnode_client",
@@ -245,7 +251,7 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                ActionContext(
+                AuditActionContext(
                     thought_id=agent_id,
                     task_id=f"fetch_{benchmark}_prompts",
                     handler_name="cirisnode_client",
@@ -277,7 +283,7 @@ class CIRISNodeClient(Service):
         if audit_service:
             await audit_service.log_action(
                 HandlerActionType.TOOL,
-                ActionContext(
+                AuditActionContext(
                     thought_id=agent_id,
                     task_id=f"submit_{benchmark}_answers",
                     handler_name="cirisnode_client",

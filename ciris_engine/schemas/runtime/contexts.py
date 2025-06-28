@@ -8,10 +8,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 from .enums import HandlerActionType
 from .system_context import ChannelContext
-from pydantic import Field, ConfigDict
-
-if TYPE_CHECKING:
-    from .system_context import ConscienceResult
+from ..conscience.results import ConscienceResult
 
 class DispatchContext(BaseModel):
     """Type-safe context for action handler dispatch.
@@ -44,7 +41,7 @@ class DispatchContext(BaseModel):
     wa_context: Optional[str] = Field(None, description="WA context if applicable")
     
     # conscience and processing context - OPTIONAL
-    conscience_failure_context: Optional["ConscienceResult"] = Field(None, description="Context from conscience failures")
+    conscience_failure_context: Optional[ConscienceResult] = Field(None, description="Context from conscience failures")
     epistemic_data: Optional[dict] = Field(None, description="Epistemic faculty evaluation data")
     
     # Correlation tracking
@@ -55,7 +52,3 @@ class DispatchContext(BaseModel):
     model_config = ConfigDict(extra = "forbid")  # Strict - no extra fields allowed
 
 __all__ = ["DispatchContext"]
-
-# Rebuild model to resolve forward references
-from ciris_engine.schemas.processors.core import ConscienceResult
-DispatchContext.model_rebuild()

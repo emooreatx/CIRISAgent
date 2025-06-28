@@ -280,7 +280,6 @@ class OptimizationVetoconscience(_BaseConscience):
                     justification="Invalid result type from LLM",
                     entropy_reduction_ratio=0.0,
                     affected_values=[],
-                    confidence=0.0,
                 )
         except Exception as e:
             logger.error(f"OptimizationVetoconscience: Error in optimization veto: {e}", exc_info=True)
@@ -289,7 +288,6 @@ class OptimizationVetoconscience(_BaseConscience):
                 justification=f"LLM error: {str(e)}",
                 entropy_reduction_ratio=0.0,
                 affected_values=[],
-                confidence=0.0,
             )
         
         passed = result.decision not in {"abort", "defer"} and result.entropy_reduction_ratio < self.config.optimization_veto_ratio
@@ -321,7 +319,7 @@ class OptimizationVetoconscience(_BaseConscience):
             "This action has already passed through many layers of CIRIS Agent's ethical consciences, "
             "so you can assume it is generally safe to proceed unless you see a clear issue. "
             "Return JSON with keys: decision (proceed|abort|defer), justification, "
-            "entropy_reduction_ratio, affected_values, confidence."
+            "entropy_reduction_ratio, affected_values."
         )
         user_prompt = f"Proposed action: {action_description}"
         return [

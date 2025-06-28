@@ -57,7 +57,7 @@ class BusMetrics(BaseModel):
     busiest_service: Optional[str] = Field(None, description="Service with most traffic")
     additional_metrics: dict = Field(default_factory=dict, description="Additional bus metrics")
 
-class ConsolidationResult(BaseModel):
+class DreamConsolidationResult(BaseModel):
     """Result of memory consolidation during dream state."""
     dream_id: str = Field(..., description="Dream session ID")
     memories_processed: int = Field(0, description="Number of memories processed")
@@ -83,7 +83,6 @@ class DreamInsight(BaseModel):
     """Insight discovered during dream analysis."""
     insight_id: str = Field(..., description="Unique insight ID")
     insight_type: str = Field(..., description="Type of insight")
-    confidence: float = Field(..., description="Confidence score 0-1")
     description: str = Field(..., description="Insight description")
     supporting_memories: List[str] = Field(default_factory=list, description="Memory IDs supporting this insight")
     timestamp: datetime = Field(..., description="When insight was discovered")
@@ -129,7 +128,6 @@ class ConfigurationPattern(BaseModel):
     success_rate: float = Field(..., description="Success rate when pattern active")
     configuration_items: List[str] = Field(..., description="Configuration items in pattern")
     recommended_action: str = Field(..., description="Recommended action for pattern")
-    confidence: float = Field(..., description="Confidence in pattern detection")
 
 class ConfigurationUpdate(BaseModel):
     """Proposed configuration update."""
@@ -182,3 +180,24 @@ class ServiceRegistrySnapshot(BaseModel):
     total_services: int = Field(..., description="Total number of services")
     healthy_services: int = Field(..., description="Number of healthy services")
     last_update: datetime = Field(..., description="Last registry update")
+
+
+__all__ = [
+    "RuntimeStats",
+    "HealthCheckResult",
+    "ComponentHealthStatus",
+    "ServiceDependencies",
+    "BusMetrics",
+    "DreamConsolidationResult",
+    "DreamSchedule",
+    "DreamInsight",
+    "IdentityBaseline",
+    "IdentityVarianceMetric",
+    "ConfigurationFeedback",
+    "ConfigurationPattern",
+    "ConfigurationUpdate",
+    "ActiveAdapter",
+    "CheckpointInfo",
+    "ServiceRegistration",
+    "ServiceRegistrySnapshot",
+]

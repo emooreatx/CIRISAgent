@@ -11,7 +11,7 @@ from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphN
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.runtime.models import Thought, ThoughtContext
 from ciris_engine.schemas.runtime.enums import ThoughtStatus
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext, ConscienceResult
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext
 # Import ActionSelectionDMAResult last to avoid circular import issues
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 
@@ -99,17 +99,20 @@ async def test_memorize_handler_with_graph_node(monkeypatch):
     mock_time_service = Mock()
     mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
     
-    bus_manager = BusManager(mock_service_registry, time_service=mock_time_service)
+    # Mock the audit service
+    mock_audit_service = AsyncMock()
+    mock_audit_service.log_event = AsyncMock()
+    
+    bus_manager = BusManager(
+        mock_service_registry, 
+        time_service=mock_time_service,
+        audit_service=mock_audit_service
+    )
     
     # Mock the memory bus to use our memory_service
     mock_memory_bus = AsyncMock()
     mock_memory_bus.memorize = memory_service.memorize
     bus_manager.memory = mock_memory_bus
-    
-    # Mock the audit bus
-    mock_audit_bus = AsyncMock()
-    mock_audit_bus.log_event = AsyncMock()
-    bus_manager.audit = mock_audit_bus
     
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,
@@ -199,17 +202,20 @@ async def test_recall_handler_with_query(monkeypatch):
     mock_time_service = Mock()
     mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
     
-    bus_manager = BusManager(mock_service_registry, time_service=mock_time_service)
+    # Mock the audit service
+    mock_audit_service = AsyncMock()
+    mock_audit_service.log_event = AsyncMock()
+    
+    bus_manager = BusManager(
+        mock_service_registry, 
+        time_service=mock_time_service,
+        audit_service=mock_audit_service
+    )
     
     # Mock the memory bus
     mock_memory_bus = AsyncMock()
     mock_memory_bus.recall = memory_service.recall
     bus_manager.memory = mock_memory_bus
-    
-    # Mock the audit bus
-    mock_audit_bus = AsyncMock()
-    mock_audit_bus.log_event = AsyncMock()
-    bus_manager.audit = mock_audit_bus
     
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,
@@ -270,17 +276,20 @@ async def test_memorize_handler_error_handling(monkeypatch):
     mock_time_service = Mock()
     mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
     
-    bus_manager = BusManager(mock_service_registry, time_service=mock_time_service)
+    # Mock the audit service
+    mock_audit_service = AsyncMock()
+    mock_audit_service.log_event = AsyncMock()
+    
+    bus_manager = BusManager(
+        mock_service_registry, 
+        time_service=mock_time_service,
+        audit_service=mock_audit_service
+    )
     
     # Mock the memory bus
     mock_memory_bus = AsyncMock()
     mock_memory_bus.memorize = memory_service.memorize
     bus_manager.memory = mock_memory_bus
-    
-    # Mock the audit bus
-    mock_audit_bus = AsyncMock()
-    mock_audit_bus.log_event = AsyncMock()
-    bus_manager.audit = mock_audit_bus
     
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,

@@ -18,7 +18,11 @@ class GuidanceResource:
         reason: str,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Submit a deferral to wise authority."""
+        """Submit a deferral to wise authority.
+        
+        Note: This creates a deferral from the agent side.
+        For viewing/resolving deferrals, use the client.wa resource.
+        """
         payload = {
             "thought_id": thought_id,
             "reason": reason
@@ -26,19 +30,4 @@ class GuidanceResource:
         if context:
             payload["context"] = context
         resp = await self._transport.request("POST", "/v1/defer", json=payload)
-        return resp.json()
-
-    async def list_deferrals(self) -> List[Dict[str, Any]]:
-        """Get list of all deferrals."""
-        resp = await self._transport.request("GET", "/v1/wa/deferrals")
-        return resp.json()
-
-    async def get_deferral_detail(self, deferral_id: str) -> Dict[str, Any]:
-        """Get detailed information about a specific deferral."""
-        resp = await self._transport.request("GET", f"/v1/wa/deferrals/{deferral_id}")
-        return resp.json()
-
-    async def submit_feedback(self, feedback: Dict[str, Any]) -> Dict[str, Any]:
-        """Submit feedback to wise authority."""
-        resp = await self._transport.request("POST", "/v1/wa/feedback", json=feedback)
         return resp.json()

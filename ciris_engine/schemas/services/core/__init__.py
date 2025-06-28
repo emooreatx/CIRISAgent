@@ -101,14 +101,6 @@ class RuntimeMetrics(BaseModel):
     average_task_duration_ms: float = Field(0.0, description="Average task duration")
     average_thought_duration_ms: float = Field(0.0, description="Average thought duration")
 
-class RuntimeStatus(BaseModel):
-    """Current runtime status."""
-    is_running: bool = Field(..., description="Whether runtime is active")
-    is_paused: bool = Field(False, description="Whether processing is paused")
-    current_phase: str = Field(..., description="Current processing phase")
-    active_tasks: int = Field(0, description="Number of active tasks")
-    queued_tasks: int = Field(0, description="Number of queued tasks")
-    metrics: RuntimeMetrics = Field(..., description="Runtime metrics")
 
 class BusMessage(BaseModel):
     """Message sent through the service bus."""
@@ -145,7 +137,6 @@ __all__ = [
     "ServiceStatus",
     "ServiceContainer",
     "RuntimeMetrics",
-    "RuntimeStatus",
     "BusMessage",
     "ServiceRegistration",
     # Re-exported from submodules - will be populated by star imports

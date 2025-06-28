@@ -4,9 +4,8 @@ Authentication API routes for CIRIS.
 Implements session management endpoints:
 - POST /v1/auth/login - Authenticate user
 - POST /v1/auth/logout - End session  
-- GET /v1/auth/me - Current user info
-- GET /v1/auth/permissions - User permissions
-- POST /v1/auth/token/refresh - Refresh access token
+- GET /v1/auth/me - Current user info (includes permissions)
+- POST /v1/auth/refresh - Refresh token
 
 Note: OAuth endpoints are in api_auth_v2.py
 """
@@ -143,10 +142,16 @@ async def get_current_user(
     Get current authenticated user information.
     
     Returns details about the currently authenticated user including
-    their role and permissions.
+    their role and all permissions based on that role.
     """
-    # Convert permissions set to list of strings
-    permissions = [p.value for p in auth.permissions]
+    # Get all permissions for the user's role
+    if auth.role == UserRole.ROOT:
+        # ROOT has all permissions
+        permissions = [p.value for p in Permission]
+    else:
+        # Get role-based permissions
+        role_permissions = ROLE_PERMISSIONS.get(auth.role, set())
+        permissions = [p.value for p in role_permissions]
     
     # For API key auth, we don't have a traditional username
     # Use the user_id as username
@@ -162,26 +167,7 @@ async def get_current_user(
     )
 
 
-@router.get("/auth/permissions", response_model=List[str])
-async def get_user_permissions(
-    auth: AuthContext = Depends(get_auth_context)
-):
-    """
-    Get the current user's permissions.
-    
-    Returns a list of permission strings that the authenticated user has
-    based on their role.
-    """
-    # For ROOT, return all permissions
-    if auth.role == UserRole.ROOT:
-        return [p.value for p in Permission]
-    
-    # Otherwise return role-based permissions
-    permissions = ROLE_PERMISSIONS.get(auth.role, set())
-    return [p.value for p in permissions]
-
-
-@router.post("/auth/token/refresh", response_model=LoginResponse)
+@router.post("/auth/refresh", response_model=LoginResponse)
 async def refresh_token(
     request: TokenRefreshRequest,
     auth: Optional[AuthContext] = Depends(optional_auth),
@@ -190,11 +176,9 @@ async def refresh_token(
     """
     Refresh access token.
     
-    This endpoint allows refreshing an access token. In this implementation,
-    we create a new API key and revoke the old one if the user is authenticated.
-    
-    Note: Full refresh token functionality would require storing refresh tokens
-    separately from access tokens.
+    Creates a new access token and revokes the old one. Supports both
+    API key and OAuth refresh flows. The user must be authenticated
+    to refresh their token.
     """
     # For now, we require the user to be authenticated to refresh
     # In a full implementation, we'd validate the refresh token separately

@@ -8,7 +8,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.services.graph_core import GraphNode
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, UserProfile
 from pydantic import Field
 
 class TelemetrySnapshotResult(BaseModel):
@@ -16,7 +16,7 @@ class TelemetrySnapshotResult(BaseModel):
     memories_created: int = Field(0, description="Number of memory nodes created")
     errors: List[str] = Field(default_factory=list, description="Any errors encountered")
     consolidation_triggered: bool = Field(False, description="Whether consolidation was triggered")
-    consolidation_result: Optional['ConsolidationResult'] = Field(None, description="Consolidation result if triggered")
+    consolidation_result: Optional['TelemetryConsolidationResult'] = Field(None, description="Consolidation result if triggered")
     error: Optional[str] = Field(None, description="Main error if processing failed")
 
 class TelemetryData(BaseModel):
@@ -37,21 +37,10 @@ class BehavioralData(BaseModel):
     content: Dict[str, Union[str, int, float, bool, list, dict]] = Field(..., description="Behavioral content")
     metadata: Dict[str, str] = Field(default_factory=dict, description="Additional metadata")
 
-class UserProfile(BaseModel):
-    """User profile in social context."""
-    user_id: str = Field(..., description="User identifier")
-    name: Optional[str] = Field(None, description="User name")
-    role: Optional[str] = Field(None, description="User role")
-    attributes: Dict[str, str] = Field(default_factory=dict, description="Additional attributes")
+# UserProfile imported from system_context
+# ChannelContext imported from system_context
 
-class ChannelContext(BaseModel):
-    """Channel context in social interactions."""
-    channel_id: str = Field(..., description="Channel identifier")
-    channel_type: str = Field(..., description="Type of channel")
-    participants: List[str] = Field(default_factory=list, description="Channel participants")
-    metadata: Dict[str, str] = Field(default_factory=dict, description="Additional metadata")
-
-class ConsolidationResult(BaseModel):
+class TelemetryConsolidationResult(BaseModel):
     """Result of memory consolidation."""
     status: str = Field(..., description="Consolidation status")
     grace_applied: int = Field(0, description="Number of grace applications")
@@ -80,3 +69,15 @@ class ServiceCapabilities(BaseModel):
     features: List[str] = Field(..., description="Supported features")
     node_type: str = Field(..., description="Primary node type managed")
     version: str = Field("1.0.0", description="Service version")
+
+
+__all__ = [
+    "TelemetrySnapshotResult",
+    "TelemetryData",
+    "ResourceData",
+    "BehavioralData",
+    "TelemetryConsolidationResult",
+    "TelemetryServiceStatus",
+    "GraphQuery",
+    "ServiceCapabilities",
+]

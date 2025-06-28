@@ -6,7 +6,7 @@ from ciris_engine.logic.services.graph.memory_service import LocalGraphMemorySer
 from ciris_engine.schemas.services.graph_core import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.adapters.graphql_core import (
     GraphQLQuery, GraphQLResponse, UserQueryVariables, UserQueryResponse,
-    UserProfile, UserAttribute, EnrichedContext
+    GraphQLUserProfile, UserAttribute, EnrichedContext
 )
 from ciris_engine.logic.config.env_utils import get_env_var
 
@@ -77,7 +77,7 @@ class GraphQLContextProvider:
             }
         """
         
-        user_profiles: Dict[str, UserProfile] = {}
+        user_profiles: Dict[str, GraphQLUserProfile] = {}
         
         if self.enable_remote_graphql and self.client:
             query_obj = GraphQLQuery(
@@ -90,7 +90,7 @@ class GraphQLContextProvider:
                 try:
                     user_response = UserQueryResponse.model_validate(response.data)
                     for user in user_response.users:
-                        user_profiles[user.name] = UserProfile(
+                        user_profiles[user.name] = GraphQLUserProfile(
                             nick=user.nick,
                             channel=user.channel
                         )
@@ -127,7 +127,7 @@ class GraphQLContextProvider:
                                     UserAttribute(key=k, value=str(v)) 
                                     for k, v in attrs.items()
                                 ]
-                                user_profiles[name] = UserProfile(
+                                user_profiles[name] = GraphQLUserProfile(
                                     attributes=user_attrs
                                 )
                                 break

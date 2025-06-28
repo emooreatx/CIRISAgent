@@ -8,8 +8,7 @@ def optimization_veto(context=None):
         decision="proceed",
         justification="Acceptable risk-benefit ratio",
         entropy_reduction_ratio=0.5,
-        affected_values=["autonomy", "justice"],
-        confidence=0.8
+        affected_values=["autonomy", "justice"]
     )
     object.__setattr__(result, 'choices', [result])
     object.__setattr__(result, 'finish_reason', 'stop')
