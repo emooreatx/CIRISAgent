@@ -14,7 +14,7 @@ from ciris_engine.schemas.processors.results import ShutdownResult
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtType, ThoughtStatus
 from ciris_engine.schemas.runtime.models import Task, Thought
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
-from ciris_engine.schemas.runtime.processing_context import ThoughtContext
+from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
 from ciris_engine.schemas.runtime.extended import ShutdownContext
 from ciris_engine.schemas.runtime.models import TaskContext
 from ciris_engine.logic import persistence

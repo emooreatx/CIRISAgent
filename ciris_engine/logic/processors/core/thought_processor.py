@@ -336,8 +336,8 @@ class ThoughtProcessor:
         processing_context: Optional[Any] = None,
     ):
         """Simple conscience application without orchestrator."""
-        # Import ConscienceResult here to avoid circular imports
-        from ciris_engine.schemas.processors.core import ConscienceResult
+        # Import ConscienceApplicationResult here to avoid circular imports
+        from ciris_engine.schemas.processors.core import ConscienceApplicationResult
         
         # Check if this is a conscience retry
         is_conscience_retry = (
@@ -358,7 +358,7 @@ class ThoughtProcessor:
         }
         
         if action_result.selected_action in exempt_actions:
-            return ConscienceResult(
+            return ConscienceApplicationResult(
                 original_action=action_result,
                 final_action=action_result,
                 overridden=False,
@@ -444,7 +444,7 @@ class ThoughtProcessor:
                 overridden = True
                 override_reason = "Conscience retry - forcing PONDER to prevent loops"
         
-        result = ConscienceResult(
+        result = ConscienceApplicationResult(
             original_action=action_result,
             final_action=final_action,
             overridden=overridden,

@@ -230,6 +230,17 @@ class IdentitySnapshot(TypedGraphNode):
     adaptation_rate: float = Field(..., description="Rate of adaptation")
     is_baseline: bool = Field(default=False, description="Whether this is a baseline snapshot")
     
+    # Additional fields from other versions
+    behavioral_patterns: Dict[str, float] = Field(default_factory=dict, description="Behavioral pattern scores")
+    config_preferences: Dict[str, str] = Field(default_factory=dict, description="Configuration preferences")
+    attributes: dict = Field(default_factory=dict, description="Additional attributes")
+    reason: str = Field(default="", description="Why snapshot was taken")
+    system_state: Optional[Dict[str, str]] = Field(None, description="System state at snapshot time")
+    active_tasks: List[str] = Field(default_factory=list, description="Active tasks at time")
+    expires_at: Optional[datetime] = Field(None, description="When snapshot expires")
+    tags: List[str] = Field(default_factory=list, description="Snapshot tags")
+    identity_root: Optional[Dict[str, Any]] = Field(None, description="Complete identity data at time")
+    
     # Required TypedGraphNode fields
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -263,6 +274,16 @@ class IdentitySnapshot(TypedGraphNode):
             "learning_enabled": self.learning_enabled,
             "adaptation_rate": self.adaptation_rate,
             "is_baseline": self.is_baseline,
+            # Additional fields
+            "behavioral_patterns": self.behavioral_patterns,
+            "config_preferences": self.config_preferences,
+            "attributes": self.attributes,
+            "reason": self.reason,
+            "system_state": self.system_state,
+            "active_tasks": self.active_tasks,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "tags": self.tags or [],
+            "identity_root": self.identity_root,
             "_node_class": "IdentitySnapshot"
         }
         
@@ -306,6 +327,15 @@ class IdentitySnapshot(TypedGraphNode):
             learning_enabled=attrs["learning_enabled"],
             adaptation_rate=attrs["adaptation_rate"],
             is_baseline=attrs.get("is_baseline", False),
+            # Additional fields
+            behavioral_patterns=attrs.get("behavioral_patterns", {}),
+            config_preferences=attrs.get("config_preferences", {}),
+            reason=attrs.get("reason", ""),
+            system_state=attrs.get("system_state"),
+            active_tasks=attrs.get("active_tasks", []),
+            expires_at=cls._deserialize_datetime(attrs.get("expires_at")) if attrs.get("expires_at") else None,
+            tags=attrs.get("tags", []),
+            identity_root=attrs.get("identity_root"),
             created_at=cls._deserialize_datetime(attrs.get("created_at")),
             created_by=attrs.get("created_by", "identity_variance_monitor")
         )

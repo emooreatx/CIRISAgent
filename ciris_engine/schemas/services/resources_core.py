@@ -154,37 +154,6 @@ class ResourceCost(BaseModel):
 
     model_config = ConfigDict(extra = "forbid")
 
-class ResourceUsageMetrics(BaseModel):
-    """Comprehensive resource usage tracking with costs"""
-    
-    # Traditional compute resources
-    memory_mb: int = Field(default=0, ge=0, description="Memory usage in MB")
-    cpu_percent: float = Field(default=0.0, ge=0.0, le=100.0, description="CPU usage percentage")
-    disk_mb: int = Field(default=0, ge=0, description="Disk usage in MB")
-    
-    # AI-specific resources
-    tokens_total: int = Field(default=0, ge=0, description="Total tokens processed")
-    tokens_input: int = Field(default=0, ge=0, description="Input tokens")
-    tokens_output: int = Field(default=0, ge=0, description="Output tokens")
-    
-    # Cost tracking
-    current_round_cost: ResourceCost = Field(default_factory=ResourceCost, description="Cost for current round")
-    session_total_cost: ResourceCost = Field(default_factory=ResourceCost, description="Total cost for session")
-    daily_total_cost: ResourceCost = Field(default_factory=ResourceCost, description="Total cost today")
-    
-    # Rate tracking
-    tokens_per_second: float = Field(default=0.0, ge=0.0, description="Current token processing rate")
-    cost_per_hour_cents: float = Field(default=0.0, ge=0.0, description="Projected hourly cost at current rate")
-    
-    # Efficiency metrics
-    thoughts_per_token: float = Field(default=0.0, ge=0.0, description="Efficiency: thoughts generated per token")
-    actions_per_dollar: float = Field(default=0.0, ge=0.0, description="Efficiency: actions taken per dollar spent")
-    
-    # Environmental awareness
-    carbon_intensity_g_per_kwh: float = Field(default=400.0, ge=0.0, description="Grid carbon intensity")
-    renewable_energy_percent: float = Field(default=20.0, ge=0.0, le=100.0, description="Estimated renewable energy %")
-
-    model_config = ConfigDict(extra = "forbid")
 
 class ResourceAlert(BaseModel):
     """Resource usage alert"""
@@ -204,6 +173,5 @@ __all__ = [
     "ResourceBudget",
     "ResourceSnapshot",
     "ResourceCost",
-    "ResourceUsageMetrics",
     "ResourceAlert",
 ]

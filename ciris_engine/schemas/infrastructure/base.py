@@ -57,7 +57,7 @@ class BusMetrics(BaseModel):
     busiest_service: Optional[str] = Field(None, description="Service with most traffic")
     additional_metrics: dict = Field(default_factory=dict, description="Additional bus metrics")
 
-class ConsolidationResult(BaseModel):
+class DreamConsolidationResult(BaseModel):
     """Result of memory consolidation during dream state."""
     dream_id: str = Field(..., description="Dream session ID")
     memories_processed: int = Field(0, description="Number of memories processed")
@@ -182,3 +182,24 @@ class ServiceRegistrySnapshot(BaseModel):
     total_services: int = Field(..., description="Total number of services")
     healthy_services: int = Field(..., description="Number of healthy services")
     last_update: datetime = Field(..., description="Last registry update")
+
+
+__all__ = [
+    "RuntimeStats",
+    "HealthCheckResult",
+    "ComponentHealthStatus",
+    "ServiceDependencies",
+    "BusMetrics",
+    "DreamConsolidationResult",
+    "DreamSchedule",
+    "DreamInsight",
+    "IdentityBaseline",
+    "IdentityVarianceMetric",
+    "ConfigurationFeedback",
+    "ConfigurationPattern",
+    "ConfigurationUpdate",
+    "ActiveAdapter",
+    "CheckpointInfo",
+    "ServiceRegistration",
+    "ServiceRegistrySnapshot",
+]

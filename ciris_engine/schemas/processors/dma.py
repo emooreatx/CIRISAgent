@@ -12,8 +12,8 @@ from ciris_engine.schemas.dma.results import (
     EthicalDMAResult, CSDMAResult, DSDMAResult, ActionSelectionDMAResult
 )
 
-class DMAContext(BaseModel):
-    """Context for DSDMA operations."""
+class DMAMetadata(BaseModel):
+    """Metadata for DSDMA operations."""
     channel_id: Optional[str] = Field(None, description="Channel ID if available")
     user_id: Optional[str] = Field(None, description="User ID if available")
     platform: Optional[str] = Field(None, description="Platform name")
@@ -78,3 +78,14 @@ class DMAOrchestratorStatus(BaseModel):
     retry_limit: int = Field(..., description="Retry limit for DMAs")
     timeout_seconds: float = Field(..., description="Timeout for DMA execution")
     dsdma_available: bool = Field(..., description="Whether DSDMA is configured")
+
+
+__all__ = [
+    "DMAMetadata",
+    "InitialDMAResults",
+    "DMAError",
+    "DMAErrors",
+    "ActionSelectionContext",
+    "CircuitBreakerStatus",
+    "DMAOrchestratorStatus"
+]

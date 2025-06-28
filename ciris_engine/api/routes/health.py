@@ -4,7 +4,7 @@ Health check endpoints for CIRIS API.
 from fastapi import APIRouter, Request
 from datetime import datetime, timezone
 from typing import Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 import asyncio
 
 from ciris_engine.schemas.api.responses import SuccessResponse
@@ -17,6 +17,10 @@ class HealthStatus(BaseModel):
     version: str = Field(..., description="API version")
     timestamp: datetime = Field(..., description="Current server time")
     services: Dict[str, Dict[str, int]] = Field(..., description="Service health summary")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, timestamp: datetime, _info):
+        return timestamp.isoformat() if timestamp else None
 
 @router.get("", response_model=SuccessResponse[HealthStatus])
 async def health_check(request: Request):

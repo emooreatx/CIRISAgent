@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, AsyncMock
 from ciris_engine.logic.processors.support.dma_orchestrator import DMAOrchestrator
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem, ThoughtContent
 from ciris_engine.schemas.runtime.models import Thought, ThoughtType
-from ciris_engine.schemas.runtime.system_context import ThoughtContext
+from ciris_engine.schemas.runtime.system_context import ThoughtState
 from ciris_engine.schemas.processors.dma import InitialDMAResults
 
 async def test_triaged_inputs_dict():
@@ -57,7 +57,7 @@ async def test_triaged_inputs_dict():
         "retry_guidance": "Please provide a safer response"
     }
     
-    processing_context = ThoughtContext(
+    processing_context = ThoughtState(
         initial_task_context=MagicMock(),
         system_snapshot=MagicMock(channel_context={"channel_id": "test-channel"})
     )

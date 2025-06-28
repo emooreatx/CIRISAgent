@@ -6,7 +6,7 @@ Manages graceful system termination.
 from typing import Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.api.dependencies.auth import require_admin, AuthContext
@@ -24,6 +24,10 @@ class ShutdownStatus(BaseModel):
     registered_handlers: int = Field(..., description="Number of registered shutdown handlers")
     service_healthy: bool = Field(..., description="Whether shutdown service is healthy")
     timestamp: datetime = Field(..., description="Current timestamp")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, timestamp: datetime, _info):
+        return timestamp.isoformat() if timestamp else None
 
 
 class ShutdownPrepareRequest(BaseModel):
@@ -37,6 +41,10 @@ class ShutdownPrepareResponse(BaseModel):
     message: str = Field(..., description="Human-readable status message")
     handlers_notified: int = Field(..., description="Number of handlers notified")
     timestamp: datetime = Field(..., description="When preparation started")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, timestamp: datetime, _info):
+        return timestamp.isoformat() if timestamp else None
 
 
 class ShutdownExecuteRequest(BaseModel):
@@ -51,6 +59,10 @@ class ShutdownExecuteResponse(BaseModel):
     message: str = Field(..., description="Human-readable status message")
     shutdown_initiated: bool = Field(..., description="Whether shutdown was initiated")
     timestamp: datetime = Field(..., description="When shutdown was initiated")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, timestamp: datetime, _info):
+        return timestamp.isoformat() if timestamp else None
 
 
 class ShutdownAbortResponse(BaseModel):
@@ -59,6 +71,10 @@ class ShutdownAbortResponse(BaseModel):
     message: str = Field(..., description="Human-readable status message")
     was_active: bool = Field(..., description="Whether shutdown was actually in progress")
     timestamp: datetime = Field(..., description="When abort was processed")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, timestamp: datetime, _info):
+        return timestamp.isoformat() if timestamp else None
 
 
 # Helper function to get shutdown service

@@ -8,7 +8,7 @@ from typing import Dict, Optional
 from pydantic import BaseModel, Field, ConfigDict
 from pydantic import Field, ConfigDict
 
-class ActionContext(BaseModel):
+class AuditActionContext(BaseModel):
     """Context for an audited action."""
     thought_id: str = Field(..., description="ID of the thought initiating action")
     task_id: str = Field(..., description="ID of the associated task")
@@ -18,8 +18,8 @@ class ActionContext(BaseModel):
     
     model_config = ConfigDict(extra = "forbid")
 
-class ConscienceCheckResult(BaseModel):
-    """Result from a conscience check."""
+class AuditConscienceResult(BaseModel):
+    """Result from a conscience check in audit context."""
     allowed: bool = Field(..., description="Whether action is allowed")
     reason: Optional[str] = Field(None, description="Reason for allow/deny")
     modifications: Dict[str, str] = Field(default_factory=dict, description="Suggested modifications")
@@ -27,8 +27,8 @@ class ConscienceCheckResult(BaseModel):
     
     model_config = ConfigDict(extra = "forbid")
 
-class AuditEntry(BaseModel):
-    """An entry in the audit trail."""
+class AuditRequest(BaseModel):
+    """A request to create an audit entry."""
     entry_id: str = Field(..., description="Unique audit entry ID")
     timestamp: datetime = Field(..., description="When the event occurred")
     entity_id: str = Field(..., description="ID of entity being audited")
@@ -40,7 +40,7 @@ class AuditEntry(BaseModel):
     model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
-    "ActionContext",
-    "ConscienceCheckResult",
-    "AuditEntry"
+    "AuditActionContext",
+    "AuditConscienceResult",
+    "AuditRequest"
 ]

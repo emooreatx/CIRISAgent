@@ -75,7 +75,7 @@ def authority_auth():
         permissions={
             Permission.VIEW_LOGS, 
             Permission.VIEW_MEMORY,
-            Permission.MANAGE_DEFERRALS,
+            Permission.RESOLVE_DEFERRALS,
             Permission.GRANT_PERMISSIONS
         },
         api_key_id="test_key_2",
@@ -126,7 +126,8 @@ class TestGetDeferrals:
         # Verify
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "success"
+        assert "data" in data
+        assert "metadata" in data
         assert data["data"]["total"] == 1
         assert len(data["data"]["deferrals"]) == 1
         assert data["data"]["deferrals"][0]["deferral_id"] == "def_123"
@@ -177,7 +178,8 @@ class TestGetDeferralDetail:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "success"
+        assert "data" in data
+        assert "metadata" in data
         assert data["data"]["deferral"]["deferral_id"] == "def_123"
     
     @pytest.mark.asyncio
@@ -213,7 +215,8 @@ class TestResolveDeferral:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "success"
+        assert "data" in data
+        assert "metadata" in data
         assert data["data"]["success"] is True
         assert data["data"]["deferral_id"] == "def_123"
         
@@ -288,7 +291,8 @@ class TestRequestGuidance:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "success"
+        assert "data" in data
+        assert "metadata" in data
         assert data["data"]["guidance"]["selected_option"] == "option_1"
 
 
@@ -320,7 +324,8 @@ class TestPermissions:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "success"
+        assert "data" in data
+        assert "metadata" in data
         assert data["data"]["wa_id"] == "test_observer"
         assert len(data["data"]["permissions"]) == 1
         
@@ -345,7 +350,8 @@ class TestPermissions:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "success"
+        assert "data" in data
+        assert "metadata" in data
         assert data["data"]["success"] is True
         assert data["data"]["operation"] == "grant"
         
@@ -384,7 +390,8 @@ class TestPermissions:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "success"
+        assert "data" in data
+        assert "metadata" in data
         assert data["data"]["success"] is True
         assert data["data"]["operation"] == "revoke"
         

@@ -6,7 +6,7 @@ Rich telemetry data from graph-based TSDB.
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, WebSocket
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.runtime.system_context import TelemetrySummary
@@ -21,6 +21,10 @@ class MetricData(BaseModel):
     timestamp: datetime = Field(..., description="When metric was recorded")
     value: float = Field(..., description="Metric value")
     tags: Dict[str, str] = Field(default_factory=dict, description="Metric tags")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, timestamp: datetime, _info):
+        return timestamp.isoformat() if timestamp else None
 
 class MetricSeries(BaseModel):
     """Time series data for a metric."""
@@ -33,6 +37,10 @@ class MetricsResponse(BaseModel):
     """Current metrics response."""
     metrics: Dict[str, MetricSeries] = Field(..., description="Current metrics by name")
     timestamp: datetime = Field(..., description="Response timestamp")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, timestamp: datetime, _info):
+        return timestamp.isoformat() if timestamp else None
 
 class ResourceUsageAPI(BaseModel):
     """Resource usage information for API."""
@@ -54,6 +62,10 @@ class ResourceHistory(BaseModel):
     start_time: datetime = Field(..., description="Start of history")
     end_time: datetime = Field(..., description="End of history")
     bucket_size_minutes: int = Field(..., description="Size of each time bucket")
+    
+    @field_serializer('start_time', 'end_time')
+    def serialize_times(self, dt: datetime, _info):
+        return dt.isoformat() if dt else None
 
 class TelemetryQuery(BaseModel):
     """Custom telemetry query."""
@@ -62,6 +74,10 @@ class TelemetryQuery(BaseModel):
     end_time: Optional[datetime] = Field(None, description="Query end time")
     tags: Optional[Dict[str, str]] = Field(None, description="Filter by tags")
     aggregation: Optional[str] = Field(None, description="Aggregation method")
+    
+    @field_serializer('start_time', 'end_time')
+    def serialize_times(self, dt: Optional[datetime], _info):
+        return dt.isoformat() if dt else None
 
 # Endpoints
 
@@ -334,8 +350,8 @@ async def get_resource_history(
                         bucket_count += 1
                 
                 buckets.append({
-                    "start_time": current_bucket_start,
-                    "end_time": bucket_end,
+                    "start_time": current_bucket_start.isoformat(),
+                    "end_time": bucket_end.isoformat(),
                     "tokens": bucket_sum,
                     "cost_cents": bucket_sum * 0.0001,  # Example cost calculation
                     "carbon_grams": bucket_sum * 0.00001  # Example carbon calculation

@@ -15,9 +15,10 @@ from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetrySe
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.services.graph.telemetry import (
     TelemetryServiceStatus, TelemetrySnapshotResult, TelemetryData,
-    ResourceData, BehavioralData, UserProfile, ChannelContext,
+    ResourceData, BehavioralData,
     ServiceCapabilities as TelemetryCapabilities
 )
+from ciris_engine.schemas.runtime.system_context import UserProfile, ChannelContext
 from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryOpResult
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.schemas.runtime.resources import ResourceUsage

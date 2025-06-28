@@ -7,7 +7,6 @@ import logging
 from typing import Any, List, Optional, TYPE_CHECKING
 from datetime import datetime, timedelta
 
-from ciris_engine.schemas.processors.main import ProcessorMetrics
 from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 from ciris_engine.schemas.processors.states import AgentState

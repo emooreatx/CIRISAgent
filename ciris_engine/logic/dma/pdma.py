@@ -8,7 +8,7 @@ from ciris_engine.protocols.dma.base import PDMAProtocol
 from ciris_engine.schemas.dma.results import EthicalDMAResult
 from ciris_engine.logic.formatters import format_user_profiles, format_system_snapshot
 from ciris_engine.logic.utils import COVENANT_TEXT
-from ciris_engine.schemas.runtime.system_context import ThoughtContext
+from ciris_engine.schemas.runtime.system_context import ThoughtState
 from .prompt_loader import get_prompt_loader
 
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
@@ -63,7 +63,7 @@ class EthicalPDMAEvaluator(BaseDMA, PDMAProtocol):
             self.prompt_template_data.update(prompt_overrides)
         logger.info(f"EthicalPDMAEvaluator initialized with model: {self.model_name}")
 
-    async def evaluate(self, input_data: ProcessingQueueItem, context: Optional[ThoughtContext] = None, **kwargs: Any) -> EthicalDMAResult:
+    async def evaluate(self, input_data: ProcessingQueueItem, context: Optional[ThoughtState] = None, **kwargs: Any) -> EthicalDMAResult:
         original_thought_content = str(input_data.content)
         logger.debug(f"Evaluating thought ID {input_data.thought_id}")
 

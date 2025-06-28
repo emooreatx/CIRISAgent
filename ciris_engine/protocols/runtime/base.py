@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from ciris_engine.schemas.services.graph_core import GraphNode
     from ciris_engine.schemas.services.operations import MemoryQuery
     from ciris_engine.schemas.runtime.models import Task, Thought
-    from ciris_engine.schemas.handlers.core import HandlerContext, HandlerResult
+    from ciris_engine.schemas.handlers.schemas import HandlerContext, HandlerResult
     from ciris_engine.schemas.dma.core import DMAContext, DMADecision
 
 class ServiceProtocol(Protocol):

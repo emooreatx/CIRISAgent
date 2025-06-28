@@ -11,9 +11,10 @@ from ciris_engine.logic.processors.support.processing_queue import ProcessingQue
 from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.schemas.processors.base import (
-    ProcessorMetrics, ProcessingResult, ProcessorServices,
+    ProcessorMetrics, ProcessorServices,
     ProcessorContext, MetricsUpdate
 )
+from ciris_engine.schemas.processors.results import ProcessingResult
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 if TYPE_CHECKING:

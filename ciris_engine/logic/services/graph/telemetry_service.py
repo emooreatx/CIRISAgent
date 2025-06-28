@@ -18,13 +18,14 @@ from enum import Enum
 from ciris_engine.protocols.services import GraphServiceProtocol as TelemetryServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.schemas.runtime.resources import ResourceUsage
-from ciris_engine.schemas.runtime.protocols_core import MetricDataPoint, ServiceStatus, ResourceLimits
+from ciris_engine.schemas.runtime.protocols_core import MetricDataPoint, ResourceLimits
+from ciris_engine.schemas.services.core import ServiceStatus
 from ciris_engine.schemas.services.operations import MemoryOpStatus
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TelemetrySummary
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TelemetrySummary, UserProfile, ChannelContext as SystemChannelContext
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.services.graph.telemetry import (
     TelemetrySnapshotResult, TelemetryData, ResourceData, BehavioralData,
-    UserProfile, ChannelContext, TelemetryServiceStatus,
+    TelemetryServiceStatus,
     GraphQuery, ServiceCapabilities as TelemetryCapabilities
 )
 from ciris_engine.logic.buses.memory_bus import MemoryBus
@@ -552,7 +553,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
     async def _store_social_context(
         self,
         user_profiles: List[UserProfile],
-        channel_context: Optional[ChannelContext],
+        channel_context: Optional[SystemChannelContext],
         thought_id: str
     ) -> None:
         """Store social context as memories."""

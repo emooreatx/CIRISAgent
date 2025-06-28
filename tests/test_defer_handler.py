@@ -72,7 +72,7 @@ def create_test_task(
     return Task(
         task_id=task_id,
         description=description,
-        status=TaskStatus.IN_PROGRESS,
+        status=TaskStatus.ACTIVE,
         created_at=datetime.now(timezone.utc).isoformat(),
         updated_at=datetime.now(timezone.utc).isoformat()
     )

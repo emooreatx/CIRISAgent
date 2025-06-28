@@ -54,6 +54,7 @@ class CliPlatform(Service):
             bus_manager=getattr(runtime, 'bus_manager', None),
             config=self.config
         )
+        logger.info(f"CliPlatform created CLIAdapter instance: {id(self.cli_adapter)}")
         
         # Get time service from runtime
         time_service = None
@@ -94,6 +95,7 @@ class CliPlatform(Service):
 
     def get_services_to_register(self) -> List[AdapterServiceRegistration]:
         """Register CLI services."""
+        logger.info(f"CliPlatform get_services_to_register: registering cli_adapter instance {id(self.cli_adapter)}")
         registrations = [
             AdapterServiceRegistration(
                 service_type=ServiceType.COMMUNICATION,

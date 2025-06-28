@@ -6,7 +6,7 @@ Provides access to the immutable audit trail for system observability.
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from ciris_engine.schemas.api.responses import SuccessResponse, ErrorResponse, ErrorCode
 from ciris_engine.schemas.services.nodes import AuditEntry
@@ -27,6 +27,10 @@ class AuditEntryResponse(BaseModel):
     context: Dict[str, Any] = Field(..., description="Action context")
     signature: Optional[str] = Field(None, description="Cryptographic signature")
     hash_chain: Optional[str] = Field(None, description="Previous hash for chain")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, timestamp: datetime, _info):
+        return timestamp.isoformat() if timestamp else None
 
 class AuditEntriesResponse(BaseModel):
     """List of audit entries."""

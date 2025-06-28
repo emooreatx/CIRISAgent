@@ -40,6 +40,7 @@ class Permission(str, Enum):
     VIEW_MEMORY = "view_memory"
     VIEW_AUDIT = "view_audit"
     VIEW_TOOLS = "view_tools"
+    VIEW_LOGS = "view_logs"
     
     # Admin permissions
     MANAGE_CONFIG = "manage_config"
@@ -69,6 +70,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.VIEW_MEMORY,
         Permission.VIEW_AUDIT,
         Permission.VIEW_TOOLS,
+        Permission.VIEW_LOGS,
     },
     UserRole.ADMIN: {
         # Includes all OBSERVER permissions
@@ -79,6 +81,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.VIEW_MEMORY,
         Permission.VIEW_AUDIT,
         Permission.VIEW_TOOLS,
+        Permission.VIEW_LOGS,
         # Plus admin permissions
         Permission.MANAGE_CONFIG,
         Permission.RUNTIME_CONTROL,
@@ -96,6 +99,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.VIEW_MEMORY,
         Permission.VIEW_AUDIT,
         Permission.VIEW_TOOLS,
+        Permission.VIEW_LOGS,
         Permission.MANAGE_CONFIG,
         Permission.RUNTIME_CONTROL,
         Permission.MANAGE_INCIDENTS,

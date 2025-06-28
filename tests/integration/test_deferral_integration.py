@@ -99,7 +99,7 @@ class IntegrationTestBase:
         mock.get_task_by_id = Mock(return_value=Task(
             task_id="test_task",
             description="Test task for integration",
-            status=TaskStatus.IN_PROGRESS,
+            status=TaskStatus.ACTIVE,
             created_at=datetime.now(timezone.utc).isoformat(),
             updated_at=datetime.now(timezone.utc).isoformat()
         ))

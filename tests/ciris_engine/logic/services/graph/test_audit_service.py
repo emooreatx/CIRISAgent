@@ -14,7 +14,7 @@ from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatu
 from ciris_engine.schemas.services.graph.audit import (
     AuditEventData, VerificationReport, AuditQueryResult, AuditQuery
 )
-from ciris_engine.schemas.runtime.audit import ActionContext, AuditEntry
+from ciris_engine.schemas.runtime.audit import AuditActionContext, AuditRequest
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 
 
@@ -81,9 +81,9 @@ async def test_audit_service_lifecycle(audit_service):
 
 @pytest.mark.asyncio
 async def test_audit_service_log_action(audit_service):
-    """Test logging an action with ActionContext."""
+    """Test logging an action with AuditActionContext."""
     # Create action context
-    context = ActionContext(
+    context = AuditActionContext(
         thought_id="test_thought_123",
         task_id="test_task_456",
         handler_name="test_handler",
@@ -129,7 +129,7 @@ async def test_audit_service_get_audit_trail(audit_service, memory_bus):
     """Test retrieving audit trail."""
     # Create mock audit entries
     mock_entries = [
-        AuditEntry(
+        AuditRequest(
             entry_id="entry1",
             timestamp=datetime.now(timezone.utc),
             entity_id="entity1",
@@ -230,10 +230,10 @@ def test_audit_service_status(audit_service):
 @pytest.mark.asyncio
 async def test_audit_service_log_conscience_event(audit_service):
     """Test logging a conscience decision event."""
-    from ciris_engine.schemas.runtime.audit import ConscienceCheckResult
+    from ciris_engine.schemas.runtime.audit import AuditConscienceResult
     
     # Create conscience check result
-    result = ConscienceCheckResult(
+    result = AuditConscienceResult(
         allowed=True,
         reason="Action permitted",
         risk_level="low"

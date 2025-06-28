@@ -35,8 +35,8 @@ class ForgetHandler(BaseActionHandler):
                     "is_follow_up": True,
                     "error": str(e)
                 })
-                from ciris_engine.schemas.runtime.system_context import ThoughtContext
-                follow_up.context = ThoughtContext.model_validate(context_data)
+                from ciris_engine.schemas.runtime.system_context import ThoughtState
+                follow_up.context = ThoughtState.model_validate(context_data)
                 persistence.add_thought(follow_up)
                 await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="failed")
                 return
@@ -51,8 +51,8 @@ class ForgetHandler(BaseActionHandler):
                 "is_follow_up": True,
                 "error": f"Invalid params type: {type(raw_params)}"
             })
-            from ciris_engine.schemas.runtime.system_context import ThoughtContext
-            follow_up.context = ThoughtContext.model_validate(context_data)
+            from ciris_engine.schemas.runtime.system_context import ThoughtState
+            follow_up.context = ThoughtState.model_validate(context_data)
             persistence.add_thought(follow_up)
             await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="failed")
             return
@@ -67,8 +67,8 @@ class ForgetHandler(BaseActionHandler):
                 "is_follow_up": True,
                 "error": "Permission denied or WA required"
             })
-            from ciris_engine.schemas.runtime.system_context import ThoughtContext
-            follow_up.context = ThoughtContext.model_validate(context_data)
+            from ciris_engine.schemas.runtime.system_context import ThoughtState
+            follow_up.context = ThoughtState.model_validate(context_data)
             persistence.add_thought(follow_up)
             return
         # Memory operations will use the memory bus
@@ -85,8 +85,8 @@ class ForgetHandler(BaseActionHandler):
                 "is_follow_up": True,
                 "error": "wa_denied",
             })
-            from ciris_engine.schemas.runtime.system_context import ThoughtContext
-            follow_up.context = ThoughtContext.model_validate(context_data)
+            from ciris_engine.schemas.runtime.system_context import ThoughtState
+            follow_up.context = ThoughtState.model_validate(context_data)
             persistence.add_thought(follow_up)
             await self._audit_log(
                 HandlerActionType.FORGET,
@@ -121,8 +121,8 @@ class ForgetHandler(BaseActionHandler):
             "forget_scope": node.scope.value,
             "forget_status": str(getattr(forget_result, "status", forget_result))
         })
-        from ciris_engine.schemas.runtime.system_context import ThoughtContext
-        follow_up.context = ThoughtContext.model_validate(context_data)
+        from ciris_engine.schemas.runtime.system_context import ThoughtState
+        follow_up.context = ThoughtState.model_validate(context_data)
         persistence.add_thought(follow_up)
         await self._audit_log(
             HandlerActionType.FORGET,

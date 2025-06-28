@@ -6,7 +6,7 @@ from ciris_engine.schemas.runtime.models import ThoughtType
 from ciris_engine.schemas.runtime.messages import DiscordMessage
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext
 from ciris_engine.schemas.runtime.models import TaskContext
-from ciris_engine.schemas.runtime.processing_context import ThoughtContext
+from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
 from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.secrets.service import SecretsService
@@ -335,7 +335,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                                 "deferral_reason": deferral_reason
                             })
                         else:
-                            from ciris_engine.schemas.runtime.system_context import ThoughtContext, SystemSnapshot, UserProfile, TaskSummary
+                            from ciris_engine.schemas.runtime.system_context import ThoughtState, SystemSnapshot, UserProfile, TaskSummary
                             # Create channel context for guidance
                             guidance_channel_context = create_channel_context(
                                 channel_id=msg.channel_id,
@@ -343,11 +343,11 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                                 is_deferral=True
                             )
                             # Create a minimal valid ThoughtContext
-                            guidance_context = ThoughtContext(
+                            guidance_context = ProcessingThoughtContext(
                                 system_snapshot=SystemSnapshot(
                                     channel_context=guidance_channel_context
                                 ),
-                                user_profiles={},
+                                user_profiles={},  # Dict[str, UserProfile] - empty dict is valid
                                 task_history=[]
                             )
                             # Add extra fields after creation

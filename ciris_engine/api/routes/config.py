@@ -6,7 +6,7 @@ Graph-based configuration management.
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.api.config_security import filter_config_for_role
@@ -16,17 +16,21 @@ router = APIRouter(prefix="/config", tags=["config"])
 
 # Request/Response schemas
 
-class ConfigValue(BaseModel):
-    """Configuration value."""
+class ConfigItemResponse(BaseModel):
+    """Configuration item in API response."""
     key: str = Field(..., description="Configuration key")
     value: Any = Field(..., description="Configuration value")
     updated_at: datetime = Field(..., description="Last update time")
     updated_by: str = Field(..., description="Who updated this config")
     is_sensitive: bool = Field(False, description="Whether value contains sensitive data")
+    
+    @field_serializer('updated_at')
+    def serialize_updated_at(self, updated_at: datetime, _info):
+        return updated_at.isoformat() if updated_at else None
 
-class ConfigList(BaseModel):
+class ConfigListResponse(BaseModel):
     """List of configuration values."""
-    configs: List[ConfigValue] = Field(..., description="Configuration entries")
+    configs: List[ConfigItemResponse] = Field(..., description="Configuration entries")
     total: int = Field(..., description="Total count")
 
 class ConfigUpdate(BaseModel):
@@ -51,7 +55,7 @@ class ConfigValidationResult(BaseModel):
 
 # Endpoints
 
-@router.get("/values", response_model=SuccessResponse[ConfigList])
+@router.get("/values", response_model=SuccessResponse[ConfigListResponse])
 async def list_configs(
     request: Request,
     prefix: Optional[str] = None,
@@ -88,7 +92,7 @@ async def list_configs(
         config_list = []
         for key, value in filtered_configs.items():
             is_sensitive = value == "[REDACTED]"
-            config_list.append(ConfigValue(
+            config_list.append(ConfigItemResponse(
                 key=key,
                 value=value,
                 updated_at=datetime.now(timezone.utc),  # Would get from graph
@@ -96,7 +100,7 @@ async def list_configs(
                 is_sensitive=is_sensitive
             ))
         
-        result = ConfigList(
+        result = ConfigListResponse(
             configs=config_list,
             total=len(config_list)
         )
@@ -106,7 +110,7 @@ async def list_configs(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/values/{key:path}", response_model=SuccessResponse[ConfigValue])
+@router.get("/values/{key:path}", response_model=SuccessResponse[ConfigItemResponse])
 async def get_config(
     request: Request,
     key: str = Path(..., description="Configuration key"),
@@ -132,7 +136,7 @@ async def get_config(
         filtered = filter_config_for_role({key: value}, auth.role)
         filtered_value = filtered.get(key, "[REDACTED]")
         
-        config = ConfigValue(
+        config = ConfigItemResponse(
             key=key,
             value=filtered_value,
             updated_at=datetime.now(timezone.utc),
@@ -147,7 +151,7 @@ async def get_config(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/values/{key:path}", response_model=SuccessResponse[ConfigValue])
+@router.put("/values/{key:path}", response_model=SuccessResponse[ConfigItemResponse])
 async def update_config(
     request: Request,
     body: ConfigUpdate,
@@ -172,7 +176,7 @@ async def update_config(
         )
         
         # Return updated config
-        config = ConfigValue(
+        config = ConfigItemResponse(
             key=key,
             value=body.value,
             updated_at=datetime.now(timezone.utc),
@@ -249,6 +253,10 @@ async def get_config_history(
                 if auth.role.value < 2:  # Below ADMIN
                     filtered = filter_config_for_role({key: change['value']}, auth.role)
                     change['value'] = filtered.get(key, "[REDACTED]")
+                
+                # Convert datetime to ISO format
+                if isinstance(change.get('timestamp'), datetime):
+                    change['timestamp'] = change['timestamp'].isoformat()
                 
                 changes.append(change)
         

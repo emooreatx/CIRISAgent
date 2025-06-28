@@ -45,10 +45,10 @@ class TaskManager:
         
         # Convert dict to ThoughtContext
         from ciris_engine.schemas.runtime.system_context import SystemSnapshot
-        from ciris_engine.schemas.runtime.processing_context import ThoughtContext
+        from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
         from ciris_engine.logic.utils.channel_utils import create_channel_context
         channel_context = create_channel_context(channel_id)
-        thought_context = ThoughtContext(
+        thought_context = ProcessingThoughtContext(
             system_snapshot=SystemSnapshot(channel_context=channel_context)
         )
         
@@ -134,13 +134,14 @@ class TaskManager:
         now_iso = self.time_service.now_iso()
         
         # Convert to ThoughtContext
-        from ciris_engine.schemas.runtime.system_context import ThoughtContext, SystemSnapshot, ChannelContext
+        from ciris_engine.schemas.runtime.system_context import ThoughtState, SystemSnapshot, ChannelContext
+        from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
         from ciris_engine.logic.utils.channel_utils import create_channel_context
         
         # Create channel context from channel ID
         channel_context = create_channel_context(channel_id) if channel_id else None
         
-        root_context = ThoughtContext(
+        root_context = ProcessingThoughtContext(
             system_snapshot=SystemSnapshot(channel_context=channel_context)
         )
         

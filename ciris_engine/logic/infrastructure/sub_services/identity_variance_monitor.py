@@ -12,9 +12,10 @@ from datetime import datetime
 from ciris_engine.protocols.services import Service
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.infrastructure.identity_variance import (
-    VarianceImpact, IdentityDiff, VarianceReport, IdentitySnapshot,
+    VarianceImpact, IdentityDiff, VarianceReport,
     VarianceAnalysis, WAReviewRequest, VarianceCheckMetadata
 )
+from ciris_engine.schemas.services.nodes import IdentitySnapshot
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType, ConfigNodeType, CONFIG_SCOPE_MAP
 from ciris_engine.schemas.services.operations import MemoryQuery
 from ciris_engine.schemas.runtime.core import AgentIdentityRoot

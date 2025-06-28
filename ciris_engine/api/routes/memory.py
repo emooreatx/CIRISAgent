@@ -6,7 +6,7 @@ The memory service implements the three universal verbs: MEMORIZE, RECALL, FORGE
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from ciris_engine.schemas.api.responses import SuccessResponse, ErrorResponse, ErrorCode
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
@@ -53,6 +53,10 @@ class TimelineResponse(BaseModel):
     start_time: datetime = Field(..., description="Start of timeline")
     end_time: datetime = Field(..., description="End of timeline")
     total_memories: int = Field(..., description="Total memories in range")
+    
+    @field_serializer('start_time', 'end_time')
+    def serialize_times(self, dt: datetime, _info):
+        return dt.isoformat() if dt else None
 
 class NodeListResponse(BaseModel):
     """List of graph nodes."""
@@ -250,7 +254,7 @@ async def get_timeline(
         timeline_data = []
         for ts_point in timeseries:
             timeline_data.append({
-                "timestamp": ts_point.timestamp,
+                "timestamp": ts_point.timestamp.isoformat() if isinstance(ts_point.timestamp, datetime) else ts_point.timestamp,
                 "value": ts_point.value,
                 "metric": ts_point.metric_name,
                 "tags": ts_point.tags

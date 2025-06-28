@@ -74,7 +74,7 @@ class TestGraphAuditService:
         node = call_args['node']
         
         assert isinstance(node, GraphNode)
-        assert node.type == NodeType.AUDIT
+        assert node.type == NodeType.AUDIT_ENTRY
         # Check the audit entry in attributes
         assert node.attributes['event_type'] == AuditEventType.SERVICE_START.value
         assert node.attributes['service_name'] == "TestService"
@@ -200,7 +200,7 @@ class TestGraphAuditService:
         mock_entries = [
             GraphNode(
                 id="audit1",
-                type=NodeType.AUDIT,
+                type=NodeType.AUDIT_ENTRY,
                 scope=GraphScope.LOCAL,
                 attributes={
                     "event_type": AuditEventType.SERVICE_START.value,
@@ -211,7 +211,7 @@ class TestGraphAuditService:
             ),
             GraphNode(
                 id="audit2",
-                type=NodeType.AUDIT,
+                type=NodeType.AUDIT_ENTRY,
                 scope=GraphScope.LOCAL,
                 attributes={
                     "event_type": AuditEventType.ERROR.value,
@@ -266,13 +266,13 @@ class TestGraphAuditService:
         mock_entries = [
             GraphNode(
                 id="old_audit",
-                type=NodeType.AUDIT,
+                type=NodeType.AUDIT_ENTRY,
                 scope=GraphScope.LOCAL,
                 attributes={"timestamp": old_time}
             ),
             GraphNode(
                 id="recent_audit",
-                type=NodeType.AUDIT,
+                type=NodeType.AUDIT_ENTRY,
                 scope=GraphScope.LOCAL,
                 attributes={"timestamp": recent_time}
             )
@@ -297,7 +297,7 @@ class TestGraphAuditService:
         mock_entries = [
             GraphNode(
                 id=f"audit{i}",
-                type=NodeType.AUDIT,
+                type=NodeType.AUDIT_ENTRY,
                 scope=GraphScope.LOCAL,
                 attributes={
                     "event_type": AuditEventType.SERVICE_START.value if i % 2 == 0 
@@ -400,4 +400,4 @@ class TestGraphAuditService:
     async def test_node_type(self, audit_service):
         """Test that audit service uses correct node type."""
         node_type = audit_service.get_node_type()
-        assert node_type == NodeType.AUDIT
+        assert node_type == NodeType.AUDIT_ENTRY

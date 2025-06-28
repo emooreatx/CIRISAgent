@@ -58,8 +58,8 @@ class EmergencyStatus(BaseModel):
     last_emergency_command: Optional[datetime] = Field(None, description="Timestamp of last emergency command")
     failed_attempts_24h: int = Field(0, description="Failed emergency attempts in last 24 hours")
 
-class SignatureVerificationResult(BaseModel):
-    """Result of signature verification."""
+class EmergencySignatureResult(BaseModel):
+    """Result of emergency shutdown signature verification."""
     valid: bool = Field(..., description="Whether signature is valid")
     authority_id: Optional[str] = Field(None, description="Authority ID if valid")
     reason: Optional[str] = Field(None, description="Reason for invalid signature")
@@ -81,3 +81,12 @@ class TrustedAuthority(BaseModel):
     added_at: datetime = Field(..., description="When authority was added")
     added_by: str = Field(..., description="Who added this authority")
     is_active: bool = Field(True, description="Whether authority is active")
+
+__all__ = [
+    "EmergencyShutdownCommand",
+    "EmergencyShutdownResponse",
+    "EmergencyStatus",
+    "EmergencySignatureResult",
+    "EmergencyAuditEntry",
+    "TrustedAuthority",
+]

@@ -17,7 +17,7 @@ from ciris_engine.schemas.services.core.runtime import (
     ConfigBackup, ServiceRegistryInfo, CircuitBreakerResetResult,
     ServiceHealthStatus, ServiceSelectionExplanation, RuntimeEvent,
     ConfigReloadResult, ProcessorControlResponse, AdapterOperationResponse,
-    RuntimeStatusResponse, RuntimeStateSnapshot, ConfigOperationResponse,
+    RuntimeStatusResponse, RuntimeStateSnapshot, ConfigSnapshot, ConfigOperationResponse,
     ConfigValidationResponse, ConfigBackupResponse, ConfigScope,
     ConfigValidationLevel, AdapterStatus
 )
@@ -545,13 +545,36 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
         self,
         path: Optional[str] = None,
         include_sensitive: bool = False
-    ) -> RuntimeStateSnapshot:
+    ) -> ConfigSnapshot:
         """Get configuration value(s)."""
         try:
-            return await self._get_config_manager().get_config_value(path, include_sensitive)
+            config_values = await self._get_config_manager().get_config_value(path, include_sensitive)
+            
+            # Determine sensitive keys
+            sensitive_keys = []
+            if not include_sensitive:
+                # Mark which keys would be sensitive
+                from ciris_engine.schemas.api.config_security import ConfigSecurity
+                for key in config_values.keys():
+                    if ConfigSecurity.is_sensitive(key):
+                        sensitive_keys.append(key)
+            
+            return ConfigSnapshot(
+                configs=config_values,
+                version=self.config_version if hasattr(self, 'config_version') else "1.0.0",
+                sensitive_keys=sensitive_keys,
+                metadata={
+                    "path_filter": path,
+                    "include_sensitive": include_sensitive
+                }
+            )
         except Exception as e:
             logger.error(f"Failed to get config: {e}")
-            return {"error": str(e)}
+            return ConfigSnapshot(
+                configs={},
+                version="unknown",
+                metadata={"error": str(e)}
+            )
 
     async def update_config(
         self,

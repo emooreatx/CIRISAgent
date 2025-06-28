@@ -11,7 +11,7 @@ from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphN
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.runtime.models import Thought, ThoughtContext
 from ciris_engine.schemas.runtime.enums import ThoughtStatus
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext, ConscienceResult
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext
 # Import ActionSelectionDMAResult last to avoid circular import issues
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 

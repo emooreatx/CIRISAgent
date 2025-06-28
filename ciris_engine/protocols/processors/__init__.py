@@ -9,9 +9,9 @@ These protocols define the interfaces for:
 from .agent import (
     AgentProcessorProtocol,
     ProcessingSchedule,
-    ProcessorMetrics,
+    AgentProcessorMetrics,
     QueueStatus,
-    ProcessingResult
+    StepResult
 )
 from .base import ProcessorProtocol
 
@@ -19,7 +19,7 @@ __all__ = [
     "AgentProcessorProtocol",
     "ProcessorProtocol",
     "ProcessingSchedule", 
-    "ProcessorMetrics",
+    "AgentProcessorMetrics",
     "QueueStatus",
-    "ProcessingResult"
+    "StepResult"
 ]

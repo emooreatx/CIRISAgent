@@ -29,7 +29,7 @@ class DMAResults(BaseModel):
     
     model_config = ConfigDict(extra = "forbid")
 
-class ConscienceResult(BaseModel):
+class ConscienceApplicationResult(BaseModel):
     """Result from conscience application."""
     original_action: ActionSelectionDMAResult = Field(..., description="Original action selected")
     final_action: ActionSelectionDMAResult = Field(..., description="Final action after consciences")
@@ -42,7 +42,7 @@ class ConscienceResult(BaseModel):
 class ProcessedThoughtResult(BaseModel):
     """Result from thought processor containing both action and conscience data."""
     action_result: ActionSelectionDMAResult = Field(..., description="Action selection result")
-    conscience_result: Optional[ConscienceResult] = Field(None, description="conscience application result")
+    conscience_result: Optional[ConscienceApplicationResult] = Field(None, description="conscience application result")
     
     @property
     def selected_action(self) -> HandlerActionType:
@@ -88,7 +88,7 @@ class ProcessingError(BaseModel):
 
 __all__ = [
     "DMAResults",
-    "ConscienceResult",
+    "ConscienceApplicationResult",
     "ProcessedThoughtResult",
     "ThoughtProcessingMetrics",
     "ProcessingError"

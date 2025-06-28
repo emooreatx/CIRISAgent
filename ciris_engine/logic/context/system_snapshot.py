@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel
@@ -6,7 +7,7 @@ from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.utils import GraphQLContextProvider
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.schemas.runtime.models import Task
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TelemetrySummary
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TelemetrySummary, UserProfile
 from ciris_engine.schemas.services.graph_core import GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery
 from ciris_engine.schemas.runtime.enums import TaskStatus
@@ -319,8 +320,31 @@ async def build_system_snapshot(
         enriched_context = await graphql_provider.enrich_context(task, thought)
         # Convert EnrichedContext to dict for merging
         if enriched_context:
-            enriched_dict = enriched_context.model_dump(exclude_none=True)
-            context_data.update(enriched_dict)
+            # Convert GraphQLUserProfile to UserProfile
+            user_profiles_list = []
+            for name, graphql_profile in enriched_context.user_profiles:
+                # Create UserProfile from GraphQLUserProfile data
+                user_profiles_list.append(UserProfile(
+                    user_id=name,  # Use name as user_id
+                    display_name=graphql_profile.nick or name,
+                    created_at=datetime.now(),  # Default to now since not provided
+                    preferred_language="en",  # Default values
+                    timezone="UTC",
+                    communication_style="formal",
+                    trust_level=graphql_profile.trust_score or 0.5,
+                    last_interaction=datetime.fromisoformat(graphql_profile.last_seen) if graphql_profile.last_seen else None,
+                    is_wa=any(attr.key == "is_wa" and attr.value == "true" for attr in graphql_profile.attributes),
+                    permissions=[attr.value for attr in graphql_profile.attributes if attr.key == "permission"],
+                    restrictions=[attr.value for attr in graphql_profile.attributes if attr.key == "restriction"]
+                ))
+            
+            context_data["user_profiles"] = user_profiles_list
+            
+            # Add other enriched context data
+            if enriched_context.identity_context:
+                context_data["identity_context"] = enriched_context.identity_context
+            if enriched_context.community_context:
+                context_data["community_context"] = enriched_context.community_context
 
     snapshot = SystemSnapshot(**context_data)
 

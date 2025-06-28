@@ -8,7 +8,7 @@ import asyncio
 
 from ciris_engine.logic.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
-from ciris_engine.schemas.adapters.graphql_core import EnrichedContext, UserProfile
+from ciris_engine.schemas.adapters.graphql_core import EnrichedContext, GraphQLUserProfile
 
 
 class TestGraphQLContextSearch:

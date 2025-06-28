@@ -3,11 +3,10 @@ Runtime service schemas for runtime control operations.
 
 Provides typed schemas for all runtime control service responses.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from enum import Enum
-from pydantic import Field
 
 class AdapterStatus(str, Enum):
     """Adapter operational status."""
@@ -157,6 +156,14 @@ class RuntimeStateSnapshot(BaseModel):
     adapters: List[AdapterInfo] = Field(..., description="Adapter information")
     config_version: str = Field(..., description="Current config version")
     health_summary: ServiceHealthStatus = Field(..., description="Service health summary")
+
+class ConfigSnapshot(BaseModel):
+    """Configuration snapshot for runtime control."""
+    configs: Dict[str, Any] = Field(..., description="Configuration key-value pairs")
+    version: str = Field(..., description="Configuration version")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    sensitive_keys: List[str] = Field(default_factory=list, description="Keys containing sensitive data")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 class ConfigOperationResponse(BaseModel):
     """Response from configuration operations."""

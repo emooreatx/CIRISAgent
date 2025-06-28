@@ -84,8 +84,12 @@ class CLIAdapter(CommunicationService, ToolService):
 
     async def _emit_telemetry(self, metric_name: str, tags: Optional[Dict[str, Any]] = None) -> None:
         """Emit telemetry as TSDBGraphNode through memory bus."""
-        if not self.bus_manager or not self.bus_manager.memory:
+        if not self.bus_manager:
             return  # No bus manager, can't emit telemetry
+        
+        # Check if memory bus is available (it might not be during startup)
+        if not hasattr(self.bus_manager, 'memory') or not self.bus_manager.memory:
+            return  # Memory bus not available yet
         
         try:
             # Extract value from tags if it exists, otherwise default to 1.0
@@ -198,13 +202,12 @@ class CLIAdapter(CommunicationService, ToolService):
         
         if tool_name not in self._available_tools:
             return ToolExecutionResult(
+                tool_name=tool_name,
+                status=ToolExecutionStatus.FAILED,
                 success=False,
+                data={"available_tools": list(self._available_tools.keys())},
                 error=f"Unknown tool: {tool_name}",
-                result={"available_tools": list(self._available_tools.keys())},
-                execution_time=0,
-                adapter_id="cli",
-                output=None,
-                metadata={"tool_name": tool_name, "correlation_id": correlation_id}
+                correlation_id=correlation_id
             )
         
         try:
@@ -345,7 +348,8 @@ class CLIAdapter(CommunicationService, ToolService):
                     
             except (EOFError, asyncio.CancelledError):
                 logger.info("Input cancelled or EOF received, stopping interactive mode")
-                self._running = False
+                # Don't set _running = False here - the adapter is still healthy
+                # It just means interactive input has ended
                 break
             except Exception as e:
                 logger.error(f"Error in interactive input loop: {e}")
@@ -433,6 +437,7 @@ Tools available:
     async def start(self) -> None:
         """Start the CLI adapter."""
         logger.info("Starting CLI adapter")
+        logger.debug(f"CLI adapter start: _running was {self._running}")
         
         # Emit telemetry for adapter start
         await self._emit_telemetry("adapter_starting", {
@@ -441,6 +446,7 @@ Tools available:
         })
         
         self._running = True
+        logger.debug(f"CLI adapter start: _running now {self._running}")
         
         if self.interactive:
             # Start interactive input handler
@@ -488,6 +494,7 @@ Tools available:
 
     async def is_healthy(self) -> bool:
         """Check if the CLI adapter is healthy."""
+        logger.debug(f"CLI adapter health check: _running={self._running}")
         return self._running
     
     def get_status(self) -> Dict[str, Any]:

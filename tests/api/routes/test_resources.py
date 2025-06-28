@@ -16,6 +16,7 @@ from ciris_engine.schemas.services.resources_core import (
     ResourceAlert
 )
 from ciris_engine.api.dependencies.auth import require_observer, require_admin, AuthContext
+from ciris_engine.schemas.api.auth import UserRole, Permission, ROLE_PERMISSIONS
 
 # Test fixtures
 
@@ -59,15 +60,17 @@ def test_app(mock_resource_monitor):
     async def mock_observer():
         return AuthContext(
             user_id="test_user",
-            role="OBSERVER",
-            permissions=["read"]
+            role=UserRole.OBSERVER,
+            permissions=ROLE_PERMISSIONS[UserRole.OBSERVER],
+            authenticated_at=datetime.now(timezone.utc)
         )
     
     async def mock_admin():
         return AuthContext(
             user_id="admin_user",
-            role="ADMIN",
-            permissions=["read", "write", "admin"]
+            role=UserRole.ADMIN,
+            permissions=ROLE_PERMISSIONS[UserRole.ADMIN],
+            authenticated_at=datetime.now(timezone.utc)
         )
     
     app.dependency_overrides[require_observer] = mock_observer

@@ -11,7 +11,7 @@ from ciris_engine.protocols.runtime.base import ServiceProtocol
 
 from ciris_engine.schemas.infrastructure.base import (
     RuntimeStats, ComponentHealthStatus, ServiceDependencies,
-    BusMetrics, ConsolidationResult, DreamSchedule, DreamInsight,
+    BusMetrics, DreamConsolidationResult, DreamSchedule, DreamInsight,
     IdentityBaseline, IdentityVarianceMetric, ConfigurationFeedback,
     ConfigurationPattern, ConfigurationUpdate, ActiveAdapter,
     CheckpointInfo, ServiceRegistration, ServiceRegistrySnapshot

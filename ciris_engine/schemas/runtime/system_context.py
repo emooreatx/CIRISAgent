@@ -5,7 +5,8 @@ Provides type-safe contexts for system state and runtime operations.
 """
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
+from ciris_engine.schemas.runtime.resources import ResourceUsage
 
 class SystemSnapshot(BaseModel):
     """System state snapshot for processing context.
@@ -119,7 +120,7 @@ class SystemSnapshot(BaseModel):
     )
     
     # User profiles (used by context builder)
-    user_profiles: List[Dict[str, Any]] = Field(
+    user_profiles: List['UserProfile'] = Field(
         default_factory=list, 
         description="User profile information"
     )
@@ -156,8 +157,8 @@ class TaskSummary(BaseModel):
     
     model_config = ConfigDict(extra = "forbid")
 
-class ThoughtContext(BaseModel):
-    """Context for a thought being processed."""
+class ThoughtState(BaseModel):
+    """State for a thought being processed."""
     thought_id: str = Field(..., description="Unique thought identifier")
     task_id: str = Field(..., description="Associated task ID")
     content: str = Field(..., description="Thought content")
@@ -226,22 +227,12 @@ class ChannelContext(BaseModel):
     allowed_actions: List[str] = Field(default_factory=list, description="Allowed actions in channel")
     moderation_level: str = Field("standard", description="Moderation level")
     
+    @field_serializer('created_at', 'last_activity')
+    def serialize_datetimes(self, dt: Optional[datetime], _info):
+        return dt.isoformat() if dt else None
+    
     model_config = ConfigDict(extra = "forbid")
 
-class ResourceUsage(BaseModel):
-    """Resource usage tracking."""
-    tokens_used: int = Field(0, description="Tokens consumed")
-    cost_cents: float = Field(0.0, description="Cost in cents")
-    carbon_grams: float = Field(0.0, description="Carbon footprint in grams")
-    compute_seconds: float = Field(0.0, description="Compute time in seconds")
-    
-    # Breakdown by service
-    service_breakdown: Dict[str, Dict[str, float]] = Field(
-        default_factory=dict,
-        description="Resource usage per service"
-    )
-    
-    model_config = ConfigDict(extra = "forbid")
 
 class AuditVerification(BaseModel):
     """Audit chain verification result."""
@@ -257,20 +248,6 @@ class AuditVerification(BaseModel):
     
     model_config = ConfigDict(extra = "forbid")
 
-class ConscienceResult(BaseModel):
-    """Result from conscience evaluation."""
-    passed: bool = Field(..., description="Whether consciences passed")
-    conscience_name: str = Field(..., description="Name of conscience")
-    reason: Optional[str] = Field(None, description="Reason for pass/fail")
-    severity: str = Field("info", description="Severity: info, warning, error, critical")
-    
-    # Override capability
-    can_override: bool = Field(False, description="Whether can be overridden")
-    override_reason: Optional[str] = Field(None, description="Reason for override")
-    overridden: bool = Field(False, description="Whether was overridden")
-    overridden_by: Optional[str] = Field(None, description="Who overrode")
-    
-    model_config = ConfigDict(extra = "forbid")
 
 
 class ThoughtSummary(BaseModel):
@@ -318,17 +295,20 @@ class TelemetrySummary(BaseModel):
     avg_thought_depth: float = Field(0.0, description="Average thought processing depth")
     queue_saturation: float = Field(0.0, description="Queue saturation 0-1")
     
+    @field_serializer('window_start', 'window_end')
+    def serialize_datetimes(self, dt: datetime, _info):
+        return dt.isoformat() if dt else None
+    
     model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "SystemSnapshot",
     "TaskSummary",
-    "ThoughtContext",
+    "ThoughtState",
     "UserProfile",
     "ChannelContext",
-    "ResourceUsage",
+    "ResourceUsage",  # Re-exported from resources module
     "AuditVerification",
     "TelemetrySummary",
-    "ConscienceResult",
     "ThoughtSummary"
 ]

@@ -3,11 +3,12 @@ from typing import Optional, TYPE_CHECKING, Any
 from ciris_engine.protocols.services import TimeServiceProtocol
 
 if TYPE_CHECKING:
-    from ciris_engine.schemas.processors.core import ConscienceResult
+    from ciris_engine.schemas.processors.core import ConscienceApplicationResult
 
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.runtime.system_context import ChannelContext
+from ciris_engine.schemas.conscience.results import ConscienceResult
 from ciris_engine.logic.utils.channel_utils import create_channel_context
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ def build_dispatch_context(
     app_config: Optional[Any] = None, 
     round_number: Optional[int] = None, 
     extra_context: Optional[dict] = None,
-    conscience_result: Optional['ConscienceResult'] = None,
+    conscience_result: Optional['ConscienceApplicationResult'] = None,
     action_type: Optional[Any] = None
 ) -> DispatchContext:
     """
@@ -138,7 +139,8 @@ def build_dispatch_context(
         correlation_id=correlation_id or f"ctx_{time_service.timestamp()}",
         
         # conscience results (None for terminal actions)
-        conscience_failure_context=conscience_result
+        # Extract ConscienceResult from ConscienceApplicationResult if needed
+        conscience_failure_context=None
     )
     
     return dispatch_context

@@ -108,8 +108,8 @@ class ObserveHandler(BaseActionHandler):
                     "error_details": str(e),
                     "action_params": result.action_parameters,
                 })
-                from ciris_engine.schemas.runtime.system_context import ThoughtContext
-                fu.context = ThoughtContext.model_validate(context_data)
+                from ciris_engine.schemas.runtime.system_context import ThoughtState
+                fu.context = ThoughtState.model_validate(context_data)
                 persistence.add_thought(fu)
             except Exception as fe:
                 await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, fe)
@@ -186,8 +186,8 @@ class ObserveHandler(BaseActionHandler):
             if final_status == ThoughtStatus.FAILED:
                 ctx["error_details"] = follow_up_info
             context_data.update(ctx)
-            from ciris_engine.schemas.runtime.system_context import ThoughtContext
-            new_follow_up.context = ThoughtContext.model_validate(context_data)
+            from ciris_engine.schemas.runtime.system_context import ThoughtState
+            new_follow_up.context = ThoughtState.model_validate(context_data)
             persistence.add_thought(new_follow_up)
             logger.info(f"ObserveHandler: Follow-up thought created for {thought_id}")
 

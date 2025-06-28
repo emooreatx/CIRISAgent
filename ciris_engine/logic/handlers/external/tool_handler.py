@@ -94,8 +94,8 @@ class ToolHandler(BaseActionHandler):
             if isinstance(params, ToolParams):
                 context_data["action_params"] = params.model_dump()
             
-            from ciris_engine.schemas.runtime.system_context import ThoughtContext
-            new_follow_up.context = ThoughtContext.model_validate(context_data)
+            from ciris_engine.schemas.runtime.system_context import ThoughtState
+            new_follow_up.context = ThoughtState.model_validate(context_data)
             persistence.add_thought(new_follow_up)
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after TOOL action."

@@ -22,13 +22,9 @@ class ResourceUsage(BaseModel):
     carbon_grams: float = Field(default=0.0, ge=0.0, description="Carbon emissions in grams CO2")
     energy_kwh: float = Field(default=0.0, ge=0.0, description="Energy consumption in kilowatt-hours")
     
-    # Compute resources
-    compute_ms: Optional[int] = Field(default=None, ge=0, description="Compute time in milliseconds")
-    memory_mb: Optional[int] = Field(default=None, ge=0, description="Memory usage in megabytes")
-    
     # Model information
     model_used: Optional[str] = Field(default=None, description="Model that incurred these costs")
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
 __all__ = ["ResourceUsage"]

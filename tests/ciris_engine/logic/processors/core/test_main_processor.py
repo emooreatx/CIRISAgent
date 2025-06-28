@@ -11,7 +11,6 @@ from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.schemas.processors.results import (
     WakeupResult, WorkResult, PlayResult, SolitudeResult, DreamResult, ShutdownResult
 )
-from ciris_engine.schemas.processors.main import ProcessorMetrics
 from ciris_engine.logic.config import ConfigAccessor
 
 
@@ -48,6 +47,13 @@ class TestAgentProcessor:
             'memory_service': Mock(memorize=AsyncMock()),
             'identity_manager': Mock(
                 get_identity=Mock(return_value={'name': 'TestAgent'})
+            ),
+            'resource_monitor': Mock(
+                get_current_metrics=Mock(return_value={
+                    'cpu_percent': 10.0,
+                    'memory_percent': 20.0,
+                    'disk_usage_percent': 30.0
+                })
             )
         }
     

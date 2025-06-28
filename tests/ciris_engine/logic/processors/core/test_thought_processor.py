@@ -34,7 +34,7 @@ class TestThoughtProcessor:
         mock_llm_bus = Mock()
         mock_llm_bus.select_action = AsyncMock(return_value=ActionSelectionDMAResult(
             selected_action=HandlerActionType.SPEAK,
-            action_parameters={"message": "Test response"},
+            action_parameters={"content": "Test response"},
             rationale="Test rationale"
         ))
         

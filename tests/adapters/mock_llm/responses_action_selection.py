@@ -365,8 +365,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
     result = ActionSelectionDMAResult(
         selected_action=action,
         action_parameters=params,
-        rationale=final_rationale,
-        confidence=0.9
+        rationale=final_rationale
     )
     object.__setattr__(result, 'choices', [result])
     object.__setattr__(result, 'finish_reason', 'stop')

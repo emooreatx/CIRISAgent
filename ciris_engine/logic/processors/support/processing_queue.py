@@ -3,8 +3,8 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Union, Any
 
 # Import both types of ThoughtContext
-from ciris_engine.schemas.runtime.processing_context import ThoughtContext as ProcessingThoughtContext
-from ciris_engine.schemas.runtime.models import ThoughtContext as SimpleThoughtContext
+from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
+from ciris_engine.schemas.runtime.models import ThoughtContext
 import logging
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class ProcessingQueueItem(BaseModel):
     thought_type: ThoughtType # Corresponds to Thought.thought_type
     content: ThoughtContent
     raw_input_string: Optional[str] = Field(default=None, description="The original input string that generated this thought, if applicable.")
-    initial_context: Optional[Union[dict, ProcessingThoughtContext, SimpleThoughtContext]] = Field(default=None, description="Initial context when the thought was first received/generated for processing.")
+    initial_context: Optional[Union[dict, ProcessingThoughtContext, ThoughtContext]] = Field(default=None, description="Initial context when the thought was first received/generated for processing.")
     ponder_notes: Optional[List[str]] = Field(default=None, description="Key questions from a previous Ponder action if this item is being re-queued.")
     conscience_feedback: Optional[Any] = Field(default=None, description="conscience evaluation feedback if applicable.")
 

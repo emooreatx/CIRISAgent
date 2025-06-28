@@ -4,7 +4,7 @@ from typing import Dict, Optional, TYPE_CHECKING, Any
 
 from ciris_engine.logic.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.schemas.processors.dma import (
-    DMAContext, InitialDMAResults, DMAError, DMAErrors,
+    DMAMetadata, InitialDMAResults, DMAError, DMAErrors,
     ActionSelectionContext, CircuitBreakerStatus, DMAOrchestratorStatus
 )
 from ciris_engine.logic.dma.csdma import CSDMAEvaluator
@@ -24,7 +24,7 @@ from ciris_engine.schemas.dma.results import (
     DSDMAResult,
 )
 from ciris_engine.schemas.processors.core import DMAResults
-from ciris_engine.schemas.runtime.system_context import ThoughtContext
+from ciris_engine.schemas.runtime.system_context import ThoughtState
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreaker
 from ciris_engine.logic.utils.channel_utils import extract_channel_id
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
@@ -73,8 +73,8 @@ class DMAOrchestrator:
     async def run_initial_dmas(
         self,
         thought_item: ProcessingQueueItem,
-        processing_context: Optional[ThoughtContext] = None,
-        dsdma_context: Optional[DMAContext] = None,
+        processing_context: Optional[ThoughtState] = None,
+        dsdma_context: Optional[DMAMetadata] = None,
     ) -> InitialDMAResults:
         """
         Run EthicalPDMA, CSDMA, and DSDMA in parallel (async). Returns a dict with results or escalates on error.
@@ -110,7 +110,7 @@ class DMAOrchestrator:
                     run_dsdma,
                     self.dsdma,
                     thought_item,
-                    dsdma_context or DMAContext(),
+                    dsdma_context or DMAMetadata(),
                     retry_limit=self.retry_limit,
                     timeout_seconds=self.timeout_seconds,
                     time_service=self.time_service,
@@ -149,8 +149,8 @@ class DMAOrchestrator:
     async def run_dmas(
         self,
         thought_item: ProcessingQueueItem,
-        processing_context: Optional[ThoughtContext] = None,
-        dsdma_context: Optional[DMAContext] = None,
+        processing_context: Optional[ThoughtState] = None,
+        dsdma_context: Optional[DMAMetadata] = None,
     ) -> "DMAResults":
         """Run all DMAs with circuit breaker protection."""
 
@@ -201,7 +201,7 @@ class DMAOrchestrator:
                         run_dsdma,
                         self.dsdma,
                         thought_item,
-                        dsdma_context or DMAContext(),
+                        dsdma_context or DMAMetadata(),
                         retry_limit=self.retry_limit,
                         timeout_seconds=self.timeout_seconds,
                         time_service=self.time_service,
@@ -246,7 +246,7 @@ class DMAOrchestrator:
         self,
         thought_item: ProcessingQueueItem,
         actual_thought: Thought,
-        processing_context: ThoughtContext,
+        processing_context: ThoughtState,
         dma_results: InitialDMAResults,
         profile_name: str
     ) -> ActionSelectionDMAResult:

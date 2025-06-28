@@ -6,7 +6,7 @@ Monitors system resource usage and limits. Includes predictive analytics.
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Body
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 import logging
 
 from ciris_engine.schemas.api.responses import SuccessResponse
@@ -33,12 +33,20 @@ class ResourceLimitsResponse(BaseModel):
     disk_mb: ResourceLimit = Field(..., description="Disk usage limits in MB")
     thoughts_active: ResourceLimit = Field(..., description="Active thoughts limit")
     effective_from: datetime = Field(..., description="When these limits became effective")
+    
+    @field_serializer('effective_from')
+    def serialize_effective_from(self, effective_from: datetime, _info):
+        return effective_from.isoformat() if effective_from else None
 
 class ResourceUsageResponse(BaseModel):
     """Current resource usage snapshot."""
     snapshot: ResourceSnapshot = Field(..., description="Current resource usage")
     budget: ResourceBudget = Field(..., description="Configured resource budget")
     timestamp: datetime = Field(..., description="When snapshot was taken")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, timestamp: datetime, _info):
+        return timestamp.isoformat() if timestamp else None
     
 class ResourcePrediction(BaseModel):
     """Resource usage prediction."""
@@ -55,6 +63,10 @@ class ResourcePredictionsResponse(BaseModel):
     predictions: List[ResourcePrediction] = Field(..., description="Predictions for each resource")
     analysis_window_hours: int = Field(..., description="Hours of history analyzed")
     generated_at: datetime = Field(..., description="When predictions were generated")
+    
+    @field_serializer('generated_at')
+    def serialize_generated_at(self, generated_at: datetime, _info):
+        return generated_at.isoformat() if generated_at else None
 
 class AlertConfiguration(BaseModel):
     """Alert configuration update request."""

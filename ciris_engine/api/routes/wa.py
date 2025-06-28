@@ -63,7 +63,7 @@ async def get_deferrals(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
                     message="Wise Authority service not available"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
     
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -88,7 +88,7 @@ async def get_deferrals(
                     code=ErrorCode.INTERNAL_ERROR,
                     message=f"Failed to retrieve deferrals: {str(e)}"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
 
 
@@ -115,7 +115,7 @@ async def get_deferral_detail(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
                     message="Wise Authority service not available"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
     
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -135,10 +135,10 @@ async def get_deferral_detail(
                 status_code=404,
                 detail=ErrorResponse(
                     error=ErrorDetail(
-                        code=ErrorCode.NOT_FOUND,
+                        code=ErrorCode.RESOURCE_NOT_FOUND,
                         message=f"Deferral {deferral_id} not found"
                     )
-                ).model_dump()
+                ).model_dump(mode='json')
             )
         
         response = DeferralDetailResponse(deferral=deferral)
@@ -156,7 +156,7 @@ async def get_deferral_detail(
                     code=ErrorCode.INTERNAL_ERROR,
                     message=f"Failed to retrieve deferral: {str(e)}"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
 
 
@@ -185,7 +185,7 @@ async def resolve_deferral(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
                     message="Wise Authority service not available"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
     
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -211,7 +211,7 @@ async def resolve_deferral(
                         code=ErrorCode.VALIDATION_ERROR,
                         message="Failed to resolve deferral - it may have already been resolved"
                     )
-                ).model_dump()
+                ).model_dump(mode='json')
             )
         
         # If resolution is "modify", we would need to handle the modifications
@@ -239,7 +239,7 @@ async def resolve_deferral(
                     code=ErrorCode.INTERNAL_ERROR,
                     message=f"Failed to resolve deferral: {str(e)}"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
 
 
@@ -266,7 +266,7 @@ async def request_guidance(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
                     message="Wise Authority service not available"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
     
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -298,7 +298,7 @@ async def request_guidance(
                     code=ErrorCode.INTERNAL_ERROR,
                     message=f"Failed to get guidance: {str(e)}"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
 
 
@@ -325,7 +325,7 @@ async def get_permissions(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
                     message="Wise Authority service not available"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
     
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -353,7 +353,7 @@ async def get_permissions(
                     code=ErrorCode.INTERNAL_ERROR,
                     message=f"Failed to retrieve permissions: {str(e)}"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
 
 
@@ -380,7 +380,7 @@ async def grant_permission(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
                     message="Wise Authority service not available"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
     
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -401,7 +401,7 @@ async def grant_permission(
                         code=ErrorCode.VALIDATION_ERROR,
                         message="Failed to grant permission - WA may not exist or permission may be invalid"
                     )
-                ).model_dump()
+                ).model_dump(mode='json')
             )
         
         # Generate permission ID for response
@@ -430,7 +430,7 @@ async def grant_permission(
                     code=ErrorCode.INTERNAL_ERROR,
                     message=f"Failed to grant permission: {str(e)}"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
 
 
@@ -457,7 +457,7 @@ async def revoke_permission(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
                     message="Wise Authority service not available"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
     
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -486,10 +486,10 @@ async def revoke_permission(
                 status_code=404,
                 detail=ErrorResponse(
                     error=ErrorDetail(
-                        code=ErrorCode.NOT_FOUND,
+                        code=ErrorCode.RESOURCE_NOT_FOUND,
                         message=f"Permission {revoke_request.permission_id} not found"
                     )
-                ).model_dump()
+                ).model_dump(mode='json')
             )
         
         # Revoke the permission
@@ -507,7 +507,7 @@ async def revoke_permission(
                         code=ErrorCode.VALIDATION_ERROR,
                         message="Failed to revoke permission"
                     )
-                ).model_dump()
+                ).model_dump(mode='json')
             )
         
         response = PermissionOperationResponse(
@@ -533,5 +533,5 @@ async def revoke_permission(
                     code=ErrorCode.INTERNAL_ERROR,
                     message=f"Failed to revoke permission: {str(e)}"
                 )
-            ).model_dump()
+            ).model_dump(mode='json')
         )
