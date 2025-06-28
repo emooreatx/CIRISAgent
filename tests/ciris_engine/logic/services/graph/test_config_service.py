@@ -51,7 +51,7 @@ async def memory_service(temp_db, time_service):
     conn.close()
     
     # Create a secrets service for the memory service
-    from ciris_engine.logic.services.runtime.secrets_service import SecretsService
+    from ciris_engine.logic.secrets.service import SecretsService
     secrets_db = temp_db.replace('.db', '_secrets.db')
     secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
     await secrets_service.start()

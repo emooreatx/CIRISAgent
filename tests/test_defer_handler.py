@@ -71,6 +71,7 @@ def create_test_task(
     """Helper to create a test task."""
     return Task(
         task_id=task_id,
+        channel_id="test_channel",
         description=description,
         status=TaskStatus.ACTIVE,
         created_at=datetime.now(timezone.utc).isoformat(),
@@ -81,9 +82,7 @@ def create_test_task(
 def create_dispatch_context(
     thought_id: str,
     task_id: str,
-    channel_id: str = "test_channel",
-    attempted_action: str = "defer",
-    max_rounds_reached: bool = False
+    channel_id: str = "test_channel"
 ) -> DispatchContext:
     """Helper to create a dispatch context."""
     from ciris_engine.schemas.runtime.system_context import ChannelContext
@@ -105,9 +104,7 @@ def create_dispatch_context(
         source_task_id=task_id,
         event_summary="Test defer action",
         event_timestamp=datetime.now(timezone.utc).isoformat(),
-        correlation_id="test_correlation_id",
-        attempted_action=attempted_action,
-        max_rounds_reached=max_rounds_reached
+        correlation_id="test_correlation_id"
     )
 
 
@@ -194,9 +191,8 @@ class TestDeferHandler:
         )
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=params.model_dump(),
+            action_parameters=params,
             rationale="Content requires human oversight",
-            confidence=0.95,
             reasoning="Medical advice detected",
             evaluation_time_ms=100
         )
@@ -219,7 +215,7 @@ class TestDeferHandler:
         assert deferral_context.thought_id == thought.thought_id
         assert deferral_context.task_id == thought.source_task_id
         assert deferral_context.reason == params.reason
-        assert deferral_context.metadata["attempted_action"] == "defer"
+        assert deferral_context.metadata["attempted_action"] == "unknown"  # Default value since DispatchContext doesn't have this field
         
         # Verify thought status updated
         mock_persistence.update_thought_status.assert_called_once_with(
@@ -258,9 +254,8 @@ class TestDeferHandler:
         )
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=params.model_dump(),
+            action_parameters=params,
             rationale="Waiting for payment confirmation",
-            confidence=0.90,
             reasoning="External dependency",
             evaluation_time_ms=80
         )
@@ -306,7 +301,6 @@ class TestDeferHandler:
             selected_action=HandlerActionType.DEFER,
             action_parameters=invalid_params,
             rationale="Invalid deferral attempt",
-            confidence=0.5,
             reasoning="Testing error handling",
             evaluation_time_ms=50
         )
@@ -347,9 +341,8 @@ class TestDeferHandler:
         params = DeferParams(reason="Test deferral with WA failure")
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=params.model_dump(),
+            action_parameters=params,
             rationale="Testing WA failure handling",
-            confidence=0.85,
             reasoning="Resilience test",
             evaluation_time_ms=75
         )
@@ -395,17 +388,14 @@ class TestDeferHandler:
         )
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=params.model_dump(),
+            action_parameters=params,
             rationale="Medical decision requires human doctor",
-            confidence=0.99,
             reasoning="High stakes medical decision",
             evaluation_time_ms=120
         )
         dispatch_context = create_dispatch_context(
             thought.thought_id,
-            thought.source_task_id,
-            attempted_action="analyze_medical_data",
-            max_rounds_reached=True
+            thought.source_task_id
         )
         
         # Act
@@ -417,8 +407,8 @@ class TestDeferHandler:
         deferral_context = call_args.kwargs['context']
         
         assert deferral_context.metadata["task_description"] == task.description
-        assert deferral_context.metadata["attempted_action"] == "analyze_medical_data"
-        assert deferral_context.metadata["max_rounds_reached"] == "True"
+        assert deferral_context.metadata["attempted_action"] == "unknown"  # Default value since DispatchContext doesn't have this field
+        assert deferral_context.metadata["max_rounds_reached"] == "False"  # Default value since DispatchContext doesn't have this field
     
     @pytest.mark.asyncio
     async def test_system_task_not_deferred(
@@ -436,9 +426,8 @@ class TestDeferHandler:
         params = DeferParams(reason="System task deferral")
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=params.model_dump(),
+            action_parameters=params,
             rationale="System task defer test",
-            confidence=0.7,
             reasoning="Testing system task handling",
             evaluation_time_ms=60
         )
@@ -481,7 +470,6 @@ class TestDeferHandler:
                 selected_action=HandlerActionType.DEFER,
                 action_parameters=params[i].model_dump(),
                 rationale=f"Rationale {i}",
-                confidence=0.8 + i * 0.05,
                 reasoning=f"Reasoning {i}",
                 evaluation_time_ms=100 + i * 10
             )
@@ -537,9 +525,8 @@ class TestDeferHandler:
         
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=params.model_dump(),
+            action_parameters=params,
             rationale="Security breach requires immediate human intervention",
-            confidence=1.0,
             reasoning="Critical security issue",
             evaluation_time_ms=50
         )
@@ -879,9 +866,8 @@ class TestDeferralLifecycle:
         
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=params.model_dump(),
+            action_parameters=params,
             rationale="Safety issue requires immediate WA attention",
-            confidence=0.99,
             reasoning="Critical safety protocol triggered",
             evaluation_time_ms=25
         )

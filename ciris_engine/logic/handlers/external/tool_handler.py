@@ -61,7 +61,7 @@ class ToolHandler(BaseActionHandler):
                 if tool_result.success:
                     action_performed_successfully = True
                     follow_up_content_key_info = (
-                        f"Tool '{params.name}' executed successfully. Result: {tool_result.result or 'No result data'}"
+                        f"Tool '{params.name}' executed successfully. Result: {tool_result.data or 'No result data'}"
                     )
                 else:
                     final_thought_status = ThoughtStatus.FAILED
@@ -86,16 +86,8 @@ class ToolHandler(BaseActionHandler):
         try:
             new_follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_text,
             )
-            # Update context using model_dump and model_validate
-            context_data = new_follow_up.context.model_dump() if new_follow_up.context else {}
-            context_data["action_performed"] = HandlerActionType.TOOL.value
-            if final_thought_status == ThoughtStatus.FAILED:
-                context_data["error_details"] = follow_up_content_key_info
-            if isinstance(params, ToolParams):
-                context_data["action_params"] = params.model_dump()
-            
-            from ciris_engine.schemas.runtime.system_context import ThoughtState
-            new_follow_up.context = ThoughtState.model_validate(context_data)
+            # Note: We don't modify the context here since ThoughtContext has extra="forbid"
+            # The action details are already captured in the follow_up_text content
             persistence.add_thought(new_follow_up)
             self.logger.info(
                 f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after TOOL action."

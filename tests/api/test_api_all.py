@@ -45,49 +45,21 @@ async def test_api_messages():
         messages = get_json_field(resp, "messages", [])
         assert isinstance(messages, list)
 
-@pytest.mark.asyncio
-async def test_api_tools():
-    if not await api_available():
-        pytest.skip("CIRIS API server is not available.")
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(f"{API_URL}/tools")
-        assert resp.status_code == 200
-        tools = resp.json()
-        assert isinstance(tools, list)
-        # Try executing a tool if any exist
-        if tools:
-            tool_name = tools[0]["name"]
-            resp = await client.post(f"{API_URL}/tools/{tool_name}", json={})
-            assert resp.status_code == 200
+# Tools endpoint removed - tools are now managed internally by the agent
+# Guidance and defer endpoints removed - these are internal agent operations
 
 @pytest.mark.asyncio
-async def test_api_guidance_and_defer():
-    if not await api_available():
-        pytest.skip("CIRIS API server is not available.")
-    async with httpx.AsyncClient() as client:
-        # Guidance
-        resp = await client.post(f"{API_URL}/guidance", json={"query": "test guidance"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "guidance" in data
-        # Defer
-        resp = await client.post(f"{API_URL}/defer", json={"thought_id": "test-thought", "reason": "test"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["result"] == "deferred"
-
-@pytest.mark.asyncio
-async def test_api_wa_deferrals_and_feedback():
+async def test_api_wa_deferrals():
     if not await api_available():
         pytest.skip("CIRIS API server is not available.")
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"{API_URL}/wa/deferrals")
         assert resp.status_code == 200
-        # Feedback
-        resp = await client.post(f"{API_URL}/wa/feedback", json={"feedback": "test feedback"})
-        assert resp.status_code == 200
         data = resp.json()
-        assert "result" in data
+        # The new API returns a structured response
+        assert isinstance(data, dict)
+        assert "data" in data
+        assert "metadata" in data
 
 @pytest.mark.asyncio
 async def test_api_audit():

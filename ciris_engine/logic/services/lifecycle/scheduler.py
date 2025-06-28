@@ -164,7 +164,11 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             if isinstance(task.defer_until, datetime):
                 defer_time = task.defer_until
             else:
-                defer_time = datetime.fromisoformat(task.defer_until.replace('Z', '+00:00'))
+                # Handle both 'Z' and '+00:00' formats
+                defer_str = task.defer_until
+                if defer_str.endswith('Z'):
+                    defer_str = defer_str[:-1] + '+00:00'
+                defer_time = datetime.fromisoformat(defer_str)
             return current_time >= defer_time
             
         # Cron-style recurring task
@@ -188,13 +192,21 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
                 if isinstance(task.created_at, datetime):
                     base_time = task.created_at
                 else:
-                    base_time = datetime.fromisoformat(task.created_at.replace('Z', '+00:00'))
+                    # Handle both 'Z' and '+00:00' formats
+                    created_str = task.created_at
+                    if created_str.endswith('Z'):
+                        created_str = created_str[:-1] + '+00:00'
+                    base_time = datetime.fromisoformat(created_str)
             else:
                 # Handle both datetime objects and strings
                 if isinstance(task.last_triggered_at, datetime):
                     base_time = task.last_triggered_at
                 else:
-                    base_time = datetime.fromisoformat(task.last_triggered_at.replace('Z', '+00:00'))
+                    # Handle both 'Z' and '+00:00' formats
+                    triggered_str = task.last_triggered_at
+                    if triggered_str.endswith('Z'):
+                        triggered_str = triggered_str[:-1] + '+00:00'
+                    base_time = datetime.fromisoformat(triggered_str)
             
             # Create croniter instance
             cron = croniter(task.schedule_cron, base_time)

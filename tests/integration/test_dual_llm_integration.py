@@ -29,8 +29,11 @@ async def test_dual_llm_service_real_initialization():
     initializer.service_registry = service_registry
     
     try:
-        # Initialize services
-        await initializer.initialize_services()
+        # Initialize all services - need to call the proper initialization sequence
+        await initializer.initialize_infrastructure_services()
+        await initializer.initialize_memory_service(essential_config)
+        await initializer.initialize_security_services(essential_config, essential_config)
+        await initializer.initialize_all_services(essential_config, essential_config, "test_agent", None, [])
         
         # Check that LLM services were registered
         llm_providers = service_registry.get_all_providers(ServiceType.LLM)

@@ -262,7 +262,10 @@ class TestGetCurrentUserEndpoint:
         assert result.user_id == "ROOT"
         assert result.username == "ROOT"
         assert result.role == UserRole.ROOT
+        # ROOT should have all permissions
+        assert len(result.permissions) == len(Permission)
         assert Permission.FULL_ACCESS.value in result.permissions
+        assert Permission.EMERGENCY_SHUTDOWN.value in result.permissions
         assert result.created_at == auth_context_root.authenticated_at
         assert result.last_login == auth_context_root.authenticated_at
     
@@ -297,57 +300,11 @@ class TestGetCurrentUserEndpoint:
         assert Permission.RUNTIME_CONTROL.value not in result.permissions
 
 
-class TestGetUserPermissionsEndpoint:
-    """Test /auth/permissions endpoint."""
-    
-    @pytest.mark.asyncio
-    async def test_get_permissions_root(self, auth_context_root):
-        """Test getting permissions for ROOT."""
-        from ciris_engine.api.routes.auth import get_user_permissions
-        
-        # Execute
-        result = await get_user_permissions(auth_context_root)
-        
-        # Verify - ROOT gets all permissions
-        assert Permission.FULL_ACCESS.value in result
-        assert Permission.EMERGENCY_SHUTDOWN.value in result
-        assert Permission.MANAGE_SENSITIVE_CONFIG.value in result
-        assert len(result) == len(Permission)
-    
-    @pytest.mark.asyncio
-    async def test_get_permissions_admin(self, auth_context_admin):
-        """Test getting permissions for ADMIN."""
-        from ciris_engine.api.routes.auth import get_user_permissions
-        
-        # Execute
-        result = await get_user_permissions(auth_context_admin)
-        
-        # Verify - ADMIN gets specific permissions
-        assert Permission.RUNTIME_CONTROL.value in result
-        assert Permission.MANAGE_CONFIG.value in result
-        assert Permission.VIEW_MESSAGES.value in result
-        # Should not have authority permissions
-        assert Permission.RESOLVE_DEFERRALS.value not in result
-        assert Permission.FULL_ACCESS.value not in result
-    
-    @pytest.mark.asyncio
-    async def test_get_permissions_observer(self, auth_context_observer):
-        """Test getting permissions for OBSERVER."""
-        from ciris_engine.api.routes.auth import get_user_permissions
-        
-        # Execute
-        result = await get_user_permissions(auth_context_observer)
-        
-        # Verify - OBSERVER gets only view permissions
-        assert Permission.VIEW_MESSAGES.value in result
-        assert Permission.VIEW_TELEMETRY.value in result
-        # Should not have admin permissions
-        assert Permission.RUNTIME_CONTROL.value not in result
-        assert Permission.MANAGE_CONFIG.value not in result
+# Permissions endpoint removed - now included in /auth/me response
 
 
 class TestRefreshTokenEndpoint:
-    """Test /auth/token/refresh endpoint."""
+    """Test /auth/refresh endpoint."""
     
     @pytest.mark.asyncio
     async def test_refresh_token_success_root(self, mock_auth_service, auth_context_root):

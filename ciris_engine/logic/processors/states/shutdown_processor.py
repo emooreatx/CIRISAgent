@@ -82,10 +82,10 @@ class ShutdownProcessor(BaseProcessor):
         
         # Convert dict result to ShutdownResult
         tasks_cleaned = result.get("tasks_cleaned", 0)
-        shutdown_ready = result.get("status") == "completed"
+        shutdown_ready = result.get("shutdown_ready", False) or result.get("status") == "completed"
         errors = 1 if result.get("status") == "error" else 0
         
-        logger.debug(f"ShutdownProcessor.process: status={result.get('status')}, shutdown_ready={shutdown_ready}")
+        logger.info(f"ShutdownProcessor.process: status={result.get('status')}, shutdown_ready from dict={result.get('shutdown_ready')}, final shutdown_ready={shutdown_ready}")
         
         shutdown_result = ShutdownResult(
             tasks_cleaned=tasks_cleaned,
@@ -95,7 +95,7 @@ class ShutdownProcessor(BaseProcessor):
         )
         
         # Log the result we're returning
-        logger.debug(f"ShutdownProcessor returning: {shutdown_result}")
+        logger.info(f"ShutdownProcessor returning: shutdown_ready={shutdown_result.shutdown_ready}, full result={shutdown_result}")
         
         return shutdown_result
         

@@ -268,8 +268,8 @@ class DiscordSlashCommands:
                 )
                 
                 # Add result
-                if result.result:
-                    result_str = str(result.result)[:1000]
+                if result.data:
+                    result_str = str(result.data)[:1000]
                     embed.add_field(
                         name="Result",
                         value=f"```\n{result_str}\n```",
@@ -341,7 +341,7 @@ class DiscordSlashCommands:
                         if result.success:
                             embed = discord.Embed(
                                 title=f"✅ {tool} executed successfully",
-                                description=str(result.result)[:2000],
+                                description=str(result.data)[:2000],
                                 color=0x2ecc71
                             )
                         else:

@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
 class InitializationStatus(BaseModel):
     """Status of system initialization."""
@@ -14,7 +14,11 @@ class InitializationStatus(BaseModel):
     error: Optional[str] = Field(None, description="Error message if initialization failed")
     total_steps: int = Field(0, description="Total number of steps registered")
     
-    model_config = ConfigDict(json_encoders={datetime: lambda v: v.isoformat() if v else None})
+    model_config = ConfigDict()
+    
+    @field_serializer('start_time')
+    def serialize_datetime(self, dt: Optional[datetime]) -> Optional[str]:
+        return dt.isoformat() if dt else None
 
 class InitializationVerification(BaseModel):
     """Results of initialization verification."""

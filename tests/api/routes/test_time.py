@@ -1,5 +1,5 @@
 """
-Unit tests for Time Service API routes.
+Unit tests for System Time API endpoint.
 """
 import pytest
 from datetime import datetime, timezone, timedelta
@@ -7,7 +7,7 @@ from unittest.mock import Mock, AsyncMock
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
-from ciris_engine.api.routes.time import router
+from ciris_engine.api.routes.system import router
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 
@@ -49,7 +49,7 @@ class MockTimeService(TimeServiceProtocol):
 
 @pytest.fixture
 def app():
-    """Create test FastAPI app with time routes."""
+    """Create test FastAPI app with system routes."""
     app = FastAPI()
     app.include_router(router, prefix="/v1")
     
@@ -65,9 +65,9 @@ def client(app):
     return TestClient(app)
 
 
-def test_get_current_time(client):
-    """Test GET /v1/time/current endpoint."""
-    response = client.get("/v1/time/current")
+def test_get_system_time(client):
+    """Test GET /v1/system/time endpoint."""
+    response = client.get("/v1/system/time")
     
     assert response.status_code == 200
     data = response.json()
@@ -78,153 +78,169 @@ def test_get_current_time(client):
     
     # Check data fields
     time_data = data["data"]
-    assert "current_time" in time_data
-    assert "current_iso" in time_data
-    assert "current_timestamp" in time_data
+    assert "system_time" in time_data
+    assert "agent_time" in time_data
+    assert "uptime_seconds" in time_data
+    assert "time_sync" in time_data
     
     # Verify values
-    assert time_data["current_time"] == "2025-01-01T12:00:00+00:00"
-    assert time_data["current_iso"] == "2025-01-01T12:00:00+00:00"
-    assert time_data["current_timestamp"] == 1735732800.0  # Unix timestamp for 2025-01-01 12:00:00 UTC
+    assert time_data["agent_time"] == "2025-01-01T12:00:00+00:00"
+    assert time_data["uptime_seconds"] == 43200.0  # 12 hours difference
+    
+    # Check time sync structure
+    sync = time_data["time_sync"]
+    assert "synchronized" in sync
+    assert "drift_ms" in sync
+    assert "last_sync" in sync
+    assert "sync_source" in sync
 
 
-def test_get_current_time_no_service(client):
-    """Test GET /v1/time/current when service is unavailable."""
+def test_get_system_time_no_service(client):
+    """Test GET /v1/system/time when service is unavailable."""
     # Remove time service
     client.app.state.time_service = None
     
-    response = client.get("/v1/time/current")
+    response = client.get("/v1/system/time")
     
     assert response.status_code == 503
     assert "Time service not available" in response.json()["detail"]
 
 
-def test_get_uptime(client):
-    """Test GET /v1/time/uptime endpoint."""
-    response = client.get("/v1/time/uptime")
+def test_get_system_time_includes_uptime(client):
+    """Test that GET /v1/system/time includes uptime information."""
+    response = client.get("/v1/system/time")
     
     assert response.status_code == 200
     data = response.json()
     
-    # Check response structure
-    assert "data" in data
-    assert "metadata" in data
-    
-    # Check data fields
-    uptime_data = data["data"]
-    assert "service_name" in uptime_data
-    assert "uptime_seconds" in uptime_data
-    assert "start_time" in uptime_data
-    assert "current_time" in uptime_data
-    
-    # Verify values
-    assert uptime_data["service_name"] == "TimeService"
-    assert uptime_data["uptime_seconds"] == 43200.0  # 12 hours difference
-    assert uptime_data["start_time"] == "2025-01-01T00:00:00+00:00"
-    assert uptime_data["current_time"] == "2025-01-01T12:00:00+00:00"
+    # Check that uptime is included
+    time_data = data["data"]
+    assert "uptime_seconds" in time_data
+    assert time_data["uptime_seconds"] == 43200.0  # 12 hours difference
 
 
-def test_get_uptime_no_start_time(client):
-    """Test GET /v1/time/uptime when service has no start time."""
+def test_get_system_time_no_start_time(client):
+    """Test GET /v1/system/time when service has no start time."""
     # Remove start time
     client.app.state.time_service._start_time = None
     
-    response = client.get("/v1/time/uptime")
+    response = client.get("/v1/system/time")
     
     assert response.status_code == 200
     data = response.json()
     
-    uptime_data = data["data"]
-    assert uptime_data["uptime_seconds"] == 0.0
-    assert uptime_data["start_time"] == uptime_data["current_time"]
+    time_data = data["data"]
+    assert time_data["uptime_seconds"] == 0.0
 
 
-def test_get_time_sync_status(client):
-    """Test GET /v1/time/sync endpoint."""
-    response = client.get("/v1/time/sync")
+def test_get_system_time_sync_info(client):
+    """Test that GET /v1/system/time includes sync information."""
+    response = client.get("/v1/system/time")
     
     assert response.status_code == 200
     data = response.json()
     
-    # Check response structure
-    assert "data" in data
-    assert "metadata" in data
-    
-    # Check data fields
-    sync_data = data["data"]
-    assert "is_synchronized" in sync_data
+    # Check time sync fields
+    time_data = data["data"]
+    sync_data = time_data["time_sync"]
+    assert "synchronized" in sync_data
     assert "sync_source" in sync_data
     assert "last_sync" in sync_data
     assert "drift_ms" in sync_data
-    assert "is_mocked" in sync_data
     
-    # Verify values
-    assert sync_data["is_synchronized"] is True
+    # Verify sync source is system when not mocked
     assert sync_data["sync_source"] == "system"
     assert sync_data["last_sync"] == "2025-01-01T00:00:00+00:00"
-    assert sync_data["drift_ms"] == 0.0
-    assert sync_data["is_mocked"] is False
+    # Note: synchronized status depends on actual drift between system and agent time
 
 
-def test_get_time_sync_status_mocked(client):
-    """Test GET /v1/time/sync when time is mocked."""
+def test_get_system_time_mocked(client):
+    """Test GET /v1/system/time when time is mocked."""
     # Set mock time
     mock_time = datetime(2025, 2, 1, 0, 0, 0, tzinfo=timezone.utc)
     client.app.state.time_service._mock_time = mock_time
     
-    response = client.get("/v1/time/sync")
+    response = client.get("/v1/system/time")
     
     assert response.status_code == 200
     data = response.json()
     
-    sync_data = data["data"]
-    assert sync_data["is_synchronized"] is False
+    time_data = data["data"]
+    sync_data = time_data["time_sync"]
+    assert sync_data["synchronized"] is False
     assert sync_data["sync_source"] == "mock"
-    assert sync_data["is_mocked"] is True
 
 
-def test_time_service_error_handling(client):
+def test_system_time_error_handling(client):
     """Test error handling when time service raises exception."""
     # Mock time service to raise exception
     mock_service = Mock(spec=TimeServiceProtocol)
     mock_service.now.side_effect = Exception("Time service error")
-    mock_service.now_iso.side_effect = Exception("Time service error")
-    mock_service.timestamp.side_effect = Exception("Time service error")
     
     client.app.state.time_service = mock_service
     
-    # Test current time endpoint
-    response = client.get("/v1/time/current")
+    # Test system time endpoint
+    response = client.get("/v1/system/time")
     assert response.status_code == 500
-    assert "Failed to get current time" in response.json()["detail"]
-    
-    # Test uptime endpoint
-    response = client.get("/v1/time/uptime")
-    assert response.status_code == 500
-    assert "Failed to get uptime" in response.json()["detail"]
-    
-    # Test sync endpoint
-    response = client.get("/v1/time/sync")
-    assert response.status_code == 500
-    assert "Failed to get sync status" in response.json()["detail"]
+    assert "Failed to get time information" in response.json()["detail"]
 
 
-def test_metadata_in_responses(client):
-    """Test that all responses include proper metadata."""
-    endpoints = [
-        "/v1/time/current",
-        "/v1/time/uptime",
-        "/v1/time/sync"
-    ]
+def test_metadata_in_response(client):
+    """Test that response includes proper metadata."""
+    response = client.get("/v1/system/time")
+    assert response.status_code == 200
     
-    for endpoint in endpoints:
-        response = client.get(endpoint)
-        assert response.status_code == 200
-        
-        data = response.json()
-        assert "metadata" in data
-        
-        metadata = data["metadata"]
-        assert "timestamp" in metadata
-        assert "request_id" in metadata
-        assert "duration_ms" in metadata
+    data = response.json()
+    assert "metadata" in data
+    
+    metadata = data["metadata"]
+    assert "timestamp" in metadata
+    assert "request_id" in metadata
+    assert "duration_ms" in metadata
+
+
+def test_system_time_consolidated_info(client):
+    """Test that system time endpoint returns all consolidated information."""
+    response = client.get("/v1/system/time")
+    
+    assert response.status_code == 200
+    data = response.json()
+    
+    time_data = data["data"]
+    
+    # Check all required fields are present
+    assert "system_time" in time_data  # Host OS time
+    assert "agent_time" in time_data   # TimeService time
+    assert "uptime_seconds" in time_data
+    assert "time_sync" in time_data
+    
+    # Verify system_time is a valid timestamp
+    assert time_data["system_time"] is not None
+    
+    # Verify time_sync has all required fields
+    sync = time_data["time_sync"]
+    assert isinstance(sync, dict)
+    assert "synchronized" in sync
+    assert "drift_ms" in sync
+    assert "last_sync" in sync
+    assert "sync_source" in sync
+
+
+def test_system_time_drift_calculation(client):
+    """Test that drift is calculated correctly between system and agent time."""
+    # Set a different mock time to create drift
+    mock_time = datetime(2025, 1, 1, 12, 30, 0, tzinfo=timezone.utc)  # 30 minutes ahead
+    client.app.state.time_service._mock_time = mock_time
+    
+    response = client.get("/v1/system/time")
+    
+    assert response.status_code == 200
+    data = response.json()
+    
+    time_data = data["data"]
+    sync_data = time_data["time_sync"]
+    
+    # Should show drift and not synchronized
+    assert sync_data["synchronized"] is False
+    assert sync_data["drift_ms"] != 0  # Should have some drift
+    assert sync_data["sync_source"] == "mock"

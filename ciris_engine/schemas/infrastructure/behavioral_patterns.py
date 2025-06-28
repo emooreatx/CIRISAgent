@@ -5,8 +5,7 @@ Replaces Dict[str, Any] in identity_variance_monitor.py and configuration_feedba
 """
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
-from pydantic import Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
 class BehavioralPattern(BaseModel):
     """A detected behavioral pattern from agent history."""
@@ -17,9 +16,11 @@ class BehavioralPattern(BaseModel):
     last_seen: datetime = Field(..., description="Most recent occurrence")
     confidence: float = Field(0.5, description="Confidence in pattern detection (0.0-1.0)")
     
-    model_config = ConfigDict(json_encoders={
-        datetime: lambda v: v.isoformat()
-    })
+    model_config = ConfigDict()
+    
+    @field_serializer('first_seen', 'last_seen')
+    def serialize_datetime(self, dt: datetime) -> str:
+        return dt.isoformat()
 
 class ActionFrequency(BaseModel):
     """Tracks frequency of specific actions."""
@@ -29,9 +30,11 @@ class ActionFrequency(BaseModel):
     last_seen: datetime = Field(..., description="Most recent occurrence")
     daily_average: Optional[float] = Field(None, description="Average occurrences per day")
     
-    model_config = ConfigDict(json_encoders={
-        datetime: lambda v: v.isoformat()
-    })
+    model_config = ConfigDict()
+    
+    @field_serializer('last_seen')
+    def serialize_datetime(self, dt: datetime) -> str:
+        return dt.isoformat()
 
 class EthicalBoundary(BaseModel):
     """Represents an ethical boundary configuration."""
@@ -42,9 +45,11 @@ class EthicalBoundary(BaseModel):
     violation_count: int = Field(0, description="Number of violations detected")
     last_violation: Optional[datetime] = Field(None, description="Most recent violation")
     
-    model_config = ConfigDict(json_encoders={
-        datetime: lambda v: v.isoformat()
-    })
+    model_config = ConfigDict()
+    
+    @field_serializer('last_violation')
+    def serialize_datetime(self, dt: Optional[datetime]) -> Optional[str]:
+        return dt.isoformat() if dt else None
 
 class IdentityMetric(BaseModel):
     """A single identity variance metric."""
@@ -55,9 +60,11 @@ class IdentityMetric(BaseModel):
     is_within_bounds: bool = Field(..., description="Whether variance is acceptable")
     timestamp: datetime = Field(..., description="When measurement was taken")
     
-    model_config = ConfigDict(json_encoders={
-        datetime: lambda v: v.isoformat()
-    })
+    model_config = ConfigDict()
+    
+    @field_serializer('timestamp')
+    def serialize_datetime(self, dt: datetime) -> str:
+        return dt.isoformat()
 
 class IdentityVarianceReport(BaseModel):
     """Complete identity variance analysis report."""
@@ -69,9 +76,11 @@ class IdentityVarianceReport(BaseModel):
     ethical_boundaries: List[EthicalBoundary] = Field(default_factory=list, description="Ethical boundary status")
     recommendations: List[str] = Field(default_factory=list, description="Recommended adjustments")
     
-    model_config = ConfigDict(json_encoders={
-        datetime: lambda v: v.isoformat()
-    })
+    model_config = ConfigDict()
+    
+    @field_serializer('timestamp')
+    def serialize_datetime(self, dt: datetime) -> str:
+        return dt.isoformat()
 
 class TemporalPattern(BaseModel):
     """A time-based pattern detected in agent behavior."""
@@ -85,9 +94,11 @@ class TemporalPattern(BaseModel):
     last_observed: datetime = Field(..., description="Most recent occurrence")
     metrics: Dict[str, float] = Field(default_factory=dict, description="Associated metrics")
     
-    model_config = ConfigDict(json_encoders={
-        datetime: lambda v: v.isoformat()
-    })
+    model_config = ConfigDict()
+    
+    @field_serializer('first_detected', 'last_observed')
+    def serialize_datetime(self, dt: datetime) -> str:
+        return dt.isoformat()
 
 class FeedbackLoopAnalysis(BaseModel):
     """Analysis from configuration feedback loop."""
@@ -97,6 +108,8 @@ class FeedbackLoopAnalysis(BaseModel):
     suggested_adjustments: List[str] = Field(default_factory=list, description="Recommended config changes")
     confidence_level: float = Field(0.5, description="Confidence in recommendations (0.0-1.0)")
     
-    model_config = ConfigDict(json_encoders={
-        datetime: lambda v: v.isoformat()
-    })
+    model_config = ConfigDict()
+    
+    @field_serializer('timestamp')
+    def serialize_datetime(self, dt: datetime) -> str:
+        return dt.isoformat()

@@ -82,9 +82,9 @@ class TestSecretsToolService:
         
         assert isinstance(result, ToolExecutionResult)
         assert result.status == ToolExecutionStatus.COMPLETED
-        assert result.result.success is True
-        assert result.result.data["value"] == "my-secret-value"
-        assert result.result.data["decrypted"] is True
+        assert result.success is True
+        assert result.data["value"] == "my-secret-value"
+        assert result.data["decrypted"] is True
 
     @pytest.mark.asyncio
     async def test_update_secrets_filter_add_pattern(self, tool_service, mock_secrets_service):
@@ -99,9 +99,9 @@ class TestSecretsToolService:
         })
         
         assert result.status == ToolExecutionStatus.COMPLETED
-        assert result.result.success is True
-        assert result.result.data["operation"] == "add_pattern"
-        assert result.result.data["pattern"] == "API_KEY=.*"
+        assert result.success is True
+        assert result.data["operation"] == "add_pattern"
+        assert result.data["pattern"] == "API_KEY=.*"
 
     @pytest.mark.asyncio
     async def test_self_help_success(self, tool_service):
@@ -124,10 +124,10 @@ class TestSecretsToolService:
             result = await tool_service.execute_tool("self_help", {})
             
             assert result.status == ToolExecutionStatus.COMPLETED
-            assert result.result.success is True
-            assert result.result.data["content"] == mock_content
-            assert result.result.data["source"] == "docs/agent_experience.md"
-            assert result.result.data["length"] == len(mock_content)
+            assert result.success is True
+            assert result.data["content"] == mock_content
+            assert result.data["source"] == "docs/agent_experience.md"
+            assert result.data["length"] == len(mock_content)
 
     @pytest.mark.asyncio
     async def test_self_help_file_not_found(self, tool_service):
@@ -136,8 +136,8 @@ class TestSecretsToolService:
             result = await tool_service.execute_tool("self_help", {})
             
             assert result.status == ToolExecutionStatus.FAILED
-            assert result.result.success is False
-            assert "not found" in result.result.error
+            assert result.success is False
+            assert "not found" in result.error
 
     @pytest.mark.asyncio
     async def test_self_help_read_error(self, tool_service):
@@ -148,8 +148,8 @@ class TestSecretsToolService:
             result = await tool_service.execute_tool("self_help", {})
             
             assert result.status == ToolExecutionStatus.FAILED
-            assert result.result.success is False
-            assert "Permission denied" in result.result.error
+            assert result.success is False
+            assert "Permission denied" in result.error
 
     @pytest.mark.asyncio
     async def test_validate_parameters(self, tool_service):
@@ -185,8 +185,8 @@ class TestSecretsToolService:
         result = await tool_service.execute_tool("unknown_tool", {})
         
         assert result.status == ToolExecutionStatus.FAILED
-        assert result.result.success is False
-        assert "Unknown tool" in result.result.error
+        assert result.success is False
+        assert "Unknown tool" in result.error
 
     @pytest.mark.asyncio
     async def test_service_lifecycle(self, mock_secrets_service, mock_time_service):

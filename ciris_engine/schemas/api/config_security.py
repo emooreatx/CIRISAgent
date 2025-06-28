@@ -205,19 +205,7 @@ def filter_config_for_role(config: Dict[str, Any], role: UserRole) -> Dict[str, 
     Returns:
         Filtered configuration with sensitive values redacted
     """
-    security = ConfigSecurity()
-    filtered = {}
-    
-    for key, value in config.items():
-        if security.is_sensitive_key(key):
-            if security.can_view_sensitive(key, role):
-                filtered[key] = value
-            else:
-                filtered[key] = "[REDACTED]"
-        else:
-            filtered[key] = value
-    
-    return filtered
+    return ConfigSecurity.filter_config(config, role)
     
 class ConfigUpdateRequest(BaseModel):
     """Request to update configuration value."""

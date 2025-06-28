@@ -51,10 +51,11 @@ def mock_time_service():
 @pytest.fixture
 def service_initializer(mock_config, mock_service_registry, mock_time_service):
     """Create service initializer with mocks."""
-    initializer = ServiceInitializer(config=mock_config)
+    initializer = ServiceInitializer(essential_config=mock_config)
     initializer.service_registry = mock_service_registry
     initializer.time_service = mock_time_service
     initializer.telemetry_service = Mock()
+    initializer.config = mock_config  # Store config for _initialize_llm_services
     return initializer
 
 

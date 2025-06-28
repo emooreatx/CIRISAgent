@@ -1090,7 +1090,11 @@ class DreamProcessor(BaseProcessor):
             
             for vibe in vibes:
                 if vibe.attributes.get("timestamp"):
-                    vibe_time = datetime.fromisoformat(vibe.attributes["timestamp"].replace("Z", "+00:00"))
+                    # Handle both 'Z' and '+00:00' formats
+                    vibe_str = vibe.attributes["timestamp"]
+                    if vibe_str.endswith('Z'):
+                        vibe_str = vibe_str[:-1] + '+00:00'
+                    vibe_time = datetime.fromisoformat(vibe_str)
                     if vibe_time > recent_cutoff:
                         recent_vibes.append(vibe)
             

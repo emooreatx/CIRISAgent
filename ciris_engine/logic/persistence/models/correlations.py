@@ -99,7 +99,11 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                 timestamp = None
                 if row["timestamp"]:
                     try:
-                        timestamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                        # Handle both 'Z' and '+00:00' formats
+                        timestamp_str = row["timestamp"]
+                        if timestamp_str.endswith('Z'):
+                            timestamp_str = timestamp_str[:-1] + '+00:00'
+                        timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
                 
@@ -186,7 +190,11 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                 timestamp = None
                 if row["timestamp"]:
                     try:
-                        timestamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                        # Handle both 'Z' and '+00:00' formats
+                        timestamp_str = row["timestamp"]
+                        if timestamp_str.endswith('Z'):
+                            timestamp_str = timestamp_str[:-1] + '+00:00'
+                        timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
                 
@@ -294,7 +302,11 @@ def get_correlations_by_type_and_time(
                 timestamp = None
                 if row["timestamp"]:
                     try:
-                        timestamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                        # Handle both 'Z' and '+00:00' formats
+                        timestamp_str = row["timestamp"]
+                        if timestamp_str.endswith('Z'):
+                            timestamp_str = timestamp_str[:-1] + '+00:00'
+                        timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
                 
@@ -399,7 +411,11 @@ def get_metrics_timeseries(
                 timestamp = None
                 if row["timestamp"]:
                     try:
-                        timestamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                        # Handle both 'Z' and '+00:00' formats
+                        timestamp_str = row["timestamp"]
+                        if timestamp_str.endswith('Z'):
+                            timestamp_str = timestamp_str[:-1] + '+00:00'
+                        timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
                 

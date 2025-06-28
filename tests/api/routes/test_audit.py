@@ -190,14 +190,15 @@ class TestAuditEndpoints:
         client = TestClient(app_with_audit)
         
         response = client.get(
-            "/v1/audit/entries/audit_123",
+            "/v1/audit/entries/audit_001",  # Use an ID that exists in our mock data
             headers=observer_headers
         )
         
         assert response.status_code == 200
         data = response.json()
         assert "data" in data
-        assert data["data"]["action"] == "user_login"
+        assert "entry" in data["data"]
+        assert data["data"]["entry"]["action"] == "user_login"
     
     def test_get_audit_entry_not_found(self, app_with_audit, observer_headers, mock_audit_service):
         """Test getting non-existent audit entry."""

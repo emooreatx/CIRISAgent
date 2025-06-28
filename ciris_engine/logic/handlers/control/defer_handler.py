@@ -59,8 +59,11 @@ class DeferHandler(BaseActionHandler):
                 scheduler_service = await self._get_task_scheduler_service()
                 if scheduler_service:
                     try:
-                        # Parse the defer_until timestamp
-                        defer_time = datetime.fromisoformat(defer_params_obj.defer_until.replace('Z', '+00:00'))
+                        # Parse the defer_until timestamp - handle both 'Z' and '+00:00' formats
+                        defer_str = defer_params_obj.defer_until
+                        if defer_str.endswith('Z'):
+                            defer_str = defer_str[:-1] + '+00:00'
+                        defer_time = datetime.fromisoformat(defer_str)
                         
                         # Create scheduled task
                         scheduled_task = await scheduler_service.schedule_deferred_task(

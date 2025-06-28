@@ -46,10 +46,16 @@ class CIRISNodeClient(Service):
         
         self.service_registry = service_registry
         self._audit_service: Optional["AuditService"] = None
-        config = get_config()
-        node_cfg: CIRISNodeConfig = getattr(config, "cirisnode", CIRISNodeConfig())
-        node_cfg.load_env_vars()
-        self.base_url = base_url or node_cfg.base_url
+        
+        # Use base_url if provided, otherwise use default
+        if base_url:
+            self.base_url = base_url
+        else:
+            # Default to localhost for testing/development
+            node_cfg = CIRISNodeConfig()
+            node_cfg.load_env_vars()
+            self.base_url = node_cfg.base_url
+            
         self._client = httpx.AsyncClient(base_url=self.base_url)
         self._closed = False
 

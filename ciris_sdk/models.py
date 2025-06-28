@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from typing import Optional, List, Any, Dict
-from pydantic import BaseModel
+from datetime import datetime
+from pydantic import BaseModel, Field
 
 class Message(BaseModel):
     id: str
@@ -11,11 +12,40 @@ class Message(BaseModel):
     channel_id: str
     timestamp: Optional[str] = None
 
+# Memory Models
+class GraphNode(BaseModel):
+    """Base node for the graph - everything is a memory."""
+    id: str = Field(..., description="Unique node identifier")
+    type: str = Field(..., description="Type of node")
+    scope: str = Field(..., description="Scope of the node")
+    attributes: Dict[str, Any] = Field(..., description="Node attributes")
+    version: int = Field(default=1, ge=1, description="Version number")
+    updated_by: Optional[str] = Field(None, description="Who last updated")
+    updated_at: Optional[datetime] = Field(None, description="When last updated")
+
+class MemoryOpResult(BaseModel):
+    """Result of memory operations."""
+    success: bool = Field(..., description="Whether operation succeeded")
+    node_id: Optional[str] = Field(None, description="ID of affected node")
+    message: Optional[str] = Field(None, description="Operation message")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+class TimelineResponse(BaseModel):
+    """Temporal view of memories."""
+    memories: List[GraphNode] = Field(..., description="Memories in chronological order")
+    buckets: Dict[str, int] = Field(..., description="Memory counts by time bucket")
+    start_time: datetime = Field(..., description="Start of timeline range")
+    end_time: datetime = Field(..., description="End of timeline range")
+    total: int = Field(..., description="Total memories in range")
+
+# Legacy models for backwards compatibility
 class MemoryEntry(BaseModel):
+    """Deprecated: Use GraphNode instead."""
     key: str
     value: Any
 
 class MemoryScope(BaseModel):
+    """Deprecated: Use GraphNode with scope field instead."""
     name: str
     entries: Optional[List[MemoryEntry]] = None
 
@@ -72,6 +102,26 @@ class ConfigOperationResponse(BaseModel):
     scope: Optional[str] = None
     message: Optional[str] = None
     error: Optional[str] = None
+    key: Optional[str] = None  # Added for config operations
+
+class ConfigValue(BaseModel):
+    """Represents a single configuration value."""
+    key: str
+    value: Any
+    description: Optional[str] = None
+    sensitive: bool = False
+    last_modified: Optional[str] = None
+    modified_by: Optional[str] = None
+
+class ConfigItem(BaseModel):
+    """Represents a configuration item in list responses."""
+    key: str
+    value: Any
+    description: Optional[str] = None
+    sensitive: bool = False
+    redacted: bool = False  # True if value was redacted due to permissions
+    last_modified: Optional[str] = None
+    modified_by: Optional[str] = None
 
 # System Telemetry Models
 class SystemHealth(BaseModel):
@@ -127,3 +177,104 @@ class DeferralInfo(BaseModel):
     status: str
     created_at: str
     resolved_at: Optional[str] = None
+
+# Audit Models
+class AuditEntryResponse(BaseModel):
+    """Audit entry response with formatted fields."""
+    id: str
+    action: str
+    actor: str
+    timestamp: datetime
+    context: Dict[str, Any]
+    signature: Optional[str] = None
+    hash_chain: Optional[str] = None
+
+class AuditEntryDetailResponse(BaseModel):
+    """Detailed audit entry with verification info."""
+    entry: AuditEntryResponse
+    verification: Optional[Dict[str, Any]] = None
+    chain_position: Optional[int] = None
+    next_entry_id: Optional[str] = None
+    previous_entry_id: Optional[str] = None
+
+class AuditEntriesResponse(BaseModel):
+    """List of audit entries."""
+    entries: List[AuditEntryResponse]
+    total: int
+    offset: int = 0
+    limit: int = 100
+
+class AuditExportResponse(BaseModel):
+    """Audit export response."""
+    format: str
+    total_entries: int
+    export_url: Optional[str] = None
+    export_data: Optional[str] = None
+
+# Telemetry Models
+class TelemetryMetricData(BaseModel):
+    """Single metric data point."""
+    timestamp: datetime
+    value: float
+    tags: Dict[str, str] = {}
+
+class TelemetryDetailedMetric(BaseModel):
+    """Detailed metric information."""
+    name: str
+    current_value: float
+    unit: Optional[str] = None
+    trend: str = "stable"  # up|down|stable
+    hourly_average: float = 0.0
+    daily_average: float = 0.0
+    by_service: Dict[str, float] = {}
+    recent_data: List[TelemetryMetricData] = []
+
+class TelemetrySystemOverview(BaseModel):
+    """System overview combining all observability data."""
+    # Core metrics
+    uptime_seconds: float
+    cognitive_state: str
+    messages_processed_24h: int = 0
+    thoughts_processed_24h: int = 0
+    tasks_completed_24h: int = 0
+    errors_24h: int = 0
+    
+    # Resource usage
+    tokens_per_hour: float = 0.0
+    cost_per_hour_cents: float = 0.0
+    carbon_per_hour_grams: float = 0.0
+    memory_mb: float = 0.0
+    cpu_percent: float = 0.0
+    
+    # Service health
+    healthy_services: int = 0
+    degraded_services: int = 0
+    error_rate_percent: float = 0.0
+    
+    # Agent activity
+    current_task: Optional[str] = None
+    reasoning_depth: int = 0
+    active_deferrals: int = 0
+    recent_incidents: int = 0
+
+class TelemetryReasoningTrace(BaseModel):
+    """Reasoning trace information."""
+    trace_id: str
+    task_id: Optional[str] = None
+    task_description: Optional[str] = None
+    start_time: datetime
+    duration_ms: float
+    thought_count: int = 0
+    decision_count: int = 0
+    reasoning_depth: int = 0
+    thoughts: List[Dict[str, Any]] = []
+    outcome: Optional[str] = None
+
+class TelemetryLogEntry(BaseModel):
+    """System log entry."""
+    timestamp: datetime
+    level: str  # DEBUG|INFO|WARNING|ERROR|CRITICAL
+    service: str
+    message: str
+    context: Dict[str, Any] = {}
+    trace_id: Optional[str] = None

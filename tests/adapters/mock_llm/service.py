@@ -128,10 +128,15 @@ class MockLLMService(LLMService):
         )
         
         # Create mock resource usage
+        total_tokens = sum(len(msg.get('content', '').split()) for msg in messages) + 50
         resource_usage = ResourceUsage(
-            tokens=sum(len(msg.get('content', '').split()) for msg in messages) + 50,  # prompt + completion
-            estimated_cost=0.001,  # Mock cost
-            energy_kwh=0.0001  # Mock energy usage
+            tokens_used=total_tokens,  # Total tokens
+            tokens_input=sum(len(msg.get('content', '').split()) for msg in messages),  # Input tokens
+            tokens_output=50,  # Mock output tokens
+            cost_cents=0.1,  # Mock cost in cents
+            carbon_grams=0.01,  # Mock carbon emissions
+            energy_kwh=0.0001,  # Mock energy usage
+            model_used="mock-model"  # Model name
         )
         
         return response, resource_usage

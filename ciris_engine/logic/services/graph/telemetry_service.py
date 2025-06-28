@@ -233,18 +233,11 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     {"service": service_name, "resource_type": "carbon", "unit": "grams"}
                 )
             
-            if usage.compute_ms:
+            if usage.energy_kwh:
                 await self.record_metric(
-                    f"{service_name}.compute_ms",
-                    float(usage.compute_ms),
-                    {"service": service_name, "resource_type": "compute", "unit": "milliseconds"}
-                )
-            
-            if usage.memory_mb:
-                await self.record_metric(
-                    f"{service_name}.memory_mb",
-                    float(usage.memory_mb),
-                    {"service": service_name, "resource_type": "memory", "unit": "megabytes"}
+                    f"{service_name}.energy_kwh",
+                    usage.energy_kwh,
+                    {"service": service_name, "resource_type": "energy", "unit": "kilowatt_hours"}
                 )
             
         except Exception as e:

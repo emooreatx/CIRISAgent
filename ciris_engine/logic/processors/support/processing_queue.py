@@ -49,8 +49,8 @@ class ProcessingQueueItem(BaseModel):
         Creates a ProcessingQueueItem from a Thought instance.
         """
         raw_initial_ctx = initial_ctx if initial_ctx is not None else thought_instance.context
-        # Accept ProcessingThoughtContext, SimpleThoughtContext, dict, or any Pydantic model
-        if hasattr(raw_initial_ctx, 'model_dump') or isinstance(raw_initial_ctx, (dict, ProcessingThoughtContext, SimpleThoughtContext)):
+        # Accept ProcessingThoughtContext, ThoughtContext, dict, or any Pydantic model
+        if hasattr(raw_initial_ctx, 'model_dump') or isinstance(raw_initial_ctx, (dict, ProcessingThoughtContext, ThoughtContext)):
             final_initial_ctx = raw_initial_ctx
         else:
             final_initial_ctx = None

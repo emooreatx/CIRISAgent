@@ -13,7 +13,6 @@ from ciris_engine.schemas.services.authority.wise_authority import (
     PendingDeferral
 )
 from ciris_engine.schemas.services.authority_core import (
-    GuidanceResponse,
     WAPermission,
     DeferralResponse
 )
@@ -153,49 +152,6 @@ class TestGetDeferrals:
         assert response.status_code == 401
 
 
-class TestGetDeferralDetail:
-    """Test GET /v1/wa/deferrals/{id} endpoint."""
-    
-    @pytest.mark.asyncio
-    async def test_get_deferral_detail_success(self, client, app, mock_wa_service, observer_auth):
-        """Test successful retrieval of deferral details."""
-        # Setup mock deferral
-        mock_deferral = PendingDeferral(
-            deferral_id="def_123",
-            created_at=datetime.now(timezone.utc),
-            deferred_by="agent_001",
-            task_id="task_456",
-            thought_id="thought_789",
-            reason="Requires human approval",
-            priority="normal",
-            status="pending"
-        )
-        mock_wa_service.get_pending_deferrals.return_value = [mock_deferral]
-        
-        app.dependency_overrides[get_auth_context] = override_auth_dependency(observer_auth)
-        
-        response = client.get("/v1/wa/deferrals/def_123")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "data" in data
-        assert "metadata" in data
-        assert data["data"]["deferral"]["deferral_id"] == "def_123"
-    
-    @pytest.mark.asyncio
-    async def test_get_deferral_detail_not_found(self, client, app, mock_wa_service, observer_auth):
-        """Test getting non-existent deferral."""
-        mock_wa_service.get_pending_deferrals.return_value = []
-        
-        app.dependency_overrides[get_auth_context] = override_auth_dependency(observer_auth)
-        
-        response = client.get("/v1/wa/deferrals/def_nonexistent")
-        
-        assert response.status_code == 404
-        data = response.json()
-        assert "not found" in data["detail"]["error"]["message"]
-
-
 class TestResolveDeferral:
     """Test POST /v1/wa/deferrals/{id}/resolve endpoint."""
     
@@ -262,40 +218,6 @@ class TestResolveDeferral:
         assert response.status_code == 403
 
 
-class TestRequestGuidance:
-    """Test POST /v1/wa/guidance endpoint."""
-    
-    @pytest.mark.asyncio
-    async def test_request_guidance_success(self, client, app, mock_wa_service, observer_auth):
-        """Test successful guidance request."""
-        # Setup mock response
-        mock_guidance = GuidanceResponse(
-            selected_option="option_1",
-            custom_guidance=None,
-            reasoning="This option is most aligned with objectives",
-            wa_id="wa_001",
-            signature="test_signature"
-        )
-        mock_wa_service.get_guidance.return_value = mock_guidance
-        
-        app.dependency_overrides[get_auth_context] = override_auth_dependency(observer_auth)
-        
-        request_data = {
-            "context": "Need to decide on action priority",
-            "options": ["option_1", "option_2", "option_3"],
-            "recommendation": "option_1",
-            "urgency": "normal"
-        }
-        
-        response = client.post("/v1/wa/guidance", json=request_data)
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "data" in data
-        assert "metadata" in data
-        assert data["data"]["guidance"]["selected_option"] == "option_1"
-
-
 class TestPermissions:
     """Test permission-related endpoints."""
     
@@ -330,73 +252,3 @@ class TestPermissions:
         assert len(data["data"]["permissions"]) == 1
         
         mock_wa_service.list_permissions.assert_called_once_with("test_observer")
-    
-    @pytest.mark.asyncio
-    async def test_grant_permission(self, client, app, mock_wa_service, authority_auth):
-        """Test granting a permission."""
-        mock_wa_service.grant_permission.return_value = True
-        
-        app.dependency_overrides[get_auth_context] = override_auth_dependency(authority_auth)
-        
-        request_data = {
-            "wa_id": "wa_target",
-            "permission_name": "approve_deferrals",
-            "permission_type": "action",
-            "resource": None,
-            "metadata": {}
-        }
-        
-        response = client.post("/v1/wa/permissions/grant", json=request_data)
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "data" in data
-        assert "metadata" in data
-        assert data["data"]["success"] is True
-        assert data["data"]["operation"] == "grant"
-        
-        mock_wa_service.grant_permission.assert_called_once_with(
-            wa_id="wa_target",
-            permission="approve_deferrals",
-            resource=None
-        )
-    
-    @pytest.mark.asyncio
-    async def test_revoke_permission(self, client, app, mock_wa_service, authority_auth):
-        """Test revoking a permission."""
-        # Setup mock to find permission
-        mock_permissions = [
-            WAPermission(
-                permission_id="perm_001",
-                wa_id="wa_target",
-                permission_type="action",
-                permission_name="approve_deferrals",
-                resource=None,
-                granted_by="root",
-                granted_at=datetime.now(timezone.utc)
-            )
-        ]
-        mock_wa_service.list_permissions.return_value = mock_permissions
-        mock_wa_service.revoke_permission.return_value = True
-        
-        app.dependency_overrides[get_auth_context] = override_auth_dependency(authority_auth)
-        
-        request_data = {
-            "wa_id": "wa_target",
-            "permission_id": "perm_001"
-        }
-        
-        response = client.post("/v1/wa/permissions/revoke", json=request_data)
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "data" in data
-        assert "metadata" in data
-        assert data["data"]["success"] is True
-        assert data["data"]["operation"] == "revoke"
-        
-        mock_wa_service.revoke_permission.assert_called_once_with(
-            wa_id="wa_target",
-            permission="approve_deferrals",
-            resource=None
-        )

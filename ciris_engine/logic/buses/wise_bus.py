@@ -60,7 +60,11 @@ class WiseBus(BaseBus[WiseAuthorityService]):
                     # Try to parse as string
                     from datetime import datetime
                     try:
-                        defer_until = datetime.fromisoformat(str(context.defer_until).replace('Z', '+00:00'))
+                        # Handle both 'Z' and '+00:00' formats
+                        defer_str = str(context.defer_until)
+                        if defer_str.endswith('Z'):
+                            defer_str = defer_str[:-1] + '+00:00'
+                        defer_until = datetime.fromisoformat(defer_str)
                     except:
                         defer_until = self._time_service.now()
             else:
