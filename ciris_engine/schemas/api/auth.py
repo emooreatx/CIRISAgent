@@ -14,7 +14,7 @@ class UserRole(str, Enum):
     OBSERVER = "OBSERVER"
     ADMIN = "ADMIN"
     AUTHORITY = "AUTHORITY"
-    ROOT = "ROOT"
+    SYSTEM_ADMIN = "SYSTEM_ADMIN"  # Renamed from ROOT to avoid confusion with WA ROOT
 
     @property
     def level(self) -> int:
@@ -23,7 +23,7 @@ class UserRole(str, Enum):
             "OBSERVER": 1,
             "ADMIN": 2,
             "AUTHORITY": 3,
-            "ROOT": 4
+            "SYSTEM_ADMIN": 4
         }[self.value]
 
     def has_permission(self, required_role: "UserRole") -> bool:
@@ -55,7 +55,7 @@ class Permission(str, Enum):
     PROVIDE_GUIDANCE = "provide_guidance"
     GRANT_PERMISSIONS = "grant_permissions"
 
-    # Root permissions
+    # System Admin permissions
     FULL_ACCESS = "full_access"
     EMERGENCY_SHUTDOWN = "emergency_shutdown"
     MANAGE_SENSITIVE_CONFIG = "manage_sensitive_config"
@@ -111,7 +111,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.PROVIDE_GUIDANCE,
         Permission.GRANT_PERMISSIONS,
     },
-    UserRole.ROOT: {
+    UserRole.SYSTEM_ADMIN: {
         Permission.FULL_ACCESS,
         Permission.EMERGENCY_SHUTDOWN,
         Permission.MANAGE_SENSITIVE_CONFIG,
@@ -147,8 +147,8 @@ class AuthContext(BaseModel):
 
     def has_permission(self, permission: Permission) -> bool:
         """Check if user has specific permission."""
-        if self.role == UserRole.ROOT:
-            return True  # ROOT has all permissions
+        if self.role == UserRole.SYSTEM_ADMIN:
+            return True  # SYSTEM_ADMIN has all permissions
         return permission in self.permissions
 
 class APIKey(BaseModel):

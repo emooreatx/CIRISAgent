@@ -162,6 +162,26 @@ class CIRISRuntime:
         return self.service_initializer.time_service if self.service_initializer else None
 
     @property
+    def config_service(self) -> Optional[Any]:
+        """Access to configuration service."""
+        return self.service_initializer.config_service if self.service_initializer else None
+
+    @property
+    def task_scheduler(self) -> Optional[Any]:
+        """Access to task scheduler service."""
+        return self.service_initializer.task_scheduler_service if self.service_initializer else None
+
+    @property
+    def authentication_service(self) -> Optional[Any]:
+        """Access to authentication service."""
+        return self.service_initializer.auth_service if self.service_initializer else None
+
+    @property
+    def incident_management_service(self) -> Optional[Any]:
+        """Access to incident management service."""
+        return self.service_initializer.incident_management_service if self.service_initializer else None
+
+    @property
     def profile(self) -> Optional[Any]:
         """Convert agent identity to profile format for compatibility."""
         if not self.agent_identity:

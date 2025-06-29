@@ -104,8 +104,8 @@ class ConfigSecurity:
         if not cls.is_sensitive(key):
             return value
 
-        # ROOT sees everything
-        if role == UserRole.ROOT:
+        # SYSTEM_ADMIN sees everything
+        if role == UserRole.SYSTEM_ADMIN:
             return value
 
         # Special cases for certain roles
@@ -134,8 +134,8 @@ class ConfigSecurity:
         Returns:
             Filtered configuration
         """
-        if role == UserRole.ROOT:
-            return config  # ROOT sees everything
+        if role == UserRole.SYSTEM_ADMIN:
+            return config  # SYSTEM_ADMIN sees everything
 
         filtered = {}
         for key, value in config.items():
@@ -164,7 +164,7 @@ class ConfigSecurity:
         for key in all_keys:
             if not cls.is_sensitive(key):
                 visibility[key] = True
-            elif role == UserRole.ROOT:
+            elif role == UserRole.SYSTEM_ADMIN:
                 visibility[key] = True
             elif role == UserRole.ADMIN and key == "admin_users":
                 visibility[key] = True

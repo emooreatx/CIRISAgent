@@ -32,7 +32,7 @@ async def emergency_shutdown(
     This endpoint accepts a signed SHUTDOWN_NOW command from a Wise Authority
     and initiates immediate graceful shutdown, bypassing normal procedures.
 
-    The command must be signed by a root WA or a WA in the trust tree.
+    The command must be signed by a ROOT WA authority or a WA in the trust tree.
 
     Args:
         command: Signed emergency shutdown command
@@ -78,7 +78,7 @@ async def get_kill_switch_status(
         config = runtime_service._kill_switch_config
         return {
             "enabled": config.enabled,
-            "root_wa_count": len(config.root_wa_public_keys),
+            "root_wa_count": len(config.root_wa_public_keys),  # ROOT WA authorities
             "trust_tree_depth": config.trust_tree_depth,
             "allow_relay": config.allow_relay,
             "max_shutdown_time_ms": config.max_shutdown_time_ms,

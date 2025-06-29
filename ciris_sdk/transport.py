@@ -109,6 +109,10 @@ class Transport:
 
         # Extract and log response headers
         self._log_response_headers(resp.headers)
+        
+        # Handle 204 No Content
+        if resp.status_code == 204:
+            return None
             
         # Parse JSON response
         try:

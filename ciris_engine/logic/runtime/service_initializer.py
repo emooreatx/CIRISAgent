@@ -732,10 +732,11 @@ This directory contains critical cryptographic keys for the CIRIS system.
                         for service_meta in result.services_loaded:
                             if service_meta.service_type == ServiceType.LLM:
                                 # Get the actual service from registry
-                                providers = self.service_registry.get_services_by_type(ServiceType.LLM)
-                                if providers:
-                                    self.llm_service = providers[0]  # First provider
-                                    break
+                                if self.service_registry:
+                                    providers = self.service_registry.get_services_by_type(ServiceType.LLM)
+                                    if providers:
+                                        self.llm_service = providers[0]  # First provider
+                                        break
                     else:
                         logger.error(f"Failed to initialize services from {module_name}: {result.errors}")
                         for warning in result.warnings:
