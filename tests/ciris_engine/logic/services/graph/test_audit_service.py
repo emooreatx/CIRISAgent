@@ -37,22 +37,22 @@ def temp_db():
 def memory_bus():
     """Create a mock memory bus for testing."""
     bus = Mock(spec=MemoryBus)
-    
+
     # Mock memorize to return success
     bus.memorize = AsyncMock(return_value=MemoryOpResult(
         status=MemoryOpStatus.OK,
         error=None
     ))
-    
+
     # Mock recall to return empty list by default
     bus.recall = AsyncMock(return_value=[])
-    
+
     # Mock search to return empty list
     bus.search = AsyncMock(return_value=[])
-    
+
     # Mock recall_timeseries for audit queries
     bus.recall_timeseries = AsyncMock(return_value=[])
-    
+
     return bus
 
 
@@ -89,14 +89,14 @@ async def test_audit_service_log_action(audit_service):
         handler_name="test_handler",
         parameters={"param1": "value1"}
     )
-    
+
     # Log the action
     await audit_service.log_action(
         action_type=HandlerActionType.SPEAK,
         context=context,
         outcome="success"
     )
-    
+
     # Verify memory bus was called
     assert audit_service._memory_bus.memorize.called
 
@@ -111,13 +111,13 @@ async def test_audit_service_log_event(audit_service):
         outcome="success",
         severity="info"
     )
-    
+
     # Log the event
     await audit_service.log_event(
         event_type="custom_event",
         event_data=event_data
     )
-    
+
     # Verify memory bus was called now that the bug is fixed
     assert audit_service._memory_bus.memorize.called
     call_args = audit_service._memory_bus.memorize.call_args[1]
@@ -139,11 +139,11 @@ async def test_audit_service_get_audit_trail(audit_service, memory_bus):
             outcome="success"
         )
     ]
-    
+
     # Mock memory bus to return audit nodes
     from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode, AuditEntryContext
     from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
-    
+
     mock_node = AuditEntryNode(
         id="audit_entry1",
         action="test_event",
@@ -157,13 +157,13 @@ async def test_audit_service_get_audit_trail(audit_service, memory_bus):
         attributes={}  # Required field
     )
     memory_bus.recall.return_value = [mock_node.to_graph_node()]
-    
+
     # Get audit trail - requires entity_id
     entries = await audit_service.get_audit_trail(
         entity_id="entity1",
         limit=10
     )
-    
+
     # Should have retrieved entries
     assert len(entries) >= 0  # May be empty if no entries stored
     # The audit service uses recall_timeseries
@@ -175,14 +175,14 @@ async def test_audit_service_query_audit_trail(audit_service, memory_bus):
     """Test querying audit trail with filters."""
     # The actual query_audit_trail method takes individual parameters, not a query object
     start_time = datetime.now(timezone.utc)
-    
+
     # Query audit trail
     results = await audit_service.query_audit_trail(
         start_time=start_time,
         action_types=["test_event"],
         limit=5
     )
-    
+
     # Should return list of audit entries
     assert isinstance(results, list)
     assert len(results) <= 5  # Should respect limit
@@ -193,7 +193,7 @@ async def test_audit_service_verify_integrity(audit_service):
     """Test audit integrity verification."""
     # For tests with hash chain disabled, should return basic report
     report = await audit_service.verify_audit_integrity()
-    
+
     assert isinstance(report, VerificationReport)
     assert isinstance(report.verified, bool)
     assert report.total_entries >= 0
@@ -231,21 +231,21 @@ def test_audit_service_status(audit_service):
 async def test_audit_service_log_conscience_event(audit_service):
     """Test logging a conscience decision event."""
     from ciris_engine.schemas.runtime.audit import AuditConscienceResult
-    
+
     # Create conscience check result
     result = AuditConscienceResult(
         allowed=True,
         reason="Action permitted",
         risk_level="low"
     )
-    
+
     # Log conscience event - takes conscience_name, action_type, result
     await audit_service.log_conscience_event(
         conscience_name="test_conscience",
         action_type="test_action",
         result=result
     )
-    
+
     # Verify memory bus was called now that the bug is fixed
     assert audit_service._memory_bus.memorize.called
 
@@ -272,16 +272,16 @@ async def test_audit_service_error_handling(audit_service, memory_bus):
     """Test error handling in audit service."""
     # Make memory bus raise error
     memory_bus.memorize.side_effect = Exception("Database error")
-    
+
     # Log event should not raise, just log error
     event_data = AuditEventData(
         entity_id="test",
         actor="test"
     )
-    
+
     # Should not raise exception
     await audit_service.log_event("test_event", event_data)
-    
+
     # Since the implementation has validation errors, memorize won't be called
     # Just verify no exception was raised
     assert True  # Log event handled error gracefully
@@ -298,7 +298,7 @@ async def test_audit_service_cache_management(audit_service):
             severity="info"
         )
         await audit_service.log_event(f"event_{i}", event_data)
-    
+
     # Check status shows cached entries
     status = audit_service.get_status()
     assert status.metrics["cached_entries"] >= 0  # Actual metric name
@@ -309,7 +309,7 @@ async def test_audit_service_get_verification_report(audit_service):
     """Test getting verification report."""
     # Get verification report
     report = await audit_service.get_verification_report()
-    
+
     assert isinstance(report, VerificationReport)
     assert hasattr(report, "verified")
     assert hasattr(report, "total_entries")
@@ -321,6 +321,6 @@ async def test_audit_service_health_check(audit_service):
     """Test health check functionality."""
     # Check health
     is_healthy = await audit_service.is_healthy()
-    
+
     assert isinstance(is_healthy, bool)
     assert is_healthy is True  # Should be healthy after start

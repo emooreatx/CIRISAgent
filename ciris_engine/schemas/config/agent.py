@@ -11,13 +11,13 @@ class AgentTemplate(BaseModel):
     name: str = Field(..., description="Agent name/identifier")
     description: str = Field(..., description="Agent description")
     role_description: str = Field(..., description="Agent's role")
-    
+
     # Permissions
     permitted_actions: List[str] = Field(
         default_factory=list,
         description="List of permitted handler actions"
     )
-    
+
     # DMA overrides
     dsdma_kwargs: Optional[Dict[str, Any]] = Field(
         None,
@@ -31,7 +31,7 @@ class AgentTemplate(BaseModel):
         None,
         description="Action selection prompt overrides"
     )
-    
+
     # Adapter configs
     discord_config: Optional[Dict[str, Any]] = Field(
         None,
@@ -45,5 +45,5 @@ class AgentTemplate(BaseModel):
         None,
         description="CLI adapter configuration"
     )
-    
+
     model_config = ConfigDict(extra = "allow")  # Allow additional fields for extensibility

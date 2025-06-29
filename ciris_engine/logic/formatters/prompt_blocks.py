@@ -58,4 +58,3 @@ def format_user_prompt_blocks(
     if schema_block:
         blocks.append(schema_block)
     return "\n\n".join(filter(None, blocks)).strip()
-

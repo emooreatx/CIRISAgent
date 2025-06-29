@@ -28,35 +28,35 @@ async def emergency_shutdown(
 ) -> EmergencyShutdownStatus:
     """
     Execute WA-authorized emergency shutdown.
-    
+
     This endpoint accepts a signed SHUTDOWN_NOW command from a Wise Authority
     and initiates immediate graceful shutdown, bypassing normal procedures.
-    
+
     The command must be signed by a root WA or a WA in the trust tree.
-    
+
     Args:
         command: Signed emergency shutdown command
-        
+
     Returns:
         Status of the emergency shutdown process
-        
+
     Raises:
         HTTPException: If command verification fails
     """
     logger.critical(f"Emergency shutdown endpoint called by WA {command.wa_id}")
-    
+
     try:
         # Handle the emergency command
         status = await runtime_service.handle_emergency_shutdown(command)
-        
+
         if not status.command_verified:
             raise HTTPException(
                 status_code=403,
                 detail=f"Command verification failed: {status.verification_error}"
             )
-        
+
         return status
-        
+
     except Exception as e:
         logger.error(f"Emergency shutdown failed: {e}")
         raise HTTPException(
@@ -70,7 +70,7 @@ async def get_kill_switch_status(
 ) -> dict:
     """
     Get current kill switch configuration status.
-    
+
     Returns:
         Current kill switch configuration (without sensitive keys)
     """
@@ -84,5 +84,5 @@ async def get_kill_switch_status(
             "max_shutdown_time_ms": config.max_shutdown_time_ms,
             "command_expiry_seconds": config.command_expiry_seconds
         }
-    
+
     return {"enabled": False, "error": "Kill switch not configured"}

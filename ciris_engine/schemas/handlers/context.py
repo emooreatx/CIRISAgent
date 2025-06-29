@@ -6,7 +6,6 @@ Provides typed contexts for all handler operations.
 from typing import Dict, Optional, Union
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 class HandlerData(BaseModel):
     """Base class for handler-specific data."""
@@ -38,7 +37,7 @@ class HandlerRequest(BaseModel):
     channel_id: Optional[str] = Field(None, description="Channel ID if applicable")
     user_id: Optional[str] = Field(None, description="User ID if applicable")
     trace_context: Dict[str, str] = Field(default_factory=dict, description="Distributed tracing context")
-    
+
     # Handler-specific context - typed based on handler
     handler_data: Optional[Union[SpeakHandlerData, ToolHandlerData, MemoryHandlerData, HandlerData]] = Field(
         None, description="Handler-specific typed data"
@@ -74,7 +73,7 @@ class ActionContext(BaseModel):
     )
     initiated_by: str = Field(..., description="Who initiated the action")
     reason: Optional[str] = Field(None, description="Reason for the action")
-    
+
     # Audit trail
     task_id: str = Field(..., description="Associated task ID")
     thought_id: str = Field(..., description="Associated thought ID")
@@ -83,10 +82,10 @@ class ActionContext(BaseModel):
 
 __all__ = [
     "HandlerData",
-    "SpeakHandlerData", 
+    "SpeakHandlerData",
     "ToolHandlerData",
     "MemoryHandlerData",
-    "HandlerContext",
+    "HandlerRequest",
     "ActionContextParams",
     "SpeakActionParams",
     "ToolActionParams",

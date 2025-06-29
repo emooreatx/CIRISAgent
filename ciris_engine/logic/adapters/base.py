@@ -47,7 +47,7 @@ class Service(ABC):
     ) -> T:
         """
         Retry an operation with exponential backoff and jitter.
-        
+
         Args:
             operation: The async or sync function to retry
             *args, **kwargs: Arguments to pass to the operation
@@ -58,15 +58,15 @@ class Service(ABC):
             jitter_range: Jitter as percentage of delay (±25% default)
             retryable_exceptions: Tuple of exceptions that should trigger retries
             non_retryable_exceptions: Tuple of exceptions that should never retry
-            
+
         Returns:
             The result of the operation
-            
+
         Raises:
             The last exception if all retries fail
         """
         last_exception = None
-        
+
         for attempt in range(max_retries + 1):  # +1 for initial attempt
             try:
                 if attempt > 0:
@@ -76,13 +76,13 @@ class Service(ABC):
                     rand_fraction = secrets.randbits(53) / float(1 << 53)
                     jitter = delay * jitter_range * (2 * rand_fraction - 1)
                     final_delay = max(0.1, delay + jitter)
-                    
+
                     logger.info(
                         f"{self.service_name}: Retrying operation (attempt {attempt + 1}/{max_retries + 1}) "
                         f"after {final_delay:.2f}s delay"
                     )
                     await asyncio.sleep(final_delay)
-                
+
                 # Handle both async and sync operations
                 if asyncio.iscoroutinefunction(operation):
                     result = await operation(*args, **kwargs)
@@ -90,34 +90,34 @@ class Service(ABC):
                 else:
                     result = operation(*args, **kwargs)
                     return result
-                    
+
             except non_retryable_exceptions as e:
                 logger.error(f"{self.service_name}: Non-retryable error, failing immediately: {e}")
                 raise
-                
+
             except retryable_exceptions as e:
                 last_exception = e
                 if attempt < max_retries:
                     logger.warning(f"{self.service_name}: Retryable error on attempt {attempt + 1}: {e}")
                 else:
                     logger.error(f"{self.service_name}: All {max_retries + 1} attempts failed. Last error: {e}")
-        
+
         # If we get here, all retries failed
         raise last_exception if last_exception else RuntimeError(f"{self.service_name}: All retry attempts failed")
 
     def get_retry_config(self, operation_type: str = "default") -> dict:
         """
         Get retry configuration from service config.
-        
+
         Args:
             operation_type: Type of operation (e.g., "api_call", "database", "network")
-            
+
         Returns:
             Dictionary with retry configuration parameters
         """
         retry_config = self.config.get("retry", {})
         operation_config = retry_config.get(operation_type, {})
-        
+
         # Default retry configuration
         defaults = {
             "max_retries": 3,
@@ -126,7 +126,7 @@ class Service(ABC):
             "backoff_multiplier": 2.0,
             "jitter_range": 0.25
         }
-        
+
         # Merge defaults with config
         result = {**defaults, **retry_config.get("global", {}), **operation_config}
         return result
@@ -134,7 +134,7 @@ class Service(ABC):
     async def health_check(self) -> dict:
         """
         Perform a health check on the service.
-        
+
         Returns:
             Dictionary with health status information
         """

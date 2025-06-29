@@ -23,7 +23,7 @@ class ThoughtManager:
         self.max_active_thoughts = max_active_thoughts
         self.default_channel_id = default_channel_id
         self.processing_queue: Deque[ProcessingQueueItem] = collections.deque()
-        
+
     def generate_seed_thought(
         self,
         task: Task,
@@ -31,7 +31,7 @@ class ThoughtManager:
     ) -> Optional[Thought]:
         """Generate a seed thought for a task - elegantly copy the context."""
         now_iso = self.time_service.now().isoformat()
-        
+
         # Convert TaskContext to ThoughtContext for the thought
         # TaskContext and ThoughtContext are different types
         thought_context = None
@@ -48,7 +48,7 @@ class ThoughtManager:
         elif task.context:
             # If it's already some other type of context, try to copy it
             thought_context = task.context.model_copy()
-        
+
         # Log for debugging but don't modify the context
         if thought_context:
             logger.info(f"SEED_THOUGHT: Copying context for task {task.task_id}")
@@ -69,14 +69,14 @@ class ThoughtManager:
             except Exception as e:
                 logger.critical(f"SEED_THOUGHT: Failed to mark malicious task {task.task_id} as FAILED: {e}")
             return None
-        
+
         # Extract channel_id from task for the thought
         channel_id = None
         if task.context and hasattr(task.context, 'channel_id'):
             channel_id = task.context.channel_id
         elif task.channel_id:
             channel_id = task.channel_id
-            
+
         thought = Thought(
             thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",
             source_task_id=task.task_id,
@@ -90,7 +90,7 @@ class ThoughtManager:
             context=thought_context,
             thought_depth=0,
         )
-        
+
         try:
             persistence.add_thought(thought)
             logger.debug(f"Generated seed thought {thought.thought_id} for task {task.task_id}")
@@ -98,40 +98,40 @@ class ThoughtManager:
         except Exception as e:
             logger.error(f"Failed to add seed thought for task {task.task_id}: {e}")
             return None
-    
+
     def generate_seed_thoughts(self, tasks: List[Task], round_number: int) -> int:
         """Generate seed thoughts for multiple tasks."""
         generated_count = 0
-        
+
         for task in tasks:
             thought = self.generate_seed_thought(task, round_number)
             if thought:
                 generated_count += 1
-        
+
         logger.info(f"Generated {generated_count} seed thoughts")
         return generated_count
 
-    
+
     def populate_queue(self, round_number: int) -> int:
         """
         Populate the processing queue for the current round.
         Returns the number of thoughts added to queue.
         """
         self.processing_queue.clear()
-        
+
         if self.max_active_thoughts <= 0:
             logger.warning("max_active_thoughts is zero or negative")
             return 0
-        
+
         pending_thoughts = persistence.get_pending_thoughts_for_active_tasks(
             limit=self.max_active_thoughts
         )
-        
+
         memory_meta = [t for t in pending_thoughts if t.thought_type == ThoughtType.MEMORY]
         if memory_meta:
             pending_thoughts = memory_meta
             logger.info("Memory meta-thoughts detected; processing them exclusively")
-        
+
         added_count = 0
         for thought in pending_thoughts:
             if len(self.processing_queue) < self.max_active_thoughts:
@@ -144,14 +144,14 @@ class ThoughtManager:
                     f"Thought {thought.thought_id} will not be processed this round."
                 )
                 break
-        
+
         logger.info(f"Round {round_number}: Populated queue with {added_count} thoughts")
         return added_count
-    
+
     def get_queue_batch(self) -> List[ProcessingQueueItem]:
         """Get all items from the processing queue as a batch."""
         return list(self.processing_queue)
-    
+
     def mark_thoughts_processing(
         self,
         batch: List[ProcessingQueueItem],
@@ -162,7 +162,7 @@ class ThoughtManager:
         Returns the successfully updated items.
         """
         updated_items: List[Any] = []
-        
+
         for item in batch:
             try:
                 success = persistence.update_thought_status(
@@ -175,9 +175,9 @@ class ThoughtManager:
                     logger.warning(f"Failed to mark thought {item.thought_id} as PROCESSING")
             except Exception as e:
                 logger.error(f"Error marking thought {item.thought_id} as PROCESSING: {e}")
-        
+
         return updated_items
-    
+
     def create_follow_up_thought(
         self,
         parent_thought: Thought,
@@ -213,7 +213,7 @@ class ThoughtManager:
         except Exception as e:
             logger.error(f"Failed to create follow-up thought: {e}")
             return None
-    
+
     def handle_idle_state(self, round_number: int) -> bool:
         """
         Handle idle state when no thoughts are pending.
@@ -222,15 +222,15 @@ class ThoughtManager:
         """
         # Idle mode disabled - no automatic job creation
         logger.debug(
-            "ThoughtManager.handle_idle_state called but idle mode is disabled for round %s", 
+            "ThoughtManager.handle_idle_state called but idle mode is disabled for round %s",
             round_number
         )
         return False
-    
+
     def get_pending_thought_count(self) -> int:
         """Get count of pending thoughts for active tasks (strict gating)."""
         return persistence.count_pending_thoughts_for_active_tasks()
-    
+
     def get_processing_thought_count(self) -> int:
         """Get count of thoughts currently processing."""
         return persistence.count_thoughts_by_status(ThoughtStatus.PROCESSING)

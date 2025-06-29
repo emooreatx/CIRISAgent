@@ -4,7 +4,7 @@ Tool schemas for adapter-provided tools.
 Tools are provided by adapters (Discord, API, CLI) not by the runtime.
 This is the single source of truth for all tool-related schemas.
 """
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -23,7 +23,7 @@ class ToolParameterSchema(BaseModel):
     type: str = Field(..., description="JSON Schema type")
     properties: Dict[str, Any] = Field(..., description="Parameter properties")
     required: List[str] = Field(default_factory=list, description="Required parameters")
-    
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -35,7 +35,7 @@ class ToolInfo(BaseModel):
     category: str = Field("general", description="Tool category")
     cost: float = Field(0.0, description="Cost to execute the tool")
     when_to_use: Optional[str] = Field(None, description="Guidance on when to use the tool")
-    
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -44,7 +44,7 @@ class ToolResult(BaseModel):
     success: bool = Field(..., description="Whether execution succeeded")
     data: Optional[Dict[str, Any]] = Field(None, description="Result data")
     error: Optional[str] = Field(None, description="Error message if failed")
-    
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -56,13 +56,13 @@ class ToolExecutionResult(BaseModel):
     data: Optional[Dict[str, Any]] = Field(None, description="Result data")
     error: Optional[str] = Field(None, description="Error message if failed")
     correlation_id: str = Field(..., description="Correlation ID for tracking")
-    
+
     model_config = ConfigDict(extra="forbid")
 
 
 __all__ = [
     "ToolExecutionStatus",
-    "ToolParameterSchema", 
+    "ToolParameterSchema",
     "ToolInfo",
     "ToolResult",
     "ToolExecutionResult"

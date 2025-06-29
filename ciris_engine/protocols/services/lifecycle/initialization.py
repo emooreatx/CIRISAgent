@@ -11,7 +11,7 @@ from ciris_engine.schemas.services.operations import InitializationPhase
 
 class InitializationServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for initialization service."""
-    
+
     @abstractmethod
     def register_step(
         self,
@@ -24,17 +24,17 @@ class InitializationServiceProtocol(ServiceProtocol, Protocol):
     ) -> None:
         """Register an initialization step."""
         ...
-    
+
     @abstractmethod
     async def initialize(self) -> bool:
         """Initialize the entire system."""
         ...
-    
+
     @abstractmethod
     async def verify_initialization(self) -> InitializationVerification:
         """Verify all components are initialized."""
         ...
-    
+
     @abstractmethod
     async def get_initialization_status(self) -> InitializationStatus:
         """Get detailed initialization status."""

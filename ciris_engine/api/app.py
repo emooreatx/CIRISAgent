@@ -28,10 +28,10 @@ async def lifespan(app: FastAPI):
 def create_app(runtime: Any = None) -> FastAPI:
     """
     Create and configure the FastAPI application.
-    
+
     Args:
         runtime: Optional runtime instance for service access
-        
+
     Returns:
         Configured FastAPI application
     """
@@ -41,7 +41,7 @@ def create_app(runtime: Any = None) -> FastAPI:
         version="3.0.0",
         lifespan=lifespan
     )
-    
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -50,11 +50,11 @@ def create_app(runtime: Any = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Store runtime in app state for access in routes
     if runtime:
         app.state.runtime = runtime
-    
+
     # Mount v1 API routes (all routes except emergency under /v1)
     v1_routers = [
         health.router,
@@ -72,15 +72,15 @@ def create_app(runtime: Any = None) -> FastAPI:
         # Legacy route (to be migrated)
         llm.router,
     ]
-    
+
     # Include all v1 routes with /v1 prefix
     for router in v1_routers:
         app.include_router(router, prefix="/v1")
-    
+
     # Mount emergency routes at root level (no /v1 prefix)
     # This is special - requires signed commands, no auth
     app.include_router(emergency.router)
-    
+
     return app
 
 # For running standalone (development)

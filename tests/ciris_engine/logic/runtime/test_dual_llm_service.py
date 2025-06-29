@@ -64,35 +64,35 @@ def service_initializer(mock_config, mock_service_registry, mock_time_service):
 
 class TestDualLLMService:
     """Test dual LLM service initialization."""
-    
+
     @pytest.mark.asyncio
     async def test_single_llm_service_without_second_key(self, service_initializer, mock_service_registry):
         """Test that only one LLM service is created when CIRIS_OPENAI_API_KEY_2 is not set."""
         # Ensure second API key is not set
         if "CIRIS_OPENAI_API_KEY_2" in os.environ:
             del os.environ["CIRIS_OPENAI_API_KEY_2"]
-        
+
         # Set primary API key
         os.environ["OPENAI_API_KEY"] = "test-api-key-1"
-        
+
         with patch('ciris_engine.logic.runtime.service_initializer.OpenAICompatibleClient') as MockLLMClient:
             mock_llm_instance = AsyncMock()
             MockLLMClient.return_value = mock_llm_instance
-            
+
             await service_initializer._initialize_llm_services(service_initializer.config)
-            
+
             # Should create only one LLM service
             assert MockLLMClient.call_count == 1
-            
+
             # Should register only one service
-            assert mock_service_registry.register_global.call_count == 1
-            
+            assert mock_service_registry.register_service.call_count == 1
+
             # Check registration details
-            call_args = mock_service_registry.register_global.call_args
+            call_args = mock_service_registry.register_service.call_args
             assert call_args.kwargs['service_type'] == ServiceType.LLM
             assert call_args.kwargs['priority'] == Priority.HIGH
             assert call_args.kwargs['metadata']['provider'] == 'openai'
-    
+
     @pytest.mark.asyncio
     async def test_dual_llm_service_with_second_key(self, service_initializer, mock_service_registry):
         """Test that two LLM services are created when CIRIS_OPENAI_API_KEY_2 is set."""
@@ -101,33 +101,33 @@ class TestDualLLMService:
         os.environ["CIRIS_OPENAI_API_KEY_2"] = "test-api-key-2"
         os.environ["CIRIS_OPENAI_API_BASE_2"] = "https://api.lambda.ai/v1"
         os.environ["CIRIS_OPENAI_MODEL_NAME_2"] = "llama-model"
-        
+
         with patch('ciris_engine.logic.runtime.service_initializer.OpenAICompatibleClient') as MockLLMClient:
             mock_llm_instance = AsyncMock()
             MockLLMClient.return_value = mock_llm_instance
-            
+
             await service_initializer._initialize_llm_services(service_initializer.config)
-            
+
             # Should create two LLM services
             assert MockLLMClient.call_count == 2
-            
+
             # Should register two services
-            assert mock_service_registry.register_global.call_count == 2
-            
+            assert mock_service_registry.register_service.call_count == 2
+
             # Check first registration (primary)
-            first_call = mock_service_registry.register_global.call_args_list[0]
+            first_call = mock_service_registry.register_service.call_args_list[0]
             assert first_call.kwargs['service_type'] == ServiceType.LLM
             assert first_call.kwargs['priority'] == Priority.HIGH
             assert first_call.kwargs['metadata']['provider'] == 'openai'
-            
+
             # Check second registration (secondary)
-            second_call = mock_service_registry.register_global.call_args_list[1]
+            second_call = mock_service_registry.register_service.call_args_list[1]
             assert second_call.kwargs['service_type'] == ServiceType.LLM
             assert second_call.kwargs['priority'] == Priority.NORMAL  # Lower priority
             assert second_call.kwargs['metadata']['provider'] == 'openai_secondary'
             assert second_call.kwargs['metadata']['model'] == 'llama-model'
             assert second_call.kwargs['metadata']['base_url'] == 'https://api.lambda.ai/v1'
-    
+
     @pytest.mark.asyncio
     async def test_second_llm_config_from_env(self, service_initializer):
         """Test that second LLM configuration is correctly loaded from environment."""
@@ -136,46 +136,46 @@ class TestDualLLMService:
         os.environ["CIRIS_OPENAI_API_KEY_2"] = "test-api-key-2"
         os.environ["CIRIS_OPENAI_API_BASE_2"] = "https://custom.api.com/v1"
         os.environ["CIRIS_OPENAI_MODEL_NAME_2"] = "custom-model"
-        
+
         with patch('ciris_engine.logic.runtime.service_initializer.OpenAICompatibleClient') as MockLLMClient:
             mock_llm_instance = AsyncMock()
             MockLLMClient.return_value = mock_llm_instance
-            
+
             await service_initializer._initialize_llm_services(service_initializer.config)
-            
+
             # Check second LLM client was created with correct config
             second_call = MockLLMClient.call_args_list[1]
             second_config = second_call[0][0]  # First positional argument
-            
+
             assert second_config.api_key == "test-api-key-2"
             assert second_config.base_url == "https://custom.api.com/v1"
             assert second_config.model_name == "custom-model"
             assert second_config.timeout_seconds == 30  # From primary config
             assert second_config.max_retries == 3  # From primary config
-    
+
     @pytest.mark.asyncio
     async def test_both_services_started(self, service_initializer):
         """Test that both LLM services are properly started."""
         # Set both API keys
         os.environ["OPENAI_API_KEY"] = "test-api-key-1"
         os.environ["CIRIS_OPENAI_API_KEY_2"] = "test-api-key-2"
-        
+
         with patch('ciris_engine.logic.runtime.service_initializer.OpenAICompatibleClient') as MockLLMClient:
             # Create two different mock instances
             mock_primary = AsyncMock()
             mock_secondary = AsyncMock()
             MockLLMClient.side_effect = [mock_primary, mock_secondary]
-            
+
             await service_initializer._initialize_llm_services(service_initializer.config)
-            
+
             # Both services should be started
             mock_primary.start.assert_called_once()
             mock_secondary.start.assert_called_once()
-    
+
     def teardown_method(self):
         """Clean up environment variables after each test."""
         # Remove test environment variables
-        for key in ["OPENAI_API_KEY", "CIRIS_OPENAI_API_KEY_2", 
+        for key in ["OPENAI_API_KEY", "CIRIS_OPENAI_API_KEY_2",
                     "CIRIS_OPENAI_API_BASE_2", "CIRIS_OPENAI_MODEL_NAME_2"]:
             if key in os.environ:
                 del os.environ[key]

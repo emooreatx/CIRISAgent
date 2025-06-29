@@ -26,7 +26,7 @@ class CommunityValue(BaseModel):
     """A single community value"""
     name: str = Field(description="Value name")
     importance: int = Field(ge=0, le=100, description="Importance rating (0-100)")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class MinimalCommunityContext(BaseModel):
@@ -46,7 +46,7 @@ class CommunityMember(BaseModel):
     trust_level: int = Field(default=50, ge=0, le=100, description="Trust level (0-100)")
     contribution_score: int = Field(default=50, ge=0, le=100, description="Contribution score (0-100)")
     last_active: Optional[str] = Field(default=None, description="ISO timestamp of last activity")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class CommunityEvent(BaseModel):
@@ -56,7 +56,7 @@ class CommunityEvent(BaseModel):
     impact_score: int = Field(ge=0, le=100, description="Impact on community (0-100)")
     timestamp: str = Field(description="ISO timestamp of event")
     summary: str = Field(description="Brief event summary")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class CommunitySnapshot(BaseModel):
@@ -66,7 +66,7 @@ class CommunitySnapshot(BaseModel):
     context: MinimalCommunityContext = Field(description="Community context")
     active_members: List[str] = Field(default_factory=list, description="IDs of currently active members")
     recent_events: List[CommunityEvent] = Field(default_factory=list, description="Recent significant events")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 __all__ = [

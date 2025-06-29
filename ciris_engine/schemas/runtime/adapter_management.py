@@ -3,7 +3,7 @@ Schemas for runtime adapter management.
 
 These replace all Dict[str, Any] usage in adapter_manager.py.
 """
-from typing import List, Optional, Any
+from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 

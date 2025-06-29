@@ -5,10 +5,8 @@ Replaces Dict[str, Any] in handler contexts and results.
 """
 
 from typing import (
-    Any,
     Dict,
     Optional,
-    Type,
     Union
 )
 from pydantic import BaseModel, Field, ConfigDict
@@ -66,7 +64,7 @@ class HandlerContext(BaseModel):
     action_context: ActionContext = Field(..., description="Action-specific context")
     action_parameters: ActionParameters = Field(..., description="Action-specific parameters")
     metadata: ServiceMetadata = Field(..., description="Service metadata")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class HandlerResult(BaseModel):
@@ -77,5 +75,5 @@ class HandlerResult(BaseModel):
         None, description="Additional result data"
     )
     error: Optional[str] = Field(None, description="Error message if failed")
-    
+
     model_config = ConfigDict(extra = "forbid")

@@ -124,6 +124,10 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
                         await runtime_task
                     except asyncio.CancelledError:
                         pass
+                    
+                    # Ensure shutdown is called if the task was cancelled
+                    logger.info("Calling shutdown explicitly after task cancellation")
+                    await runtime.shutdown()
                 
                 shutdown_called = True
         else:
@@ -384,7 +388,57 @@ def main(
             from ciris_engine.logic.utils.constants import DEFAULT_NUM_ROUNDS
             effective_num_rounds = DEFAULT_NUM_ROUNDS
 
-        await _run_runtime(runtime, timeout, effective_num_rounds)
+        # For CLI adapter, create a monitor task that forces exit when shutdown completes
+        monitor_task = None
+        if "cli" in selected_adapter_types:
+            async def monitor_shutdown():
+                """Monitor for shutdown completion and force exit for CLI mode."""
+                # Wait for the shutdown flag to be set by the shutdown() method
+                while not getattr(runtime, '_shutdown_complete', False):
+                    await asyncio.sleep(0.1)
+                
+                # Shutdown is truly complete, give a moment for final logs
+                logger.info("CLI runtime shutdown complete, preparing clean exit")
+                await asyncio.sleep(0.2)  # Brief pause for final log entries
+                
+                # Flush all output
+                sys.stdout.flush()
+                sys.stderr.flush()
+                for handler in logging.getLogger().handlers:
+                    handler.flush()
+                
+                # Force exit to handle the blocking input thread
+                logger.info("Forcing exit to handle blocking CLI input thread")
+                import os
+                os._exit(0)
+            
+            monitor_task = asyncio.create_task(monitor_shutdown())
+        
+        try:
+            await _run_runtime(runtime, timeout, effective_num_rounds)
+        finally:
+            # For CLI adapter, wait for monitor task to force exit
+            if monitor_task and not monitor_task.done():
+                logger.debug("Waiting for CLI monitor task to detect shutdown completion...")
+                try:
+                    # Give the monitor task time to detect shutdown and force exit
+                    await asyncio.wait_for(monitor_task, timeout=5.0)
+                except asyncio.TimeoutError:
+                    logger.warning("Monitor task did not complete within 5 seconds")
+                    monitor_task.cancel()
+                except Exception as e:
+                    logger.error(f"Monitor task error: {e}")
+        
+        # If we get here and CLI adapter is used, force exit anyway
+        if "cli" in selected_adapter_types:
+            logger.info("CLI runtime completed, forcing exit")
+            await asyncio.sleep(0.5)  # Give time for final logs to flush
+            sys.stdout.flush()
+            sys.stderr.flush()
+            for handler in logging.getLogger().handlers:
+                handler.flush()
+            import os
+            os._exit(0)
 
     try:
         asyncio.run(_async_main())
@@ -408,6 +462,21 @@ def main(
     
     # For API mode subprocess tests, ensure immediate exit
     if "--adapter" in sys.argv and "api" in sys.argv and "--timeout" in sys.argv:
+        import os
+        os._exit(0)
+    
+    # For CLI mode, force exit to handle blocking input thread
+    # This is necessary because asyncio.to_thread(input) creates a daemon thread
+    # that prevents normal exit even after shutdown completes
+    if "--adapter" in sys.argv and "cli" in sys.argv:
+        logger.info("CLI mode completed, forcing exit to handle blocking input thread")
+        # Ensure the log message is flushed
+        sys.stdout.flush()
+        sys.stderr.flush()
+        for handler in logging.getLogger().handlers:
+            handler.flush()
+        import time
+        time.sleep(0.1)  # Brief pause to ensure logs are written
         import os
         os._exit(0)
     

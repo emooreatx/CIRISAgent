@@ -34,8 +34,8 @@ class LLMResponse(BaseModel):
     model: str = Field(..., description="Model that generated response")
     usage: Dict[str, int] = Field(default_factory=dict, description="Token usage stats")
     finish_reason: Optional[str] = Field(None, description="Why generation stopped")
-    
-    
+
+
 class JSONExtractionResult(BaseModel):
     """Result of JSON extraction from LLM response."""
     success: bool = Field(..., description="Whether extraction succeeded")

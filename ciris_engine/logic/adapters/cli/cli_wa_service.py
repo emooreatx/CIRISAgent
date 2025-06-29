@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime
 from typing import List, Optional
 
 from ciris_engine.protocols.services import WiseAuthorityService
@@ -53,20 +52,20 @@ class CLIWiseAuthorityService(WiseAuthorityService):
         deferral_entry = {
             "thought_id": context.thought_id,
             "reason": context.reason,
-            "timestamp": self.time_service.get_current_time().timestamp(),
+            "timestamp": self.time_service.now().timestamp(),
             "context": context.model_dump()
         }
-        
+
         self.deferral_log.append(deferral_entry)
-        
+
         # Enhanced CLI deferral output
         print(f"\n{'='*60}")
         print("[CIRIS DEFERRAL REPORT]")
         print(f"Thought ID: {context.thought_id}")
         print(f"Task ID: {context.task_id}")
         print(f"Reason: {context.reason}")
-        print(f"Timestamp: {self.time_service.get_current_time().isoformat()}Z")
-        
+        print(f"Timestamp: {self.time_service.now().isoformat()}Z")
+
         if context.defer_until:
             print(f"Defer until: {context.defer_until}")
         if context.priority:
@@ -78,9 +77,9 @@ class CLIWiseAuthorityService(WiseAuthorityService):
                 print(f"Attempted Action: {context.metadata['attempted_action']}")
             if "max_rounds_reached" in context.metadata and context.metadata["max_rounds_reached"] == "True":
                 print("Note: Maximum processing rounds reached")
-        
+
         print(f"{'='*60}")
-        
+
         corr = ServiceCorrelation(
             correlation_id=str(uuid.uuid4()),
             service_type="cli",
@@ -89,8 +88,8 @@ class CLIWiseAuthorityService(WiseAuthorityService):
             request_data=context.model_dump(),
             response_data={"status": "logged"},
             status=ServiceCorrelationStatus.COMPLETED,
-            created_at=self.time_service.get_current_time().isoformat(),
-            updated_at=self.time_service.get_current_time().isoformat(),
+            created_at=self.time_service.now().isoformat(),
+            updated_at=self.time_service.now().isoformat(),
         )
         persistence.add_correlation(corr)
         return True

@@ -17,7 +17,7 @@ from .agent import AgentTemplate
 
 __all__ = [
     "EssentialConfig",
-    "DatabaseConfig", 
+    "DatabaseConfig",
     "ServiceEndpointsConfig",
     "SecurityConfig",
     "OperationalLimitsConfig",

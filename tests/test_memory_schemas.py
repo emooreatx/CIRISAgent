@@ -20,7 +20,7 @@ def test_old_to_new_memorize_mapping():
         "knowledge_data": {"preference": "dark mode"},
         "knowledge_type": "user_pref"
     }
-    
+
     # Should map to new format
     node = GraphNode(
         id=old_params["knowledge_unit_description"],

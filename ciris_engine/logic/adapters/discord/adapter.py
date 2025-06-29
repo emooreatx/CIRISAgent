@@ -20,15 +20,24 @@ logger = logging.getLogger(__name__)
 class DiscordPlatform(Service):
     def __init__(self, runtime: Any, **kwargs: Any) -> None:
         self.runtime = runtime
-        
+        self.config: DiscordAdapterConfig
+
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
-            self.config = kwargs["adapter_config"]
+            # Ensure adapter_config is a DiscordAdapterConfig instance
+            adapter_config = kwargs["adapter_config"]
+            if isinstance(adapter_config, DiscordAdapterConfig):
+                self.config = adapter_config
+            elif isinstance(adapter_config, dict):
+                self.config = DiscordAdapterConfig(**adapter_config)
+            else:
+                logger.warning(f"Invalid adapter_config type: {type(adapter_config)}. Creating default config.")
+                self.config = DiscordAdapterConfig()
             logger.info(f"Discord adapter using provided config: channels={self.config.monitored_channel_ids}")
         else:
             self.config = DiscordAdapterConfig()
             if "discord_bot_token" in kwargs:
                 self.config.bot_token = kwargs["discord_bot_token"]
-            
+
             template = getattr(runtime, 'template', None)
             if template and hasattr(template, 'discord_config') and template.discord_config:
                 try:
@@ -39,26 +48,26 @@ class DiscordPlatform(Service):
                             logger.debug(f"DiscordPlatform: Set config {key} = {value} from template")
                 except Exception as e:
                     logger.debug(f"DiscordPlatform: Could not load config from template: {e}")
-            
+
             self.config.load_env_vars()
-        
+
         if not self.config.bot_token:
             logger.error("DiscordPlatform: 'bot_token' not found in config. This is required.")
             raise ValueError("DiscordPlatform requires 'bot_token' in configuration.")
-        
+
         self.token = self.config.bot_token
         intents = self.config.get_intents()
-        
+
         # Create Discord client without explicit loop (discord.py will manage it)
         self.client = discord.Client(intents=intents)
-        
+
         # Generate adapter_id - will be updated with actual guild_id when bot connects
         # The adapter_id is used by AuthenticationService for observer persistence
         self.adapter_id = "discord_pending"
 
         # Get time_service from runtime
         time_service = getattr(self.runtime, 'time_service', None)
-        
+
         self.discord_adapter = DiscordAdapter(
             token=self.token,
             bot=self.client,
@@ -74,20 +83,20 @@ class DiscordPlatform(Service):
 
         kwargs_channel_ids = kwargs.get("discord_monitored_channel_ids", [])
         kwargs_channel_id = kwargs.get("discord_monitored_channel_id")
-        
+
         if kwargs_channel_ids:
             self.config.monitored_channel_ids.extend(kwargs_channel_ids)
         if kwargs_channel_id and kwargs_channel_id not in self.config.monitored_channel_ids:
             self.config.monitored_channel_ids.append(kwargs_channel_id)
             if not self.config.home_channel_id:
                 self.config.home_channel_id = kwargs_channel_id
-        
+
         if not self.config.monitored_channel_ids:
             logger.warning("DiscordPlatform: No channel configuration found. Please provide channel IDs via constructor kwargs or environment variables.")
-        
+
         if self.config.monitored_channel_ids:
             logger.info(f"DiscordPlatform: Using {len(self.config.monitored_channel_ids)} channels: {self.config.monitored_channel_ids}")
-        
+
         # Initialize observer as None - will be created in start() when services are ready
         self.discord_observer = None
 
@@ -101,7 +110,7 @@ class DiscordPlatform(Service):
         self._discord_client_task: Optional[asyncio.Task] = None
         self._reconnect_attempts = 0
         self._max_reconnect_attempts = 10
-    
+
     def get_channel_info(self) -> dict:
         """Provide guild info for authentication."""
         # Get first guild if connected
@@ -119,7 +128,7 @@ class DiscordPlatform(Service):
             logger.warning("DiscordPlatform: DiscordObserver not available.")
             return
         if not isinstance(msg, DiscordMessage): # Ensure it's the correct type
-            logger.warning(f"DiscordPlatform: Expected DiscordMessage, got {type(msg)}. Cannot process.")  # type: ignore[unreachable]
+            logger.warning(f"DiscordPlatform: Expected DiscordMessage, got {type(msg)}. Cannot process.")
             return
         await self.discord_observer.handle_incoming_message(msg)
 
@@ -156,17 +165,17 @@ class DiscordPlatform(Service):
 
     async def start(self) -> None:
         logger.info("DiscordPlatform: Starting internal components...")
-        
+
         # Create observer now that services are available
         secrets_service = getattr(self.runtime, 'secrets_service', None)
         if not secrets_service:
             logger.error("CRITICAL: secrets_service not available at start time!")
         else:
             logger.info("Found secrets_service from runtime")
-            
+
         # Get time_service from runtime
         time_service = getattr(self.runtime, 'time_service', None)
-        
+
         self.discord_observer = DiscordObserver(
             monitored_channel_ids=self.config.monitored_channel_ids,
             deferral_channel_id=self.config.deferral_channel_id,
@@ -179,9 +188,9 @@ class DiscordPlatform(Service):
             communication_service=self.discord_adapter,
             time_service=time_service
         )
-        
+
         # Secrets tools are now registered globally by SecretsToolService
-        
+
         if hasattr(self.discord_observer, 'start'):
             await self.discord_observer.start()
         if hasattr(self.discord_adapter, 'start'):
@@ -199,22 +208,22 @@ class DiscordPlatform(Service):
         try:
             self._discord_client_task = asyncio.create_task(self.client.start(self.token), name="DiscordClientTask")
             logger.info("DiscordPlatform: Discord client start initiated.")
-            
+
             # Wait for Discord client to be ready with timeout
             logger.info("DiscordPlatform: Waiting for Discord client to be ready...")
             ready = await self.discord_adapter.wait_until_ready(timeout=30.0)
-            
+
             if not ready:
                 logger.error("DiscordPlatform: Discord client failed to become ready within timeout")
                 if not agent_run_task.done():
                     agent_run_task.cancel()
                 return
-            
+
             logger.info(f"DiscordPlatform: Discord client ready! Logged in as: {self.client.user}")
-            
+
             # Reset reconnect attempts on successful connection
             self._reconnect_attempts = 0
-            
+
             # Now wait for either the agent task or Discord client task to complete
             # Keep retrying Discord connection on transient errors
             while not agent_run_task.done():
@@ -239,11 +248,11 @@ class DiscordPlatform(Service):
                     exc = self._discord_client_task.exception()
                     task_name = self._discord_client_task.get_name() if hasattr(self._discord_client_task, 'get_name') else 'DiscordClientTask'
                     logger.error(f"DiscordPlatform: Task '{task_name}' exited with error: {exc}", exc_info=exc)
-                    
+
                     # Determine if we should retry this error
                     should_retry = False
                     exc_str = str(exc)
-                    
+
                     # Known transient errors that should always retry
                     known_transient = [
                         "Concurrent call to receive() is not allowed",
@@ -266,14 +275,14 @@ class DiscordPlatform(Service):
                         "getaddrinfo failed",  # DNS errors
                         "Name or service not known"
                     ]
-                    
+
                     # Check for known transient errors
                     if any(msg in exc_str for msg in known_transient):
                         should_retry = True
-                    
+
                     # Connection/network related exceptions should retry
                     elif isinstance(exc, (
-                        RuntimeError, 
+                        RuntimeError,
                         discord.ConnectionClosed,
                         discord.HTTPException,
                         discord.GatewayNotFound,
@@ -285,29 +294,29 @@ class DiscordPlatform(Service):
                         OSError
                     )):
                         should_retry = True
-                    
+
                     # Check for aiohttp exceptions
                     elif exc.__class__.__module__.startswith('aiohttp'):
                         should_retry = True
-                    
+
                     # Login failures should NOT retry (bad token, etc)
                     elif isinstance(exc, (discord.LoginFailure, discord.Forbidden)):
                         should_retry = False
-                    
+
                     # Default: treat unknown errors as transient (fail open, not closed)
                     else:
                         logger.warning(f"Unknown error type {type(exc).__name__}: {exc}. Treating as transient.")
                         should_retry = True
-                    
+
                     if should_retry:
                         error_type = type(exc).__name__
                         logger.warning(f"Discord client encountered error ({error_type}: {exc_str[:100]}...). Attempting to reconnect... (attempt {self._reconnect_attempts + 1}/{self._max_reconnect_attempts})")
-                        
+
                         # Check if we've exceeded max reconnect attempts
                         if self._reconnect_attempts >= self._max_reconnect_attempts:
                             logger.error(f"Exceeded maximum reconnect attempts ({self._max_reconnect_attempts}). Giving up.")
                             break
-                        
+
                         self._reconnect_attempts += 1
                         # Clear the failed task
                         self._discord_client_task = None
@@ -316,31 +325,31 @@ class DiscordPlatform(Service):
                             # Close the client if it's still open
                             if self.client and not self.client.is_closed():
                                 await self.client.close()
-                            
+
                             # Always recreate the client for safety when reconnecting
                             # This ensures we have a fresh session and connection state
                             logger.info("Recreating Discord client for reconnection...")
                             # Create a new Discord client instance
                             intents = self.config.get_intents()
                             self.client = discord.Client(intents=intents)
-                            
+
                             # Reattach the adapter to the new client
                             if hasattr(self.discord_adapter, 'attach_to_client'):
                                 self.discord_adapter.attach_to_client(self.client)
                                 self.discord_adapter.bot = self.client
-                            
+
                             # Wait with exponential backoff before reconnecting
                             wait_time = min(5.0 * (2 ** (self._reconnect_attempts - 1)), 60.0)  # Max 60 seconds
                             logger.info(f"Waiting {wait_time:.1f} seconds before reconnecting...")
                             await asyncio.sleep(wait_time)
-                            
+
                             # Create a new task to start the client
                             self._discord_client_task = asyncio.create_task(
-                                self.client.start(self.token), 
+                                self.client.start(self.token),
                                 name="DiscordClientTask"
                             )
                             logger.info("Discord client restart task created")
-                            
+
                             # Wait for Discord to be ready after reconnection
                             ready = await self.discord_adapter.wait_until_ready(timeout=30.0)
                             if ready:
@@ -348,7 +357,7 @@ class DiscordPlatform(Service):
                                 self._reconnect_attempts = 0  # Reset on successful reconnection
                             else:
                                 logger.warning("Discord client failed to become ready after reconnection attempt")
-                            
+
                             continue  # Continue the while loop with the new task
                         except Exception as e:
                             logger.error(f"Failed to restart Discord client: {e}")
@@ -367,24 +376,24 @@ class DiscordPlatform(Service):
         except Exception as e:
             logger.error(f"DiscordPlatform: Unexpected error in run_lifecycle: {e}", exc_info=True)
             error_type = type(e).__name__
-            
+
             # Even top-level errors might be transient - try one more time
             if self._reconnect_attempts < self._max_reconnect_attempts:
                 self._reconnect_attempts += 1
                 logger.warning(f"Attempting to recover from lifecycle error ({error_type}). Restarting lifecycle...")
-                
+
                 # Wait before retrying
                 await asyncio.sleep(10.0)
-                
+
                 # Recursively call run_lifecycle to retry
                 try:
                     await self.run_lifecycle(agent_run_task)
                     return  # If successful, exit
                 except Exception as retry_exc:
                     logger.error(f"Failed to recover from lifecycle error: {retry_exc}")
-            
+
             # If we get here, we've failed to recover
-            if not agent_run_task.done(): 
+            if not agent_run_task.done():
                 agent_run_task.cancel()
         finally:
             logger.info("DiscordPlatform: Lifecycle ending. Ensuring Discord client is properly closed.")

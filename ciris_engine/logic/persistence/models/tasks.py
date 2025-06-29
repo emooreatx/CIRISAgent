@@ -106,15 +106,15 @@ def task_exists(task_id: str, db_path: Optional[str] = None) -> bool:
 
 async def add_system_task(task: Task, auth_service: Optional["AuthenticationServiceProtocol"] = None, db_path: Optional[str] = None) -> str:
     """Add a system task with automatic signing by the system WA.
-    
+
     This should be used by authorized processors (wakeup, dream, shutdown) to create
     system tasks that are properly signed.
-    
+
     Args:
         task: The task to add
         auth_service: Authentication service for signing (optional)
         db_path: Database path (optional)
-        
+
     Returns:
         The task ID
     """
@@ -133,7 +133,7 @@ async def add_system_task(task: Task, auth_service: Optional["AuthenticationServ
         except Exception as e:
             logger.error(f"Failed to sign system task: {e}")
             # Continue without signature
-    
+
     # Add the task (with or without signature)
     return add_task(task, db_path=db_path)
 
@@ -168,17 +168,17 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
         return False
 
     placeholders = ','.join('?' for _ in task_ids)
-    
+
     sql_get_thought_ids = f"SELECT thought_id FROM thoughts WHERE source_task_id IN ({placeholders})"
     sql_delete_feedback_mappings = "DELETE FROM feedback_mappings WHERE target_thought_id IN ({})"
     sql_delete_thoughts = f"DELETE FROM thoughts WHERE source_task_id IN ({placeholders})"
     sql_delete_tasks = f"DELETE FROM tasks WHERE task_id IN ({placeholders})"
-    
+
     deleted_count = 0
     try:
         with get_db_connection(db_path) as conn:
             cursor = conn.cursor()
-            
+
             cursor.execute(sql_get_thought_ids, task_ids)
             thought_rows = cursor.fetchall()
             thought_ids_to_delete = [row['thought_id'] for row in thought_rows]
@@ -193,12 +193,12 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
 
             cursor.execute(sql_delete_thoughts, task_ids)
             logger.info(f"Deleted {cursor.rowcount} associated thoughts for task IDs: {task_ids}.")
-            
+
             cursor.execute(sql_delete_tasks, task_ids)
             deleted_count = cursor.rowcount
-            
+
             conn.commit()
-            
+
             if deleted_count > 0:
                 logger.info(f"Successfully deleted {deleted_count} task(s) with IDs: {task_ids}.")
                 return True

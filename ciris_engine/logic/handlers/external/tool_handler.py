@@ -1,11 +1,11 @@
 import logging
+from typing import Optional
 
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.actions import ToolParams
 from ciris_engine.schemas.runtime.enums import ThoughtStatus, HandlerActionType
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.adapters.tools import ToolResult, ToolExecutionStatus
 from ciris_engine.logic import persistence
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
 from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
@@ -22,7 +22,7 @@ class ToolHandler(BaseActionHandler):
         result: ActionSelectionDMAResult,
         thought: Thought,
         dispatch_context: DispatchContext
-    ) -> None:
+    ) -> Optional[str]:
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.TOOL, dispatch_context, outcome="start")
         final_thought_status = ThoughtStatus.COMPLETED
@@ -31,9 +31,9 @@ class ToolHandler(BaseActionHandler):
         new_follow_up = None
 
         try:
-            processed_result = await self._decapsulate_secrets_in_params(result, "tool")
-            
-            params = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
+            processed_result = await self._decapsulate_secrets_in_params(result, "tool", thought_id)
+
+            params: ToolParams = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e)
             final_thought_status = ThoughtStatus.FAILED
@@ -48,7 +48,7 @@ class ToolHandler(BaseActionHandler):
             follow_up_content_key_info = (
                 f"TOOL action failed: Invalid parameters type ({type(params)}) for thought {thought_id}.")
         else:
-            correlation_id = str(uuid.uuid4())
+            _correlation_id = str(uuid.uuid4())
             try:
                 # Use the tool bus to execute the tool
                 tool_result = await self.bus_manager.tool.execute_tool(
@@ -56,7 +56,7 @@ class ToolHandler(BaseActionHandler):
                     parameters=params.parameters,
                     handler_name=self.__class__.__name__
                 )
-                
+
                 # tool_result is now ToolExecutionResult per protocol
                 if tool_result.success:
                     action_performed_successfully = True

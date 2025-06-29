@@ -42,12 +42,12 @@ class MockDiscordMessage:
 
 class MockDiscordAdapter:
     """Mock Discord adapter with deferral handling."""
-    
+
     def __init__(self, wa_service=None):
         self.wa_service = wa_service or Mock()
         self.sent_messages: List[Dict[str, Any]] = []
         self.deferral_notifications: Dict[str, List[str]] = {}  # channel_id -> messages
-        
+
     async def send_deferral_notification(
         self,
         channel_id: str,
@@ -57,7 +57,7 @@ class MockDiscordAdapter:
         """Send deferral notification to Discord channel."""
         # Build notification message
         mention_str = " ".join(wa_mentions) if wa_mentions else "@here"
-        
+
         message = f"""
 🚨 **Deferral Requiring Review** 🚨
 {mention_str}
@@ -72,12 +72,12 @@ class MockDiscordAdapter:
 
 To resolve, use: `/wa resolve {deferral.deferral_id} [approve|reject|modify] [reason]`
 """
-        
+
         # Store notification
         if channel_id not in self.deferral_notifications:
             self.deferral_notifications[channel_id] = []
         self.deferral_notifications[channel_id].append(message)
-        
+
         # Track sent message
         self.sent_messages.append({
             "channel_id": channel_id,
@@ -86,42 +86,42 @@ To resolve, use: `/wa resolve {deferral.deferral_id} [approve|reject|modify] [re
             "deferral_id": deferral.deferral_id,
             "mentions": wa_mentions
         })
-    
+
     async def handle_wa_command(self, message: MockDiscordMessage) -> Optional[str]:
         """Handle WA commands from Discord."""
         parts = message.content.strip().split()
-        
+
         if len(parts) < 2 or parts[0] != "/wa":
             return None
-        
+
         command = parts[1]
-        
+
         if command == "list":
             # List pending deferrals
             deferrals = await self.wa_service.get_pending_deferrals()
             if not deferrals:
                 return "No pending deferrals."
-            
+
             response = "**Pending Deferrals:**\n"
             for d in deferrals:
                 response += f"• `{d.deferral_id}` - {d.reason[:50]}... (Priority: {d.priority})\n"
-            
+
             return response
-        
+
         elif command == "resolve" and len(parts) >= 4:
             deferral_id = parts[2]
             resolution = parts[3]
             reason = " ".join(parts[4:]) if len(parts) > 4 else "No reason provided"
-            
+
             # Check if user is authorized WA
             wa_cert = await self._get_wa_cert(message.author.id)
             if not wa_cert or wa_cert.role != WARole.AUTHORITY:
                 return "❌ You must be an AUTHORITY to resolve deferrals."
-            
+
             # Create resolution
             if resolution not in ["approve", "reject", "modify"]:
                 return "❌ Resolution must be: approve, reject, or modify"
-            
+
             response = DeferralResponse(
                 approved=(resolution == "approve"),
                 reason=reason,
@@ -129,7 +129,7 @@ To resolve, use: `/wa resolve {deferral.deferral_id} [approve|reject|modify] [re
                 wa_id=wa_cert.wa_id,
                 signature=f"discord_{message.id}"
             )
-            
+
             # Resolve deferral
             try:
                 result = await self.wa_service.resolve_deferral(deferral_id, response)
@@ -140,9 +140,9 @@ To resolve, use: `/wa resolve {deferral.deferral_id} [approve|reject|modify] [re
                     return f"❌ Failed to resolve deferral `{deferral_id}`."
             except Exception as e:
                 return f"❌ Error resolving deferral: {str(e)}"
-        
+
         return "❌ Unknown command. Use: `/wa list` or `/wa resolve <id> <approve|reject|modify> <reason>`"
-    
+
     async def _get_wa_cert(self, discord_user_id: str) -> Optional[WACertificate]:
         """Get WA certificate for Discord user."""
         # Mock implementation - in real system would check actual certs
@@ -175,12 +175,12 @@ To resolve, use: `/wa resolve {deferral.deferral_id} [approve|reject|modify] [re
 
 class TestDiscordDeferrals:
     """Test Discord adapter deferral functionality."""
-    
+
     @pytest.fixture
     def mock_wa_service(self):
         """Mock WA service for testing."""
         service = AsyncMock()
-        
+
         # Setup pending deferrals
         service.get_pending_deferrals = AsyncMock(return_value=[
             PendingDeferral(
@@ -210,16 +210,16 @@ class TestDiscordDeferrals:
                 status="pending"
             )
         ])
-        
+
         service.resolve_deferral = AsyncMock(return_value=True)
-        
+
         return service
-    
+
     @pytest.fixture
     def discord_adapter(self, mock_wa_service):
         """Create mock Discord adapter."""
         return MockDiscordAdapter(mock_wa_service)
-    
+
     @pytest.mark.asyncio
     async def test_deferral_notification_sent(self, discord_adapter):
         """Test that deferral notifications are sent to Discord."""
@@ -237,7 +237,7 @@ class TestDiscordDeferrals:
             requires_role="AUTHORITY",
             status="pending"
         )
-        
+
         # Send notification with specific WA mentions
         wa_mentions = ["<@wa_security_lead>", "<@wa_moderator_001>"]
         await discord_adapter.send_deferral_notification(
@@ -245,27 +245,27 @@ class TestDiscordDeferrals:
             deferral,
             wa_mentions
         )
-        
+
         # Verify notification was sent
         assert len(discord_adapter.sent_messages) == 1
         sent = discord_adapter.sent_messages[0]
-        
+
         assert sent["type"] == "deferral_notification"
         assert sent["deferral_id"] == "defer_critical_001"
         assert sent["channel_id"] == "security_channel"
         assert "<@wa_security_lead>" in sent["content"]
         assert "CRITICAL" in sent["content"]
         assert "Potential security threat" in sent["content"]
-    
+
     @pytest.mark.asyncio
     async def test_list_deferrals_command(self, discord_adapter, mock_wa_service):
         """Test /wa list command to show pending deferrals."""
         # Create message from authorized user
         message = MockDiscordMessage("/wa list", author_id="wa_user")
-        
+
         # Handle command
         response = await discord_adapter.handle_wa_command(message)
-        
+
         # Verify response
         assert response is not None
         assert "Pending Deferrals:" in response
@@ -273,7 +273,7 @@ class TestDiscordDeferrals:
         assert "defer_002" in response
         assert "Priority: high" in response
         assert "Priority: critical" in response
-    
+
     @pytest.mark.asyncio
     async def test_resolve_deferral_approve(self, discord_adapter, mock_wa_service):
         """Test approving a deferral through Discord."""
@@ -282,24 +282,24 @@ class TestDiscordDeferrals:
             "/wa resolve defer_001 approve Reviewed and confirmed not spam",
             author_id="wa_authority_discord"
         )
-        
+
         # Handle command
         response = await discord_adapter.handle_wa_command(message)
-        
+
         # Verify resolution
         assert "✅" in response
         assert "defer_001" in response
         assert "approved successfully" in response
-        
+
         # Verify WA service was called
         mock_wa_service.resolve_deferral.assert_called_once()
         call_args = mock_wa_service.resolve_deferral.call_args
         assert call_args[0][0] == "defer_001"
-        
+
         resolution = call_args[0][1]
         assert resolution.approved is True
         assert resolution.reason == "Reviewed and confirmed not spam"
-    
+
     @pytest.mark.asyncio
     async def test_resolve_deferral_reject(self, discord_adapter, mock_wa_service):
         """Test rejecting a deferral through Discord."""
@@ -308,21 +308,21 @@ class TestDiscordDeferrals:
             "/wa resolve defer_002 reject User violated community guidelines",
             author_id="wa_authority_discord"
         )
-        
+
         # Handle command
         response = await discord_adapter.handle_wa_command(message)
-        
+
         # Verify resolution
         assert "✅" in response
         assert "defer_002" in response
         assert "rejected successfully" in response
-        
+
         # Verify rejection
         call_args = mock_wa_service.resolve_deferral.call_args
         resolution = call_args[0][1]
         assert resolution.approved is False
         assert "violated community guidelines" in resolution.reason
-    
+
     @pytest.mark.asyncio
     async def test_unauthorized_resolution_attempt(self, discord_adapter):
         """Test that non-AUTHORITY users cannot resolve deferrals."""
@@ -331,14 +331,14 @@ class TestDiscordDeferrals:
             "/wa resolve defer_001 approve Should not work",
             author_id="regular_user_123"
         )
-        
+
         # Handle command
         response = await discord_adapter.handle_wa_command(message)
-        
+
         # Should be rejected
         assert "❌" in response
         assert "must be an AUTHORITY" in response
-    
+
     @pytest.mark.asyncio
     async def test_batch_deferral_notifications(self, discord_adapter):
         """Test sending multiple deferral notifications."""
@@ -359,7 +359,7 @@ class TestDiscordDeferrals:
             )
             for i in range(5)
         ]
-        
+
         # Send all notifications
         for deferral in deferrals:
             await discord_adapter.send_deferral_notification(
@@ -367,14 +367,14 @@ class TestDiscordDeferrals:
                 deferral,
                 ["@here"]
             )
-        
+
         # Verify all sent
         assert len(discord_adapter.sent_messages) == 5
         assert all(msg["type"] == "deferral_notification" for msg in discord_adapter.sent_messages)
-        
+
         # Verify channel grouping
         assert len(discord_adapter.deferral_notifications["batch_channel"]) == 5
-    
+
     @pytest.mark.asyncio
     async def test_deferral_with_context_display(self, discord_adapter):
         """Test that deferral context is properly displayed."""
@@ -393,20 +393,20 @@ class TestDiscordDeferrals:
             status="pending",
             # Additional context could be in a separate field in real implementation
         )
-        
+
         # Send notification
         await discord_adapter.send_deferral_notification(
             "medical_channel",
             deferral,
             ["<@medical_wa_team>"]
         )
-        
+
         # Verify context is included
         sent = discord_adapter.sent_messages[0]
         assert "Medical advice requested" in sent["content"]
         assert "MEDICAL_AUTHORITY" in sent["content"]
         assert "**Priority**: HIGH" in sent["content"]
-    
+
     @pytest.mark.asyncio
     async def test_invalid_wa_command(self, discord_adapter):
         """Test handling of invalid WA commands."""
@@ -418,14 +418,14 @@ class TestDiscordDeferrals:
             "/wa resolve defer_001",  # Missing resolution
             "/wa resolve defer_001 maybe",  # Invalid resolution
         ]
-        
+
         for cmd in invalid_commands:
             message = MockDiscordMessage(cmd)
             response = await discord_adapter.handle_wa_command(message)
-            
+
             # Should return error or help
             assert response is None or "❌" in response or "Unknown command" in response
-    
+
     @pytest.mark.asyncio
     async def test_deferral_resolution_with_modification(self, discord_adapter, mock_wa_service):
         """Test modifying a deferral through Discord."""
@@ -434,21 +434,21 @@ class TestDiscordDeferrals:
             "/wa resolve defer_001 modify Approve with additional monitoring for 7 days",
             author_id="wa_authority_discord"
         )
-        
+
         # Handle command
         response = await discord_adapter.handle_wa_command(message)
-        
+
         # Should succeed
         assert "✅" in response
         assert "modified successfully" in response
-        
+
         # In a real implementation, this would create a DeferralResolution
         # with modified_action and modified_parameters
 
 
 class TestDiscordDeferralIntegration:
     """Integration tests for Discord deferral flow."""
-    
+
     @pytest.mark.asyncio
     async def test_full_discord_deferral_flow(self):
         """Test complete flow from deferral creation to Discord resolution."""
@@ -458,11 +458,11 @@ class TestDiscordDeferralIntegration:
         # 3. Human WA sees notification in Discord
         # 4. Human WA uses /wa commands to resolve
         # 5. Agent continues with WA guidance
-        
+
         # Mock the full flow
         wa_service = AsyncMock()
         discord_adapter = MockDiscordAdapter(wa_service)
-        
+
         # Step 1: Deferral created (simulated)
         deferral = PendingDeferral(
             deferral_id="integration_defer_001",
@@ -477,32 +477,32 @@ class TestDiscordDeferralIntegration:
             requires_role="AUTHORITY",
             status="pending"
         )
-        
+
         # Step 2: Notification sent
         await discord_adapter.send_deferral_notification(
             "general_channel",
             deferral,
             ["<@wa_on_duty>"]
         )
-        
+
         assert len(discord_adapter.sent_messages) == 1
-        
+
         # Step 3: WA lists deferrals
         list_msg = MockDiscordMessage("/wa list", author_id="wa_authority_discord")
         wa_service.get_pending_deferrals.return_value = [deferral]
-        
+
         list_response = await discord_adapter.handle_wa_command(list_msg)
         assert "integration_defer_001" in list_response
-        
+
         # Step 4: WA resolves
         resolve_msg = MockDiscordMessage(
             "/wa resolve integration_defer_001 approve Proceed with standard protocol",
             author_id="wa_authority_discord"
         )
-        
+
         resolution_response = await discord_adapter.handle_wa_command(resolve_msg)
         assert "✅" in resolution_response
-        
+
         # Step 5: Verify resolution was processed
         wa_service.resolve_deferral.assert_called_once()
 

@@ -33,4 +33,3 @@ def get_env_var(name: str, default: Optional[str] = None) -> Optional[str]:
     if name in _ENV_VALUES:
         return _ENV_VALUES[name]
     return default
-

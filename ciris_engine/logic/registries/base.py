@@ -5,8 +5,8 @@ Provides unified registration and discovery for services, adapters, and tools
 with priority-based fallbacks and circuit breaker patterns for resilience.
 """
 
-from typing import Dict, List, Optional, Protocol, Type, Union, Any
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Protocol, Union, Any
+from dataclasses import dataclass, field
 from enum import Enum
 import logging
 import asyncio
@@ -38,7 +38,7 @@ class ServiceProvider:
     instance: Any
     capabilities: List[str]
     circuit_breaker: Optional[CircuitBreaker] = None
-    metadata: Optional[dict] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)  # ServiceMetadata.model_dump() result
     priority_group: int = 0
     strategy: SelectionStrategy = SelectionStrategy.FALLBACK
 
@@ -51,15 +51,15 @@ class HealthCheckProtocol(Protocol):
 class ServiceRegistry:
     """
     Central registry for all services with priority/fallback support.
-    
+
     Manages service registration, discovery, and health monitoring with
     circuit breaker patterns for resilience.
     """
-    
+
     def __init__(self, required_services: Optional[List[ServiceType]] = None) -> None:
-        self._providers: Dict[str, Dict[ServiceType, List[ServiceProvider]]] = {}
+        # Only global services now - no handler-specific registration
+        self._services: Dict[ServiceType, List[ServiceProvider]] = {}
         self._circuit_breakers: Dict[str, CircuitBreaker] = {}
-        self._global_services: Dict[ServiceType, List[ServiceProvider]] = {}
         self._rr_state: Dict[str, int] = {}
         self._required_service_types: List[ServiceType] = required_services or [
             ServiceType.COMMUNICATION,
@@ -67,45 +67,41 @@ class ServiceRegistry:
             ServiceType.AUDIT,
             ServiceType.LLM,
         ]
-    
-    def register(
+
+    def register_service(
         self,
-        handler: str,
         service_type: ServiceType,
         provider: Any,
         priority: Priority = Priority.NORMAL,
         capabilities: Optional[List[str]] = None,
         circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
-        metadata: Optional[dict] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         priority_group: int = 0,
         strategy: SelectionStrategy = SelectionStrategy.FALLBACK,
     ) -> str:
         """
-        Register a service provider for a specific handler.
-        
+        Register a service provider globally.
+
         Args:
-            handler: Handler name that will use this service
             service_type: Type of service (e.g., 'llm', 'memory', 'audit')
             provider: Service instance
             priority: Service priority for fallback ordering
             capabilities: List of capabilities this service provides
             circuit_breaker_config: Optional custom circuit breaker config
             metadata: Additional metadata for the service
-            
+
         Returns:
             str: Unique provider name for later reference
         """
-        if handler not in self._providers:
-            self._providers[handler] = {}
-        if service_type not in self._providers[handler]:
-            self._providers[handler][service_type] = []
-        
+        if service_type not in self._services:
+            self._services[service_type] = []
+
         provider_name = f"{provider.__class__.__name__}_{id(provider)}"
-        
+
         cb_config = circuit_breaker_config or CircuitBreakerConfig()
-        circuit_breaker = CircuitBreaker(f"{handler}_{service_type}_{provider_name}", cb_config)
+        circuit_breaker = CircuitBreaker(f"{service_type}_{provider_name}", cb_config)
         self._circuit_breakers[provider_name] = circuit_breaker
-        
+
         sp = ServiceProvider(
             name=provider_name,
             priority=priority,
@@ -116,131 +112,61 @@ class ServiceRegistry:
             priority_group=priority_group,
             strategy=strategy,
         )
-        
-        self._providers[handler][service_type].append(sp)
-        self._providers[handler][service_type].sort(key=lambda x: x.priority.value)
-        
-        logger.info(f"Registered {service_type} service '{provider_name}' for handler '{handler}' "
+
+        self._services[service_type].append(sp)
+        self._services[service_type].sort(key=lambda x: x.priority.value)
+
+        logger.info(f"Registered {service_type} service '{provider_name}' "
                    f"with priority {priority.name} and capabilities {capabilities}")
-        
-        logger.debug(f"ServiceRegistry: Handler '{handler}' now has {len(self._providers[handler][service_type])} "
-                    f"{service_type} providers: {[p.name for p in self._providers[handler][service_type]]}")
-        
+
         return provider_name
-    
-    def register_global(
-        self,
-        service_type: ServiceType,
-        provider: Any,
-        priority: Priority = Priority.NORMAL,
-        capabilities: Optional[List[str]] = None,
-        circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
-        metadata: Optional[dict] = None,
-        priority_group: int = 0,
-        strategy: SelectionStrategy = SelectionStrategy.FALLBACK,
-    ) -> str:
-        """
-        Register a global service provider available to all handlers.
-        
-        Args:
-            service_type: Type of service
-            provider: Service instance
-            priority: Service priority
-            capabilities: List of capabilities
-            circuit_breaker_config: Optional circuit breaker config
-            metadata: Additional metadata
-            
-        Returns:
-            str: Unique provider name
-        """
-        if service_type not in self._global_services:
-            self._global_services[service_type] = []
-        
-        provider_name = f"global_{provider.__class__.__name__}_{id(provider)}"
-        
-        logger.debug(f"register_global called with capabilities: {capabilities} (type: {type(capabilities)})")
-        
-        cb_config = circuit_breaker_config or CircuitBreakerConfig()
-        circuit_breaker = CircuitBreaker(f"global_{service_type}_{provider_name}", cb_config)
-        self._circuit_breakers[provider_name] = circuit_breaker
-        
-        sp = ServiceProvider(
-            name=provider_name,
-            priority=priority,
-            instance=provider,
-            capabilities=capabilities or [],
-            circuit_breaker=circuit_breaker,
-            metadata=metadata or {},
-            priority_group=priority_group,
-            strategy=strategy,
-        )
-        
-        self._global_services[service_type].append(sp)
-        self._global_services[service_type].sort(key=lambda x: x.priority.value)
-        
-        logger.info(f"Registered global {service_type} service '{provider_name}' "
-                   f"with priority {priority.name}")
-        
-        return provider_name
-    
+
+    # register_global removed - all services are global now, use register_service()
+
     async def get_service(
-        self, 
-        handler: str, 
+        self,
+        handler: str,
         service_type: ServiceType,
         required_capabilities: Optional[List[str]] = None,
-        fallback_to_global: bool = True
+        fallback_to_global: bool = True  # Kept for backward compatibility, ignored
     ) -> Optional[Any]:
         """
-        Get the best available service with fallback support.
-        
+        Get the best available service.
+
         Args:
-            handler: Handler requesting the service
+            handler: Handler requesting the service (kept for compatibility, ignored)
             service_type: Type of service needed
             required_capabilities: Required capabilities
-            fallback_to_global: Whether to fallback to global services
-            
+            fallback_to_global: Kept for backward compatibility, ignored
+
         Returns:
             Service instance or None if no suitable service available
         """
-        logger.debug(f"ServiceRegistry.get_service: handler='{handler}', service_type='{service_type}' "
+        logger.debug(f"ServiceRegistry.get_service: service_type='{service_type}' "
                     f"({service_type.value if hasattr(service_type, 'value') else service_type}), "
                     f"capabilities={required_capabilities}")
+
+        # All services are global now
+        providers = self._services.get(service_type, [])
+        logger.debug(f"ServiceRegistry: Found {len(providers)} providers for {service_type}")
         
-        # TODO: Remove handler-specific providers entirely - violates "No Kings" principle
-        # All services should be global. Handler-specific services create special cases.
-        handler_providers = self._providers.get(handler, {}).get(service_type, [])
-        logger.debug(f"ServiceRegistry: Found {len(handler_providers)} handler-specific providers for {handler}.{service_type.value if hasattr(service_type, 'value') else service_type}")
-        
+        if service_type in self._services:
+            for provider in self._services[service_type]:
+                logger.debug(f"  - Provider: {provider.name}, capabilities: {provider.capabilities}")
+
         service = await self._get_service_from_providers(
-            handler_providers,
+            providers,
             required_capabilities
         )
-        
+
         if service is not None:
-            logger.debug(f"ServiceRegistry: Using handler-specific {service_type} service for '{handler}': {type(service).__name__}")
+            logger.debug(f"Using {service_type} service: {type(service).__name__}")
             return service
-        
-        if fallback_to_global:
-            global_providers = self._global_services.get(service_type, [])
-            logger.debug(f"ServiceRegistry: Found {len(global_providers)} global providers for {service_type}")
-            logger.debug(f"ServiceRegistry: Global services available: {list(self._global_services.keys())}")
-            if service_type in self._global_services:
-                for provider in self._global_services[service_type]:
-                    logger.debug(f"  - Provider: {provider.name}, capabilities: {provider.capabilities}")
-            
-            service = await self._get_service_from_providers(
-                global_providers,
-                required_capabilities
-            )
-            
-            if service is not None:
-                logger.debug(f"Using global {service_type} service for handler '{handler}': {type(service).__name__}")
-                return service
-        
-        logger.warning(f"No available {service_type.value} service found for handler '{handler}' "
+
+        logger.warning(f"No available {service_type.value} service found "
                       f"with capabilities {required_capabilities}")
         return None
-    
+
     async def _get_service_from_providers(
         self,
         providers: List[ServiceProvider],
@@ -316,51 +242,28 @@ class ServiceRegistry:
             if provider.circuit_breaker:
                 provider.circuit_breaker.record_failure()
             return None
-    
+
     def get_provider_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> dict:
         """
         Get information about registered providers.
-        
+
         Args:
-            handler: Optional handler filter
+            handler: Optional handler filter (kept for compatibility, ignored)
             service_type: Optional service type filter
-            
+
         Returns:
             Dictionary containing provider information
         """
         info: dict = {
-            "handlers": {},
-            "global_services": {},
+            "services": {},
             "circuit_breaker_stats": {}
         }
-        
-        # Handler-specific services
-        for h, services in self._providers.items():
-            if handler and h != handler:
-                continue
-            info["handlers"][h] = {}
-            
-            for st, providers in services.items():
-                if service_type and st != service_type:
-                    continue
-                info["handlers"][h][st] = [
-                    {
-                        "name": p.name,
-                        "priority": p.priority.name,
-                        "priority_group": p.priority_group,
-                        "strategy": p.strategy.value,
-                        "capabilities": p.capabilities,
-                        "metadata": p.metadata,
-                        "circuit_breaker_state": p.circuit_breaker.state.value if p.circuit_breaker else None
-                    }
-                    for p in providers
-                ]
-        
-        # Global services
-        for st, providers in self._global_services.items():
+
+        # All services are global now
+        for st, providers in self._services.items():
             if service_type and st != service_type:
                 continue
-            info["global_services"][st] = [
+            info["services"][st] = [
                 {
                     "name": p.name,
                     "priority": p.priority.name,
@@ -372,55 +275,44 @@ class ServiceRegistry:
                 }
                 for p in providers
             ]
-        
+
         # Circuit breaker stats
         for name, cb in self._circuit_breakers.items():
             info["circuit_breaker_stats"][name] = cb.get_stats()
-        
+
         return info
-    
+
     def unregister(self, provider_name: str) -> bool:
         """
         Unregister a service provider.
-        
+
         Args:
-            provider_name: Name returned from register() call
-            
+            provider_name: Name returned from register_service() call
+
         Returns:
             True if provider was found and removed
         """
-        # Remove from handler-specific services
-        for handler, services in self._providers.items():
-            for service_type, providers in services.items():
-                for i, provider in enumerate(providers):
-                    if provider.name == provider_name:
-                        providers.pop(i)
-                        logger.info(f"Unregistered {service_type} provider '{provider_name}' "
-                                  f"from handler '{handler}'")
-                        break
-        
-        # Remove from global services
-        for service_type, providers in self._global_services.items():
+        # Remove from services
+        for service_type, providers in self._services.items():
             for i, provider in enumerate(providers):
                 if provider.name == provider_name:
                     providers.pop(i)
-                    logger.info(f"Unregistered global {service_type} provider '{provider_name}'")
-                    break
-        
-        # Remove circuit breaker
-        if provider_name in self._circuit_breakers:
-            del self._circuit_breakers[provider_name]
-            return True
-        
+                    logger.info(f"Unregistered {service_type} provider '{provider_name}'")
+                    
+                    # Remove circuit breaker
+                    if provider_name in self._circuit_breakers:
+                        del self._circuit_breakers[provider_name]
+                    return True
+
         return False
-    
+
     def get_services_by_type(self, service_type: Union[str, ServiceType]) -> List[Any]:
         """
         Get ALL services of a given type (for broadcasting/aggregation).
-        
+
         Args:
             service_type: Type of service as string (e.g., 'audit', 'tool')
-            
+
         Returns:
             List of all service instances of that type
         """
@@ -433,40 +325,30 @@ class ServiceRegistry:
                 logger.warning(f"Unknown service type: {service_type}")
                 return []
         else:
-            service_type_enum = service_type  # type: ignore[unreachable]
-        
+            service_type_enum = service_type
+
         all_services = []
-        
-        # Collect from handler-specific registrations
-        for handler, services in self._providers.items():
-            if service_type_enum in services:
-                for provider in services[service_type_enum]:
-                    # Only include healthy services
-                    if provider.circuit_breaker and provider.circuit_breaker.is_available():
-                        if provider.instance not in all_services:
-                            all_services.append(provider.instance)
-        
+
         # Collect from global registrations
-        if service_type_enum in self._global_services:
-            for provider in self._global_services[service_type_enum]:
+        if service_type_enum in self._services:
+            for provider in self._services[service_type_enum]:
                 # Only include healthy services
                 if provider.circuit_breaker and provider.circuit_breaker.is_available():
                     if provider.instance not in all_services:
                         all_services.append(provider.instance)
-        
+
         logger.debug(f"Found {len(all_services)} healthy {service_type} services for broadcasting/aggregation")
         return all_services
-    
+
     def reset_circuit_breakers(self) -> None:
         """Reset all circuit breakers to closed state"""
         for cb in self._circuit_breakers.values():
             cb.reset()
         logger.info("Reset all circuit breakers")
-    
+
     def clear_all(self) -> None:
         """Clear all registered services and circuit breakers"""
-        self._providers.clear()
-        self._global_services.clear()
+        self._services.clear()
         self._circuit_breakers.clear()
         logger.info("Cleared all services from registry")
 
@@ -506,12 +388,7 @@ class ServiceRegistry:
 
     def _has_service_type(self, service_type: ServiceType) -> bool:
         """Check if any provider exists for the given service type."""
-        if self._global_services.get(service_type):
-            return True
-        for services in self._providers.values():
-            if services.get(service_type):
-                return True
-        return False
+        return bool(self._services.get(service_type))
 
 _global_registry: Optional[ServiceRegistry] = None
 

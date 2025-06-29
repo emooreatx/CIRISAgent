@@ -10,17 +10,13 @@ from datetime import datetime, timedelta
 from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.schemas.processors.results import (
-    WakeupResult, WorkResult, PlayResult, SolitudeResult, 
-    DreamResult, ShutdownResult, ProcessingResult
-)
+from ciris_engine.schemas.processors.state import StateTransitionRecord
 from ciris_engine.logic import persistence
 from ciris_engine.schemas.runtime.models import Thought, ThoughtStatus
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
 from ciris_engine.logic.utils.context_utils import build_dispatch_context
 
 from ciris_engine.logic.processors.core.thought_processor import ThoughtProcessor
-from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.logic.utils.shutdown_manager import is_global_shutdown_requested, get_global_shutdown_reason, request_global_shutdown
 if TYPE_CHECKING:
     from ciris_engine.logic.infrastructure.handlers.action_dispatcher import ActionDispatcher
@@ -33,7 +29,6 @@ from ciris_engine.logic.processors.states.dream_processor import DreamProcessor
 from ciris_engine.logic.processors.states.solitude_processor import SolitudeProcessor
 from ciris_engine.logic.processors.states.shutdown_processor import ShutdownProcessor
 
-from ciris_engine.logic.services.lifecycle.shutdown import ShutdownService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
@@ -43,7 +38,7 @@ class AgentProcessor:
     Main agent processor that orchestrates task processing, thought generation,
     and state management using v1 schemas.
     """
-    
+
     def __init__(
         self,
         app_config: ConfigAccessor,
@@ -66,14 +61,14 @@ class AgentProcessor:
         self.startup_channel_id = startup_channel_id
         self.runtime = runtime  # Store runtime reference for preload tasks
         self._time_service = time_service  # Store injected time service
-        
+
         # Initialize state manager - agent always starts in SHUTDOWN state
         time_service_from_services = services.get('time_service') if isinstance(services, dict) else getattr(services, 'time_service', None)
         if not time_service_from_services:
             # Use the injected time service if not in services dict
             time_service_from_services = time_service
         self.state_manager = StateManager(time_service=time_service_from_services, initial_state=AgentState.SHUTDOWN)
-        
+
         # Initialize specialized processors, passing the initial dispatcher
         self.wakeup_processor = WakeupProcessor(
             config_accessor=app_config,  # app_config is actually a ConfigAccessor
@@ -83,7 +78,7 @@ class AgentProcessor:
             startup_channel_id=startup_channel_id,
             time_service=services.get('time_service') if isinstance(services, dict) else getattr(services, 'time_service', None)
         )
-        
+
         self.work_processor = WorkProcessor(
             config_accessor=app_config,  # app_config is actually a ConfigAccessor
             thought_processor=thought_processor,
@@ -91,21 +86,21 @@ class AgentProcessor:
             services=services,
             startup_channel_id=startup_channel_id,
         )
-        
+
         self.play_processor = PlayProcessor(
             config_accessor=app_config,  # app_config is actually a ConfigAccessor
             thought_processor=thought_processor,
             action_dispatcher=self._action_dispatcher, # Use internal dispatcher
             services=services
         )
-        
+
         self.solitude_processor = SolitudeProcessor(
             config_accessor=app_config,  # app_config is actually a ConfigAccessor
             thought_processor=thought_processor,
             action_dispatcher=self._action_dispatcher, # Use internal dispatcher
             services=services
         )
-        
+
         # Enhanced dream processor with self-configuration and memory consolidation
         self.dream_processor = DreamProcessor(
             config_accessor=app_config,  # app_config is actually a ConfigAccessor
@@ -117,7 +112,7 @@ class AgentProcessor:
             startup_channel_id=startup_channel_id,
             cirisnode_url="https://localhost:8001"  # Default since cirisnode config not in essential
         )
-        
+
         # Shutdown processor for graceful shutdown negotiation
         self.shutdown_processor = ShutdownProcessor(
             config_accessor=app_config,  # app_config is actually a ConfigAccessor
@@ -127,7 +122,7 @@ class AgentProcessor:
             time_service=services.get('time_service') if isinstance(services, dict) else getattr(services, 'time_service', None),
             runtime=runtime
         )
-        
+
         # Map states to processors
         self.state_processors = {
             AgentState.WAKEUP: self.wakeup_processor,
@@ -137,7 +132,7 @@ class AgentProcessor:
             AgentState.SHUTDOWN: self.shutdown_processor,
             AgentState.DREAM: self.dream_processor
         }
-        
+
         # Processing control
         self.current_round_number = 0
         self._stop_event: Optional[asyncio.Event] = None
@@ -199,18 +194,18 @@ class AgentProcessor:
             elif sub_processor:
                 logger.warning(f"{sub_processor.__class__.__name__} does not have an 'action_dispatcher' attribute to update.")
         logger.info("AgentProcessor's action_dispatcher updated and propagated if applicable.")
-    
+
     async def start_processing(self, num_rounds: Optional[int] = None) -> None:
         """Start the main agent processing loop."""
         if self._processing_task and not self._processing_task.done():
             logger.warning("Processing is already running")
             return
-        
+
         self._ensure_stop_event()
         if self._stop_event:
             self._stop_event.clear()
         logger.info(f"Starting agent processing (rounds: {num_rounds or 'infinite'})")
-        
+
         # Transition from SHUTDOWN to WAKEUP state when starting processing
         if self.state_manager.get_state() == AgentState.SHUTDOWN:
             if not self.state_manager.transition_to(AgentState.WAKEUP):
@@ -221,23 +216,23 @@ class AgentProcessor:
             if not self.state_manager.transition_to(AgentState.WAKEUP):
                 logger.error(f"Failed to transition from {self.state_manager.get_state()} to WAKEUP state")
                 return
-        
+
         await self.wakeup_processor.initialize()
-        
+
         wakeup_complete = False
         wakeup_round = 0
-        
+
         while not wakeup_complete and not (self._stop_event and self._stop_event.is_set()) and (num_rounds is None or self.current_round_number < num_rounds):
             logger.info(f"=== WAKEUP Round {wakeup_round} ===")
-            
+
             wakeup_result = await self.wakeup_processor.process(wakeup_round)
             wakeup_complete = wakeup_result.wakeup_complete
-            
+
             if not wakeup_complete:
-                thoughts_processed = await self._process_pending_thoughts_async()
-                
+                _thoughts_processed = await self._process_pending_thoughts_async()
+
                 logger.info(f"Wakeup round {wakeup_round}: {wakeup_result.thoughts_processed} thoughts processed")
-                
+
                 # Use shorter delay for mock LLM
                 llm_service = self.services.get('llm_service')
                 is_mock_llm = llm_service and type(llm_service).__name__ == 'MockLLMService'
@@ -245,15 +240,15 @@ class AgentProcessor:
                 await asyncio.sleep(round_delay)
             else:
                 logger.info("✓ Wakeup sequence completed successfully!")
-            
+
             wakeup_round += 1
             self.current_round_number += 1
-        
+
         if not wakeup_complete:
             logger.error(f"Wakeup did not complete within {num_rounds or 'infinite'} rounds")
             await self.stop_processing()
             return
-        
+
         if not self.state_manager.transition_to(AgentState.WORK):
             logger.error("Failed to transition to WORK state after wakeup")
             await self.stop_processing()
@@ -262,7 +257,7 @@ class AgentProcessor:
         self.state_manager.update_state_metadata("wakeup_complete", True)
 
         await self._load_preload_tasks()
-        
+
         # Schedule first dream session
         await self._schedule_initial_dream()
 
@@ -274,9 +269,9 @@ class AgentProcessor:
                 logger.error(f"Error initializing interactive console: {e}")
 
         await self.work_processor.initialize()
-        
+
         self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
-        
+
         try:
             await self._processing_task
         except asyncio.CancelledError:
@@ -296,35 +291,35 @@ class AgentProcessor:
         try:
             # Get current state to filter thoughts appropriately
             current_state = self.state_manager.get_state()
-            
+
             pending_thoughts = persistence.get_pending_thoughts_for_active_tasks()
-            
+
             # If in SHUTDOWN state, only process thoughts for shutdown tasks
             if current_state == AgentState.SHUTDOWN:
                 shutdown_thoughts = [t for t in pending_thoughts if t.source_task_id and t.source_task_id.startswith('shutdown_')]
                 pending_thoughts = shutdown_thoughts
                 logger.info(f"In SHUTDOWN state - filtering to {len(shutdown_thoughts)} shutdown-related thoughts only")
-            
+
             max_active = 10
             if hasattr(self.app_config, 'workflow') and self.app_config.workflow:
                 max_active = getattr(self.app_config.workflow, 'max_active_thoughts', 10)
-            
+
             limited_thoughts = pending_thoughts[:max_active]
-            
+
             logger.info(f"Found {len(pending_thoughts)} PENDING thoughts, processing {len(limited_thoughts)} (max_active_thoughts: {max_active})")
-            
+
             if not limited_thoughts:
                 return 0
-            
+
             processed_count = 0
             failed_count = 0
-            
+
             batch_size = 5
-            
+
             for i in range(0, len(limited_thoughts), batch_size):
                 try:
                     batch = limited_thoughts[i:i + batch_size]
-                    
+
                     tasks: List[Any] = []
                     for thought in batch:
                         try:
@@ -332,19 +327,19 @@ class AgentProcessor:
                                 thought_id=thought.thought_id,
                                 status=ThoughtStatus.PROCESSING
                             )
-                            
+
                             task = self._process_single_thought(thought)
                             tasks.append(task)
                         except Exception as e:
                             logger.error(f"Error preparing thought {thought.thought_id} for processing: {e}", exc_info=True)
                             failed_count += 1
                             continue
-                    
+
                     if not tasks:
                         continue
-                    
+
                     results = await asyncio.gather(*tasks, return_exceptions=True)
-                    
+
                     for result, thought in zip(results, batch):
                         try:
                             if isinstance(result, Exception):
@@ -360,16 +355,16 @@ class AgentProcessor:
                         except Exception as e:
                             logger.error(f"Error handling result for thought {thought.thought_id}: {e}", exc_info=True)
                             failed_count += 1
-                            
+
                 except Exception as e:
                     logger.error(f"Error processing thought batch {i//batch_size + 1}: {e}", exc_info=True)
                     failed_count += len(batch) if 'batch' in locals() else batch_size
-            
+
             if failed_count > 0:
                 logger.warning(f"Thought processing completed with {failed_count} failures out of {len(limited_thoughts)} attempts")
-            
+
             return processed_count
-            
+
         except Exception as e:
             logger.error(f"CRITICAL: Error in _process_pending_thoughts_async: {e}", exc_info=True)
             return 0
@@ -407,22 +402,22 @@ class AgentProcessor:
                 try:
                     # Get the task for context
                     task = persistence.get_task_by_id(thought.source_task_id)
-                    
+
                     # Extract conscience result if available
                     conscience_result = getattr(result, '_conscience_result', None)
-                    
+
                     dispatch_context = build_dispatch_context(
                         thought=thought,
                         time_service=self._time_service,
-                        task=task, 
-                        app_config=self.app_config, 
+                        task=task,
+                        app_config=self.app_config,
                         round_number=self.current_round_number,
                         conscience_result=conscience_result,
                         action_type=result.selected_action if result else None
                     )
                     # Services should be accessed via service registry, not passed in context
                     # to avoid serialization issues during audit logging
-                    
+
                     await self.action_dispatcher.dispatch(
                         action_selection_result=result,
                         thought=thought,
@@ -466,28 +461,28 @@ class AgentProcessor:
             except Exception as update_error:
                 logger.error(f"Failed to update thought status after critical error: {update_error}", exc_info=True)
             raise
-    
+
     async def stop_processing(self) -> None:
         """Stop the processing loop gracefully."""
         if not self._processing_task or self._processing_task.done():
             logger.info("Processing loop is not running")
             return
-        
+
         logger.info("Stopping processing loop...")
         if self._stop_event:
             self._stop_event.set()
-        
+
         if self.state_manager.get_state() == AgentState.DREAM and self.dream_processor:
             await self.dream_processor.stop_dreaming()
-        
+
         for processor in self.state_processors.values():
             try:
                 await processor.cleanup()
             except Exception as e:
                 logger.error(f"Error cleaning up {processor}: {e}")
-        
+
         self.state_manager.transition_to(AgentState.SHUTDOWN)
-        
+
         try:
             await asyncio.wait_for(self._processing_task, timeout=10.0)
             logger.info("Processing loop stopped")
@@ -500,13 +495,13 @@ class AgentProcessor:
                 logger.info("Processing task cancelled")
         finally:
             self._processing_task = None
-    
+
     async def _processing_loop(self, num_rounds: Optional[int] = None) -> None:
         """Main processing loop with state management and comprehensive exception handling."""
         round_count = 0
         consecutive_errors = 0
         max_consecutive_errors = 5
-        
+
         try:
             while not (self._stop_event and self._stop_event.is_set()):
                 try:
@@ -514,14 +509,14 @@ class AgentProcessor:
                         logger.info(f"Reached target rounds ({num_rounds}), requesting graceful shutdown")
                         request_global_shutdown(f"Processing completed after {num_rounds} rounds")
                         break
-                    
+
                     # Update round number
                     # self.thought_processor.advance_round()  # Removed nonexistent method
                     self.current_round_number += 1
-                    
+
                     # Get current state
                     current_state = self.state_manager.get_state()
-                    
+
                     # Never transition away from SHUTDOWN state
                     if current_state == AgentState.SHUTDOWN:
                         logger.debug("In SHUTDOWN state, skipping transition checks")
@@ -541,44 +536,44 @@ class AgentProcessor:
                             next_state = self.state_manager.should_auto_transition()
                             if next_state:
                                 await self._handle_state_transition(next_state)
-                    
+
                     # Process based on current state
                     current_state = self.state_manager.get_state()
-                    
+
                     # Get processor for current state
                     processor = self.state_processors.get(current_state)
-                    
+
                     if processor and current_state != AgentState.SHUTDOWN:
                         # Use the appropriate processor (except for SHUTDOWN which has special handling)
                         try:
                             result = await processor.process(self.current_round_number)
                             round_count += 1
                             consecutive_errors = 0  # Reset error counter on success
-                            
+
                             # Check for state transition recommendations
                             if current_state == AgentState.WORK:
                                 # Check for scheduled dream tasks
                                 if await self._check_scheduled_dream():
                                     logger.info("Scheduled dream time has arrived")
                                     await self._handle_state_transition(AgentState.DREAM)
-                            
+
                             elif current_state == AgentState.SOLITUDE and processor == self.solitude_processor:
                                 if result.get("should_exit_solitude"):
                                     logger.info(f"Exiting solitude: {result.get('exit_reason', 'Unknown reason')}")
                                     await self._handle_state_transition(AgentState.WORK)
-                                    
+
                         except Exception as e:
                             consecutive_errors += 1
                             logger.error(f"Error in {processor} for state {current_state}: {e}", exc_info=True)
-                            
+
                             if consecutive_errors >= max_consecutive_errors:
                                 logger.error(f"Too many consecutive processing errors ({consecutive_errors}), requesting shutdown")
                                 request_global_shutdown(f"Processing errors: {consecutive_errors} consecutive failures")
                                 break
-                            
+
                             # Add backoff delay after errors
                             await asyncio.sleep(min(consecutive_errors * 2, 30))
-                            
+
                     elif current_state == AgentState.DREAM:
                         # Dream processing is handled by enhanced dream processor
                         if not self.dream_processor._dream_task or self.dream_processor._dream_task.done():
@@ -587,7 +582,7 @@ class AgentProcessor:
                             await self._handle_state_transition(AgentState.WORK)
                         else:
                             await asyncio.sleep(5)  # Check periodically
-                        
+
                     elif current_state == AgentState.SHUTDOWN:
                         # Process shutdown state with negotiation
                         logger.info("In SHUTDOWN state, processing shutdown negotiation")
@@ -598,10 +593,10 @@ class AgentProcessor:
                                 result = await processor.process(self.current_round_number)
                                 round_count += 1
                                 consecutive_errors = 0
-                                
+
                                 # Check if shutdown is complete
                                 logger.info(f"Shutdown check - result type: {type(result)}, result: {result}")
-                                
+
                                 # Handle dict result
                                 if isinstance(result, dict):
                                     logger.debug(f"Result is dict: {result}")
@@ -619,7 +614,7 @@ class AgentProcessor:
                                         if result.shutdown_ready:
                                             logger.info("Shutdown negotiation complete (from result object), exiting processing loop")
                                             break
-                                
+
                                 # Check processor's shutdown_complete attribute directly
                                 if hasattr(processor, 'shutdown_complete'):
                                     logger.debug(f"processor.shutdown_complete = {processor.shutdown_complete}")
@@ -633,11 +628,11 @@ class AgentProcessor:
                         else:
                             logger.error("No shutdown processor available")
                             break
-                        
+
                     else:
                         logger.warning(f"No processor for state: {current_state}")
                         await asyncio.sleep(1)
-                    
+
                     # Brief delay between rounds
                     # Get delay from config, using mock LLM delay if enabled
                     delay = 1.0
@@ -647,7 +642,7 @@ class AgentProcessor:
                             delay = self.app_config.workflow.get_round_delay(mock_llm)
                         elif hasattr(self.app_config.workflow, 'round_delay_seconds'):
                             delay = self.app_config.workflow.round_delay_seconds
-                    
+
                     # State-specific delays override config only if not using mock LLM
                     if not getattr(self.app_config, 'mock_llm', False):
                         if current_state == AgentState.WORK:
@@ -656,7 +651,7 @@ class AgentProcessor:
                             delay = 10.0  # Slower pace in solitude
                         elif current_state == AgentState.DREAM:
                             delay = 5.0  # Check dream state periodically
-                    
+
                     if delay > 0 and not (self._stop_event and self._stop_event.is_set()):
                         try:
                             if self._stop_event:
@@ -666,40 +661,40 @@ class AgentProcessor:
                                 await asyncio.sleep(delay)
                         except asyncio.TimeoutError:
                             pass  # Continue processing
-                            
+
                 except Exception as e:
                     consecutive_errors += 1
                     logger.error(f"CRITICAL: Unhandled error in processing loop round {self.current_round_number}: {e}", exc_info=True)
-                    
+
                     if consecutive_errors >= max_consecutive_errors:
                         logger.error(f"Processing loop has failed {consecutive_errors} consecutive times, requesting shutdown")
                         request_global_shutdown(f"Critical processing loop failure: {consecutive_errors} consecutive errors")
                         break
-                    
+
                     # Emergency backoff after critical errors
                     await asyncio.sleep(min(consecutive_errors * 5, 60))
-                    
+
         except Exception as e:
             logger.error(f"FATAL: Catastrophic error in processing loop: {e}", exc_info=True)
             request_global_shutdown(f"Catastrophic processing loop error: {e}")
             raise
         finally:
             logger.info("Processing loop finished")
-    
+
     async def _handle_state_transition(self, target_state: AgentState) -> None:
         """Handle transitioning to a new state."""
         current_state = self.state_manager.get_state()
-        
+
         if not self.state_manager.transition_to(target_state):
             logger.error(f"Failed to transition from {current_state} to {target_state}")
             return
-        
+
         if target_state == AgentState.SHUTDOWN:
             # Special handling for shutdown transition
             logger.info("Transitioning to SHUTDOWN - clearing non-shutdown thoughts from queue")
             # The shutdown processor will create its own thoughts
             # Any pending thoughts will be cleaned up on next startup
-            
+
         elif target_state == AgentState.DREAM:
             logger.info("Entering DREAM state for self-reflection")
             # Start the enhanced dream processor
@@ -707,7 +702,7 @@ class AgentProcessor:
                 await self.dream_processor.start_dreaming(duration=30 * 60)  # 30 minutes default
             else:
                 logger.error("Dream processor not available")
-            
+
         elif target_state == AgentState.WORK and current_state == AgentState.DREAM:
             if self.dream_processor:
                 await self.dream_processor.stop_dreaming()
@@ -715,16 +710,16 @@ class AgentProcessor:
                 logger.info(f"Dream summary: {summary}")
             else:
                 logger.info("Dream processor not available, no cleanup needed")
-            
+
         if target_state in self.state_processors:
             processor = self.state_processors[target_state]
             await processor.initialize()
-    
+
     async def process(self, round_number: int) -> dict:
         """Execute one round of processing based on current state."""
         current_state = self.state_manager.get_state()
         processor = self.state_processors.get(current_state)
-        
+
         if processor:
             return await processor.process(round_number)
         elif current_state == AgentState.DREAM:
@@ -741,50 +736,50 @@ class AgentProcessor:
             "round_number": self.current_round_number,
             "is_processing": self._processing_task is not None and not self._processing_task.done(),
         }
-        
+
         current_state = self.state_manager.get_state()
-        
+
         if current_state == AgentState.WAKEUP:
             status["wakeup_status"] = self.wakeup_processor.get_status()
-            
+
         elif current_state == AgentState.WORK:
             status["work_status"] = self.work_processor.get_status()
-            
+
         elif current_state == AgentState.PLAY:
             status["play_status"] = self.play_processor.get_status()
-            
+
         elif current_state == AgentState.SOLITUDE:
             status["solitude_status"] = self.solitude_processor.get_status()
-            
+
         elif current_state == AgentState.DREAM:
             if self.dream_processor:
                 status["dream_summary"] = self.dream_processor.get_dream_summary()
             else:
                 status["dream_summary"] = {"state": "unavailable", "error": "Dream processor not available"}
-        
+
         status["processor_metrics"] = {}
         for state, processor in self.state_processors.items():
             status["processor_metrics"][state.value] = processor.get_metrics()
-        
+
         status["queue_status"] = self._get_detailed_queue_status()
-        
+
         return status
-    
+
     async def _schedule_initial_dream(self) -> None:
         """Schedule the first dream session 6 hours from startup."""
         try:
             from ciris_engine.logic.buses.memory_bus import MemoryBus
             from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
-            
+
             if not self.services.get("service_registry"):
                 logger.warning("Cannot schedule initial dream - no service registry")
                 return
-            
+
             memory_bus = MemoryBus(self.services["service_registry"], self._time_service)
-            
+
             # Schedule 6 hours from now
             dream_time = self._time_service.now() + timedelta(hours=6)
-            
+
             dream_task = GraphNode(
                 id=f"dream_schedule_{int(dream_time.timestamp())}",
                 type=NodeType.CONCEPT,
@@ -800,18 +795,18 @@ class AgentProcessor:
                     "is_initial": True
                 }
             )
-            
+
             await memory_bus.memorize(
                 node=dream_task,
                 handler_name="main_processor",
                 metadata={"future_task": True, "trigger_at": dream_time.isoformat()}
             )
-            
+
             logger.info(f"Scheduled initial dream session for {dream_time.isoformat()}")
-            
+
         except Exception as e:
             logger.error(f"Failed to schedule initial dream: {e}")
-    
+
     async def _check_scheduled_dream(self) -> bool:
         """Check if there's a scheduled dream task that's due."""
         try:
@@ -819,12 +814,12 @@ class AgentProcessor:
             from ciris_engine.logic.buses.memory_bus import MemoryBus
             from ciris_engine.schemas.services.operations import MemoryQuery
             from ciris_engine.schemas.services.graph_core import GraphScope
-            
+
             if not self.services.get("service_registry"):
                 return False
-            
+
             memory_bus = MemoryBus(self.services["service_registry"], self._time_service)
-            
+
             # Query for scheduled dream tasks
             query = MemoryQuery(
                 node_id="dream_schedule_*",
@@ -833,14 +828,14 @@ class AgentProcessor:
                 include_edges=False,
                 depth=1
             )
-            
+
             dream_tasks = await memory_bus.recall(
                 recall_query=query,
                 handler_name="main_processor"
             )
-            
+
             now = self._time_service.now()
-            
+
             for task in dream_tasks:
                 scheduled_for = task.attributes.get("scheduled_for")
                 if scheduled_for:
@@ -853,42 +848,42 @@ class AgentProcessor:
                         scheduled_time = datetime.fromisoformat(scheduled_str)
                     else:
                         scheduled_time = scheduled_for
-                    
+
                     # Check if it's time (with 2 hour defer window)
                     defer_window = timedelta(hours=task.attributes.get("defer_window_hours", 2))
-                    
+
                     if now >= scheduled_time and now <= scheduled_time + defer_window:
                         # Check dream health - when was last dream?
                         if self.dream_processor and self.dream_processor.dream_metrics.get("end_time"):
                             last_dream = datetime.fromisoformat(self.dream_processor.dream_metrics["end_time"])
                             hours_since = (now - last_dream).total_seconds() / 3600
-                            
+
                             # Don't dream if we dreamed less than 4 hours ago
                             if hours_since < 4:
                                 logger.debug(f"Skipping scheduled dream - last dream was {hours_since:.1f} hours ago")
                                 return False
-                        
+
                         logger.info(f"Scheduled dream task {task.id} is due")
                         return True
-            
+
             return False
-            
+
         except Exception as e:
             logger.error(f"Error checking scheduled dreams: {e}")
             return False
-    
+
     def _get_detailed_queue_status(self) -> dict:
         """Get detailed processing queue status information."""
         try:
             # Get thought counts by status
             from ciris_engine.logic import persistence
             from ciris_engine.schemas.runtime.models import ThoughtStatus
-            
+
             pending_count = persistence.count_thoughts_by_status(ThoughtStatus.PENDING)
             processing_count = persistence.count_thoughts_by_status(ThoughtStatus.PROCESSING)
             completed_count = persistence.count_thoughts_by_status(ThoughtStatus.COMPLETED)
             failed_count = persistence.count_thoughts_by_status(ThoughtStatus.FAILED)
-            
+
             # Get recent thought activity
             recent_thoughts = []
             try:
@@ -907,7 +902,7 @@ class AgentProcessor:
             except Exception as e:
                 logger.warning(f"Could not fetch recent thoughts: {e}")
                 recent_thoughts = []
-            
+
             # Get task information
             task_info: dict = {}
             try:
@@ -919,7 +914,7 @@ class AgentProcessor:
             except Exception as e:
                 logger.warning(f"Could not fetch task info: {e}")
                 task_info = {"error": str(e)}
-            
+
             return {
                 "thought_counts": {
                     "pending": pending_count,
@@ -946,3 +941,17 @@ class AgentProcessor:
                 "task_summary": {"error": "Could not fetch task info"},
                 "queue_health": {"error": "Could not determine health"}
             }
+
+    def get_state_history(self, limit: int = 10) -> List[StateTransitionRecord]:
+        """
+        Get recent state transition history.
+
+        Args:
+            limit: Maximum number of transitions to return
+
+        Returns:
+            List of state transitions with timestamps and reasons
+        """
+        all_transitions = self.state_manager.get_state_history()
+        # Return the most recent transitions up to the limit
+        return all_transitions[-limit:] if len(all_transitions) > limit else all_transitions

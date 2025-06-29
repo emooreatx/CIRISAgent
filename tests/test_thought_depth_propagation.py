@@ -31,7 +31,7 @@ from ciris_engine.logic.utils.channel_utils import create_channel_context
 
 class TestThoughtDepthPropagation:
     """Test thought depth propagation across different scenarios."""
-    
+
     @pytest.fixture
     def sample_task(self):
         """Create a sample task for testing."""
@@ -44,8 +44,8 @@ class TestThoughtDepthPropagation:
             updated_at=datetime.now(timezone.utc).isoformat(),
             priority=5
         )
-    
-    @pytest.fixture  
+
+    @pytest.fixture
     def base_thought(self, sample_task):
         """Create a base thought with thought_depth=0."""
         return Thought(
@@ -63,7 +63,7 @@ class TestThoughtDepthPropagation:
                 depth=0
             )
         )
-    
+
     @pytest.fixture
     def pondered_thought(self, sample_task):
         """Create a thought that has been pondered once (thought_depth=1)."""
@@ -83,13 +83,13 @@ class TestThoughtDepthPropagation:
                 depth=0
             )
         )
-    
+
     @pytest.fixture
     def heavily_pondered_thought(self, sample_task):
         """Create a thought that has been pondered multiple times (thought_depth=3)."""
         return Thought(
             thought_id=str(uuid.uuid4()),
-            content="Heavily pondered thought content", 
+            content="Heavily pondered thought content",
             source_task_id=sample_task.task_id,
             status=ThoughtStatus.PENDING,
             created_at=datetime.now(timezone.utc).isoformat(),
@@ -103,47 +103,47 @@ class TestThoughtDepthPropagation:
                 depth=0
             )
         )
-    
+
     def test_create_follow_up_thought_increments_thought_depth(self, base_thought):
         """Test that create_follow_up_thought properly increments thought_depth."""
         mock_time_service = Mock()
         mock_time_service.now.return_value = datetime.now(timezone.utc)
-        
+
         follow_up = create_follow_up_thought(
             parent=base_thought,
             time_service=mock_time_service,
             content="Follow-up thought content"
         )
-        
+
         # Follow-up should have parent's thought_depth + 1
         assert follow_up.thought_depth == base_thought.thought_depth + 1
         assert follow_up.thought_depth == 1
-        
+
         # Verify other properties are correctly set
         assert follow_up.source_task_id == base_thought.source_task_id
         assert follow_up.parent_thought_id == base_thought.thought_id
         assert follow_up.content == "Follow-up thought content"
-    
+
     def test_create_follow_up_from_pondered_thought(self, pondered_thought):
         """Test follow-up creation from already pondered thought."""
         mock_time_service = Mock()
         mock_time_service.now.return_value = datetime.now(timezone.utc)
-        
+
         follow_up = create_follow_up_thought(
             parent=pondered_thought,
             time_service=mock_time_service,
             content="Second follow-up thought"
         )
-        
+
         # Should increment from parent's count
         assert follow_up.thought_depth == pondered_thought.thought_depth + 1
         assert follow_up.thought_depth == 2
-    
+
     def test_create_follow_up_chain_maintains_count(self, base_thought):
         """Test that a chain of follow-ups maintains proper ponder count progression."""
         mock_time_service = Mock()
         mock_time_service.now.return_value = datetime.now(timezone.utc)
-        
+
         # Create first follow-up (thought_depth should be 1)
         first_follow_up = create_follow_up_thought(
             parent=base_thought,
@@ -151,7 +151,7 @@ class TestThoughtDepthPropagation:
             content="First follow-up"
         )
         assert first_follow_up.thought_depth == 1
-        
+
         # Create second follow-up from first (thought_depth should be 2)
         second_follow_up = create_follow_up_thought(
             parent=first_follow_up,
@@ -159,7 +159,7 @@ class TestThoughtDepthPropagation:
             content="Second follow-up"
         )
         assert second_follow_up.thought_depth == 2
-        
+
         # Create third follow-up from second (thought_depth should be 3)
         third_follow_up = create_follow_up_thought(
             parent=second_follow_up,
@@ -167,7 +167,7 @@ class TestThoughtDepthPropagation:
             content="Third follow-up"
         )
         assert third_follow_up.thought_depth == 3
-    
+
     @patch('ciris_engine.logic.handlers.control.ponder_handler.persistence')
     def test_ponder_handler_creates_correct_follow_up_count(self, mock_persistence, pondered_thought):
         """Test that PonderHandler creates follow-ups with correct ponder count."""
@@ -182,15 +182,15 @@ class TestThoughtDepthPropagation:
         mock_time_service = Mock()
         mock_time_service.now.return_value = datetime.now(timezone.utc)
         mock_dependencies.time_service = mock_time_service
-        
+
         # Mock persistence calls
         mock_persistence.update_thought_status.return_value = True
         mock_persistence.get_task_by_id.return_value = Mock(description="Test task")
         mock_persistence.add_thought.return_value = None
-        
+
         # Create PonderHandler
         ponder_handler = PonderHandler(mock_dependencies, max_rounds=5)
-        
+
         # Create action result with ponder parameters
         ponder_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
@@ -200,13 +200,13 @@ class TestThoughtDepthPropagation:
             rationale="Failed guardrails check",
             raw_llm_response=None
         )
-        
+
         # Mock the handle method to capture the follow-up thought
         captured_thoughts = []
         def capture_add_thought(thought):
             captured_thoughts.append(thought)
         mock_persistence.add_thought.side_effect = capture_add_thought
-        
+
         # Handle the ponder action
         import asyncio
         dispatch_context = DispatchContext(
@@ -224,13 +224,13 @@ class TestThoughtDepthPropagation:
             correlation_id="test_correlation_id"
         )
         asyncio.run(ponder_handler.handle(ponder_result, pondered_thought, dispatch_context))
-        
+
         # Verify follow-up thought was created with correct ponder count
         assert len(captured_thoughts) == 1
         follow_up_thought = captured_thoughts[0]
         assert follow_up_thought.thought_depth == pondered_thought.thought_depth + 1
         assert follow_up_thought.thought_depth == 2
-    
+
     def test_ponder_handler_dynamic_content_generation(self, heavily_pondered_thought):
         """Test that PonderHandler generates appropriate content based on ponder count."""
         mock_dependencies = Mock(spec=ActionHandlerDependencies)
@@ -240,21 +240,21 @@ class TestThoughtDepthPropagation:
         mock_time_service.now.return_value = datetime.now(timezone.utc)
         mock_dependencies.time_service = mock_time_service
         ponder_handler = PonderHandler(mock_dependencies, max_rounds=5)
-        
+
         # Test content generation for different ponder counts
         questions = ["Persistent issue", "Still failing"]
-        
+
         # Test heavily pondered content (count=4 after increment)
         content = ponder_handler._generate_ponder_follow_up_content(
             "Test task", questions, 4, heavily_pondered_thought
         )
-        
+
         # Should include guidance about multiple actions
         assert "Fourth action for:" in content
         assert "several actions" in content  # Updated guidance text
         assert "RECALL, OBSERVE, MEMORIZE" in content  # Mentions example actions
         assert "task is complete" in content  # Mentions completion
-    
+
     def test_max_rounds_behavior_with_thought_depth(self, heavily_pondered_thought):
         """Test that ponder handler processes normally, relying on guardrails for max depth enforcement."""
         mock_dependencies = Mock(spec=ActionHandlerDependencies)
@@ -264,23 +264,23 @@ class TestThoughtDepthPropagation:
         mock_dependencies.time_service = mock_time_service
         mock_dependencies.bus_manager = mock_bus_manager
         mock_dependencies.service_registry = None
-        
+
         # Set max rounds to 4, but with guardrails the ponder handler won't enforce this
         ponder_handler = PonderHandler(mock_dependencies, max_rounds=4)
-        
+
         ponder_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
             action_parameters=PonderParams(questions=["Final attempt"]),
             rationale="Last chance",
             raw_llm_response=None
         )
-        
+
         # Mock persistence functions
         with patch('ciris_engine.logic.handlers.control.ponder_handler.persistence') as mock_persistence:
             mock_persistence.update_thought_status.return_value = True
             mock_persistence.get_task_by_id.return_value = Mock(description="Test task")
             mock_persistence.add_thought.return_value = None
-            
+
             import asyncio
             dispatch_context = DispatchContext(
                 channel_context=create_channel_context("test_channel"),
@@ -297,19 +297,19 @@ class TestThoughtDepthPropagation:
                 correlation_id="test_correlation_max"
             )
             asyncio.run(ponder_handler.handle(ponder_result, heavily_pondered_thought, dispatch_context))
-            
+
             # Verify that ponder handler completed normally
             # It should update status to COMPLETED and create a follow-up thought
             mock_persistence.update_thought_status.assert_called_once()
             status_call = mock_persistence.update_thought_status.call_args
             assert status_call.kwargs['status'] == ThoughtStatus.COMPLETED
-            
+
             # Should create a follow-up thought
             mock_persistence.add_thought.assert_called_once()
-    
+
     @pytest.mark.parametrize("initial_count,expected_follow_up_count", [
         (0, 1),
-        (1, 2), 
+        (1, 2),
         (2, 3),
         (5, 6),
         (6, 7)  # Max thought_depth is 7
@@ -331,16 +331,16 @@ class TestThoughtDepthPropagation:
                 depth=0
             )
         )
-        
+
         mock_time_service = Mock()
         mock_time_service.now.return_value = datetime.now(timezone.utc)
-        
+
         follow_up = create_follow_up_thought(
             parent=thought,
             time_service=mock_time_service,
             content="Follow-up content"
         )
-        
+
         assert follow_up.thought_depth == expected_follow_up_count
 
 

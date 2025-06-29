@@ -33,7 +33,7 @@ async def test_full_startup_and_wakeup():
         # Set environment variables for test
         os.environ["CIRIS_DATA_DIR"] = temp_dir
         os.environ["OPENAI_API_KEY"] = "test-key"
-        
+
         try:
             logger.info("Creating runtime...")
             config = EssentialConfig()
@@ -45,46 +45,46 @@ async def test_full_startup_and_wakeup():
                 mock_llm=True,
                 timeout=5
             )
-            
+
             logger.info("Initializing runtime...")
             await runtime.initialize()
             logger.info("✓ Runtime initialized!")
-            
+
             # Start processing to test wakeup
             logger.info("Starting agent processor...")
             processor_task = asyncio.create_task(
                 runtime.agent_processor.start_processing(num_rounds=3)
             )
-            
+
             # Let it run for a few seconds
             await asyncio.sleep(3)
-            
+
             # Check status
             if hasattr(runtime.agent_processor, 'wakeup_processor'):
                 status = runtime.agent_processor.wakeup_processor.get_status()
                 logger.info(f"Wakeup processor status: {status}")
-                
+
                 if "error" not in str(status):
                     logger.info("✓ Wakeup processor running without errors!")
                 else:
                     logger.error("❌ Wakeup processor has errors")
                     return False
-            
+
             # Request shutdown
             logger.info("Requesting shutdown...")
             request_global_shutdown("Test completed")
-            
+
             # Cancel processor
             processor_task.cancel()
             try:
                 await processor_task
             except asyncio.CancelledError:
                 pass
-            
+
             # Shutdown
             await runtime.shutdown()
             logger.info("✓ Shutdown completed!")
-            
+
             logger.info("\n✅ ALL TESTS PASSED!")
             logger.info("\nThe CIRIS Agent now:")
             logger.info("  ✓ Initializes all services correctly")
@@ -95,9 +95,9 @@ async def test_full_startup_and_wakeup():
             logger.info("  ✓ Handles Task schema without metadata field")
             logger.info("  ✓ Shuts down services in correct order")
             logger.info("\nThe agent is ready for use!")
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"\n❌ TEST FAILED: {e}", exc_info=True)
             return False

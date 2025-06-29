@@ -90,37 +90,37 @@ async def test_memorize_handler_with_graph_node(monkeypatch):
     mock_persistence.add_thought = Mock()
     mock_persistence.update_thought_status = Mock()
     monkeypatch.setattr('ciris_engine.logic.handlers.memory.memorize_handler.persistence', mock_persistence)
-    
+
     # Setup
     memory_service = Mock()
     memory_service.memorize = AsyncMock(return_value=Mock(status=Mock(value="ok")))
-    
+
     mock_service_registry = AsyncMock()
     mock_time_service = Mock()
     mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
-    
+
     # Mock the audit service
     mock_audit_service = AsyncMock()
     mock_audit_service.log_event = AsyncMock()
-    
+
     bus_manager = BusManager(
-        mock_service_registry, 
+        mock_service_registry,
         time_service=mock_time_service,
         audit_service=mock_audit_service
     )
-    
+
     # Mock the memory bus to use our memory_service
     mock_memory_bus = AsyncMock()
     mock_memory_bus.memorize = memory_service.memorize
     bus_manager.memory = mock_memory_bus
-    
+
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,
         time_service=mock_time_service
     )
-    
+
     handler = MemorizeHandler(deps)
-    
+
     # Create proper GraphNode
     node_attrs = GraphNodeAttributes(
         created_at=datetime.now(timezone.utc),
@@ -128,17 +128,17 @@ async def test_memorize_handler_with_graph_node(monkeypatch):
         created_by="test_user",
         tags=["test", "memory"]
     )
-    
+
     node = GraphNode(
         id="test_node_id",
         type=NodeType.CONCEPT,
         scope=GraphScope.LOCAL,
         attributes=node_attrs
     )
-    
+
     # Create parameters
     params = MemorizeParams(node=node)
-    
+
     # Create DMA result
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.MEMORIZE,
@@ -147,14 +147,14 @@ async def test_memorize_handler_with_graph_node(monkeypatch):
         reasoning="This is a test memorization",
         evaluation_time_ms=100.0
     )
-    
+
     # Create thought and dispatch context
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     # Execute handler
     handler_result = await handler.handle(result, thought, dispatch_context)
-    
+
     # Verify memory service was called correctly
     assert memory_service.memorize.called
     call_args = memory_service.memorize.call_args
@@ -171,7 +171,7 @@ async def test_recall_handler_with_query(monkeypatch):
     mock_persistence.add_thought = Mock()
     mock_persistence.update_thought_status = Mock()
     monkeypatch.setattr('ciris_engine.logic.handlers.memory.recall_handler.persistence', mock_persistence)
-    
+
     # Setup
     memory_service = Mock()
     test_nodes = [
@@ -197,40 +197,40 @@ async def test_recall_handler_with_query(monkeypatch):
         )
     ]
     memory_service.recall = AsyncMock(return_value=test_nodes)
-    
+
     mock_service_registry = AsyncMock()
     mock_time_service = Mock()
     mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
-    
+
     # Mock the audit service
     mock_audit_service = AsyncMock()
     mock_audit_service.log_event = AsyncMock()
-    
+
     bus_manager = BusManager(
-        mock_service_registry, 
+        mock_service_registry,
         time_service=mock_time_service,
         audit_service=mock_audit_service
     )
-    
+
     # Mock the memory bus
     mock_memory_bus = AsyncMock()
     mock_memory_bus.recall = memory_service.recall
     bus_manager.memory = mock_memory_bus
-    
+
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,
         time_service=mock_time_service
     )
-    
+
     handler = RecallHandler(deps)
-    
+
     # Create parameters
     params = RecallParams(
         query="test memory",
         node_type=NodeType.CONCEPT,
         limit=10
     )
-    
+
     # Create DMA result
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.RECALL,
@@ -239,14 +239,14 @@ async def test_recall_handler_with_query(monkeypatch):
         reasoning="This is a test recall",
         evaluation_time_ms=100.0
     )
-    
+
     # Create thought and dispatch context
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     # Execute handler
     handler_result = await handler.handle(result, thought, dispatch_context)
-    
+
     # Verify memory service was called correctly
     assert memory_service.recall.called
     call_args = memory_service.recall.call_args
@@ -267,37 +267,37 @@ async def test_memorize_handler_error_handling(monkeypatch):
     mock_persistence.add_thought = Mock()
     mock_persistence.update_thought_status = Mock()
     monkeypatch.setattr('ciris_engine.logic.handlers.memory.memorize_handler.persistence', mock_persistence)
-    
+
     # Setup
     memory_service = Mock()
     memory_service.memorize = AsyncMock(return_value=Mock(status=Mock(value="error"), error="Memory service unavailable"))
-    
+
     mock_service_registry = AsyncMock()
     mock_time_service = Mock()
     mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
-    
+
     # Mock the audit service
     mock_audit_service = AsyncMock()
     mock_audit_service.log_event = AsyncMock()
-    
+
     bus_manager = BusManager(
-        mock_service_registry, 
+        mock_service_registry,
         time_service=mock_time_service,
         audit_service=mock_audit_service
     )
-    
+
     # Mock the memory bus
     mock_memory_bus = AsyncMock()
     mock_memory_bus.memorize = memory_service.memorize
     bus_manager.memory = mock_memory_bus
-    
+
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,
         time_service=mock_time_service
     )
-    
+
     handler = MemorizeHandler(deps)
-    
+
     # Create node
     node = GraphNode(
         id="error_test_node",
@@ -309,9 +309,9 @@ async def test_memorize_handler_error_handling(monkeypatch):
             created_by="test_user"
         )
     )
-    
+
     params = MemorizeParams(node=node)
-    
+
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.MEMORIZE,
         action_parameters=params,
@@ -319,13 +319,13 @@ async def test_memorize_handler_error_handling(monkeypatch):
         reasoning="This should fail",
         evaluation_time_ms=100.0
     )
-    
+
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     # Execute handler - should handle error gracefully
     handler_result = await handler.handle(result, thought, dispatch_context)
-    
+
     # Verify memory service was called
     assert memory_service.memorize.called
     # Handler should return a result even on error

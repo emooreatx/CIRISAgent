@@ -11,7 +11,7 @@ from typing import Optional, Literal
 class EmergencyShutdownCommand(BaseModel):
     """
     Emergency shutdown command with cryptographic signature.
-    
+
     Must be signed by a ROOT or AUTHORITY key to be valid.
     Timestamp must be within 5 minutes to prevent replay attacks.
     """
@@ -20,7 +20,7 @@ class EmergencyShutdownCommand(BaseModel):
     timestamp: str = Field(..., description="ISO format timestamp of command creation")
     force: bool = Field(True, description="Force immediate shutdown without graceful cleanup")
     signature: str = Field(..., description="HMAC-SHA256 signature of command")
-    
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -40,7 +40,7 @@ class EmergencyShutdownResponse(BaseModel):
     authority: Optional[str] = Field(None, description="Authority ID who issued the command")
     timestamp: datetime = Field(..., description="When command was processed")
     shutdown_initiated: bool = Field(..., description="Whether shutdown was initiated")
-    
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -65,7 +65,7 @@ class EmergencySignatureResult(BaseModel):
     valid: bool = Field(..., description="Whether signature is valid")
     authority_id: Optional[str] = Field(None, description="Authority ID if valid")
     reason: Optional[str] = Field(None, description="Reason for invalid signature")
-    
+
 class EmergencyAuditEntry(BaseModel):
     """Audit entry for emergency shutdown attempts."""
     timestamp: datetime = Field(..., description="When attempt occurred")
@@ -74,7 +74,7 @@ class EmergencyAuditEntry(BaseModel):
     reason: str = Field(..., description="Shutdown reason provided")
     failure_reason: Optional[str] = Field(None, description="Why command failed if applicable")
     source_ip: Optional[str] = Field(None, description="Source IP address")
-    
+
 class TrustedAuthority(BaseModel):
     """Trusted authority for emergency shutdown."""
     authority_id: str = Field(..., description="Unique authority identifier")

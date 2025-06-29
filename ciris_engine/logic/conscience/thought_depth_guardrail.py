@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class ThoughtDepthconscience(ConscienceInterface):
     """Enforces maximum thought depth by deferring when limit is reached."""
-    
+
     def __init__(self, time_service: TimeServiceProtocol, max_depth: Optional[int] = None):
         """Initialize with time service and configurable max depth."""
         self._time_service = time_service
@@ -32,7 +32,7 @@ class ThoughtDepthconscience(ConscienceInterface):
                 max_depth = 7
         self.max_depth = max_depth
         logger.info(f"ThoughtDepthconscience initialized with max_depth={self.max_depth}")
-    
+
     async def check(
         self,
         action: ActionSelectionDMAResult,
@@ -40,7 +40,7 @@ class ThoughtDepthconscience(ConscienceInterface):
     ) -> ConscienceCheckResult:
         """Check if thought depth exceeds maximum allowed."""
         timestamp = self._time_service.now()
-        
+
         # Get the thought from context
         thought = context.get("thought")
         if not thought:
@@ -57,16 +57,16 @@ class ThoughtDepthconscience(ConscienceInterface):
                 ),
                 reason="No thought provided to check"
             )
-        
+
         current_depth = getattr(thought, "thought_depth", 0)
-        
+
         # Terminal actions don't count toward depth limit
         terminal_actions = {
             HandlerActionType.DEFER.value,
-            HandlerActionType.REJECT.value, 
+            HandlerActionType.REJECT.value,
             HandlerActionType.TASK_COMPLETE.value
         }
-        
+
         if action.selected_action in terminal_actions:
             return ConscienceCheckResult(
                 status=ConscienceStatus.PASSED,
@@ -80,18 +80,18 @@ class ThoughtDepthconscience(ConscienceInterface):
                 ),
                 reason=f"Terminal action {action.selected_action} at depth {current_depth}"
             )
-        
+
         # Check if we're at or beyond max depth
         if current_depth >= self.max_depth:
             logger.warning(
                 f"Thought {thought.thought_id} at depth {current_depth} "
                 f"exceeds max depth {self.max_depth}. Forcing DEFER."
             )
-            
+
             # Create defer parameters
-            defer_params = DeferParams(
+            _defer_params = DeferParams(
                 reason=f"Maximum action depth ({self.max_depth}) reached. "
-                       f"This task requires human guidance to proceed further.",
+                       "This task requires human guidance to proceed further.",
                 context={
                     "thought_depth": str(current_depth),
                     "original_action": action.selected_action,  # It's already a string
@@ -99,9 +99,9 @@ class ThoughtDepthconscience(ConscienceInterface):
                 },
                 defer_until=None  # No specific time, defer indefinitely
             )
-            
+
             # Create the defer action that will replace the original
-            defer_action = ActionSelectionDMAResult(
+            _defer_action = ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER.value,
                 action_parameters=None,  # No parameters needed
                 selection_reasoning=f"Automatically deferred: Maximum thought depth of {self.max_depth} reached",
@@ -115,7 +115,7 @@ class ThoughtDepthconscience(ConscienceInterface):
                 selection_principles=["Safety", "Prudence"],
                 total_evaluation_time_ms=0.0
             )
-            
+
             return ConscienceCheckResult(
                 status=ConscienceStatus.FAILED,
                 passed=False,
@@ -128,7 +128,7 @@ class ThoughtDepthconscience(ConscienceInterface):
                     reasoning_transparency=0.9  # Very transparent about why
                 )
             )
-        
+
         # Depth is within limits
         return ConscienceCheckResult(
             status=ConscienceStatus.PASSED,

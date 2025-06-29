@@ -4,11 +4,10 @@ Action context schemas for contract-driven architecture.
 Replaces context: Dict[str, Any] for each action type.
 """
 
-from typing import Dict, List, Literal, Optional, Any
+from typing import Dict, List, Literal, Optional
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
-from pydantic import Field, ConfigDict
 
 class BaseActionContext(BaseModel):
     """Base context shared by all actions."""
@@ -17,7 +16,7 @@ class BaseActionContext(BaseModel):
     correlation_id: UUID = Field(..., description="Correlation ID for tracing")
     channel_id: str = Field(..., description="Channel where action occurs")
     user_id: Optional[str] = Field(None, description="User requesting action")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class SpeakContext(BaseActionContext):

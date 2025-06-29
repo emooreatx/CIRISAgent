@@ -33,10 +33,10 @@ def cleanup_after_test():
     This helps prevent interference between tests, especially when Discord is involved.
     """
     yield
-    
+
     # Force garbage collection to clean up any lingering objects
     gc.collect()
-    
+
     # Add a small delay to allow sockets to close
     time.sleep(0.1)
 
@@ -75,14 +75,14 @@ def skip_without_discord_token(request):
 def api_required():
     """Mark test as requiring running API."""
     import socket
-    
+
     # Check if API is accessible
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(1)
         result = sock.connect_ex(('localhost', 8080))
         sock.close()
-        
+
         if result != 0:
             pytest.skip("API not running on localhost:8080")
     except Exception:

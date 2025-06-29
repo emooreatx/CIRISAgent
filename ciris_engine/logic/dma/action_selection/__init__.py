@@ -6,6 +6,6 @@ from .faculty_integration import FacultyIntegration
 
 __all__ = [
     "ActionSelectionContextBuilder",
-    "ActionSelectionSpecialCases", 
+    "ActionSelectionSpecialCases",
     "FacultyIntegration",
 ]

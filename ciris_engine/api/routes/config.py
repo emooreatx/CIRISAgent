@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, field_serializer
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.api.config_security import ConfigSecurity
 from ciris_engine.schemas.api.auth import UserRole
-from ciris_engine.api.dependencies.auth import require_observer, require_admin, require_root, AuthContext, get_auth_context
+from ciris_engine.api.dependencies.auth import require_observer, require_admin, AuthContext, get_auth_context
 
 router = APIRouter(prefix="/config", tags=["config"])
 
@@ -24,7 +24,7 @@ class ConfigItemResponse(BaseModel):
     updated_at: datetime = Field(..., description="Last update time")
     updated_by: str = Field(..., description="Who updated this config")
     is_sensitive: bool = Field(False, description="Whether value contains sensitive data")
-    
+
     @field_serializer('updated_at')
     def serialize_updated_at(self, updated_at: datetime, _info):
         return updated_at.isoformat() if updated_at else None
@@ -49,13 +49,13 @@ async def list_configs(
 ):
     """
     List all configurations.
-    
+
     Get all configuration values, with sensitive values filtered based on role.
     """
     config_service = getattr(request.app.state, 'config_service', None)
     if not config_service:
         raise HTTPException(status_code=503, detail="Config service not available")
-    
+
     try:
         # Get all configs
         all_configs = {}
@@ -66,18 +66,18 @@ async def list_configs(
             essential_config = await config_service.get_config()
             if essential_config:
                 all_configs = essential_config
-        
+
         # Filter based on prefix if provided
         if prefix:
             all_configs = {k: v for k, v in all_configs.items() if k.startswith(prefix)}
-        
+
         # Convert to list format with role filtering
         config_list = []
         for key, value in all_configs.items():
             # Apply role-based filtering
             is_sensitive = ConfigSecurity.is_sensitive(key)
             filtered_value = ConfigSecurity.filter_value(key, value, auth.role)
-            
+
             config_list.append(ConfigItemResponse(
                 key=key,
                 value=filtered_value,
@@ -85,14 +85,14 @@ async def list_configs(
                 updated_by="system",  # Would get from graph
                 is_sensitive=is_sensitive
             ))
-        
+
         result = ConfigListResponse(
             configs=config_list,
             total=len(config_list)
         )
-        
+
         return SuccessResponse(data=result)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -104,24 +104,24 @@ async def get_config(
 ):
     """
     Get specific config.
-    
+
     Get a specific configuration value.
     """
     config_service = getattr(request.app.state, 'config_service', None)
     if not config_service:
         raise HTTPException(status_code=503, detail="Config service not available")
-    
+
     try:
         # Get config value
         value = await config_service.get_config(key)
-        
+
         if value is None:
             raise HTTPException(status_code=404, detail=f"Configuration key '{key}' not found")
-        
+
         # Apply role-based filtering
         is_sensitive = ConfigSecurity.is_sensitive(key)
         filtered_value = ConfigSecurity.filter_value(key, value, auth.role)
-        
+
         config = ConfigItemResponse(
             key=key,
             value=filtered_value,
@@ -129,9 +129,9 @@ async def get_config(
             updated_by="system",
             is_sensitive=is_sensitive
         )
-        
+
         return SuccessResponse(data=config)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -146,13 +146,13 @@ async def update_config(
 ):
     """
     Update config.
-    
+
     Update a configuration value. Requires ADMIN role, or ROOT for sensitive configs.
     """
     config_service = getattr(request.app.state, 'config_service', None)
     if not config_service:
         raise HTTPException(status_code=503, detail="Config service not available")
-    
+
     # Check permissions
     is_sensitive = ConfigSecurity.is_sensitive(key)
     if is_sensitive and auth.role != UserRole.ROOT:
@@ -165,26 +165,26 @@ async def update_config(
             status_code=403,
             detail="Insufficient permissions. Requires ADMIN role or higher."
         )
-    
+
     try:
         # Validate the configuration value
-        errors = []
-        warnings = []
-        
+        _errors = []
+        _warnings = []
+
         # Check for system configs
         if key.startswith("system.") and auth.role != UserRole.ROOT:
             raise HTTPException(
                 status_code=403,
                 detail=f"Cannot modify system config '{key}' without ROOT role"
             )
-        
+
         # Update config
         await config_service.set_config(
             key=key,
             value=body.value,
             updated_by=auth.user_id
         )
-        
+
         # Return updated config (show actual value since user has permission to update)
         config = ConfigItemResponse(
             key=key,
@@ -193,9 +193,9 @@ async def update_config(
             updated_by=auth.user_id,
             is_sensitive=is_sensitive
         )
-        
+
         return SuccessResponse(data=config)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -209,13 +209,13 @@ async def delete_config(
 ):
     """
     Delete config.
-    
+
     Remove a configuration value. Requires ADMIN role.
     """
     config_service = getattr(request.app.state, 'config_service', None)
     if not config_service:
         raise HTTPException(status_code=503, detail="Config service not available")
-    
+
     try:
         # Check if it's a sensitive key
         if ConfigSecurity.is_sensitive(key) and auth.role != UserRole.ROOT:
@@ -223,16 +223,16 @@ async def delete_config(
                 status_code=403,
                 detail=f"Cannot delete sensitive config '{key}' without ROOT role"
             )
-        
+
         # Delete config
         if hasattr(config_service, 'delete_config'):
             await config_service.delete_config(key)
         else:
             # Set to None as deletion
             await config_service.set_config(key, None, updated_by=auth.user_id)
-        
+
         return SuccessResponse(data={"status": "deleted", "key": key})
-        
+
     except HTTPException:
         raise
     except Exception as e:

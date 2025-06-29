@@ -10,17 +10,17 @@ from .parameters import (
     ObserveParams,
     SpeakParams,
     ToolParams,
-    
+
     # Control actions
     PonderParams,
     RejectParams,
     DeferParams,
-    
+
     # Memory actions
     MemorizeParams,
     RecallParams,
     ForgetParams,
-    
+
     # Terminal action
     TaskCompleteParams,
 )
@@ -29,19 +29,19 @@ from .parameters import (
 __all__ = [
     # External
     "ObserveParams",
-    "SpeakParams", 
+    "SpeakParams",
     "ToolParams",
-    
+
     # Control
     "PonderParams",
     "RejectParams",
     "DeferParams",
-    
+
     # Memory
     "MemorizeParams",
     "RecallParams",
     "ForgetParams",
-    
+
     # Terminal
     "TaskCompleteParams",
 ]

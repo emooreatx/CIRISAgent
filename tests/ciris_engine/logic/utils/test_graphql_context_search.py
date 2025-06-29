@@ -13,7 +13,7 @@ from ciris_engine.schemas.adapters.graphql_core import EnrichedContext, GraphQLU
 
 class TestGraphQLContextSearch:
     """Test GraphQL context provider uses search for user lookups."""
-    
+
     @pytest.fixture
     def mock_memory_service(self):
         """Create mock memory service with search capability."""
@@ -22,7 +22,7 @@ class TestGraphQLContextSearch:
         memory.search = AsyncMock(return_value=[])
         memory.export_identity_context = AsyncMock(return_value="Mock identity context")
         return memory
-    
+
     @pytest.fixture
     def provider(self, mock_memory_service):
         """Create GraphQL context provider."""
@@ -31,7 +31,7 @@ class TestGraphQLContextSearch:
             memory_service=mock_memory_service,
             enable_remote_graphql=False
         )
-    
+
     @pytest.mark.asyncio
     async def test_enrich_context_uses_search_for_users(self, provider, mock_memory_service):
         """Test that enrich_context uses search to find users."""
@@ -40,7 +40,7 @@ class TestGraphQLContextSearch:
         mock_task.context = Mock()
         mock_task.context.initial_task_context = Mock()
         mock_task.context.initial_task_context.author_name = "TestUser"
-        
+
         # Mock search to return a user node
         user_node = GraphNode(
             id="user/123456789",
@@ -53,14 +53,14 @@ class TestGraphQLContextSearch:
             }
         )
         mock_memory_service.search.return_value = [user_node]
-        
+
         # Call enrich_context
         result = await provider.enrich_context(mock_task, None)
-        
+
         # Verify search was called with correct parameters
         mock_memory_service.search.assert_called_once()
         call_args = mock_memory_service.search.call_args
-        
+
         # Check the arguments - search(query, filters)
         if call_args.args:  # Positional args
             assert call_args.args[0] == "TestUser"
@@ -68,11 +68,11 @@ class TestGraphQLContextSearch:
         else:  # Keyword args
             assert call_args.kwargs['query'] == "TestUser"
             filters = call_args.kwargs['filters']
-        
+
         assert filters is not None
         assert filters.node_type == NodeType.USER.value
         assert filters.scope == GraphScope.LOCAL.value
-        
+
         # Verify result contains user profile
         assert isinstance(result, EnrichedContext)
         # user_profiles is a list of tuples
@@ -83,7 +83,7 @@ class TestGraphQLContextSearch:
         username_attrs = [attr for attr in profile.attributes if attr.key == "username"]
         assert len(username_attrs) > 0
         assert username_attrs[0].value == "TestUser"
-    
+
     @pytest.mark.asyncio
     async def test_search_matches_exact_username(self, provider, mock_memory_service):
         """Test that search results are filtered for exact username match."""
@@ -92,7 +92,7 @@ class TestGraphQLContextSearch:
         mock_task.context = Mock()
         mock_task.context.initial_task_context = Mock()
         mock_task.context.initial_task_context.author_name = "JohnDoe"
-        
+
         # Mock search to return multiple users
         user_nodes = [
             GraphNode(
@@ -115,11 +115,11 @@ class TestGraphQLContextSearch:
             )
         ]
         mock_memory_service.search.return_value = user_nodes
-        
+
         # Call enrich_context
         result = await provider.enrich_context(mock_task, None)
-        
-        # Verify only exact match is included  
+
+        # Verify only exact match is included
         assert len(result.user_profiles) == 1
         assert result.user_profiles[0][0] == "JohnDoe"
         profile = result.user_profiles[0][1]
@@ -127,7 +127,7 @@ class TestGraphQLContextSearch:
         user_id_attrs = [attr for attr in profile.attributes if attr.key == "user_id"]
         assert len(user_id_attrs) > 0
         assert user_id_attrs[0].value == "222"
-    
+
     @pytest.mark.asyncio
     async def test_search_checks_multiple_name_fields(self, provider, mock_memory_service):
         """Test that search checks username, display_name, and name fields."""
@@ -136,18 +136,18 @@ class TestGraphQLContextSearch:
         mock_task.context = Mock()
         mock_task.context.initial_task_context = Mock()
         mock_task.context.initial_task_context.author_name = "TestUser"
-        
+
         # Test different name field scenarios
         test_cases = [
             {"username": "TestUser", "user_id": "111"},
             {"display_name": "TestUser", "user_id": "222"},
             {"name": "TestUser", "user_id": "333"}
         ]
-        
+
         for attrs in test_cases:
             # Reset mock
             mock_memory_service.search.reset_mock()
-            
+
             # Mock search to return node with specific attribute
             user_node = GraphNode(
                 id=f"user/{attrs['user_id']}",
@@ -156,10 +156,10 @@ class TestGraphQLContextSearch:
                 attributes=attrs
             )
             mock_memory_service.search.return_value = [user_node]
-            
+
             # Call enrich_context
             result = await provider.enrich_context(mock_task, None)
-            
+
             # Verify user was found
             assert len(result.user_profiles) == 1
             assert result.user_profiles[0][0] == "TestUser"
@@ -168,7 +168,7 @@ class TestGraphQLContextSearch:
             user_id_attrs = [attr for attr in profile.attributes if attr.key == "user_id"]
             assert len(user_id_attrs) > 0
             assert user_id_attrs[0].value == attrs["user_id"]
-    
+
     @pytest.mark.asyncio
     async def test_handles_search_errors_gracefully(self, provider, mock_memory_service):
         """Test that search errors are handled gracefully."""
@@ -177,17 +177,17 @@ class TestGraphQLContextSearch:
         mock_task.context = Mock()
         mock_task.context.initial_task_context = Mock()
         mock_task.context.initial_task_context.author_name = "ErrorUser"
-        
+
         # Mock search to raise exception
         mock_memory_service.search.side_effect = Exception("Search failed")
-        
+
         # Call enrich_context - should not raise
         result = await provider.enrich_context(mock_task, None)
-        
+
         # Verify empty result
         assert isinstance(result, EnrichedContext)
         assert len(result.user_profiles) == 0
-    
+
     @pytest.mark.asyncio
     async def test_handles_multiple_authors(self, provider, mock_memory_service):
         """Test that multiple authors are searched individually."""
@@ -196,15 +196,15 @@ class TestGraphQLContextSearch:
         mock_task.context = Mock()
         mock_task.context.initial_task_context = Mock()
         mock_task.context.initial_task_context.author_name = "Author1"
-        
+
         mock_thought = Mock()
         mock_thought.context = Mock()
         mock_thought.context.initial_task_context = Mock()
         mock_thought.context.initial_task_context.author_name = "Author2"
-        
+
         # Track search calls
         search_calls = []
-        
+
         async def mock_search(query, filters):
             search_calls.append(query)
             if query == "Author1":
@@ -222,16 +222,16 @@ class TestGraphQLContextSearch:
                     attributes={"username": "Author2", "user_id": "222"}
                 )]
             return []
-        
+
         mock_memory_service.search.side_effect = mock_search
-        
+
         # Call enrich_context
         result = await provider.enrich_context(mock_task, mock_thought)
-        
+
         # Verify both authors were searched
         assert "Author1" in search_calls
         assert "Author2" in search_calls
-        
+
         # Verify both profiles returned
         assert len(result.user_profiles) == 2
         # Check both authors are in the results

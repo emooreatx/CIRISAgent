@@ -11,25 +11,26 @@ import sqlite3
 import logging
 from typing import Optional, List
 from ciris_engine.schemas.audit.hash_chain import (
-    HashChainAuditEntry, HashChainVerificationResult, ChainSummary
+    HashChainVerificationResult, ChainSummary
 )
+from ciris_engine.schemas.audit.verification import ChainVerificationResult
 
 logger = logging.getLogger(__name__)
 
 class AuditHashChain:
     """Manages the cryptographic hash chain for audit entries"""
-    
+
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
         self._last_hash: Optional[str] = None
         self._sequence_number: int = 0
         self._initialized = False
-        
+
     def initialize(self, force: bool = False) -> None:
         """Initialize the hash chain by loading the last entry"""
         if self._initialized and not force:
             return
-            
+
         last_entry = self.get_last_entry()
         if last_entry:
             self._last_hash = last_entry["entry_hash"]
@@ -37,10 +38,10 @@ class AuditHashChain:
         else:
             self._last_hash = None
             self._sequence_number = 0
-            
+
         self._initialized = True
         logger.info(f"Hash chain initialized at sequence {self._sequence_number}")
-        
+
     def compute_entry_hash(self, entry: dict) -> str:
         """Compute deterministic hash of entry content"""
         # Create canonical representation for hashing
@@ -53,52 +54,52 @@ class AuditHashChain:
             "sequence_number": entry["sequence_number"],
             "previous_hash": entry["previous_hash"]
         }
-        
+
         # Convert to deterministic JSON
         canonical_json = json.dumps(canonical, sort_keys=True, separators=(',', ':'))
-        
+
         # Compute SHA-256 hash
         return hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
-    
+
     def prepare_entry(self, entry: dict) -> dict:
         """Prepare an entry for the hash chain by adding chain fields"""
         if not self._initialized:
             self.initialize()
-            
+
         self._sequence_number += 1
         entry["sequence_number"] = self._sequence_number
         entry["previous_hash"] = self._last_hash or "genesis"
-        
+
         entry["entry_hash"] = self.compute_entry_hash(entry)
-        
+
         self._last_hash = entry["entry_hash"]
-        
+
         return entry
-    
+
     def get_last_entry(self) -> Optional[dict]:
         """Retrieve the last entry from the chain"""
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            
+
             cursor.execute("""
-                SELECT * FROM audit_log_v2 
-                ORDER BY sequence_number DESC 
+                SELECT * FROM audit_log_v2
+                ORDER BY sequence_number DESC
                 LIMIT 1
             """)
-            
+
             row = cursor.fetchone()
             conn.close()
-            
+
             if row:
                 return dict(row)
             return None
-            
+
         except sqlite3.Error as e:
             logger.error(f"Failed to get last entry: {e}")
             return None
-    
+
     def verify_chain_integrity(self, start_seq: int = 1, end_seq: Optional[int] = None) -> HashChainVerificationResult:
         """Verify the integrity of the hash chain"""
         conn = None
@@ -107,101 +108,103 @@ class AuditHashChain:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            
+
             # Build query
             if end_seq:
                 cursor.execute("""
-                    SELECT * FROM audit_log_v2 
+                    SELECT * FROM audit_log_v2
                     WHERE sequence_number >= ? AND sequence_number <= ?
                     ORDER BY sequence_number
                 """, (start_seq, end_seq))
             else:
                 cursor.execute("""
-                    SELECT * FROM audit_log_v2 
+                    SELECT * FROM audit_log_v2
                     WHERE sequence_number >= ?
                     ORDER BY sequence_number
                 """, (start_seq,))
-            
+
             entries = [dict(row) for row in cursor.fetchall()]
-            
+
             if not entries:
                 result = HashChainVerificationResult(
                     valid=True,
                     entries_checked=0,
-                    errors=[]
+                    errors=[],
+                    last_sequence=0
                 )
             else:
-                errors: List[object] = []
+                errors: List[str] = []
                 previous_hash: Optional[str] = None
-                
+
                 # If not starting from sequence 1, get the previous entry's hash
                 if start_seq > 1:
                     cursor.execute("""
-                        SELECT entry_hash FROM audit_log_v2 
+                        SELECT entry_hash FROM audit_log_v2
                         WHERE sequence_number = ?
                     """, (start_seq - 1,))
                     prev_row = cursor.fetchone()
                     if prev_row:
                         previous_hash = prev_row[0]
-                
+
                 for i, entry in enumerate(entries):
                     expected_seq = start_seq + i
                     if entry["sequence_number"] != expected_seq:
                         errors.append(f"Sequence gap at {entry['sequence_number']}, expected {expected_seq}")
-                    
+
                     if i == 0 and start_seq == 1:
                         expected_prev = "genesis"
                     else:
                         expected_prev = previous_hash or ""
-                    
+
                     if entry["previous_hash"] != expected_prev:
                         errors.append(f"Hash chain break at sequence {entry['sequence_number']}")
-                    
+
                     computed_hash = self.compute_entry_hash(entry)
                     if computed_hash != entry["entry_hash"]:
                         errors.append(f"Entry hash mismatch at sequence {entry['sequence_number']}")
-                    
+
                     previous_hash = entry["entry_hash"]
-                
+
                 result = HashChainVerificationResult(
                     valid=len(errors) == 0,
                     entries_checked=len(entries),
                     errors=errors,
                     last_sequence=entries[-1]["sequence_number"] if entries else 0
                 )
-            
+
         except sqlite3.Error as e:
             logger.error(f"Chain verification failed: {e}")
-            result = ChainVerificationResult(
+            result = HashChainVerificationResult(
                 valid=False,
                 entries_checked=0,
-                errors=[f"Database error: {e}"]
+                errors=[f"Database error: {e}"],
+                last_sequence=0
             )
         finally:
             if conn:
                 conn.close()
-        
+
         return result
-    
+
     def find_tampering(self) -> Optional[int]:
         """Find the first tampered entry in the chain using linear search"""
         if not self._initialized:
             self.initialize()
-            
+
         if self._sequence_number == 0:
             return None  # Empty chain
-        
+
         # Do a full chain verification to find errors
         result = self.verify_chain_integrity(1, self._sequence_number)
-        
+
         if result.valid:
             return None  # No tampering found
-        
+
         # Parse errors to find first tampered sequence
         errors = result.errors
         if not errors:
             return 1  # Found tampering but no specific errors
-            
+
         # Sort to find the first error by sequence number
         tampered_sequences: List[int] = []
         for error in errors:
@@ -216,35 +219,35 @@ class AuditHashChain:
             match = re.search(r'sequence (\d+)', error)
             if match:
                 tampered_sequences.append(int(match.group(1)))
-        
+
         if tampered_sequences:
             return min(tampered_sequences)  # Return the first tampered sequence
-        
+
         # If we can't parse specific sequence, return 1 as fallback
         return 1
-    
+
     def get_chain_summary(self) -> ChainSummary:
         """Get a summary of the current chain state"""
         if not self._initialized:
             self.initialize()
-            
+
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
+
             cursor.execute("SELECT COUNT(*), MIN(sequence_number), MAX(sequence_number) FROM audit_log_v2")
             count, min_seq, max_seq = cursor.fetchone()
-            
+
             cursor.execute("SELECT event_timestamp FROM audit_log_v2 ORDER BY sequence_number LIMIT 1")
             oldest_row = cursor.fetchone()
             oldest = oldest_row[0] if oldest_row else None
-            
+
             cursor.execute("SELECT event_timestamp FROM audit_log_v2 ORDER BY sequence_number DESC LIMIT 1")
             newest_row = cursor.fetchone()
             newest = newest_row[0] if newest_row else None
-            
+
             conn.close()
-            
+
             return ChainSummary(
                 total_entries=count or 0,
                 sequence_range=[min_seq, max_seq] if min_seq else [0, 0],
@@ -253,7 +256,7 @@ class AuditHashChain:
                 oldest_entry=oldest,
                 newest_entry=newest
             )
-            
+
         except sqlite3.Error as e:
             logger.error(f"Failed to get chain summary: {e}")
             return ChainSummary(

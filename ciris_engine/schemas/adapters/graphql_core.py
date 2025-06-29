@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class GraphQLVariable(BaseModel):
     """Base model for GraphQL variables"""
-    
+
     model_config = ConfigDict(extra = "allow")  # Allow additional fields for flexibility
 
 class GraphQLQuery(BaseModel):

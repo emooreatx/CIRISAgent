@@ -17,6 +17,7 @@ from ciris_engine.logic.handlers.control.ponder_handler import PonderHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreakerError
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class ThoughtProcessor:
         app_config: ConfigAccessor,
         dependencies: ActionHandlerDependencies,
         time_service: TimeServiceProtocol,
-        telemetry_service: Optional[Any] = None,
+        telemetry_service: Optional[TelemetryServiceProtocol] = None,
         auth_service: Optional[Any] = None
     ) -> None:
         self.dma_orchestrator = dma_orchestrator
@@ -59,7 +60,7 @@ class ThoughtProcessor:
                     "source_module": "thought_processor"
                 }
             )
-        
+
         # 1. Fetch the full Thought object
         thought = await self._fetch_thought(thought_item.thought_id)
         if not thought:
@@ -75,7 +76,7 @@ class ThoughtProcessor:
                     }
                 )
             return None
-        
+
         # 1.5 Verify the parent task is signed by at least an observer
         if self.auth_service:
             is_authorized = await self._verify_task_authorization(thought)
@@ -168,12 +169,12 @@ class ThoughtProcessor:
                 action_parameters=defer_params.model_dump(),
                 rationale="DMA timeout",
             )
-        
+
         # CRITICAL DEBUG: Check action_result details immediately
         if action_result:
             selected_action = getattr(action_result, 'selected_action', 'UNKNOWN')
             logger.info(f"ThoughtProcessor: Action selection result for {thought.thought_id}: {selected_action}")
-            
+
             # Special debug for OBSERVE actions
             if selected_action == HandlerActionType.OBSERVE:
                 logger.warning(f"OBSERVE ACTION DEBUG: ThoughtProcessor received OBSERVE action for thought {thought.thought_id}")
@@ -181,7 +182,7 @@ class ThoughtProcessor:
                 logger.warning(f"OBSERVE ACTION DEBUG: action_result details: {action_result}")
         else:
             logger.error(f"ThoughtProcessor: No action result from DMA for {thought.thought_id}")
-            logger.error(f"ThoughtProcessor: action_result is None! This is the critical issue.")
+            logger.error("ThoughtProcessor: action_result is None! This is the critical issue.")
             # Return early with fallback result
             return self._create_deferral_result(dma_results, thought)
 
@@ -190,25 +191,25 @@ class ThoughtProcessor:
         conscience_result = await self._apply_conscience_simple(
             action_result, thought, dma_results, thought_context
         )
-        
+
         # 6a. If consciences overrode to PONDER, try action selection once more with guidance
-        if (conscience_result and conscience_result.overridden and 
+        if (conscience_result and conscience_result.overridden and
             conscience_result.final_action.selected_action == HandlerActionType.PONDER):
-            
+
             logger.info(f"ThoughtProcessor: conscience override to PONDER for {thought.thought_id}. Attempting re-run with guidance.")
-            
+
             # Extract the conscience feedback
             override_reason = conscience_result.override_reason or "Action failed conscience checks"
             attempted_action = self._describe_action(conscience_result.original_action)
-            
+
             # Create enhanced context with conscience feedback
             retry_context = thought_context
             if hasattr(thought_context, 'model_copy'):
                 retry_context = thought_context.model_copy()
-            
+
             # Set flag indicating this is a conscience retry
             retry_context.is_conscience_retry = True
-            
+
             # Add conscience guidance to the thought item
             setattr(thought_item, 'conscience_feedback', {
                 "failed_action": attempted_action,
@@ -221,7 +222,7 @@ class ThoughtProcessor:
                     "Remember: DEFER only if the task MUST be done AND requires human approval."
                 )
             })
-            
+
             # Re-run action selection with guidance
             try:
                 retry_result = await self.dma_orchestrator.run_action_selection(
@@ -231,14 +232,14 @@ class ThoughtProcessor:
                     dma_results=dma_results,
                     profile_name=profile_name
                 )
-                
+
                 if retry_result:
                     # Always re-apply consciences, even if same action type (parameters may differ)
                     logger.info(f"ThoughtProcessor: Re-running consciences on retry action {retry_result.selected_action}")
                     retry_conscience_result = await self._apply_conscience_simple(
                         retry_result, thought, dma_results, retry_context
                     )
-                    
+
                     # If the retry passes consciences, use it
                     if not retry_conscience_result.overridden:
                         logger.info(f"ThoughtProcessor: Retry action {retry_result.selected_action} passed consciences")
@@ -248,21 +249,21 @@ class ThoughtProcessor:
                         # Log details about what failed
                         logger.info(f"ThoughtProcessor: Retry action {retry_result.selected_action} also failed consciences")
                         if retry_result.selected_action == conscience_result.original_action.selected_action:
-                            logger.info(f"ThoughtProcessor: Same action type but with different parameters still failed")
-                        logger.info(f"ThoughtProcessor: Proceeding with PONDER")
+                            logger.info("ThoughtProcessor: Same action type but with different parameters still failed")
+                        logger.info("ThoughtProcessor: Proceeding with PONDER")
                 else:
-                    logger.info(f"ThoughtProcessor: Retry failed to produce a result, proceeding with PONDER")
-                    
+                    logger.info("ThoughtProcessor: Retry failed to produce a result, proceeding with PONDER")
+
             except Exception as e:
                 logger.error(f"Error during action selection retry: {e}", exc_info=True)
                 # Continue with original PONDER if retry fails
 
         if action_result.selected_action == HandlerActionType.OBSERVE:
             logger.debug(
-                "ThoughtProcessor: OBSERVE action after consciences for thought %s", 
+                "ThoughtProcessor: OBSERVE action after consciences for thought %s",
                 thought.thought_id,
             )
-        
+
         # DEBUG: Log conscience result details
         if conscience_result:
             if hasattr(conscience_result, 'final_action') and conscience_result.final_action:
@@ -301,7 +302,7 @@ class ThoughtProcessor:
         if final_result and conscience_result:
             # Add conscience_result as a non-serialized attribute
             setattr(final_result, '_conscience_result', conscience_result)
-        
+
         # Record thought processing completion and action taken
         if self.telemetry_service:
             await self.telemetry_service.record_metric(
@@ -334,29 +335,29 @@ class ThoughtProcessor:
         thought: Thought,
         dma_results_dict: dict,
         processing_context: Optional[Any] = None,
-    ):
+    ) -> Any:
         """Simple conscience application without orchestrator."""
         # Import ConscienceApplicationResult here to avoid circular imports
         from ciris_engine.schemas.processors.core import ConscienceApplicationResult
-        
+
         # Check if this is a conscience retry
         is_conscience_retry = (
-            processing_context and 
-            hasattr(processing_context, 'is_conscience_retry') and 
+            processing_context and
+            hasattr(processing_context, 'is_conscience_retry') and
             processing_context.is_conscience_retry
         )
-        
+
         # If this is a conscience retry, unset the flag to prevent loops
         if is_conscience_retry:
             processing_context.is_conscience_retry = False
-        
+
         # Exempt actions that shouldn't be overridden
         exempt_actions = {
             HandlerActionType.TASK_COMPLETE.value,
             HandlerActionType.DEFER.value,
             HandlerActionType.REJECT.value
         }
-        
+
         if action_result.selected_action in exempt_actions:
             return ConscienceApplicationResult(
                 original_action=action_result,
@@ -365,7 +366,7 @@ class ThoughtProcessor:
             )
 
         context = {"thought": thought, "dma_results": dma_results_dict}
-        
+
         final_action = action_result
         overridden = False
         override_reason = None
@@ -375,7 +376,7 @@ class ThoughtProcessor:
         for entry in self.conscience_registry.get_consciences():
             conscience = entry.conscience
             cb = entry.circuit_breaker
-            
+
             try:
                 if cb:
                     cb.check_and_raise()
@@ -394,11 +395,11 @@ class ThoughtProcessor:
             # Store epistemic data if available
             if result.epistemic_data:
                 epistemic_data[entry.name] = result.epistemic_data.model_dump()
-            
+
             if not result.passed:
                 overridden = True
                 override_reason = result.reason
-                
+
                 # Check if the conscience provides a replacement action
                 if result.epistemic_data and hasattr(result.epistemic_data, "get") and "replacement_action" in result.epistemic_data:
                     # Use the conscience's suggested replacement action
@@ -412,11 +413,11 @@ class ThoughtProcessor:
                         result.reason or "conscience failed",
                         "What alternative approach would better align with my principles?"
                     ]
-                    
+
                     ponder_params = PonderParams(
                         questions=questions
                     )
-                    
+
                     # Create PONDER action with required fields
                     final_action = ActionSelectionDMAResult(
                         selected_action=HandlerActionType.PONDER,
@@ -430,12 +431,12 @@ class ThoughtProcessor:
         if is_conscience_retry and not overridden:
             # Check if any conscience that ran was the depth guardrail
             has_depth_guardrail = any(
-                "ThoughtDepthGuardrail" in entry.conscience.__class__.__name__ 
+                "ThoughtDepthGuardrail" in entry.conscience.__class__.__name__
                 for entry in self.conscience_registry.get_consciences()
             )
-            
+
             if not has_depth_guardrail:
-                logger.info(f"ThoughtProcessor: Conscience retry without override - forcing PONDER")
+                logger.info("ThoughtProcessor: Conscience retry without override - forcing PONDER")
                 final_action = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.PONDER,
                     action_parameters={},
@@ -443,7 +444,7 @@ class ThoughtProcessor:
                 )
                 overridden = True
                 override_reason = "Conscience retry - forcing PONDER to prevent loops"
-        
+
         result = ConscienceApplicationResult(
             original_action=action_result,
             final_action=final_action,
@@ -458,47 +459,47 @@ class ThoughtProcessor:
         # Import here to avoid circular import
         from ciris_engine.logic import persistence
         return await persistence.async_get_thought_by_id(thought_id)
-    
+
     async def _verify_task_authorization(self, thought: Thought) -> bool:
         """Verify that the thought's parent task is signed by at least an observer."""
         if not self.auth_service:
             # If no auth service, allow for backward compatibility
             logger.warning("No auth service available, allowing thought processing")
             return True
-        
+
         # Import here to avoid circular import
         from ciris_engine.logic import persistence
-        
+
         # Get the parent task
         task = await persistence.async_get_task_by_id(thought.source_task_id)
         if not task:
             logger.error(f"Parent task {thought.source_task_id} not found for thought {thought.thought_id}")
             return False
-        
+
         # Check if task is signed
         if not task.signed_by:
             logger.error(f"Task {task.task_id} is not signed")
             return False
-        
+
         # Verify the signature
         is_valid = await self.auth_service.verify_task_signature(task)
         if not is_valid:
             logger.error(f"Task {task.task_id} has invalid signature")
             return False
-        
+
         # Get the WA that signed it
         signer_wa = await self.auth_service.get_wa(task.signed_by)
         if not signer_wa:
             logger.error(f"Signer WA {task.signed_by} not found")
             return False
-        
+
         # Check role - must be at least observer
         from ciris_engine.schemas.services.authority_core import WARole
         allowed_roles = [WARole.OBSERVER, WARole.AUTHORITY, WARole.ROOT]
         if signer_wa.role not in allowed_roles:
             logger.error(f"Task {task.task_id} signed by {signer_wa.role.value} role, needs at least observer")
             return False
-        
+
         logger.debug(f"Task {task.task_id} properly signed by {signer_wa.role.value} {task.signed_by}")
         return True
 
@@ -506,7 +507,7 @@ class ThoughtProcessor:
         """Generate a human-readable description of an action."""
         action_type = action_result.selected_action
         params = action_result.action_parameters
-        
+
         descriptions = {
             HandlerActionType.SPEAK: lambda p: f"speak: '{p.content[:50]}...'" if hasattr(p, 'content') and len(str(p.content)) > 50 else f"speak: '{p.content}'" if hasattr(p, 'content') else "speak",
             HandlerActionType.TOOL: lambda p: f"use tool '{p.tool_name}'" if hasattr(p, 'tool_name') else "use a tool",
@@ -515,18 +516,19 @@ class ThoughtProcessor:
             HandlerActionType.RECALL: lambda p: "recall information",
             HandlerActionType.FORGET: lambda p: "forget information",
         }
-        
+
         desc_func = descriptions.get(action_type, lambda p: f"{action_type.value}")
         try:
             return desc_func(params)
-        except:
+        except Exception as e:
+            logger.warning(f"Failed to generate action description for {action_type.value}: {e}. Using default description.")
             return f"{action_type.value}"
-    
+
     def _get_profile_name(self, thought: Thought) -> str:
         """Extract profile name from thought context or use default."""
         profile_name = None
         if hasattr(thought, 'context') and isinstance(thought.context, dict):
-            profile_name = thought.context.get('agent_profile_name')  # type: ignore[unreachable]
+            profile_name = thought.context.get('agent_profile_name')
         if not profile_name and hasattr(self.app_config, 'agent_profiles'):
             for name, profile in self.app_config.agent_profiles.items():
                 if name != "default" and profile:
@@ -539,7 +541,7 @@ class ThoughtProcessor:
         logger.debug(f"Determined profile name '{profile_name}' for thought {thought.thought_id}")
         return profile_name
 
-    def _get_permitted_actions(self, thought: Thought):
+    def _get_permitted_actions(self, thought: Thought) -> Optional[List[str]]:
         return getattr(thought, 'permitted_actions', None)
 
     def _has_critical_failure(self, dma_results: Any) -> bool:
@@ -554,7 +556,7 @@ class ThoughtProcessor:
             context={"original_thought_id": thought.thought_id, "dma_results_summary": dma_results, "target_wa_ual": DEFAULT_WA},
             defer_until=None
         )
-        
+
         return ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=defer_params.model_dump(),
@@ -566,7 +568,7 @@ class ThoughtProcessor:
         # Handle both ConscienceResult and ActionSelectionDMAResult
         selected_action = None
         final_result = result
-        
+
         if result is None:
             logger.error(
                 "ThoughtProcessor: conscience result missing for thought %s - defaulting to PONDER",
@@ -610,7 +612,7 @@ class ThoughtProcessor:
                 f"ThoughtProcessor: Unknown result type for thought {thought.thought_id}: {type(result)}. Returning result as-is."
             )
             return result  # type: ignore[no-any-return]
-        
+
         # Log the action being handled
         if selected_action:
             logger.debug(
@@ -625,12 +627,12 @@ class ThoughtProcessor:
         else:
             logger.warning(f"ThoughtProcessor: No selected_action found for thought {thought.thought_id}")
             return final_result  # type: ignore[no-any-return]
-        
+
         # TASK_COMPLETE actions should be returned as-is for proper dispatch
         if selected_action == HandlerActionType.TASK_COMPLETE:
             logger.debug(f"ThoughtProcessor: Returning TASK_COMPLETE result for thought {thought.thought_id}")
             return final_result  # type: ignore[no-any-return]
-        
+
         # NOTE: PONDER actions are now handled by the PonderHandler in the action dispatcher
         # No special processing needed here - just return the result for normal dispatch
         return final_result  # type: ignore[no-any-return]
@@ -680,58 +682,57 @@ class ThoughtProcessor:
                     ponder_questions = action_selection.action_parameters['questions']
                 elif hasattr(action_selection.action_parameters, 'questions'):
                     ponder_questions = action_selection.action_parameters.questions
-            
+
             if not ponder_questions:
                 ponder_questions = [
                     "What is the core issue I need to address?",
                     "What additional context would help me provide a better response?",
                     "Are there any assumptions I should reconsider?"
                 ]
-            
+
             ponder_params = PonderParams(questions=ponder_questions)
-            
-            max_rounds = getattr(self.settings, 'max_rounds', 5) 
+
+            max_rounds = getattr(self.settings, 'max_rounds', 5)
             ponder_handler = PonderHandler(dependencies=self.dependencies, max_rounds=max_rounds)
-            
+
             # Create ActionSelectionDMAResult for ponder handler
             ponder_result = ActionSelectionDMAResult(
                 selected_action=HandlerActionType.PONDER,
                 action_parameters=ponder_params.model_dump(),
                 rationale="Processing PONDER action from action selection"
             )
-            
+
             # Create proper DispatchContext
             from ciris_engine.schemas.runtime.contexts import DispatchContext
             # Build proper dispatch context with all required fields
-            from datetime import datetime
             import uuid
-            
+
             # Ensure we always have a channel context
             channel_context = create_channel_context(context.get('channel_id', 'unknown'))
             if channel_context is None:
                 channel_context = create_channel_context('unknown')
             assert channel_context is not None  # For mypy
-            
+
             dispatch_ctx = DispatchContext(
                 # Core identification
                 channel_context=channel_context,
                 author_id=context.get('author_id', 'system'),
                 author_name=context.get('author_name', 'CIRIS System'),
-                
+
                 # Service references
                 origin_service="thought_processor",
                 handler_name="PonderHandler",
-                
+
                 # Action context
                 action_type=HandlerActionType.PONDER,
                 thought_id=thought.thought_id,
                 task_id=thought.source_task_id,
                 source_task_id=thought.source_task_id,
-                
+
                 # Event details
                 event_summary=f"Processing PONDER action for thought {thought.thought_id}",
                 event_timestamp=self._time_service.now().isoformat(),
-                
+
                 # Additional context
                 wa_id=None,
                 wa_authorized=False,
@@ -739,16 +740,16 @@ class ThoughtProcessor:
                 round_number=thought.round_number,
                 conscience_result=None
             )
-            
+
             await ponder_handler.handle(
                 result=ponder_result,
                 thought=thought,
                 dispatch_context=dispatch_ctx
             )
-            
+
             if thought.status == ThoughtStatus.PENDING:
                 logger.info(f"Thought ID {thought.thought_id} marked as PENDING after PONDER action - will be processed in next round.")
-        
+
         if action_selection.selected_action == HandlerActionType.OBSERVE:
             agent_mode = getattr(self.app_config, "agent_mode", "").lower()
             if agent_mode == "cli":

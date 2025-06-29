@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects and Pydantic models."""
-    
+
     def default(self, obj: Any):
         if isinstance(obj, datetime):
             return obj.isoformat()
@@ -143,4 +143,3 @@ def get_edges_for_node(node_id: str, scope: GraphScope, db_path: Optional[str] =
     except Exception as e:
         logger.exception("Failed to fetch edges for node %s: %s", node_id, e)
     return edges
-

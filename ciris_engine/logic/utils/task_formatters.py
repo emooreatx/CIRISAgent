@@ -55,4 +55,3 @@ def format_task_context(current_task: Dict[str, str],
             out_lines.append(f"\n=== Last Completed Task ===\n{desc} | Outcome: {outcome} (completed: {upd})")
 
     return "\n".join(out_lines)
-

@@ -1,10 +1,9 @@
 """Discord audit logging component."""
 import logging
 from typing import Dict, Optional, Any, TYPE_CHECKING
-from datetime import datetime
 import json
 
-from ciris_engine.schemas.services.nodes import AuditEntry, AuditEntryContext
+from ciris_engine.schemas.services.nodes import AuditEntryContext
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -15,35 +14,35 @@ logger = logging.getLogger(__name__)
 
 class DiscordAuditLogger:
     """Handles audit logging for Discord operations."""
-    
+
     def __init__(self, time_service: Optional["TimeServiceProtocol"] = None,
                  audit_service: Optional["AuditServiceProtocol"] = None) -> None:
         """Initialize the audit logger.
-        
+
         Args:
             time_service: Time service for consistent timestamps
             audit_service: Audit service for storing audit entries
         """
         self._time_service = time_service
         self._audit_service = audit_service
-        
+
         # Ensure we have a time service
         if self._time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
             self._time_service = TimeService()
-    
+
     def set_audit_service(self, audit_service: "AuditServiceProtocol") -> None:
         """Set the audit service after initialization.
-        
+
         Args:
             audit_service: Audit service instance
         """
         self._audit_service = audit_service
-    
+
     async def log_operation(self, operation: str, actor: str, context: Dict[str, Any],
                           success: bool = True, error_message: Optional[str] = None) -> None:
         """Log a Discord operation to the audit trail.
-        
+
         Args:
             operation: Operation name (e.g., "send_message", "fetch_guidance")
             actor: Who performed the operation (user ID or system component)
@@ -58,7 +57,7 @@ class DiscordAuditLogger:
             else:
                 logger.error(f"Discord operation failed: {operation} by {actor} - {error_message}")
             return
-        
+
         try:
             # Create audit context
             audit_context = AuditEntryContext(
@@ -73,26 +72,26 @@ class DiscordAuditLogger:
                     "error": error_message or ""
                 }
             )
-            
+
             # Create action description
             action = f"discord.{operation}"
             if not success:
                 action = f"discord.{operation}.failed"
-            
+
             # Log to audit service
             await self._audit_service.log_action(
                 action=action,
                 actor=actor,
                 context=audit_context
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to log audit entry: {e}")
-    
-    async def log_message_sent(self, channel_id: str, author_id: str, 
+
+    async def log_message_sent(self, channel_id: str, author_id: str,
                              message_content: str, correlation_id: Optional[str] = None) -> None:
         """Log a message send operation.
-        
+
         Args:
             channel_id: Discord channel ID
             author_id: Message author ID
@@ -101,7 +100,7 @@ class DiscordAuditLogger:
         """
         # Truncate message for audit log
         truncated = message_content[:100] + "..." if len(message_content) > 100 else message_content
-        
+
         await self.log_operation(
             operation="send_message",
             actor=author_id,
@@ -112,11 +111,11 @@ class DiscordAuditLogger:
                 "correlation_id": correlation_id
             }
         )
-    
+
     async def log_message_received(self, channel_id: str, author_id: str,
                                  author_name: str, message_id: str) -> None:
         """Log a message receive operation.
-        
+
         Args:
             channel_id: Discord channel ID
             author_id: Message author ID
@@ -132,11 +131,11 @@ class DiscordAuditLogger:
                 "message_id": message_id
             }
         )
-    
+
     async def log_guidance_request(self, channel_id: str, requester_id: str,
                                  context: Dict[str, Any], guidance_received: Optional[str] = None) -> None:
         """Log a guidance request operation.
-        
+
         Args:
             channel_id: Discord channel ID
             requester_id: Who requested guidance
@@ -153,12 +152,12 @@ class DiscordAuditLogger:
                 "guidance_received": guidance_received is not None
             }
         )
-    
+
     async def log_approval_request(self, channel_id: str, requester_id: str,
                                  action: str, approval_status: str,
                                  approver_id: Optional[str] = None) -> None:
         """Log an approval request operation.
-        
+
         Args:
             channel_id: Discord channel ID
             requester_id: Who requested approval
@@ -176,11 +175,11 @@ class DiscordAuditLogger:
                 "approver_id": approver_id
             }
         )
-    
+
     async def log_permission_change(self, admin_id: str, target_id: str,
                                   permission: str, action: str, guild_id: str) -> None:
         """Log a permission change operation.
-        
+
         Args:
             admin_id: Who made the change
             target_id: User whose permissions changed
@@ -197,12 +196,12 @@ class DiscordAuditLogger:
                 "guild_id": guild_id
             }
         )
-    
+
     async def log_tool_execution(self, user_id: str, tool_name: str,
                                parameters: Dict[str, Any], success: bool,
                                execution_time_ms: float, error: Optional[str] = None) -> None:
         """Log a tool execution operation.
-        
+
         Args:
             user_id: Who executed the tool
             tool_name: Name of the tool
@@ -222,11 +221,11 @@ class DiscordAuditLogger:
             success=success,
             error_message=error
         )
-    
+
     async def log_connection_event(self, event_type: str, guild_count: int,
                                  user_count: int, error: Optional[str] = None) -> None:
         """Log a Discord connection event.
-        
+
         Args:
             event_type: Type of event (connected, disconnected, reconnect)
             guild_count: Number of guilds

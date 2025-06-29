@@ -25,7 +25,7 @@ class ServiceType(CaseInsensitiveEnum):
     MEMORY = "memory"
     AUDIT = "audit"
     LLM = "llm"
-    
+
     # Infrastructure services
     TELEMETRY = "telemetry"
     ORCHESTRATOR = "orchestrator"
@@ -45,17 +45,17 @@ class HandlerActionType(CaseInsensitiveEnum):
     OBSERVE = "observe"
     SPEAK = "speak"
     TOOL = "tool"
-    
+
     # Control responses
     REJECT = "reject"
     PONDER = "ponder"
     DEFER = "defer"
-    
+
     # Memory operations
     MEMORIZE = "memorize"
     RECALL = "recall"
     FORGET = "forget"
-    
+
     # Terminal action
     TASK_COMPLETE = "task_complete"
 
@@ -86,34 +86,34 @@ class ThoughtType(CaseInsensitiveEnum):
     MEMORY = "memory"
     DEFERRED = "deferred"
     PONDER = "ponder"
-    
+
     # Feedback and guidance
     FEEDBACK = "feedback"
     GUIDANCE = "guidance"
     IDENTITY_UPDATE = "identity_update"
-    
+
     # Decision-making
     ETHICAL_REVIEW = "ethical_review"
     conscience = "conscience"
     CONSENSUS = "consensus"
-    
+
     # System and meta
     REFLECTION = "reflection"
     SYNTHESIS = "synthesis"
     DELEGATION = "delegation"
-    
+
     # Communication
     CLARIFICATION = "clarification"
     SUMMARY = "summary"
-    
+
     # Tool and action
     TOOL_RESULT = "tool_result"
     ACTION_REVIEW = "action_review"
-    
+
     # Urgency and priority
     URGENT = "urgent"
     SCHEDULED = "scheduled"
-    
+
     # Learning and adaptation
     PATTERN = "pattern"
     ADAPTATION = "adaptation"

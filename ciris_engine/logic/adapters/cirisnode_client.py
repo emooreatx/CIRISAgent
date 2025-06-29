@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, TYPE_CHECKING, cast
+from typing import List, Optional, TYPE_CHECKING, cast, Any
 
 import httpx
 
@@ -43,10 +43,10 @@ class CIRISNodeClient(Service):
             }
         }
         super().__init__(config=retry_config)
-        
+
         self.service_registry = service_registry
         self._audit_service: Optional["AuditService"] = None
-        
+
         # Use base_url if provided, otherwise use default
         if base_url:
             self.base_url = base_url
@@ -55,7 +55,7 @@ class CIRISNodeClient(Service):
             node_cfg = CIRISNodeConfig()
             node_cfg.load_env_vars()
             self.base_url = node_cfg.base_url
-            
+
         self._client = httpx.AsyncClient(base_url=self.base_url)
         self._closed = False
 
@@ -96,14 +96,14 @@ class CIRISNodeClient(Service):
     def is_closed(self) -> bool:
         return self._closed
 
-    async def _post(self, endpoint: str, payload: dict):
-        async def _make_request():
+    async def _post(self, endpoint: str, payload: dict) -> Any:
+        async def _make_request() -> Any:
             resp = await self._client.post(endpoint, json=payload)
             if 400 <= resp.status_code < 500:
                 resp.raise_for_status()  # Don't retry 4xx client errors
             resp.raise_for_status()  # Raise for any other errors (will be retried)
             return await resp.json()
-            
+
         return await self.retry_with_backoff(
             _make_request,
             retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),
@@ -111,14 +111,14 @@ class CIRISNodeClient(Service):
             **self.get_retry_config("http_request")
         )
 
-    async def _get(self, endpoint: str, params: dict):
-        async def _make_request():
+    async def _get(self, endpoint: str, params: dict) -> Any:
+        async def _make_request() -> Any:
             resp = await self._client.get(endpoint, params=params)
             if 400 <= resp.status_code < 500:
                 resp.raise_for_status()  # Don't retry 4xx client errors
             resp.raise_for_status()  # Raise for any other errors (will be retried)
             return await resp.json()
-            
+
         return await self.retry_with_backoff(
             _make_request,
             retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),
@@ -126,14 +126,14 @@ class CIRISNodeClient(Service):
             **self.get_retry_config("http_request")
         )
 
-    async def _put(self, endpoint: str, payload: dict):
-        async def _make_request():
+    async def _put(self, endpoint: str, payload: dict) -> Any:
+        async def _make_request() -> Any:
             resp = await self._client.put(endpoint, json=payload)
             if 400 <= resp.status_code < 500:
                 resp.raise_for_status()  # Don't retry 4xx client errors
             resp.raise_for_status()  # Raise for any other errors (will be retried)
             return await resp.json()
-            
+
         return await self.retry_with_backoff(
             _make_request,
             retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),

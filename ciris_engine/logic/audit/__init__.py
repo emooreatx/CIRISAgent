@@ -9,6 +9,6 @@ from .verifier import AuditVerifier
 
 __all__ = [
     "AuditHashChain",
-    "AuditSignatureManager", 
+    "AuditSignatureManager",
     "AuditVerifier"
 ]

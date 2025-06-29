@@ -23,7 +23,7 @@ __all__ = [
     "DreamProcessor",
     "SolitudeProcessor",
     "StateManager",
-    "StateTransition", 
+    "StateTransition",
     "TaskManager",
     "ThoughtManager",
 ]

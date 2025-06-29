@@ -38,7 +38,7 @@ async def test_startup_and_shutdown():
         # Set environment variables for test
         os.environ["CIRIS_DATA_DIR"] = temp_dir
         os.environ["OPENAI_API_KEY"] = "test-key"  # Will use mock LLM
-        
+
         try:
             # Create runtime with minimal config
             config = EssentialConfig()
@@ -52,49 +52,49 @@ async def test_startup_and_shutdown():
                 host="0.0.0.0",
                 port=8080
             )
-            
+
             logger.info("Initializing runtime...")
             await runtime.initialize()
             logger.info("✓ Runtime initialized successfully!")
-            
+
             # Verify key services are available
             assert runtime.service_initializer.time_service is not None, "TimeService not initialized"
             assert runtime.service_initializer.memory_service is not None, "MemoryService not initialized"
             assert runtime.service_initializer.telemetry_service is not None, "TelemetryService not initialized"
             logger.info("✓ All critical services initialized")
-            
+
             # Verify TimeService is in registry
             from ciris_engine.schemas.runtime.enums import ServiceType
             time_providers = runtime.service_registry.get_providers(ServiceType.TIME)
             assert len(time_providers) > 0, "TimeService not found in registry"
             logger.info("✓ TimeService registered in ServiceRegistry")
-            
+
             # Test TimeService.now() method
             time_service = runtime.service_initializer.time_service
             current_time = time_service.now()
             assert current_time is not None, "TimeService.now() returned None"
             logger.info(f"✓ TimeService.now() works: {current_time}")
-            
+
             # Test identity was stored and retrieved
             assert runtime.agent_identity is not None, "Agent identity not loaded"
             assert hasattr(runtime.agent_identity, 'agent_id'), "Agent identity missing agent_id"
             logger.info(f"✓ Identity loaded successfully: {runtime.agent_identity.agent_id}")
-            
+
             # Trigger shutdown to test shutdown sequence
             logger.info("Testing shutdown sequence...")
             request_global_shutdown("Test completed")
-            
+
             # Give it a moment to process shutdown
             await asyncio.sleep(1)
-            
+
             # Perform actual shutdown
             await runtime.shutdown()
             logger.info("✓ Shutdown completed without errors!")
-            
+
             # If we get here, all tests passed
             logger.info("\n✅ ALL TESTS PASSED! The startup issues have been fixed.")
             return True
-            
+
         except Exception as e:
             logger.error(f"\n❌ TEST FAILED: {e}", exc_info=True)
             return False

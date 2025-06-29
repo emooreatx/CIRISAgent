@@ -6,18 +6,17 @@ import sqlite3
 import hashlib
 import secrets
 import base64
-import time
 import asyncio
 import functools
 import inspect
 import logging
-from typing import Optional, List, Dict, Tuple, Callable, TypeVar, Union
-from datetime import datetime, timedelta, timezone
+from typing import Optional, List, Dict, Tuple, Callable, TypeVar, Union, TYPE_CHECKING
+from datetime import datetime, timezone
 from pathlib import Path
 
 import jwt
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
+from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.exceptions import InvalidSignature
 
@@ -32,8 +31,10 @@ from ciris_engine.protocols.services.infrastructure.authentication import Authen
 from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.logic.adapters.base import Service as BaseService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from datetime import timezone
 from ciris_engine.logic.services.lifecycle.time import TimeService
+
+if TYPE_CHECKING:
+    from ciris_engine.schemas.runtime.models import Task
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +43,10 @@ F = TypeVar('F', bound=Callable)
 
 class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceProtocol):
     """Infrastructure service for WA authentication and identity management."""
-    
+
     def __init__(self, db_path: str, time_service: TimeService, key_dir: Optional[str] = None):
         """Initialize the WA Authentication Service.
-        
+
         Args:
             db_path: Path to SQLite database
             time_service: TimeService instance for time operations (required)
@@ -55,28 +56,28 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         self.db_path = db_path
         self.key_dir = Path(key_dir or os.path.expanduser("~/.ciris"))
         self.key_dir.mkdir(mode=0o700, exist_ok=True)
-        
+
         # Store injected time service
         self._time_service = time_service
-        
+
         # Initialize gateway secret
         self.gateway_secret = self._get_or_create_gateway_secret()
-        
+
         # Cache for tokens and WAs
         self._token_cache: Dict[str, AuthorizationContext] = {}
         self._channel_token_cache: Dict[str, str] = {}
-        
+
         # Initialize database
         self._init_database()
-        
+
         # Track service state
         self._started = False
-    
+
     @staticmethod
     def _encode_public_key(pubkey_bytes: bytes) -> str:
         """Encode public key using base64url without padding."""
         return base64.urlsafe_b64encode(pubkey_bytes).decode().rstrip('=')
-    
+
     @staticmethod
     def _decode_public_key(pubkey_str: str) -> bytes:
         """Decode base64url encoded public key, adding padding if needed."""
@@ -85,42 +86,42 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         if padding != 4:
             pubkey_str += '=' * padding
         return base64.urlsafe_b64decode(pubkey_str)
-    
+
     def _get_or_create_gateway_secret(self) -> bytes:
         """Get or create the gateway secret for JWT signing."""
         secret_path = self.key_dir / "gateway.secret"
-        
+
         if secret_path.exists():
             return secret_path.read_bytes()
-        
+
         # Generate new 32-byte secret
         secret = secrets.token_bytes(32)
         secret_path.write_bytes(secret)
         secret_path.chmod(0o600)
         return secret
-    
+
     def _init_database(self) -> None:
         """Initialize database tables if needed."""
         # Import the table definition
         from ciris_engine.schemas.persistence.tables import WA_CERT_TABLE_V1
-        
+
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA foreign_keys = ON")
             conn.executescript(WA_CERT_TABLE_V1)
             conn.commit()
-    
+
     # WAStore Protocol Implementation
-    
+
     async def get_wa(self, wa_id: str) -> Optional[WACertificate]:
         """Get WA certificate by ID."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
-                "SELECT * FROM wa_cert WHERE wa_id = ? AND active = 1", 
+                "SELECT * FROM wa_cert WHERE wa_id = ? AND active = 1",
                 (wa_id,)
             )
             row = cursor.fetchone()
-            
+
             if row:
                 # Map database fields to schema fields
                 row_dict = dict(row)
@@ -147,17 +148,17 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 }
                 return WACertificate(**wa_dict)
             return None
-    
+
     async def _get_wa_by_kid(self, jwt_kid: str) -> Optional[WACertificate]:
         """Get WA certificate by JWT key ID."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
-                "SELECT * FROM wa_cert WHERE jwt_kid = ? AND active = 1", 
+                "SELECT * FROM wa_cert WHERE jwt_kid = ? AND active = 1",
                 (jwt_kid,)
             )
             row = cursor.fetchone()
-            
+
             if row:
                 # Map database fields to schema fields
                 row_dict = dict(row)
@@ -184,7 +185,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 }
                 return WACertificate(**wa_dict)
             return None
-    
+
     async def get_wa_by_oauth(self, provider: str, external_id: str) -> Optional[WACertificate]:
         """Get WA certificate by OAuth identity."""
         with sqlite3.connect(self.db_path) as conn:
@@ -194,7 +195,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 (provider, external_id)
             )
             row = cursor.fetchone()
-            
+
             if row:
                 # Map database fields to schema fields
                 row_dict = dict(row)
@@ -221,7 +222,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 }
                 return WACertificate(**wa_dict)
             return None
-    
+
     async def _get_wa_by_adapter(self, adapter_id: str) -> Optional[WACertificate]:
         """Get WA certificate by adapter ID."""
         with sqlite3.connect(self.db_path) as conn:
@@ -231,7 +232,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 (adapter_id,)
             )
             row = cursor.fetchone()
-            
+
             if row:
                 # Map database fields to schema fields
                 row_dict = dict(row)
@@ -258,13 +259,13 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 }
                 return WACertificate(**wa_dict)
             return None
-    
+
     async def _store_wa_certificate(self, wa: WACertificate) -> None:
         """Store a WA certificate in the database."""
         with sqlite3.connect(self.db_path) as conn:
             # Convert WA to dict for insertion
             wa_dict = wa.model_dump()
-            
+
             # Map schema fields to database fields
             db_dict = {
                 'wa_id': wa_dict['wa_id'],
@@ -287,16 +288,16 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 'last_login': wa_dict['last_auth'].isoformat() if wa_dict.get('last_auth') and isinstance(wa_dict['last_auth'], datetime) else wa_dict.get('last_auth'),
                 'active': 1  # New WAs are active by default
             }
-            
+
             columns = ', '.join(db_dict.keys())
             placeholders = ', '.join(['?' for _ in db_dict])
-            
+
             conn.execute(
                 f"INSERT INTO wa_cert ({columns}) VALUES ({placeholders})",
                 list(db_dict.values())
             )
             conn.commit()
-    
+
     async def _create_adapter_observer(self, adapter_id: str, name: str) -> WACertificate:
         """Create or reactivate adapter observer WA."""
         # Check if observer already exists
@@ -304,13 +305,13 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         if existing:
             # Observer already exists and is active (since _get_wa_by_adapter only returns active ones)
             return existing
-        
+
         # Generate new observer WA
         private_key, public_key = self.generate_keypair()
         timestamp = self._time_service.now()
         wa_id = self._generate_wa_id(timestamp)
         jwt_kid = f"wa-jwt-{wa_id[-6:].lower()}"
-        
+
         observer = WACertificate(
             wa_id=wa_id,
             name=name,
@@ -321,11 +322,11 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             adapter_id=adapter_id,
             created_at=timestamp
         )
-        
+
         await self._store_wa_certificate(observer)
         return observer
-    
-    
+
+
     async def update_wa(self, wa_id: str, updates: Optional[WAUpdate] = None, **kwargs: Union[str, bool, datetime]) -> Optional[WACertificate]:
         """Update WA certificate fields."""
         if updates:
@@ -344,51 +345,51 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             kwargs.update(update_kwargs)
         if not kwargs:
             return await self.get_wa(wa_id)
-        
+
         # Handle datetime fields
         for key, value in kwargs.items():
             if isinstance(value, datetime):
                 kwargs[key] = value.isoformat()
-        
+
         set_clause = ', '.join([f"{key} = ?" for key in kwargs.keys()])
         values = list(kwargs.values()) + [wa_id]
-        
+
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 f"UPDATE wa_cert SET {set_clause} WHERE wa_id = ?",
                 values
             )
             conn.commit()
-        
+
         # Return updated WA
         return await self.get_wa(wa_id)
-    
+
     async def revoke_wa(self, wa_id: str, reason: str) -> bool:
         """Revoke WA certificate."""
         # First check if the WA exists
         existing = await self.get_wa(wa_id)
         if not existing:
             return False
-            
+
         # Update to set active=False
         await self.update_wa(wa_id, active=False)
         # TODO: Add audit log entry for revocation using reason
         logger.info(f"Revoked WA {wa_id}: {reason}")
         return True
-    
+
     async def _list_all_was(self, active_only: bool = True) -> List[WACertificate]:
         """List all WA certificates."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            
+
             if active_only:
                 query = "SELECT * FROM wa_cert WHERE active = 1 ORDER BY created DESC"
             else:
                 query = "SELECT * FROM wa_cert ORDER BY created DESC"
-            
+
             cursor = conn.execute(query)
             rows = cursor.fetchall()
-            
+
             result = []
             for row in rows:
                 # Map database fields to schema fields
@@ -415,22 +416,22 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                     'last_auth': row_dict.get('last_login')
                 }
                 result.append(WACertificate(**wa_dict))
-            
+
             return result
-    
+
     async def update_last_login(self, wa_id: str) -> None:
         """Update last login timestamp."""
         await self.update_wa(wa_id, last_login=self._time_service.now())
-    
+
     # JWTService Protocol Implementation
-    
+
     async def create_channel_token(self, wa_id: str, channel_id: str, ttl: int = 3600) -> str:
         """Create channel-specific token (for observers, creates long-lived adapter tokens)."""
         # Get the WA certificate
         wa = await self.get_wa(wa_id)
         if not wa:
             raise ValueError(f"WA {wa_id} not found")
-        
+
         payload = {
             'sub': wa.wa_id,
             'sub_type': JWTSubType.ANON.value,
@@ -438,7 +439,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             'scope': wa.scopes,
             'iat': int(self._time_service.timestamp()),
         }
-        
+
         # For observer tokens, use adapter_id and make them long-lived (no expiry)
         if wa.role == WARole.OBSERVER and wa.adapter_id:
             payload['adapter'] = wa.adapter_id
@@ -450,18 +451,18 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             # For non-observer tokens, include channel and expiry
             payload['channel'] = channel_id
             payload['exp'] = int(self._time_service.timestamp()) + ttl
-        
+
         return jwt.encode(
             payload,
             self.gateway_secret,
             algorithm='HS256',
             headers={'kid': wa.jwt_kid}
         )
-    
+
     def create_gateway_token(self, wa: WACertificate, expires_hours: int = 8) -> str:
         """Create gateway-signed token (OAuth/password auth)."""
         now = int(self._time_service.timestamp())
-        
+
         payload = {
             'sub': wa.wa_id,
             'sub_type': JWTSubType.OAUTH.value if wa.oauth_provider else JWTSubType.USER.value,
@@ -470,21 +471,21 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             'iat': now,
             'exp': now + (expires_hours * 3600)
         }
-        
+
         if wa.oauth_provider:
             payload['oauth_provider'] = wa.oauth_provider
-        
+
         return jwt.encode(
             payload,
             self.gateway_secret,
             algorithm='HS256',
             headers={'kid': wa.jwt_kid}
         )
-    
+
     def _create_authority_token(self, wa: WACertificate, private_key: bytes) -> str:
         """Create WA-signed authority token."""
         now = int(self._time_service.timestamp())
-        
+
         payload = {
             'sub': wa.wa_id,
             'sub_type': JWTSubType.AUTHORITY.value,
@@ -493,36 +494,36 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             'iat': now,
             'exp': now + (24 * 3600)  # 24 hours
         }
-        
+
         # Load Ed25519 private key
         signing_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
-        
+
         return jwt.encode(
             payload,
             signing_key,
             algorithm='EdDSA',
             headers={'kid': wa.jwt_kid}
         )
-    
+
     async def _verify_jwt_and_get_context(self, token: str) -> Optional[AuthorizationContext]:
         """Verify any JWT token and return auth context (internal method)."""
         try:
             # Decode header to get kid
             header = jwt.get_unverified_header(token)
             kid = header.get('kid')
-            
+
             if not kid:
                 return None
-            
+
             # Get WA by kid
             wa = await self._get_wa_by_kid(kid)
             if not wa:
                 return None
-            
+
             # Determine verification key based on token type
             payload = jwt.decode(token, options={"verify_signature": False})
             sub_type = payload.get('sub_type')
-            
+
             if sub_type in [JWTSubType.ANON.value, JWTSubType.OAUTH.value, JWTSubType.USER.value]:
                 # Gateway-signed tokens
                 decoded = jwt.decode(token, self.gateway_secret, algorithms=['HS256'])
@@ -533,7 +534,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 decoded = jwt.decode(token, public_key, algorithms=['EdDSA'])
             else:
                 return None
-            
+
             # Create authorization context
             # Determine TokenType based on the WA certificate
             if wa.adapter_id:
@@ -542,7 +543,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 token_type = TokenType.OAUTH
             else:
                 token_type = TokenType.STANDARD
-                
+
             context = AuthorizationContext(
                 wa_id=decoded['sub'],
                 role=wa.role,
@@ -551,140 +552,55 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 scopes=decoded['scope'],
                 channel_id=decoded.get('channel')
             )
-            
+
             # Update last login
             await self.update_last_login(wa.wa_id)
-            
+
             return context
-            
+
         except jwt.InvalidTokenError:
             return None
         except Exception:
             return None
-    
+
     # WACrypto Protocol Implementation
-    
+
     def generate_keypair(self) -> Tuple[bytes, bytes]:
         """Generate Ed25519 keypair (private, public)."""
         private_key = ed25519.Ed25519PrivateKey.generate()
         public_key = private_key.public_key()
-        
+
         private_bytes = private_key.private_bytes(
             encoding=serialization.Encoding.Raw,
             format=serialization.PrivateFormat.Raw,
             encryption_algorithm=serialization.NoEncryption()
         )
-        
+
         public_bytes = public_key.public_bytes(
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw
         )
-        
+
         return private_bytes, public_bytes
-    
+
     def sign_data(self, data: bytes, private_key: bytes) -> str:
         """Sign data with Ed25519 private key."""
         signing_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
         signature = signing_key.sign(data)
         return base64.b64encode(signature).decode()
-    
+
     def _verify_signature(self, data: bytes, signature: str, public_key: str) -> bool:
         """Verify Ed25519 signature."""
         try:
             public_key_bytes = self._decode_public_key(public_key)
             verify_key = ed25519.Ed25519PublicKey.from_public_bytes(public_key_bytes)
             signature_bytes = base64.b64decode(signature)
-            
+
             verify_key.verify(signature_bytes, data)
             return True
         except (InvalidSignature, Exception):
             return False
-    
-    async def sign_task(self, task: 'Task', wa_id: str) -> Tuple[str, str]:
-        """Sign a task with a WA's private key.
-        
-        Args:
-            task: Task to sign
-            wa_id: WA ID of the signer
-            
-        Returns:
-            Tuple of (signature, signed_at timestamp)
-        """
-        # Get WA certificate
-        wa = await self._get_wa_by_id(wa_id)
-        if not wa:
-            raise ValueError(f"WA {wa_id} not found")
-        
-        # Get private key
-        private_key = await self._get_private_key(wa_id)
-        if not private_key:
-            raise ValueError(f"Private key not found for WA {wa_id}")
-        
-        # Create canonical representation of task for signing
-        # Exclude signature fields to avoid circular dependency
-        task_data = {
-            'task_id': task.task_id,
-            'description': task.description,
-            'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
-            'priority': task.priority,
-            'created_at': task.created_at,
-            'parent_task_id': task.parent_task_id,
-            'context': task.context.model_dump() if task.context else None
-        }
-        
-        # Create deterministic JSON
-        canonical_json = json.dumps(task_data, sort_keys=True, separators=(',', ':'))
-        
-        # Sign the data
-        signature = self.sign_data(canonical_json.encode('utf-8'), private_key)
-        signed_at = self.time_service.now().isoformat()
-        
-        return signature, signed_at
-    
-    async def verify_task_signature(self, task: 'Task') -> bool:
-        """Verify a task's signature.
-        
-        Args:
-            task: Task with signature to verify
-            
-        Returns:
-            True if signature is valid, False otherwise
-        """
-        if not task.signed_by or not task.signature:
-            return False
-        
-        # Get WA certificate
-        wa = await self._get_wa_by_id(task.signed_by)
-        if not wa:
-            logger.warning(f"Cannot verify task {task.task_id}: signer {task.signed_by} not found")
-            return False
-        
-        # Recreate canonical representation
-        task_data = {
-            'task_id': task.task_id,
-            'description': task.description,
-            'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
-            'priority': task.priority,
-            'created_at': task.created_at,
-            'parent_task_id': task.parent_task_id,
-            'context': task.context.model_dump() if task.context else None
-        }
-        
-        canonical_json = json.dumps(task_data, sort_keys=True, separators=(',', ':'))
-        
-        # Verify signature
-        return self._verify_signature(
-            canonical_json.encode('utf-8'),
-            task.signature,
-            wa.pubkey
-        )
-    
-    def _generate_wa_id(self, timestamp: datetime) -> str:
-        """Generate deterministic WA ID."""
-        date_str = timestamp.strftime("%Y-%m-%d")
-        random_suffix = secrets.token_hex(3).upper()
-        return f"wa-{date_str}-{random_suffix}"
-    
+
     def hash_password(self, password: str) -> str:
         """Hash password using PBKDF2."""
         salt = secrets.token_bytes(32)
@@ -696,14 +612,14 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         )
         key = kdf.derive(password.encode())
         return base64.b64encode(salt + key).decode()
-    
+
     def _verify_password(self, password: str, hash: str) -> bool:
         """Verify password against hash."""
         try:
             decoded = base64.b64decode(hash)
             salt = decoded[:32]
             stored_key = decoded[32:]
-            
+
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
@@ -714,40 +630,40 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             return key == stored_key
         except Exception:
             return False
-    
+
     def _generate_api_key(self, wa_id: str) -> str:
         """Generate API key for WA."""
         # Include wa_id in key derivation for uniqueness
         key_material = f"{wa_id}:{secrets.token_hex(32)}"
         return hashlib.sha256(key_material.encode()).hexdigest()
-    
+
     def _generate_wa_id(self, timestamp: datetime) -> str:
         """Generate a WA ID in format wa-YYYY-MM-DD-XXXXXX."""
         date_str = timestamp.strftime("%Y-%m-%d")
         random_suffix = secrets.token_hex(3).upper()
         return f"wa-{date_str}-{random_suffix}"
-    
+
     # AuthenticationServiceProtocol Implementation
-    
+
     async def authenticate(self, token: str) -> Optional[AuthenticationResult]:
         """Authenticate a WA token and return identity info."""
         try:
             claims = await self.verify_token(token)
             if not claims:
                 return None
-                
+
             wa_id = claims.get("wa_id") if isinstance(claims, dict) else getattr(claims, "wa_id", None)
             if not wa_id:
                 return None
-                
+
             # Update last login
             await self.update_last_login(wa_id)
-            
+
             # Get WA details
             wa = await self.get_wa(wa_id)
             if not wa:
                 return None
-            
+
             return AuthenticationResult(
                 authenticated=True,
                 wa_id=wa_id,
@@ -760,13 +676,13 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         except Exception as e:
             logger.error(f"Authentication failed: {e}")
             return None
-    
+
     async def create_token(self, wa_id: str, token_type: TokenType, ttl: int = 3600) -> str:
         """Create a new authentication token."""
         wa = await self.get_wa(wa_id)
         if not wa:
             raise ValueError(f"WA {wa_id} not found")
-            
+
         # Map TokenType enum to our token creation methods
         if token_type == TokenType.CHANNEL:
             return self.create_channel_token(wa)
@@ -774,7 +690,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             return self.create_gateway_token(wa, expires_hours=ttl // 3600)
         else:
             raise ValueError(f"Unsupported token type: {token_type}")
-    
+
     async def verify_token(self, token: str) -> Optional[TokenVerification]:
         """Verify and decode a token (AuthenticationServiceProtocol version)."""
         try:
@@ -782,7 +698,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             context = await self._verify_token_internal(token)
             if not context:
                 return None
-                
+
             return TokenVerification(
                 valid=True,
                 wa_id=context.wa_id,
@@ -801,18 +717,18 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 expires_at=None,
                 error=str(e)
             )
-    
-    async def create_wa(self, name: str, email: str, scopes: List[str], 
+
+    async def create_wa(self, name: str, email: str, scopes: List[str],
                        role: WARole = WARole.OBSERVER) -> WACertificate:
         """Create a new Wise Authority identity."""
         # Generate keypair
         private_key, public_key = self.generate_keypair()
-        
+
         # Create certificate
         timestamp = self._time_service.now()
         wa_id = self._generate_wa_id(timestamp)
         jwt_kid = f"wa-jwt-{wa_id[-6:].lower()}"
-        
+
         wa_cert = WACertificate(
             wa_id=wa_id,
             name=name,
@@ -824,124 +740,124 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             created_at=timestamp,
             active=True
         )
-        
+
         # Store in database
         await self._store_wa_certificate(wa_cert)
-        
+
         # Store private key (in production, this would be in a secure key store)
         # For now, we're not storing it as it's managed externally
-        
+
         return wa_cert
-    
+
     async def list_was(self, active_only: bool = True) -> List[WACertificate]:
         """List Wise Authority identities."""
         return await self._list_all_was(active_only=active_only)
-    
+
     async def rotate_keys(self, wa_id: str) -> bool:
         """Rotate cryptographic keys for a WA."""
         wa = await self.get_wa(wa_id)
         if not wa:
             return False
-            
+
         # Generate new keypair
         private_key, public_key = self.generate_keypair()
-        
+
         # Update WA with new public key
         wa.pubkey = self._encode_public_key(public_key)
-        
+
         # Store the updated certificate
         await self.update_wa(wa_id, pubkey=wa.pubkey)
-        
+
         logger.info(f"Rotated keys for WA {wa_id}")
         return True
-    
+
     # Original verify_token implementation (renamed for internal use)
     async def _verify_token_internal(self, token: Optional[str]) -> Optional[AuthorizationContext]:
         """Authenticate request and return auth context."""
         if not token:
             return None
-        
+
         # Check cache first
         if token in self._token_cache:
             return self._token_cache[token]
-        
+
         # Verify token
         context = await self._verify_jwt_and_get_context(token)
-        
+
         # Cache valid tokens
         if context:
             self._token_cache[token] = context
-        
+
         return context
-    
+
     def _require_scope(self, scope: str) -> Callable[[F], F]:
         """Decorator to require specific scope for endpoint."""
         def decorator(func: F) -> F:
             async def async_wrapper(*args, **kwargs):
                 # Extract auth context from kwargs
                 auth_context = kwargs.get('auth_context')
-                
+
                 if not auth_context:
                     # Try to get token and verify it
                     token = kwargs.get('token')
                     if token:
                         auth_context = await self._verify_token_internal(token)
-                
+
                 if not auth_context:
                     raise ValueError(f"Authentication required for scope '{scope}'")
-                
+
                 # Check if the auth context has the required scope
                 if not hasattr(auth_context, 'scopes') or scope not in auth_context.scopes:
                     raise ValueError(
                         f"Insufficient permissions: Requires scope '{scope}', "
                         f"but user has scopes: {getattr(auth_context, 'scopes', [])}"
                     )
-                
+
                 # Add auth context to kwargs if not already present
                 if 'auth_context' not in kwargs:
                     kwargs['auth_context'] = auth_context
-                
+
                 return await func(*args, **kwargs)
-            
+
             def sync_wrapper(*args, **kwargs):
                 # Extract auth context from kwargs
                 auth_context = kwargs.get('auth_context')
-                
+
                 if not auth_context:
                     raise ValueError(f"Authentication required for scope '{scope}'")
-                
+
                 # Check if the auth context has the required scope
                 if not hasattr(auth_context, 'scopes') or scope not in auth_context.scopes:
                     raise ValueError(
                         f"Insufficient permissions: Requires scope '{scope}', "
                         f"but user has scopes: {getattr(auth_context, 'scopes', [])}"
                     )
-                
+
                 return func(*args, **kwargs)
-            
+
             # Preserve function metadata and check if the function is async
             if asyncio.iscoroutinefunction(func):
                 wrapper = functools.wraps(func)(async_wrapper)
             else:
                 wrapper = functools.wraps(func)(sync_wrapper)
-            
+
             # Add metadata to indicate this function requires authentication
             setattr(wrapper, '_requires_scope', scope)
-            
+
             return wrapper  # type: ignore
         return decorator
-    
+
     def _require_wa_auth(self, scope: str) -> Callable[[F], F]:
         """Decorator to require WA authentication with specific scope.
-        
+
         This decorator checks for authentication tokens in the following order:
         1. 'token' parameter in the function arguments
         2. 'auth_context' in the function arguments
         3. Token from the context (if available)
-        
+
         Args:
             scope: The required scope for accessing the decorated function
-            
+
         Returns:
             Decorated function that enforces authentication
         """
@@ -950,89 +866,78 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 # Extract token from various sources
                 token = None
                 auth_context = None
-                
+
                 # Check if 'token' is in kwargs
                 if 'token' in kwargs:
                     token = kwargs.get('token')
-                
+
                 # Check if 'auth_context' is already provided
                 if 'auth_context' in kwargs:
                     auth_context = kwargs.get('auth_context')
-                
+
                 # If no auth context yet, try to verify the token
                 if not auth_context and token:
                     auth_context = await self.verify_token(token)
-                
+
                 # Check if authentication succeeded
                 if not auth_context:
                     raise ValueError("Authentication required: No valid token provided")
-                
+
                 # Verify the required scope
                 if not auth_context.has_scope(scope):
                     raise ValueError(
                         f"Insufficient permissions: Requires scope '{scope}', "
                         f"but user has scopes: {auth_context.scopes}"
                     )
-                
+
                 # Check if the function accepts auth_context parameter
                 sig = inspect.signature(func)
-                
+
                 # If function has **kwargs or auth_context parameter, pass it
                 if 'auth_context' in sig.parameters or any(
-                    p.kind == inspect.Parameter.VAR_KEYWORD 
+                    p.kind == inspect.Parameter.VAR_KEYWORD
                     for p in sig.parameters.values()
                 ):
                     kwargs['auth_context'] = auth_context
-                
+
                 # Call the original function
                 return await func(*args, **kwargs)
-            
+
             def sync_wrapper(*args, **kwargs):
                 # For synchronous functions, we need to handle auth differently
                 # This is a simplified version that expects auth_context to be pre-verified
                 auth_context = kwargs.get('auth_context')
-                
+
                 if not auth_context:
                     raise ValueError("Authentication required: No auth_context provided")
-                
+
                 # Verify the required scope
                 if not hasattr(auth_context, 'has_scope') or not auth_context.has_scope(scope):
                     raise ValueError(
                         f"Insufficient permissions: Requires scope '{scope}'"
                     )
-                
+
                 return func(*args, **kwargs)
-            
+
             # Preserve function metadata and check if the function is async
             if asyncio.iscoroutinefunction(func):
                 wrapper = functools.wraps(func)(async_wrapper)
             else:
                 wrapper = functools.wraps(func)(sync_wrapper)
-            
+
             # Add metadata to indicate this function requires authentication
             setattr(wrapper, '_requires_wa_auth', True)
             setattr(wrapper, '_required_scope', scope)
-            
+
             return wrapper  # type: ignore
         return decorator
-    
+
     def _get_adapter_token(self, adapter_id: str) -> Optional[str]:
         """Get cached adapter token."""
         return self._channel_token_cache.get(adapter_id)
-    
-    # ServiceProtocol methods
-    
-    async def start(self) -> None:
-        """Start the service."""
-        await self.bootstrap_if_needed()
-        logger.info("AuthenticationService started")
-    
-    async def stop(self) -> None:
-        """Stop the service."""
-        logger.info("AuthenticationService stopped")
-    
+
     # Additional helper methods
-    
+
     async def _get_system_wa(self) -> Optional[WACertificate]:
         """Get the system WA certificate if it exists."""
         was = await self._list_all_was()
@@ -1040,31 +945,31 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             if wa.role == WARole.AUTHORITY and wa.name == "CIRIS System Authority":
                 return wa
         return None
-    
+
     async def get_system_wa_id(self) -> Optional[str]:
         """Get the system WA ID for signing system tasks."""
         system_wa = await self._get_system_wa()
         return system_wa.wa_id if system_wa else None
-    
+
     async def _create_system_wa_certificate(self, parent_wa_id: str) -> WACertificate:
         """Create the system WA certificate as a child of the root certificate.
-        
+
         This certificate is used to sign system-generated tasks like WAKEUP and DREAM.
         It respects the authority of the root certificate holder.
         """
         # Generate keypair for system WA
         private_key, public_key = self.generate_keypair()
-        
+
         # Store the private key securely
         system_key_path = self.key_dir / "system_wa.key"
         system_key_path.write_bytes(private_key)
         system_key_path.chmod(0o600)
-        
+
         # Create the system WA certificate
         timestamp = self._time_service.now()
         wa_id = self._generate_wa_id(timestamp)
         jwt_kid = f"wa-jwt-{wa_id[-6:].lower()}"
-        
+
         # Create data to sign - the certificate attributes
         cert_data = {
             'wa_id': wa_id,
@@ -1074,12 +979,12 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             'parent_wa_id': parent_wa_id,
             'created_at': timestamp.isoformat()
         }
-        
+
         # Sign with the system's private key (self-signed for now)
         # In production, this would be signed by the parent's private key
         signature_data = json.dumps(cert_data, sort_keys=True, separators=(',', ':'))
         parent_signature = self.sign_data(signature_data.encode('utf-8'), private_key)
-        
+
         # Create the certificate
         system_wa = WACertificate(
             wa_id=wa_id,
@@ -1100,16 +1005,16 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             ]),
             created_at=timestamp
         )
-        
+
         # Store in database
         await self._store_wa_certificate(system_wa)
         logger.info(f"Created system WA certificate: {wa_id} (child of {parent_wa_id})")
-        
+
         return system_wa
-    
+
     async def sign_task(self, task: 'Task', wa_id: str) -> Tuple[str, str]:
         """Sign a task with a WA's private key.
-        
+
         Returns:
             Tuple of (signature, signed_at timestamp)
         """
@@ -1117,7 +1022,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         wa = await self.get_wa(wa_id)
         if not wa:
             raise ValueError(f"WA {wa_id} not found")
-        
+
         # Load the private key
         if wa.name == "CIRIS System Authority":
             # System WA key is stored locally
@@ -1128,7 +1033,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         else:
             # Other WAs would have their keys managed differently
             raise ValueError(f"Private key management not implemented for WA {wa_id}")
-        
+
         # Create canonical representation of task for signing
         task_data = {
             'task_id': task.task_id,
@@ -1139,47 +1044,47 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             'parent_task_id': task.parent_task_id,
             'context': task.context.model_dump() if task.context else None
         }
-        
+
         canonical_json = json.dumps(task_data, sort_keys=True, separators=(',', ':'))
         signature = self.sign_data(canonical_json.encode('utf-8'), private_key)
         signed_at = self._time_service.now().isoformat()
-        
+
         return signature, signed_at
-    
+
     async def verify_task_signature(self, task: 'Task') -> bool:
         """Verify a task's signature.
-        
+
         Returns:
             True if signature is valid, False otherwise
         """
         if not task.signed_by or not task.signature or not task.signed_at:
             return False
-        
+
         # Get the WA that signed it
         wa = await self.get_wa(task.signed_by)
         if not wa:
             return False
-        
+
         # Recreate the canonical representation
         task_data = {
             'task_id': task.task_id,
-            'description': task.description, 
+            'description': task.description,
             'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
             'priority': task.priority,
             'created_at': task.created_at,
             'parent_task_id': task.parent_task_id,
             'context': task.context.model_dump() if task.context else None
         }
-        
+
         canonical_json = json.dumps(task_data, sort_keys=True, separators=(',', ':'))
-        
+
         # Verify the signature
         return self._verify_signature(
             canonical_json.encode('utf-8'),
             task.signature,
             wa.pubkey
         )
-    
+
     async def bootstrap_if_needed(self) -> None:
         """Bootstrap the system if no WAs exist."""
         was = await self._list_all_was()
@@ -1189,18 +1094,18 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             if seed_path.exists():
                 with open(seed_path) as f:
                     root_data = json.load(f)
-                
+
                 # Convert created timestamp - handle both 'Z' and '+00:00' formats
                 created_str = root_data['created']
                 if created_str.endswith('Z'):
                     created_str = created_str[:-1] + '+00:00'
                 root_data['created'] = datetime.fromisoformat(created_str)
-                
+
                 root_wa = WACertificate(**root_data)
                 await self._store_wa_certificate(root_wa)
-                
+
                 logger.info(f"Loaded root WA certificate: {root_wa.wa_id}")
-        
+
         # Check if system WA exists, create if not (whether we just loaded root or not)
         system_wa = await self._get_system_wa()
         if not system_wa:
@@ -1210,23 +1115,23 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 if wa.role == WARole.ROOT:
                     root_wa = wa
                     break
-            
+
             if root_wa:
                 # Create system WA certificate as child of root
                 await self._create_system_wa_certificate(root_wa.wa_id)
             else:
                 logger.warning("No root WA certificate found - cannot create system WA")
-    
+
     async def _create_channel_token_for_adapter(self, adapter_type: str, adapter_info: dict) -> str:
         """Create a channel token for an adapter."""
         # Ensure adapter_info has proper structure
         if not adapter_info:
             adapter_info = {}
-        
+
         # Add default instance_id if not present
         if 'instance_id' not in adapter_info:
             adapter_info['instance_id'] = 'default'
-            
+
         # Create channel identity from adapter info
         channel_identity = ChannelIdentity(
             adapter_type=adapter_type,
@@ -1235,37 +1140,37 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             external_username=adapter_info.get('username', adapter_type),
             metadata=adapter_info
         )
-        
+
         # Create or get adapter observer
         adapter_id = f"{adapter_type}_{channel_identity.adapter_instance_id}"
         observer = await self._create_adapter_observer(
             adapter_id,
             f"{adapter_type}_observer"
         )
-        
+
         # Generate token - for observers, channel_id is not used
         token = self.create_channel_token(observer.wa_id, adapter_id, ttl=0)  # ttl=0 means no expiry
-        
+
         # Cache the token
         self._channel_token_cache[adapter_id] = token
-        
+
         return token
-    
+
     def verify_token_sync(self, token: str) -> Optional[dict]:
         """Synchronously verify a token (for non-async contexts)."""
         try:
             # Decode header to get kid
             header = jwt.get_unverified_header(token)
             kid = header.get('kid')
-            
+
             if not kid:
                 return None
-            
+
             # For sync verification, we can't do async DB lookups
             # So we verify the signature directly
             payload = jwt.decode(token, options={"verify_signature": False})
             sub_type = payload.get('sub_type')
-            
+
             if sub_type in [JWTSubType.ANON.value, JWTSubType.OAUTH.value, JWTSubType.USER.value]:
                 # Gateway-signed tokens
                 decoded = jwt.decode(token, self.gateway_secret, algorithms=['HS256'])
@@ -1274,19 +1179,19 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 # Authority tokens would need the public key, which requires DB access
                 # For now, return None for authority tokens in sync mode
                 return None
-                
+
         except jwt.InvalidTokenError:
             return None
         except Exception:
             return None
-    
+
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         from ciris_engine.schemas.services.core import ServiceCapabilities
         return ServiceCapabilities(
             service_name="AuthenticationService",
             actions=[
-                "authenticate", "create_token", "verify_token", "create_wa", 
+                "authenticate", "create_token", "verify_token", "create_wa",
                 "revoke_wa", "update_wa", "list_was", "get_wa", "rotate_keys",
                 "bootstrap_if_needed", "create_channel_token", "verify_token_sync",
                 "update_last_login"
@@ -1300,20 +1205,22 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 "supported_algorithms": ["HS256", "EdDSA"]
             }
         )
-    
+
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
         from ciris_engine.schemas.services.core import ServiceStatus
-        
+
         # Count certificates
         cert_count = 0
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute("SELECT COUNT(*) FROM wa_cert WHERE active = 1")
                 cert_count = cursor.fetchone()[0]
-        except:
-            pass
-        
+        except Exception as e:
+            logger.warning(f"Authentication service health check failed: {type(e).__name__}: {str(e)} - Unable to access auth database")
+            # Return appropriate fallback
+            cert_count = 0
+
         return ServiceStatus(
             service_name="AuthenticationService",
             service_type="infrastructure_service",
@@ -1327,13 +1234,13 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             },
             last_health_check=self._time_service.now()
         )
-    
+
     async def start(self) -> None:
         """Start the service."""
         await super().start()
         self._started = True
         logger.info("AuthenticationService started")
-    
+
     async def stop(self) -> None:
         """Stop the service."""
         await super().stop()
@@ -1342,16 +1249,17 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         self._token_cache.clear()
         self._channel_token_cache.clear()
         logger.info("AuthenticationService stopped")
-    
+
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
         if not self._started:
             return False
-        
+
         # Check database connection
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("SELECT 1")
             return True
-        except:
+        except Exception as e:
+            logger.warning(f"Authentication service health check failed: {type(e).__name__}: {str(e)} - Unable to access auth database")
             return False

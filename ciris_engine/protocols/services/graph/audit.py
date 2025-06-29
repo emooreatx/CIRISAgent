@@ -8,28 +8,26 @@ from ...runtime.base import GraphServiceProtocol
 from ciris_engine.schemas.services.nodes import AuditEntry
 from ciris_engine.schemas.services.graph.audit import AuditQuery, VerificationReport
 from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.runtime.audit import AuditActionContext
 
 class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     """Protocol for audit service."""
-    
+
     @abstractmethod
     async def log_action(
         self,
-        action: HandlerActionType,
-        actor_id: str,
-        thought_id: Optional[str] = None,
-        task_id: Optional[str] = None,
-        context: Optional[dict] = None,
-        metadata: Optional[dict] = None
+        action_type: HandlerActionType,
+        context: AuditActionContext,
+        outcome: Optional[str] = None
     ) -> None:
         """Log an action to the audit trail."""
         ...
-    
+
     @abstractmethod
     async def log_event(self, event_type: str, event_data: dict, **kwargs: object) -> None:
         """Log a general audit event."""
         ...
-    
+
     @abstractmethod
     async def log_conscience_event(
         self,
@@ -40,7 +38,7 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     ) -> None:
         """Log a conscience decision event."""
         ...
-    
+
     @abstractmethod
     async def get_audit_trail(
         self,
@@ -50,7 +48,7 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     ) -> List[AuditEntry]:
         """Get audit trail for an entity."""
         ...
-    
+
     @abstractmethod
     async def query_audit_trail(
         self,
@@ -58,17 +56,17 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     ) -> List[AuditEntry]:
         """Query audit trail with advanced filters."""
         ...
-    
+
     @abstractmethod
     async def verify_audit_integrity(self) -> VerificationReport:
         """Verify audit trail integrity."""
         ...
-    
+
     @abstractmethod
     async def get_verification_report(self) -> VerificationReport:
         """Get detailed verification report."""
         ...
-    
+
     @abstractmethod
     async def export_audit_data(
         self,
@@ -78,7 +76,7 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     ) -> str:
         """Export audit data."""
         ...
-    
+
     @abstractmethod
     async def query_events(
         self,
@@ -89,12 +87,12 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     ) -> List[dict]:
         """Query audit events."""
         ...
-    
+
     @abstractmethod
     async def get_event_by_id(self, event_id: str) -> Optional[dict]:
         """Get specific audit event."""
         ...
-    
+
     @abstractmethod
     def set_service_registry(self, registry: object) -> None:
         """Set the service registry."""

@@ -6,13 +6,12 @@ from pydantic import BaseModel
 
 from ciris_engine.schemas.runtime.enums import ThoughtType
 from ciris_engine.schemas.runtime.models import TaskContext, ThoughtContext as ThoughtModelContext
-from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.schemas.services.filters_core import FilterResult, FilterPriority
 
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from datetime import datetime, timezone
+from ciris_engine.logic import persistence
 
 logger = logging.getLogger(__name__)
 
@@ -186,11 +185,11 @@ class BaseObserver(Generic[MessageT], ABC):
             except Exception as e:
                 logger.error(f"Failed to sign observer task: {e}")
                 # Continue without signature
-        
+
         # Import persistence here to avoid circular import
         from ciris_engine.logic import persistence
         persistence.add_task(task)
-    
+
     async def _create_passive_observation_result(self, msg: MessageT) -> None:
         try:
             from datetime import datetime, timezone
@@ -209,8 +208,8 @@ class BaseObserver(Generic[MessageT], ABC):
                 created_at=self.time_service.now(),
                 allowed_actions=["send_messages", "read_messages"]
             )
-            
-            minimal_snapshot = SystemSnapshot(
+
+            _minimal_snapshot = SystemSnapshot(
                 channel_context=channel_context,
                 agent_identity={
                     "agent_id": self.agent_id or "ciris",
@@ -242,7 +241,7 @@ class BaseObserver(Generic[MessageT], ABC):
                     parent_task_id=None
                 ),
             )
-            
+
             await self._sign_and_add_task(task)
 
             # Build conversation context for thought
@@ -251,13 +250,13 @@ class BaseObserver(Generic[MessageT], ABC):
                 author = getattr(hist_msg, "author_name", "Unknown")
                 author_id = getattr(hist_msg, "author_id", "unknown")
                 content = getattr(hist_msg, "content", "")
-                timestamp = getattr(hist_msg, "timestamp", "")
+                _timestamp = getattr(hist_msg, "timestamp", "")
                 conversation_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
-            
+
             conversation_lines.append("\n=== CURRENT MESSAGE TO RESPOND TO ===")
             conversation_lines.append(f"@{msg.author_name} (ID: {msg.author_id}): {msg.content}")  # type: ignore[attr-defined]
             conversation_lines.append("=" * 40)
-            
+
             thought_content = "\n".join(conversation_lines)
 
             thought = Thought(
@@ -278,10 +277,10 @@ class BaseObserver(Generic[MessageT], ABC):
                     correlation_id=msg.message_id  # type: ignore[attr-defined]
                 ),
             )
-            
+
             persistence.add_thought(thought)
             logger.info(f"Created task {task.task_id} for: {getattr(msg, 'content', 'unknown')[:50]}...")
-            
+
         except Exception as e:  # pragma: no cover - rarely hit in tests
             logger.error("Error creating observation task: %s", e, exc_info=True)
 

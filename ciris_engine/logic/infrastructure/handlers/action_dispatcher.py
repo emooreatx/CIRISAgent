@@ -6,6 +6,7 @@ from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
 from . import BaseActionHandler
 from ciris_engine.logic import persistence
 
@@ -15,7 +16,7 @@ class ActionDispatcher:
     def __init__(
         self,
         handlers: Dict[HandlerActionType, BaseActionHandler],
-        telemetry_service: Optional[object] = None
+        telemetry_service: Optional[TelemetryServiceProtocol] = None
     ) -> None:
         """
         Initializes the ActionDispatcher with a map of action types to their handler instances.
@@ -52,7 +53,7 @@ class ActionDispatcher:
         # Defensive: ensure selected_action is a HandlerActionType
         action_type = action_selection_result.selected_action
         if not isinstance(action_type, HandlerActionType):
-            try:  # type: ignore[unreachable]
+            try:
                 action_type = HandlerActionType(action_type)
             except Exception as e:
                 logger.error(f"ActionDispatcher: selected_action {action_type} is not a valid HandlerActionType: {e}")
@@ -108,7 +109,7 @@ class ActionDispatcher:
                 )
                 return
         # Logging handled by logger.info above
-        
+
         try:
             # Record handler invocation as HOT PATH
             if self.telemetry_service:
@@ -131,16 +132,16 @@ class ActionDispatcher:
                         "source_module": "action_dispatcher"
                     }
                 )
-            
+
             # The handler's `handle` method will take care of everything.
             follow_up_thought_id = await handler_instance.handle(action_selection_result, thought, dispatch_context)
-            
+
             # Log completion with follow-up thought ID if available
             completion_msg = f"[DISPATCHER] Handler {handler_instance.__class__.__name__} completed for action {action_type.value} on thought {thought.thought_id}"
             if follow_up_thought_id:
                 completion_msg += f" - created follow-up thought {follow_up_thought_id}"
             print(completion_msg)
-            
+
             # Record successful handler completion
             if self.telemetry_service:
                 await self.telemetry_service.record_metric(f"handler_completed_{action_type.value}")
@@ -149,7 +150,7 @@ class ActionDispatcher:
             logger.exception(
                 f"Error executing handler {handler_instance.__class__.__name__} for action {action_type.value} on thought {thought.thought_id}: {e}"
             )
-            
+
             # Record handler error
             if self.telemetry_service:
                 await self.telemetry_service.record_metric(f"handler_error_{action_type.value}")
@@ -166,4 +167,3 @@ class ActionDispatcher:
                 logger.error(
                     f"Failed to update thought {thought.thought_id} to FAILED after handler exception: {e_persist}"
                 )
-

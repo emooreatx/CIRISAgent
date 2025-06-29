@@ -66,7 +66,7 @@ ProcessingResult = Union[
 
 __all__ = [
     "WakeupResult",
-    "WorkResult", 
+    "WorkResult",
     "PlayResult",
     "SolitudeResult",
     "DreamResult",

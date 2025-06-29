@@ -37,7 +37,7 @@ async def test_complete_startup():
         # Set environment variables for test
         os.environ["CIRIS_DATA_DIR"] = temp_dir
         os.environ["OPENAI_API_KEY"] = "test-key"  # Will use mock LLM
-        
+
         try:
             logger.info("Creating runtime with CLI adapter...")
             config = EssentialConfig()
@@ -49,57 +49,57 @@ async def test_complete_startup():
                 mock_llm=True,  # Use mock LLM for testing
                 timeout=5  # Short timeout for testing
             )
-            
+
             logger.info("Initializing runtime...")
             await runtime.initialize()
             logger.info("✓ Runtime initialized successfully!")
-            
+
             # Verify all services are available
             assert runtime.service_initializer.time_service is not None
             assert runtime.service_initializer.memory_service is not None
             assert runtime.service_initializer.telemetry_service is not None
             assert runtime.agent_processor is not None
             logger.info("✓ All critical services initialized")
-            
+
             # Start the agent processor to test wakeup
             logger.info("Starting agent processor...")
             processor_task = asyncio.create_task(
                 runtime.agent_processor.start_processing(num_rounds=2)
             )
-            
+
             # Let it run for a bit to test wakeup
             await asyncio.sleep(2)
-            
+
             # Check if wakeup processor started without errors
             if hasattr(runtime.agent_processor, 'wakeup_processor'):
                 wakeup = runtime.agent_processor.wakeup_processor
                 logger.info(f"✓ Wakeup processor status: {wakeup.get_status()}")
-            
+
             # Test shutdown
             logger.info("Testing graceful shutdown...")
             request_global_shutdown("Test completed")
-            
+
             # Cancel processor task
             processor_task.cancel()
             try:
                 await processor_task
             except asyncio.CancelledError:
                 pass
-            
+
             # Perform shutdown
             await runtime.shutdown()
             logger.info("✓ Shutdown completed successfully!")
-            
+
             logger.info("\n✅ ALL TESTS PASSED!")
             logger.info("The CIRIS Agent can now:")
             logger.info("  - Initialize all services properly")
-            logger.info("  - Store and retrieve identity correctly")  
+            logger.info("  - Store and retrieve identity correctly")
             logger.info("  - Start wakeup sequence without errors")
             logger.info("  - Shut down gracefully without warnings")
             logger.info("  - Stop services in correct dependency order")
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"\n❌ TEST FAILED: {e}", exc_info=True)
             return False

@@ -1,17 +1,15 @@
 import collections
+import logging
+from typing import List, Optional, Union, Any
+
 from pydantic import BaseModel, Field
-from typing import Dict, List, Optional, Union, Any
 
 # Import both types of ThoughtContext
 from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
-from ciris_engine.schemas.runtime.models import ThoughtContext
-import logging
+from ciris_engine.schemas.runtime.models import ThoughtContext, Thought
+from ciris_engine.schemas.runtime.enums import ThoughtType
 
 logger = logging.getLogger(__name__)
-
-from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.schemas.runtime.enums import ThoughtType
-from pydantic import Field
 
 class ThoughtContent(BaseModel):
     """Typed content for a thought."""
@@ -73,4 +71,3 @@ class ProcessingQueueItem(BaseModel):
         )
 
 ProcessingQueue = collections.deque[ProcessingQueueItem]
-

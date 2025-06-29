@@ -16,7 +16,7 @@ from ciris_engine.schemas.services.resources_core import (
 
 __all__ = [
     "ResourceAction",
-    "ResourceBudget", 
+    "ResourceBudget",
     "ResourceLimit",
     "ResourceSnapshot",
     "ResourceUsage",

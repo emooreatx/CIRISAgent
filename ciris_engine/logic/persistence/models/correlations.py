@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import List, Optional, Any
 
 from ciris_engine.logic.persistence import get_db_connection
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
@@ -25,8 +25,8 @@ def add_correlation(corr: ServiceCorrelation, time_service: TimeServiceProtocol,
         if isinstance(corr.timestamp, datetime):
             timestamp_str = corr.timestamp.isoformat()
         else:
-            timestamp_str = str(corr.timestamp)  # type: ignore[unreachable]
-    
+            timestamp_str = str(corr.timestamp)
+
     params = (
         corr.correlation_id,
         corr.service_type,
@@ -106,7 +106,7 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                         timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
-                
+
                 # Build the correlation without None values for optional fields
                 correlation_data = {
                     "correlation_id": row["correlation_id"],
@@ -123,7 +123,7 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                     "tags": json.loads(row["tags"]) if row["tags"] else {},
                     "retention_policy": row["retention_policy"] or "raw",
                 }
-                
+
                 # Only add optional TSDB fields if they have values
                 if row["metric_name"] and row["metric_value"] is not None:
                     from ciris_engine.schemas.telemetry.core import MetricData
@@ -134,7 +134,7 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                         metric_type="gauge",
                         labels={}
                     )
-                
+
                 if row["log_level"]:
                     from ciris_engine.schemas.telemetry.core import LogData
                     correlation_data["log_data"] = LogData(
@@ -145,7 +145,7 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                         function_name="",
                         line_number=0
                     )
-                
+
                 if row["trace_id"]:
                     from ciris_engine.schemas.telemetry.core import TraceContext
                     trace_context = TraceContext(
@@ -156,7 +156,7 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
                     correlation_data["trace_context"] = trace_context
-                
+
                 return ServiceCorrelation(**correlation_data)
             return None
     except Exception as e:
@@ -166,24 +166,24 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
 def get_correlations_by_task_and_action(task_id: str, action_type: str, status: Optional[ServiceCorrelationStatus] = None, db_path: Optional[str] = None) -> List[ServiceCorrelation]:
     """Get correlations for a specific task and action type."""
     sql = """
-        SELECT * FROM service_correlations 
+        SELECT * FROM service_correlations
         WHERE action_type = ?
         AND json_extract(request_data, '$.task_id') = ?
     """
     params = [action_type, task_id]
-    
+
     if status is not None:
         sql += " AND status = ?"
         params.append(status.value)
-    
+
     sql += " ORDER BY created_at DESC"
-    
+
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(sql, params)
             rows = cursor.fetchall()
-            
+
             correlations = []
             for row in rows:
                 # Parse timestamp if present
@@ -197,7 +197,7 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                         timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
-                
+
                 # Build the correlation without None values for optional fields
                 correlation_data = {
                     "correlation_id": row["correlation_id"],
@@ -214,7 +214,7 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                     "tags": json.loads(row["tags"]) if row["tags"] else {},
                     "retention_policy": row["retention_policy"] or "raw",
                 }
-                
+
                 # Only add optional TSDB fields if they have values
                 if row["metric_name"] and row["metric_value"] is not None:
                     from ciris_engine.schemas.telemetry.core import MetricData
@@ -225,7 +225,7 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                         metric_type="gauge",
                         labels={}
                     )
-                
+
                 if row["log_level"]:
                     from ciris_engine.schemas.telemetry.core import LogData
                     correlation_data["log_data"] = LogData(
@@ -236,7 +236,7 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                         function_name="",
                         line_number=0
                     )
-                
+
                 if row["trace_id"]:
                     from ciris_engine.schemas.telemetry.core import TraceContext
                     trace_context = TraceContext(
@@ -247,7 +247,7 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
                     correlation_data["trace_context"] = trace_context
-                
+
                 correlations.append(ServiceCorrelation(**correlation_data))
             return correlations
     except Exception as e:
@@ -269,34 +269,34 @@ def get_correlations_by_type_and_time(
         params: List[Any] = [correlation_type.value]
     else:
         params = [str(correlation_type)]
-    
+
     if start_time:
         sql += " AND timestamp >= ?"
         params.append(start_time)
-    
+
     if end_time:
         sql += " AND timestamp <= ?"
         params.append(end_time)
-    
+
     if metric_names:
         placeholders = ",".join("?" * len(metric_names))
         sql += f" AND metric_name IN ({placeholders})"
         params.extend(metric_names)
-    
+
     if log_levels:
         placeholders = ",".join("?" * len(log_levels))
         sql += f" AND log_level IN ({placeholders})"
         params.extend(log_levels)
-    
+
     sql += " ORDER BY timestamp DESC LIMIT ?"
     params.append(limit)
-    
+
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(sql, params)
             rows = cursor.fetchall()
-            
+
             correlations = []
             for row in rows:
                 timestamp = None
@@ -309,10 +309,10 @@ def get_correlations_by_type_and_time(
                         timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
-                
+
                 # Import required types
                 from ciris_engine.schemas.telemetry.core import MetricData, LogData, TraceContext
-                
+
                 # Build metric_data if this is a metric correlation
                 metric_data = None
                 if row["metric_name"] and row["metric_value"] is not None:
@@ -323,7 +323,7 @@ def get_correlations_by_type_and_time(
                         metric_type="gauge",
                         labels={}
                     )
-                
+
                 # Build log_data if this is a log correlation
                 log_data = None
                 if row["log_level"]:
@@ -335,7 +335,7 @@ def get_correlations_by_type_and_time(
                         function_name="",
                         line_number=0
                     )
-                
+
                 # Build trace_context if this is a trace correlation
                 trace_context = None
                 if row["trace_id"]:
@@ -346,7 +346,7 @@ def get_correlations_by_type_and_time(
                     )
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
-                
+
                 correlations.append(ServiceCorrelation(
                     correlation_id=row["correlation_id"],
                     service_type=row["service_type"],
@@ -376,36 +376,36 @@ def get_metrics_timeseries(
 ) -> List[ServiceCorrelation]:
     """Get metric correlations as time series data."""
     sql = """
-        SELECT * FROM service_correlations 
-        WHERE correlation_type = 'metric_datapoint' 
+        SELECT * FROM service_correlations
+        WHERE correlation_type = 'metric_datapoint'
         AND metric_name = ?
     """
     params: List[Any] = [query.metric_name]
-    
+
     if query.start_time:
         sql += " AND timestamp >= ?"
         params.append(query.start_time.isoformat() if hasattr(query.start_time, 'isoformat') else query.start_time)
-    
+
     if query.end_time:
         sql += " AND timestamp <= ?"
         params.append(query.end_time.isoformat() if hasattr(query.end_time, 'isoformat') else query.end_time)
-    
+
     if query.tags:
         for key, value in query.tags.items():
             sql += " AND json_extract(tags, ?) = ?"
             params.extend([f"$.{key}", value])
-    
+
     # Default limit to 1000 if not specified
     limit = 1000 if not hasattr(query, 'limit') else getattr(query, 'limit', 1000)
     sql += " ORDER BY timestamp ASC LIMIT ?"
     params.append(limit)
-    
+
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(sql, params)
             rows = cursor.fetchall()
-            
+
             correlations = []
             for row in rows:
                 timestamp = None
@@ -418,10 +418,10 @@ def get_metrics_timeseries(
                         timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
-                
+
                 # Import required types
                 from ciris_engine.schemas.telemetry.core import MetricData, LogData, TraceContext
-                
+
                 # Build metric_data if this is a metric correlation
                 metric_data = None
                 if row["metric_name"] and row["metric_value"] is not None:
@@ -432,7 +432,7 @@ def get_metrics_timeseries(
                         metric_type="gauge",
                         labels={}
                     )
-                
+
                 # Build log_data if this is a log correlation
                 log_data = None
                 if row["log_level"]:
@@ -444,7 +444,7 @@ def get_metrics_timeseries(
                         function_name="",
                         line_number=0
                     )
-                
+
                 # Build trace_context if this is a trace correlation
                 trace_context = None
                 if row["trace_id"]:
@@ -455,7 +455,7 @@ def get_metrics_timeseries(
                     )
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
-                
+
                 correlations.append(ServiceCorrelation(
                     correlation_id=row["correlation_id"],
                     service_type=row["service_type"],
@@ -478,4 +478,3 @@ def get_metrics_timeseries(
     except Exception as e:
         logger.exception("Failed to fetch metrics timeseries for %s: %s", query.metric_name, e)
         return []
-

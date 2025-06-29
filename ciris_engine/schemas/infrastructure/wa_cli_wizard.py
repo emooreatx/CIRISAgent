@@ -3,7 +3,7 @@ Schemas for WA CLI wizard operations.
 
 These replace all Dict[str, Any] usage in logic/infrastructure/sub_services/wa_cli_wizard.py.
 """
-from typing import List, Optional, Tuple, Any
+from typing import List, Optional
 from pydantic import Field
 from pydantic import BaseModel
 

@@ -9,21 +9,21 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
+from uuid import uuid4
 
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
 from ciris_engine.logic.persistence.models.correlations import add_correlation
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from datetime import timezone
 
 class TSDBLogHandler(logging.Handler):
     """Logging handler that stores logs as TSDB correlations."""
-    
+
     def __init__(self, tags: Optional[Dict[str, str]] = None, time_service: Optional[TimeServiceProtocol] = None):
         super().__init__()
         self.tags = tags or {}
         self._async_loop: Optional[asyncio.AbstractEventLoop] = None
         self._time_service = time_service
-        
+
     def emit(self, record: logging.LogRecord) -> None:
         """Process log record and store as correlation."""
         try:
@@ -52,7 +52,7 @@ class TSDBLogHandler(logging.Handler):
                 status=ServiceCorrelationStatus.COMPLETED,
                 retention_policy="raw"
             )
-            
+
             if self._async_loop and self._async_loop.is_running():
                 self._async_loop.create_task(self._store_log_correlation(log_correlation))
             else:
@@ -61,10 +61,10 @@ class TSDBLogHandler(logging.Handler):
                 else:
                     # Skip if no time service available
                     print("Warning: TSDBLogHandler requires time_service to store correlations")
-                
+
         except Exception as e:
             print(f"Failed to store log correlation: {e}")
-    
+
     async def _store_log_correlation(self, correlation: ServiceCorrelation) -> None:
         """Store log correlation asynchronously."""
         try:
@@ -74,7 +74,7 @@ class TSDBLogHandler(logging.Handler):
                 print("Warning: TSDBLogHandler requires time_service to store correlations")
         except Exception as e:
             print(f"Failed to store log correlation in TSDB: {e}")
-    
+
     def set_async_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """Set the async event loop for asynchronous storage."""
         self._async_loop = loop
@@ -82,18 +82,18 @@ class TSDBLogHandler(logging.Handler):
 class LogCorrelationCollector:
     """
     Service that configures logging to store logs in TSDB.
-    
+
     This collector sets up logging handlers that capture log entries
     and store them as correlations, enabling time-series queries.
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                  log_levels: Optional[List[str]] = None,
                  tags: Optional[Dict[str, str]] = None,
                  loggers: Optional[List[str]] = None):
         """
         Initialize the log collector.
-        
+
         Args:
             log_levels: Log levels to capture (default: WARNING and above)
             tags: Global tags to add to all log correlations
@@ -103,38 +103,38 @@ class LogCorrelationCollector:
         self.tags = tags or {"source": "ciris_agent"}
         self.loggers: List[Optional[str]] = list(loggers) if loggers is not None else [None]  # None means root logger
         self.handlers: List[TSDBLogHandler] = []
-        
+
     async def start(self) -> None:
         """Start collecting logs."""
         # Get current event loop
         loop = asyncio.get_event_loop()
-        
+
         # Create handlers for each logger
         for logger_name in self.loggers:
             handler = TSDBLogHandler(tags=self.tags)
             handler.set_async_loop(loop)
-            
+
             # Set formatter
             formatter = logging.Formatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
             )
             handler.setFormatter(formatter)
-            
+
             # Set level based on configured levels
             min_level = min(getattr(logging, level) for level in self.log_levels)
             handler.setLevel(min_level)
-            
+
             # Add handler to logger
             if logger_name is None:
                 logger = logging.getLogger()
             else:
                 logger = logging.getLogger(logger_name)
-            
+
             logger.addHandler(handler)
             self.handlers.append(handler)
-            
+
         logging.info("Log correlation collector started")
-    
+
     async def stop(self) -> None:
         """Stop collecting logs."""
         for i, handler in enumerate(self.handlers):
@@ -144,34 +144,34 @@ class LogCorrelationCollector:
                     logger = logging.getLogger()
                 else:
                     logger = logging.getLogger(logger_name)
-                
+
                 logger.removeHandler(handler)
                 handler.close()
             except Exception as e:
                 logging.warning(f"Error removing handler: {e}")
-        
+
         self.handlers.clear()
         logging.info("Log correlation collector stopped")
-    
+
     def add_logger(self, logger_name: str) -> None:
         """Add a new logger to collect from."""
         if logger_name not in self.loggers:
             self.loggers.append(logger_name)
-            
+
             # If already started, add handler now
             if self.handlers:
                 loop = asyncio.get_event_loop()
                 handler = TSDBLogHandler(tags=self.tags)
                 handler.set_async_loop(loop)
-                
+
                 formatter = logging.Formatter(
                     '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
                 )
                 handler.setFormatter(formatter)
-                
+
                 min_level = min(getattr(logging, level) for level in self.log_levels)
                 handler.setLevel(min_level)
-                
+
                 logger = logging.getLogger(logger_name)
                 logger.addHandler(handler)
                 self.handlers.append(handler)

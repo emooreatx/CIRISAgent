@@ -32,7 +32,7 @@ def temp_db():
 @pytest.mark.asyncio
 async def test_filter_config_bug(temp_db, time_service):
     """Test that reproduces the exact filter_config bug from logs.
-    
+
     The error "Failed to convert node config/filter_config to ConfigNode: 'key'"
     suggests there's a node with id="config/filter_config" that has malformed attributes.
     """
@@ -50,7 +50,7 @@ async def test_filter_config_bug(temp_db, time_service):
             PRIMARY KEY (node_id, scope)
         )
     ''')
-    
+
     # Insert a malformed config node like what might exist from old code
     # This simulates what happens when a node is created with just GraphNodeAttributes
     # and no extra fields
@@ -61,7 +61,7 @@ async def test_filter_config_bug(temp_db, time_service):
         "tags": ["config:filter"]
         # NOTE: Missing 'key' and 'value' fields!
     }
-    
+
     conn.execute(
         "INSERT INTO graph_nodes (node_id, scope, node_type, attributes_json, version, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
@@ -76,30 +76,30 @@ async def test_filter_config_bug(temp_db, time_service):
     )
     conn.commit()
     conn.close()
-    
+
     # Create services
     secrets_db = temp_db.replace('.db', '_secrets.db')
     secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
     await secrets_service.start()
-    
+
     memory_service = LocalGraphMemoryService(
         db_path=temp_db,
         secrets_service=secrets_service,
         time_service=time_service
     )
     await memory_service.start()
-    
+
     config_service = GraphConfigService(
         graph_memory_service=memory_service,
         time_service=time_service
     )
     await config_service.start()
-    
+
     # Try to list configs - this triggers query_graph which causes the error
     print("\nAttempting to list configs (this triggers the bug)...")
     configs = await config_service.list_configs()
     print(f"Successfully listed {len(configs)} configs")
-    
+
     # Try to get the specific config
     print("\nAttempting to get filter_config...")
     filter_config = await config_service.get_config("filter_config")
@@ -107,12 +107,12 @@ async def test_filter_config_bug(temp_db, time_service):
         print(f"Found filter_config: {filter_config}")
     else:
         print("filter_config not found (expected due to malformed node)")
-    
+
     # Cleanup
     await config_service.stop()
     await memory_service.stop()
     await secrets_service.stop()
-    
+
     secrets_db_path = secrets_db
     if os.path.exists(secrets_db_path):
         os.unlink(secrets_db_path)
@@ -135,19 +135,19 @@ async def test_old_node_format_compatibility(temp_db, time_service):
             PRIMARY KEY (node_id, scope)
         )
     ''')
-    
+
     # Case 1: Node with empty attributes
     conn.execute(
         "INSERT INTO graph_nodes (node_id, scope, node_type, attributes_json) VALUES (?, ?, ?, ?)",
         ("config_empty", "LOCAL", "config", "{}")
     )
-    
+
     # Case 2: Node with null attributes
     conn.execute(
         "INSERT INTO graph_nodes (node_id, scope, node_type, attributes_json) VALUES (?, ?, ?, ?)",
         ("config_null", "LOCAL", "config", None)
     )
-    
+
     # Case 3: Node with only base attributes (no key/value)
     conn.execute(
         "INSERT INTO graph_nodes (node_id, scope, node_type, attributes_json) VALUES (?, ?, ?, ?)",
@@ -156,60 +156,60 @@ async def test_old_node_format_compatibility(temp_db, time_service):
             "created_by": "test"
         }))
     )
-    
+
     conn.commit()
     conn.close()
-    
+
     # Create services
     secrets_db = temp_db.replace('.db', '_secrets.db')
     secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
     await secrets_service.start()
-    
+
     memory_service = LocalGraphMemoryService(
         db_path=temp_db,
         secrets_service=secrets_service,
         time_service=time_service
     )
     await memory_service.start()
-    
+
     config_service = GraphConfigService(
         graph_memory_service=memory_service,
         time_service=time_service
     )
     await config_service.start()
-    
+
     # This should not crash - malformed nodes should be skipped
     configs = await config_service.list_configs()
     print(f"\nSuccessfully handled malformed nodes. Found {len(configs)} valid configs")
-    
+
     # Cleanup
     await config_service.stop()
     await memory_service.stop()
     await secrets_service.stop()
-    
+
     if os.path.exists(secrets_db):
         os.unlink(secrets_db)
 
 
 if __name__ == "__main__":
     import asyncio
-    
+
     async def main():
         time_service = TimeService()
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name
-        
+
         try:
             print("Testing filter_config bug reproduction...")
             await test_filter_config_bug(temp_db, time_service)
-            
+
             print("\n" + "="*60 + "\n")
-            
+
             print("Testing old node format compatibility...")
             await test_old_node_format_compatibility(temp_db, time_service)
-            
+
         finally:
             if os.path.exists(temp_db):
                 os.unlink(temp_db)
-    
+
     asyncio.run(main())

@@ -8,10 +8,24 @@ from .core import (
     ProcessingError
 )
 
+from .error import (
+    ErrorSeverity,
+    ErrorContext,
+    ProcessingError as ProcessorError,
+    ErrorHandlingResult,
+    ProcessorConfig
+)
+
 __all__ = [
     "DMAResults",
     "ConscienceApplicationResult",
     "ProcessedThoughtResult",
     "ThoughtProcessingMetrics",
-    "ProcessingError"
+    "ProcessingError",
+    # Error handling schemas
+    "ErrorSeverity",
+    "ErrorContext",
+    "ProcessorError",
+    "ErrorHandlingResult",
+    "ProcessorConfig"
 ]

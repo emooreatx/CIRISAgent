@@ -22,12 +22,12 @@ from ciris_engine.schemas.runtime.protocols_core import MetricDataPoint, Resourc
 from ciris_engine.schemas.services.core import ServiceStatus
 from ciris_engine.schemas.services.operations import MemoryOpStatus
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TelemetrySummary, UserProfile, ChannelContext as SystemChannelContext
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, GraphNode, NodeType
 from ciris_engine.schemas.services.graph.telemetry import (
     TelemetrySnapshotResult, TelemetryData, ResourceData, BehavioralData,
     TelemetryServiceStatus,
     GraphQuery, ServiceCapabilities as TelemetryCapabilities
 )
+from ciris_engine.schemas.services.graph_core import GraphNode, NodeType
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 
 logger = logging.getLogger(__name__)
@@ -60,17 +60,17 @@ class ConsolidationCandidate:
 class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
     """
     Consolidated TelemetryService that stores all metrics as graph memories.
-    
+
     This service implements the vision where "everything is a memory" by
     converting telemetry data into TSDBGraphNodes stored in the memory graph.
-    
+
     Features:
     - Processes SystemSnapshot data from adapters
     - Records operational metrics and resource usage
     - Stores behavioral, social, and identity context
     - Applies grace-based wisdom to memory consolidation
     """
-    
+
     def __init__(
         self,
         memory_bus: Optional[MemoryBus] = None,
@@ -90,13 +90,13 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         # Cache for recent metrics (for quick status queries)
         self._recent_metrics: Dict[str, List[MetricDataPoint]] = {}
         self._max_cached_metrics = 100
-        
+
         # Cache for telemetry summaries to avoid slamming persistence
         self._summary_cache: Dict[str, Tuple[datetime, TelemetrySummary]] = {}
         self._summary_cache_ttl_seconds = 60  # Cache for 1 minute
-        
+
         # Consolidation settings
-    
+
     def _set_service_registry(self, registry: object) -> None:
         """Set the service registry for accessing memory bus and time service (internal method)."""
         self._service_registry = registry
@@ -107,31 +107,31 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 self._memory_bus = MemoryBus(registry, self._time_service)
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
-        
+
         # Get time service from registry if not provided
         if not self._time_service and registry:
             from ciris_engine.schemas.runtime.enums import ServiceType
             time_services = registry.get_all_by_type(ServiceType.TIME)
             if time_services:
                 self._time_service = time_services[0].provider
-    
+
     def _now(self) -> datetime:
         """Get current time from time service."""
         if not self._time_service:
             raise RuntimeError("FATAL: TimeService not available! This is a critical system failure.")
         return self._time_service.now()
-    
+
     async def record_metric(
-        self, 
-        metric_name: str, 
-        value: float = 1.0, 
+        self,
+        metric_name: str,
+        value: float = 1.0,
         tags: Optional[Dict[str, str]] = None,
         handler_name: Optional[str] = None,  # Accept extra parameter
         **kwargs: Any  # Accept any other extra parameters
     ) -> None:
         """
         Record a metric by storing it as a memory in the graph.
-        
+
         This creates a TSDBGraphNode and stores it via the MemoryService,
         implementing the unified telemetry flow.
         """
@@ -139,7 +139,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             if not self._memory_bus:
                 logger.error("Memory bus not available for telemetry storage")
                 return
-            
+
             # Add standard telemetry tags
             metric_tags = tags or {}
             metric_tags.update({
@@ -147,11 +147,11 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 "metric_type": "operational",
                 "timestamp": self._now().isoformat()
             })
-            
+
             # Add handler_name to tags if provided
             if handler_name:
                 metric_tags["handler"] = handler_name
-            
+
             # Store as memory via the bus
             result = await self._memory_bus.memorize_metric(
                 metric_name=metric_name,
@@ -160,7 +160,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 scope="local",  # Operational metrics use local scope
                 handler_name="telemetry_service"
             )
-            
+
             # Cache for quick access
             data_point = MetricDataPoint(
                 metric_name=metric_name,
@@ -169,30 +169,30 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 tags=metric_tags,
                 service_name="telemetry_service"
             )
-            
+
             if metric_name not in self._recent_metrics:
                 self._recent_metrics[metric_name] = []
-            
+
             self._recent_metrics[metric_name].append(data_point)
-            
+
             # Trim cache
             if len(self._recent_metrics[metric_name]) > self._max_cached_metrics:
                 self._recent_metrics[metric_name] = self._recent_metrics[metric_name][-self._max_cached_metrics:]
-            
+
             if result.status != MemoryOpStatus.OK:
                 logger.error(f"Failed to store metric: {result}")
-            
+
         except Exception as e:
             logger.error(f"Failed to record metric {metric_name}: {e}")
-    
+
     async def _record_resource_usage(
-        self, 
-        service_name: str, 
+        self,
+        service_name: str,
         usage: ResourceUsage
     ) -> None:
         """
         Record resource usage as multiple metrics in the graph (internal method).
-        
+
         Each aspect of resource usage becomes a separate memory node,
         allowing for fine-grained introspection.
         """
@@ -204,45 +204,45 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     float(usage.tokens_used),
                     {"service": service_name, "resource_type": "tokens"}
                 )
-            
+
             if usage.tokens_input:
                 await self.record_metric(
                     f"{service_name}.tokens_input",
                     float(usage.tokens_input),
                     {"service": service_name, "resource_type": "tokens", "direction": "input"}
                 )
-            
+
             if usage.tokens_output:
                 await self.record_metric(
                     f"{service_name}.tokens_output",
                     float(usage.tokens_output),
                     {"service": service_name, "resource_type": "tokens", "direction": "output"}
                 )
-            
+
             if usage.cost_cents:
                 await self.record_metric(
                     f"{service_name}.cost_cents",
                     usage.cost_cents,
                     {"service": service_name, "resource_type": "cost", "unit": "cents"}
                 )
-            
+
             if usage.carbon_grams:
                 await self.record_metric(
                     f"{service_name}.carbon_grams",
                     usage.carbon_grams,
                     {"service": service_name, "resource_type": "carbon", "unit": "grams"}
                 )
-            
+
             if usage.energy_kwh:
                 await self.record_metric(
                     f"{service_name}.energy_kwh",
                     usage.energy_kwh,
                     {"service": service_name, "resource_type": "energy", "unit": "kilowatt_hours"}
                 )
-            
+
         except Exception as e:
             logger.error(f"Failed to record resource usage for {service_name}: {e}")
-    
+
     async def query_metrics(
         self,
         metric_name: str,
@@ -252,7 +252,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
     ) -> List[Dict[str, Union[str, float, datetime, Dict[str, str]]]]:
         """
         Query metrics from the graph memory.
-        
+
         This uses the MemoryService's recall_timeseries capability to
         retrieve historical metric data.
         """
@@ -260,14 +260,14 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             if not self._memory_bus:
                 logger.error("Memory bus not available for metric queries")
                 return []
-            
+
             # Calculate hours from time range
             hours = 24  # Default
             if start_time and end_time:
                 hours = int((end_time - start_time).total_seconds() / 3600)
             elif start_time:
                 hours = int((self._now() - start_time).total_seconds() / 3600)
-            
+
             # Recall time series data from memory
             timeseries_data = await self._memory_bus.recall_timeseries(
                 scope="local",  # Operational metrics are in local scope
@@ -275,20 +275,20 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 correlation_types=["METRIC_DATAPOINT"],
                 handler_name="telemetry_service"
             )
-            
+
             # Convert to dict format
             results: List[Dict[str, Union[str, float, datetime, Dict[str, str]]]] = []
             for data in timeseries_data:
                 # Filter by metric name
                 if data.metric_name != metric_name:
                     continue
-                
+
                 # Filter by tags if specified
                 if tags:
                     data_tags = data.tags or {}
                     if not all(data_tags.get(k) == v for k, v in tags.items()):
                         continue
-                
+
                 # Filter by time range
                 if data.timestamp:
                     ts = datetime.fromisoformat(data.timestamp) if isinstance(data.timestamp, str) else data.timestamp
@@ -296,7 +296,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                         continue
                     if end_time and ts > end_time:
                         continue
-                
+
                 # Create result dict
                 if data.metric_name and data.value is not None:
                     results.append({
@@ -305,27 +305,27 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                         "timestamp": data.timestamp,
                         "tags": data.tags or {}
                     })
-            
+
             return results
-            
+
         except Exception as e:
             logger.error(f"Failed to query metrics: {e}")
             return []
-    
+
     async def get_metric_summary(self, metric_name: str, window_minutes: int = 60) -> Dict[str, float]:
         """Get metric summary statistics."""
         try:
             # Calculate time window
             end_time = self._now()
             start_time = end_time - timedelta(minutes=window_minutes)
-            
+
             # Query metrics for the window
             metrics = await self.query_metrics(
                 metric_name=metric_name,
                 start_time=start_time,
                 end_time=end_time
             )
-            
+
             if not metrics:
                 return {
                     "count": 0.0,
@@ -334,10 +334,10 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     "max": 0.0,
                     "avg": 0.0
                 }
-            
+
             # Calculate summary statistics
             values = [m["value"] for m in metrics if isinstance(m["value"], (int, float))]
-            
+
             return {
                 "count": float(len(values)),
                 "sum": float(sum(values)),
@@ -345,7 +345,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 "max": float(max(values)) if values else 0.0,
                 "avg": float(sum(values) / len(values)) if values else 0.0
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to get metric summary for {metric_name}: {e}")
             return {
@@ -355,14 +355,14 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 "max": 0.0,
                 "avg": 0.0
             }
-    
+
     async def _get_service_status(
-        self, 
+        self,
         service_name: Optional[str] = None
     ) -> Union[ServiceStatus, Dict[str, ServiceStatus]]:
         """
         Get service status by analyzing recent metrics from the graph (internal method).
-        
+
         This demonstrates the agent's ability to introspect its own
         operational state through the unified memory system.
         """
@@ -371,7 +371,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 # Get status for specific service
                 recent_metrics = self._recent_metrics.get(f"{service_name}.tokens_used", [])
                 last_metric = recent_metrics[-1] if recent_metrics else None
-                
+
                 return ServiceStatus(
                     service_name=service_name,
                     status="healthy" if last_metric else "unknown",
@@ -384,21 +384,21 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             else:
                 # Get status for all services
                 all_status: Dict[str, ServiceStatus] = {}
-                
+
                 # Extract unique service names from cached metrics
                 service_names = set()
                 for metric_name in self._recent_metrics.keys():
                     if '.' in metric_name:
                         service_name = metric_name.split('.')[0]
                         service_names.add(service_name)
-                
+
                 for svc_name in service_names:
                     status = await self._get_service_status(svc_name)
                     if isinstance(status, ServiceStatus):
                         all_status[svc_name] = status
-                
+
                 return all_status
-                
+
         except Exception as e:
             logger.error(f"Failed to get service status: {e}")
             if service_name:
@@ -411,11 +411,11 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 )
             else:
                 return {}
-    
+
     async def _get_resource_limits(self) -> ResourceLimits:
         """Get resource limits configuration (internal method)."""
         return self._resource_limits
-    
+
     async def _process_system_snapshot(
         self,
         snapshot: SystemSnapshot,
@@ -424,53 +424,71 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
     ) -> TelemetrySnapshotResult:
         """
         Process a SystemSnapshot and convert it to graph memories (internal method).
-        
+
         This is the main entry point for the unified telemetry flow from adapters.
         """
         try:
             if not self._memory_bus:
                 logger.error("Memory bus not available for telemetry storage")
                 return TelemetrySnapshotResult(error="Memory bus not available")
-            
+
             results = TelemetrySnapshotResult()
-            
-            # 1. Store operational metrics
-            if snapshot.telemetry:
-                await self._store_telemetry_metrics(snapshot.telemetry, thought_id, task_id)
+
+            # 1. Store operational metrics from telemetry summary
+            if snapshot.telemetry_summary:
+                # Convert telemetry summary to telemetry data format
+                telemetry_data = TelemetryData(
+                    metrics={
+                        "messages_processed_24h": snapshot.telemetry_summary.messages_processed_24h,
+                        "thoughts_processed_24h": snapshot.telemetry_summary.thoughts_processed_24h,
+                        "tasks_completed_24h": snapshot.telemetry_summary.tasks_completed_24h,
+                        "errors_24h": snapshot.telemetry_summary.errors_24h,
+                        "messages_current_hour": snapshot.telemetry_summary.messages_current_hour,
+                        "thoughts_current_hour": snapshot.telemetry_summary.thoughts_current_hour,
+                        "errors_current_hour": snapshot.telemetry_summary.errors_current_hour,
+                        "tokens_per_hour": snapshot.telemetry_summary.tokens_per_hour,
+                        "cost_per_hour_cents": snapshot.telemetry_summary.cost_per_hour_cents,
+                        "carbon_per_hour_grams": snapshot.telemetry_summary.carbon_per_hour_grams,
+                        "error_rate_percent": snapshot.telemetry_summary.error_rate_percent,
+                        "avg_thought_depth": snapshot.telemetry_summary.avg_thought_depth,
+                        "queue_saturation": snapshot.telemetry_summary.queue_saturation,
+                    },
+                    events={},
+                    counters=snapshot.telemetry_summary.service_calls
+                )
+                await self._store_telemetry_metrics(telemetry_data, thought_id, task_id)
                 results.memories_created += 1
-            
-            # 2. Store resource usage
-            if snapshot.current_round_resources:
-                await self._store_resource_usage(snapshot.current_round_resources, thought_id, task_id)
-                results.memories_created += 1
-            
+
+            # 2. Store resource usage - Note: no current_round_resources in SystemSnapshot
+            # Resource data would come from telemetry_summary if needed
+
             # 3. Store behavioral data (task/thought summaries)
             if snapshot.current_task_details:
                 await self._store_behavioral_data(snapshot.current_task_details, "task", thought_id)
                 results.memories_created += 1
-                
+
             if snapshot.current_thought_summary:
                 await self._store_behavioral_data(snapshot.current_thought_summary, "thought", thought_id)
                 results.memories_created += 1
-            
+
             # 4. Store social context (user profiles, channel info)
             if snapshot.user_profiles:
                 await self._store_social_context(snapshot.user_profiles, snapshot.channel_context, thought_id)
                 results.memories_created += 1
-            
+
             # 5. Store identity context
-            if snapshot.agent_name or snapshot.wisdom_request:
+            if snapshot.agent_identity or snapshot.identity_purpose:
                 await self._store_identity_context(snapshot, thought_id)
                 results.memories_created += 1
-            
+
             # Consolidation is now handled by TSDBConsolidationService
-            
+
             return results
-            
+
         except Exception as e:
             logger.error(f"Failed to process system snapshot: {e}")
             return TelemetrySnapshotResult(error=str(e))
-    
+
     async def _store_telemetry_metrics(
         self,
         telemetry: TelemetryData,
@@ -489,7 +507,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     "memory_type": MemoryType.OPERATIONAL.value
                 }
             )
-        
+
         # Process events
         for key, value in telemetry.events.items():
             await self.record_metric(
@@ -502,7 +520,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     "event_value": value
                 }
             )
-    
+
     async def _store_resource_usage(
         self,
         resources: ResourceData,
@@ -513,7 +531,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         if resources.llm:
             usage = ResourceUsage(**resources.llm)
             await self._record_resource_usage("llm_service", usage)
-    
+
     async def _store_behavioral_data(
         self,
         data: BehavioralData,
@@ -536,13 +554,13 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 "data_type": data_type
             }
         )
-        
+
         await self._memory_bus.memorize(
             node=node,
             handler_name="telemetry_service",
             metadata={"behavioral": True}
         )
-    
+
     async def _store_social_context(
         self,
         user_profiles: List[UserProfile],
@@ -563,44 +581,51 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 "user_count": str(len(user_profiles))
             }
         )
-        
+
         await self._memory_bus.memorize(
             node=node,
             handler_name="telemetry_service",
             metadata={"social": True}
         )
-    
+
     async def _store_identity_context(
         self,
         snapshot: SystemSnapshot,
         thought_id: str
     ) -> None:
         """Store identity-related context as memories."""
+        # Extract agent name from identity data if available
+        agent_name = None
+        if snapshot.agent_identity and isinstance(snapshot.agent_identity, dict):
+            agent_name = snapshot.agent_identity.get("name") or snapshot.agent_identity.get("agent_name")
+        
         node = GraphNode(
             id=f"identity_{thought_id}",
             type=NodeType.IDENTITY,
             attributes={
-                "agent_name": snapshot.agent_name,
-                "wisdom_request": snapshot.wisdom_request,
+                "agent_name": agent_name,
+                "identity_purpose": snapshot.identity_purpose,
+                "identity_capabilities": snapshot.identity_capabilities,
+                "identity_restrictions": snapshot.identity_restrictions,
                 "memory_type": MemoryType.IDENTITY.value
             },
             tags={
                 "thought_id": thought_id,
-                "has_wisdom": str(bool(snapshot.wisdom_request))
+                "has_purpose": str(bool(snapshot.identity_purpose))
             }
         )
-        
+
         await self._memory_bus.memorize(
             node=node,
             handler_name="telemetry_service",
             metadata={"identity": True}
         )
-    
-    
+
+
     async def start(self) -> None:
         """Start the telemetry service."""
         logger.info("GraphTelemetryService started - routing all metrics through memory graph")
-    
+
     async def stop(self) -> None:
         """Stop the telemetry service."""
         # Store a final metric about service shutdown
@@ -610,7 +635,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             {"event": "service_stop", "timestamp": self._now().isoformat()}
         )
         logger.info("GraphTelemetryService stopped")
-    
+
     def get_status(self) -> TelemetryServiceStatus:
         """Get service status."""
         return TelemetryServiceStatus(
@@ -620,14 +645,14 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             memory_bus_available=self._memory_bus is not None,
             last_consolidation=None  # Consolidation handled by TSDBConsolidationService
         )
-    
+
     async def store_in_graph(self, node: GraphNode) -> str:
         """Store a node in the graph - delegates to memory bus."""
         if not self._memory_bus:
             raise RuntimeError("Memory bus not available")
         result = await self._memory_bus.memorize(node)
         return node.id if result.status == MemoryOpStatus.OK else ""
-    
+
     async def query_graph(self, query: GraphQuery) -> List[GraphNode]:
         """Query the graph - delegates to memory bus."""
         if not self._memory_bus:
@@ -639,11 +664,11 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             hours=hours,
             correlation_types=["METRIC_DATAPOINT"]
         )
-    
+
     def get_node_type(self) -> str:
         """Get the type of nodes this service manages."""
         return "TELEMETRY"
-    
+
     def get_capabilities(self) -> TelemetryCapabilities:
         """Return capabilities this service supports."""
         return TelemetryCapabilities(
@@ -654,21 +679,21 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             features=["graph_storage", "time_series_aggregation", "memory_consolidation", "grace_policies"],
             node_type="TELEMETRY"
         )
-    
+
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return self._memory_bus is not None and self._time_service is not None
-    
+
     async def get_telemetry_summary(self) -> TelemetrySummary:
         """Get aggregated telemetry summary for system snapshot.
-        
+
         Uses intelligent caching to avoid overloading the persistence layer:
         - Current task metrics: No cache (always fresh)
         - Hour metrics: 1 minute cache
         - Day metrics: 5 minute cache
         """
         now = self._now()
-        
+
         # Check cache first for expensive queries
         cache_key = "telemetry_summary"
         if cache_key in self._summary_cache:
@@ -676,7 +701,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             if (now - cached_time).total_seconds() < self._summary_cache_ttl_seconds:
                 logger.debug("Returning cached telemetry summary")
                 return cached_summary
-        
+
         # If memory bus is not available yet (during startup), return empty summary
         if not self._memory_bus:
             logger.debug("Memory bus not available yet, returning empty telemetry summary")
@@ -685,12 +710,12 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 window_end=now,
                 uptime_seconds=0.0
             )
-        
+
         # Window boundaries
         window_end = now
         window_start_24h = now - timedelta(hours=24)
         window_start_1h = now - timedelta(hours=1)
-        
+
         # Initialize counters
         tokens_24h = 0
         tokens_1h = 0
@@ -698,7 +723,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         cost_1h_cents = 0.0
         carbon_24h_grams = 0.0
         carbon_1h_grams = 0.0
-        
+
         messages_24h = 0
         messages_1h = 0
         thoughts_24h = 0
@@ -706,11 +731,11 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         tasks_24h = 0
         errors_24h = 0
         errors_1h = 0
-        
+
         service_calls: Dict[str, int] = {}
         service_errors: Dict[str, int] = {}
         service_latency: Dict[str, List[float]] = {}
-        
+
         try:
             # Query different metric types
             metric_types = [
@@ -723,7 +748,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 ("task.completed", "tasks"),
                 ("error.occurred", "errors")
             ]
-            
+
             for metric_name, metric_type in metric_types:
                 # Get 24h data
                 day_metrics = await self.query_metrics(
@@ -731,16 +756,16 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     start_time=window_start_24h,
                     end_time=window_end
                 )
-                
+
                 for metric in day_metrics:
                     value = metric.get("value", 0)
                     timestamp = metric.get("timestamp")
                     tags = metric.get("tags", {})
-                    
+
                     # Convert timestamp to datetime if needed
                     if isinstance(timestamp, str):
                         timestamp = datetime.fromisoformat(timestamp)
-                    
+
                     # Aggregate by time window
                     if metric_type == "tokens":
                         tokens_24h += int(value)
@@ -776,27 +801,27 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                         if service not in service_latency:
                             service_latency[service] = []
                         service_latency[service].append(float(value))
-                    
+
                     # Track service calls
                     if "service" in tags:
                         service = tags["service"]
                         service_calls[service] = service_calls.get(service, 0) + 1
-            
+
             # Calculate rates
             tokens_per_hour = tokens_1h  # Already for 1 hour
             cost_per_hour_cents = cost_1h_cents
             carbon_per_hour_grams = carbon_1h_grams
-            
+
             # Calculate error rate
             total_operations = messages_24h + thoughts_24h + tasks_24h
             error_rate_percent = (errors_24h / total_operations * 100) if total_operations > 0 else 0.0
-            
+
             # Calculate average latencies
             service_latency_ms = {}
             for service, latencies in service_latency.items():
                 if latencies:
                     service_latency_ms[service] = sum(latencies) / len(latencies)
-            
+
             # Get system uptime
             uptime_seconds = 0.0
             if hasattr(self, "_start_time") and self._start_time:
@@ -804,7 +829,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             else:
                 # Fallback: assume service started 24h ago
                 uptime_seconds = 86400.0
-            
+
             # Create summary
             summary = TelemetrySummary(
                 window_start=window_start_24h,
@@ -827,12 +852,12 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 avg_thought_depth=1.5,  # TODO: Calculate from thought data
                 queue_saturation=0.0  # TODO: Calculate from queue metrics
             )
-            
+
             # Cache the result
             self._summary_cache[cache_key] = (now, summary)
-            
+
             return summary
-            
+
         except Exception as e:
             logger.error(f"Failed to generate telemetry summary: {e}")
             # Return empty summary on error

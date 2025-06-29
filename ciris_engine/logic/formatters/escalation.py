@@ -18,4 +18,3 @@ def get_escalation_guidance(actions_taken: int, max_actions: int = 7) -> str:
         "exhaust": "Stage: EXHAUSTED — Max rounds reached; conclude now or abort the task.",
     }
     return messages[stage]
-

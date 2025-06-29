@@ -340,7 +340,7 @@ service_registry = ServiceRegistry()
 filter_service = AdaptiveFilterService(memory_service, llm_service)
 await filter_service.start()
 
-service_registry.register_global(
+service_registry.register_service(
     service_type="filter",
     provider=filter_service,
     priority=Priority.HIGH,
@@ -351,7 +351,7 @@ service_registry.register_global(
 config_service = AgentConfigService(memory_service, wa_service, filter_service)
 await config_service.start()
 
-service_registry.register_global(
+service_registry.register_service(
     service_type="config",
     provider=config_service,
     priority=Priority.HIGH,
@@ -362,7 +362,7 @@ service_registry.register_global(
 orchestrator = MultiServiceTransactionOrchestrator(service_registry, multi_service_sink)
 await orchestrator.start()
 
-service_registry.register_global(
+service_registry.register_service(
     service_type="transaction_orchestrator",
     provider=orchestrator,
     priority=Priority.MEDIUM,

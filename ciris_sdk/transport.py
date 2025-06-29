@@ -12,7 +12,7 @@ class Transport:
         self.api_key = api_key
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
-    
+
     def set_api_key(self, api_key: Optional[str]) -> None:
         """Update the API key for authentication."""
         self.api_key = api_key
@@ -39,10 +39,10 @@ class Transport:
             raise CIRISTimeoutError(str(exc)) from exc
         except httpx.RequestError as exc:
             raise CIRISConnectionError(str(exc)) from exc
-        
+
         if resp.status_code >= 400:
             raise CIRISAPIError(resp.status_code, resp.text)
-        
+
         # Parse JSON response
         try:
             return resp.json()

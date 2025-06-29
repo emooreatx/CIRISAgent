@@ -3,8 +3,8 @@ Resource Monitor Service endpoints for CIRIS API v1.
 
 Monitors system resource usage and limits. Includes predictive analytics.
 """
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone, timedelta
+from typing import List, Optional
+from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from pydantic import BaseModel, Field, field_serializer
 import logging
@@ -33,7 +33,7 @@ class ResourceLimitsResponse(BaseModel):
     disk_mb: ResourceLimit = Field(..., description="Disk usage limits in MB")
     thoughts_active: ResourceLimit = Field(..., description="Active thoughts limit")
     effective_from: datetime = Field(..., description="When these limits became effective")
-    
+
     @field_serializer('effective_from')
     def serialize_effective_from(self, effective_from: datetime, _info):
         return effective_from.isoformat() if effective_from else None
@@ -43,11 +43,11 @@ class ResourceUsageResponse(BaseModel):
     snapshot: ResourceSnapshot = Field(..., description="Current resource usage")
     budget: ResourceBudget = Field(..., description="Configured resource budget")
     timestamp: datetime = Field(..., description="When snapshot was taken")
-    
+
     @field_serializer('timestamp')
     def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.isoformat() if timestamp else None
-    
+
 class ResourcePrediction(BaseModel):
     """Resource usage prediction."""
     resource_name: str = Field(..., description="Name of the resource")
@@ -62,7 +62,7 @@ class ResourcePredictionsResponse(BaseModel):
     predictions: List[ResourcePrediction] = Field(..., description="Predictions for each resource")
     analysis_window_hours: int = Field(..., description="Hours of history analyzed")
     generated_at: datetime = Field(..., description="When predictions were generated")
-    
+
     @field_serializer('generated_at')
     def serialize_generated_at(self, generated_at: datetime, _info):
         return generated_at.isoformat() if generated_at else None
@@ -91,17 +91,17 @@ async def get_resource_limits(
 ):
     """
     Resource limits.
-    
+
     Get configured resource usage limits and thresholds.
     """
     resource_monitor = getattr(request.app.state, 'resource_monitor', None)
     if not resource_monitor:
         raise HTTPException(status_code=503, detail="Resource monitor service not available")
-    
+
     try:
         # Get current budget configuration
         budget = resource_monitor.budget
-        
+
         response = ResourceLimitsResponse(
             memory_mb=budget.memory_mb,
             cpu_percent=budget.cpu_percent,
@@ -111,9 +111,9 @@ async def get_resource_limits(
             thoughts_active=budget.thoughts_active,
             effective_from=datetime.now(timezone.utc)  # Would track actual config time
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except Exception as e:
         logger.error(f"Error getting resource limits: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -125,26 +125,26 @@ async def get_resource_usage(
 ):
     """
     Current usage.
-    
+
     Get current resource consumption and health status.
     """
     resource_monitor = getattr(request.app.state, 'resource_monitor', None)
     if not resource_monitor:
         raise HTTPException(status_code=503, detail="Resource monitor service not available")
-    
+
     try:
         # Get current snapshot and budget
         snapshot = resource_monitor.snapshot
         budget = resource_monitor.budget
-        
+
         response = ResourceUsageResponse(
             snapshot=snapshot,
             budget=budget,
             timestamp=datetime.now(timezone.utc)
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except Exception as e:
         logger.error(f"Error getting resource usage: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -157,13 +157,13 @@ async def get_resource_alerts(
 ):
     """
     Resource alerts.
-    
+
     Get recent resource usage alerts and violations.
     """
     resource_monitor = getattr(request.app.state, 'resource_monitor', None)
     if not resource_monitor:
         raise HTTPException(status_code=503, detail="Resource monitor service not available")
-    
+
     try:
         # In a real implementation, alerts would be stored and retrieved
         # For now, we'll generate alerts based on current state
@@ -171,7 +171,7 @@ async def get_resource_alerts(
         snapshot = resource_monitor.snapshot
         budget = resource_monitor.budget
         now = datetime.now(timezone.utc)
-        
+
         # Check each resource for current alerts
         resources_to_check = [
             ("memory_mb", snapshot.memory_mb, budget.memory_mb),
@@ -180,7 +180,7 @@ async def get_resource_alerts(
             ("tokens_day", snapshot.tokens_used_day, budget.tokens_day),
             ("thoughts_active", snapshot.thoughts_active, budget.thoughts_active)
         ]
-        
+
         for resource_name, current_value, limit_config in resources_to_check:
             if current_value >= limit_config.critical:
                 alert = ResourceAlert(
@@ -204,7 +204,7 @@ async def get_resource_alerts(
                     message=f"{resource_name} at warning level: {current_value}/{limit_config.limit}"
                 )
                 alerts.append(alert)
-        
+
         # Add any warnings and critical messages from snapshot
         for warning in snapshot.warnings:
             parts = warning.split(":")
@@ -220,7 +220,7 @@ async def get_resource_alerts(
                     message=warning
                 )
                 alerts.append(alert)
-        
+
         for critical in snapshot.critical:
             parts = critical.split(":")
             if len(parts) == 2:
@@ -235,9 +235,9 @@ async def get_resource_alerts(
                     message=critical
                 )
                 alerts.append(alert)
-        
+
         return SuccessResponse(data=alerts)
-        
+
     except Exception as e:
         logger.error(f"Error getting resource alerts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -249,21 +249,21 @@ async def get_resource_predictions(
 ):
     """
     Usage predictions.
-    
+
     Get predictive analytics for resource consumption.
     """
     resource_monitor = getattr(request.app.state, 'resource_monitor', None)
     if not resource_monitor:
         raise HTTPException(status_code=503, detail="Resource monitor service not available")
-    
+
     try:
         # Generate predictions based on current usage and trends
         # In a real implementation, this would use historical data and ML
         snapshot = resource_monitor.snapshot
         budget = resource_monitor.budget
-        
+
         predictions = []
-        
+
         # Memory prediction
         memory_trend = "stable"  # Would calculate from history
         memory_growth_rate = 0.05  # 5% per hour estimate
@@ -274,7 +274,7 @@ async def get_resource_predictions(
             hours_to_limit = (budget.memory_mb.limit - snapshot.memory_mb) / (snapshot.memory_mb * memory_growth_rate)
             if hours_to_limit > 0:
                 memory_time_to_limit = hours_to_limit
-        
+
         predictions.append(ResourcePrediction(
             resource_name="memory_mb",
             current_usage=float(snapshot.memory_mb),
@@ -283,12 +283,12 @@ async def get_resource_predictions(
             time_to_limit=memory_time_to_limit,
             trend=memory_trend
         ))
-        
+
         # Token usage prediction (hour)
         # Simple linear projection - would use more sophisticated model
         tokens_per_hour = float(snapshot.tokens_used_hour)
         token_trend = "increasing" if tokens_per_hour > 0 else "stable"
-        
+
         predictions.append(ResourcePrediction(
             resource_name="tokens_hour",
             current_usage=tokens_per_hour,
@@ -297,11 +297,11 @@ async def get_resource_predictions(
             time_to_limit=1.0 if tokens_per_hour > budget.tokens_hour.warning else None,
             trend=token_trend
         ))
-        
+
         # Token usage prediction (day)
         tokens_per_day = float(snapshot.tokens_used_day)
         daily_rate = tokens_per_day / 24.0 if tokens_per_day > 0 else 0
-        
+
         predictions.append(ResourcePrediction(
             resource_name="tokens_day",
             current_usage=tokens_per_day,
@@ -310,7 +310,7 @@ async def get_resource_predictions(
             time_to_limit=(budget.tokens_day.limit - tokens_per_day) / daily_rate if daily_rate > 0 else None,
             trend="increasing" if daily_rate > 0 else "stable"
         ))
-        
+
         # CPU prediction
         cpu_trend = "stable"
         predictions.append(ResourcePrediction(
@@ -321,7 +321,7 @@ async def get_resource_predictions(
             time_to_limit=None,  # CPU typically fluctuates
             trend=cpu_trend
         ))
-        
+
         # Active thoughts prediction
         thoughts_trend = "stable"
         predictions.append(ResourcePrediction(
@@ -332,15 +332,15 @@ async def get_resource_predictions(
             time_to_limit=None,
             trend=thoughts_trend
         ))
-        
+
         response = ResourcePredictionsResponse(
             predictions=predictions,
             analysis_window_hours=24,
             generated_at=datetime.now(timezone.utc)
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except Exception as e:
         logger.error(f"Error generating resource predictions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -353,14 +353,14 @@ async def configure_resource_alerts(
 ):
     """
     Configure alerts.
-    
+
     Update resource alert thresholds and actions.
     Requires ADMIN role.
     """
     resource_monitor = getattr(request.app.state, 'resource_monitor', None)
     if not resource_monitor:
         raise HTTPException(status_code=503, detail="Resource monitor service not available")
-    
+
     try:
         # Validate resource name
         valid_resources = ["memory_mb", "cpu_percent", "tokens_hour", "tokens_day", "disk_mb", "thoughts_active"]
@@ -369,10 +369,10 @@ async def configure_resource_alerts(
                 status_code=400,
                 detail=f"Invalid resource name. Must be one of: {', '.join(valid_resources)}"
             )
-        
+
         # Get current configuration
         current_limit = getattr(resource_monitor.budget, config.resource_name)
-        
+
         # Store previous config for response
         previous_config = ResourceLimit(
             limit=current_limit.limit,
@@ -381,10 +381,10 @@ async def configure_resource_alerts(
             action=current_limit.action,
             cooldown_seconds=current_limit.cooldown_seconds
         )
-        
+
         # Update configuration
         updated = False
-        
+
         if config.warning_threshold is not None:
             if config.warning_threshold >= current_limit.limit:
                 raise HTTPException(
@@ -393,7 +393,7 @@ async def configure_resource_alerts(
                 )
             current_limit.warning = config.warning_threshold
             updated = True
-        
+
         if config.critical_threshold is not None:
             if config.critical_threshold >= current_limit.limit:
                 raise HTTPException(
@@ -407,29 +407,29 @@ async def configure_resource_alerts(
                 )
             current_limit.critical = config.critical_threshold
             updated = True
-        
+
         if config.action is not None:
             current_limit.action = config.action
             updated = True
-        
+
         if config.cooldown_seconds is not None:
             current_limit.cooldown_seconds = config.cooldown_seconds
             updated = True
-        
+
         # Log the configuration change
         logger.info(
             f"Resource alert configuration updated for {config.resource_name} by {auth.user_id}"
         )
-        
+
         response = AlertConfigurationResponse(
             updated=updated,
             resource_name=config.resource_name,
             new_config=current_limit,
             previous_config=previous_config
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except HTTPException:
         raise
     except Exception as e:

@@ -9,10 +9,10 @@ from ..transport import Transport
 
 class WiseAuthorityResource:
     """Client for interacting with Wise Authority endpoints."""
-    
+
     def __init__(self, transport: Transport):
         self._transport = transport
-    
+
     async def get_deferrals(
         self,
         status: Optional[str] = None,
@@ -20,12 +20,12 @@ class WiseAuthorityResource:
         offset: int = 0
     ) -> Dict[str, Any]:
         """Get list of deferrals.
-        
+
         Args:
             status: Filter by status (pending, resolved, expired)
             limit: Maximum number of deferrals to return
             offset: Number of deferrals to skip
-            
+
         Returns:
             Dict containing deferrals list and pagination info
         """
@@ -35,10 +35,10 @@ class WiseAuthorityResource:
         }
         if status:
             params["status"] = status
-            
+
         resp = await self._transport.request("GET", "/v1/wa/deferrals", params=params)
         return resp.json()
-    
+
     async def resolve_deferral(
         self,
         deferral_id: str,
@@ -47,13 +47,13 @@ class WiseAuthorityResource:
         reasoning: Optional[str] = None
     ) -> Dict[str, Any]:
         """Resolve a deferral with integrated guidance.
-        
+
         Args:
             deferral_id: The ID of the deferral to resolve
             resolution: The resolution decision (e.g., "approved", "rejected", "modified")
             guidance: Optional guidance for the agent
             reasoning: Optional explanation of the decision
-            
+
         Returns:
             Dict containing the resolved deferral details
         """
@@ -64,14 +64,14 @@ class WiseAuthorityResource:
             payload["guidance"] = guidance
         if reasoning:
             payload["reasoning"] = reasoning
-            
+
         resp = await self._transport.request(
-            "POST", 
+            "POST",
             f"/v1/wa/deferrals/{deferral_id}/resolve",
             json=payload
         )
         return resp.json()
-    
+
     async def get_permissions(
         self,
         resource_type: Optional[str] = None,
@@ -79,12 +79,12 @@ class WiseAuthorityResource:
         active_only: bool = True
     ) -> Dict[str, Any]:
         """Get current permissions.
-        
+
         Args:
             resource_type: Filter by resource type
             permission_type: Filter by permission type
             active_only: Only return active permissions
-            
+
         Returns:
             Dict containing permissions list
         """
@@ -95,17 +95,17 @@ class WiseAuthorityResource:
             params["resource_type"] = resource_type
         if permission_type:
             params["permission_type"] = permission_type
-            
+
         resp = await self._transport.request("GET", "/v1/wa/permissions", params=params)
         return resp.json()
-    
+
     # Helper methods for common operations
-    
+
     async def get_pending_deferrals(self) -> List[Dict[str, Any]]:
         """Get all pending deferrals."""
         result = await self.get_deferrals(status="pending")
         return result.get("deferrals", [])
-    
+
     async def approve_deferral(
         self,
         deferral_id: str,
@@ -117,7 +117,7 @@ class WiseAuthorityResource:
             resolution="approved",
             guidance=guidance
         )
-    
+
     async def reject_deferral(
         self,
         deferral_id: str,
@@ -129,7 +129,7 @@ class WiseAuthorityResource:
             resolution="rejected",
             reasoning=reasoning
         )
-    
+
     async def modify_deferral(
         self,
         deferral_id: str,

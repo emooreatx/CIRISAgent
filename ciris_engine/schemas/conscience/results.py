@@ -6,7 +6,6 @@ Typed results from conscience checks.
 
 from typing import Dict, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
-from pydantic import Field, ConfigDict
 
 class ConscienceResult(BaseModel):
     """Result from any conscience check."""
@@ -20,5 +19,5 @@ class ConscienceResult(BaseModel):
     details: Optional[Dict[str, Union[str, float, bool, list]]] = Field(
         None, description="Additional details about the check"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")

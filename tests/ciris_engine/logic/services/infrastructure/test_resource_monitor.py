@@ -61,10 +61,10 @@ async def test_resource_monitor_lifecycle(resource_monitor):
     # Start
     await resource_monitor.start()
     assert resource_monitor._monitoring is True
-    
+
     # Give it a moment to start monitoring
     await asyncio.sleep(0.1)
-    
+
     # Stop
     await resource_monitor.stop()
     assert resource_monitor._monitoring is False
@@ -73,7 +73,7 @@ async def test_resource_monitor_lifecycle(resource_monitor):
 def test_resource_monitor_get_snapshot(resource_monitor):
     """Test getting current resource snapshot."""
     snapshot = resource_monitor.snapshot
-    
+
     assert isinstance(snapshot, ResourceSnapshot)
     assert snapshot.memory_mb >= 0
     assert 0 <= snapshot.memory_percent <= 100
@@ -105,14 +105,14 @@ async def test_resource_monitor_check_limits(resource_monitor):
         critical=75,
         action=ResourceAction.THROTTLE
     )
-    
+
     # Set current values that exceed limits
     resource_monitor.snapshot.memory_mb = 85  # Exceeds critical
     resource_monitor.snapshot.cpu_average_1m = 65  # Exceeds warning
-    
+
     # Check limits
     await resource_monitor._check_limits()
-    
+
     # Verify warnings/critical were set
     assert len(resource_monitor.snapshot.critical) >= 1
     assert any("memory_mb" in c for c in resource_monitor.snapshot.critical)
@@ -143,16 +143,16 @@ async def test_resource_monitor_continuous_monitoring(resource_monitor):
     """Test continuous monitoring loop."""
     # Start monitoring
     await resource_monitor.start()
-    
+
     # Capture initial snapshot values
     initial_healthy = resource_monitor.snapshot.healthy
-    
+
     # Let it run briefly
     await asyncio.sleep(0.2)
-    
+
     # Stop monitoring
     await resource_monitor.stop()
-    
+
     # Verify monitoring ran
     assert resource_monitor.snapshot is not None
     assert isinstance(resource_monitor.snapshot.healthy, bool)
@@ -165,10 +165,10 @@ async def test_resource_monitor_record_tokens(resource_monitor):
     await resource_monitor.record_tokens(100)
     await resource_monitor.record_tokens(200)
     await resource_monitor.record_tokens(300)
-    
+
     # Update snapshot to calculate totals
     await resource_monitor._update_snapshot()
-    
+
     # Check token counts
     assert resource_monitor.snapshot.tokens_used_hour == 600
     assert resource_monitor.snapshot.tokens_used_day == 600
@@ -181,12 +181,12 @@ async def test_resource_monitor_check_available(resource_monitor):
     resource_monitor.snapshot.memory_mb = 40
     resource_monitor.snapshot.tokens_used_hour = 1000
     resource_monitor.snapshot.thoughts_active = 10
-    
+
     # Check availability - should have room
     assert await resource_monitor.check_available("memory_mb", 5) is True
     assert await resource_monitor.check_available("tokens_hour", 100) is True
     assert await resource_monitor.check_available("thoughts_active", 5) is True
-    
+
     # Check with amounts that would exceed warning threshold
     assert await resource_monitor.check_available("memory_mb", 200) is True  # 40 + 200 = 240 < 3072 warning
     assert await resource_monitor.check_available("tokens_hour", 8000) is False  # 1000 + 8000 = 9000 > 8000 warning
@@ -198,28 +198,28 @@ async def test_resource_monitor_signal_bus(resource_monitor, signal_bus):
     """Test signal bus integration."""
     # Track emitted signals
     emitted_signals = []
-    
+
     async def signal_handler(signal: str, resource: str):
         emitted_signals.append((signal, resource))
-    
+
     # Register handlers
     signal_bus.register("throttle", signal_handler)
     signal_bus.register("defer", signal_handler)
     signal_bus.register("reject", signal_handler)
-    
+
     # Set budget with different actions
     resource_monitor.budget.cpu_percent.action = ResourceAction.THROTTLE
     resource_monitor.budget.memory_mb.action = ResourceAction.DEFER
     resource_monitor.budget.tokens_hour.action = ResourceAction.REJECT
-    
+
     # Trigger critical limits
     resource_monitor.snapshot.cpu_average_1m = 76  # Exceeds critical (75)
     resource_monitor.snapshot.memory_mb = 3841  # Exceeds critical (3840)
     resource_monitor.snapshot.tokens_used_hour = 9501  # Exceeds critical (9500)
-    
+
     # Check limits
     await resource_monitor._check_limits()
-    
+
     # Verify signals were emitted
     assert len(emitted_signals) >= 3
     assert ("throttle", "cpu_percent") in emitted_signals
@@ -232,7 +232,7 @@ async def test_resource_monitor_update_snapshot(resource_monitor):
     """Test snapshot updating."""
     # Update the snapshot
     await resource_monitor._update_snapshot()
-    
+
     # Verify snapshot was populated
     snapshot = resource_monitor.snapshot
     assert snapshot.memory_mb >= 0
@@ -247,11 +247,11 @@ async def test_resource_monitor_is_healthy(resource_monitor):
     """Test health check."""
     # Initially should be healthy
     assert await resource_monitor.is_healthy() is True
-    
+
     # Add critical issues
     resource_monitor.snapshot.critical.append("memory_mb: 250/256")
     resource_monitor.snapshot.healthy = False
-    
+
     # Should now be unhealthy
     assert await resource_monitor.is_healthy() is False
 
@@ -261,31 +261,31 @@ async def test_resource_monitor_cooldown(resource_monitor, signal_bus):
     """Test action cooldown functionality."""
     # Track emitted signals
     emitted_signals = []
-    
+
     async def signal_handler(signal: str, resource: str):
         emitted_signals.append((signal, resource, resource_monitor.time_service.now()))
-    
+
     signal_bus.register("defer", signal_handler)
-    
+
     # Set short cooldown for testing
     resource_monitor.budget.memory_mb.cooldown_seconds = 1
     resource_monitor.budget.memory_mb.action = ResourceAction.DEFER
-    
+
     # Exceed critical threshold multiple times quickly
     resource_monitor.snapshot.memory_mb = 3841  # Exceeds critical (3840)
-    
+
     # First check should emit signal
     await resource_monitor._check_limits()
     initial_count = len(emitted_signals)
     assert initial_count == 1  # Should have one signal
-    
+
     # Immediate second check should not emit due to cooldown
     await resource_monitor._check_limits()
     assert len(emitted_signals) == initial_count
-    
+
     # Wait for cooldown
     await asyncio.sleep(1.1)
-    
+
     # Now should emit again
     await resource_monitor._check_limits()
     assert len(emitted_signals) > initial_count

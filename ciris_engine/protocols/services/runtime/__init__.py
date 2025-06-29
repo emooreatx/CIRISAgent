@@ -7,7 +7,7 @@ from .runtime_control import RuntimeControlServiceProtocol
 
 __all__ = [
     "LLMServiceProtocol",
-    "ToolServiceProtocol", 
+    "ToolServiceProtocol",
     "SecretsServiceProtocol",
     "RuntimeControlServiceProtocol",
 ]

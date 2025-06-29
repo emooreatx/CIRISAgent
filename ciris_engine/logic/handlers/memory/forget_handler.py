@@ -3,11 +3,10 @@ from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.actions import ForgetParams
 from ciris_engine.schemas.services.graph_core import GraphScope
 from ciris_engine.logic.services.memory_service import MemoryOpStatus
-from ciris_engine.protocols.services import MemoryService
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
 from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
-from typing import Any
-from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
+from typing import Any, Optional
+from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.logic import persistence
 import logging
@@ -16,7 +15,7 @@ from pydantic import ValidationError
 logger = logging.getLogger(__name__)
 
 class ForgetHandler(BaseActionHandler):
-    async def handle(self, result: ActionSelectionDMAResult, thought: Thought, dispatch_context: DispatchContext) -> None:
+    async def handle(self, result: ActionSelectionDMAResult, thought: Thought, dispatch_context: DispatchContext) -> Optional[str]:
         raw_params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="start")
@@ -135,7 +134,7 @@ class ForgetHandler(BaseActionHandler):
     async def _audit_forget_operation(self, params: ForgetParams, dispatch_context: DispatchContext, result: Any) -> None:
         if hasattr(params, 'no_audit') and params.no_audit:
             return
-            
+
         audit_data = {
             "forget_key": params.node.id,
             "forget_scope": params.node.scope.value,
@@ -143,7 +142,7 @@ class ForgetHandler(BaseActionHandler):
             "timestamp": getattr(dispatch_context, 'event_timestamp', None),
             "thought_id": getattr(dispatch_context, 'thought_id', None)
         }
-        
+
         await self._audit_log(
             HandlerActionType.FORGET,
             dispatch_context.model_copy(update=audit_data),

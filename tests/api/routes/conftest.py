@@ -12,11 +12,11 @@ from ciris_engine.api.services.auth_service import APIAuthService, StoredAPIKey
 def mock_auth_service():
     """Create a mock auth service for testing."""
     service = Mock(spec=APIAuthService)
-    
+
     # Mock methods
     service.validate_api_key = AsyncMock()
     service._get_key_id = Mock(return_value="test_key_id")
-    
+
     # Setup default validation responses
     service.validate_api_key.side_effect = lambda key: {
         "observer_key": StoredAPIKey(
@@ -64,7 +64,7 @@ def mock_auth_service():
             is_active=True
         )
     }.get(key)
-    
+
     return service
 
 @pytest.fixture

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class ConfigBootstrap:
     """Load essential config from multiple sources in priority order."""
-    
+
     @staticmethod
     def _deep_merge(base: dict, update: dict) -> dict:
         """Recursively merge two dictionaries."""
@@ -26,7 +26,7 @@ class ConfigBootstrap:
             else:
                 base[key] = value
         return base
-    
+
     @staticmethod
     def _apply_env_overrides(config_data: dict) -> dict:
         """Apply environment variable overrides to config data."""
@@ -34,24 +34,24 @@ class ConfigBootstrap:
         db_path = get_env_var("CIRIS_DB_PATH")
         if db_path:
             config_data.setdefault("database", {})["main_db"] = db_path
-            
+
         secrets_db = get_env_var("CIRIS_SECRETS_DB_PATH")
         if secrets_db:
             config_data.setdefault("database", {})["secrets_db"] = secrets_db
-            
+
         audit_db = get_env_var("CIRIS_AUDIT_DB_PATH")
         if audit_db:
             config_data.setdefault("database", {})["audit_db"] = audit_db
-        
+
         # Service endpoints
         llm_endpoint = get_env_var("OPENAI_API_BASE") or get_env_var("LLM_ENDPOINT")
         if llm_endpoint:
             config_data.setdefault("services", {})["llm_endpoint"] = llm_endpoint
-            
+
         llm_model = get_env_var("OPENAI_MODEL_NAME") or get_env_var("OPENAI_MODEL") or get_env_var("LLM_MODEL")
         if llm_model:
             config_data.setdefault("services", {})["llm_model"] = llm_model
-            
+
         # Security settings
         retention_days = get_env_var("AUDIT_RETENTION_DAYS")
         if retention_days:
@@ -59,7 +59,7 @@ class ConfigBootstrap:
                 config_data.setdefault("security", {})["audit_retention_days"] = int(retention_days)
             except ValueError:
                 logger.warning(f"Invalid AUDIT_RETENTION_DAYS value: {retention_days}")
-                
+
         # Operational limits
         max_tasks = get_env_var("MAX_ACTIVE_TASKS")
         if max_tasks:
@@ -67,25 +67,25 @@ class ConfigBootstrap:
                 config_data.setdefault("limits", {})["max_active_tasks"] = int(max_tasks)
             except ValueError:
                 logger.warning(f"Invalid MAX_ACTIVE_TASKS value: {max_tasks}")
-                
+
         max_depth = get_env_var("MAX_THOUGHT_DEPTH")
         if max_depth:
             try:
                 config_data.setdefault("security", {})["max_thought_depth"] = int(max_depth)
             except ValueError:
                 logger.warning(f"Invalid MAX_THOUGHT_DEPTH value: {max_depth}")
-        
+
         # Runtime settings
         log_level = get_env_var("LOG_LEVEL")
         if log_level:
             config_data["log_level"] = log_level.upper()
-            
+
         debug_mode = get_env_var("DEBUG_MODE")
         if debug_mode:
             config_data["debug_mode"] = debug_mode.lower() in ("true", "1", "yes", "on")
-            
+
         return config_data
-    
+
     @staticmethod
     async def load_essential_config(
         config_path: Optional[Path] = None,
@@ -93,23 +93,23 @@ class ConfigBootstrap:
     ) -> EssentialConfig:
         """
         Load essential configuration from multiple sources.
-        
+
         Priority order (highest to lowest):
         1. CLI arguments (if provided)
         2. Environment variables
         3. Configuration file (YAML)
         4. Schema defaults
-        
+
         Args:
             config_path: Optional path to YAML config file
             cli_overrides: Optional CLI argument overrides
-            
+
         Returns:
             Validated EssentialConfig instance
         """
         # Start with empty config data
         config_data: Dict[str, Any] = {}
-        
+
         # Load from YAML file if exists
         yaml_path = config_path or Path("config/essential.yaml")
         if yaml_path.exists():
@@ -120,14 +120,14 @@ class ConfigBootstrap:
                 logger.info(f"Loaded configuration from {yaml_path}")
             except Exception as e:
                 logger.warning(f"Failed to load YAML config from {yaml_path}: {e}")
-        
+
         # Apply environment variable overrides
         config_data = ConfigBootstrap._apply_env_overrides(config_data)
-        
+
         # Apply CLI overrides (highest priority)
         if cli_overrides:
             config_data = ConfigBootstrap._deep_merge(config_data, cli_overrides)
-        
+
         # Create and validate config
         try:
             essential_config = EssentialConfig(**config_data)
@@ -136,16 +136,16 @@ class ConfigBootstrap:
         except Exception as e:
             logger.error(f"Configuration validation failed: {e}")
             raise ValueError(f"Invalid configuration: {e}") from e
-    
+
     @staticmethod
     def get_config_metadata(config: EssentialConfig, yaml_path: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
         """
         Generate metadata about config sources for migration to graph.
-        
+
         Returns dict mapping config keys to their source information.
         """
         metadata = {}
-        
+
         # Check which values came from environment
         env_sources = {
             "database.main_db": "CIRIS_DB_PATH",
@@ -159,7 +159,7 @@ class ConfigBootstrap:
             "log_level": "LOG_LEVEL",
             "debug_mode": "DEBUG_MODE"
         }
-        
+
         for key, env_var in env_sources.items():
             if get_env_var(env_var):
                 metadata[key] = {
@@ -167,7 +167,7 @@ class ConfigBootstrap:
                     "env_var": env_var,
                     "bootstrap_phase": True
                 }
-        
+
         # Mark file-sourced configs
         if yaml_path and yaml_path.exists():
             # Would need to track which specific values came from file
@@ -175,10 +175,10 @@ class ConfigBootstrap:
             for key in ["database", "services", "security", "limits"]:
                 if key not in metadata:
                     metadata[key] = {
-                        "source": "config_file", 
+                        "source": "config_file",
                         "file": str(yaml_path),
                         "bootstrap_phase": True
                     }
-        
+
         # Everything else is from defaults
         return metadata

@@ -1,9 +1,8 @@
 import logging
-import asyncio
 from typing import Dict, Any, Optional, Set
 import httpx
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
-from ciris_engine.schemas.services.graph_core import GraphScope, GraphNode, NodeType
+from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 from ciris_engine.schemas.adapters.graphql_core import (
     GraphQLQuery, GraphQLResponse, UserQueryVariables, UserQueryResponse,
     GraphQLUserProfile, UserAttribute, EnrichedContext
@@ -28,7 +27,7 @@ class GraphQLClient:
             }
             if query_obj.operation_name:
                 payload["operationName"] = query_obj.operation_name
-                
+
             resp = await self._client.post(self.endpoint, json=payload)
             resp.raise_for_status()
             data = resp.json()
@@ -51,7 +50,7 @@ class GraphQLContextProvider:
 
     async def enrich_context(self, task: Any, thought: Any = None) -> EnrichedContext:
         authors: Set[str] = set()
-        
+
         # Extract author names from task context
         if task and hasattr(task, 'context'):
             if hasattr(task.context, 'initial_task_context') and task.context.initial_task_context:
@@ -59,33 +58,33 @@ class GraphQLContextProvider:
                     authors.add(task.context.initial_task_context.author_name)
             elif isinstance(task.context, dict) and 'author_name' in task.context:
                 authors.add(task.context['author_name'])
-                
-        # Extract author names from thought context        
+
+        # Extract author names from thought context
         if thought and hasattr(thought, 'context'):
             if hasattr(thought.context, 'initial_task_context') and thought.context.initial_task_context:
                 if hasattr(thought.context.initial_task_context, 'author_name'):
                     authors.add(thought.context.initial_task_context.author_name)
             elif isinstance(thought.context, dict) and 'author_name' in thought.context:
                 authors.add(thought.context['author_name'])
-        
+
         if not authors:
             return EnrichedContext()
-            
+
         query_str = """
             query($names:[String!]!){
                 users(names:$names){ name nick channel }
             }
         """
-        
+
         user_profiles: Dict[str, GraphQLUserProfile] = {}
-        
+
         if self.enable_remote_graphql and self.client:
             query_obj = GraphQLQuery(
                 query=query_str,
                 variables=UserQueryVariables(names=list(authors))
             )
             response = await self.client.query(query_obj)
-            
+
             if response.data and "users" in response.data:
                 try:
                     user_response = UserQueryResponse.model_validate(response.data)
@@ -115,7 +114,7 @@ class GraphQLContextProvider:
                         query=name,
                         filters=search_filter
                     )
-                    
+
                     # Look for exact username match in attributes
                     for node in search_results:
                         if node.attributes:
@@ -124,7 +123,7 @@ class GraphQLContextProvider:
                             if attrs.get('username') == name or attrs.get('display_name') == name or attrs.get('name') == name:
                                 # Convert attributes dict to UserAttribute list
                                 user_attrs = [
-                                    UserAttribute(key=k, value=str(v)) 
+                                    UserAttribute(key=k, value=str(v))
                                     for k, v in attrs.items()
                                 ]
                                 user_profiles[name] = GraphQLUserProfile(
@@ -144,7 +143,7 @@ class GraphQLContextProvider:
 
         # Convert user_profiles dict to list of tuples as expected by EnrichedContext
         user_profiles_list = [(name, profile) for name, profile in user_profiles.items()]
-        
+
         return EnrichedContext(
             user_profiles=user_profiles_list,
             identity_context=identity_block if identity_block else None

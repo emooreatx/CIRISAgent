@@ -4,7 +4,7 @@ from typing import Optional, Protocol, runtime_checkable
 class RuntimeInterface(Protocol):
     """
     Protocol for CIRIS runtimes.
-    
+
     Note: Do not inherit from this Protocol. Instead, implement the methods
     and use isinstance() checks with @runtime_checkable to verify compliance.
     """

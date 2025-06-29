@@ -58,7 +58,7 @@ async def test_wa_certificate_creation(auth_service):
     """Test creating WA certificates."""
     # Create a test WA
     private_key, public_key = auth_service.generate_keypair()
-    
+
     wa = WACertificate(
         wa_id="wa-2025-06-24-TEST01",  # Matches required pattern
         name="Test WA",
@@ -68,10 +68,10 @@ async def test_wa_certificate_creation(auth_service):
         scopes_json='["read:any", "write:message"]',
         created_at=datetime.now(timezone.utc)
     )
-    
+
     # Store the certificate
     await auth_service._store_wa_certificate(wa)
-    
+
     # Retrieve it
     retrieved = await auth_service.get_wa("wa-2025-06-24-TEST01")
     assert retrieved is not None
@@ -84,10 +84,10 @@ async def test_adapter_observer_creation(auth_service):
     """Test creating adapter observer WAs."""
     adapter_id = "cli:testuser@testhost"
     name = "CLI Observer"
-    
+
     # Create observer
     observer = await auth_service._create_adapter_observer(adapter_id, name)
-    
+
     assert observer.role == WARole.OBSERVER
     assert observer.adapter_id == adapter_id
     assert observer.name == name
@@ -101,17 +101,17 @@ async def test_channel_token_creation(auth_service):
     # Create observer WA first
     adapter_id = "test:adapter"
     observer = await auth_service._create_adapter_observer(adapter_id, "Test Observer")
-    
+
     # Create channel token
     token = await auth_service.create_channel_token(
         wa_id=observer.wa_id,
         channel_id="test-channel",
         ttl=3600
     )
-    
+
     assert token is not None
     assert len(token) > 0
-    
+
     # Verify token
     context = await auth_service._verify_jwt_and_get_context(token)
     assert context is not None
@@ -124,7 +124,7 @@ async def test_gateway_token_creation(auth_service):
     """Test gateway token creation."""
     # Create a regular WA
     private_key, public_key = auth_service.generate_keypair()
-    
+
     wa = WACertificate(
         wa_id="wa-2025-06-24-GATE01",
         name="Gateway Test WA",
@@ -134,14 +134,14 @@ async def test_gateway_token_creation(auth_service):
         scopes_json='["read:self", "write:self"]',
         created_at=datetime.now(timezone.utc)
     )
-    
+
     await auth_service._store_wa_certificate(wa)
-    
+
     # Create gateway token
     token = auth_service.create_gateway_token(wa, expires_hours=8)
-    
+
     assert token is not None
-    
+
     # Verify token
     context = await auth_service._verify_jwt_and_get_context(token)
     assert context is not None
@@ -154,7 +154,7 @@ async def test_wa_update(auth_service):
     """Test updating WA certificates."""
     # Create a WA
     private_key, public_key = auth_service.generate_keypair()
-    
+
     wa = WACertificate(
         wa_id="wa-2025-06-24-UPDT01",
         name="Original Name",
@@ -164,17 +164,17 @@ async def test_wa_update(auth_service):
         scopes_json='["read:self"]',
         created_at=datetime.now(timezone.utc)
     )
-    
+
     await auth_service._store_wa_certificate(wa)
-    
+
     # Update the WA
     update = WAUpdate(
         name="Updated Name",
         permissions=["read:self", "write:self"]
     )
-    
+
     updated = await auth_service.update_wa("wa-2025-06-24-UPDT01", updates=update)
-    
+
     assert updated is not None
     assert updated.name == "Updated Name"
     assert "write:self" in updated.scopes
@@ -185,7 +185,7 @@ async def test_wa_revocation(auth_service):
     """Test revoking WA certificates."""
     # Create a WA
     private_key, public_key = auth_service.generate_keypair()
-    
+
     wa = WACertificate(
         wa_id="wa-2025-06-24-REVK01",
         name="To Be Revoked",
@@ -195,13 +195,13 @@ async def test_wa_revocation(auth_service):
         scopes_json='["read:self"]',
         created_at=datetime.now(timezone.utc)
     )
-    
+
     await auth_service._store_wa_certificate(wa)
-    
+
     # Revoke it
     revoked = await auth_service.revoke_wa("wa-2025-06-24-REVK01", "Test revocation")
     assert revoked is True
-    
+
     # Check it's inactive (get_wa only returns active WAs)
     retrieved = await auth_service.get_wa("wa-2025-06-24-REVK01")
     assert retrieved is None  # Should not be found since it's inactive
@@ -211,15 +211,15 @@ async def test_wa_revocation(auth_service):
 async def test_password_hashing(auth_service):
     """Test password hashing and verification."""
     password = "test_password_123"
-    
+
     # Hash password
     hashed = auth_service.hash_password(password)
     assert hashed != password
     assert len(hashed) > 0
-    
+
     # Verify correct password
     assert auth_service._verify_password(password, hashed) is True
-    
+
     # Verify wrong password
     assert auth_service._verify_password("wrong_password", hashed) is False
 
@@ -228,7 +228,7 @@ async def test_password_hashing(auth_service):
 async def test_keypair_generation(auth_service):
     """Test Ed25519 keypair generation."""
     private_key, public_key = auth_service.generate_keypair()
-    
+
     assert len(private_key) == 32  # Ed25519 private key is 32 bytes
     assert len(public_key) == 32   # Ed25519 public key is 32 bytes
 
@@ -239,18 +239,18 @@ async def test_data_signing(auth_service):
     # Generate keypair
     private_key, public_key = auth_service.generate_keypair()
     encoded_pubkey = auth_service._encode_public_key(public_key)
-    
+
     # Sign data
     data = b"test data to sign"
     signature = auth_service.sign_data(data, private_key)
-    
+
     assert signature is not None
     assert len(signature) > 0
-    
+
     # Verify signature
     is_valid = auth_service._verify_signature(data, signature, encoded_pubkey)
     assert is_valid is True
-    
+
     # Verify with wrong data
     wrong_data = b"different data"
     is_valid = auth_service._verify_signature(wrong_data, signature, encoded_pubkey)
@@ -287,7 +287,7 @@ async def test_last_login_update(auth_service):
     """Test updating last login timestamp."""
     # Create a WA
     private_key, public_key = auth_service.generate_keypair()
-    
+
     wa = WACertificate(
         wa_id="wa-2025-06-24-LOGN01",
         name="Login Test",
@@ -298,12 +298,12 @@ async def test_last_login_update(auth_service):
         created_at=datetime.now(timezone.utc),
         last_auth=None
     )
-    
+
     await auth_service._store_wa_certificate(wa)
-    
+
     # Update last login
     await auth_service.update_last_login("wa-2025-06-24-LOGN01")
-    
+
     # Check it was updated
     retrieved = await auth_service.get_wa("wa-2025-06-24-LOGN01")
     assert retrieved is not None
@@ -326,11 +326,11 @@ async def test_list_all_was(auth_service):
             created_at=datetime.now(timezone.utc)
         )
         await auth_service._store_wa_certificate(wa)
-    
+
     # List active only (all 3 are active)
     active_was = await auth_service._list_all_was(active_only=True)
     assert len(active_was) == 3
-    
+
     # List all
     all_was = await auth_service._list_all_was(active_only=False)
     assert len(all_was) == 3

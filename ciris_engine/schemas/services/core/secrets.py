@@ -3,11 +3,9 @@ Secrets service schemas.
 
 Replaces Dict[str, Any] in secrets service operations.
 """
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
-from enum import Enum
-from pydantic import Field
 
 class SecretContext(BaseModel):
     """Context for secret operations."""

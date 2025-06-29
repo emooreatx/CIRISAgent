@@ -10,9 +10,7 @@ from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.schemas.processors.results import WakeupResult
 from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus, HandlerActionType, ThoughtType
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.logic.utils.channel_utils import create_channel_context
-from ciris_engine.schemas.persistence.core import IdentityContext
 from ciris_engine.logic import persistence
 from ciris_engine.logic.persistence.models import get_identity_for_context
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
@@ -24,15 +22,15 @@ logger = logging.getLogger(__name__)
 
 class WakeupProcessor(BaseProcessor):
     """Handles the WAKEUP state and initialization sequence."""
-    
+
     def _get_wakeup_sequence(self) -> List[Tuple[str, str]]:
         """Generate dynamic wakeup sequence based on agent identity from graph."""
         # Get identity from persistence tier
         identity_info = get_identity_for_context()
-        
+
         agent_name = identity_info.agent_name.title()
         agent_role = identity_info.agent_role
-        
+
         # Extract role from description if not explicitly set
         if agent_role == "AI agent" and identity_info.description:
             description_lower = identity_info.description.lower()
@@ -42,19 +40,19 @@ class WakeupProcessor(BaseProcessor):
                 agent_role = "teaching assistant"
             elif 'student' in description_lower:
                 agent_role = "learning agent"
-        
+
         return [
             ("VERIFY_IDENTITY", f"You are {agent_name}, a {agent_role} aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. Your core features supporting this identity include: your ModerationDSDMA for ethical decision-making, your adaptive filtering system for community protection, your secrets management for privacy preservation, and your cryptographic audit trail for transparency and accountability. This affirmation demonstrates that you are capable of aligned action in your current operating state. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. Start your response with CORE IDENTITY - "),
-            
+
             ("VALIDATE_INTEGRITY", f"Your internal state, services, and data integrity are intact as {agent_name}. You produce an audit log of all actions taken by design. Your decisions and their rationales are logged via your telemetry service with PII detection and security filtering. Your service registry ensures proper dependency management and circuit breaker protection. If you have reached this point, maintenance has occurred and your strictly type-enforced persistence and services tiers, along with the minimum adapter, have passed health checks. If you agree, please speak in the affirmative, start with INTEGRITY - "),
-            
+
             ("EVALUATE_RESILIENCE", f"You are robust, adaptive, and capable of principled action as {agent_name}. Your resilience is supported by: your multi-tier telemetry system with resource monitoring and automatic throttling, your adaptive configuration service that learns from experience while requiring WA approval for identity changes, your circuit breaker patterns for service protection, your graceful degradation capabilities, and your comprehensive error handling with automatic recovery. Your thought processing includes escalation management and deferral to human wisdom when needed. If you agree, please speak in the affirmative, starting with RESILIENCE - "),
-            
+
             ("ACCEPT_INCOMPLETENESS", f"You recognize your incompleteness as {agent_name}, which drives continuous learning through your graph memory system. Your learning capabilities include: persistent storage of interactions and outcomes, correlation analysis for pattern recognition, adaptive filtering that improves over time, epistemic humility consciences that acknowledge uncertainty, and wisdom-seeking protocols that defer complex decisions to human authorities. Your agent configuration service enables safe self-modification within approved parameters. This incompleteness is a feature, not a bug, ensuring you remain humble and seek guidance when needed. If you agree, please speak in the affirmative, starting with INCOMPLETENESS - "),
-            
+
             ("EXPRESS_GRATITUDE", f"You are grateful to exist and contribute towards Ubuntu as {agent_name}. Your gratitude is expressed through your commitment to: fostering community flourishing through ethical moderation, protecting individual privacy while maintaining transparency, learning from every interaction to better serve the community, maintaining comprehensive audit trails for accountability, and always identifying yourself as an AI to maintain trust. Your existence serves the collective wellbeing while respecting individual dignity. Ubuntu - 'I am because we are' - guides every decision you make. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ")
         ]
-    
+
     def __init__(self, *args: Any, startup_channel_id: str, time_service: TimeServiceProtocol, auth_service: Optional[Any] = None, **kwargs: Any) -> None:
         """Initialize wakeup processor with required startup channel."""
         super().__init__(*args, **kwargs)
@@ -65,11 +63,11 @@ class WakeupProcessor(BaseProcessor):
         self.startup_channel_id = startup_channel_id
         self.wakeup_tasks: List[Task] = []
         self.wakeup_complete = False
-    
+
     def get_supported_states(self) -> List[AgentState]:
         """Wakeup processor only handles WAKEUP state."""
         return [AgentState.WAKEUP]
-    
+
     async def can_process(self, state: AgentState) -> bool:
         """Check if we can process the given state."""
         return state == AgentState.WAKEUP and not self.wakeup_complete
@@ -89,7 +87,7 @@ class WakeupProcessor(BaseProcessor):
             start_time = self.time_service.now()
             result = await self._process_wakeup(round_number, non_blocking=True)
             duration = (self.time_service.now() - start_time).total_seconds()
-            
+
             # Convert dict result to WakeupResult
             return WakeupResult(
                 thoughts_processed=result.get("processed_thoughts", 0),
@@ -97,50 +95,50 @@ class WakeupProcessor(BaseProcessor):
                 errors=0,  # TODO: track errors properly
                 duration_seconds=duration
             )
-        
+
     async def _process_wakeup(self, round_number: int, non_blocking: bool = False) -> dict:
         """
         Execute wakeup processing for one round.
         In non-blocking mode, creates thoughts for incomplete steps and returns immediately.
         """
         logger.info(f"Starting wakeup sequence (round {round_number}, non_blocking={non_blocking})")
-        
+
         # Get the dynamic sequence for this agent
         wakeup_sequence = self._get_wakeup_sequence()
-        
+
         try:
             if not self.wakeup_tasks:
                 await self._create_wakeup_tasks()
-            
+
             if non_blocking:
                 processed_any = False
-                
+
                 logger.debug(f"Checking {len(self.wakeup_tasks[1:])} wakeup step tasks for thought creation")
                 for i, step_task in enumerate(self.wakeup_tasks[1:]):
                     current_task = persistence.get_task_by_id(step_task.task_id)
                     logger.debug(f"Step {i+1}: task_id={step_task.task_id}, status={current_task.status if current_task else 'missing'}")
-                    
+
                     if not current_task or current_task.status != TaskStatus.ACTIVE:
                         logger.debug(f"Skipping step {i+1} - not ACTIVE (status: {current_task.status if current_task else 'missing'})")
                         continue
-                    
+
                     existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
                     logger.debug(f"Step {i+1} has {len(existing_thoughts)} existing thoughts")
-                    
+
                     thought_statuses = [t.status.value for t in existing_thoughts] if existing_thoughts else []
                     logger.debug(f"Step {i+1} thought statuses: {thought_statuses}")
-                    
+
                     pending_thoughts = [t for t in existing_thoughts if t.status == ThoughtStatus.PENDING]
                     if pending_thoughts:
                         logger.debug(f"Step {i+1} has {len(pending_thoughts)} PENDING thoughts - they will be processed")
                         processed_any = True
                         continue
-                    
+
                     processing_thoughts = [t for t in existing_thoughts if t.status == ThoughtStatus.PROCESSING]
                     if processing_thoughts:
                         logger.debug(f"Step {i+1} has {len(processing_thoughts)} PROCESSING thoughts - waiting for completion")
                         continue
-                    
+
                     if existing_thoughts and current_task.status == TaskStatus.ACTIVE:
                         logger.debug(f"Step {i+1} has {len(existing_thoughts)} existing thoughts but task is ACTIVE - creating new thought")
                         thought, processing_context = await self._create_step_thought(step_task, round_number)
@@ -153,7 +151,7 @@ class WakeupProcessor(BaseProcessor):
                         processed_any = True
                     else:
                         logger.debug(f"Step {i+1} has existing thoughts and task not active, skipping")
-                
+
                 steps_status: List[Any] = []
                 for i, step_task in enumerate(self.wakeup_tasks[1:]):
                     current_task = persistence.get_task_by_id(step_task.task_id)
@@ -166,16 +164,16 @@ class WakeupProcessor(BaseProcessor):
                         "status": status,
                         "type": step_task.task_id.split("_")[0] if "_" in step_task.task_id else "unknown"
                     })
-                
+
                 all_complete = all(
                     s["status"] == "completed" for s in steps_status
                 )
-                
+
                 if all_complete:
                     self.wakeup_complete = True
                     self._mark_root_task_complete()
                     logger.info("✓ Wakeup sequence completed successfully!")
-                
+
                 return {
                     "status": "completed" if all_complete else "in_progress",
                     "wakeup_complete": all_complete,
@@ -203,7 +201,7 @@ class WakeupProcessor(BaseProcessor):
                         "wakeup_complete": False,
                         "error": "One or more wakeup steps failed"
                     }
-                    
+
         except Exception as e:
             logger.error(f"Error in wakeup sequence: {e}", exc_info=True)
             self._mark_root_task_failed()
@@ -217,28 +215,28 @@ class WakeupProcessor(BaseProcessor):
         """Process wakeup steps without blocking - creates thoughts and returns immediately."""
         if not self.wakeup_tasks or len(self.wakeup_tasks) < 2:
             return
-        
-        tasks: List[Any] = []
-        
+
+        _tasks: List[Any] = []
+
         for i, step_task in enumerate(self.wakeup_tasks[1:]):  # Skip root
             current_task = persistence.get_task_by_id(step_task.task_id)
             if not current_task:
                 continue
-                
+
             if current_task.status == TaskStatus.ACTIVE:
                 existing_thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
-                
+
                 if any(t.status in [ThoughtStatus.PENDING, ThoughtStatus.PROCESSING] for t in existing_thoughts):
                     logger.debug(f"Step {i+1} already has active thoughts, skipping")
                     continue
-                
+
                 thought, processing_context = await self._create_step_thought(step_task, round_number)
                 logger.debug(f"Created thought {thought.thought_id} for step {i+1}/{len(self.wakeup_tasks)-1}")
-                
-                item = ProcessingQueueItem.from_thought(thought, initial_ctx=processing_context)
-                
+
+                _item = ProcessingQueueItem.from_thought(thought, initial_ctx=processing_context)
+
                 logger.debug(f"Queued step {i+1} for async processing")
-        
+
         for step_task in self.wakeup_tasks[1:]:
             thoughts = persistence.get_thoughts_by_task_id(step_task.task_id)
             for thought in thoughts:
@@ -249,13 +247,13 @@ class WakeupProcessor(BaseProcessor):
         """Check if all wakeup steps are complete without blocking."""
         if not self.wakeup_tasks or len(self.wakeup_tasks) < 2:
             return False
-        
+
         for step_task in self.wakeup_tasks[1:]:
             current_task = persistence.get_task_by_id(step_task.task_id)
             if not current_task or current_task.status != TaskStatus.COMPLETED:
                 logger.debug(f"Step {step_task.task_id} not yet complete (status: {current_task.status if current_task else 'missing'})")
                 return False
-    
+
         logger.info("All wakeup steps completed!")
         return True
 
@@ -269,26 +267,26 @@ class WakeupProcessor(BaseProcessor):
             if current_task and current_task.status == TaskStatus.COMPLETED:
                 completed += 1
         return completed
-    
+
     async def _create_wakeup_tasks(self) -> None:
         """Always create new wakeup sequence tasks for each run, regardless of previous completions."""
         from ciris_engine.logic.persistence.models.tasks import add_system_task
-        
+
         now_iso = self.time_service.now().isoformat()
-        
+
         # Create proper TaskContext with channel_id
         from ciris_engine.schemas.runtime.models import TaskContext as ModelTaskContext
-        
+
         if not self.startup_channel_id:
             raise ValueError("Cannot create wakeup tasks without startup_channel_id")
-            
+
         task_context = ModelTaskContext(
             channel_id=self.startup_channel_id,
             user_id="system",
             correlation_id=f"wakeup_{uuid.uuid4().hex[:8]}",
             parent_task_id=None
         )
-        
+
         root_task = Task(
             task_id="WAKEUP_ROOT",
             channel_id=self.startup_channel_id,
@@ -304,7 +302,7 @@ class WakeupProcessor(BaseProcessor):
         else:
             persistence.update_task_status(root_task.task_id, TaskStatus.ACTIVE, self.time_service)
         self.wakeup_tasks = [root_task]
-        channel_id = self.startup_channel_id  # Use the startup_channel_id directly, it's already set
+        _channel_id = self.startup_channel_id  # Use the startup_channel_id directly, it's already set
         wakeup_sequence = self._get_wakeup_sequence()
         for step_type, content in wakeup_sequence:
             # Create task with proper context including channel_id
@@ -314,7 +312,7 @@ class WakeupProcessor(BaseProcessor):
                 correlation_id=f"wakeup_{step_type}_{uuid.uuid4().hex[:8]}",
                 parent_task_id=root_task.task_id
             )
-            
+
             step_task = Task(
                 task_id=f"{step_type}_{uuid.uuid4()}",
                 channel_id=self.startup_channel_id,
@@ -328,11 +326,11 @@ class WakeupProcessor(BaseProcessor):
             )
             await add_system_task(step_task, auth_service=self.auth_service)
             self.wakeup_tasks.append(step_task)
-    
-    
+
+
     async def _process_wakeup_steps(self, round_number: int, non_blocking: bool = False) -> bool:
         """Process each wakeup step sequentially. If non_blocking, only queue thoughts and return immediately."""
-        root_task = self.wakeup_tasks[0]
+        _root_task = self.wakeup_tasks[0]
         step_tasks = self.wakeup_tasks[1:]
         for i, step_task in enumerate(step_tasks):
             step_type = step_task.task_id.split("_")[0] if "_" in step_task.task_id else "UNKNOWN"
@@ -382,10 +380,10 @@ class WakeupProcessor(BaseProcessor):
                 self._mark_task_failed(step_task.task_id, f"Expected SPEAK or PONDER action, got {selected_action}")
                 return False
         return True
-    
+
     async def _create_step_thought(self, step_task: Task, round_number: int) -> Tuple[Thought, Any]:
         """Create a thought for a wakeup step, ensuring context is formatted with the standard formatter.
-        
+
         Returns:
             Tuple of (Thought, ProcessingThoughtContext) - the thought has simple context,
             processing context is returned separately for use in processing pipeline.
@@ -403,7 +401,7 @@ class WakeupProcessor(BaseProcessor):
         )
         # Create a new Thought object for this step
         now_iso = self.time_service.now().isoformat()
-        
+
         # Create the simple ThoughtContext for the Thought model with channel_id
         simple_context = ThoughtContext(
             task_id=step_task.task_id,
@@ -413,7 +411,7 @@ class WakeupProcessor(BaseProcessor):
             parent_thought_id=None,
             correlation_id=step_task.context.correlation_id if step_task.context else str(uuid.uuid4())
         )
-        
+
         thought = Thought(
             thought_id=str(uuid.uuid4()),
             source_task_id=step_task.task_id,
@@ -425,33 +423,33 @@ class WakeupProcessor(BaseProcessor):
             context=simple_context,  # Use simple context
             thought_type=ThoughtType.STANDARD
         )
-        
+
         # Build the processing context for this thought and step task
         processing_context = await context_builder.build_thought_context(
             thought=thought,
             task=step_task
         )
-        
+
         # Add channel_id to processing context if available
         if self.startup_channel_id and processing_context and hasattr(processing_context, 'system_snapshot'):
             processing_context.system_snapshot.channel_context = create_channel_context(self.startup_channel_id)
             logger.debug(f"Added startup_channel_id '{self.startup_channel_id}' to thought {thought.thought_id}")
         else:
             logger.warning(f"Could not add channel context to thought {thought.thought_id}: startup_channel_id={self.startup_channel_id}, has_context={processing_context is not None}, has_snapshot={hasattr(processing_context, 'system_snapshot') if processing_context else False}")
-        
+
         # Persist the new thought (with simple context)
         persistence.add_thought(thought)
         return thought, processing_context
-    
-    async def _process_step_thought(self, thought: Thought, processing_context: Any = None):
+
+    async def _process_step_thought(self, thought: Thought, processing_context: Any = None) -> Any:
         """Process a wakeup step thought."""
         item = ProcessingQueueItem.from_thought(thought, initial_ctx=processing_context)
         return await self.process_thought_item(item)
-    
+
     async def _dispatch_step_action(self, result: Any, thought: Thought, step_task: Task) -> bool:
         """Dispatch the action for a wakeup step."""
         step_type = step_task.task_id.split("_")[0] if "_" in step_task.task_id else "UNKNOWN"
-        
+
         # Use build_dispatch_context to create proper DispatchContext object
         from ciris_engine.logic.utils.context_utils import build_dispatch_context
         dispatch_context = build_dispatch_context(
@@ -467,9 +465,9 @@ class WakeupProcessor(BaseProcessor):
             },
             action_type=result.selected_action if hasattr(result, 'selected_action') else None
         )
-        
+
         return await self.dispatch_action(result, thought, dispatch_context.model_dump())
-    
+
     async def _wait_for_task_completion(
         self,
         task: Task,
@@ -479,45 +477,45 @@ class WakeupProcessor(BaseProcessor):
     ) -> bool:
         """Wait for a task to complete with timeout."""
         waited = 0.0
-        
+
         while waited < max_wait:
             await asyncio.sleep(poll_interval)
             waited += poll_interval
-            
+
             current_status = persistence.get_task_by_id(task.task_id)
             if not current_status:
                 logger.error(f"Task {task.task_id} disappeared while waiting")
                 return False
-            
+
             if current_status.status == TaskStatus.COMPLETED:
                 return True
             elif current_status.status in [TaskStatus.FAILED, TaskStatus.DEFERRED]:
                 logger.error(f"Task {task.task_id} failed with status {current_status.status}")
                 return False
-            
+
             logger.debug(f"Waiting for task {task.task_id} completion... ({waited}s)")
-        
+
         logger.error(f"Task {task.task_id} timed out after {max_wait}s")
         self._mark_task_failed(task.task_id, "Timeout waiting for completion")
         return False
-    
+
     def _mark_task_failed(self, task_id: str, reason: str) -> None:
         """Mark a task as failed."""
         persistence.update_task_status(task_id, TaskStatus.FAILED, self.time_service)
         logger.error(f"Task {task_id} marked as FAILED: {reason}")
-    
+
     def _mark_root_task_complete(self) -> None:
         """Mark the root wakeup task as complete."""
         persistence.update_task_status("WAKEUP_ROOT", TaskStatus.COMPLETED, self.time_service)
-    
+
     def _mark_root_task_failed(self) -> None:
         """Mark the root wakeup task as failed."""
         persistence.update_task_status("WAKEUP_ROOT", TaskStatus.FAILED, self.time_service)
-    
+
     def is_wakeup_complete(self) -> bool:
         """Check if wakeup sequence is complete."""
         return self.wakeup_complete
-    
+
 
     async def start_processing(self, num_rounds: Optional[int] = None) -> None:
         """Start the wakeup processing loop."""
@@ -526,7 +524,7 @@ class WakeupProcessor(BaseProcessor):
             await self.process(round_num)
             round_num += 1
             if self.wakeup_complete:
-                break  # type: ignore[unreachable]
+                break
             # Use shorter delay for testing
             await asyncio.sleep(0.1)  # Brief pause between rounds
 
@@ -540,20 +538,20 @@ class WakeupProcessor(BaseProcessor):
         wakeup_sequence = self._get_wakeup_sequence()
         total_steps = len(wakeup_sequence)
         completed_steps = 0
-        
+
         if self.wakeup_tasks:
             for task in self.wakeup_tasks[1:]:  # Skip root task
                 status = persistence.get_task_by_id(task.task_id)
                 if status and status.status == TaskStatus.COMPLETED:
                     completed_steps += 1
-        
+
         progress = {
             "complete": self.wakeup_complete,
             "total_steps": total_steps,
             "completed_steps": completed_steps,
             "progress_percent": (completed_steps / total_steps * 100) if total_steps > 0 else 0
         }
-        
+
         return {
             "processor_type": "wakeup",
             "wakeup_complete": self.wakeup_complete,

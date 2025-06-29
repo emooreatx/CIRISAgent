@@ -208,7 +208,7 @@ def mock_dependencies_with_tools(monkeypatch):
     mock_persistence.add_thought = Mock()
     mock_persistence.update_thought_status = Mock()
     monkeypatch.setattr('ciris_engine.logic.handlers.external.tool_handler.persistence', mock_persistence)
-    
+
     # Mock the models ThoughtContext to avoid validation issues
     mock_thought_context = Mock()
     mock_thought_context.model_validate = Mock(side_effect=lambda x: Mock())
@@ -216,15 +216,15 @@ def mock_dependencies_with_tools(monkeypatch):
         'ciris_engine.schemas.runtime.models.ThoughtContext',
         mock_thought_context
     )
-    
+
     # Create service mocks
     mock_service_registry = AsyncMock()
     mock_time_service = Mock()
     mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
-    
+
     # Create bus manager
     bus_manager = BusManager(mock_service_registry, time_service=mock_time_service)
-    
+
     # Mock the tool bus with discovery methods
     mock_tool_bus = AsyncMock()
     mock_tool_bus.get_available_tools = AsyncMock(return_value=[t.name for t in create_sample_tools()])
@@ -232,18 +232,18 @@ def mock_dependencies_with_tools(monkeypatch):
     mock_tool_bus.get_tool_info = AsyncMock()
     mock_tool_bus.validate_parameters = AsyncMock(return_value=(True, None))
     bus_manager.tool = mock_tool_bus
-    
+
     # Mock the audit service (it's accessed directly, not through a bus)
     mock_audit_service = AsyncMock()
     mock_audit_service.log_event = AsyncMock()
     bus_manager.audit_service = mock_audit_service
-    
+
     # Create dependencies
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,
         time_service=mock_time_service
     )
-    
+
     return {
         'deps': deps,
         'persistence': mock_persistence,
@@ -261,22 +261,22 @@ async def test_tool_parameter_validation_strict(mock_dependencies_with_tools):
     tool_bus = mock_dependencies_with_tools['tool_bus']
     persistence = mock_dependencies_with_tools['persistence']
     sample_tools = mock_dependencies_with_tools['sample_tools']
-    
+
     # Configure tool info retrieval
     calculator_tool = next(t for t in sample_tools if t.name == "calculator")
     tool_bus.get_tool_info.return_value = calculator_tool
-    
+
     # Test with missing required parameter
     tool_bus.validate_parameters.return_value = (False, "Missing required parameter: 'operation'")
-    
+
     handler = ToolHandler(deps)
-    
+
     # Missing 'operation' parameter
     params = ToolParams(
         name="calculator",
         parameters={"a": 10, "b": 5}  # Missing 'operation'
     )
-    
+
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.TOOL,
         action_parameters=params,
@@ -284,10 +284,10 @@ async def test_tool_parameter_validation_strict(mock_dependencies_with_tools):
         reasoning="Math calculation needed",
         evaluation_time_ms=80
     )
-    
+
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     # Configure tool execution to fail due to validation
     tool_bus.execute_tool.return_value = create_mock_tool_execution_result(
         tool_name="calculator",
@@ -295,13 +295,13 @@ async def test_tool_parameter_validation_strict(mock_dependencies_with_tools):
         error="Missing required parameter: 'operation'",
         status=ToolExecutionStatus.FAILED
     )
-    
+
     await handler.handle(result, thought, dispatch_context)
-    
+
     # Verify validation occurred
     update_call = persistence.update_thought_status.call_args
     assert update_call.kwargs['status'] == ThoughtStatus.FAILED
-    
+
     follow_up = persistence.add_thought.call_args[0][0]
     assert "failed" in follow_up.content.lower()
 
@@ -312,9 +312,9 @@ async def test_tool_parameter_type_validation(mock_dependencies_with_tools):
     deps = mock_dependencies_with_tools['deps']
     tool_bus = mock_dependencies_with_tools['tool_bus']
     persistence = mock_dependencies_with_tools['persistence']
-    
+
     handler = ToolHandler(deps)
-    
+
     # Wrong parameter types
     params = ToolParams(
         name="calculator",
@@ -324,7 +324,7 @@ async def test_tool_parameter_type_validation(mock_dependencies_with_tools):
             "b": 10
         }
     )
-    
+
     # Configure validation to fail
     tool_bus.validate_parameters.return_value = (False, "Parameter 'a' must be a number")
     tool_bus.execute_tool.return_value = create_mock_tool_execution_result(
@@ -333,7 +333,7 @@ async def test_tool_parameter_type_validation(mock_dependencies_with_tools):
         error="Parameter 'a' must be a number",
         status=ToolExecutionStatus.FAILED
     )
-    
+
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.TOOL,
         action_parameters=params,
@@ -341,12 +341,12 @@ async def test_tool_parameter_type_validation(mock_dependencies_with_tools):
         reasoning="Testing type checking",
         evaluation_time_ms=70
     )
-    
+
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     await handler.handle(result, thought, dispatch_context)
-    
+
     # Verify type validation error was handled
     follow_up = persistence.add_thought.call_args[0][0]
     assert "must be a number" in follow_up.content
@@ -358,7 +358,7 @@ async def test_tool_with_optional_parameters(mock_dependencies_with_tools):
     deps = mock_dependencies_with_tools['deps']
     tool_bus = mock_dependencies_with_tools['tool_bus']
     persistence = mock_dependencies_with_tools['persistence']
-    
+
     # Configure successful execution
     tool_bus.execute_tool.return_value = create_mock_tool_execution_result(
         tool_name="web_search",
@@ -366,15 +366,15 @@ async def test_tool_with_optional_parameters(mock_dependencies_with_tools):
         data={"results": ["result1", "result2", "result3"]},
         status=ToolExecutionStatus.COMPLETED
     )
-    
+
     handler = ToolHandler(deps)
-    
+
     # Only required parameters provided
     params = ToolParams(
         name="web_search",
         parameters={"query": "test search"}  # 'limit' and 'safe_search' are optional
     )
-    
+
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.TOOL,
         action_parameters=params,
@@ -382,12 +382,12 @@ async def test_tool_with_optional_parameters(mock_dependencies_with_tools):
         reasoning="Testing optional params",
         evaluation_time_ms=95
     )
-    
+
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     await handler.handle(result, thought, dispatch_context)
-    
+
     # Verify success with default optional values
     update_call = persistence.update_thought_status.call_args
     assert update_call.kwargs['status'] == ThoughtStatus.COMPLETED
@@ -399,9 +399,9 @@ async def test_tool_with_enum_validation(mock_dependencies_with_tools):
     deps = mock_dependencies_with_tools['deps']
     tool_bus = mock_dependencies_with_tools['tool_bus']
     persistence = mock_dependencies_with_tools['persistence']
-    
+
     handler = ToolHandler(deps)
-    
+
     # Invalid enum value
     params = ToolParams(
         name="calculator",
@@ -411,14 +411,14 @@ async def test_tool_with_enum_validation(mock_dependencies_with_tools):
             "b": 3
         }
     )
-    
+
     tool_bus.execute_tool.return_value = create_mock_tool_execution_result(
         tool_name="calculator",
         success=False,
         error="Invalid operation 'modulo'. Must be one of: add, subtract, multiply, divide",
         status=ToolExecutionStatus.FAILED
     )
-    
+
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.TOOL,
         action_parameters=params,
@@ -426,12 +426,12 @@ async def test_tool_with_enum_validation(mock_dependencies_with_tools):
         reasoning="Testing enum constraints",
         evaluation_time_ms=75
     )
-    
+
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     await handler.handle(result, thought, dispatch_context)
-    
+
     # Verify enum validation error
     follow_up = persistence.add_thought.call_args[0][0]
     assert "Invalid operation" in follow_up.content
@@ -443,16 +443,16 @@ async def test_tool_with_array_parameters(mock_dependencies_with_tools):
     deps = mock_dependencies_with_tools['deps']
     tool_bus = mock_dependencies_with_tools['tool_bus']
     persistence = mock_dependencies_with_tools['persistence']
-    
+
     tool_bus.execute_tool.return_value = create_mock_tool_execution_result(
         tool_name="send_email",
         success=True,
         data={"sent": True, "message_id": "12345"},
         status=ToolExecutionStatus.COMPLETED
     )
-    
+
     handler = ToolHandler(deps)
-    
+
     # Array parameters
     params = ToolParams(
         name="send_email",
@@ -463,7 +463,7 @@ async def test_tool_with_array_parameters(mock_dependencies_with_tools):
             "cc": ["cc@example.com"]
         }
     )
-    
+
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.TOOL,
         action_parameters=params,
@@ -471,17 +471,17 @@ async def test_tool_with_array_parameters(mock_dependencies_with_tools):
         reasoning="Testing array handling",
         evaluation_time_ms=85
     )
-    
+
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     await handler.handle(result, thought, dispatch_context)
-    
+
     # Verify array parameters were handled correctly
     call_args = tool_bus.execute_tool.call_args
     assert isinstance(call_args.kwargs['parameters']['to'], list)
     assert len(call_args.kwargs['parameters']['to']) == 2
-    
+
     update_call = persistence.update_thought_status.call_args
     assert update_call.kwargs['status'] == ThoughtStatus.COMPLETED
 
@@ -493,20 +493,20 @@ async def test_tool_cost_tracking(mock_dependencies_with_tools):
     tool_bus = mock_dependencies_with_tools['tool_bus']
     persistence = mock_dependencies_with_tools['persistence']
     sample_tools = mock_dependencies_with_tools['sample_tools']
-    
+
     # Get expensive tool
     email_tool = next(t for t in sample_tools if t.name == "send_email")
     tool_bus.get_tool_info.return_value = email_tool
-    
+
     tool_bus.execute_tool.return_value = create_mock_tool_execution_result(
         tool_name="send_email",
         success=True,
         data={"sent": True},
         status=ToolExecutionStatus.COMPLETED
     )
-    
+
     handler = ToolHandler(deps)
-    
+
     params = ToolParams(
         name="send_email",
         parameters={
@@ -515,7 +515,7 @@ async def test_tool_cost_tracking(mock_dependencies_with_tools):
             "body": "Test email"
         }
     )
-    
+
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.TOOL,
         action_parameters=params,
@@ -523,12 +523,12 @@ async def test_tool_cost_tracking(mock_dependencies_with_tools):
         reasoning="Testing cost awareness",
         evaluation_time_ms=90
     )
-    
+
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     await handler.handle(result, thought, dispatch_context)
-    
+
     # Tool cost should be tracked (email tool costs 0.10)
     follow_up = persistence.add_thought.call_args[0][0]
     assert follow_up.context is not None
@@ -544,21 +544,21 @@ async def test_tool_categorization(mock_dependencies_with_tools):
     deps = mock_dependencies_with_tools['deps']
     tool_bus = mock_dependencies_with_tools['tool_bus']
     sample_tools = mock_dependencies_with_tools['sample_tools']
-    
+
     # Mock filtering tools by category
     async def filter_by_category(category):
         return [t for t in sample_tools if t.category == category]
-    
+
     # Test getting math tools
     math_tools = await filter_by_category("math")
     assert len(math_tools) == 1
     assert math_tools[0].name == "calculator"
-    
+
     # Test getting communication tools
     comm_tools = await filter_by_category("communication")
     assert len(comm_tools) == 1
     assert comm_tools[0].name == "send_email"
-    
+
     # Test getting filesystem tools
     fs_tools = await filter_by_category("filesystem")
     assert len(fs_tools) == 1
@@ -569,16 +569,16 @@ async def test_tool_categorization(mock_dependencies_with_tools):
 async def test_tool_when_to_use_guidance(mock_dependencies_with_tools):
     """Test that tool guidance is available and used."""
     sample_tools = mock_dependencies_with_tools['sample_tools']
-    
+
     # Verify all tools have when_to_use guidance
     for tool in sample_tools:
         assert tool.when_to_use is not None
         assert len(tool.when_to_use) > 0
-    
+
     # Check specific guidance
     calc_tool = next(t for t in sample_tools if t.name == "calculator")
     assert "mathematical calculations" in calc_tool.when_to_use
-    
+
     search_tool = next(t for t in sample_tools if t.name == "web_search")
     assert "current information online" in search_tool.when_to_use
 
@@ -588,15 +588,15 @@ async def test_tool_discovery_caching(mock_dependencies_with_tools):
     """Test that tool discovery results can be cached efficiently."""
     deps = mock_dependencies_with_tools['deps']
     tool_bus = mock_dependencies_with_tools['tool_bus']
-    
+
     # Simulate multiple calls to get_available_tools
     for _ in range(3):
         available_tools = await tool_bus.get_available_tools()
         assert len(available_tools) == 4  # Should have 4 sample tools
-    
+
     # Verify method was called 3 times (no caching in this test)
     assert tool_bus.get_available_tools.call_count == 3
-    
+
     # In a real implementation, caching would reduce calls
 
 
@@ -606,22 +606,22 @@ async def test_tool_parameter_defaults(mock_dependencies_with_tools):
     deps = mock_dependencies_with_tools['deps']
     tool_bus = mock_dependencies_with_tools['tool_bus']
     persistence = mock_dependencies_with_tools['persistence']
-    
+
     tool_bus.execute_tool.return_value = create_mock_tool_execution_result(
         tool_name="file_reader",
         success=True,
         data={"content": "File contents here"},
         status=ToolExecutionStatus.COMPLETED
     )
-    
+
     handler = ToolHandler(deps)
-    
+
     # Only required parameter, relying on default encoding
     params = ToolParams(
         name="file_reader",
         parameters={"path": "/tmp/test.txt"}  # encoding will default to "utf-8"
     )
-    
+
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.TOOL,
         action_parameters=params,
@@ -629,12 +629,12 @@ async def test_tool_parameter_defaults(mock_dependencies_with_tools):
         reasoning="Testing parameter defaults",
         evaluation_time_ms=80
     )
-    
+
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     await handler.handle(result, thought, dispatch_context)
-    
+
     # Should succeed with default encoding
     update_call = persistence.update_thought_status.call_args
     assert update_call.kwargs['status'] == ThoughtStatus.COMPLETED
@@ -646,21 +646,21 @@ async def test_tool_not_found_handling(mock_dependencies_with_tools):
     deps = mock_dependencies_with_tools['deps']
     tool_bus = mock_dependencies_with_tools['tool_bus']
     persistence = mock_dependencies_with_tools['persistence']
-    
+
     tool_bus.execute_tool.return_value = create_mock_tool_execution_result(
         tool_name="nonexistent_tool",
         success=False,
         error="Tool 'nonexistent_tool' not found",
         status=ToolExecutionStatus.NOT_FOUND
     )
-    
+
     handler = ToolHandler(deps)
-    
+
     params = ToolParams(
         name="nonexistent_tool",
         parameters={}
     )
-    
+
     result = ActionSelectionDMAResult(
         selected_action=HandlerActionType.TOOL,
         action_parameters=params,
@@ -668,15 +668,15 @@ async def test_tool_not_found_handling(mock_dependencies_with_tools):
         reasoning="Testing missing tool",
         evaluation_time_ms=60
     )
-    
+
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
-    
+
     await handler.handle(result, thought, dispatch_context)
-    
+
     # Should fail gracefully
     update_call = persistence.update_thought_status.call_args
     assert update_call.kwargs['status'] == ThoughtStatus.FAILED
-    
+
     follow_up = persistence.add_thought.call_args[0][0]
     assert "not found" in follow_up.content.lower()

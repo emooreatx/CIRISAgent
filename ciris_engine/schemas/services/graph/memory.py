@@ -3,10 +3,9 @@ Graph memory service schemas.
 
 Replaces Dict[str, Any] in memory service operations.
 """
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Union
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
-from pydantic import Field, ConfigDict
 
 class NodeAttributes(BaseModel):
     """Attributes for a graph node."""
@@ -14,17 +13,17 @@ class NodeAttributes(BaseModel):
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
     created_by: Optional[str] = Field(None, description="Creator identifier")
-    
+
     # Secret references
     secret_refs: List[str] = Field(default_factory=list, description="Secret reference UUIDs")
-    
+
     # Dynamic attributes - we use a constrained dict here since node attributes are truly dynamic
     # but we ensure they're JSON-serializable types
     data: Dict[str, Union[str, int, float, bool, list, dict, None]] = Field(
-        default_factory=dict, 
+        default_factory=dict,
         description="Node data attributes"
     )
-    
+
     model_config = ConfigDict(extra = "allow")  # Allow additional fields for flexibility
 
 class MemorySearchFilter(BaseModel):
@@ -45,22 +44,22 @@ class GraphQuery(BaseModel):
     """Query parameters for graph operations."""
     # Query type
     query_type: str = Field(..., description="Type of query: match, traverse, aggregate")
-    
+
     # Node filters
     node_filters: Optional[MemorySearchFilter] = Field(None, description="Node filters")
-    
+
     # Relationship filters
     relationship_type: Optional[str] = Field(None, description="Filter by relationship type")
     relationship_direction: Optional[str] = Field("any", description="in, out, any")
-    
+
     # Traversal options
     max_depth: Optional[int] = Field(None, description="Maximum traversal depth")
     include_relationships: bool = Field(False, description="Include relationships in results")
-    
+
     # Aggregation options
     group_by: Optional[str] = Field(None, description="Attribute to group by")
     aggregations: Optional[List[str]] = Field(None, description="Aggregation functions")
-    
+
     # Result options
     order_by: Optional[str] = Field(None, description="Attribute to order by")
     order_desc: bool = Field(False, description="Order descending")

@@ -35,15 +35,15 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
     logger.info("Starting CIRIS API v2.0")
-    
+
     # Initialize auth service
     app.state.auth_service = APIAuthService()
-    
+
     # Initialize emergency verifier (will be configured with keys later)
     app.state.emergency_verifier = EmergencyShutdownVerifier({})
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down CIRIS API v2.0")
 
@@ -55,7 +55,7 @@ def create_app(runtime=None) -> FastAPI:
         description="Cognitive Intelligence Research and Implementation System API",
         lifespan=lifespan
     )
-    
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -64,11 +64,11 @@ def create_app(runtime=None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Store runtime if provided
     if runtime:
         app.state.runtime = runtime
-    
+
     # Include routers
     app.include_router(api_auth_v2.router, prefix="/v2")
     app.include_router(api_emergency.router, prefix="/v2")
@@ -85,7 +85,7 @@ def create_app(runtime=None) -> FastAPI:
     app.include_router(api_audit.router, prefix="/v2")
     app.include_router(api_agent.router, prefix="/v2")
     app.include_router(api_tools.router, prefix="/v2")
-    
+
     # Global exception handler
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
@@ -94,7 +94,7 @@ def create_app(runtime=None) -> FastAPI:
             status_code=500,
             content={"detail": "Internal server error"}
         )
-    
+
     return app
 
 def initialize_app_services(app: FastAPI, runtime):
@@ -102,7 +102,7 @@ def initialize_app_services(app: FastAPI, runtime):
     if not runtime:
         logger.warning("No runtime provided to API")
         return
-    
+
     # Get services from runtime
     try:
         # Core services
@@ -112,11 +112,11 @@ def initialize_app_services(app: FastAPI, runtime):
         app.state.telemetry_service = runtime.bus_manager.get_service('telemetry')
         app.state.incident_service = runtime.bus_manager.get_service('incident_management')
         app.state.shutdown_service = runtime.bus_manager.get_service('shutdown')
-        
+
         # Optional services
         app.state.wise_service = runtime.bus_manager.get_service('wise_authority')
         app.state.runtime_control = runtime.bus_manager.get_service('runtime_control')
-        
+
         # Initialize emergency system with trusted keys
         if app.state.config_service:
             # Get trusted keys
@@ -124,18 +124,18 @@ def initialize_app_services(app: FastAPI, runtime):
             root_key = app.state.config_service.get_config("wa_root_key")
             if root_key:
                 trusted_keys["ROOT"] = root_key
-            
+
             authority_keys = app.state.config_service.get_config("wa_authority_keys") or {}
             trusted_keys.update(authority_keys)
-            
+
             # Update emergency verifier
             app.state.emergency_verifier = EmergencyShutdownVerifier(trusted_keys)
-        
+
         # Store essential config
         app.state.essential_config = runtime.essential_config
-        
+
         logger.info("API services initialized successfully")
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize API services: {e}")
 

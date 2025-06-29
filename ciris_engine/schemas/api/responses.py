@@ -14,15 +14,15 @@ class ResponseMetadata(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     request_id: Optional[str] = Field(None, description="Request tracking ID")
     duration_ms: Optional[int] = Field(None, description="Request processing duration")
-    
+
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class SuccessResponse(BaseModel, Generic[T]):
     """Standard success response wrapper."""
     data: T = Field(..., description="Response data")
-    metadata: ResponseMetadata = Field(default_factory=ResponseMetadata)
+    metadata: ResponseMetadata = Field(default_factory=lambda: ResponseMetadata())
 
 class ErrorDetail(BaseModel):
     """Detailed error information."""
@@ -33,7 +33,7 @@ class ErrorDetail(BaseModel):
 class ErrorResponse(BaseModel):
     """Standard error response."""
     error: ErrorDetail = Field(..., description="Error information")
-    metadata: ResponseMetadata = Field(default_factory=ResponseMetadata)
+    metadata: ResponseMetadata = Field(default_factory=lambda: ResponseMetadata())
 
 # Common error codes
 class ErrorCode:

@@ -22,7 +22,7 @@ class DatabaseConfig(BaseModel):
         Path("data/ciris_audit.db"),
         description="Audit trail database with signatures"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ServiceEndpointsConfig(BaseModel):
@@ -43,7 +43,7 @@ class ServiceEndpointsConfig(BaseModel):
         3,
         description="Maximum LLM retry attempts"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class SecurityConfig(BaseModel):
@@ -68,7 +68,7 @@ class SecurityConfig(BaseModel):
         7,
         description="Maximum thought chain depth before auto-defer"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class OperationalLimitsConfig(BaseModel):
@@ -101,7 +101,7 @@ class OperationalLimitsConfig(BaseModel):
         2,
         description="Maximum conscience evaluation retries"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class TelemetryConfig(BaseModel):
@@ -118,7 +118,7 @@ class TelemetryConfig(BaseModel):
         24,
         description="Telemetry data retention period"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class WorkflowConfig(BaseModel):
@@ -135,41 +135,23 @@ class WorkflowConfig(BaseModel):
         True,
         description="Automatically defer when hitting limits"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class EssentialConfig(BaseModel):
     """
     Mission-critical configuration for CIRIS bootstrap.
-    
+
     This is the minimal configuration needed to start core services.
     After bootstrap, all config is migrated to GraphConfigService.
     """
-    database: DatabaseConfig = Field(
-        default_factory=lambda: DatabaseConfig(),
-        description="Database configuration"
-    )
-    services: ServiceEndpointsConfig = Field(
-        default_factory=lambda: ServiceEndpointsConfig(),
-        description="External service endpoints"
-    )
-    security: SecurityConfig = Field(
-        default_factory=lambda: SecurityConfig(),
-        description="Security and audit settings"
-    )
-    limits: OperationalLimitsConfig = Field(
-        default_factory=lambda: OperationalLimitsConfig(),
-        description="Operational limits and thresholds"
-    )
-    telemetry: TelemetryConfig = Field(
-        default_factory=lambda: TelemetryConfig(),
-        description="Telemetry configuration"
-    )
-    workflow: WorkflowConfig = Field(
-        default_factory=lambda: WorkflowConfig(),
-        description="Workflow processing configuration"
-    )
-    
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    services: ServiceEndpointsConfig = Field(default_factory=ServiceEndpointsConfig)
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
+    limits: OperationalLimitsConfig = Field(default_factory=OperationalLimitsConfig)
+    telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
+    workflow: WorkflowConfig = Field(default_factory=WorkflowConfig)
+
     # Runtime settings
     log_level: str = Field(
         "INFO",
@@ -187,7 +169,7 @@ class EssentialConfig(BaseModel):
         "default",
         description="Default template name for agent identity creation"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")  # No ambiguity allowed in mission-critical config
 
 class CIRISNodeConfig(BaseModel):
@@ -200,5 +182,17 @@ class CIRISNodeConfig(BaseModel):
         False,
         description="Whether CIRISNode integration is enabled"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
+    
+    def load_env_vars(self) -> None:
+        """Load configuration from environment variables if present."""
+        from ciris_engine.logic.config.env_utils import get_env_var
+        
+        env_url = get_env_var("CIRISNODE_BASE_URL")
+        if env_url:
+            self.base_url = env_url
+            
+        env_enabled = get_env_var("CIRISNODE_ENABLED")
+        if env_enabled is not None:
+            self.enabled = env_enabled.lower() in ("true", "1", "yes", "on")

@@ -3,7 +3,7 @@ Typed node data schemas for graph nodes.
 
 Replaces the generic NodeAttributes.data: Dict[str, Union[...]] with specific typed schemas.
 """
-from typing import Dict, List, Optional, Type, Union
+from typing import Dict, List, Optional, Union
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
@@ -12,7 +12,7 @@ class ValidationRule(BaseModel):
     rule_type: str = Field(..., description="Type of validation: range, regex, enum, etc.")
     parameters: Dict[str, Union[str, int, float, bool]] = Field(..., description="Rule parameters")
     error_message: Optional[str] = Field(None, description="Custom error message")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class BaseNodeData(BaseModel):
@@ -20,11 +20,11 @@ class BaseNodeData(BaseModel):
     version: int = Field(1, description="Schema version for migration")
     created_at: datetime = Field(..., description="When this data was created")
     updated_at: datetime = Field(..., description="Last update time")
-    
+
     model_config = ConfigDict(
         extra="forbid"  # No extra fields allowed
     )
-    
+
     @field_serializer('created_at', 'updated_at')
     def serialize_datetime(self, dt: datetime) -> str:
         return dt.isoformat()
@@ -46,7 +46,7 @@ class TelemetryNodeData(BaseNodeData):
     unit: Optional[str] = Field(None, description="Unit of measurement")
     labels: Dict[str, str] = Field(default_factory=dict, description="Metric labels")
     aggregation_type: Optional[str] = Field(None, description="How to aggregate: sum, avg, max, min")
-    
+
     # For time-series data
     start_time: Optional[datetime] = Field(None, description="Start of measurement period")
     end_time: Optional[datetime] = Field(None, description="End of measurement period")
@@ -60,13 +60,13 @@ class AuditNodeData(BaseNodeData):
     target: Optional[str] = Field(None, description="What was affected")
     action: str = Field(..., description="What action was taken")
     outcome: str = Field(..., description="Result: success, failure, partial")
-    
+
     # Additional context
     ip_address: Optional[str] = Field(None, description="Source IP if applicable")
     user_agent: Optional[str] = Field(None, description="User agent if applicable")
     correlation_id: Optional[str] = Field(None, description="For tracing related events")
     risk_score: Optional[float] = Field(None, description="Risk assessment 0.0-1.0")
-    
+
     # Evidence/details
     evidence: Dict[str, str] = Field(default_factory=dict, description="Supporting evidence")
     error_details: Optional[str] = Field(None, description="Error message if failed")
@@ -76,11 +76,11 @@ class MemoryNodeData(BaseNodeData):
     content: str = Field(..., description="The actual memory content")
     memory_type: str = Field(..., description="Type: fact, experience, learning, insight")
     source: str = Field(..., description="Where this memory came from")
-    
+
     # Relationships
     related_memories: List[str] = Field(default_factory=list, description="Related memory node IDs")
     derived_from: Optional[str] = Field(None, description="Parent memory if derived")
-    
+
     # Usage tracking
     access_count: int = Field(0, description="How often accessed")
     last_accessed: Optional[datetime] = Field(None, description="Last access time")
@@ -92,17 +92,17 @@ class TaskNodeData(BaseNodeData):
     task_type: str = Field(..., description="Type of task")
     status: str = Field(..., description="Current status")
     priority: int = Field(0, description="Task priority")
-    
+
     # Task details
     description: str = Field(..., description="What this task is about")
     requester: Optional[str] = Field(None, description="Who requested this")
     deadline: Optional[datetime] = Field(None, description="When it's due")
-    
+
     # Progress tracking
     progress_percentage: float = Field(0.0, description="Completion percentage")
     milestones: List[str] = Field(default_factory=list, description="Completed milestones")
     blockers: List[str] = Field(default_factory=list, description="Current blockers")
-    
+
     @field_serializer('deadline')
     def serialize_optional_datetime(self, dt: Optional[datetime]) -> Optional[str]:
         return dt.isoformat() if dt else None
@@ -112,12 +112,12 @@ class EnvironmentNodeData(BaseNodeData):
     environment_type: str = Field(..., description="Type: channel, user, system")
     identifier: str = Field(..., description="Unique identifier")
     display_name: Optional[str] = Field(None, description="Human-readable name")
-    
+
     # Context details
     properties: Dict[str, str] = Field(default_factory=dict, description="Environment properties")
     capabilities: List[str] = Field(default_factory=list, description="What this environment supports")
     restrictions: List[str] = Field(default_factory=list, description="What's not allowed")
-    
+
     # State tracking
     is_active: bool = Field(True, description="Whether currently active")
     last_interaction: Optional[datetime] = Field(None, description="Last interaction time")
@@ -143,16 +143,16 @@ def create_node_data(node_type: str, data: dict) -> NodeData:
         "task": TaskNodeData,
         "environment": EnvironmentNodeData,
     }
-    
+
     data_class = type_map.get(node_type)
     if not data_class:
         raise ValueError(f"Unknown node type: {node_type}")
-    
+
     # Add timestamps if not present
     now = datetime.now(timezone.utc)
     if "created_at" not in data:
         data["created_at"] = now
     if "updated_at" not in data:
         data["updated_at"] = now
-    
+
     return data_class(**data)

@@ -37,13 +37,13 @@ class ForgetBusMessage(BusMessage):
 class MemoryBus(BaseBus[MemoryService]):
     """
     Message bus for all memory operations.
-    
+
     Handles:
     - memorize
     - recall
     - forget
     """
-    
+
     def __init__(self, service_registry: "ServiceRegistry", time_service: TimeServiceProtocol, audit_service: Optional[object] = None):
         super().__init__(
             service_type=ServiceType.MEMORY,
@@ -51,7 +51,7 @@ class MemoryBus(BaseBus[MemoryService]):
         )
         self._time_service = time_service
         self._audit_service = audit_service
-    
+
     async def memorize(
         self,
         node: GraphNode,
@@ -60,14 +60,14 @@ class MemoryBus(BaseBus[MemoryService]):
     ) -> MemoryOpResult:
         """
         Memorize a node.
-        
+
         This is always synchronous as handlers need the result.
         """
         service = await self.get_service(
             handler_name=handler_name,
             required_capabilities=["memorize"]
         )
-        
+
         if not service:
             logger.error(f"No memory service available for {handler_name}")
             return MemoryOpResult(
@@ -75,7 +75,7 @@ class MemoryBus(BaseBus[MemoryService]):
                 reason="No memory service available",
                 data=node.model_dump() if hasattr(node, 'model_dump') else None
             )
-            
+
         try:
             result = await service.memorize(node)
             # Protocol guarantees MemoryOpResult return
@@ -87,7 +87,7 @@ class MemoryBus(BaseBus[MemoryService]):
                 reason=str(e),
                 error=str(e)
             )
-    
+
     async def recall(
         self,
         recall_query: MemoryQuery,
@@ -96,25 +96,25 @@ class MemoryBus(BaseBus[MemoryService]):
     ) -> List[GraphNode]:
         """
         Recall nodes based on query.
-        
+
         This is always synchronous as handlers need the result.
         """
         service = await self.get_service(
             handler_name=handler_name,
             required_capabilities=["recall"]
         )
-        
+
         if not service:
             logger.error(f"No memory service available for {handler_name}")
             return []
-            
+
         try:
             nodes = await service.recall(recall_query)
             return nodes if nodes else []
         except Exception as e:
             logger.error(f"Failed to recall nodes: {e}", exc_info=True)
             return []
-    
+
     async def forget(
         self,
         node: GraphNode,
@@ -123,14 +123,14 @@ class MemoryBus(BaseBus[MemoryService]):
     ) -> MemoryOpResult:
         """
         Forget a node.
-        
+
         This is always synchronous as handlers need the result.
         """
         service = await self.get_service(
             handler_name=handler_name,
             required_capabilities=["forget"]
         )
-        
+
         if not service:
             logger.error(f"No memory service available for {handler_name}")
             return MemoryOpResult(
@@ -138,7 +138,7 @@ class MemoryBus(BaseBus[MemoryService]):
                 reason="No memory service available",
                 data=node.model_dump() if hasattr(node, 'model_dump') else None
             )
-            
+
         try:
             result = await service.forget(node)
             # Protocol guarantees MemoryOpResult return
@@ -150,7 +150,7 @@ class MemoryBus(BaseBus[MemoryService]):
                 reason=str(e),
                 error=str(e)
             )
-    
+
     async def search_memories(
         self,
         query: str,
@@ -163,17 +163,17 @@ class MemoryBus(BaseBus[MemoryService]):
             handler_name=handler_name,
             required_capabilities=["search_memories"]
         )
-        
+
         if not service:
             logger.error(f"No memory service available for {handler_name}")
             return []
-            
+
         try:
             return await service.search_memories(query, scope, limit)
         except Exception as e:
             logger.error(f"Failed to search memories: {e}", exc_info=True)
             return []
-    
+
     async def recall_timeseries(
         self,
         scope: str = "default",
@@ -186,17 +186,17 @@ class MemoryBus(BaseBus[MemoryService]):
             handler_name=handler_name,
             required_capabilities=["recall_timeseries"]
         )
-        
+
         if not service:
             logger.error(f"No memory service available for {handler_name}")
             return []
-            
+
         try:
             return await service.recall_timeseries(scope, hours, correlation_types)
         except Exception as e:
             logger.error(f"Failed to recall timeseries: {e}", exc_info=True)
             return []
-    
+
     async def memorize_metric(
         self,
         metric_name: str,
@@ -210,14 +210,14 @@ class MemoryBus(BaseBus[MemoryService]):
             handler_name=handler_name,
             required_capabilities=["memorize_metric"]
         )
-        
+
         if not service:
             logger.error(f"No memory service available for {handler_name}")
             return MemoryOpResult(
                 status=MemoryOpStatus.FAILED,
                 reason="No memory service available"
             )
-            
+
         try:
             return await service.memorize_metric(metric_name, value, tags, scope)
         except Exception as e:
@@ -227,7 +227,7 @@ class MemoryBus(BaseBus[MemoryService]):
                 reason=str(e),
                 error=str(e)
             )
-    
+
     async def memorize_log(
         self,
         log_message: str,
@@ -241,14 +241,14 @@ class MemoryBus(BaseBus[MemoryService]):
             handler_name=handler_name,
             required_capabilities=["memorize_log"]
         )
-        
+
         if not service:
             logger.error(f"No memory service available for {handler_name}")
             return MemoryOpResult(
                 status=MemoryOpStatus.FAILED,
                 reason="No memory service available"
             )
-            
+
         try:
             return await service.memorize_log(log_message, log_level, tags, scope)
         except Exception as e:
@@ -258,7 +258,7 @@ class MemoryBus(BaseBus[MemoryService]):
                 reason=str(e),
                 error=str(e)
             )
-    
+
     async def export_identity_context(
         self,
         handler_name: str = "default"
@@ -268,18 +268,18 @@ class MemoryBus(BaseBus[MemoryService]):
             handler_name=handler_name,
             required_capabilities=["export_identity_context"]
         )
-        
+
         if not service:
             logger.error(f"No memory service available for {handler_name}")
             return ""
-            
+
         try:
             return await service.export_identity_context()
         except Exception as e:
             logger.error(f"Failed to export identity context: {e}", exc_info=True)
             return ""
-    
-    
+
+
     async def is_healthy(self, handler_name: str = "default") -> bool:
         """Check if memory service is healthy."""
         service = await self.get_service(handler_name=handler_name)
@@ -290,7 +290,7 @@ class MemoryBus(BaseBus[MemoryService]):
         except Exception as e:
             logger.error(f"Failed to check health: {e}")
             return False
-    
+
     async def get_capabilities(self, handler_name: str = "default") -> List[str]:
         """Get memory service capabilities."""
         service = await self.get_service(handler_name=handler_name)
@@ -301,7 +301,7 @@ class MemoryBus(BaseBus[MemoryService]):
         except Exception as e:
             logger.error(f"Failed to get capabilities: {e}")
             return []
-    
+
     async def _process_message(self, message: BusMessage) -> None:
         """Process a memory message"""
         # For now, all memory operations are synchronous

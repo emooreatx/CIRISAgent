@@ -51,7 +51,7 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
         )
 
         self.prompt_overrides = prompt_overrides or {}
-        
+
         # Load prompts from YAML file
         self.prompt_loader = get_prompt_loader()
         try:
@@ -63,7 +63,7 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
                 "system_guidance_header": DEFAULT_TEMPLATE,
                 "covenant_header": True
             }
-        
+
         # Apply prompt overrides if provided
         if self.prompt_overrides:
             self.prompt_template_data.update(self.prompt_overrides)
@@ -88,16 +88,16 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
     ) -> List[Dict[str, str]]:
         """Assemble prompt messages using canonical formatting utilities and prompt loader."""
         messages = []
-        
+
         if self.prompt_loader.uses_covenant_header(self.prompt_template_data):
             messages.append({"role": "system", "content": COVENANT_TEXT})
-        
+
         system_message = self.prompt_loader.get_system_message(
             self.prompt_template_data,
             context_summary=context_summary,
             original_thought_content=thought_content
         )
-        
+
         formatted_system = format_system_prompt_blocks(
             identity_context_block,
             "",
@@ -113,16 +113,16 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
             context_summary=context_summary,
             original_thought_content=thought_content
         )
-        
+
         if not user_message or user_message == f"Thought to evaluate: {thought_content}":
             user_message = format_user_prompt_blocks(
                 format_parent_task_chain([]),
                 format_thoughts_chain([{"content": thought_content}]),
                 None,
             )
-        
+
         messages.append({"role": "user", "content": user_message})
-        
+
         return messages
 
     async def evaluate_thought(self, thought_item: ProcessingQueueItem) -> CSDMAResult:
@@ -138,7 +138,7 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
                  context_summary = f"Context: Discord channel '{env_ctx['current_channel']}'"
             elif isinstance(env_ctx, str):
                 context_summary = env_ctx
-        
+
         system_snapshot_block = ""
         user_profiles_block = ""
 
@@ -148,7 +148,7 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
                 user_profiles_data = system_snapshot.get("user_profiles")
                 user_profiles_block = format_user_profiles(user_profiles_data)
                 system_snapshot_block = format_system_snapshot(system_snapshot)
-        
+
         identity_block = ""
         if hasattr(thought_item, "context") and thought_item.context:
             identity_block = thought_item.context.get("identity_context", "")

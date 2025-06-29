@@ -3,10 +3,9 @@ Schemas for infrastructure base operations.
 
 These replace all Dict[str, Any] usage in protocols/infrastructure/base.py.
 """
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 class RuntimeStats(BaseModel):
     """Runtime statistics and metrics."""

@@ -4,17 +4,18 @@ Audit service endpoints for CIRIS API v3 (Simplified).
 Provides access to the immutable audit trail for system observability.
 Simplified to 3 core endpoints: query, get specific entry, and export.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
 from pydantic import BaseModel, Field, field_serializer
 import json
 
-from ciris_engine.schemas.api.responses import SuccessResponse, ErrorResponse, ErrorCode
+from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.services.nodes import AuditEntry
 from ciris_engine.schemas.services.graph.audit import AuditQuery, VerificationReport
 from ciris_engine.api.dependencies.auth import require_observer, require_admin, AuthContext
 from ciris_engine.protocols.services.graph.audit import AuditServiceProtocol
+from ciris_engine.schemas.api.audit import AuditContext, EntryVerification
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
@@ -26,10 +27,10 @@ class AuditEntryResponse(BaseModel):
     action: str = Field(..., description="Action performed")
     actor: str = Field(..., description="Who performed the action")
     timestamp: datetime = Field(..., description="When action occurred")
-    context: Dict[str, Any] = Field(..., description="Action context")
+    context: AuditContext = Field(..., description="Action context")
     signature: Optional[str] = Field(None, description="Cryptographic signature")
     hash_chain: Optional[str] = Field(None, description="Previous hash for chain")
-    
+
     @field_serializer('timestamp')
     def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.isoformat() if timestamp else None
@@ -37,7 +38,7 @@ class AuditEntryResponse(BaseModel):
 class AuditEntryDetailResponse(BaseModel):
     """Detailed audit entry with verification info."""
     entry: AuditEntryResponse = Field(..., description="The audit entry")
-    verification: Optional[Dict[str, Any]] = Field(None, description="Entry verification status")
+    verification: Optional[EntryVerification] = Field(None, description="Entry verification status")
     chain_position: Optional[int] = Field(None, description="Position in audit chain")
     next_entry_id: Optional[str] = Field(None, description="Next entry in chain")
     previous_entry_id: Optional[str] = Field(None, description="Previous entry in chain")
@@ -60,12 +61,50 @@ class AuditExportResponse(BaseModel):
 
 def _convert_audit_entry(entry: AuditEntry) -> AuditEntryResponse:
     """Convert AuditEntry to API response format."""
+    # Convert context to AuditContext
+    ctx = entry.context
+    if isinstance(ctx, dict):
+        context = AuditContext(
+            entity_id=ctx.get('entity_id'),
+            entity_type=ctx.get('entity_type'),
+            operation=ctx.get('operation'),
+            description=ctx.get('description'),
+            request_id=ctx.get('request_id'),
+            correlation_id=ctx.get('correlation_id'),
+            user_id=ctx.get('user_id'),
+            ip_address=ctx.get('ip_address'),
+            user_agent=ctx.get('user_agent'),
+            result=ctx.get('result'),
+            error=ctx.get('error'),
+            metadata=ctx
+        )
+    elif hasattr(ctx, 'model_dump'):
+        # Convert AuditEntryContext to dict, then to AuditContext
+        ctx_dict = ctx.model_dump()
+        context = AuditContext(
+            entity_id=ctx_dict.get('entity_id'),
+            entity_type=ctx_dict.get('entity_type'),
+            operation=ctx_dict.get('operation') or ctx_dict.get('method_name'),
+            description=ctx_dict.get('description'),
+            request_id=ctx_dict.get('request_id'),
+            correlation_id=ctx_dict.get('correlation_id'),
+            user_id=ctx_dict.get('user_id'),
+            ip_address=ctx_dict.get('ip_address'),
+            user_agent=ctx_dict.get('user_agent'),
+            result=ctx_dict.get('result'),
+            error=ctx_dict.get('error'),
+            metadata=ctx_dict.get('additional_data', {})
+        )
+    else:
+        # Assume it's already an AuditContext
+        context = ctx
+    
     return AuditEntryResponse(
         id=getattr(entry, 'id', f"audit_{entry.timestamp.isoformat()}"),
         action=entry.action,
         actor=entry.actor,
         timestamp=entry.timestamp,
-        context=entry.context.model_dump() if hasattr(entry.context, 'model_dump') else {},
+        context=context,
         signature=entry.signature,
         hash_chain=entry.hash_chain
     )
@@ -100,14 +139,14 @@ async def query_audit_entries(
 ):
     """
     Query audit entries with flexible filtering.
-    
+
     Combines time-based queries, entity filtering, and text search into a single endpoint.
     Returns paginated results sorted by timestamp (newest first).
-    
+
     Requires OBSERVER role or higher.
     """
     audit_service = await _get_audit_service(request)
-    
+
     # Build unified query
     query = AuditQuery(
         start_time=start_time,
@@ -123,17 +162,17 @@ async def query_audit_entries(
         order_by="timestamp",
         order_desc=True
     )
-    
+
     try:
         entries = await audit_service.query_audit_trail(query)
-        
+
         # Convert to response format
         response_entries = [_convert_audit_entry(entry) for entry in entries]
-        
+
         # Get total count (in production, service would return this)
         # For now, if we got limit results, assume there are more
         total = len(entries) if len(entries) < limit else offset + len(entries) + 1
-        
+
         return SuccessResponse(data=AuditEntriesResponse(
             entries=response_entries,
             total=total,
@@ -152,16 +191,16 @@ async def get_audit_entry(
 ):
     """
     Get specific audit entry by ID with optional verification.
-    
+
     Returns the audit entry and optionally includes:
     - Verification status of the entry's signature and hash
     - Position in the audit chain
     - Links to previous and next entries
-    
+
     Requires OBSERVER role or higher.
     """
     audit_service = await _get_audit_service(request)
-    
+
     try:
         # Get the specific entry (implementation would use a proper lookup)
         # For now, search by ID in the query
@@ -171,7 +210,7 @@ async def get_audit_entry(
             order_desc=True
         )
         entries = await audit_service.query_audit_trail(query)
-        
+
         # Find the entry with matching ID
         target_entry = None
         entry_index = -1
@@ -187,43 +226,46 @@ async def get_audit_entry(
                     target_entry = entry
                     entry_index = i
                     break
-        
+
         if not target_entry:
             raise HTTPException(
-                status_code=404, 
+                status_code=404,
                 detail=f"Audit entry '{entry_id}' not found"
             )
-        
+
         # Build response
         response = AuditEntryDetailResponse(
             entry=_convert_audit_entry(target_entry)
         )
-        
+
         # Add verification info if requested
         if verify:
             # Get verification report for this entry
-            verification_report = await audit_service.get_verification_report()
-            
+            _verification_report = await audit_service.get_verification_report()
+
             # Extract verification for this specific entry
-            response.verification = {
-                "signature_valid": target_entry.signature is not None,
-                "hash_chain_valid": target_entry.hash_chain is not None,
-                "verified_at": datetime.now(timezone.utc).isoformat()
-            }
-            
+            response.verification = EntryVerification(
+                signature_valid=target_entry.signature is not None,
+                hash_chain_valid=target_entry.hash_chain is not None,
+                verified_at=datetime.now(timezone.utc),
+                verifier="system",
+                algorithm="sha256",
+                previous_hash_match=None  # Would check in real implementation
+            )
+
             # Add chain position info
             response.chain_position = entry_index
             if entry_index > 0:
                 prev_entry = entries[entry_index - 1]
-                response.previous_entry_id = getattr(prev_entry, 'id', 
+                response.previous_entry_id = getattr(prev_entry, 'id',
                     f"audit_{prev_entry.timestamp.strftime('%Y%m%d_%H%M%S')}_{prev_entry.actor}")
             if entry_index < len(entries) - 1:
                 next_entry = entries[entry_index + 1]
                 response.next_entry_id = getattr(next_entry, 'id',
                     f"audit_{next_entry.timestamp.strftime('%Y%m%d_%H%M%S')}_{next_entry.actor}")
-        
+
         return SuccessResponse(data=response)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -242,10 +284,10 @@ async def search_audit_trails(
 ):
     """
     Search audit trails with text search and filters.
-    
+
     This is a convenience endpoint that focuses on search functionality.
     For more complex queries, use the /entries endpoint.
-    
+
     Requires OBSERVER role or higher.
     """
     # Delegate to the main query endpoint logic
@@ -272,14 +314,14 @@ async def verify_audit_entry(
 ):
     """
     Verify the integrity of a specific audit entry.
-    
+
     Returns detailed verification information including signature validation
     and hash chain integrity.
-    
+
     Requires ADMIN role or higher.
     """
     audit_service = await _get_audit_service(request)
-    
+
     try:
         # Get the full verification report
         verification_report = await audit_service.get_verification_report()
@@ -298,19 +340,19 @@ async def export_audit_data(
 ):
     """
     Export audit data for compliance and analysis.
-    
+
     Exports audit entries in the specified format. For small datasets (< 1000 entries),
     data is returned inline. For larger datasets, a download URL is provided.
-    
+
     Formats:
     - **jsonl**: JSON Lines format (one entry per line)
     - **json**: Standard JSON array
     - **csv**: CSV format with standard audit fields
-    
+
     Requires ADMIN role or higher.
     """
     audit_service = await _get_audit_service(request)
-    
+
     try:
         # Export data
         export_data = await audit_service.export_audit_data(
@@ -318,7 +360,7 @@ async def export_audit_data(
             end_date=end_date,
             format=format
         )
-        
+
         # Add verification data if requested
         if include_verification and format == "jsonl":
             # Get verification report
@@ -334,11 +376,11 @@ async def export_audit_data(
                 }
             }
             export_data += "\n" + json.dumps(verification_summary)
-        
+
         # Count entries for response
         lines = export_data.split('\n')
         total_entries = len([l for l in lines if l.strip() and not l.startswith('{"_verification"')])
-        
+
         if total_entries > 1000:
             # For large exports, would typically upload to storage
             # In production, this would upload to S3/cloud storage and return a signed URL

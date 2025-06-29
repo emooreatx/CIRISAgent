@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 from typing import Optional
 
 from ciris_engine.schemas.runtime.models import Thought
@@ -8,7 +7,7 @@ from ciris_engine.schemas.runtime.enums import ThoughtStatus, HandlerActionType
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.logic import persistence
-from ciris_engine.logic.utils.channel_utils import extract_channel_id, create_channel_context
+from ciris_engine.logic.utils.channel_utils import extract_channel_id
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler, ActionHandlerDependencies
 from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
 from ciris_engine.logic.infrastructure.handlers.exceptions import FollowUpCreationError
@@ -31,7 +30,7 @@ def _build_speak_error_context(params: SpeakParams, thought_id: str, error_type:
         "service_timeout": f"Communication service timed out while sending to channel '{channel_id}'",
         "unknown": f"Unknown error occurred while speaking to channel '{channel_id}'"
     }
-    
+
     base_context = error_contexts.get(error_type, error_contexts["unknown"])
     return f"Thought {thought_id}: {base_context}"
 
@@ -49,9 +48,9 @@ class SpeakHandler(BaseActionHandler):
 
         try:
             # Auto-decapsulate any secrets in the action parameters
-            processed_result = await self._decapsulate_secrets_in_params(result, "speak")
-            
-            params = await self._validate_and_convert_params(processed_result.action_parameters, SpeakParams)
+            processed_result = await self._decapsulate_secrets_in_params(result, "speak", thought.thought_id)
+
+            params: SpeakParams = await self._validate_and_convert_params(processed_result.action_parameters, SpeakParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, e)
             persistence.update_thought_status(
@@ -64,7 +63,9 @@ class SpeakHandler(BaseActionHandler):
                 fu = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_text)
                 # Simple: ensure channel_id is in the thought context
                 if fu.context and not fu.context.channel_id:
-                    fu.context.channel_id = channel_id
+                    # Extract channel_id from params.channel_context if available
+                    extracted_channel_id = extract_channel_id(params.channel_context) or "unknown"
+                    fu.context.channel_id = extracted_channel_id
                 persistence.add_thought(fu)
                 return fu.thought_id
             except Exception as fe:
@@ -76,10 +77,10 @@ class SpeakHandler(BaseActionHandler):
         if not channel_id:
             logger.error(f"CRITICAL: No channel_id found in thought {thought_id} context")
             raise ValueError(f"Channel ID is required for SPEAK action - none found in thought {thought_id}")
-        
+
         logger.info(f"SPEAK: Using channel_id '{channel_id}' from context")
 
-        event_summary = params.content  # type: ignore[attr-defined]
+        event_summary = params.content
         await self._audit_log(
             HandlerActionType.SPEAK,
             dispatch_context.model_copy(update={"thought_id": thought_id, "event_summary": event_summary}),
@@ -87,18 +88,18 @@ class SpeakHandler(BaseActionHandler):
         )
 
         # Extract string from GraphNode for notification
-        content_str = params.content.attributes.get('text', str(params.content)) if hasattr(params.content, 'attributes') else str(params.content)  # type: ignore[attr-defined]
+        content_str = params.content.attributes.get('text', str(params.content)) if hasattr(params.content, 'attributes') else str(params.content)
         success = await self._send_notification(channel_id, content_str)
 
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
-        
+
         # Build error context if needed
         assert isinstance(params, SpeakParams)  # Type assertion - validated earlier
-        follow_up_error_context = None if success else _build_speak_error_context(params, thought_id)
-        
+        _follow_up_error_context = None if success else _build_speak_error_context(params, thought_id)
+
         # Get the actual task content instead of just the ID
         task = persistence.get_task_by_id(thought.source_task_id)
-        task_description = task.description if task else f"task {thought.source_task_id}"
+        _task_description = task.description if task else f"task {thought.source_task_id}"
 
         # Pass ActionSelectionDMAResult directly to persistence - it handles serialization
         persistence.update_thought_status(
@@ -113,10 +114,9 @@ class SpeakHandler(BaseActionHandler):
             ServiceRequestData, ServiceResponseData
         )
         import uuid
-        from datetime import datetime, timezone
-        
+
         now = self.time_service.now()
-        
+
         # Create proper request data
         request_data = ServiceRequestData(
             service_type="communication",
@@ -127,7 +127,7 @@ class SpeakHandler(BaseActionHandler):
             parameters={"content": str(params.content)},
             request_timestamp=now
         )
-        
+
         # Create proper response data
         response_data = ServiceResponseData(
             success=success,
@@ -135,7 +135,7 @@ class SpeakHandler(BaseActionHandler):
             execution_time_ms=100.0,  # TODO: Track actual execution time
             response_timestamp=now
         )
-        
+
         correlation = ServiceCorrelation(
             correlation_id=str(uuid.uuid4()),
             service_type="communication",
@@ -151,7 +151,7 @@ class SpeakHandler(BaseActionHandler):
         persistence.add_correlation(correlation, self.time_service)
 
         follow_up_text = (
-            f"""
+            """
             NEXT ACTION IS TASK COMPLETE!
             CIRIS_FOLLOW_UP_THOUGHT: YOU Spoke, as a result of your action: '{params.content}' in channel
             {channel_id} as a response to task: {task_description}. The next
@@ -179,6 +179,5 @@ class SpeakHandler(BaseActionHandler):
             await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, e)
             raise FollowUpCreationError from e
 
-        
-        return follow_up_thought_id
 
+        return follow_up_thought_id

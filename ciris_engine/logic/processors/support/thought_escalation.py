@@ -1,14 +1,14 @@
 
-from typing import Dict, Any, TYPE_CHECKING
 import logging
-
-logger = logging.getLogger(__name__)
+from typing import Dict, Any, TYPE_CHECKING
 
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.runtime.enums import ThoughtStatus
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "escalate_due_to_action_limit",

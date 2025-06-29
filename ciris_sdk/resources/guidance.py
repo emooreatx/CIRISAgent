@@ -19,7 +19,7 @@ class GuidanceResource:
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Submit a deferral to wise authority.
-        
+
         Note: This creates a deferral from the agent side.
         For viewing/resolving deferrals, use the client.wa resource.
         """

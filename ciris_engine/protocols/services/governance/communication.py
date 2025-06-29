@@ -8,12 +8,12 @@ from ...runtime.base import ServiceProtocol
 
 class CommunicationServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for communication service."""
-    
+
     @abstractmethod
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Send a message to the specified channel."""
         ...
-    
+
     @abstractmethod
     async def fetch_messages(
         self,

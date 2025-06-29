@@ -52,7 +52,7 @@ async def create_dma(
     **kwargs: Any
 ) -> Any:
     """Create a DMA instance of the specified type.
-    
+
     Args:
         dma_type: Type of DMA ('ethical', 'csdma', 'dsdma', 'action_selection')
         dma_identifier: Specific DMA class identifier
@@ -61,7 +61,7 @@ async def create_dma(
         prompt_overrides: Optional prompt customizations
         faculties: Optional epistemic faculties
         **kwargs: Additional DMA-specific parameters
-        
+
     Returns:
         DMA instance or None if creation fails
     """
@@ -71,30 +71,30 @@ async def create_dma(
         'dsdma': DSDMA_CLASS_REGISTRY,
         'action_selection': ACTION_SELECTION_DMA_REGISTRY,
     }
-    
+
     registry = registries.get(dma_type)
     if not registry:
         logger.error(f"Unknown DMA type: {dma_type}")
         return None
-        
+
     dma_class = registry.get(dma_identifier)  # type: ignore[attr-defined]
     if not dma_class:
         logger.error(f"Unknown {dma_type} DMA identifier: {dma_identifier}")
         return None
-        
+
     try:
         constructor_args = {
             'service_registry': service_registry,
             **kwargs
         }
-        
+
         if model_name is not None:
             constructor_args['model_name'] = model_name
         if prompt_overrides is not None:
-            constructor_args['prompt_overrides'] = prompt_overrides  
+            constructor_args['prompt_overrides'] = prompt_overrides
         if faculties is not None:
             constructor_args['faculties'] = faculties
-        
+
         return dma_class(**constructor_args)
     except Exception as e:
         logger.error(f"Failed to create {dma_type} DMA {dma_identifier}: {e}")
@@ -109,10 +109,10 @@ async def create_dsdma_from_identity(
 ) -> Optional[BaseDSDMA]:
     """Instantiate a DSDMA based on the agent's identity.
 
-    The identity represents the agent's configuration loaded from the graph. If ``identity`` 
+    The identity represents the agent's configuration loaded from the graph. If ``identity``
     is ``None``, this is a fatal error as the agent has no identity.
-    
-    All agents now use BaseDSDMA with domain-specific overrides provided through 
+
+    All agents now use BaseDSDMA with domain-specific overrides provided through
     dsdma_kwargs in their identity configuration.
     """
     if identity is None:
@@ -136,10 +136,10 @@ async def create_dsdma_from_identity(
         prompt_template=prompt_template,
         sink=sink,
     )
-    
+
     # Ensure we return the correct type
     if isinstance(dma_result, BaseDSDMA):
         return dma_result
-    
+
     logger.error(f"create_dma returned unexpected type: {type(dma_result)}")
     return None

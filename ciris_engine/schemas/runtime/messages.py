@@ -5,7 +5,6 @@ Typed message structures for all communication types.
 """
 from typing import Optional, Any
 from pydantic import BaseModel, Field, ConfigDict
-from pydantic import Field
 
 class IncomingMessage(BaseModel):
     """Schema for incoming messages from various sources."""

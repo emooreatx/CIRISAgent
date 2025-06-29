@@ -10,7 +10,6 @@ from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.services.context import DeferralContext
 from ciris_engine.logic import persistence
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
-from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +28,13 @@ class DeferHandler(BaseActionHandler):
         except Exception as e:
             logger.warning(f"Could not get task scheduler service: {e}")
         return None
-    
+
     async def handle(
         self,
         result: ActionSelectionDMAResult,  # Updated to v1 result schema
         thought: Thought,
         dispatch_context: DispatchContext
-    ) -> None:
+    ) -> Optional[str]:
         raw_params = result.action_parameters
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.DEFER, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="start")
@@ -43,7 +42,7 @@ class DeferHandler(BaseActionHandler):
         final_thought_status = ThoughtStatus.DEFERRED
         action_performed_successfully = False
         follow_up_content_key_info = f"DEFER action for thought {thought_id}"
-        
+
         defer_params_obj: Optional[DeferParams] = None
         try:
             if isinstance(raw_params, dict):
@@ -66,7 +65,7 @@ class DeferHandler(BaseActionHandler):
                         if defer_str.endswith('Z'):
                             defer_str = defer_str[:-1] + '+00:00'
                         defer_time = datetime.fromisoformat(defer_str)
-                        
+
                         # Create scheduled task
                         scheduled_task = await scheduler_service.schedule_deferred_task(
                             thought_id=thought_id,
@@ -75,14 +74,14 @@ class DeferHandler(BaseActionHandler):
                             reason=defer_params_obj.reason,
                             context=defer_params_obj.context
                         )
-                        
+
                         logger.info(f"Created scheduled task {scheduled_task.task_id} to reactivate at {defer_params_obj.defer_until}")
-                        
+
                         # Add scheduled info to follow-up content
                         time_diff = defer_time - self.time_service.now()
                         hours = int(time_diff.total_seconds() / 3600)
                         minutes = int((time_diff.total_seconds() % 3600) / 60)
-                        
+
                         follow_up_content_key_info = (
                             f"Deferred thought {thought_id} until {defer_params_obj.defer_until} "
                             f"({hours}h {minutes}m from now). Reason: {defer_params_obj.reason}"
@@ -90,7 +89,7 @@ class DeferHandler(BaseActionHandler):
                     except Exception as e:
                         logger.error(f"Failed to schedule deferred task: {e}")
                         # Fall back to standard deferral
-                
+
             # Use the wise authority bus for deferrals
             try:
                 # Build metadata dict for additional context
@@ -98,17 +97,17 @@ class DeferHandler(BaseActionHandler):
                     "attempted_action": getattr(dispatch_context, 'attempted_action', 'unknown'),
                     "max_rounds_reached": str(getattr(dispatch_context, 'max_rounds_reached', False))
                 }
-                
+
                 if thought.source_task_id:
                     task = persistence.get_task_by_id(thought.source_task_id)
                     if task and hasattr(task, 'description'):
                         metadata["task_description"] = task.description
-                
+
                 # Convert defer_until from ISO string to datetime if present
                 defer_until_dt = None
                 if defer_params_obj.defer_until:
                     defer_until_dt = datetime.fromisoformat(defer_params_obj.defer_until.replace('Z', '+00:00'))
-                
+
                 deferral_context = DeferralContext(
                     thought_id=thought_id,
                     task_id=thought.source_task_id,
@@ -117,7 +116,7 @@ class DeferHandler(BaseActionHandler):
                     priority=getattr(defer_params_obj, 'priority', 'medium'),
                     metadata=metadata
                 )
-                
+
                 await self.bus_manager.wise.send_deferral(
                     context=deferral_context,
                     handler_name=self.__class__.__name__
@@ -151,7 +150,7 @@ class DeferHandler(BaseActionHandler):
                 self.logger.error(
                     f"Fallback deferral submission failed for thought {thought_id}: {e_sink_fallback}"
                 )
-                action_performed_successfully = True
+                _action_performed_successfully = True
 
         persistence.update_thought_status(
             thought_id=thought_id,
@@ -165,4 +164,3 @@ class DeferHandler(BaseActionHandler):
         if parent_task_id not in ["WAKEUP_ROOT", "SYSTEM_TASK", "DREAM_TASK"]:
             persistence.update_task_status(parent_task_id, TaskStatus.DEFERRED, self.time_service)
             self.logger.info(f"Marked parent task {parent_task_id} as DEFERRED due to child thought deferral.")
-

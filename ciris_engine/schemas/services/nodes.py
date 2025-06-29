@@ -4,13 +4,15 @@ Graph node type schemas for CIRIS.
 These define all the specialized node types that can be stored in the graph.
 Everything in the graph is a memory - these are the different types of memories.
 """
-from typing import Optional, Dict, List, Union, Any
+from typing import Optional, Dict, List, Union, Any, TYPE_CHECKING
 from datetime import datetime, timezone
-from enum import Enum
 from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType, GraphNodeAttributes
 from ciris_engine.schemas.services.graph_typed_nodes import TypedGraphNode, register_node_type
+
+if TYPE_CHECKING:
+    from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 
 class AuditEntryContext(BaseModel):
     """Typed context for audit entries."""
@@ -29,26 +31,26 @@ class AuditEntry(TypedGraphNode):
     context: AuditEntryContext = Field(..., description="Typed action context")
     signature: Optional[str] = Field(None, description="Cryptographic signature if signed")
     hash_chain: Optional[str] = Field(None, description="Previous hash for chain integrity")
-    
+
     # Required TypedGraphNode fields
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = Field(default="audit_service")
     updated_by: str = Field(default="audit_service")
-    
+
     # Graph node type
     type: NodeType = Field(default=NodeType.AUDIT_ENTRY)
-    
+
     def to_graph_node(self) -> GraphNode:
         """Convert to GraphNode for storage."""
         # Get all fields
         all_attrs = self.model_dump()
-        
+
         # Extract base GraphNode fields
         node_id = all_attrs.get("id", f"audit_{self.timestamp.strftime('%Y%m%d_%H%M%S')}_{self.actor}")
         node_type = self.type
         node_scope = all_attrs.get("scope", GraphScope.LOCAL)
-        
+
         # Build attributes dict with only extra fields
         extra_fields = {
             # Required GraphNodeAttributes fields
@@ -65,7 +67,7 @@ class AuditEntry(TypedGraphNode):
             "hash_chain": self.hash_chain,
             "_node_class": "AuditEntry"
         }
-        
+
         return GraphNode(
             id=node_id,
             type=node_type,
@@ -75,7 +77,7 @@ class AuditEntry(TypedGraphNode):
             updated_by=self.updated_by,
             updated_at=self.updated_at
         )
-    
+
     @classmethod
     def from_graph_node(cls, node: GraphNode) -> 'AuditEntry':
         """Reconstruct from GraphNode."""
@@ -86,19 +88,20 @@ class AuditEntry(TypedGraphNode):
             attrs = node.attributes.model_dump()
         else:
             raise ValueError(f"Invalid attributes type: {type(node.attributes)}")
-        
+
         # Deserialize timestamp
-        timestamp = cls._deserialize_datetime(attrs.get("timestamp", attrs.get("created_at")))
-        created_at = cls._deserialize_datetime(attrs.get("created_at", attrs.get("timestamp")))
-        updated_at = cls._deserialize_datetime(attrs.get("updated_at", attrs.get("created_at")))
-        
+        now = datetime.now(timezone.utc)
+        timestamp = cls._deserialize_datetime(attrs.get("timestamp", attrs.get("created_at"))) or now
+        created_at = cls._deserialize_datetime(attrs.get("created_at", attrs.get("timestamp"))) or now
+        updated_at = cls._deserialize_datetime(attrs.get("updated_at", attrs.get("created_at"))) or now
+
         # Deserialize context
         context_data = attrs.get("context", {})
         if isinstance(context_data, dict):
             context = AuditEntryContext(**context_data)
         else:
             context = AuditEntryContext()
-        
+
         return cls(
             id=node.id,
             type=node.type,
@@ -125,9 +128,9 @@ class ConfigValue(BaseModel):
     bool_value: Optional[bool] = None
     list_value: Optional[List[Union[str, int, float, bool]]] = None
     dict_value: Optional[Dict[str, Union[str, int, float, bool, list, dict, None]]] = None  # Allow None values in dict
-    
+
     @property
-    def value(self):
+    def value(self) -> Optional[Union[str, int, float, bool, List[Union[str, int, float, bool]], Dict[str, Union[str, int, float, bool, list, dict, None]]]]:
         """Get the actual value."""
         for field_name, field_value in self.model_dump().items():
             if field_value is not None:
@@ -143,10 +146,10 @@ class ConfigNode(TypedGraphNode):
     updated_by: str = Field(..., description="Who updated this config")
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     previous_version: Optional[str] = Field(None, description="Node ID of previous version")
-    
+
     # Graph node type - use the enum value
     type: NodeType = Field(default=NodeType.CONFIG)
-    
+
     def to_graph_node(self) -> GraphNode:
         """Convert to GraphNode for storage."""
         # Include both GraphNodeAttributes required fields AND ConfigNode extra fields
@@ -163,17 +166,17 @@ class ConfigNode(TypedGraphNode):
             "previous_version": self.previous_version,
             "_node_class": "ConfigNode"
         }
-        
+
         return GraphNode(
             id=f"config:{self.key}",
             type=self.type,
-            scope=GraphScope.LOCAL,  # Config default to LOCAL scope 
+            scope=GraphScope.LOCAL,  # Config default to LOCAL scope
             attributes=extra_fields,
             version=self.version,
             updated_by=self.updated_by,
             updated_at=self.updated_at
         )
-    
+
     @classmethod
     def from_graph_node(cls, node: GraphNode) -> 'ConfigNode':
         """Reconstruct from GraphNode."""
@@ -184,16 +187,16 @@ class ConfigNode(TypedGraphNode):
             attrs = node.attributes.model_dump()
         else:
             raise ValueError(f"Invalid attributes type: {type(node.attributes)}")
-        
+
         # Parse dates with multiple fallbacks
         updated_at = cls._deserialize_datetime(attrs.get("updated_at"))
         if not updated_at:
             # Try created_at as fallback
             updated_at = cls._deserialize_datetime(attrs.get("created_at"))
-        
+
         # Get updated_by with fallback
         updated_by = attrs.get("updated_by") or attrs.get("created_by", "system")
-        
+
         return cls(
             id=node.id,
             type=node.type,
@@ -229,7 +232,7 @@ class IdentitySnapshot(TypedGraphNode):
     learning_enabled: bool = Field(..., description="Whether learning is enabled")
     adaptation_rate: float = Field(..., description="Rate of adaptation")
     is_baseline: bool = Field(default=False, description="Whether this is a baseline snapshot")
-    
+
     # Additional fields from other versions
     behavioral_patterns: Dict[str, float] = Field(default_factory=dict, description="Behavioral pattern scores")
     config_preferences: Dict[str, str] = Field(default_factory=dict, description="Configuration preferences")
@@ -240,16 +243,16 @@ class IdentitySnapshot(TypedGraphNode):
     expires_at: Optional[datetime] = Field(None, description="When snapshot expires")
     tags: List[str] = Field(default_factory=list, description="Snapshot tags")
     identity_root: Optional[Dict[str, Any]] = Field(None, description="Complete identity data at time")
-    
+
     # Required TypedGraphNode fields
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = Field(default="identity_variance_monitor")
     updated_by: str = Field(default="identity_variance_monitor")
-    
+
     # Graph node type
     type: NodeType = Field(default=NodeType.IDENTITY_SNAPSHOT)
-    
+
     def to_graph_node(self) -> GraphNode:
         """Convert to GraphNode for storage."""
         extra_fields = {
@@ -286,7 +289,7 @@ class IdentitySnapshot(TypedGraphNode):
             "identity_root": self.identity_root,
             "_node_class": "IdentitySnapshot"
         }
-        
+
         return GraphNode(
             id=f"identity_snapshot:{self.snapshot_id}",
             type=self.type,
@@ -296,12 +299,12 @@ class IdentitySnapshot(TypedGraphNode):
             updated_by=self.updated_by,
             updated_at=self.updated_at
         )
-    
+
     @classmethod
     def from_graph_node(cls, node: GraphNode) -> 'IdentitySnapshot':
         """Reconstruct from GraphNode."""
         attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
-        
+
         return cls(
             # Base fields from GraphNode
             id=node.id,
@@ -309,11 +312,11 @@ class IdentitySnapshot(TypedGraphNode):
             scope=node.scope,
             attributes=node.attributes,
             version=node.version,
-            updated_by=node.updated_by,
-            updated_at=node.updated_at,
+            updated_by=node.updated_by or "identity_variance_monitor",
+            updated_at=node.updated_at or datetime.now(timezone.utc),
             # Extra fields from attributes
             snapshot_id=attrs["snapshot_id"],
-            timestamp=cls._deserialize_datetime(attrs["timestamp"]),
+            timestamp=cls._deserialize_datetime(attrs["timestamp"]) or datetime.now(timezone.utc),
             agent_id=attrs["agent_id"],
             identity_hash=attrs["identity_hash"],
             core_purpose=attrs["core_purpose"],
@@ -336,7 +339,7 @@ class IdentitySnapshot(TypedGraphNode):
             expires_at=cls._deserialize_datetime(attrs.get("expires_at")) if attrs.get("expires_at") else None,
             tags=attrs.get("tags", []),
             identity_root=attrs.get("identity_root"),
-            created_at=cls._deserialize_datetime(attrs.get("created_at")),
+            created_at=cls._deserialize_datetime(attrs.get("created_at")) or datetime.now(timezone.utc),
             created_by=attrs.get("created_by", "identity_variance_monitor")
         )
 
@@ -347,35 +350,35 @@ class TSDBSummary(TypedGraphNode):
     period_start: datetime = Field(..., description="Start of the consolidation period")
     period_end: datetime = Field(..., description="End of the consolidation period")
     period_label: str = Field(..., description="Human-readable period label")
-    
+
     # Aggregated metrics by category
     metrics: Dict[str, Dict[str, float]] = Field(default_factory=dict, description="Aggregated metrics by category")
-    
+
     # Resource totals
     total_tokens: int = Field(0, description="Total tokens used in period")
     total_cost_cents: float = Field(0.0, description="Total cost in cents")
     total_carbon_grams: float = Field(0.0, description="Total carbon emissions in grams")
     total_energy_kwh: float = Field(0.0, description="Total energy used in kWh")
-    
+
     # Action summary
     action_counts: Dict[str, int] = Field(default_factory=dict, description="Count of each action type")
     error_count: int = Field(0, description="Total errors in period")
     success_rate: float = Field(1.0, description="Success rate (0-1)")
-    
+
     # Metadata
     source_node_count: int = Field(..., description="Number of source nodes consolidated")
     consolidation_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     raw_data_expired: bool = Field(False, description="Whether raw data has been deleted")
-    
+
     # Required TypedGraphNode fields
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = Field(default="TSDBConsolidationService")
     updated_by: str = Field(default="TSDBConsolidationService")
-    
+
     # Graph node type
     type: NodeType = Field(default=NodeType.TSDB_SUMMARY)
-    
+
     def to_graph_node(self) -> GraphNode:
         """Convert to GraphNode for storage."""
         extra_fields = {
@@ -401,7 +404,7 @@ class TSDBSummary(TypedGraphNode):
             "raw_data_expired": self.raw_data_expired,
             "_node_class": "TSDBSummary"
         }
-        
+
         return GraphNode(
             id=self.id,
             type=self.type,
@@ -411,12 +414,12 @@ class TSDBSummary(TypedGraphNode):
             updated_by=self.updated_by or "TSDBConsolidationService",
             updated_at=self.updated_at or self.consolidation_timestamp
         )
-    
+
     @classmethod
     def from_graph_node(cls, node: GraphNode) -> 'TSDBSummary':
         """Reconstruct from GraphNode."""
         attrs = node.attributes if isinstance(node.attributes, dict) else {}
-        
+
         return cls(
             # Base fields from GraphNode
             id=node.id,
@@ -424,11 +427,11 @@ class TSDBSummary(TypedGraphNode):
             scope=node.scope,
             attributes=node.attributes,  # Must pass this for GraphNode base class
             version=node.version,
-            updated_by=node.updated_by,
-            updated_at=node.updated_at,
+            updated_by=node.updated_by or "tsdb_consolidation",
+            updated_at=node.updated_at or datetime.now(timezone.utc),
             # Extra fields from attributes
-            period_start=cls._deserialize_datetime(attrs["period_start"]),
-            period_end=cls._deserialize_datetime(attrs["period_end"]),
+            period_start=cls._deserialize_datetime(attrs["period_start"]) or datetime.now(timezone.utc),
+            period_end=cls._deserialize_datetime(attrs["period_end"]) or datetime.now(timezone.utc),
             period_label=attrs["period_label"],
             metrics=attrs.get("metrics", {}),
             total_tokens=attrs.get("total_tokens", 0),
@@ -439,7 +442,7 @@ class TSDBSummary(TypedGraphNode):
             error_count=attrs.get("error_count", 0),
             success_rate=attrs.get("success_rate", 1.0),
             source_node_count=attrs["source_node_count"],
-            consolidation_timestamp=cls._deserialize_datetime(attrs.get("consolidation_timestamp")),
+            consolidation_timestamp=cls._deserialize_datetime(attrs.get("consolidation_timestamp")) or datetime.now(timezone.utc),
             raw_data_expired=attrs.get("raw_data_expired", False)
         )
 
@@ -450,23 +453,23 @@ class IdentityNode(TypedGraphNode):
     # Identity fields from AgentIdentityRoot
     agent_id: str = Field(..., description="Unique agent identifier")
     identity_hash: str = Field(..., description="Hash of identity for integrity")
-    
+
     # Core profile fields from CoreProfile
     description: str = Field(..., description="Agent's self-description")
     role_description: str = Field(..., description="Agent's role and purpose")
     domain_specific_knowledge: Dict[str, str] = Field(default_factory=dict, description="Domain expertise mappings")
     areas_of_expertise: List[str] = Field(default_factory=list, description="Areas where agent has expertise")
     startup_instructions: Optional[str] = Field(None, description="Instructions for startup")
-    
+
     # Capabilities and permissions from AgentIdentityRoot
     permitted_actions: List[str] = Field(default_factory=list, description="Actions this agent can perform")
     restricted_capabilities: List[str] = Field(default_factory=list, description="Explicitly restricted capabilities")
-    
+
     # Trust and authorization from AgentIdentityRoot
     trust_level: float = Field(0.5, ge=0.0, le=1.0, description="Agent trust level")
     authorization_scope: str = Field("standard", description="Authorization scope")
     parent_agent_id: Optional[str] = Field(None, description="Parent agent if spawned")
-    
+
     # Identity metadata
     identity_created_at: datetime = Field(..., description="When identity was created")
     identity_modified_at: datetime = Field(..., description="When identity was last modified")
@@ -476,22 +479,22 @@ class IdentityNode(TypedGraphNode):
     approval_required: bool = Field(default=True, description="Whether changes need approval")
     approved_by: Optional[str] = Field(None, description="Who approved this identity")
     approval_timestamp: Optional[datetime] = Field(None, description="When approved")
-    
+
     # Required TypedGraphNode fields
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = Field(default="system")
     updated_by: str = Field(default="system")
-    
+
     # Graph node type
     type: NodeType = Field(default=NodeType.AGENT)
     scope: GraphScope = Field(default=GraphScope.IDENTITY)
-    
+
     # Base GraphNode fields (required by TypedGraphNode)
     id: str = Field(default="agent/identity", description="Node ID")
     attributes: Optional[Union[GraphNodeAttributes, Dict[str, Any]]] = Field(default=None, description="Raw attributes")
     version: int = Field(default=1, description="Version number")
-    
+
     def to_graph_node(self) -> GraphNode:
         """Convert to GraphNode for storage."""
         # Pack all identity data into attributes
@@ -527,7 +530,7 @@ class IdentityNode(TypedGraphNode):
             "approval_timestamp": self.approval_timestamp.isoformat() if self.approval_timestamp else None,
             "_node_class": "IdentityNode"
         }
-        
+
         return GraphNode(
             id="agent/identity",  # Always the same ID - there's only one identity
             type=self.type,
@@ -537,7 +540,7 @@ class IdentityNode(TypedGraphNode):
             updated_by=self.updated_by,
             updated_at=self.updated_at
         )
-    
+
     @classmethod
     def from_graph_node(cls, node: GraphNode) -> 'IdentityNode':
         """Reconstruct from GraphNode."""
@@ -548,7 +551,7 @@ class IdentityNode(TypedGraphNode):
             attrs = node.attributes.model_dump()
         else:
             raise ValueError(f"Invalid attributes type: {type(node.attributes)}")
-        
+
         return cls(
             # Base fields from GraphNode
             id=node.id,
@@ -557,9 +560,9 @@ class IdentityNode(TypedGraphNode):
             attributes=node.attributes,
             version=node.version,
             updated_by=node.updated_by or attrs.get("updated_by", "system"),
-            updated_at=cls._deserialize_datetime(node.updated_at or attrs.get("updated_at")),
+            updated_at=cls._deserialize_datetime(node.updated_at or attrs.get("updated_at")) or datetime.now(timezone.utc),
             # Required fields
-            created_at=cls._deserialize_datetime(attrs.get("created_at")),
+            created_at=cls._deserialize_datetime(attrs.get("created_at")) or datetime.now(timezone.utc),
             created_by=attrs.get("created_by", "system"),
             # Identity fields
             agent_id=attrs["agent_id"],
@@ -577,8 +580,8 @@ class IdentityNode(TypedGraphNode):
             permitted_actions=attrs.get("permitted_actions", []),
             restricted_capabilities=attrs.get("restricted_capabilities", []),
             # Identity metadata
-            identity_created_at=cls._deserialize_datetime(attrs["identity_created_at"]),
-            identity_modified_at=cls._deserialize_datetime(attrs["identity_modified_at"]),
+            identity_created_at=cls._deserialize_datetime(attrs["identity_created_at"]) or datetime.now(timezone.utc),
+            identity_modified_at=cls._deserialize_datetime(attrs["identity_modified_at"]) or datetime.now(timezone.utc),
             modification_count=attrs.get("modification_count", 0),
             creator_agent_id=attrs["creator_agent_id"],
             lineage_trace=attrs.get("lineage_trace", []),
@@ -586,12 +589,11 @@ class IdentityNode(TypedGraphNode):
             approved_by=attrs.get("approved_by"),
             approval_timestamp=cls._deserialize_datetime(attrs.get("approval_timestamp")) if attrs.get("approval_timestamp") else None
         )
-    
+
     @classmethod
-    def from_agent_identity_root(cls, identity: 'AgentIdentityRoot', time_service) -> 'IdentityNode':
+    def from_agent_identity_root(cls, identity: 'AgentIdentityRoot', time_service: Any) -> 'IdentityNode':
         """Create from AgentIdentityRoot object."""
-        from ciris_engine.schemas.runtime.core import AgentIdentityRoot
-        
+
         now = time_service.now()
         return cls(
             agent_id=identity.agent_id,
@@ -622,11 +624,11 @@ class IdentityNode(TypedGraphNode):
             created_by="system",
             updated_by="system"
         )
-    
+
     def to_agent_identity_root(self) -> 'AgentIdentityRoot':
         """Convert back to AgentIdentityRoot."""
         from ciris_engine.schemas.runtime.core import AgentIdentityRoot, CoreProfile, IdentityMetadata
-        
+
         return AgentIdentityRoot(
             agent_id=self.agent_id,
             identity_hash=self.identity_hash,

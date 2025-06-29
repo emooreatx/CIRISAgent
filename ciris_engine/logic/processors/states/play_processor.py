@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 class PlayProcessor(WorkProcessor):
     """
     Handles the PLAY state for creative and experimental processing.
-    
+
     Currently inherits from WorkProcessor but can be customized for:
     - Creative task prioritization
     - Experimental prompt variations
     - Less constrained processing
     - Learning through exploration
     """
-    
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize play processor."""
         super().__init__(*args, **kwargs)
@@ -31,36 +31,36 @@ class PlayProcessor(WorkProcessor):
             "experiments_run": 0,
             "novel_approaches_tried": 0
         }
-    
+
     def get_supported_states(self) -> List[AgentState]:
         """Play processor only handles PLAY state."""
         return [AgentState.PLAY]
-    
+
     async def process(self, round_number: int) -> PlayResult:
         """
         Execute one round of play processing.
         Currently delegates to work processing but logs differently.
         """
         logger.info(f"--- Starting Play Round {round_number} (Creative Mode) ---")
-        
+
         # Get WorkResult from parent
         work_result = await super().process(round_number)
-        
+
         # Track creative metrics
         self.play_metrics["creative_tasks_processed"] += work_result.thoughts_processed
-        
+
         logger.info(
             f"--- Finished Play Round {round_number} "
             f"(Processed: {work_result.thoughts_processed} creative thoughts) ---"
         )
-        
+
         # Convert to PlayResult
         return PlayResult(
             thoughts_processed=work_result.thoughts_processed,
             errors=work_result.errors,
             duration_seconds=work_result.duration_seconds
         )
-    
+
     def get_play_stats(self) -> dict:
         """Get play-specific statistics."""
         base_stats = {
@@ -81,7 +81,7 @@ class PlayProcessor(WorkProcessor):
             "creativity_level": self._calculate_creativity_level()
         })
         return base_stats
-    
+
     def _calculate_creativity_level(self) -> float:
         """
         Calculate a creativity level based on play metrics.
@@ -89,24 +89,24 @@ class PlayProcessor(WorkProcessor):
         """
         if self.play_metrics["creative_tasks_processed"] == 0:
             return 0.0
-        
+
         # Simple formula - can be made more sophisticated
         experiments_ratio = (
-            self.play_metrics["experiments_run"] / 
+            self.play_metrics["experiments_run"] /
             max(self.play_metrics["creative_tasks_processed"], 1)
         )
-        
+
         novel_ratio = (
-            self.play_metrics["novel_approaches_tried"] / 
+            self.play_metrics["novel_approaches_tried"] /
             max(self.play_metrics["creative_tasks_processed"], 1)
         )
-        
+
         return min((experiments_ratio + novel_ratio) / 2, 1.0)
-    
+
     async def _prioritize_creative_tasks(self, tasks: List[Any]) -> List[Any]:
         """
         Prioritize tasks that are marked as creative or experimental.
-        
+
         Future implementation could:
         - Look for tasks with creative tags
         - Boost priority of experimental tasks
@@ -114,20 +114,20 @@ class PlayProcessor(WorkProcessor):
         """
         # For now, return tasks as-is
         return tasks
-    
+
     def should_experiment(self, thought_content: str) -> bool:
         """
         Determine if we should try an experimental approach.
-        
+
         Args:
             thought_content: The content of the thought being processed
-            
+
         Returns:
             True if experimental approach should be tried
         """
         # Future implementation could analyze thought content
         # and decide when to try novel approaches
-        
+
         # Simple heuristic for now - experiment 20% of the time
         import secrets
         return secrets.randbelow(100) < 20
@@ -137,7 +137,7 @@ class PlayProcessor(WorkProcessor):
         base_status = super().get_status()
         play_stats = self.get_play_stats()
         base_status.update({
-            "processor_type": "play", 
+            "processor_type": "play",
             "play_stats": play_stats,
             "creativity_level": self._calculate_creativity_level()
         })

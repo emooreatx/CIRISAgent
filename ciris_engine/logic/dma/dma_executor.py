@@ -58,10 +58,10 @@ async def run_dma_with_retries(
                 )
             elif attempt == retry_limit:
                 logger.warning(
-                    "DMA %s final attempt %s failed (same error repeated %s times)", 
+                    "DMA %s final attempt %s failed (same error repeated %s times)",
                     run_fn.__name__, attempt, attempt - 1
                 )
-            
+
             # Add small delay between retries to reduce log spam
             if attempt < retry_limit:
                 await asyncio.sleep(0.1)  # 100ms delay
@@ -133,15 +133,15 @@ async def run_action_selection_pdma(
 ) -> ActionSelectionDMAResult:
     """Select the next handler action using the triaged DMA results."""
     logger.debug(f"run_action_selection_pdma: Starting evaluation for thought {triaged_inputs.get('original_thought', {}).thought_id if triaged_inputs.get('original_thought') else 'UNKNOWN'}")
-    
+
     result = await evaluator.evaluate(input_data=triaged_inputs)
-    
+
     logger.debug(f"run_action_selection_pdma: Evaluation completed. Result type: {type(result)}, Result: {result}")
     if result is None:
-        logger.error(f"run_action_selection_pdma: evaluator.evaluate() returned None!")  # type: ignore[unreachable]
+        logger.error("run_action_selection_pdma: evaluator.evaluate() returned None!")
     elif hasattr(result, 'selected_action'):
         logger.debug(f"run_action_selection_pdma: Selected action: {result.selected_action}")
         if result.selected_action == HandlerActionType.OBSERVE:
-            logger.warning(f"OBSERVE ACTION DEBUG: run_action_selection_pdma returning OBSERVE action successfully")
-    
+            logger.warning("OBSERVE ACTION DEBUG: run_action_selection_pdma returning OBSERVE action successfully")
+
     return result

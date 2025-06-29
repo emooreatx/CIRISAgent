@@ -31,7 +31,7 @@ def client(app):
 def mock_config_service():
     """Create mock config service."""
     service = AsyncMock()
-    
+
     # Mock filter configuration as config keys
     filter_config = {
         # Filter settings
@@ -40,7 +40,7 @@ def mock_config_service():
         "filter.adjustment_interval": 3600,
         "filter.effectiveness_threshold": 0.1,
         "filter.false_positive_threshold": 0.2,
-        
+
         # Filter rules (stored as JSON strings in config)
         "filter.rules.attention.dm_detection": {
             "trigger_id": "dm_detect",
@@ -60,29 +60,29 @@ def mock_config_service():
             "description": "Common spam pattern",
             "enabled": True
         },
-        
+
         # Filter statistics (read-only)
         "filter.stats.total_messages": 1000,
         "filter.stats.total_filtered": 100,
         "filter.stats.false_positives": 5,
         "filter.stats.true_positives": 95,
     }
-    
+
     async def get_all_configs():
         return filter_config
-    
+
     async def get_config(key=None):
         if key is None:
             return filter_config
         return filter_config.get(key)
-    
+
     async def set_config(key, value, updated_by="test"):
         filter_config[key] = value
-    
+
     service.get_all_configs = get_all_configs
     service.get_config = get_config
     service.set_config = set_config
-    
+
     return service
 
 
@@ -100,7 +100,7 @@ def auth_headers():
 def mock_auth_service():
     """Create mock auth service that validates test keys."""
     service = AsyncMock()
-    
+
     async def validate_key(key):
         if key == "test_observer_key":
             return MagicMock(user_id="observer_user", role=UserRole.OBSERVER)
@@ -109,7 +109,7 @@ def mock_auth_service():
         elif key == "test_root_key":
             return MagicMock(user_id="root_user", role=UserRole.ROOT)
         return None
-    
+
     service.validate_api_key = validate_key
     service._get_key_id = lambda key: f"key_{key[:10]}"
     return service
@@ -123,41 +123,41 @@ def setup_app_state(app, mock_config_service, mock_auth_service):
 
 class TestFilterConfigRetrieval:
     """Test retrieving filter configuration through config API."""
-    
+
     def test_list_filter_configs(self, client, app, mock_config_service, mock_auth_service, auth_headers):
         """Test listing all filter configurations."""
         setup_app_state(app, mock_config_service, mock_auth_service)
-        
+
         # Get all filter configs
         response = client.get("/v1/config?prefix=filter.", headers=auth_headers["observer"])
         assert response.status_code == 200
-        
+
         data = response.json()["data"]
         configs = data["configs"]
-        
+
         # Check filter settings are present
         filter_enabled = next(c for c in configs if c["key"] == "filter.enabled")
         assert filter_enabled["value"] is True
-        
+
         # Check filter rules are present
         dm_rule = next(c for c in configs if c["key"] == "filter.rules.attention.dm_detection")
         assert dm_rule["value"]["trigger_id"] == "dm_detect"
         assert dm_rule["value"]["priority"] == "critical"
-        
+
         # Check stats are present
         total_messages = next(c for c in configs if c["key"] == "filter.stats.total_messages")
         assert total_messages["value"] == 1000
-    
+
     def test_get_specific_filter_rule(self, client, app, mock_config_service, mock_auth_service, auth_headers):
         """Test getting a specific filter rule."""
         setup_app_state(app, mock_config_service, mock_auth_service)
-        
+
         response = client.get(
             "/v1/config/filter.rules.review.spam_pattern",
             headers=auth_headers["observer"]
         )
         assert response.status_code == 200
-        
+
         data = response.json()["data"]
         assert data["key"] == "filter.rules.review.spam_pattern"
         assert data["value"]["pattern"] == "buy.*now"
@@ -166,11 +166,11 @@ class TestFilterConfigRetrieval:
 
 class TestFilterConfigUpdate:
     """Test updating filter configuration through config API."""
-    
+
     def test_update_filter_settings(self, client, app, mock_config_service, mock_auth_service, auth_headers):
         """Test updating filter settings."""
         setup_app_state(app, mock_config_service, mock_auth_service)
-        
+
         # Update auto-adjust setting
         response = client.put(
             "/v1/config/filter.auto_adjust",
@@ -178,15 +178,15 @@ class TestFilterConfigUpdate:
             headers=auth_headers["admin"]
         )
         assert response.status_code == 200
-        
+
         data = response.json()["data"]
         assert data["value"] is False
         assert data["updated_by"] == "admin_user"
-    
+
     def test_add_filter_rule(self, client, app, mock_config_service, mock_auth_service, auth_headers):
         """Test adding a new filter rule."""
         setup_app_state(app, mock_config_service, mock_auth_service)
-        
+
         new_rule = {
             "trigger_id": "link_spam",
             "name": "Link Spam",
@@ -196,59 +196,59 @@ class TestFilterConfigUpdate:
             "description": "Suspicious shortened URLs",
             "enabled": True
         }
-        
+
         response = client.put(
             "/v1/config/filter.rules.review.link_spam",
             json={"value": new_rule, "reason": "Adding new spam detection rule"},
             headers=auth_headers["admin"]
         )
         assert response.status_code == 200
-        
+
         data = response.json()["data"]
         assert data["value"]["trigger_id"] == "link_spam"
-    
+
     def test_disable_filter_rule(self, client, app, mock_config_service, mock_auth_service, auth_headers):
         """Test disabling a filter rule by updating its enabled status."""
         setup_app_state(app, mock_config_service, mock_auth_service)
-        
+
         # First get the existing rule
         response = client.get(
             "/v1/config/filter.rules.attention.dm_detection",
             headers=auth_headers["admin"]
         )
         rule = response.json()["data"]["value"]
-        
+
         # Update enabled status
         rule["enabled"] = False
-        
+
         response = client.put(
             "/v1/config/filter.rules.attention.dm_detection",
             json={"value": rule, "reason": "Temporarily disabling DM detection"},
             headers=auth_headers["admin"]
         )
         assert response.status_code == 200
-        
+
         data = response.json()["data"]
         assert data["value"]["enabled"] is False
-    
+
     def test_remove_filter_rule(self, client, app, mock_config_service, mock_auth_service, auth_headers):
         """Test removing a filter rule."""
         setup_app_state(app, mock_config_service, mock_auth_service)
-        
+
         response = client.delete(
             "/v1/config/filter.rules.review.spam_pattern",
             headers=auth_headers["admin"]
         )
         assert response.status_code == 200
-        
+
         data = response.json()["data"]
         assert data["status"] == "deleted"
         assert data["key"] == "filter.rules.review.spam_pattern"
-    
+
     def test_update_filter_requires_admin(self, client, app, mock_config_service, mock_auth_service, auth_headers):
         """Test that filter updates require admin permissions."""
         setup_app_state(app, mock_config_service, mock_auth_service)
-        
+
         # Try with observer role
         response = client.put(
             "/v1/config/filter.enabled",
@@ -261,30 +261,30 @@ class TestFilterConfigUpdate:
 
 class TestFilterStats:
     """Test reading filter statistics through config API."""
-    
+
     def test_read_filter_stats(self, client, app, mock_config_service, mock_auth_service, auth_headers):
         """Test reading filter statistics as config values."""
         setup_app_state(app, mock_config_service, mock_auth_service)
-        
+
         # Get all stats
         response = client.get("/v1/config?prefix=filter.stats.", headers=auth_headers["observer"])
         assert response.status_code == 200
-        
+
         data = response.json()["data"]
         configs = data["configs"]
-        
+
         # Check stats values
         stats_by_key = {c["key"]: c["value"] for c in configs}
-        
+
         assert stats_by_key["filter.stats.total_messages"] == 1000
         assert stats_by_key["filter.stats.total_filtered"] == 100
         assert stats_by_key["filter.stats.false_positives"] == 5
         assert stats_by_key["filter.stats.true_positives"] == 95
-        
+
         # Calculate effectiveness
         filter_rate = 100 / 1000 * 100  # 10%
         effectiveness = 95 / (95 + 5)  # 95%
-        
+
         assert filter_rate == 10.0
         assert effectiveness == 0.95
 

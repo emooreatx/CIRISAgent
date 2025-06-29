@@ -26,7 +26,7 @@ async def test_llm_service_lifecycle(llm_service):
     # Start
     await llm_service.start()
     # Service doesn't track running state, but should not error
-    
+
     # Stop
     await llm_service.stop()
     # Should complete without error
@@ -43,17 +43,17 @@ async def test_llm_service_call_structured(llm_service):
         reasoning="This is a test",
         evaluation_time_ms=100
     )
-    
-    with patch.object(llm_service.instruct_client.chat.completions, 'create', 
+
+    with patch.object(llm_service.instruct_client.chat.completions, 'create',
                      AsyncMock(return_value=mock_result)):
-        
+
         result, usage = await llm_service.call_llm_structured(
             messages=[{"role": "user", "content": "Hello"}],
             response_model=ActionSelectionDMAResult,
             max_tokens=1024,
             temperature=0.0
         )
-        
+
         assert isinstance(result, ActionSelectionDMAResult)
         assert result.selected_action == HandlerActionType.SPEAK
         assert result.rationale == "Test response reasoning"
@@ -65,9 +65,9 @@ async def test_llm_service_retry_logic(llm_service):
     """Test LLM retry logic on failures."""
     # Mock to fail twice then succeed
     call_count = 0
-    
+
     from openai import APIConnectionError
-    
+
     async def mock_create(*args, **kwargs):
         nonlocal call_count
         call_count += 1
@@ -76,28 +76,28 @@ async def test_llm_service_retry_logic(llm_service):
             import httpx
             request = httpx.Request(method="POST", url="https://api.openai.com/v1/chat/completions")
             raise APIConnectionError(request=request)
-        
+
         # Create a simple dict as response
         from pydantic import BaseModel
         class TestResponse(BaseModel):
             test: str
-        
+
         return TestResponse(test="data")
-    
+
     with patch.object(llm_service.instruct_client.chat.completions, 'create',
                      AsyncMock(side_effect=mock_create)):
-        
+
         from pydantic import BaseModel
         class TestResponse(BaseModel):
             test: str
-            
+
         result, usage = await llm_service.call_llm_structured(
             messages=[{"role": "user", "content": "Test"}],
             response_model=TestResponse,
             max_tokens=1024,
             temperature=0.0
         )
-        
+
         assert result.test == "data"
         assert call_count == 3  # Failed twice, succeeded on third
 
@@ -107,18 +107,18 @@ async def test_llm_service_max_retries_exceeded(llm_service):
     """Test LLM behavior when max retries exceeded."""
     # Mock to always fail with retryable error
     from openai import APIConnectionError
-    
+
     # APIConnectionError requires a request object
     import httpx
     request = httpx.Request(method="POST", url="https://api.openai.com/v1/chat/completions")
-    
+
     with patch.object(llm_service.instruct_client.chat.completions, 'create',
                      AsyncMock(side_effect=APIConnectionError(request=request))):
-        
+
         from pydantic import BaseModel
         class TestResponse(BaseModel):
             test: str
-            
+
         with pytest.raises(APIConnectionError) as exc_info:
             await llm_service.call_llm_structured(
                 messages=[{"role": "user", "content": "Test"}],
@@ -126,7 +126,7 @@ async def test_llm_service_max_retries_exceeded(llm_service):
                 max_tokens=1024,
                 temperature=0.0
             )
-        
+
         # APIConnectionError doesn't preserve custom message, just check it was raised
         assert "Connection error" in str(exc_info.value)
 
@@ -166,19 +166,19 @@ async def test_llm_service_temperature_override(llm_service):
     from pydantic import BaseModel
     class TestResponse(BaseModel):
         result: str
-    
+
     mock_result = TestResponse(result="test")
-    
+
     with patch.object(llm_service.instruct_client.chat.completions, 'create',
                      AsyncMock(return_value=mock_result)) as mock_create:
-        
+
         result, usage = await llm_service.call_llm_structured(
             messages=[{"role": "user", "content": "Test"}],
             response_model=TestResponse,
             max_tokens=1024,
             temperature=0.5
         )
-        
+
         # Verify temperature was passed
         call_args = mock_create.call_args[1]
         assert call_args['temperature'] == 0.5
@@ -190,12 +190,12 @@ async def test_llm_service_model_override(llm_service):
     from pydantic import BaseModel
     class TestResponse(BaseModel):
         result: str
-    
+
     mock_result = TestResponse(result="test")
-    
+
     with patch.object(llm_service.instruct_client.chat.completions, 'create',
                      AsyncMock(return_value=mock_result)) as mock_create:
-        
+
         # Note: call_llm_structured doesn't accept a model parameter
         result, usage = await llm_service.call_llm_structured(
             messages=[{"role": "user", "content": "Test"}],
@@ -203,7 +203,7 @@ async def test_llm_service_model_override(llm_service):
             max_tokens=1024,
             temperature=0.0
         )
-        
+
         # Verify the configured model was used
         call_args = mock_create.call_args[1]
         assert call_args['model'] == llm_service.model_name
@@ -213,26 +213,26 @@ async def test_llm_service_model_override(llm_service):
 async def test_llm_service_pydantic_response(llm_service):
     """Test LLM with Pydantic model response format."""
     from pydantic import BaseModel
-    
+
     class TestResponse(BaseModel):
         message: str
         status: str
-    
+
     mock_result = TestResponse(
         message="Hello",
         status="completed"
     )
-    
+
     with patch.object(llm_service.instruct_client.chat.completions, 'create',
                      AsyncMock(return_value=mock_result)):
-        
+
         result, usage = await llm_service.call_llm_structured(
             messages=[{"role": "user", "content": "Hi"}],
             response_model=TestResponse,
             max_tokens=1024,
             temperature=0.0
         )
-        
+
         assert isinstance(result, TestResponse)
         assert result.message == "Hello"
         assert result.status == "completed"
@@ -247,21 +247,21 @@ async def test_llm_service_error_handling(llm_service):
         config = OpenAIConfig(api_key='')  # Empty API key
         service = OpenAICompatibleClient(config=config)
     assert "No OpenAI API key found" in str(exc_info.value)
-    
+
     # Test network error
     from openai import APIConnectionError
     from pydantic import BaseModel
-    
+
     class TestResponse(BaseModel):
         test: str
-    
+
     # APIConnectionError requires a request object
     import httpx
     request = httpx.Request(method="POST", url="https://api.openai.com/v1/chat/completions")
-    
+
     with patch.object(llm_service.instruct_client.chat.completions, 'create',
                      AsyncMock(side_effect=APIConnectionError(request=request))):
-        
+
         with pytest.raises(APIConnectionError):
             await llm_service.call_llm_structured(
                 messages=[{"role": "user", "content": "Test"}],

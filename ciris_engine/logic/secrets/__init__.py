@@ -6,7 +6,7 @@ All secrets are encrypted at rest and access is audited.
 
 Key components:
 - SecretsFilter: Detects and filters secrets from content
-- SecretsStore: Encrypted storage and retrieval of secrets  
+- SecretsStore: Encrypted storage and retrieval of secrets
 - SecretsService: Main service coordinating secrets management
 - SecretTools: Agent tools for managing secrets
 """
@@ -24,7 +24,7 @@ __all__ = [
     "DetectedSecret",
     "SecretsStore",
     "SecretsEncryption",
-    "SecretRecord", 
+    "SecretRecord",
     "SecretAccessLog",
     "SecretsService",
 ]

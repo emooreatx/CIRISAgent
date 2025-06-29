@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, Optional, Dict, Any, Union
 
 from ..models import (
-    TelemetrySnapshot, SystemHealth, ServiceInfo, ProcessorState, 
+    TelemetrySnapshot, SystemHealth, ServiceInfo, ProcessorState,
     MetricRecord, AdapterInfo
 )
 from ..transport import Transport
@@ -93,7 +93,7 @@ class SystemResource:
     ) -> List[Dict[str, Any]]:
         """Get historical data for a specific metric."""
         resp = await self._transport.request(
-            "GET", 
+            "GET",
             f"/v1/system/metrics/{metric_name}/history",
             params={"hours": str(hours)}
         )

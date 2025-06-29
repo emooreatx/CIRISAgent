@@ -13,64 +13,64 @@ from typing import Any, Dict, List, Optional, Type
 
 from ciris_engine.protocols.services import ServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType, Priority
+from ciris_engine.schemas.runtime.manifest import ServiceManifest, ModuleLoadResult, ServiceMetadata, ServicePriority
 
 logger = logging.getLogger(__name__)
 
 class ModularServiceLoader:
     """Loads modular services from external packages."""
-    
+
     def __init__(self, services_dir: Path = None):
         self.services_dir = services_dir or Path("ciris_modular_services")
-        self.loaded_services: Dict[str, Any] = {}
-        
-    def discover_services(self) -> List[Dict[str, Any]]:
+        self.loaded_services: Dict[str, ServiceMetadata] = {}
+
+    def discover_services(self) -> List[ServiceManifest]:
         """Discover all modular services with valid manifests."""
         services = []
-        
+
         if not self.services_dir.exists():
             logger.info(f"Modular services directory not found: {self.services_dir}")
             return services
-            
+
         for service_dir in self.services_dir.iterdir():
             if not service_dir.is_dir() or service_dir.name.startswith("_"):
                 continue
-                
+
             manifest_path = service_dir / "manifest.json"
             if manifest_path.exists():
                 try:
                     with open(manifest_path) as f:
-                        manifest = json.load(f)
-                    manifest["path"] = service_dir
+                        manifest_data = json.load(f)
+                    
+                    # Parse into typed manifest
+                    manifest = ServiceManifest.model_validate(manifest_data)
+                    # Store path separately for loading
+                    setattr(manifest, '_path', service_dir)
                     services.append(manifest)
-                    logger.info(f"Discovered modular service: {manifest['service']['name']}")
+                    logger.info(f"Discovered modular service: {manifest.module.name}")
                 except Exception as e:
                     logger.error(f"Failed to load manifest from {service_dir}: {e}")
-                    
+
         return services
-    
-    def validate_manifest(self, manifest: Dict[str, Any]) -> bool:
+
+    def validate_manifest(self, manifest: ServiceManifest) -> bool:
         """Validate a service manifest has required fields."""
-        required = ["service", "capabilities", "dependencies", "exports"]
-        for field in required:
-            if field not in manifest:
-                logger.error(f"Manifest missing required field: {field}")
-                return False
-                
-        service_info = manifest["service"]
-        required_service_fields = ["name", "version", "type"]
-        for field in required_service_fields:
-            if field not in service_info:
-                logger.error(f"Service info missing required field: {field}")
-                return False
-                
+        # Use the manifest's built-in validation
+        errors = manifest.validate_manifest()
+        if errors:
+            for error in errors:
+                logger.error(f"Manifest validation error: {error}")
+            return False
         return True
-    
-    def check_dependencies(self, manifest: Dict[str, Any]) -> bool:
+
+    def check_dependencies(self, manifest: ServiceManifest) -> bool:
         """Check if service dependencies are available."""
-        deps = manifest.get("dependencies", {})
-        
+        # Check legacy dependencies format if present
+        if not manifest.dependencies:
+            return True
+            
         # Check protocol dependencies
-        for protocol in deps.get("protocols", []):
+        for protocol in manifest.dependencies.protocols:
             try:
                 parts = protocol.split(".")
                 module = importlib.import_module(".".join(parts[:-1]))
@@ -80,110 +80,138 @@ class ModularServiceLoader:
             except ImportError as e:
                 logger.error(f"Failed to import protocol {protocol}: {e}")
                 return False
-                
+
         # Check schema dependencies
-        for schema in deps.get("schemas", []):
+        for schema in manifest.dependencies.schemas:
             try:
                 importlib.import_module(schema)
             except ImportError as e:
                 logger.error(f"Failed to import schema {schema}: {e}")
                 return False
-                
+
         return True
-    
-    def load_service(self, manifest: Dict[str, Any]) -> Optional[Type[ServiceProtocol]]:
+
+    def load_service(self, manifest: ServiceManifest) -> Optional[Type[ServiceProtocol]]:
         """Dynamically load a service class from manifest."""
         if not self.validate_manifest(manifest):
             return None
-            
+
         if not self.check_dependencies(manifest):
-            logger.error(f"Dependencies not satisfied for {manifest['service']['name']}")
+            logger.error(f"Dependencies not satisfied for {manifest.module.name}")
             return None
-            
-        service_path = manifest["path"]
-        service_name = manifest["service"]["name"]
-        
+
+        _service_path = getattr(manifest, '_path', None)
+        if not _service_path:
+            logger.error("Manifest missing path information")
+            return None
+        service_name = manifest.module.name
+
         # Add service directory to Python path temporarily
         import sys
         sys.path.insert(0, str(self.services_dir))
-        
+
         try:
             # Import the service module
-            exports = manifest["exports"]
-            service_class_path = exports["service_class"]
+            # For new manifest format, get class path from services
+            if manifest.services:
+                service_class_path = manifest.services[0].class_path
+            elif manifest.exports and "service_class" in manifest.exports:
+                # Legacy format support
+                service_class_path = manifest.exports["service_class"]
+            else:
+                logger.error("No service class path found in manifest")
+                return None
             parts = service_class_path.split(".")
-            
+
             # Build import path relative to services directory
             module_path = ".".join(parts[:-1])
             class_name = parts[-1]
-            
+
             # Import module
             module = importlib.import_module(module_path)
             service_class = getattr(module, class_name)
-            
+
             logger.info(f"Successfully loaded modular service: {service_name}")
-            self.loaded_services[service_name] = {
-                "class": service_class,
-                "manifest": manifest
-            }
-            
+            # Create service metadata
+            service_meta = ServiceMetadata(
+                service_type=manifest.services[0].type if manifest.services else ServiceType.LLM,
+                module_name=service_name,
+                class_name=class_name,
+                version=manifest.module.version,
+                is_mock=manifest.module.is_mock,
+                capabilities=manifest.capabilities or [],
+                priority=manifest.services[0].priority if manifest.services else ServicePriority.NORMAL,
+                health_status="loaded"
+            )
+            self.loaded_services[service_name] = service_meta
+
             return service_class
-            
+
         except Exception as e:
             logger.error(f"Failed to load service {service_name}: {e}")
             return None
         finally:
             # Remove from path
             sys.path.pop(0)
-    
-    def get_service_metadata(self, service_name: str) -> Dict[str, Any]:
+
+    def get_service_metadata(self, service_name: str) -> Optional[ServiceMetadata]:
         """Get metadata for a loaded service."""
-        if service_name in self.loaded_services:
-            return self.loaded_services[service_name]["manifest"]
-        return {}
-    
-    async def initialize_modular_services(self, service_registry: Any, config: Any) -> List[Any]:
+        return self.loaded_services.get(service_name)
+
+    async def initialize_modular_services(self, service_registry: Any, config: Any) -> ModuleLoadResult:
         """Initialize all discovered modular services."""
-        initialized_services = []
+        result = ModuleLoadResult(
+            module_name="modular_services",
+            success=True
+        )
         
         # Discover services
         discovered = self.discover_services()
-        
+
         for manifest in discovered:
-            service_info = manifest["service"]
-            
             # Skip if production mode and service is test-only
-            if not getattr(config, "mock_llm", False) and service_info.get("test_only", False):
-                logger.info(f"Skipping test-only service: {service_info['name']}")
+            if not getattr(config, "mock_llm", False) and manifest.module.is_mock:
+                msg = f"Skipping mock service in production: {manifest.module.name}"
+                logger.info(msg)
+                result.warnings.append(msg)
                 continue
-                
+
             # Load service class
             service_class = self.load_service(manifest)
             if not service_class:
                 continue
-                
+
             try:
                 # Initialize service
-                service_config = manifest.get("configuration", {})
+                service_config = {}
+                if manifest.configuration:
+                    # Extract default values from configuration
+                    for key, param in manifest.configuration.items():
+                        service_config[key] = param.default
+                        
                 service_instance = service_class(**service_config)
                 await service_instance.start()
-                
+
                 # Register with service registry
-                service_type = ServiceType[service_info["type"]]
-                priority = Priority[service_info.get("priority", "NORMAL")]
-                
-                service_registry.register_global(
-                    service_type=service_type,
-                    provider=service_instance,
-                    priority=priority,
-                    capabilities=manifest["capabilities"],
-                    metadata=manifest.get("metadata", {})
-                )
-                
-                initialized_services.append(service_instance)
-                logger.info(f"Initialized modular service: {service_info['name']}")
-                
+                for service_decl in manifest.services:
+                    service_registry.register_global(
+                        service_type=service_decl.type,
+                        provider=service_instance,
+                        priority=Priority[service_decl.priority.value],
+                        capabilities=service_decl.capabilities or manifest.capabilities or [],
+                        metadata=self.loaded_services[manifest.module.name].model_dump()
+                    )
+
+                # Update result
+                service_meta = self.loaded_services[manifest.module.name]
+                service_meta.health_status = "started"
+                result.services_loaded.append(service_meta)
+                logger.info(f"Initialized modular service: {manifest.module.name}")
+
             except Exception as e:
-                logger.error(f"Failed to initialize {service_info['name']}: {e}")
-                
-        return initialized_services
+                error_msg = f"Failed to initialize {manifest.module.name}: {e}"
+                logger.error(error_msg)
+                result.errors.append(error_msg)
+                result.success = False
+
+        return result

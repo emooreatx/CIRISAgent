@@ -6,18 +6,17 @@ import logging
 import uuid
 import asyncio
 import sys
-from datetime import datetime
 from typing import Awaitable, Callable, Dict, List, Optional, Any
 
 from ciris_engine.schemas.adapters.cli import (
-    CLIToolParameters, ListFilesToolParams, ListFilesToolResult,
-    ReadFileToolParams, ReadFileToolResult,
-    SystemInfoToolResult, CLICorrelationData
+    ListFilesToolParams, ListFilesToolResult, ReadFileToolParams,
+    ReadFileToolResult, SystemInfoToolResult,
+    CLICorrelationData
 )
 from ciris_engine.protocols.services import CommunicationService, ToolService
 from ciris_engine.schemas.runtime.messages import IncomingMessage, FetchedMessage
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
-from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult, ToolExecutionStatus
+from ciris_engine.schemas.adapters.tools import ToolInfo, ToolExecutionResult, ToolExecutionStatus
 from ciris_engine.logic import persistence
 
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -41,7 +40,7 @@ class CLIAdapter(CommunicationService, ToolService):
     ) -> None:
         """
         Initialize the CLI adapter.
-        
+
         Args:
             runtime: Runtime instance with access to services
             interactive: Whether to run in interactive mode with user input
@@ -50,7 +49,7 @@ class CLIAdapter(CommunicationService, ToolService):
             config: Optional CLIAdapterConfig
         """
         super().__init__(config={"retry": {"global": {"max_retries": 3, "base_delay": 1.0}}})
-        
+
         self.runtime = runtime
         self.interactive = interactive
         self.on_message = on_message
@@ -59,15 +58,15 @@ class CLIAdapter(CommunicationService, ToolService):
         self._input_task: Optional[asyncio.Task[None]] = None
         self.cli_config = config  # Store the CLI config
         self._time_service: Optional[TimeServiceProtocol] = None
-        
+
         self._available_tools: Dict[str, Callable[[dict], Awaitable[dict]]] = {
             "list_files": self._tool_list_files,
             "read_file": self._tool_read_file,
             "system_info": self._tool_system_info,
         }
-        
+
         self._guidance_queue: asyncio.Queue[str] = asyncio.Queue()
-    
+
     def _get_time_service(self) -> TimeServiceProtocol:
         """Get time service instance from runtime."""
         if self._time_service is None:
@@ -86,11 +85,11 @@ class CLIAdapter(CommunicationService, ToolService):
         """Emit telemetry as TSDBGraphNode through memory bus."""
         if not self.bus_manager:
             return  # No bus manager, can't emit telemetry
-        
+
         # Check if memory bus is available (it might not be during startup)
         if not hasattr(self.bus_manager, 'memory') or not self.bus_manager.memory:
             return  # Memory bus not available yet
-        
+
         try:
             # Extract value from tags if it exists, otherwise default to 1.0
             value = 1.0
@@ -101,10 +100,10 @@ class CLIAdapter(CommunicationService, ToolService):
             elif tags and "success" in tags:
                 # For boolean success, use 1.0 for true, 0.0 for false
                 value = 1.0 if tags["success"] else 0.0
-            
+
             # Convert all tag values to strings as required by memorize_metric
             string_tags = {k: str(v) for k, v in (tags or {}).items()}
-            
+
             # Use memorize_metric instead of creating GraphNode directly
             await self.bus_manager.memory.memorize_metric(
                 metric_name=metric_name,
@@ -115,15 +114,15 @@ class CLIAdapter(CommunicationService, ToolService):
             )
         except Exception as e:
             logger.debug(f"Failed to emit telemetry {metric_name}: {e}")
-    
+
     async def send_message(self, channel_id: str, content: str) -> bool:
         """
         Send a message to the console.
-        
+
         Args:
             channel_id: The channel identifier (used for categorization)
             content: The message content
-            
+
         Returns:
             True if message was sent successfully
         """
@@ -135,10 +134,10 @@ class CLIAdapter(CommunicationService, ToolService):
                 print(f"\n[ERROR] {content}", file=sys.stderr)
             else:
                 print(f"\n[CIRIS] {content}")
-            
+
             from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
             now = self._get_time_service().now()
-            
+
             request_data = ServiceRequestData(
                 service_type="communication",
                 method_name="send_message",
@@ -146,14 +145,14 @@ class CLIAdapter(CommunicationService, ToolService):
                 parameters={"content": content},
                 request_timestamp=now
             )
-            
+
             response_data = ServiceResponseData(
                 success=True,
                 result_summary=f"Message sent to {channel_id}",
                 execution_time_ms=10.0,
                 response_timestamp=now
             )
-            
+
             persistence.add_correlation(
                 ServiceCorrelation(
                     correlation_id=correlation_id,
@@ -177,11 +176,11 @@ class CLIAdapter(CommunicationService, ToolService):
     async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
         """
         CLI doesn't store messages, so this returns empty list.
-        
+
         Args:
             channel_id: The channel identifier
             limit: Maximum number of messages to fetch
-            
+
         Returns:
             Empty list (CLI doesn't persist messages)
         """
@@ -190,16 +189,16 @@ class CLIAdapter(CommunicationService, ToolService):
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
         """
         Execute a CLI tool.
-        
+
         Args:
             tool_name: Name of the tool to execute
             parameters: Tool parameters
-            
+
         Returns:
             Tool execution result
         """
         correlation_id = str(uuid.uuid4())
-        
+
         if tool_name not in self._available_tools:
             return ToolExecutionResult(
                 tool_name=tool_name,
@@ -209,13 +208,13 @@ class CLIAdapter(CommunicationService, ToolService):
                 error=f"Unknown tool: {tool_name}",
                 correlation_id=correlation_id
             )
-        
+
         try:
             import time
             start_time = time.time()
             result = await self._available_tools[tool_name](parameters)
             execution_time = (time.time() - start_time) * 1000
-            
+
             # Emit telemetry for tool execution
             await self._emit_telemetry("tool_executed", {
                 "adapter_type": "cli",
@@ -223,7 +222,7 @@ class CLIAdapter(CommunicationService, ToolService):
                 "execution_time_ms": execution_time,
                 "success": result.get("success", True)
             })
-            
+
             persistence.add_correlation(
                 ServiceCorrelation(
                     correlation_id=correlation_id,
@@ -242,7 +241,7 @@ class CLIAdapter(CommunicationService, ToolService):
                     updated_at=self._get_time_service().now_iso(),
                 )
             )
-            
+
             return ToolExecutionResult(
                 tool_name=tool_name,
                 status=ToolExecutionStatus.COMPLETED if result.get("success", True) else ToolExecutionStatus.FAILED,
@@ -251,7 +250,7 @@ class CLIAdapter(CommunicationService, ToolService):
                 error=result.get("error"),
                 correlation_id=correlation_id
             )
-            
+
         except Exception as e:
             logger.error(f"Error executing tool {tool_name}: {e}")
             return ToolExecutionResult(
@@ -274,34 +273,34 @@ class CLIAdapter(CommunicationService, ToolService):
     async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
         """
         Validate parameters for a CLI tool.
-        
+
         Args:
             tool_name: Name of the tool to validate parameters for
             parameters: Parameters to validate
-            
+
         Returns:
             True if parameters are valid for the specified tool
         """
         if tool_name not in self._available_tools:
             return False
-        
+
         if tool_name == "read_file":
             return "path" in parameters
         elif tool_name == "list_files":
             return True
         elif tool_name == "system_info":
             return True
-        
+
         return True
 
     async def _get_user_input(self) -> str:
         """Get input from user asynchronously."""
         loop = asyncio.get_event_loop()
-        
+
         # Check if we're still running before blocking on input
         if not self._running:
             raise asyncio.CancelledError("CLI adapter stopped")
-        
+
         # Simple async input that works on all platforms
         try:
             return await loop.run_in_executor(None, input)
@@ -311,14 +310,14 @@ class CLIAdapter(CommunicationService, ToolService):
     async def _handle_interactive_input(self) -> None:
         """Handle interactive user input in a loop."""
         print("\n[CIRIS CLI] Interactive mode started. Type 'help' for commands or 'quit' to exit.\n")
-        
+
         while self._running:
             try:
                 user_input = await self._get_user_input()
-                
+
                 if not user_input.strip():
                     continue
-                
+
                 if user_input.lower() == 'quit':
                     logger.info("User requested quit")
                     self._running = False
@@ -326,7 +325,7 @@ class CLIAdapter(CommunicationService, ToolService):
                 elif user_input.lower() == 'help':
                     await self._show_help()
                     continue
-                
+
                 msg = IncomingMessage(
                     message_id=str(uuid.uuid4()),
                     author_id="cli_user",
@@ -335,7 +334,7 @@ class CLIAdapter(CommunicationService, ToolService):
                     channel_id=self.get_home_channel_id(),
                     timestamp=self._get_time_service().now_iso()
                 )
-                
+
                 if self.on_message:
                     await self.on_message(msg)
                     # Emit telemetry for message processed
@@ -345,7 +344,7 @@ class CLIAdapter(CommunicationService, ToolService):
                     })
                 else:
                     logger.warning("No message handler configured")
-                    
+
             except (EOFError, asyncio.CancelledError):
                 logger.info("Input cancelled or EOF received, stopping interactive mode")
                 # Don't set _running = False here - the adapter is still healthy
@@ -363,7 +362,7 @@ class CLIAdapter(CommunicationService, ToolService):
 Commands:
   help     - Show this help message
   quit     - Exit the CLI
-  
+
 Tools available:
 """
         print(help_text)
@@ -380,7 +379,7 @@ Tools available:
             files = os.listdir(list_params.path)
             result = ListFilesToolResult(success=True, files=files, count=len(files))
             return result.model_dump()
-        except ValueError as e:
+        except ValueError:
             result = ListFilesToolResult(success=False, error="Invalid parameters")
             return result.model_dump()
         except Exception as e:
@@ -396,7 +395,7 @@ Tools available:
                 content = f.read()
             result = ReadFileToolResult(success=True, content=content, size=len(content))
             return result.model_dump()
-        except ValueError as e:
+        except ValueError:
             result = ReadFileToolResult(success=False, error="No path provided")
             return result.model_dump()
         except Exception as e:
@@ -407,12 +406,12 @@ Tools available:
         """Get system information."""
         import platform
         import psutil
-        
+
         try:
             # Get memory info
             memory = psutil.virtual_memory()
             memory_mb = memory.total // (1024 * 1024)
-            
+
             result = SystemInfoToolResult(
                 success=True,
                 platform=platform.system(),
@@ -438,20 +437,20 @@ Tools available:
         """Start the CLI adapter."""
         logger.info("Starting CLI adapter")
         logger.debug(f"CLI adapter start: _running was {self._running}")
-        
+
         # Emit telemetry for adapter start
         await self._emit_telemetry("adapter_starting", {
             "adapter_type": "cli",
             "interactive": self.interactive
         })
-        
+
         self._running = True
         logger.debug(f"CLI adapter start: _running now {self._running}")
-        
+
         if self.interactive:
             # Start interactive input handler
             self._input_task = asyncio.create_task(self._handle_interactive_input())
-        
+
         # Emit telemetry for successful start
         await self._emit_telemetry("adapter_started", {
             "adapter_type": "cli",
@@ -461,42 +460,39 @@ Tools available:
     async def stop(self) -> None:
         """Stop the CLI adapter."""
         logger.info("Stopping CLI adapter")
-        
+
         # Emit telemetry for adapter stopping
         await self._emit_telemetry("adapter_stopping", {
             "adapter_type": "cli"
         })
-        
+
         self._running = False
-        
+
         if self._input_task and not self._input_task.done():
             self._input_task.cancel()
             try:
-                await asyncio.wait_for(self._input_task, timeout=0.1)
+                await asyncio.wait_for(self._input_task, timeout=1.0)  # Increased timeout
             except (asyncio.CancelledError, asyncio.TimeoutError):
-                logger.debug("CLI input task cancelled")
-                pass
-        
+                logger.debug("CLI input task cancelled or timed out")
+            except Exception as e:
+                logger.warning(f"Error while waiting for input task: {e}")
+
         # Print message for user awareness
         print("\n[CIRIS CLI] Shutdown complete.")
-        
+
         # Emit telemetry for successful stop
         await self._emit_telemetry("adapter_stopped", {
             "adapter_type": "cli"
         })
-        
-        # Force exit for CLI adapter to ensure clean shutdown
-        # The input() thread can block process exit
-        if self.interactive:
-            logger.info("Forcing process exit for clean CLI shutdown")
-            import os
-            os._exit(0)
+
+        # NOTE: Removed os._exit(0) to allow proper cleanup
+        # The EOFError handling in _handle_interactive_input should prevent hanging
 
     async def is_healthy(self) -> bool:
         """Check if the CLI adapter is healthy."""
         logger.debug(f"CLI adapter health check: _running={self._running}")
         return self._running
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get current service status."""
         from ciris_engine.schemas.services.core import ServiceStatus
@@ -513,16 +509,16 @@ Tools available:
             last_error=None,
             last_health_check=self._get_time_service().now() if self._time_service else None
         )
-    
+
     async def list_tools(self) -> List[str]:
         """List available tools."""
         return list(self._available_tools.keys())
-    
+
     async def get_tool_schema(self, tool_name: str) -> Optional[Dict[str, Any]]:
         """Get schema for a specific tool."""
         if tool_name not in self._available_tools:
             return None
-        
+
         # Return basic schema info for CLI tools
         schemas = {
             "list_files": {
@@ -545,14 +541,14 @@ Tools available:
                 "parameters": {}
             }
         }
-        
+
         return schemas.get(tool_name)
 
     async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
         """Get detailed information about a specific tool."""
         if tool_name not in self._available_tools:
             return None
-        
+
         # Return basic tool info for CLI tools
         return ToolInfo(
             tool_name=tool_name,
@@ -571,7 +567,7 @@ Tools available:
             enabled=True,
             health_status="healthy"
         )
-    
+
     async def get_all_tool_info(self) -> List[ToolInfo]:
         """Get detailed information about all available tools."""
         tools = []
@@ -591,14 +587,14 @@ Tools available:
         if self.interactive:
             capabilities.append("interactive_mode")
         return capabilities
-    
+
     def get_home_channel_id(self) -> str:
         """Get the home channel ID for this CLI adapter instance."""
         if self.cli_config and hasattr(self.cli_config, 'get_home_channel_id'):
             channel_id = self.cli_config.get_home_channel_id()
             if channel_id:
                 return str(channel_id)
-        
+
         # Generate unique channel ID for this CLI instance
         import uuid
         import os
