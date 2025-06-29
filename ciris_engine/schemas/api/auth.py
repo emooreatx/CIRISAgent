@@ -140,7 +140,9 @@ class AuthContext(BaseModel):
             role=api_key.role,
             permissions=ROLE_PERMISSIONS.get(api_key.role, set()),
             api_key_id=api_key.id,
-            authenticated_at=datetime.now(timezone.utc)
+            session_id=None,
+            authenticated_at=datetime.now(timezone.utc),
+            request=None
         )
 
     def has_permission(self, permission: Permission) -> bool:

@@ -3,7 +3,7 @@ Base response schemas for CIRIS API v1.
 
 All API responses follow these patterns - NO Dict[str, Any]!
 """
-from typing import Generic, TypeVar, Optional
+from typing import Generic, TypeVar, Optional, Any
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field, field_serializer
 
@@ -16,13 +16,13 @@ class ResponseMetadata(BaseModel):
     duration_ms: Optional[int] = Field(None, description="Request processing duration")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class SuccessResponse(BaseModel, Generic[T]):
     """Standard success response wrapper."""
     data: T = Field(..., description="Response data")
-    metadata: ResponseMetadata = Field(default_factory=ResponseMetadata)
+    metadata: ResponseMetadata = Field(default_factory=lambda: ResponseMetadata())
 
 class ErrorDetail(BaseModel):
     """Detailed error information."""
@@ -33,7 +33,7 @@ class ErrorDetail(BaseModel):
 class ErrorResponse(BaseModel):
     """Standard error response."""
     error: ErrorDetail = Field(..., description="Error information")
-    metadata: ResponseMetadata = Field(default_factory=ResponseMetadata)
+    metadata: ResponseMetadata = Field(default_factory=lambda: ResponseMetadata())
 
 # Common error codes
 class ErrorCode:

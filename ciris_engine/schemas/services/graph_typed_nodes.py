@@ -4,7 +4,7 @@ Base class and utilities for typed graph nodes.
 This module provides the foundation for type-safe graph nodes that can be
 stored generically while maintaining full type information.
 """
-from typing import Dict, Any, Type, TypeVar, Optional, List
+from typing import Dict, Any, Type, TypeVar, Optional, List, Union
 from datetime import datetime
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
@@ -116,7 +116,7 @@ class NodeTypeRegistry:
         return cls._registry.get(node_type)
 
     @classmethod
-    def deserialize(cls, node: GraphNode) -> TypedGraphNode:
+    def deserialize(cls, node: GraphNode) -> Union[TypedGraphNode, GraphNode]:
         """
         Deserialize a GraphNode to its typed variant if registered.
 

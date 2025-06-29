@@ -132,7 +132,8 @@ class DiscordVisionHelper:
                     result = await response.json()
 
                     if "choices" in result and result["choices"]:
-                        return result["choices"][0]["message"]["content"]
+                        content: str = result["choices"][0]["message"]["content"]
+                        return content
                     else:
                         return "No description generated"
 
@@ -185,14 +186,14 @@ class DiscordVisionHelper:
         try:
             # Create a mock attachment-like object
             class MockAttachment:
-                def __init__(self, url, content_type="image/png"):
+                def __init__(self, url: str, content_type: str = "image/png") -> None:
                     self.url = url
                     self.content_type = content_type
                     self.filename = url.split("/")[-1] or "image"
                     self.size = 0  # Unknown size for URL images
 
             mock = MockAttachment(url)
-            description = await self._process_single_image(mock)
+            description = await self._process_single_image(mock)  # type: ignore[arg-type]
 
             if description:
                 return f"{image_type}: {description}"

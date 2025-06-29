@@ -139,14 +139,14 @@ class DiscordRateLimiter:
             headers: Response headers
         """
         # Check for rate limit headers
-        remaining = headers.get("X-RateLimit-Remaining")
-        reset_at = headers.get("X-RateLimit-Reset")
+        remaining_str = headers.get("X-RateLimit-Remaining")
+        reset_at_str = headers.get("X-RateLimit-Reset")
         _bucket_id = headers.get("X-RateLimit-Bucket")
 
-        if remaining is not None and reset_at is not None:
+        if remaining_str is not None and reset_at_str is not None:
             try:
-                remaining = int(remaining)
-                reset_at = float(reset_at)
+                remaining = int(remaining_str)
+                reset_at = float(reset_at_str)
 
                 # Update the appropriate bucket
                 bucket_key = self._normalize_endpoint(endpoint)
@@ -219,7 +219,7 @@ class DiscordRateLimiter:
             if bucket_key not in self._endpoint_buckets:
                 limits = self.ENDPOINT_LIMITS.get(bucket_key, {"limit": 5, "window": 60.0})
                 self._endpoint_buckets[bucket_key] = RateLimitBucket(
-                    limits["limit"],
+                    int(limits["limit"]),
                     limits["window"]
                 )
             return self._endpoint_buckets[bucket_key]

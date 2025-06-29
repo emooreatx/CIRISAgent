@@ -295,7 +295,7 @@ class DiscordAccessControl:
             True if message should be processed
         """
         # Always allow bot's own messages
-        if message.author.bot and self.client and message.author.id == self.client.user.id:
+        if message.author.bot and self.client and self.client.user and message.author.id == self.client.user.id:
             return True
 
         # Check if user has read access to the channel

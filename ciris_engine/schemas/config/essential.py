@@ -145,30 +145,12 @@ class EssentialConfig(BaseModel):
     This is the minimal configuration needed to start core services.
     After bootstrap, all config is migrated to GraphConfigService.
     """
-    database: DatabaseConfig = Field(
-        default_factory=lambda: DatabaseConfig(),
-        description="Database configuration"
-    )
-    services: ServiceEndpointsConfig = Field(
-        default_factory=lambda: ServiceEndpointsConfig(),
-        description="External service endpoints"
-    )
-    security: SecurityConfig = Field(
-        default_factory=lambda: SecurityConfig(),
-        description="Security and audit settings"
-    )
-    limits: OperationalLimitsConfig = Field(
-        default_factory=lambda: OperationalLimitsConfig(),
-        description="Operational limits and thresholds"
-    )
-    telemetry: TelemetryConfig = Field(
-        default_factory=lambda: TelemetryConfig(),
-        description="Telemetry configuration"
-    )
-    workflow: WorkflowConfig = Field(
-        default_factory=lambda: WorkflowConfig(),
-        description="Workflow processing configuration"
-    )
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    services: ServiceEndpointsConfig = Field(default_factory=ServiceEndpointsConfig)
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
+    limits: OperationalLimitsConfig = Field(default_factory=OperationalLimitsConfig)
+    telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
+    workflow: WorkflowConfig = Field(default_factory=WorkflowConfig)
 
     # Runtime settings
     log_level: str = Field(

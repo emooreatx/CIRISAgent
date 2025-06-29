@@ -59,7 +59,7 @@ class TestCIRISRuntime:
             runtime._adapter_types = ["cli"]
             runtime._timeout = 10
             runtime._running = False
-            return runtime
+            yield runtime
 
     @pytest.mark.asyncio
     async def test_initialize(self, ciris_runtime):
@@ -393,7 +393,7 @@ class TestCIRISRuntimeAsync:
             runtime._adapter_types = ["cli"]
             runtime._timeout = 10
             runtime._running = False
-            return runtime
+            yield runtime
 
     @pytest.mark.asyncio
     async def test_run(self, ciris_runtime):
