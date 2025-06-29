@@ -2,7 +2,7 @@
 import discord
 import logging
 import asyncio
-from typing import Optional, Callable, Awaitable, TYPE_CHECKING
+from typing import Optional, Callable, Awaitable, TYPE_CHECKING, Any
 from enum import Enum
 
 if TYPE_CHECKING:
@@ -83,7 +83,7 @@ class DiscordConnectionManager:
         original_on_error = getattr(self.client, 'on_error', None)
 
         @self.client.event
-        async def on_ready():
+        async def on_ready() -> None:
             """Handle successful connection."""
             await self._handle_connected()
             # Call original handler if it exists
@@ -91,7 +91,7 @@ class DiscordConnectionManager:
                 await original_on_ready()
 
         @self.client.event
-        async def on_disconnect():
+        async def on_disconnect() -> None:
             """Handle disconnection."""
             await self._handle_disconnected(None)
             # Call original handler if it exists
@@ -99,7 +99,7 @@ class DiscordConnectionManager:
                 await original_on_disconnect()
 
         @self.client.event
-        async def on_error(event: str, *args, **kwargs):
+        async def on_error(event: str, *args: Any, **kwargs: Any) -> None:
             """Handle errors."""
             logger.error(f"Discord error in {event}: {args} {kwargs}")
             # Call original handler if it exists

@@ -252,7 +252,7 @@ class ComponentBuilder:
 
         return self.agent_processor
 
-    async def _build_action_dispatcher(self, dependencies: Any):
+    async def _build_action_dispatcher(self, dependencies: Any) -> Any:
         """Build action dispatcher. Override in subclasses for custom sinks."""
         _config = self.runtime._ensure_config()
         return build_action_dispatcher(

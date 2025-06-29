@@ -90,7 +90,7 @@ class ObserveHandler(BaseActionHandler):
         follow_up_info = f"OBSERVE action for thought {thought_id}"
 
         try:
-            params = await self._validate_and_convert_params(raw_params, ObserveParams)
+            params: ObserveParams = await self._validate_and_convert_params(raw_params, ObserveParams)
             assert isinstance(params, ObserveParams)  # Type assertion after validation
         except Exception as e:
             await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, e)

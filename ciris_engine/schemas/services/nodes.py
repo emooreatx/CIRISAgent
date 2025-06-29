@@ -90,9 +90,10 @@ class AuditEntry(TypedGraphNode):
             raise ValueError(f"Invalid attributes type: {type(node.attributes)}")
 
         # Deserialize timestamp
-        timestamp = cls._deserialize_datetime(attrs.get("timestamp", attrs.get("created_at")))
-        created_at = cls._deserialize_datetime(attrs.get("created_at", attrs.get("timestamp")))
-        updated_at = cls._deserialize_datetime(attrs.get("updated_at", attrs.get("created_at")))
+        now = datetime.now(timezone.utc)
+        timestamp = cls._deserialize_datetime(attrs.get("timestamp", attrs.get("created_at"))) or now
+        created_at = cls._deserialize_datetime(attrs.get("created_at", attrs.get("timestamp"))) or now
+        updated_at = cls._deserialize_datetime(attrs.get("updated_at", attrs.get("created_at"))) or now
 
         # Deserialize context
         context_data = attrs.get("context", {})
@@ -129,7 +130,7 @@ class ConfigValue(BaseModel):
     dict_value: Optional[Dict[str, Union[str, int, float, bool, list, dict, None]]] = None  # Allow None values in dict
 
     @property
-    def value(self):
+    def value(self) -> Optional[Union[str, int, float, bool, List[Union[str, int, float, bool]], Dict[str, Union[str, int, float, bool, list, dict, None]]]]:
         """Get the actual value."""
         for field_name, field_value in self.model_dump().items():
             if field_value is not None:
@@ -311,11 +312,11 @@ class IdentitySnapshot(TypedGraphNode):
             scope=node.scope,
             attributes=node.attributes,
             version=node.version,
-            updated_by=node.updated_by,
-            updated_at=node.updated_at,
+            updated_by=node.updated_by or "identity_variance_monitor",
+            updated_at=node.updated_at or datetime.now(timezone.utc),
             # Extra fields from attributes
             snapshot_id=attrs["snapshot_id"],
-            timestamp=cls._deserialize_datetime(attrs["timestamp"]),
+            timestamp=cls._deserialize_datetime(attrs["timestamp"]) or datetime.now(timezone.utc),
             agent_id=attrs["agent_id"],
             identity_hash=attrs["identity_hash"],
             core_purpose=attrs["core_purpose"],
@@ -338,7 +339,7 @@ class IdentitySnapshot(TypedGraphNode):
             expires_at=cls._deserialize_datetime(attrs.get("expires_at")) if attrs.get("expires_at") else None,
             tags=attrs.get("tags", []),
             identity_root=attrs.get("identity_root"),
-            created_at=cls._deserialize_datetime(attrs.get("created_at")),
+            created_at=cls._deserialize_datetime(attrs.get("created_at")) or datetime.now(timezone.utc),
             created_by=attrs.get("created_by", "identity_variance_monitor")
         )
 
@@ -426,11 +427,11 @@ class TSDBSummary(TypedGraphNode):
             scope=node.scope,
             attributes=node.attributes,  # Must pass this for GraphNode base class
             version=node.version,
-            updated_by=node.updated_by,
-            updated_at=node.updated_at,
+            updated_by=node.updated_by or "tsdb_consolidation",
+            updated_at=node.updated_at or datetime.now(timezone.utc),
             # Extra fields from attributes
-            period_start=cls._deserialize_datetime(attrs["period_start"]),
-            period_end=cls._deserialize_datetime(attrs["period_end"]),
+            period_start=cls._deserialize_datetime(attrs["period_start"]) or datetime.now(timezone.utc),
+            period_end=cls._deserialize_datetime(attrs["period_end"]) or datetime.now(timezone.utc),
             period_label=attrs["period_label"],
             metrics=attrs.get("metrics", {}),
             total_tokens=attrs.get("total_tokens", 0),
@@ -441,7 +442,7 @@ class TSDBSummary(TypedGraphNode):
             error_count=attrs.get("error_count", 0),
             success_rate=attrs.get("success_rate", 1.0),
             source_node_count=attrs["source_node_count"],
-            consolidation_timestamp=cls._deserialize_datetime(attrs.get("consolidation_timestamp")),
+            consolidation_timestamp=cls._deserialize_datetime(attrs.get("consolidation_timestamp")) or datetime.now(timezone.utc),
             raw_data_expired=attrs.get("raw_data_expired", False)
         )
 
@@ -559,9 +560,9 @@ class IdentityNode(TypedGraphNode):
             attributes=node.attributes,
             version=node.version,
             updated_by=node.updated_by or attrs.get("updated_by", "system"),
-            updated_at=cls._deserialize_datetime(node.updated_at or attrs.get("updated_at")),
+            updated_at=cls._deserialize_datetime(node.updated_at or attrs.get("updated_at")) or datetime.now(timezone.utc),
             # Required fields
-            created_at=cls._deserialize_datetime(attrs.get("created_at")),
+            created_at=cls._deserialize_datetime(attrs.get("created_at")) or datetime.now(timezone.utc),
             created_by=attrs.get("created_by", "system"),
             # Identity fields
             agent_id=attrs["agent_id"],
@@ -579,8 +580,8 @@ class IdentityNode(TypedGraphNode):
             permitted_actions=attrs.get("permitted_actions", []),
             restricted_capabilities=attrs.get("restricted_capabilities", []),
             # Identity metadata
-            identity_created_at=cls._deserialize_datetime(attrs["identity_created_at"]),
-            identity_modified_at=cls._deserialize_datetime(attrs["identity_modified_at"]),
+            identity_created_at=cls._deserialize_datetime(attrs["identity_created_at"]) or datetime.now(timezone.utc),
+            identity_modified_at=cls._deserialize_datetime(attrs["identity_modified_at"]) or datetime.now(timezone.utc),
             modification_count=attrs.get("modification_count", 0),
             creator_agent_id=attrs["creator_agent_id"],
             lineage_trace=attrs.get("lineage_trace", []),
@@ -590,7 +591,7 @@ class IdentityNode(TypedGraphNode):
         )
 
     @classmethod
-    def from_agent_identity_root(cls, identity: 'AgentIdentityRoot', time_service) -> 'IdentityNode':
+    def from_agent_identity_root(cls, identity: 'AgentIdentityRoot', time_service: Any) -> 'IdentityNode':
         """Create from AgentIdentityRoot object."""
 
         now = time_service.now()

@@ -8,6 +8,7 @@ from ...runtime.base import GraphServiceProtocol
 from ciris_engine.schemas.services.nodes import AuditEntry
 from ciris_engine.schemas.services.graph.audit import AuditQuery, VerificationReport
 from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.runtime.audit import AuditActionContext
 
 class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     """Protocol for audit service."""
@@ -15,12 +16,9 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     @abstractmethod
     async def log_action(
         self,
-        action: HandlerActionType,
-        actor_id: str,
-        thought_id: Optional[str] = None,
-        task_id: Optional[str] = None,
-        context: Optional[dict] = None,
-        metadata: Optional[dict] = None
+        action_type: HandlerActionType,
+        context: AuditActionContext,
+        outcome: Optional[str] = None
     ) -> None:
         """Log an action to the audit trail."""
         ...

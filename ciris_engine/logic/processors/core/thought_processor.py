@@ -17,6 +17,7 @@ from ciris_engine.logic.handlers.control.ponder_handler import PonderHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreakerError
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class ThoughtProcessor:
         app_config: ConfigAccessor,
         dependencies: ActionHandlerDependencies,
         time_service: TimeServiceProtocol,
-        telemetry_service: Optional[Any] = None,
+        telemetry_service: Optional[TelemetryServiceProtocol] = None,
         auth_service: Optional[Any] = None
     ) -> None:
         self.dma_orchestrator = dma_orchestrator
@@ -334,7 +335,7 @@ class ThoughtProcessor:
         thought: Thought,
         dma_results_dict: dict,
         processing_context: Optional[Any] = None,
-    ):
+    ) -> Any:
         """Simple conscience application without orchestrator."""
         # Import ConscienceApplicationResult here to avoid circular imports
         from ciris_engine.schemas.processors.core import ConscienceApplicationResult
@@ -527,7 +528,7 @@ class ThoughtProcessor:
         """Extract profile name from thought context or use default."""
         profile_name = None
         if hasattr(thought, 'context') and isinstance(thought.context, dict):
-            profile_name = thought.context.get('agent_profile_name')  # type: ignore[unreachable]
+            profile_name = thought.context.get('agent_profile_name')
         if not profile_name and hasattr(self.app_config, 'agent_profiles'):
             for name, profile in self.app_config.agent_profiles.items():
                 if name != "default" and profile:
@@ -540,7 +541,7 @@ class ThoughtProcessor:
         logger.debug(f"Determined profile name '{profile_name}' for thought {thought.thought_id}")
         return profile_name
 
-    def _get_permitted_actions(self, thought: Thought):
+    def _get_permitted_actions(self, thought: Thought) -> Optional[List[str]]:
         return getattr(thought, 'permitted_actions', None)
 
     def _has_critical_failure(self, dma_results: Any) -> bool:

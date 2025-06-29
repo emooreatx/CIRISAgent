@@ -229,7 +229,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:
         if not isinstance(msg, IncomingMessage):
-            logger.warning("CLIObserver received non-IncomingMessage")  # type: ignore[unreachable]
+            logger.warning("CLIObserver received non-IncomingMessage")
             return
 
         is_agent_message = self.agent_id and msg.author_id == self.agent_id

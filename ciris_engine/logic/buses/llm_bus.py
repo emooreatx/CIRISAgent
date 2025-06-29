@@ -22,6 +22,7 @@ from ciris_engine.schemas.services.capabilities import LLMCapabilities
 from ciris_engine.protocols.services import LLMService
 from ciris_engine.protocols.services.runtime.llm import MessageDict
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
 from .base_bus import BaseBus, BusMessage
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 
@@ -86,7 +87,7 @@ class LLMBus(BaseBus[LLMService]):
         self,
         service_registry: "ServiceRegistry",
         time_service: TimeServiceProtocol,
-        telemetry_service: Optional[object] = None,
+        telemetry_service: Optional[TelemetryServiceProtocol] = None,
         distribution_strategy: DistributionStrategy = DistributionStrategy.LATENCY_BASED,
         circuit_breaker_config: Optional[dict] = None
     ):

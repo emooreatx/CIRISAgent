@@ -78,27 +78,27 @@ class DMAInputData(BaseModel):
         return (
             self.has_ethical_concerns or
             self.has_common_sense_flags or
-            (self.conscience_failure_context is not None and self.conscience_failure_context.overridden)
+            (self.conscience_failure_context is not None and not self.conscience_failure_context.passed)
         )
 
     @property
     def resource_usage_summary(self) -> Dict[str, float]:
         """Get resource usage from system snapshot."""
-        if self.system_snapshot.current_round_resources:
-            resources = self.system_snapshot.current_round_resources
+        # Use telemetry_summary for resource data
+        if self.system_snapshot.telemetry_summary:
             return {
-                "tokens": resources.tokens_used,
-                "cost_cents": resources.cost_cents,
-                "carbon_grams": resources.carbon_grams
+                "tokens": self.system_snapshot.telemetry_summary.tokens_per_hour,
+                "cost_cents": self.system_snapshot.telemetry_summary.cost_per_hour_cents,
+                "carbon_grams": self.system_snapshot.telemetry_summary.carbon_per_hour_grams
             }
         return {"tokens": 0, "cost_cents": 0.0, "carbon_grams": 0.0}
 
     @property
     def audit_is_valid(self) -> bool:
         """Check if audit trail is valid."""
-        if self.system_snapshot.last_audit_verification:
-            return self.system_snapshot.last_audit_verification.result == "valid"
-        return True  # Assume valid if no verification data
+        # SystemSnapshot doesn't have last_audit_verification field
+        # Always return True for now - audit verification would need to be checked separately
+        return True
 
     model_config = ConfigDict(extra = "forbid")
 

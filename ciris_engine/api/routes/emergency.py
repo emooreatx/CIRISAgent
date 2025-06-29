@@ -141,7 +141,7 @@ def is_authorized_key(public_key: str) -> bool:
 async def emergency_shutdown(
     command: WASignedCommand,
     request: Request
-):
+) -> SuccessResponse[EmergencyShutdownStatus]:
     """
     Execute emergency shutdown with cryptographically signed command.
 
@@ -252,7 +252,7 @@ async def emergency_shutdown(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/emergency/test")
-async def test_emergency_endpoint():
+async def test_emergency_endpoint() -> dict:
     """
     Test endpoint to verify emergency routes are mounted.
 

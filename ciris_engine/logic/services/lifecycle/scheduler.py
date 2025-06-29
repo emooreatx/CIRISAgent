@@ -285,7 +285,7 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
 
     async def _update_task_triggered(self, task: ScheduledTask) -> None:
         """Update task after triggering."""
-        now = self.time_service.get_current_time()
+        now = self.time_service.now()
         now_iso = now.isoformat()
 
         # Update in-memory task
@@ -338,7 +338,7 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             if not self._validate_cron_expression(schedule_cron):
                 raise ValueError(f"Invalid cron expression: {schedule_cron}")
 
-        task_id = f"task_{self.time_service.get_current_time().timestamp()}"
+        task_id = f"task_{self.time_service.now().timestamp()}"
 
         task = self._create_scheduled_task(
             task_id=task_id,
@@ -425,7 +425,7 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             task.defer_until = defer_until
             task.deferral_count += 1
             task.deferral_history.append({
-                "deferred_at": self.time_service.get_current_time().isoformat(),
+                "deferred_at": self.time_service.now().isoformat(),
                 "deferred_until": defer_until,
                 "reason": reason
             })
@@ -482,7 +482,7 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
                 "active_tasks": float(len(self._active_tasks)),
                 "check_interval": float(self.check_interval)
             },
-            last_health_check=self.time_service.get_current_time()
+            last_health_check=self.time_service.now()
         )
 
     def _validate_cron_expression(self, cron_expr: str) -> bool:
@@ -521,7 +521,7 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             return "unknown (croniter not installed)"
 
         try:
-            now = self.time_service.get_current_time()
+            now = self.time_service.now()
             cron = croniter(cron_expr, now)
             next_time = cron.get_next(datetime)
             return str(next_time.isoformat())

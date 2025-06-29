@@ -2,7 +2,7 @@ import yaml
 import logging
 import asyncio
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from ciris_engine.schemas.config.agent import AgentTemplate
 
@@ -43,7 +43,7 @@ async def load_template(template_path: Optional[Path]) -> Optional[AgentTemplate
             return None
 
     try:
-        def _load_yaml(path: Path):
+        def _load_yaml(path: Path) -> Any:
             with open(path, "r") as f:
                 return yaml.safe_load(f)
 

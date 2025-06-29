@@ -49,17 +49,17 @@ class AuditVerifier:
 
         # Get chain summary
         summary = self.hash_chain.get_chain_summary()
-        if summary.get("error"):
+        if summary.error:
             return CompleteVerificationResult(
                 valid=False,
                 entries_verified=0,
                 hash_chain_valid=False,
                 signatures_valid=False,
                 verification_time_ms=0,
-                error=summary["error"]
+                error=summary.error
             )
 
-        total_entries = summary["total_entries"]
+        total_entries = summary.total_entries
         if total_entries == 0:
             return CompleteVerificationResult(
                 valid=True,
@@ -120,20 +120,26 @@ class AuditVerifier:
             conn.close()
 
             if not row:
-                return {
-                    "valid": False,
-                    "error": f"Entry {entry_id} not found"
-                }
+                return EntryVerificationResult(
+                    valid=False,
+                    entry_id=entry_id,
+                    hash_valid=False,
+                    previous_hash_valid=False,
+                    errors=[f"Entry {entry_id} not found"]
+                )
 
             entry = dict(row)
             return self._verify_single_entry(entry)
 
         except sqlite3.Error as e:
             logger.error(f"Database error verifying entry {entry_id}: {e}")
-            return {
-                "valid": False,
-                "error": f"Database error: {e}"
-            }
+            return EntryVerificationResult(
+                valid=False,
+                entry_id=entry_id,
+                hash_valid=False,
+                previous_hash_valid=False,
+                errors=[f"Database error: {e}"]
+            )
 
     def verify_range(self, start_seq: int, end_seq: int) -> RangeVerificationResult:
         """Verify a range of entries by sequence number"""
@@ -148,14 +154,21 @@ class AuditVerifier:
         # Verify signatures for range
         signature_result = self._verify_signatures_in_range(start_seq, end_seq)
 
-        return {
-            "valid": chain_result["valid"] and signature_result["valid"],
-            "entries_verified": chain_result["entries_checked"],
-            "hash_chain_valid": chain_result["valid"],
-            "signatures_valid": signature_result["valid"],
-            "hash_chain_errors": chain_result.get("errors", []),
-            "signature_errors": signature_result.get("errors", [])
-        }
+        # Determine if chain_result is a model or dict
+        chain_valid = chain_result.valid if hasattr(chain_result, 'valid') else chain_result["valid"]
+        entries_checked = chain_result.entries_checked if hasattr(chain_result, 'entries_checked') else chain_result["entries_checked"]
+        chain_errors = chain_result.errors if hasattr(chain_result, 'errors') else chain_result.get("errors", [])
+
+        return RangeVerificationResult(
+            valid=chain_valid and signature_result["valid"],
+            start_id=start_seq,
+            end_id=end_seq,
+            entries_verified=entries_checked,
+            hash_chain_valid=chain_valid,
+            signatures_valid=signature_result["valid"],
+            errors=chain_errors + signature_result.get("errors", []),
+            verification_time_ms=0
+        )
 
     def find_tampering_fast(self) -> Optional[int]:
         """Quickly find the first tampered entry using binary search"""
@@ -167,27 +180,37 @@ class AuditVerifier:
 
     def _verify_single_entry(self, entry: dict) -> EntryVerificationResult:
         """Verify a single entry's hash and signature"""
-        errors: List[object] = []
+        errors: List[str] = []
 
         # Verify entry hash
         computed_hash = self.hash_chain.compute_entry_hash(entry)
-        if computed_hash != entry["entry_hash"]:
+        hash_valid = computed_hash == entry["entry_hash"]
+        if not hash_valid:
             errors.append(f"Entry hash mismatch: computed {computed_hash}, stored {entry['entry_hash']}")
 
         # Verify signature
-        if not self.signature_manager.verify_signature(
+        signature_valid = self.signature_manager.verify_signature(
             entry["entry_hash"],
             entry["signature"],
             entry["signing_key_id"]
-        ):
+        )
+        if not signature_valid:
             errors.append(f"Invalid signature for entry {entry['entry_id']}")
 
-        return {
-            "valid": len(errors) == 0,
-            "entry_id": entry["entry_id"],
-            "sequence_number": entry["sequence_number"],
-            "errors": errors
-        }
+        # Check previous hash link
+        previous_hash_valid = True  # Assume valid unless we find otherwise
+        if entry.get("sequence_number", 0) > 1 and entry.get("previous_hash") == "genesis":
+            previous_hash_valid = False
+            errors.append("Invalid previous hash: 'genesis' only valid for first entry")
+
+        return EntryVerificationResult(
+            valid=len(errors) == 0,
+            entry_id=entry["entry_id"],
+            hash_valid=hash_valid,
+            signature_valid=signature_valid,
+            previous_hash_valid=previous_hash_valid,
+            errors=errors
+        )
 
     def _verify_all_signatures(self) -> SignatureVerificationResult:
         """Verify signatures for all entries in the audit log"""
@@ -316,7 +339,7 @@ class AuditVerifier:
         if verification_result.verification_time_ms > 10000:
             report.recommendations.append("Verification taking too long - consider archiving old entries")
 
-        if chain_summary.get("total_entries", 0) > 100000:
+        if chain_summary.total_entries > 100000:
             report.recommendations.append("Large audit log - consider periodic archiving")
 
         if not key_info.get("active", False):

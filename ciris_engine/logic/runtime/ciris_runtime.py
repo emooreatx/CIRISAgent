@@ -382,8 +382,8 @@ class CIRISRuntime:
             is_cli_interactive = False
             for adapter in self.adapters:
                 adapter_class_name = adapter.__class__.__name__
-                if adapter_class_name == "CliPlatform" and hasattr(adapter, 'adapter') and hasattr(adapter.adapter, 'interactive'):
-                    is_cli_interactive = adapter.adapter.interactive
+                if adapter_class_name == "CliPlatform" and hasattr(adapter, 'cli_adapter') and hasattr(adapter.cli_adapter, 'interactive'):
+                    is_cli_interactive = adapter.cli_adapter.interactive
                     break
 
             # Disable console output for CLI interactive mode to avoid cluttering the interface
@@ -587,7 +587,7 @@ class CIRISRuntime:
                 registrations = adapter.get_services_to_register()
                 for reg in registrations:
                     if not isinstance(reg, AdapterServiceRegistration):
-                        logger.error(f"Adapter {adapter.__class__.__name__} provided an invalid AdapterServiceRegistration object: {reg}")  # type: ignore[unreachable]
+                        logger.error(f"Adapter {adapter.__class__.__name__} provided an invalid AdapterServiceRegistration object: {reg}")
                         continue
 
                     # No need to check Service base class - adapters implement protocol interfaces

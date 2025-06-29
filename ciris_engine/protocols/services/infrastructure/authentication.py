@@ -74,7 +74,7 @@ class AuthenticationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    def create_channel_token(self, wa_id: str, channel_id: str, ttl: int = 3600) -> str:
+    async def create_channel_token(self, wa_id: str, channel_id: str, ttl: int = 3600) -> str:
         """Create a channel-specific token."""
         ...
 

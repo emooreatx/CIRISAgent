@@ -99,7 +99,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         self._current_state = AdaptationState.LEARNING
         self._current_cycle: Optional[AdaptationCycle] = None
         self._adaptation_history: List[AdaptationCycle] = []
-        self._last_adaptation = self._time_service.get_current_time()
+        self._last_adaptation = self._time_service.now()
         # No more pending proposals - agent decides through thoughts
 
         # Safety mechanisms
@@ -148,7 +148,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
                 memory_bus=self._memory_bus
             )
             if self._service_registry:
-                self._telemetry_service.set_service_registry(self._service_registry)
+                self._telemetry_service._set_service_registry(self._service_registry)
 
             logger.info("Self-configuration components initialized")
 
@@ -169,14 +169,14 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
 
         # Store initialization event
         init_node = GraphNode(
-            id=f"self_config_init_{int(self._time_service.get_current_time().timestamp())}",
+            id=f"self_config_init_{int(self._time_service.now().timestamp())}",
             type=NodeType.CONCEPT,
             scope=GraphScope.IDENTITY,
             attributes={
                 "event_type": "self_configuration_initialized",
                 "baseline_id": baseline_id,
                 "variance_threshold": self._variance_threshold,
-                "timestamp": self._time_service.get_current_time().isoformat()
+                "timestamp": self._time_service.now().isoformat()
             }
         )
 
@@ -203,12 +203,12 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
 
         if self._current_state == AdaptationState.STABILIZING:
             # Check if stabilization period has passed
-            time_since_last = self._time_service.get_current_time() - self._last_adaptation
+            time_since_last = self._time_service.now() - self._last_adaptation
             if time_since_last < self._stabilization_period:
                 return False
 
         # Check interval
-        time_since_last = self._time_service.get_current_time() - self._last_adaptation
+        time_since_last = self._time_service.now() - self._last_adaptation
         return time_since_last >= self._adaptation_interval
 
     async def _run_adaptation_cycle(self) -> AdaptationCycleResult:
@@ -226,8 +226,8 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
                 return AdaptationCycleResult(
                     cycle_id="no_monitor",
                     state=self._current_state,
-                    started_at=self._time_service.get_current_time(),
-                    completed_at=self._time_service.get_current_time(),
+                    started_at=self._time_service.now(),
+                    completed_at=self._time_service.now(),
                     patterns_detected=0,
                     proposals_generated=0,
                     changes_applied=0,
@@ -237,7 +237,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
                     error="Variance monitor not initialized"
                 )
 
-            cycle_id = f"variance_check_{int(self._time_service.get_current_time().timestamp())}"
+            cycle_id = f"variance_check_{int(self._time_service.now().timestamp())}"
 
             if variance_report.requires_wa_review:
                 # Variance too high - enter review state
@@ -250,8 +250,8 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             return AdaptationCycleResult(
                 cycle_id=cycle_id,
                 state=self._current_state,
-                started_at=self._time_service.get_current_time(),
-                completed_at=self._time_service.get_current_time(),
+                started_at=self._time_service.now(),
+                completed_at=self._time_service.now(),
                 patterns_detected=0,  # Patterns detected by feedback loop
                 proposals_generated=0,  # No proposals - agent decides
                 changes_applied=0,  # Changes via MEMORIZE
@@ -271,8 +271,8 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             return AdaptationCycleResult(
                 cycle_id="error",
                 state=self._current_state,
-                started_at=self._time_service.get_current_time(),
-                completed_at=self._time_service.get_current_time(),
+                started_at=self._time_service.now(),
+                completed_at=self._time_service.now(),
                 success=False,
                 error=str(e)
             )
@@ -282,14 +282,14 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         """Store an event during the adaptation cycle."""
         cycle_id = self._current_cycle.cycle_id if self._current_cycle else "unknown"
         event_node = GraphNode(
-            id=f"cycle_event_{cycle_id}_{event_type}_{int(self._time_service.get_current_time().timestamp())}",
+            id=f"cycle_event_{cycle_id}_{event_type}_{int(self._time_service.now().timestamp())}",
             type=NodeType.CONCEPT,
             scope=GraphScope.LOCAL,
             attributes={
                 "cycle_id": cycle_id,
                 "event_type": event_type,
                 "data": data,
-                "timestamp": self._time_service.get_current_time().isoformat()
+                "timestamp": self._time_service.now().isoformat()
             }
         )
 
@@ -312,7 +312,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
                 "variance_after": cycle.variance_after,
                 "final_state": cycle.state.value,
                 "success": cycle.changes_applied > 0 or cycle.patterns_detected > 0,
-                "timestamp": cycle.completed_at.isoformat() if cycle.completed_at else self._time_service.get_current_time().isoformat()
+                "timestamp": cycle.completed_at.isoformat() if cycle.completed_at else self._time_service.now().isoformat()
             }
         )
 
@@ -337,7 +337,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             total_changes_applied=sum(c.changes_applied for c in self._adaptation_history),
             rollback_rate=0.0,  # TODO: Track rollbacks
             identity_stable=self._consecutive_failures < 3,
-            time_since_last_change=(self._time_service.get_current_time() - self._last_adaptation).total_seconds() if self._last_adaptation else None,
+            time_since_last_change=(self._time_service.now() - self._last_adaptation).total_seconds() if self._last_adaptation else None,
             under_review=self._current_state == AdaptationState.REVIEWING,
             review_reason="Variance exceeded threshold" if self._current_state == AdaptationState.REVIEWING else None
         )
@@ -363,14 +363,14 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
 
         # Store review outcome
         review_node = GraphNode(
-            id=f"wa_review_outcome_{int(self._time_service.get_current_time().timestamp())}",
+            id=f"wa_review_outcome_{int(self._time_service.now().timestamp())}",
             type=NodeType.CONCEPT,
             scope=GraphScope.IDENTITY,
             attributes={
                 "review_type": "identity_variance",
                 "outcome": review_outcome.model_dump(),
                 "new_state": self._current_state.value,
-                "timestamp": self._time_service.get_current_time().isoformat()
+                "timestamp": self._time_service.now().isoformat()
             }
         )
 
@@ -384,14 +384,14 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
 
         # Store emergency stop event
         stop_node = GraphNode(
-            id=f"emergency_stop_{int(self._time_service.get_current_time().timestamp())}",
+            id=f"emergency_stop_{int(self._time_service.now().timestamp())}",
             type=NodeType.CONCEPT,
             scope=GraphScope.IDENTITY,
             attributes={
                 "event_type": "emergency_stop",
                 "reason": reason,
                 "previous_state": self._current_state.value,
-                "timestamp": self._time_service.get_current_time().isoformat()
+                "timestamp": self._time_service.now().isoformat()
             }
         )
 
@@ -414,7 +414,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         """Stop the service."""
         # Complete current cycle if any
         if self._current_cycle and not self._current_cycle.completed_at:
-            self._current_cycle.completed_at = self._time_service.get_current_time()
+            self._current_cycle.completed_at = self._time_service.now()
             await self._store_cycle_summary(self._current_cycle)
 
         # Stop component services
@@ -473,7 +473,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
                 "emergency_stop": float(self._emergency_stop),
                 "changes_since_last_adaptation": float(sum(c.changes_applied for c in self._adaptation_history[-1:]) if self._adaptation_history else 0)
             },
-            last_health_check=self._time_service.get_current_time()
+            last_health_check=self._time_service.now()
         )
 
     # ========== New Protocol Methods for 1000-Year Operation ==========
@@ -494,7 +494,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
 
         This method looks at insights stored by the feedback loop.
         """
-        current_time = self._time_service.get_current_time()
+        current_time = self._time_service.now()
         window_start = current_time - window
 
         analysis = ObservabilityAnalysis(
@@ -512,10 +512,11 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         from ciris_engine.schemas.services.operations import MemoryQuery
 
         query = MemoryQuery(
-            node_type=NodeType.CONCEPT,
-            attributes={"insight_type": "behavioral_pattern"},
-            time_range_start=window_start,
-            time_range_end=current_time
+            node_id="behavioral_patterns",  # MemoryQuery requires node_id
+            scope=GraphScope.LOCAL,
+            type=NodeType.CONCEPT,
+            include_edges=False,
+            depth=1
         )
 
         insights = await self._memory_bus.recall(query, handler_name="self_configuration")
@@ -546,8 +547,8 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             return AdaptationCycleResult(
                 cycle_id="manual_trigger_blocked",
                 state=self._current_state,
-                started_at=self._time_service.get_current_time(),
-                completed_at=self._time_service.get_current_time(),
+                started_at=self._time_service.now(),
+                completed_at=self._time_service.now(),
                 success=False,
                 error="Emergency stop active"
             )
@@ -575,9 +576,11 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         from ciris_engine.schemas.services.operations import MemoryQuery
 
         query = MemoryQuery(
-            node_type=NodeType.CONCEPT,
-            attributes={"pattern_type": "*"},
-            limit=100
+            node_id="pattern_library",  # MemoryQuery requires node_id
+            scope=GraphScope.LOCAL,
+            type=NodeType.CONCEPT,
+            include_edges=False,
+            depth=1
         )
 
         patterns = await self._memory_bus.recall(query, handler_name="self_configuration")
@@ -605,7 +608,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         """
         effectiveness = AdaptationEffectiveness(
             adaptation_id=adaptation_id,
-            measured_at=self._time_service.get_current_time(),
+            measured_at=self._time_service.now(),
             metrics_before={},
             metrics_after={},
             net_improvement=0.0,
@@ -630,7 +633,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         """
         Generate service improvement report for period.
         """
-        current_time = self._time_service.get_current_time()
+        current_time = self._time_service.now()
         period_start = current_time - period
 
         report = ServiceImprovementReport(

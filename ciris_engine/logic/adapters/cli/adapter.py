@@ -14,6 +14,8 @@ from .cli_observer import CLIObserver
 logger = logging.getLogger(__name__)
 
 class CliPlatform(Service):
+    config: CLIAdapterConfig  # Type annotation to override parent's dict type
+    
     def __init__(self, runtime: Any, **kwargs: Any) -> None:
         # Initialize the parent Service class
         super().__init__(config=kwargs.get('adapter_config'))
@@ -27,7 +29,13 @@ class CliPlatform(Service):
         logger.info(f"CLI adapter initialized with adapter_id: {self.adapter_id}")
 
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
-            self.config = kwargs["adapter_config"]
+            # Ensure config is a CLIAdapterConfig instance
+            if isinstance(kwargs["adapter_config"], CLIAdapterConfig):
+                self.config = kwargs["adapter_config"]
+            elif isinstance(kwargs["adapter_config"], dict):
+                self.config = CLIAdapterConfig(**kwargs["adapter_config"])
+            else:
+                self.config = CLIAdapterConfig()
             logger.info(f"CLI adapter using provided config: interactive={self.config.interactive}")
         else:
             self.config = CLIAdapterConfig()
@@ -84,7 +92,7 @@ class CliPlatform(Service):
             return
 
         if not isinstance(msg, IncomingMessage):
-            logger.warning(f"CliPlatform: Expected IncomingMessage, got {type(msg)}. Cannot process.")  # type: ignore[unreachable]
+            logger.warning(f"CliPlatform: Expected IncomingMessage, got {type(msg)}. Cannot process.")
             return
 
         try:

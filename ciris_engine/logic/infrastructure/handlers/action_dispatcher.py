@@ -6,6 +6,7 @@ from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
 from . import BaseActionHandler
 from ciris_engine.logic import persistence
 
@@ -15,7 +16,7 @@ class ActionDispatcher:
     def __init__(
         self,
         handlers: Dict[HandlerActionType, BaseActionHandler],
-        telemetry_service: Optional[object] = None
+        telemetry_service: Optional[TelemetryServiceProtocol] = None
     ) -> None:
         """
         Initializes the ActionDispatcher with a map of action types to their handler instances.
@@ -52,7 +53,7 @@ class ActionDispatcher:
         # Defensive: ensure selected_action is a HandlerActionType
         action_type = action_selection_result.selected_action
         if not isinstance(action_type, HandlerActionType):
-            try:  # type: ignore[unreachable]
+            try:
                 action_type = HandlerActionType(action_type)
             except Exception as e:
                 logger.error(f"ActionDispatcher: selected_action {action_type} is not a valid HandlerActionType: {e}")

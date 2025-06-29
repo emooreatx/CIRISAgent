@@ -20,9 +20,18 @@ logger = logging.getLogger(__name__)
 class DiscordPlatform(Service):
     def __init__(self, runtime: Any, **kwargs: Any) -> None:
         self.runtime = runtime
+        self.config: DiscordAdapterConfig
 
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
-            self.config = kwargs["adapter_config"]
+            # Ensure adapter_config is a DiscordAdapterConfig instance
+            adapter_config = kwargs["adapter_config"]
+            if isinstance(adapter_config, DiscordAdapterConfig):
+                self.config = adapter_config
+            elif isinstance(adapter_config, dict):
+                self.config = DiscordAdapterConfig(**adapter_config)
+            else:
+                logger.warning(f"Invalid adapter_config type: {type(adapter_config)}. Creating default config.")
+                self.config = DiscordAdapterConfig()
             logger.info(f"Discord adapter using provided config: channels={self.config.monitored_channel_ids}")
         else:
             self.config = DiscordAdapterConfig()
@@ -119,7 +128,7 @@ class DiscordPlatform(Service):
             logger.warning("DiscordPlatform: DiscordObserver not available.")
             return
         if not isinstance(msg, DiscordMessage): # Ensure it's the correct type
-            logger.warning(f"DiscordPlatform: Expected DiscordMessage, got {type(msg)}. Cannot process.")  # type: ignore[unreachable]
+            logger.warning(f"DiscordPlatform: Expected DiscordMessage, got {type(msg)}. Cannot process.")
             return
         await self.discord_observer.handle_incoming_message(msg)
 

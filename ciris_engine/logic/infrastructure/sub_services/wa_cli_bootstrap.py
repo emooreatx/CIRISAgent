@@ -9,16 +9,16 @@ from datetime import timedelta
 from rich.console import Console
 from rich.prompt import Prompt
 
-from ciris_engine.schemas.services.core import (
+from ciris_engine.schemas.services.authority_core import (
     WACertificate, WARole, TokenType
 )
-from ciris_engine.logic.services.governance.authentication import WAAuthService
+from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
 from ciris_engine.logic.services.lifecycle.time import TimeService
 
 class WACLIBootstrapService:
     """Handles WA bootstrap and minting operations."""
 
-    def __init__(self, auth_service: WAAuthService, time_service: TimeService):
+    def __init__(self, auth_service: AuthenticationService, time_service: TimeService):
         """Initialize bootstrap service with authentication service."""
         self.auth_service = auth_service
         self.time_service = time_service

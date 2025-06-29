@@ -84,7 +84,7 @@ class TestAgentProcessor:
             processor.initialize = AsyncMock(return_value=True)
             processor.process = AsyncMock(return_value=result_types[state])
             processor.cleanup = AsyncMock(return_value=True)
-            processor.get_metrics = Mock(return_value=ProcessorMetrics(processor_name=f"{state.capitalize()}Processor"))
+            processor.get_metrics = Mock(return_value=ProcessorMetrics())
             processors[state] = processor
         return processors
 

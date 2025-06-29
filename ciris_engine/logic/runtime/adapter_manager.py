@@ -161,12 +161,12 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 )
 
                 if remaining_comm_adapters == 0:
-                    return {
-                        "success": False,
-                        "adapter_id": adapter_id,
-                        "adapter_type": instance.adapter_type,
-                        "error": f"Cannot unload {adapter_id}: it is one of the last communication-capable adapters"
-                    }
+                    return AdapterOperationResult(
+                        success=False,
+                        adapter_id=adapter_id,
+                        adapter_type=instance.adapter_type,
+                        error=f"Cannot unload {adapter_id}: it is one of the last communication-capable adapters"
+                    )
 
             logger.info(f"Unloading adapter {adapter_id}")
 
@@ -182,21 +182,21 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             del self.loaded_adapters[adapter_id]
 
             logger.info(f"Successfully unloaded adapter {adapter_id}")
-            return {
-                "success": True,
-                "adapter_id": adapter_id,
-                "adapter_type": instance.adapter_type,
-                "services_unregistered": len(instance.services_registered),
-                "was_running": True
-            }
+            return AdapterOperationResult(
+                success=True,
+                adapter_id=adapter_id,
+                adapter_type=instance.adapter_type,
+                message=f"Successfully unloaded adapter with {len(instance.services_registered)} services unregistered",
+                details={"services_unregistered": len(instance.services_registered), "was_running": True}
+            )
 
         except Exception as e:
             logger.error(f"Failed to unload adapter {adapter_id}: {e}", exc_info=True)
-            return {
-                "success": False,
-                "adapter_id": adapter_id,
-                "error": str(e)
-            }
+            return AdapterOperationResult(
+                success=False,
+                adapter_id=adapter_id,
+                error=str(e)
+            )
 
     async def reload_adapter(self, adapter_id: str, config_params: Optional[dict] = None) -> AdapterOperationResult:
         """Reload an adapter with new configuration
@@ -222,23 +222,23 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             logger.info(f"Reloading adapter {adapter_id} with new config")
 
             unload_result = await self.unload_adapter(adapter_id)
-            if not unload_result["success"]:
+            if not unload_result.success:
                 return unload_result
 
             load_result = await self.load_adapter(adapter_type, adapter_id, config_params)
 
-            if load_result["success"]:
+            if load_result.success:
                 logger.info(f"Successfully reloaded adapter {adapter_id}")
 
             return load_result
 
         except Exception as e:
             logger.error(f"Failed to reload adapter {adapter_id}: {e}", exc_info=True)
-            return {
-                "success": False,
-                "adapter_id": adapter_id,
-                "error": str(e)
-            }
+            return AdapterOperationResult(
+                success=False,
+                adapter_id=adapter_id,
+                error=str(e)
+            )
 
     async def list_adapters(self) -> List[AdapterStatus]:
         """List all loaded adapter instances
@@ -292,11 +292,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             Dict with detailed adapter status information
         """
         if adapter_id not in self.loaded_adapters:
-            return {
-                "success": False,
-                "found": False,
-                "error": f"Adapter with ID '{adapter_id}' not found"
-            }
+            return None
 
         try:
             instance = self.loaded_adapters[adapter_id]
@@ -330,28 +326,24 @@ class RuntimeAdapterManager(AdapterManagerInterface):
 
             uptime_seconds = (self.time_service.now() - instance.loaded_at).total_seconds()
 
-            return {
-                "success": True,
-                "found": True,
-                "adapter_id": adapter_id,
-                "adapter_type": instance.adapter_type,
-                "is_running": instance.is_running,
-                "health_status": health_status,
-                "health_details": health_details,
-                "loaded_at": instance.loaded_at.isoformat(),
-                "uptime_seconds": uptime_seconds,
-                "config_params": instance.config_params,
-                "services_registered": instance.services_registered,
-                "service_details": service_details
-            }
+            return AdapterStatus(
+                adapter_id=adapter_id,
+                adapter_type=instance.adapter_type,
+                is_running=instance.is_running,
+                loaded_at=instance.loaded_at,
+                services_registered=instance.services_registered,
+                config_params=AdapterConfig(
+                    adapter_type=instance.adapter_type,
+                    settings=instance.config_params
+                ),
+                metrics=AdapterMetrics(
+                    uptime_seconds=uptime_seconds
+                ) if health_status == "healthy" else None
+            )
 
         except Exception as e:
             logger.error(f"Failed to get adapter status for {adapter_id}: {e}", exc_info=True)
-            return {
-                "success": False,
-                "found": False,
-                "error": str(e)
-            }
+            return None
 
     async def load_adapter_from_template(self, template_name: str, adapter_id: Optional[str] = None) -> dict:
         """Load adapter configuration from an agent template
@@ -414,7 +406,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             registrations = instance.adapter.get_services_to_register()
             for reg in registrations:
                 if not isinstance(reg, ServiceRegistration):
-                    logger.error(f"Adapter {instance.adapter.__class__.__name__} provided invalid ServiceRegistration: {reg}")  # type: ignore[unreachable]
+                    logger.error(f"Adapter {instance.adapter.__class__.__name__} provided invalid ServiceRegistration: {reg}")
                     continue
 
                 service_key = f"{reg.service_type.value}:{reg.provider.__class__.__name__}"

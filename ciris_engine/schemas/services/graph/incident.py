@@ -31,7 +31,7 @@ class IncidentNode(TypedGraphNode):
     """Represents an incident captured from WARNING/ERROR logs."""
 
     # Base fields (inherited from GraphNode)
-    type: str = Field(default=NodeType.AUDIT_ENTRY, description="Node type")
+    type: NodeType = Field(default=NodeType.AUDIT_ENTRY, description="Node type")
     scope: GraphScope = Field(default=GraphScope.LOCAL, description="Node scope")
 
     # Incident specific fields (stored in attributes)
@@ -97,7 +97,7 @@ class IncidentNode(TypedGraphNode):
     @classmethod
     def from_graph_node(cls, node: GraphNode) -> 'IncidentNode':
         """Reconstruct from GraphNode."""
-        attrs = node.attributes.copy()
+        attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
         attrs.pop("_node_class", None)
 
         # Handle datetime deserialization
@@ -134,7 +134,7 @@ class ProblemNode(TypedGraphNode):
     """Represents a problem (root cause) identified from incident patterns."""
 
     # Base fields
-    type: str = Field(default=NodeType.CONCEPT, description="Node type")
+    type: NodeType = Field(default=NodeType.CONCEPT, description="Node type")
     scope: GraphScope = Field(default=GraphScope.IDENTITY, description="Node scope")
 
     problem_statement: str = Field(..., description="Description of the problem")
@@ -179,7 +179,7 @@ class ProblemNode(TypedGraphNode):
     @classmethod
     def from_graph_node(cls, node: GraphNode) -> 'ProblemNode':
         """Reconstruct from GraphNode."""
-        attrs = node.attributes.copy()
+        attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
         attrs.pop("_node_class", None)
 
         # Handle datetime deserialization
@@ -212,7 +212,7 @@ class IncidentInsightNode(TypedGraphNode):
     """Represents insights derived from incident analysis during dream cycles."""
 
     # Base fields
-    type: str = Field(default=NodeType.CONCEPT, description="Node type")
+    type: NodeType = Field(default=NodeType.CONCEPT, description="Node type")
     scope: GraphScope = Field(default=GraphScope.LOCAL, description="Node scope")
 
     insight_type: str = Field(..., description="Type of insight (PERIODIC_ANALYSIS, PATTERN_DETECTED, etc.)")
@@ -253,7 +253,7 @@ class IncidentInsightNode(TypedGraphNode):
     @classmethod
     def from_graph_node(cls, node: GraphNode) -> 'IncidentInsightNode':
         """Reconstruct from GraphNode."""
-        attrs = node.attributes.copy()
+        attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
         attrs.pop("_node_class", None)
 
         # Handle datetime deserialization

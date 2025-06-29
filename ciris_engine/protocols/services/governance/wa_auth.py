@@ -63,7 +63,7 @@ class JWTService(Protocol):
     """Protocol for JWT operations."""
 
     @abstractmethod
-    def issue_token(self, sub: str, sub_type: str, name: str, scope: List[str], **kwargs) -> str:
+    def issue_token(self, sub: str, sub_type: str, name: str, scope: List[str], **kwargs: Any) -> str:
         """Issue a JWT token."""
         ...
 

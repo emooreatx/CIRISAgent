@@ -96,7 +96,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         # Set up connection callbacks
         self._setup_connection_callbacks()
 
-    async def _retry_discord_operation(self, operation: Callable, *args, operation_name: str, config_key: str = "discord_api", **kwargs):
+    async def _retry_discord_operation(self, operation: Callable, *args, operation_name: str, config_key: str = "discord_api", **kwargs) -> Any:
         """Wrapper for retry_with_backoff that handles Discord-specific configuration."""
         # Apply rate limiting before the operation
         endpoint = kwargs.get('endpoint', operation_name)
@@ -239,7 +239,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
 
         try:
             return await self._retry_discord_operation(
-                self._message_handler.fetch_messages_from_channel,  # type: ignore[arg-type]
+                self._message_handler.fetch_messages_from_channel,
                 channel_id, limit,
                 operation_name="fetch_messages",
                 config_key="discord_api"
@@ -267,7 +267,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                 config_key="discord_api"
             )
             # Type assertion: retry_with_backoff should return dict from fetch_guidance_from_channel
-            guidance: dict = guidance_result  # type: ignore
+            guidance: dict = guidance_result
 
             end_time = self._time_service.now()
             execution_time_ms = (end_time - start_time).total_seconds() * 1000
@@ -376,7 +376,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             # Create approval result container
             approval_result = None
 
-            async def handle_approval(approval: ApprovalRequest):
+            async def handle_approval(approval: ApprovalRequest) -> None:
                 nonlocal approval_result
                 approval_result = approval
 
@@ -1085,7 +1085,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
 
     def _setup_connection_callbacks(self) -> None:
         """Set up callbacks for connection events."""
-        async def on_connected():
+        async def on_connected() -> None:
             """Handle successful connection."""
             try:
                 # Log connection event
@@ -1107,7 +1107,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             except Exception as e:
                 logger.error(f"Error in connection callback: {e}")
 
-        async def on_disconnected(error: Optional[Exception]):
+        async def on_disconnected(error: Optional[Exception]) -> None:
             """Handle disconnection."""
             try:
                 await self._audit_logger.log_connection_event(
@@ -1124,7 +1124,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             except Exception as e:
                 logger.error(f"Error in disconnection callback: {e}")
 
-        async def on_reconnecting(attempt: int):
+        async def on_reconnecting(attempt: int) -> None:
             """Handle reconnection attempts."""
             try:
                 await self._emit_telemetry("discord.connection.reconnecting", {
@@ -1135,7 +1135,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             except Exception as e:
                 logger.error(f"Error in reconnecting callback: {e}")
 
-        async def on_failed(reason: str):
+        async def on_failed(reason: str) -> None:
             """Handle connection failure."""
             try:
                 await self._audit_logger.log_connection_event(

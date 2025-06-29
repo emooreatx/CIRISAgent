@@ -26,7 +26,7 @@ def mock_memory_bus():
     mock_memory_service = Mock()
     mock_memory_service.search = AsyncMock(return_value=[])
     mock_registry.get_service = Mock(return_value=mock_memory_service)
-    mock._service_registry = mock_registry
+    mock.service_registry = mock_registry
 
     return mock
 
@@ -127,7 +127,7 @@ async def test_incident_service_process_recent_incidents(incident_service, mock_
     ]
 
     # Mock the memory service search to return incidents
-    mock_memory_service = mock_memory_bus._service_registry.get_service()
+    mock_memory_service = mock_memory_bus.service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=mock_incident_nodes)
 
     # Process incidents
@@ -171,7 +171,7 @@ async def test_incident_service_pattern_detection(incident_service, mock_memory_
         )
         similar_incident_nodes.append(incident.to_graph_node())
 
-    mock_memory_service = mock_memory_bus._service_registry.get_service()
+    mock_memory_service = mock_memory_bus.service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=similar_incident_nodes)
 
     # Process to detect patterns
@@ -187,7 +187,7 @@ async def test_incident_service_pattern_detection(incident_service, mock_memory_
 async def test_incident_service_no_incidents(incident_service, mock_memory_bus):
     """Test processing when no incidents exist."""
     # Mock empty search result
-    mock_memory_service = mock_memory_bus._service_registry.get_service()
+    mock_memory_service = mock_memory_bus.service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=[])
 
     # Process incidents
@@ -225,7 +225,7 @@ async def test_incident_service_time_clusters(incident_service, mock_memory_bus,
         )
         cluster_incident_nodes.append(incident.to_graph_node())
 
-    mock_memory_service = mock_memory_bus._service_registry.get_service()
+    mock_memory_service = mock_memory_bus.service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=cluster_incident_nodes)
 
     # Process incidents
@@ -264,7 +264,7 @@ def test_incident_service_status(incident_service):
 async def test_incident_service_error_handling(incident_service, mock_memory_bus):
     """Test error handling when memory service fails."""
     # Make search raise an error
-    mock_memory_service = mock_memory_bus._service_registry.get_service()
+    mock_memory_service = mock_memory_bus.service_registry.get_service()
     mock_memory_service.search.side_effect = Exception("Database error")
 
     # Should handle error gracefully
@@ -302,7 +302,7 @@ async def test_incident_service_problem_creation(incident_service, mock_memory_b
         )
         incident_nodes.append(incident.to_graph_node())
 
-    mock_memory_service = mock_memory_bus._service_registry.get_service()
+    mock_memory_service = mock_memory_bus.service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=incident_nodes)
 
     # Process incidents
@@ -405,7 +405,7 @@ async def test_incident_service_recommendations(incident_service, mock_memory_bu
             timeout_inc.to_graph_node()
         ])
 
-    mock_memory_service = mock_memory_bus._service_registry.get_service()
+    mock_memory_service = mock_memory_bus.service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=incident_nodes)
 
     # Process incidents

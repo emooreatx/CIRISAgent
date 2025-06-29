@@ -1,7 +1,7 @@
 """
 Telemetry API response schemas - fully typed replacements for Dict[str, Any].
 """
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, field_serializer
 
@@ -74,7 +74,7 @@ class TimeSyncStatus(BaseModel):
     sync_source: str = Field(..., description="Sync source (system/mock/ntp)")
 
     @field_serializer('last_sync')
-    def serialize_last_sync(self, dt: datetime, _info) -> Optional[str]:
+    def serialize_last_sync(self, dt: datetime, _info: Any) -> Optional[str]:
         return dt.isoformat() if dt else None
 
 

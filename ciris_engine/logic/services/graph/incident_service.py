@@ -6,7 +6,7 @@ and generates insights for agent self-improvement. It's integrated with the drea
 for continuous learning from operational issues.
 """
 import logging
-from typing import Dict, List
+from typing import Dict, List, Any
 from datetime import timedelta
 from collections import defaultdict
 
@@ -46,7 +46,7 @@ class IncidentManagementService(BaseGraphService):
         self.service_name = "IncidentManagementService"
         self._started = False
 
-    async def _get_time_service(self):
+    async def _get_time_service(self) -> Any:
         """Get time service for consistent timestamps."""
         return self._time_service
 
@@ -132,7 +132,7 @@ class IncidentManagementService(BaseGraphService):
         search_query = f"type:{NodeType.AUDIT_ENTRY}"
 
         # Get the memory service through the bus (it should have a search method)
-        memory_service = self._memory_bus._service_registry.get_service(ServiceType.MEMORY)
+        memory_service = self._memory_bus.service_registry.get_service(ServiceType.MEMORY)
         if not memory_service:
             logger.error("Memory service not available")
             return []
@@ -513,15 +513,10 @@ class IncidentManagementService(BaseGraphService):
                 "service_available": bool(self._memory_bus)
             },
             last_error=None,
-            last_health_check=self._get_current_time() if self._time_service else None
+            last_health_check=self._time_service.now() if self._time_service else None
         )
 
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return self._started and self._memory_bus is not None
 
-    def _get_current_time(self) -> datetime:
-        """Get current time from time service."""
-        if not self._time_service:
-            raise RuntimeError("CRITICAL: TimeService not available")
-        return self._time_service.now()

@@ -13,10 +13,10 @@ from threading import Thread
 
 from rich.console import Console
 
-from ciris_engine.schemas.services.core import (
+from ciris_engine.schemas.services.authority_core import (
     WACertificate, WARole, TokenType
 )
-from ciris_engine.logic.services.governance.authentication import WAAuthService
+from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
 from ciris_engine.schemas.infrastructure.oauth import (
     OAuthOperationResult, OAuthLoginResult, OAuthCallbackData,
     OAuthTokenResponse, OAuthUserInfo
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 class WACLIOAuthService:
     """Handles OAuth provider configuration and authentication flows."""
 
-    def __init__(self, auth_service: WAAuthService, time_service: "ITimeService"):
+    def __init__(self, auth_service: AuthenticationService, time_service: "ITimeService"):
         """Initialize OAuth service with authentication service."""
         self.auth_service = auth_service
         self.time_service = time_service
@@ -64,7 +64,7 @@ class WACLIOAuthService:
             config[provider] = {
                 "client_id": client_id,
                 "client_secret": client_secret,
-                "created": self.time_service.get_current_time().isoformat()
+                "created": self.time_service.now().isoformat()
             }
 
             if custom_metadata:
@@ -348,12 +348,12 @@ class WACLIOAuthService:
 
         if existing_wa:
             # Update last login
-            existing_wa.last_login = self.time_service.get_current_time()
-            await self.auth_service.update_wa(existing_wa.wa_id, last_login=self.time_service.get_current_time())
+            existing_wa.last_login = self.time_service.now()
+            await self.auth_service.update_wa(existing_wa.wa_id, last_login=self.time_service.now())
             return existing_wa
 
         # Generate IDs for new WA
-        timestamp = self.time_service.get_current_time()
+        timestamp = self.time_service.now()
         wa_id = self.auth_service.generate_wa_id(timestamp)
         jwt_kid = f"wa-jwt-oauth-{wa_id[-6:].lower()}"
 

@@ -441,7 +441,7 @@ class WakeupProcessor(BaseProcessor):
         persistence.add_thought(thought)
         return thought, processing_context
 
-    async def _process_step_thought(self, thought: Thought, processing_context: Any = None):
+    async def _process_step_thought(self, thought: Thought, processing_context: Any = None) -> Any:
         """Process a wakeup step thought."""
         item = ProcessingQueueItem.from_thought(thought, initial_ctx=processing_context)
         return await self.process_thought_item(item)
@@ -524,7 +524,7 @@ class WakeupProcessor(BaseProcessor):
             await self.process(round_num)
             round_num += 1
             if self.wakeup_complete:
-                break  # type: ignore[unreachable]
+                break
             # Use shorter delay for testing
             await asyncio.sleep(0.1)  # Brief pause between rounds
 

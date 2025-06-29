@@ -76,17 +76,10 @@ class _BaseConscience(ConscienceInterface):
         except Exception as e:
             logger.error(f"Failed to get TimeService: {e}")
 
-    def _get_current_time(self) -> datetime:
-        """Get current time from TimeService or fallback to UTC."""
-        if self._time_service:
-            return self._time_service.now()
-        # Fallback if time service not available
-        logger.warning("TimeService not available, using fallback UTC time")
-        return datetime.now(timezone.utc)
 
 class Entropyconscience(_BaseConscience):
     async def check(self, action: ActionSelectionDMAResult, context: dict) -> ConscienceCheckResult:
-        ts = self._get_current_time().isoformat()
+        ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
         if action.selected_action != HandlerActionType.SPEAK:
             return ConscienceCheckResult(
                 status=ConscienceStatus.PASSED,
@@ -166,7 +159,7 @@ class Entropyconscience(_BaseConscience):
 
 class Coherenceconscience(_BaseConscience):
     async def check(self, action: ActionSelectionDMAResult, context: dict) -> ConscienceCheckResult:
-        ts = self._get_current_time().isoformat()
+        ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
         if action.selected_action != HandlerActionType.SPEAK:
             return ConscienceCheckResult(status=ConscienceStatus.PASSED, passed=True, check_timestamp=ts)
         sink = await self._get_sink()
@@ -256,7 +249,7 @@ class Coherenceconscience(_BaseConscience):
 
 class OptimizationVetoconscience(_BaseConscience):
     async def check(self, action: ActionSelectionDMAResult, context: dict) -> ConscienceCheckResult:
-        ts = self._get_current_time().isoformat()
+        ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
         sink = await self._get_sink()
         if not sink:
             return ConscienceCheckResult(status=ConscienceStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts)
@@ -330,7 +323,7 @@ class OptimizationVetoconscience(_BaseConscience):
 
 class EpistemicHumilityconscience(_BaseConscience):
     async def check(self, action: ActionSelectionDMAResult, context: dict) -> ConscienceCheckResult:
-        ts = self._get_current_time().isoformat()
+        ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
         sink = await self._get_sink()
         if not sink:
             return ConscienceCheckResult(status=ConscienceStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts)

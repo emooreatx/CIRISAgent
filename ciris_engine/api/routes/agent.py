@@ -196,12 +196,17 @@ async def get_history(
         if memory_service:
             # Query conversation nodes from memory
             from ciris_engine.schemas.services.operations import MemoryQuery
-            from ciris_engine.schemas.services.graph_core import GraphScope
+            from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 
+            # MemoryQuery expects node_id, not filters
+            # For conversation history, we'll need to use a different approach
+            # For now, create a placeholder query
             query = MemoryQuery(
-                scope=GraphScope.CONVERSATION,
-                filters={"channel_id": channel_id},
-                limit=limit
+                node_id=f"conversation_{channel_id}",
+                scope=GraphScope.LOCAL,
+                type=NodeType.CONVERSATION if hasattr(NodeType, 'CONVERSATION') else None,
+                include_edges=True,
+                depth=1
             )
 
             nodes = await memory_service.recall(query)

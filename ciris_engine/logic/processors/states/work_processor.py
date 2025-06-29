@@ -168,7 +168,7 @@ class WorkProcessor(BaseProcessor):
 
         return processed_count
 
-    async def _process_single_thought(self, item: Any):
+    async def _process_single_thought(self, item: Any) -> Any:
         """Process a single thought item."""
         return await self.process_thought_item(item)
 

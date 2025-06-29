@@ -434,15 +434,33 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
 
             results = TelemetrySnapshotResult()
 
-            # 1. Store operational metrics
-            if snapshot.telemetry:
-                await self._store_telemetry_metrics(snapshot.telemetry, thought_id, task_id)
+            # 1. Store operational metrics from telemetry summary
+            if snapshot.telemetry_summary:
+                # Convert telemetry summary to telemetry data format
+                telemetry_data = TelemetryData(
+                    metrics={
+                        "messages_processed_24h": snapshot.telemetry_summary.messages_processed_24h,
+                        "thoughts_processed_24h": snapshot.telemetry_summary.thoughts_processed_24h,
+                        "tasks_completed_24h": snapshot.telemetry_summary.tasks_completed_24h,
+                        "errors_24h": snapshot.telemetry_summary.errors_24h,
+                        "messages_current_hour": snapshot.telemetry_summary.messages_current_hour,
+                        "thoughts_current_hour": snapshot.telemetry_summary.thoughts_current_hour,
+                        "errors_current_hour": snapshot.telemetry_summary.errors_current_hour,
+                        "tokens_per_hour": snapshot.telemetry_summary.tokens_per_hour,
+                        "cost_per_hour_cents": snapshot.telemetry_summary.cost_per_hour_cents,
+                        "carbon_per_hour_grams": snapshot.telemetry_summary.carbon_per_hour_grams,
+                        "error_rate_percent": snapshot.telemetry_summary.error_rate_percent,
+                        "avg_thought_depth": snapshot.telemetry_summary.avg_thought_depth,
+                        "queue_saturation": snapshot.telemetry_summary.queue_saturation,
+                    },
+                    events={},
+                    counters=snapshot.telemetry_summary.service_calls
+                )
+                await self._store_telemetry_metrics(telemetry_data, thought_id, task_id)
                 results.memories_created += 1
 
-            # 2. Store resource usage
-            if snapshot.current_round_resources:
-                await self._store_resource_usage(snapshot.current_round_resources, thought_id, task_id)
-                results.memories_created += 1
+            # 2. Store resource usage - Note: no current_round_resources in SystemSnapshot
+            # Resource data would come from telemetry_summary if needed
 
             # 3. Store behavioral data (task/thought summaries)
             if snapshot.current_task_details:
@@ -459,7 +477,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 results.memories_created += 1
 
             # 5. Store identity context
-            if snapshot.agent_name or snapshot.wisdom_request:
+            if snapshot.agent_identity or snapshot.identity_purpose:
                 await self._store_identity_context(snapshot, thought_id)
                 results.memories_created += 1
 
@@ -576,17 +594,24 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         thought_id: str
     ) -> None:
         """Store identity-related context as memories."""
+        # Extract agent name from identity data if available
+        agent_name = None
+        if snapshot.agent_identity and isinstance(snapshot.agent_identity, dict):
+            agent_name = snapshot.agent_identity.get("name") or snapshot.agent_identity.get("agent_name")
+        
         node = GraphNode(
             id=f"identity_{thought_id}",
             type=NodeType.IDENTITY,
             attributes={
-                "agent_name": snapshot.agent_name,
-                "wisdom_request": snapshot.wisdom_request,
+                "agent_name": agent_name,
+                "identity_purpose": snapshot.identity_purpose,
+                "identity_capabilities": snapshot.identity_capabilities,
+                "identity_restrictions": snapshot.identity_restrictions,
                 "memory_type": MemoryType.IDENTITY.value
             },
             tags={
                 "thought_id": thought_id,
-                "has_wisdom": str(bool(snapshot.wisdom_request))
+                "has_purpose": str(bool(snapshot.identity_purpose))
             }
         )
 

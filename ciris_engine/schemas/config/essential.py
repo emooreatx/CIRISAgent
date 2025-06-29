@@ -184,3 +184,15 @@ class CIRISNodeConfig(BaseModel):
     )
 
     model_config = ConfigDict(extra = "forbid")
+    
+    def load_env_vars(self) -> None:
+        """Load configuration from environment variables if present."""
+        from ciris_engine.logic.config.env_utils import get_env_var
+        
+        env_url = get_env_var("CIRISNODE_BASE_URL")
+        if env_url:
+            self.base_url = env_url
+            
+        env_enabled = get_env_var("CIRISNODE_ENABLED")
+        if env_enabled is not None:
+            self.enabled = env_enabled.lower() in ("true", "1", "yes", "on")

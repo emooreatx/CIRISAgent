@@ -44,7 +44,7 @@ async def emergency_shutdown(
     command: EmergencyShutdownCommand,
     request: Request,
     background_tasks: BackgroundTasks
-):
+) -> EmergencyShutdownResponse:
     """Execute emergency shutdown with signed command."""
 
     # Get services from app state
@@ -115,7 +115,7 @@ async def emergency_shutdown(
             logger.error(f"Failed to log emergency shutdown initiation: {e}")
 
     # Define shutdown task
-    async def execute_shutdown():
+    async def execute_shutdown() -> None:
         """Execute the emergency shutdown."""
         try:
             # Give a brief moment for response to be sent
@@ -161,7 +161,7 @@ async def emergency_shutdown(
     summary="Emergency System Status",
     description="Get the current status of the emergency shutdown system."
 )
-async def get_emergency_status(request: Request):
+async def get_emergency_status(request: Request) -> EmergencyStatus:
     """Get emergency system status (public endpoint)."""
 
     # Check if emergency system is configured
@@ -199,9 +199,9 @@ async def get_emergency_status(request: Request):
 
 # Initialization helper for app startup
 async def initialize_emergency_system(
-    config_service,
-    audit_service,
-    shutdown_service
+    config_service: Any,
+    audit_service: Any,
+    shutdown_service: Any
 ) -> EmergencyShutdownVerifier:
     """
     Initialize emergency shutdown system.

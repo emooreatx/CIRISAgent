@@ -10,6 +10,8 @@ from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusErr
 import instructor
 
 from ciris_engine.protocols.services import LLMService as LLMServiceProtocol
+from ciris_engine.protocols.services.runtime.llm import MessageDict
+from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
 from ciris_engine.schemas.runtime.resources import ResourceUsage
 from ciris_engine.schemas.runtime.protocols_core import LLMStatus
 from ciris_engine.schemas.services.llm import JSONExtractionResult
@@ -34,7 +36,7 @@ logger = logging.getLogger(__name__)
 class OpenAICompatibleClient(LLMServiceProtocol):
     """Client for interacting with OpenAI-compatible APIs with circuit breaker protection."""
 
-    def __init__(self, config: Optional[OpenAIConfig] = None, telemetry_service: Optional[object] = None) -> None:
+    def __init__(self, config: Optional[OpenAIConfig] = None, telemetry_service: Optional[TelemetryServiceProtocol] = None) -> None:
         if config is None:
             # Use default config - should be injected
             self.openai_config = OpenAIConfig()
@@ -187,7 +189,7 @@ class OpenAICompatibleClient(LLMServiceProtocol):
 
     async def call_llm_structured(
         self,
-        messages: List[dict],
+        messages: List[MessageDict],
         response_model: Type[BaseModel],
         max_tokens: int = 1024,
         temperature: float = 0.0,

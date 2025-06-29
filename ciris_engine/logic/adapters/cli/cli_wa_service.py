@@ -52,7 +52,7 @@ class CLIWiseAuthorityService(WiseAuthorityService):
         deferral_entry = {
             "thought_id": context.thought_id,
             "reason": context.reason,
-            "timestamp": self.time_service.get_current_time().timestamp(),
+            "timestamp": self.time_service.now().timestamp(),
             "context": context.model_dump()
         }
 
@@ -64,7 +64,7 @@ class CLIWiseAuthorityService(WiseAuthorityService):
         print(f"Thought ID: {context.thought_id}")
         print(f"Task ID: {context.task_id}")
         print(f"Reason: {context.reason}")
-        print(f"Timestamp: {self.time_service.get_current_time().isoformat()}Z")
+        print(f"Timestamp: {self.time_service.now().isoformat()}Z")
 
         if context.defer_until:
             print(f"Defer until: {context.defer_until}")
@@ -88,8 +88,8 @@ class CLIWiseAuthorityService(WiseAuthorityService):
             request_data=context.model_dump(),
             response_data={"status": "logged"},
             status=ServiceCorrelationStatus.COMPLETED,
-            created_at=self.time_service.get_current_time().isoformat(),
-            updated_at=self.time_service.get_current_time().isoformat(),
+            created_at=self.time_service.now().isoformat(),
+            updated_at=self.time_service.now().isoformat(),
         )
         persistence.add_correlation(corr)
         return True

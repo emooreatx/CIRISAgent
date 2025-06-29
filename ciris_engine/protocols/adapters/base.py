@@ -97,11 +97,6 @@ class DiscordAdapterProtocol(BaseAdapterProtocol):
         """Get configuration for a specific guild."""
         ...
 
-    @abstractmethod
-    async def handle_slash_command(self, interaction: Any) -> None:
-        """Handle slash command interaction."""
-        ...
-
 # ============================================================================
 # FUTURE ADAPTER PROTOCOLS
 # ============================================================================
@@ -112,11 +107,6 @@ class SlackAdapterProtocol(BaseAdapterProtocol):
     @abstractmethod
     async def handle_event(self, event: dict) -> None:
         """Handle Slack event."""
-        ...
-
-    @abstractmethod
-    async def handle_slash_command(self, command: dict) -> dict:
-        """Handle Slack slash command."""
         ...
 
 class WebSocketAdapterProtocol(BaseAdapterProtocol):

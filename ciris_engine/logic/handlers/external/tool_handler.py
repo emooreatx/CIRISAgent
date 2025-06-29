@@ -31,9 +31,9 @@ class ToolHandler(BaseActionHandler):
         new_follow_up = None
 
         try:
-            processed_result = await self._decapsulate_secrets_in_params(result, "tool")
+            processed_result = await self._decapsulate_secrets_in_params(result, "tool", thought_id)
 
-            params = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
+            params: ToolParams = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e)
             final_thought_status = ThoughtStatus.FAILED

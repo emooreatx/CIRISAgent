@@ -36,7 +36,7 @@ class MemorizeHandler(BaseActionHandler):
 
         # Validate parameters
         try:
-            params = await self._validate_and_convert_params(
+            params: MemorizeParams = await self._validate_and_convert_params(
                 result.action_parameters,
                 MemorizeParams
             )

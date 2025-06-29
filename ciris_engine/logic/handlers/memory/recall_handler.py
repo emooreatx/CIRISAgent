@@ -2,7 +2,7 @@ from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.actions import RecallParams
 from ciris_engine.schemas.services.operations import MemoryQuery
-from ciris_engine.schemas.services.graph_core import GraphScope
+from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
 from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
 from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
@@ -19,7 +19,7 @@ class RecallHandler(BaseActionHandler):
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.RECALL, dispatch_context, outcome="start")
         try:
-            params = await self._validate_and_convert_params(raw_params, RecallParams)
+            params: RecallParams = await self._validate_and_convert_params(raw_params, RecallParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.RECALL, dispatch_context, thought_id, e)
             follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=ThoughtStatus.PENDING
@@ -27,6 +27,9 @@ class RecallHandler(BaseActionHandler):
             persistence.add_thought(follow_up)
             return None
         # Memory operations will use the memory bus
+        
+        # Type assertion to help MyPy understand params is RecallParams
+        assert isinstance(params, RecallParams)
 
         # Create MemoryQuery from RecallParams
         # If node_id is provided, use it directly
@@ -34,7 +37,7 @@ class RecallHandler(BaseActionHandler):
             memory_query = MemoryQuery(
                 node_id=params.node_id,
                 scope=params.scope or GraphScope.LOCAL,
-                type=params.node_type if params.node_type else None,
+                type=NodeType(params.node_type) if params.node_type else None,
                 include_edges=False,
                 depth=1
             )
@@ -45,7 +48,7 @@ class RecallHandler(BaseActionHandler):
             memory_query = MemoryQuery(
                 node_id=params.query or "query_recall",
                 scope=params.scope or GraphScope.LOCAL,
-                type=params.node_type if params.node_type else None,
+                type=NodeType(params.node_type) if params.node_type else None,
                 include_edges=False,
                 depth=1
             )

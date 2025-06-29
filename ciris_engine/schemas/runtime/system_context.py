@@ -227,7 +227,7 @@ class ChannelContext(BaseModel):
     moderation_level: str = Field("standard", description="Moderation level")
 
     @field_serializer('created_at', 'last_activity')
-    def serialize_datetimes(self, dt: Optional[datetime], _info):
+    def serialize_datetimes(self, dt: Optional[datetime], _info: Any) -> Optional[str]:
         return dt.isoformat() if dt else None
 
     model_config = ConfigDict(extra = "forbid")
@@ -295,7 +295,7 @@ class TelemetrySummary(BaseModel):
     queue_saturation: float = Field(0.0, description="Queue saturation 0-1")
 
     @field_serializer('window_start', 'window_end')
-    def serialize_datetimes(self, dt: datetime, _info):
+    def serialize_datetimes(self, dt: datetime, _info: Any) -> Optional[str]:
         return dt.isoformat() if dt else None
 
     model_config = ConfigDict(extra = "forbid")

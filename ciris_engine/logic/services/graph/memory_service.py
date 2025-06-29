@@ -19,6 +19,7 @@ from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryOpRes
 from ciris_engine.protocols.services import MemoryService, GraphMemoryServiceProtocol
 from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
 from ciris_engine.logic.secrets.service import SecretsService
+from ciris_engine.schemas.secrets.service import DecapsulationContext
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.services.graph.memory import (
     MemorySearchFilter
@@ -181,12 +182,12 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             _attributes_str = json.dumps(attributes_dict, cls=DateTimeEncoder)
 
             decapsulated_attributes = await self.secrets_service.decapsulate_secrets_in_parameters(
-                attributes_dict,
-                action_type,
-                {
-                    "operation": "recall",
-                    "auto_decrypt": True
-                }
+                action_type=action_type,
+                action_params=attributes_dict,
+                context=DecapsulationContext(
+                    source="memory_recall",
+                    handler="LocalGraphMemoryService"
+                )
             )
 
             if decapsulated_attributes != attributes_dict:

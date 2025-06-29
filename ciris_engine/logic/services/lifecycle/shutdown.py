@@ -237,7 +237,7 @@ class ShutdownService(ShutdownServiceProtocol, ServiceProtocol):
             logger.error(f"Error during emergency shutdown: {e}")
 
         # Force termination after timeout
-        async def force_kill():
+        async def force_kill() -> None:
             await asyncio.sleep(timeout_seconds)
             logger.critical("Emergency shutdown timeout reached - forcing termination")
             import os

@@ -26,7 +26,7 @@ class RejectHandler(BaseActionHandler):
         original_event_channel_id = extract_channel_id(dispatch_context.channel_context)
 
         try:
-            params = await self._validate_and_convert_params(raw_params, RejectParams)
+            params: RejectParams = await self._validate_and_convert_params(raw_params, RejectParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.REJECT, dispatch_context, thought_id, e)
             final_thought_status = ThoughtStatus.FAILED

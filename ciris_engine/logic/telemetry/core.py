@@ -27,7 +27,7 @@ class BasicTelemetryCollector(Service):
         )
         self._filter = security_filter or SecurityFilter()
         self._time_service = time_service or TimeService()
-        self.start_time = self._time_service.get_current_time()
+        self.start_time = self._time_service.now()
 
     async def start(self) -> None:
         await super().start()
@@ -52,7 +52,7 @@ class BasicTelemetryCollector(Service):
         name, val = sanitized
 
         # Enhanced metric with tags, timestamp, and hot/cold path info
-        timestamp = self._time_service.get_current_time()
+        timestamp = self._time_service.now()
 
         # Auto-detect path type based on metric name patterns if not provided
         if path_type is None:
@@ -119,7 +119,7 @@ class BasicTelemetryCollector(Service):
 
     async def update_system_snapshot(self, snapshot: SystemSnapshot) -> None:
         """Update SystemSnapshot.telemetry with recent metrics."""
-        now = self._time_service.get_current_time()
+        now = self._time_service.now()
         cutoff_24h = now - timedelta(hours=24)
         cutoff_1h = now - timedelta(hours=1)
 

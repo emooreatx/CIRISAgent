@@ -4,7 +4,7 @@ Base class and utilities for typed graph nodes.
 This module provides the foundation for type-safe graph nodes that can be
 stored generically while maintaining full type information.
 """
-from typing import Dict, Any, Type, TypeVar, Optional, List, Union
+from typing import Dict, Any, Type, TypeVar, Optional, List, Union, Callable
 from datetime import datetime
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
@@ -136,7 +136,7 @@ class NodeTypeRegistry:
 
         return node
 
-def register_node_type(node_type: str):
+def register_node_type(node_type: str) -> Callable[[Type[TypedGraphNode]], Type[TypedGraphNode]]:
     """
     Decorator to automatically register a node type.
 

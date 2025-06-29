@@ -5,11 +5,11 @@ from pathlib import Path
 from rich.console import Console
 from rich.prompt import Prompt, Confirm, IntPrompt
 
-from ciris_engine.logic.services.governance.authentication import WAAuthService
+from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
 from ciris_engine.logic.infrastructure.sub_services.wa_cli_bootstrap import WACLIBootstrapService
 from ciris_engine.logic.infrastructure.sub_services.wa_cli_oauth import WACLIOAuthService
 from ciris_engine.logic.infrastructure.sub_services.wa_cli_display import WACLIDisplayService
-from ciris_engine.schemas.services.core import WACertificate
+from ciris_engine.schemas.services.authority_core import WACertificate
 from ciris_engine.schemas.infrastructure.wa_cli_wizard import (
     WizardResult, RootCreationResult, JoinRequestResult,
     OAuthConfigResult
@@ -20,7 +20,7 @@ class WACLIWizardService:
 
     def __init__(
         self,
-        auth_service: WAAuthService,
+        auth_service: AuthenticationService,
         bootstrap_service: WACLIBootstrapService,
         oauth_service: WACLIOAuthService,
         display_service: WACLIDisplayService

@@ -136,7 +136,7 @@ class SolitudeProcessor(BaseProcessor):
         maintenance_result = MaintenanceResult()
 
         try:
-            cutoff_date = self._get_current_time()
+            cutoff_date = self._time_service.now()
             cutoff_date = cutoff_date.replace(day=cutoff_date.day - 7)
 
             old_tasks = persistence.get_tasks_older_than(cutoff_date.isoformat())
@@ -282,19 +282,19 @@ class SolitudeProcessor(BaseProcessor):
             "user_requested": 5,
         }.get(getattr(self, 'solitude_reason', None), 5)
 
-        duration = (self._get_current_time() - self.solitude_start_time).total_seconds() / 60
+        duration = (self._time_service.now() - self.solitude_start_time).total_seconds() / 60
         return duration >= min_duration_minutes
 
     def _get_solitude_duration_minutes(self) -> float:
         """Get how long we've been in solitude."""
         if not hasattr(self, 'solitude_start_time') or not self.solitude_start_time:
             return 0.0
-        return (self._get_current_time() - self.solitude_start_time).total_seconds() / 60
+        return (self._time_service.now() - self.solitude_start_time).total_seconds() / 60
 
     def set_solitude_reason(self, reason: str) -> None:
         """Set why the agent entered solitude."""
         self.solitude_reason = reason
-        self.solitude_start_time = self._get_current_time()
+        self.solitude_start_time = self._time_service.now()
         logger.info(f"Entering solitude: {reason}")
 
     def _initialize_time_service(self, service_registry: "ServiceRegistry") -> None:
@@ -310,10 +310,3 @@ class SolitudeProcessor(BaseProcessor):
         except Exception as e:
             logger.error(f"Failed to get TimeService: {e}")
 
-    def _get_current_time(self) -> datetime:
-        """Get current time from TimeService or fallback to UTC."""
-        if self._time_service:
-            return self._time_service.now()
-        # Fallback if time service not available
-        logger.warning("TimeService not available, using fallback UTC time")
-        return datetime.now(timezone.utc)

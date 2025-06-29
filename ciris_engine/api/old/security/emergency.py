@@ -7,7 +7,7 @@ without requiring normal authentication.
 import hashlib
 import hmac
 import json
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any
 from datetime import datetime, timezone
 import logging
 
@@ -156,7 +156,7 @@ class EmergencyShutdownVerifier:
 
     @staticmethod
     def generate_signature(
-        command_dict: Dict[str, any],
+        command_dict: Dict[str, Any],
         private_key: str
     ) -> str:
         """

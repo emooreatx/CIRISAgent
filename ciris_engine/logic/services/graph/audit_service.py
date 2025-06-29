@@ -30,7 +30,7 @@ from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.runtime.audit import AuditActionContext, AuditConscienceResult, AuditRequest
 # TSDB functionality integrated into graph nodes
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode, AuditEntryContext
 from ciris_engine.schemas.services.operations import MemoryOpStatus
 from ciris_engine.schemas.services.graph.audit import (
@@ -124,9 +124,11 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         self._export_buffer: List[AuditRequest] = []
         self._export_task: Optional[asyncio.Task] = None
 
-    def set_service_registry(self, registry: 'ServiceRegistry') -> None:
+    def set_service_registry(self, registry: object) -> None:
         """Set the service registry for accessing memory bus."""
-        self._service_registry = registry
+        from ciris_engine.logic.registries.base import ServiceRegistry
+        if isinstance(registry, ServiceRegistry):
+            self._service_registry = registry
         if not self._memory_bus and registry:
             try:
                 from ciris_engine.logic.buses import MemoryBus
@@ -1113,9 +1115,11 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         from ciris_engine.schemas.services.operations import MemoryQuery
 
         query = MemoryQuery(
-            filters={"event_id": event_id},
-            scope="audit",
-            limit=1
+            node_id=event_id,
+            scope=GraphScope.LOCAL,
+            type=NodeType.AUDIT,
+            include_edges=False,
+            depth=1
         )
 
         if self._memory_bus:

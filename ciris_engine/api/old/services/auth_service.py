@@ -37,7 +37,7 @@ class OAuthUser:
 class APIAuthService:
     """Simple in-memory authentication service."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # In production, these would be backed by a database
         self._api_keys: Dict[str, StoredAPIKey] = {}
         self._oauth_users: Dict[str, OAuthUser] = {}

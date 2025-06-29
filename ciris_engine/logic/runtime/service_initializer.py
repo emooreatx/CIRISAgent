@@ -82,6 +82,7 @@ class ServiceInitializer:
         self.time_service = TimeService()
         await self.time_service.start()
         logger.info("TimeService initialized")
+        assert self.time_service is not None  # For type checker
 
         # Note: TimeService will be registered in ServiceRegistry later
         # when the registry is created in initialize_all_services()

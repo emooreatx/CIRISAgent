@@ -445,13 +445,13 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
         result = await self.adapter_manager.load_adapter(adapter_type, adapter_id, config)
 
         return AdapterOperationResponse(
-            success=result.get("success", False),
-            adapter_id=result.get("adapter_id", adapter_id),
+            success=result.success,
+            adapter_id=result.adapter_id,
             adapter_type=adapter_type,
             timestamp=self._time_service.now(),
-            status=AdapterStatus.RUNNING if result.get("success") else AdapterStatus.ERROR,
-            message=result.get("message"),
-            error=result.get("error")
+            status=AdapterStatus.RUNNING if result.success else AdapterStatus.ERROR,
+            message=result.message,
+            error=result.error
         )
 
     async def unload_adapter(
@@ -475,15 +475,15 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
         # Call adapter manager (note: it doesn't use force parameter)
         result = await self.adapter_manager.unload_adapter(adapter_id)
 
-        # Convert dict response to AdapterOperationResponse
+        # Convert AdapterOperationResult to AdapterOperationResponse
         return AdapterOperationResponse(
-            success=result.get("success", False),
-            adapter_id=result.get("adapter_id", adapter_id),
-            adapter_type=result.get("adapter_type", "unknown"),
+            success=result.success,
+            adapter_id=result.adapter_id,
+            adapter_type=result.adapter_type or "unknown",
             timestamp=self._time_service.now(),
-            status=AdapterStatus.STOPPED if result.get("success") else AdapterStatus.ERROR,
-            message=result.get("message"),
-            error=result.get("error")
+            status=AdapterStatus.STOPPED if result.success else AdapterStatus.ERROR,
+            message=result.message,
+            error=result.error
         )
 
     async def list_adapters(self) -> List[AdapterInfo]:
@@ -494,22 +494,22 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
         adapters_raw = await self.adapter_manager.list_adapters()
         adapters_list = []
 
-        for adapter_dict in adapters_raw:
-            # Map the status string to AdapterStatus enum
-            status_str = adapter_dict.get("status", "unknown")
-            try:
-                status = AdapterStatus(status_str)
-            except ValueError:
-                status = AdapterStatus.ERROR
+        for adapter_status in adapters_raw:
+            # AdapterStatus from adapter_manager already has the right fields
+            # Convert is_running to status enum
+            if adapter_status.is_running:
+                status = AdapterStatus.RUNNING
+            else:
+                status = AdapterStatus.STOPPED
 
             adapters_list.append(AdapterInfo(
-                adapter_id=adapter_dict.get("adapter_id", ""),
-                adapter_type=adapter_dict.get("adapter_type", ""),
+                adapter_id=adapter_status.adapter_id,
+                adapter_type=adapter_status.adapter_type,
                 status=status,
-                started_at=adapter_dict.get("loaded_at", self._time_service.now()),
-                messages_processed=adapter_dict.get("metrics", {}).get("messages_processed", 0),
-                error_count=adapter_dict.get("metrics", {}).get("errors_count", 0),
-                last_error=adapter_dict.get("metrics", {}).get("last_error")
+                started_at=adapter_status.loaded_at,
+                messages_processed=adapter_status.metrics.messages_processed if adapter_status.metrics else 0,
+                error_count=adapter_status.metrics.errors_count if adapter_status.metrics else 0,
+                last_error=adapter_status.metrics.last_error if adapter_status.metrics else None
             ))
 
         return adapters_list
@@ -693,8 +693,8 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
             adapters = []
             if self.adapter_manager:
                 adapters = await self.adapter_manager.list_adapters()
-            _active_adapters = [a["adapter_id"] for a in adapters if a.get("status") == "active" or a.get("is_running") is True]
-            _loaded_adapters = [a["adapter_id"] for a in adapters]
+            _active_adapters = [a.adapter_id for a in adapters if a.is_running]
+            _loaded_adapters = [a.adapter_id for a in adapters]
 
             # Agent identity is now stored in graph, not profiles
             _current_profile = "identity-based"

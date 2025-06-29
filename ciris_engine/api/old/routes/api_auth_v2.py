@@ -198,7 +198,7 @@ async def _fetch_user_profile(
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest, req: Request):
+async def login(request: LoginRequest, req: Request) -> LoginResponse:
     """Authenticate with username/password (ROOT only)."""
     config_service = getattr(req.app.state, 'config_service', None)
     auth_service = getattr(req.app.state, 'auth_service', None)
@@ -321,7 +321,7 @@ async def oauth_callback(
     state: Optional[str] = None,
     error: Optional[str] = None,
     error_description: Optional[str] = None
-):
+) -> OAuth2CallbackResponse:
     """Handle OAuth callback from provider."""
     # Check for errors from provider
     if error:
@@ -415,7 +415,7 @@ async def oauth_callback(
 async def create_api_key(
     request: APIKeyCreateRequest,
     auth: AuthContext = Depends(require_admin)
-):
+) -> APIKeyResponse:
     """Create a new API key (ADMIN+ only)."""
     # Validate role assignment
     if request.role.value > auth.role.value:

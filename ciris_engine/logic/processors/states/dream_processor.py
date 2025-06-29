@@ -156,13 +156,6 @@ class DreamProcessor(BaseProcessor):
         except Exception as e:
             logger.error(f"Failed to get TimeService: {e}")
 
-    def _get_current_time(self) -> datetime:
-        """Get current time from TimeService or fallback to UTC."""
-        if self._time_service:
-            return self._time_service.now()
-        # Fallback if time service not available
-        logger.warning("TimeService not available, using fallback UTC time")
-        return datetime.now(timezone.utc)
 
     def _check_cirisnode_enabled(self) -> bool:
         """Check if CIRISNode is configured."""
@@ -305,14 +298,14 @@ class DreamProcessor(BaseProcessor):
                 memory_bus=self.memory_bus,
                 adaptation_interval_hours=6  # Match our dream schedule
             )
-            self.self_config_service.set_service_registry(self.service_registry)
+            self.self_config_service._set_service_registry(self.service_registry)
 
             # Initialize telemetry service
             self.telemetry_service = GraphTelemetryService(
                 memory_bus=self.memory_bus,
                 consolidation_threshold_hours=6  # Consolidate during dreams
             )
-            self.telemetry_service.set_service_registry(self.service_registry)
+            self.telemetry_service._set_service_registry(self.service_registry)
 
             # Initialize identity baseline if needed
             if self.identity_manager and self.identity_manager.agent_identity:
@@ -353,7 +346,7 @@ class DreamProcessor(BaseProcessor):
             self._stop_event.clear()
 
         # Create session
-        current_time = self._get_current_time()
+        current_time = self._time_service.now()
         self.current_session = DreamSession(
             session_id=f"dream_{int(current_time.timestamp())}",
             scheduled_start=None,  # This is immediate entry
@@ -410,10 +403,10 @@ class DreamProcessor(BaseProcessor):
             self.cirisnode_client = None
 
         if self.current_session:
-            self.current_session.completed_at = self._get_current_time()
+            self.current_session.completed_at = self._time_service.now()
             await self._record_dream_session()
 
-        self.dream_metrics["end_time"] = self._get_current_time().isoformat()
+        self.dream_metrics["end_time"] = self._time_service.now().isoformat()
         logger.info("Dream cycle stopped")
 
     async def _announce_dream_entry(self, duration: float) -> None:
@@ -531,7 +524,7 @@ class DreamProcessor(BaseProcessor):
 
             # Process rounds until time expires or all tasks complete
             while not self._should_exit(start_time, end_time):
-                round_start = self._get_current_time()
+                round_start = self._time_service.now()
 
                 # Update phase based on active tasks
                 await self._update_current_phase()
@@ -546,7 +539,7 @@ class DreamProcessor(BaseProcessor):
                     self.current_session.adaptations_made += metrics.get("adaptations_made", 0)
 
                 # Log round completion
-                round_duration = (self._get_current_time() - round_start).total_seconds()
+                round_duration = (self._time_service.now() - round_start).total_seconds()
                 logger.info(
                     f"Dream round {round_number} completed in {round_duration:.2f}s "
                     f"(processed: {metrics['thoughts_processed']}, errors: {metrics['errors']})"
@@ -613,7 +606,7 @@ class DreamProcessor(BaseProcessor):
         """Record how long a phase took."""
         if not self.current_session:
             return
-        duration = (self._get_current_time() - start_time).total_seconds()
+        duration = (self._time_service.now() - start_time).total_seconds()
         self.current_session.phase_durations[phase.value] = duration
 
     # Phase methods removed - using standard task/thought processing instead
@@ -742,7 +735,7 @@ class DreamProcessor(BaseProcessor):
 
         try:
             # Schedule 6 hours from now
-            next_dream_time = self._get_current_time() + timedelta(hours=6)
+            next_dream_time = self._time_service.now() + timedelta(hours=6)
 
             dream_task = GraphNode(
                 id=f"dream_schedule_{int(next_dream_time.timestamp())}",
@@ -859,7 +852,7 @@ class DreamProcessor(BaseProcessor):
 
         try:
             # Query for recent behavioral pattern insights
-            current_time = self._get_current_time()
+            current_time = self._time_service.now()
             window_start = current_time - timedelta(hours=6)  # Since last dream cycle
 
             # Use search to find CONCEPT nodes, then filter by attributes
@@ -963,7 +956,7 @@ class DreamProcessor(BaseProcessor):
             return None
 
         try:
-            future_time = self._get_current_time() + timedelta(hours=hours_ahead)
+            future_time = self._time_service.now() + timedelta(hours=hours_ahead)
             # Use description hash to ensure unique IDs
             import hashlib
             desc_hash = hashlib.md5(description.encode()).hexdigest()[:8]
@@ -1040,7 +1033,7 @@ class DreamProcessor(BaseProcessor):
                     "insights": self.current_session.insights_gained,
                     "ponder_questions": self.current_session.ponder_questions_processed[:10],  # Top 10
                     "phase_durations": self.current_session.phase_durations,
-                    "timestamp": self._get_current_time().isoformat()
+                    "timestamp": self._time_service.now().isoformat()
                 }
             )
 
@@ -1083,7 +1076,7 @@ class DreamProcessor(BaseProcessor):
 
             # Count recent vibes (last 24 hours)
             from datetime import datetime, timedelta
-            recent_cutoff = self._get_current_time() - timedelta(hours=24)
+            recent_cutoff = self._time_service.now() - timedelta(hours=24)
             recent_vibes = []
 
             for vibe in vibes:
@@ -1157,7 +1150,7 @@ class DreamProcessor(BaseProcessor):
             summary["current_session"] = {
                 "session_id": self.current_session.session_id,
                 "phase": self.current_session.phase.value,
-                "duration": (self._get_current_time() - self.current_session.actual_start).total_seconds(),
+                "duration": (self._time_service.now() - self.current_session.actual_start).total_seconds(),
                 "memories_consolidated": self.current_session.memories_consolidated,
                 "patterns_analyzed": self.current_session.patterns_analyzed,
                 "adaptations_made": self.current_session.adaptations_made,
@@ -1170,13 +1163,13 @@ class DreamProcessor(BaseProcessor):
     async def initialize(self) -> bool:
         """Initialize the processor with TimeService awareness."""
         # Use our time service instead of time_utils
-        self.metrics.start_time = self._get_current_time()
+        self.metrics.start_time = self._time_service.now()
         return True
 
     async def cleanup(self) -> bool:
         """Clean up processor resources with TimeService awareness."""
         # Use our time service instead of time_utils
-        self.metrics.end_time = self._get_current_time()
+        self.metrics.end_time = self._time_service.now()
         return True
 
     def get_supported_states(self) -> List[AgentState]:
@@ -1211,7 +1204,7 @@ class DreamProcessor(BaseProcessor):
         dream_complete = False
         if self.current_session and self.current_session.phase == DreamPhase.EXITING:
             # Check if minimum duration has passed
-            session_duration = (self._get_current_time() - self.current_session.actual_start).total_seconds()
+            session_duration = (self._time_service.now() - self.current_session.actual_start).total_seconds()
             _dream_complete = session_duration >= (self.min_dream_duration * 60)
 
         return DreamResult(
@@ -1240,7 +1233,7 @@ class DreamProcessor(BaseProcessor):
         # Check if we're due for a dream (every 6 hours)
         if self.dream_metrics.get("end_time"):
             last_dream = datetime.fromisoformat(self.dream_metrics["end_time"])
-            hours_since = (self._get_current_time() - last_dream).total_seconds() / 3600
+            hours_since = (self._time_service.now() - last_dream).total_seconds() / 3600
 
             if hours_since >= 6:
                 logger.info(f"Due for dream session (last dream {hours_since:.1f} hours ago)")

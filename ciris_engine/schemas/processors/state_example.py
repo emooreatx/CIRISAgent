@@ -15,7 +15,7 @@ from ciris_engine.schemas.processors.state import (
 )
 
 
-def example_state_transition():
+def example_state_transition() -> None:
     """Example of recording a state transition."""
     # Create a transition record
     transition = StateTransitionRecord(
@@ -33,7 +33,7 @@ def example_state_transition():
     # transition.to_state = "PLAY"  # This would raise an error
 
 
-def example_state_request():
+def example_state_request() -> None:
     """Example of requesting a state transition."""
     # Request a transition
     request = StateTransitionRequest(
@@ -50,7 +50,7 @@ def example_state_request():
         print(f"Requesting transition to {request.target_state.value}: {request.reason}")
 
 
-def example_state_result():
+def example_state_result() -> None:
     """Example of handling transition results."""
     # Successful transition
     success_result = StateTransitionResult(
@@ -82,7 +82,7 @@ def example_state_result():
             print(f"  Reason: {result.reason}")
 
 
-def example_state_history():
+def example_state_history() -> None:
     """Example of working with state history."""
     # Create some historical transitions
     history = StateHistory(
@@ -125,7 +125,7 @@ def example_state_history():
     print(f"Current state metrics: {history.current_state_metadata.metrics}")
 
 
-def example_state_validation():
+def example_state_validation() -> None:
     """Example of validating state transitions."""
     # Check if a transition is valid
     validation = StateTransitionValidation(

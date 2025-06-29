@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, TYPE_CHECKING, cast
+from typing import List, Optional, TYPE_CHECKING, cast, Any
 
 import httpx
 
@@ -96,8 +96,8 @@ class CIRISNodeClient(Service):
     def is_closed(self) -> bool:
         return self._closed
 
-    async def _post(self, endpoint: str, payload: dict):
-        async def _make_request():
+    async def _post(self, endpoint: str, payload: dict) -> Any:
+        async def _make_request() -> Any:
             resp = await self._client.post(endpoint, json=payload)
             if 400 <= resp.status_code < 500:
                 resp.raise_for_status()  # Don't retry 4xx client errors
@@ -111,8 +111,8 @@ class CIRISNodeClient(Service):
             **self.get_retry_config("http_request")
         )
 
-    async def _get(self, endpoint: str, params: dict):
-        async def _make_request():
+    async def _get(self, endpoint: str, params: dict) -> Any:
+        async def _make_request() -> Any:
             resp = await self._client.get(endpoint, params=params)
             if 400 <= resp.status_code < 500:
                 resp.raise_for_status()  # Don't retry 4xx client errors
@@ -126,8 +126,8 @@ class CIRISNodeClient(Service):
             **self.get_retry_config("http_request")
         )
 
-    async def _put(self, endpoint: str, payload: dict):
-        async def _make_request():
+    async def _put(self, endpoint: str, payload: dict) -> Any:
+        async def _make_request() -> Any:
             resp = await self._client.put(endpoint, json=payload)
             if 400 <= resp.status_code < 500:
                 resp.raise_for_status()  # Don't retry 4xx client errors

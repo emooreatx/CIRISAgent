@@ -25,7 +25,7 @@ def add_correlation(corr: ServiceCorrelation, time_service: TimeServiceProtocol,
         if isinstance(corr.timestamp, datetime):
             timestamp_str = corr.timestamp.isoformat()
         else:
-            timestamp_str = str(corr.timestamp)  # type: ignore[unreachable]
+            timestamp_str = str(corr.timestamp)
 
     params = (
         corr.correlation_id,

@@ -93,7 +93,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
 
     async def handle_incoming_message(self, msg: DiscordMessage) -> None:
         if not isinstance(msg, DiscordMessage):
-            logger.warning("DiscordObserver received non-DiscordMessage")  # type: ignore[unreachable]
+            logger.warning("DiscordObserver received non-DiscordMessage")
             return
         # Check if message is from a monitored channel or deferral channel
         is_from_monitored = (self.monitored_channel_ids and msg.channel_id in self.monitored_channel_ids)

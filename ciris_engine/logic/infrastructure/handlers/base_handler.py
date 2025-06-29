@@ -4,7 +4,7 @@ Base action handler - clean architecture with BusManager
 
 import asyncio
 import logging
-from typing import Any, Callable, Optional, Type
+from typing import Any, Callable, Optional, Type, TypeVar
 from abc import ABC, abstractmethod
 
 from ciris_engine.schemas.runtime.models import Thought
@@ -15,12 +15,15 @@ from ciris_engine.schemas.audit.core import AuditEventType
 from ciris_engine.logic.utils.channel_utils import extract_channel_id
 
 from ciris_engine.logic.secrets.service import SecretsService
+from ciris_engine.schemas.secrets.service import DecapsulationContext
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.utils.shutdown_manager import (
     request_global_shutdown
 )
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from pydantic import BaseModel, ValidationError
+
+T = TypeVar('T', bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 
@@ -147,8 +150,8 @@ class BaseActionHandler(ABC):
     async def _validate_and_convert_params(
         self,
         params: Any,
-        param_class: Type[BaseModel]
-    ) -> BaseModel:
+        param_class: Type[T]
+    ) -> T:
         """Validate and convert parameters to the expected type."""
         if isinstance(params, param_class):
             return params
@@ -173,7 +176,8 @@ class BaseActionHandler(ABC):
     async def _decapsulate_secrets_in_params(
         self,
         result: ActionSelectionDMAResult,
-        action_name: str
+        action_name: str,
+        thought_id: str
     ) -> ActionSelectionDMAResult:
         """Auto-decapsulate any secrets in action parameters."""
         if not self.dependencies.secrets_service:
@@ -190,7 +194,10 @@ class BaseActionHandler(ABC):
                 decapsulated_params = await self.dependencies.secrets_service.decapsulate_secrets_in_parameters(
                     action_type=action_name,
                     action_params=params_dict,
-                    context={"source": "action_handler", "handler": self.__class__.__name__}
+                    context=DecapsulationContext(
+                        action_type=action_name,
+                        thought_id=thought_id
+                    )
                 )
                 # Create a new result with decapsulated parameters
                 return ActionSelectionDMAResult(
@@ -240,7 +247,7 @@ class BaseActionHandler(ABC):
     ) -> bool:
         """Send a notification using the communication bus."""
         if not isinstance(content, str):
-            self.logger.error(f"Content must be a string, got {type(content)}")  # type: ignore[unreachable]
+            self.logger.error(f"Content must be a string, got {type(content)}")
             return False
 
         if not channel_id or not content:

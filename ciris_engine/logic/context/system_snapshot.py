@@ -109,8 +109,8 @@ async def build_system_snapshot(
             if not channel_nodes:
                 from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
                 search_filter = MemorySearchFilter(
-                    node_types=[NodeType.CHANNEL],
-                    scopes=[GraphScope.LOCAL],
+                    node_type=NodeType.CHANNEL.value,
+                    scope=GraphScope.LOCAL.value,
                     limit=10
                 )
                 # Search by channel ID in attributes

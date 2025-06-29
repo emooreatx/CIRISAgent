@@ -48,9 +48,9 @@ class SpeakHandler(BaseActionHandler):
 
         try:
             # Auto-decapsulate any secrets in the action parameters
-            processed_result = await self._decapsulate_secrets_in_params(result, "speak")
+            processed_result = await self._decapsulate_secrets_in_params(result, "speak", thought.thought_id)
 
-            params = await self._validate_and_convert_params(processed_result.action_parameters, SpeakParams)
+            params: SpeakParams = await self._validate_and_convert_params(processed_result.action_parameters, SpeakParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, e)
             persistence.update_thought_status(
@@ -80,7 +80,7 @@ class SpeakHandler(BaseActionHandler):
 
         logger.info(f"SPEAK: Using channel_id '{channel_id}' from context")
 
-        event_summary = params.content  # type: ignore[attr-defined]
+        event_summary = params.content
         await self._audit_log(
             HandlerActionType.SPEAK,
             dispatch_context.model_copy(update={"thought_id": thought_id, "event_summary": event_summary}),
@@ -88,7 +88,7 @@ class SpeakHandler(BaseActionHandler):
         )
 
         # Extract string from GraphNode for notification
-        content_str = params.content.attributes.get('text', str(params.content)) if hasattr(params.content, 'attributes') else str(params.content)  # type: ignore[attr-defined]
+        content_str = params.content.attributes.get('text', str(params.content)) if hasattr(params.content, 'attributes') else str(params.content)
         success = await self._send_notification(channel_id, content_str)
 
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED

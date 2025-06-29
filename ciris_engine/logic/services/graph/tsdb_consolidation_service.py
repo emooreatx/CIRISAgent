@@ -87,15 +87,10 @@ class TSDBConsolidationService(BaseGraphService):
             if time_services:
                 self._time_service = time_services[0].provider
 
-    def _get_current_time(self) -> datetime:
-        """Get current time from time service."""
-        if not self._time_service:
-            raise RuntimeError("FATAL: TimeService not available! This is a critical system failure.")
-        return self._time_service.now()
 
     def _now(self) -> datetime:
         """Get current time from time service (alias for compatibility)."""
-        return self._get_current_time()
+        return self._time_service.now() if self._time_service else datetime.now(timezone.utc)
 
     async def start(self) -> None:
         """Start the consolidation service."""
@@ -458,7 +453,7 @@ class TSDBConsolidationService(BaseGraphService):
                 "task_running": 1.0 if (self._consolidation_task and not self._consolidation_task.done()) else 0.0
             },
             last_error=None,
-            last_health_check=self._get_current_time() if self._time_service else None
+            last_health_check=self._time_service.now() if self._time_service else None
         )
 
     async def _force_consolidation(self, period_start: datetime) -> Optional[TSDBSummary]:

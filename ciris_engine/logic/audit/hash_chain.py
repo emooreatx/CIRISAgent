@@ -129,10 +129,11 @@ class AuditHashChain:
                 result = HashChainVerificationResult(
                     valid=True,
                     entries_checked=0,
-                    errors=[]
+                    errors=[],
+                    last_sequence=0
                 )
             else:
-                errors: List[object] = []
+                errors: List[str] = []
                 previous_hash: Optional[str] = None
 
                 # If not starting from sequence 1, get the previous entry's hash
@@ -173,10 +174,11 @@ class AuditHashChain:
 
         except sqlite3.Error as e:
             logger.error(f"Chain verification failed: {e}")
-            result = ChainVerificationResult(
+            result = HashChainVerificationResult(
                 valid=False,
                 entries_checked=0,
-                errors=[f"Database error: {e}"]
+                errors=[f"Database error: {e}"],
+                last_sequence=0
             )
         finally:
             if conn:

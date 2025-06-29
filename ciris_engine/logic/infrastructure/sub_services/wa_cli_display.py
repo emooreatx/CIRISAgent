@@ -8,15 +8,15 @@ from rich.console import Console
 from rich.table import Table
 from rich.tree import Tree
 
-from ciris_engine.schemas.services.core import WACertificate
-from ciris_engine.logic.services.governance.authentication import WAAuthService
+from ciris_engine.schemas.services.authority_core import WACertificate
+from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
 
 logger = logging.getLogger(__name__)
 
 class WACLIDisplayService:
     """Handles WA listing and visualization operations."""
 
-    def __init__(self, auth_service: WAAuthService):
+    def __init__(self, auth_service: AuthenticationService):
         """Initialize display service with authentication service."""
         self.auth_service = auth_service
         self.console = Console()

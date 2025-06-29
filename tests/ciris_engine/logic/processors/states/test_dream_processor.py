@@ -204,7 +204,7 @@ class TestDreamProcessor:
         # Start dreaming to create session
         await dream_processor.start_dreaming(duration=60)
         dream_processor.current_session.phase = DreamPhase.EXITING
-        dream_processor.current_session.actual_start = dream_processor._get_current_time() - timedelta(minutes=2)
+        dream_processor.current_session.actual_start = dream_processor._time_service.now() - timedelta(minutes=2)
 
         result = await dream_processor.process(6)
 
@@ -314,7 +314,7 @@ class TestDreamProcessor:
 
         # Set to EXITING but not enough time passed
         dream_processor.current_session.phase = DreamPhase.EXITING
-        dream_processor.current_session.actual_start = dream_processor._get_current_time()
+        dream_processor.current_session.actual_start = dream_processor._time_service.now()
 
         result = await dream_processor.process(10)
 

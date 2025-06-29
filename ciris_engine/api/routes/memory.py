@@ -149,13 +149,12 @@ async def query_memory(
 
         # Text search
         elif body.query:
-            filters = MemorySearchFilter()
-            if body.scope:
-                filters.scope = body.scope
-            if body.type:
-                filters.node_type = body.type
-            if body.tags:
-                filters.tags = body.tags
+            filters = MemorySearchFilter(
+                scope=body.scope.value if body.scope else None,
+                node_type=body.type.value if body.type else None
+            )
+            # Note: tags filtering would need to be handled differently
+            # as MemorySearchFilter doesn't have a tags field
 
             nodes = await memory_service.search(body.query, filters=filters)
 

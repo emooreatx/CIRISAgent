@@ -185,7 +185,7 @@ class ConfigValueResponse(BaseModel):
     updated_by: Optional[str] = Field(None, description="Who last updated this value")
 
     @field_serializer('last_updated')
-    def serialize_last_updated(self, last_updated: Optional[datetime], _info):
+    def serialize_last_updated(self, last_updated: Optional[datetime], _info: Any) -> Optional[str]:
         return last_updated.isoformat() if last_updated else None
 
 class ConfigListResponse(BaseModel):
